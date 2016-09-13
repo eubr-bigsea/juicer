@@ -1,23 +1,20 @@
-class Operation():
-    pass
 
-class sparkOperation(Operation):
-    pass
+class DataReader():
+    def __init__(self,infile):
+        self.infile = infile
+    def read_csv(self, has_header, sep_char, spark):
+        return spark.read.csv(self.infile, header=has_header, sep=sep_char)
 
-class spark_randomSplit(sparkOperation):
-    
 
-from pyspark.sql import SparkSession
+class RandomSplit():
 
-spark = SparkSession\
-    .builder\
-    .appName("## Lemonade_workflow_consumer ##")\
-    .getOrCreate()
+    def __init__(self, weights, seed):
+        self.weight_1 = weights[0]
+        self.weight_2 = weights[1]
+        self.seed = seed
+ 
+    def split(self, dataframe):
+        return dataframe.randomSplit([self.weight_1,self.weight_2], self.seed)
 
-def random_split(task, response):
-    
-    splitResult = dataFrame.randomSplit([1.0,3.0], seed)
-    this_response = {}
-    response.append()
 
 
