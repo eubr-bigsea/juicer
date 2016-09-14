@@ -6,7 +6,8 @@ import operation
 classes = {}
 classes['DATA_READER'] = operation.DataReader
 classes['RANDOM_SPLIT'] = operation.RandomSplit
-classes['DISTINCT_UNION'] = operation.Union
+classes['UNION'] = operation.Union
+classes['SORT'] = operation.Sort
 
 args = {}
 workflow = {}
@@ -34,20 +35,23 @@ def read_json():
 
 def print_session(output):
     output.write("from pyspark.sql import SparkSession \n\n")
-    output.write("spark = SparkSession.builder.appName('## Lemonade_workflow_consumer ##').getOrCreate()")
-    output.write("\n\n")
-    #output.write()
+    output.write("spark = SparkSession\\\n")
+    output.write("    .builder\\\n")
+    output.write("    .appName('## Lemonade_workflow_consumer ##')\\\n")
+    output.write("    .getOrCreate()\n\n")
+
 
 if __name__ == '__main__':
     read_parameters()
     read_json()
+    #json_validation()
     #user_authentication()
     #create_log()
     output = open(args['outfile'], 'w')
     print_session(output)
 
     for task in workflow['tasks']:
-        output.write("\n#" + task['operation_name'] + "\n")
+        output.write("\n# " + task['operation_name'] + "\n")
 
         # BEFORE OPERATION, CREATE A RECORD FOR EACH OUT PORT AND
         # CREATE AN ARRAY WITH THE IN AND OUT DATAFRAMES RELATED TO THE OPERATION PORTS

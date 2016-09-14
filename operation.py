@@ -1,4 +1,4 @@
-
+import json
 
 class DataReader():
     '''
@@ -70,12 +70,12 @@ class Sort():
     Condition: the list of columns should have the same size of the list of boolean to indicating if it is ascending sorting.
     '''
     def __init__(self, parameters, input_df, output_df):
-        self.columns = parameters['distinct']
+        self.columns = parameters['columns']
         self.ascending = parameters['ascending']
         self.input_df = input_df
         self.output_df = output_df
     def generate_code(self):
-        spark_code = (self.output_df[0] + " = " + self.input_df[0] + ".orderBy(" + self.columns + \
-                     ", ascending = " + self.ascending + ")")
+        spark_code = (self.output_df[0] + " = " + self.input_df[0] + ".orderBy(" + str(json.dumps(self.columns)) + \
+                     ", ascending = " + str(json.dumps(self.ascending)) + ")")
         return spark_code
 
