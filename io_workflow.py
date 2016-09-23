@@ -1,13 +1,14 @@
 import sys
 import argparse
 import json
-import operation
+from juicer.spark import operation
 
 classes = {}
 classes['DATA_READER'] = operation.DataReader
 classes['RANDOM_SPLIT'] = operation.RandomSplit
 classes['UNION'] = operation.Union
 classes['SORT'] = operation.Sort
+classes['SAVE'] = operation.Save
 
 args = {}
 workflow = {}
@@ -33,11 +34,12 @@ def read_json():
     with open(args['json']) as json_infile:
         workflow = json.load(json_infile)
 
+
 def print_session(output):
     output.write("from pyspark.sql import SparkSession \n\n")
     output.write("spark = SparkSession\\\n")
     output.write("    .builder\\\n")
-    output.write("    .appName('## Lemonade_workflow_consumer ##')\\\n")
+    output.write("    .appName('## "+workflow['name']+" ##')\\\n")
     output.write("    .getOrCreate()\n\n")
 
 
