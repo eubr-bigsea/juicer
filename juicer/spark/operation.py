@@ -52,18 +52,13 @@ class RandomSplit(operation):
 class Union(operation):
     '''
     Return a new DataFrame containing union of rows in this frame and another frame.
-    Parameter: boolean distinct indicating if duplicates should be removed.
+    Takes no parameters. 
     '''
     def __init__(self, parameters, inputs, outputs):
-        self.distinct = parameters['distinct']
         self.set_io(inputs, outputs)
     def generate_code(self):
         code = "{0} = {1}.unionAll({2})".format(self.outputs[0], 
             self.inputs[0], self.inputs[1])
-        if (self.distinct == "True"):
-           code += ".distinct()"
-        else:
-           code + "\n"
         return dedent(code)
 
 
@@ -89,7 +84,7 @@ class Sort(operation):
 
 
 
-# FALTA TESTAR
+# FALTA TESTAR COM SPARK
 class Distinct(operation):
     '''
     Returns a new DataFrame containing the distinct rows in this DataFrame.
@@ -104,7 +99,7 @@ class Distinct(operation):
 
 
 
-# FALTA TESTAR
+# FALTA TESTAR COM SPARK
 class Sample(operation):
     '''
     Returns a sampled subset of this DataFrame.
@@ -128,6 +123,32 @@ class Sample(operation):
             self.fraction, self.seed)
         return dedent(code)
 
+
+
+class Intersection(operation):
+    '''
+    Returns a new DataFrame containing rows only in both this frame 
+    and another frame.
+    '''
+    def __init__(self, parameters, inputs, outputs):
+        self.set_io(inputs, outputs)
+    def generate_code(self):
+        code = "{} = {}.intersect({})".format(
+            self.outputs[0], self.inputs[0], self.inputs[1])
+        return dedent(code)
+
+
+
+class Difference(operation):
+    '''
+    Returns a new DataFrame containing rows in this frame but not in another frame.
+    '''
+    def __init__(self, parameters, inputs, outputs):
+        self.set_io(inputs, outputs)
+    def generate_code(self):
+        code = "{} = {}.subtract({})".format(
+            self.outputs[0], self.inputs[0], self.inputs[1])
+        return dedent(code)
 
 
 # FALTA TESTAR
@@ -163,18 +184,5 @@ class Save(operation):
 #            self.inputs[0], self.path)
         return dedent(code)
 
-
-
-
-
-#class (operation):
-#    def __init__(self, parameters, inputs, outputs):
-#        self. = parameters['']
-#        self. = parameters['']
-#        self. = parameters['']
-#    def generate_code(self):
-#        code = "{}.({}, {}, {})".format(
-#            self.inputs[0], self.file_format, self.mode, self.path)
-#        return dedent(code)
 
 
