@@ -14,11 +14,13 @@ if __name__ == '__main__':
     workflow = Workflow(io.args['json'])
     workflow.read_json()
     workflow.sort_tasks()
+    workflow.print_workflow()
     workflow.plot_workflow(io.args['graph_outfile'])
 
-    if workflow.workflow['framework'].lower() == "spark":
-        spark = Spark(io.args['outfile'], workflow.workflow['name'],
+    if workflow.workflow['workflow']['framework'].lower() == "spark":
+        spark = Spark(io.args['outfile'], workflow.workflow['workflow']['name'],
         workflow.sorted_tasks)
         spark.execution()
 
-    #juicer_excution(workflow, task_sorted, args['outfile'])
+    elif workflow.workflow['workflow']['framework'].lower() == "comps":
+        pass

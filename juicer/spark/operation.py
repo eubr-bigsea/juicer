@@ -1,6 +1,5 @@
+import ast
 from textwrap import dedent
-import json
-
 
 
 class operation():
@@ -14,18 +13,17 @@ class DataReader(operation):
     '''
     Reads a database.
     Parameters:
-    - File format (for now, just csv is suported).
-    - Boolean value indicating if the file has a header.
-    - Delimiter char for the csv file.
+    - Limonero database ID
     '''
     def __init__(self, parameters, inputs, outputs):
-        self.infile = parameters['infile']
-        self.header = parameters['has_header']
-        self.delimiter = parameters['sep']
+        limonero = limonero.Limonero()
+        self.database_id = parameters['database_id']
         self.set_io(inputs, outputs)
+
     def generate_code(self):
-        code = """{0} = spark.read.csv('{1}', header={2}, sep='{3}')""".format(
-            self.outputs[0], self.infile, self.header, self.delimiter)
+        #code = """{0} = spark.read.csv('{1}', header={2}, sep='{3}')""".format(
+        #   self.outputs[0], self.infile, self.header, self.delimiter)
+        code = "Datareader"
         return dedent(code)
 
 
@@ -38,7 +36,7 @@ class RandomSplit(operation):
     - Optional seed in case of deterministic random operation ('0' means no seed).
     '''
     def __init__(self, parameters, inputs, outputs):
-        self.weights = map(lambda x: float(x), parameters['weights'])
+        self.weights = map(lambda x: float(x), ast.literal_eval(parameters['weights']))
         self.seed = parameters['seed']
         self.set_io(inputs, outputs)
     def generate_code(self):
@@ -74,8 +72,8 @@ class Sort(operation):
                boolean to indicating if it is ascending sorting.
     '''
     def __init__(self, parameters, inputs, outputs):
-        self.columns = parameters['columns']
-        self.ascending = map(lambda x: int(x), parameters['ascending'])
+        self.columns = ast.literal_eval(parameters['columns'])
+        self.ascending = map(lambda x: int(x), ast.literal_eval(parameters['ascending']))
         self.set_io(inputs, outputs)
     def generate_code(self):
         code = "{0} = {1}.orderBy({2}, ascending={3})".format(self.outputs[0], 
@@ -156,18 +154,11 @@ class Save(operation):
     '''
     Saves the content of the DataFrame at the specified path.
     Parameters:
-    - Format -> Supported formats: CSV, Json and Parquet.
-      CSV files must have header, comma as separator and quotation marks for strings
-    - Path -> the path in any Hadoop supported file system
-    - Mode -> specifies the behavior of the save operation when data already exists.
-              (append or overwrite or ignore or error)
-    - Compression ->  compression codec to use when saving to file.
-                      (none, bzip2, gzip, lz4, snappy and deflate)   
     '''
     def __init__(self, parameters, inputs, outputs):
-        self.path = parameters['path']
-        self.file_format = parameters['format']
-        self.mode = parameters['mode']
+        #self.path = parameters['path']
+        #self.file_format = parameters['format']
+        #self.mode = parameters['mode']
 #        if parameters.has_key['mode']:
 #            self.mode = parameters['mode']
 #        else:
@@ -178,8 +169,9 @@ class Save(operation):
 #            self.compression = None
         self.set_io(inputs, outputs)
     def generate_code(self):
-        code = "{}.write.format('{}').mode('{}').save('{}')".format(
-            self.inputs[0], self.file_format, self.mode, self.path)
+        code = "Data writer"
+        #code = "{}.write.format('{}').mode('{}').save('{}')".format(
+        #    self.inputs[0], self.file_format, self.mode, self.path)
 #        code = "{}.write.csv('{}')".format(
 #            self.inputs[0], self.path)
         return dedent(code)

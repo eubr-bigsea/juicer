@@ -1,6 +1,5 @@
 from juicer.spark import operation
 
-
 class Spark:
 
     def __init__(self, outfile, workflow_name, tasks):
@@ -28,26 +27,23 @@ class Spark:
 
     def map_port(self, task, input_list, output_list):
         ''' Map each port of a task to a dict '''
-
         for port in task['ports']:
             if port['interface'] == "dataframe":
-
-                # If port is out, create a new data frame and increment the coubter
-                if port['type'] == 'out':
-
+                # If port is out, create a new data frame and increment the counter
+                if port['direction'] == 'out':
                     self.dataframes[port['id']] = self.workflow_name + \
                         '_df_'+str(self.count_dataframes)
                     output_list.append(self.dataframes[port['id']])
                     self.count_dataframes += 1
-
-                # IF PORT IS IN, RETRIEVE THE DATAFRAME NAME
+                # If port is in, just retrieve the name of the existing dataframe
                 else:
                     input_list.append(self.dataframes[port['id']])
 
+            # For now, the only interface is dataframe. In the future,
+            # others, such as models, should be implemented
             elif port['interface'] == "model":
                 # Implement!
                 pass
-
             else:
                 # Implement!
                 pass
@@ -55,23 +51,21 @@ class Spark:
 
     def execution(self):
         ''' Executes the tasks in Lemonade's workflow '''
-
         for task in self.tasks:
-            self.output.write("\n# " + task['operation_name'] + "\n")
-
+            self.output.write("\n# " + task['operation']['name'] + "\n")
             input_list = []
             output_list = []
             self.map_port(task, input_list, output_list)
+            class_name = self.classes[task['operation']['name']]
 
-            print task['operation_name'], input_list, output_list
-
-            class_name = self.classes[task['operation_name']]
-            instance = class_name(task['parameters'][0], input_list, output_list)
-
+            parameters = {}
+            for parameter in task['parameters']:
+                if parameter['category'] == "EXECUTION":
+                    parameters[parameter['name']] = parameter['value']
+            instance = class_name(parameters, input_list, output_list)
             self.output.write(instance.generate_code() + "\n")
-
             for out in output_list:
-                self.output.write("print \"" + task['operation_name'] + "\" \n")
+                self.output.write("print \"" + task['operation']['name'] + "\" \n")
                 self.output.write(out + ".show()\n")
 
 
