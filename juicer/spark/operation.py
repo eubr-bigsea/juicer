@@ -1,12 +1,13 @@
 import ast
+import json
 from textwrap import dedent
+from metadata import MetadataGet
 
 
 class operation():
     def set_io(self, inputs, outputs):
         self.inputs = inputs
         self.outputs = outputs
-
 
 
 class DataReader(operation):
@@ -16,14 +17,27 @@ class DataReader(operation):
     - Limonero database ID
     '''
     def __init__(self, parameters, inputs, outputs):
-        limonero = limonero.Limonero()
         self.database_id = parameters['database_id']
         self.set_io(inputs, outputs)
+        metadata_obj = MetadataGet('123456')
+        self.metadata = metadata_obj.get_metadata(self.database_id)
+        # Remove the next line when port 9000 is added to limonero instance
+        self.metadata['url'] = 'hdfs://spark01.ctweb.inweb.org.br:9000/lemonade/samples/titanic2.csv'
 
     def generate_code(self):
-        #code = """{0} = spark.read.csv('{1}', header={2}, sep='{3}')""".format(
-        #   self.outputs[0], self.infile, self.header, self.delimiter)
-        code = "Datareader"
+
+        # For now, just accept CSV files.
+        # Should we create a dict with the CSV info at Limonero? such as header and sep.
+        if self.metadata['format'] == 'CSV_FILE':
+            code = """{0} = spark.read.csv('{1}',
+            header=True, sep=',' ,inferSchema=True)""".format(
+                self.outputs[0], self.metadata['url'])
+
+        elif self.metadata['format'] == 'PARQUET_FILE':
+            pass
+        elif self.metadata['format'] == 'JSON_FILE':
+            pass
+
         return dedent(code)
 
 
@@ -47,9 +61,9 @@ class RandomSplit(operation):
 
 
 
-class Union(operation):
+class AddLines(operation):
     '''
-    Return a new DataFrame containing union of rows in this frame and another frame.
+    Return a new DataFrame containing all rows in this frame and another frame.
     Takes no parameters. 
     '''
     def __init__(self, parameters, inputs, outputs):
@@ -82,7 +96,7 @@ class Sort(operation):
 
 
 
-# FALTA TESTAR COM SPARK
+
 class Distinct(operation):
     '''
     Returns a new DataFrame containing the distinct rows in this DataFrame.
@@ -97,7 +111,6 @@ class Distinct(operation):
 
 
 
-# FALTA TESTAR COM SPARK
 class Sample(operation):
     '''
     Returns a sampled subset of this DataFrame.
@@ -149,32 +162,47 @@ class Difference(operation):
         return dedent(code)
 
 
-# FALTA TESTAR
+
 class Save(operation):
     '''
     Saves the content of the DataFrame at the specified path.
     Parameters:
     '''
     def __init__(self, parameters, inputs, outputs):
-        #self.path = parameters['path']
-        #self.file_format = parameters['format']
-        #self.mode = parameters['mode']
-#        if parameters.has_key['mode']:
-#            self.mode = parameters['mode']
-#        else:
-#            self.mode = 'error'
-#        if parameters.has_key('compression'):
-#            self.compression = parameters['compression']
-#        else:
-#            self.compression = None
+        self.name = parameters['name']
+        self.format = parameters['format']
+        self.id = parameters['id']
+        self.tags =  ast.literal_eval(parameters['tags'])
         self.set_io(inputs, outputs)
+
     def generate_code(self):
-        code = "Data writer"
-        #code = "{}.write.format('{}').mode('{}').save('{}')".format(
-        #    self.inputs[0], self.file_format, self.mode, self.path)
-#        code = "{}.write.csv('{}')".format(
-#            self.inputs[0], self.path)
+
+        code = """
+            from metadata import MetadataPost
+            schema = []
+            for att in {0}.schema:
+                data = dict()
+                data['name'] = att.name
+                data['dataType'] = att.dataType
+                data['nullable'] = att.nullable
+                data['metadata'] = att.metadata
+                schema.append(data)
+            parameters = dict()
+            parameters['name'] = ''
+            parameters['format'] = ''
+            parameters['provenience'] = ''
+            parameters['storage_id'] = ''
+            parameters['description'] = ''
+            parameters['user_id'] = ''
+            parameters['user_login'] = ''
+            parameters['user_name'] = ''
+            parameters['workflow_id'] = ''
+            instance = MetadataPost('123456', schema, parameters)""".format(self.inputs[0])
+
+
+        # O codigo spark vai usar a classe metadata para fazer o request
         return dedent(code)
+
 
 
 
