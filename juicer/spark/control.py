@@ -1,10 +1,11 @@
 from juicer.spark import operation
+from textwrap import dedent
 
 class Spark:
 
-    def __init__(self, outfile, workflow_name, tasks):
+    def __init__(self, outfile, workflow, tasks):
         self.output = open(outfile, "w")
-        self.workflow_name = workflow_name
+        self.workflow = workflow
         self.print_session()
         self.tasks = tasks
         # Store the name of the dataframe in each port
@@ -18,11 +19,14 @@ class Spark:
 
     def print_session(self):
         ''' Print the PySpark header and session init  '''
-        self.output.write("from pyspark.sql import SparkSession \n\n")
-        self.output.write("spark = SparkSession\\\n")
-        self.output.write("    .builder\\\n")
-        self.output.write("    .appName('## "+self.workflow_name+" ##')\\\n")
-        self.output.write("    .getOrCreate()\n\n")
+        code = """
+        from pyspark.sql import SparkSession
+        spark = SparkSession \\
+            .builder \\
+            .appName('## {} ##') \\
+            .getOrCreate()
+        """.format(self.workflow['workflow']['name'])
+        self.output.write(dedent(code))
 
 
     def map_port(self, task, input_list, output_list):
@@ -31,7 +35,7 @@ class Spark:
             if port['interface'] == "dataframe":
                 # If port is out, create a new data frame and increment the counter
                 if port['direction'] == 'out':
-                    self.dataframes[port['id']] = self.workflow_name + \
+                    self.dataframes[port['id']] = self.workflow['workflow']['name'] + \
                         '_df_'+str(self.count_dataframes)
                     output_list.append(self.dataframes[port['id']])
                     self.count_dataframes += 1
@@ -62,20 +66,30 @@ class Spark:
             for parameter in task['parameters']:
                 if parameter['category'] == "EXECUTION":
                     parameters[parameter['name']] = parameter['value']
+
+            # Operation SAVE requires the complete workflow
+            if task['operation']['name'] == 'SAVE':
+                parameters['workflow'] = self.workflow
+
             instance = class_name(parameters, input_list, output_list)
             self.output.write(instance.generate_code() + "\n")
+
+            # Just for testing. Remove from here.
             for out in output_list:
                 self.output.write("print \"" + task['operation']['name'] + "\" \n")
                 self.output.write(out + ".show()\n")
+            # Until here.
 
 
     def assign_operations(self):
         self.classes['DATA_READER'] = operation.DataReader
         self.classes['RANDOM_SPLIT'] = operation.RandomSplit
-        self.classes['UNION'] = operation.Union
+        self.classes['ADD_LINES'] = operation.AddLines
         self.classes['SORT'] = operation.Sort
         self.classes['SAVE'] = operation.Save
         self.classes['DISTINCT'] = operation.Distinct
         self.classes['SAMPLE'] = operation.Sample
         self.classes['INTERSECTION'] = operation.Intersection
         self.classes['DIFFERENCE'] = operation.Difference
+
+

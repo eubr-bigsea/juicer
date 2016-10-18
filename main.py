@@ -18,7 +18,7 @@ if __name__ == '__main__':
     workflow.plot_workflow(io.args['graph_outfile'])
 
     if workflow.workflow['workflow']['framework'].lower() == "spark":
-        spark = Spark(io.args['outfile'], workflow.workflow['workflow']['name'],
+        spark = Spark(io.args['outfile'], workflow.workflow,
         workflow.sorted_tasks)
         spark.execution()
 

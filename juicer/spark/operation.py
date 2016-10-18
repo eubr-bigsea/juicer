@@ -171,36 +171,47 @@ class Save(operation):
     def __init__(self, parameters, inputs, outputs):
         self.name = parameters['name']
         self.format = parameters['format']
-        self.id = parameters['id']
+        self.storage_id = parameters['storage_id']
         self.tags =  ast.literal_eval(parameters['tags'])
         self.set_io(inputs, outputs)
+        self.workflow = parameters['workflow']
 
     def generate_code(self):
 
         code = """
             from metadata import MetadataPost
+
+            types_names = dict()
+            types_names['IntegerType'] = "INTEGER"
+            types_names['StringType'] = "TEXT"
+
             schema = []
             for att in {0}.schema:
                 data = dict()
                 data['name'] = att.name
-                data['dataType'] = att.dataType
+                data['dataType'] = types_names[str(att.dataType)]
                 data['nullable'] = att.nullable
                 data['metadata'] = att.metadata
                 schema.append(data)
+
             parameters = dict()
-            parameters['name'] = ''
-            parameters['format'] = ''
-            parameters['provenience'] = ''
-            parameters['storage_id'] = ''
-            parameters['description'] = ''
-            parameters['user_id'] = ''
-            parameters['user_login'] = ''
-            parameters['user_name'] = ''
-            parameters['workflow_id'] = ''
-            instance = MetadataPost('123456', schema, parameters)""".format(self.inputs[0])
+            parameters['name'] = "{1}"
+            parameters['format'] = "{2}"
+            parameters['storage_id'] = {3}
+            parameters['provenience'] = str("{4}")
+            parameters['description'] = "{5}"
+            parameters['user_id'] = "{6}"
+            parameters['user_login'] = "{7}"
+            parameters['user_name'] = "{8}"
+            parameters['workflow_id'] = "{9}"
 
+            instance = MetadataPost('{10}', schema, parameters)
+            """.format(self.inputs[0], self.name, self.format, self.storage_id,
+                str(json.dumps(self.workflow)).replace("\"","'"), self.workflow['workflow']['name'], self.workflow['user']['id'],
+                self.workflow['user']['login'], self.workflow['user']['name'],
+                self.workflow['workflow']['id'], "123456"
+                )
 
-        # O codigo spark vai usar a classe metadata para fazer o request
         return dedent(code)
 
 

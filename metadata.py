@@ -32,8 +32,9 @@ class MetadataPost:
 
 
     def post_metadata(self):
-            #requests.request("POST", self.url, data=json.dumps(self.payload),headers=self.headers, params=self.querystring)
-            print "requests.request(\"POST\",{0},data=json.dumps({1}),headers={2},params={3})".format(
+            #requests.post(self.url, data=self.payload,headers=self.headers, params=self.querystring)
+
+            print "requests.post('{0}',data=json.dumps({1}),headers={2},params={3})".format(
                 self.url, self.payload, self.headers, self.querystring)
 
 
