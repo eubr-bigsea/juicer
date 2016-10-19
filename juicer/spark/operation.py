@@ -171,6 +171,7 @@ class Save(operation):
     def __init__(self, parameters, inputs, outputs):
         self.name = parameters['name']
         self.format = parameters['format']
+        self.url = parameters['url']
         self.storage_id = parameters['storage_id']
         self.tags =  ast.literal_eval(parameters['tags'])
         self.set_io(inputs, outputs)
@@ -178,7 +179,15 @@ class Save(operation):
 
     def generate_code(self):
 
-        code = """
+        if (self.format == "CSV_FILE"):
+            code_save = """{}.write.csv('{}')""".format(
+                self.inputs[0], self.url)
+        elif (self.format == "PARQUET"):
+            pass
+        elif (self.format == "JSON"):
+            pass
+
+        code_api = """
             from metadata import MetadataPost
 
             types_names = dict()
@@ -207,12 +216,15 @@ class Save(operation):
 
             instance = MetadataPost('{10}', schema, parameters)
             """.format(self.inputs[0], self.name, self.format, self.storage_id,
-                str(json.dumps(self.workflow)).replace("\"","'"), self.workflow['workflow']['name'], self.workflow['user']['id'],
-                self.workflow['user']['login'], self.workflow['user']['name'],
+                str(json.dumps(self.workflow)).replace("\"","'"),
+                self.workflow['workflow']['name'], self.workflow['user']['id'],
+                self.workflow['user']['login'],self.workflow['user']['name'],
                 self.workflow['workflow']['id'], "123456"
-                )
+            )
 
-        return dedent(code)
+        code = dedent(code_save) + dedent(code_api)
+
+        return code
 
 
 
