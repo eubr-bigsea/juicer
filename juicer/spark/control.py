@@ -7,12 +7,11 @@ class Spark:
         self.output = open(outfile, "w")
         self.workflow = workflow
         self.print_session()
+        # Sorted tasks! Do not use the workflow tasks
         self.tasks = tasks
         # Store the name of the dataframe in each port
         self.dataframes = {}
         self.count_dataframes = 0
-
-        self.port_models = {}
         self.classes = {}
         self.assign_operations()
 
@@ -20,6 +19,8 @@ class Spark:
     def print_session(self):
         ''' Print the PySpark header and session init  '''
         code = """
+        from pyspark.sql.functions import *
+        from pyspark.sql.types import *
         from pyspark.sql import SparkSession
         spark = SparkSession \\
             .builder \\
@@ -91,5 +92,10 @@ class Spark:
         self.classes['SAMPLE'] = operation.Sample
         self.classes['INTERSECTION'] = operation.Intersection
         self.classes['DIFFERENCE'] = operation.Difference
+        self.classes['JOIN'] = operation.Join
+        self.classes['READ_CSV'] = operation.ReadCSV
+        self.classes['DROP'] = operation.Drop
+        self.classes['TRANSFORMATION'] = operation.Transformation
+
 
 

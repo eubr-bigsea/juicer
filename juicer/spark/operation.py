@@ -1,7 +1,10 @@
+# coding=utf-8
 import ast
 import json
+#from expression import Expression
 from textwrap import dedent
 from metadata import MetadataGet
+from expression import Expression
 
 
 class operation():
@@ -18,20 +21,22 @@ class DataReader(operation):
     '''
     def __init__(self, parameters, inputs, outputs):
         self.database_id = parameters['database_id']
+        #self.header = parameters['header']
+        #self.sep = parameters['sep']
+        #self.infer_schema = parameters['infer_schema']
         self.set_io(inputs, outputs)
         metadata_obj = MetadataGet('123456')
         self.metadata = metadata_obj.get_metadata(self.database_id)
-        # Remove the next line when port 9000 is added to limonero instance
-        self.metadata['url'] = 'hdfs://spark01.ctweb.inweb.org.br:9000/lemonade/samples/titanic2.csv'
 
     def generate_code(self):
 
         # For now, just accept CSV files.
         # Should we create a dict with the CSV info at Limonero? such as header and sep.
-        if self.metadata['format'] == 'CSV_FILE':
-            code = """{0} = spark.read.csv('{1}',
-            header=True, sep=',' ,inferSchema=True)""".format(
-                self.outputs[0], self.metadata['url'])
+        if self.metadata['format'] == 'CSV':
+            code = """{} = spark.read.csv('{}',
+            header={}, sep='{}' ,inferSchema={})""".format(
+                self.outputs[0], self.metadata['url'],
+                "True", ",", "True")
 
         elif self.metadata['format'] == 'PARQUET_FILE':
             pass
@@ -163,10 +168,129 @@ class Difference(operation):
 
 
 
+class Join(operation):
+    '''
+    Joins with another DataFrame, using the given join expression.
+    The expression must be defined as a string parameter.
+    '''
+    def __init__(self, parameters, inputs, outputs):
+        self.set_io(inputs, outputs)
+        #self.expression = parameters['expression']
+        self.column = ast.literal_eval(parameters['column'])
+    def generate_code(self):
+        code = '{} = {}.join({}, {})'.format(self.outputs[0],
+            self.inputs[0],self.inputs[1],self.column)
+        return dedent(code)
+
+
+
+class ReadCSV(operation):
+    '''
+    Reads a CSV file without HDFS.
+    The purpose of this operation is to read files in
+    HDFS without using the Limonero API.
+    '''
+    def __init__(self, parameters, inputs, outputs):
+        self.set_io(inputs, outputs)
+        self.url = parameters['url']
+
+    def generate_code(self):
+        code = """{0} = spark.read.csv('{1}',
+            header=True, sep=',' ,inferSchema=True)""".format(
+            self.outputs[0], self.url)
+        return dedent(code)
+
+
+
+class Drop(operation):
+    '''
+    Returns a new DataFrame that drops the specified column.
+    Nothing is done if schema doesn't contain the given column name(s).
+    The only parameters is the name of the columns to be removed.
+    '''
+    def __init__(self, parameters, inputs, outputs):
+        self.set_io(inputs, outputs)
+        self.column = parameters['column']
+    def generate_code(self):
+        code = """{} = {}.drop('{}')""".format(
+            self.outputs[0], self.outputs[1], self.column)
+        return dedent(code)
+
+
+
+class Transformation(operation):
+    '''
+    Returns a new DataFrame applying the expression to the specified column.
+    Parameters:
+        - New columns: boolean indicating if a new columns should be created
+        - Alias: new name of the column. If it is empty, keep the same name
+        - Expression: json describing the transformation expression
+    '''
+    def __init__(self, parameters, inputs, outputs):
+        self.set_io(inputs, outputs)
+        self.new_column = parameters['new_column']
+        if parameters['alias'] == "":
+            self.alias = None
+        else:
+            self.alias = parameters['alias']
+        self.json_expression = parameters['expression']
+        self.built_expression = ''
+        self.target_column = ''
+
+        print "\n\n", json.dumps(self.json_expression, indent=3), "\n\n"
+
+
+    def generate_code(self):
+
+        # First, builds the expression and identify the target column
+        expression = Expression(self.json_expression)
+        self.built_expression = expression.parsed_expression
+        self.target_column = expression.target
+
+        # For testing without using expression parser:
+        #self.built_expression = self.json_expression
+        #self.target_column = "sex"
+
+        # Transform and replace the existing column with the same name
+        if self.new_column == 0 and self.alias == None:
+            code = '''{} = {}.withColumn("{}", {})'''.format(self.outputs[0],
+                self.inputs[0], self.target_column,self.built_expression)
+
+        # Transform the existing column and rename it
+        elif self.new_column == 0 and self.alias != None:
+            code = '''{} = {}.withColumn("{}", {}).withColumnRenamed("{}", "{}")
+                '''.format(self.outputs[0],self.inputs[0], self.target_column,
+                    self.built_expression, self.target_column, self.alias)
+
+        # Create a new column and set a default name for it
+        elif self.new_column == 1 and self.alias == None:
+            code = '''
+                new_name = "column" + str(len({}.columns))
+                {} = {}.withColumn(new_name, {})
+            '''.format(self.inputs[0], self.outputs[0],self.inputs[0],
+                       self.built_expression)
+
+        # Create a new column and set the new name stored in 'alias'
+        else:
+            code = '''{} = {}.withColumn("{}", {})'''.format(self.outputs[0],
+                self.inputs[0], self.alias,self.built_expression)
+
+
+        return dedent(code)
+
+
+
+
 class Save(operation):
     '''
-    Saves the content of the DataFrame at the specified path.
+    Saves the content of the DataFrame at the specified path
+    and generate the code to call the Limonero API.
     Parameters:
+        - Database name
+        - URL for storage
+        - Storage ID
+        - Database tags
+        - Workflow that generated the database
     '''
     def __init__(self, parameters, inputs, outputs):
         self.name = parameters['name']
@@ -179,8 +303,8 @@ class Save(operation):
 
     def generate_code(self):
 
-        if (self.format == "CSV_FILE"):
-            code_save = """{}.write.csv('{}')""".format(
+        if (self.format == "CSV"):
+            code_save = """{}.write.csv('{}', header=True)""".format(
                 self.inputs[0], self.url)
         elif (self.format == "PARQUET"):
             pass
@@ -193,6 +317,8 @@ class Save(operation):
             types_names = dict()
             types_names['IntegerType'] = "INTEGER"
             types_names['StringType'] = "TEXT"
+            types_names['LongType'] = "LONG"
+            types_names['DoubleType'] = "DOUBLE"
 
             schema = []
             for att in {0}.schema:
@@ -213,13 +339,14 @@ class Save(operation):
             parameters['user_login'] = "{7}"
             parameters['user_name'] = "{8}"
             parameters['workflow_id'] = "{9}"
+            parameters['url'] = "{10}"
 
-            instance = MetadataPost('{10}', schema, parameters)
+            instance = MetadataPost('{11}', schema, parameters)
             """.format(self.inputs[0], self.name, self.format, self.storage_id,
                 str(json.dumps(self.workflow)).replace("\"","'"),
                 self.workflow['workflow']['name'], self.workflow['user']['id'],
                 self.workflow['user']['login'],self.workflow['user']['name'],
-                self.workflow['workflow']['id'], "123456"
+                self.workflow['workflow']['id'], self.url, "123456"
             )
 
         code = dedent(code_save) + dedent(code_api)
