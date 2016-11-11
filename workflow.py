@@ -22,6 +22,7 @@ class Workflow:
         ''' Opens the Json file and build the workflow dict '''
         with open(self.infile) as json_infile:
             self.workflow = json.load(json_infile)
+        print self.workflow
 
 
     def verify_workflow(self):

@@ -32,10 +32,12 @@ class MetadataPost:
 
 
     def post_metadata(self):
-            #requests.post(self.url, data=self.payload,headers=self.headers, params=self.querystring)
-
-            print "requests.post('{0}',data=json.dumps({1}),headers={2},params={3})".format(
-                self.url, self.payload, self.headers, self.querystring)
+            response = requests.post(self.url, data=json.dumps(self.payload),
+                          headers=self.headers, params=self.querystring)
+            if response.status_code != 200:
+                print "\nERROR! Status code:",response.status_code, response.text,"\n"
+            #print "requests.post('{0}',data=json.dumps({1}),headers={2},params={3})".format(
+            #    self.url, self.payload, self.headers, self.querystring)
 
 
     def build_querystring(self):
@@ -72,7 +74,7 @@ class MetadataPost:
         self.payload = {
             "attributes": attributes,
             "enabled": True,
-            "url": "hdfs://localhost:9000/test/data2",
+            "url": self.parameters['url'],
             "read_only": True,
             "name": self.parameters['name'],
             "format": self.parameters['format'],

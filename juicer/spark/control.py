@@ -96,6 +96,9 @@ class Spark:
         self.classes['READ_CSV'] = operation.ReadCSV
         self.classes['DROP'] = operation.Drop
         self.classes['TRANSFORMATION'] = operation.Transformation
+        self.classes['SELECT'] = operation.Select
+        self.classes['AGGREGATION'] = operation.Aggregation
+        self.classes['FILTER'] = operation.Filter
 
 
 

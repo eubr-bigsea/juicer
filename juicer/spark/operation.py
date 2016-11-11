@@ -21,9 +21,18 @@ class DataReader(operation):
     '''
     def __init__(self, parameters, inputs, outputs):
         self.database_id = parameters['database_id']
-        #self.header = parameters['header']
-        #self.sep = parameters['sep']
-        #self.infer_schema = parameters['infer_schema']
+        try:
+            self.header = parameters['header']
+        except KeyError:
+            self.header = True
+        try:
+            self.sep = parameters['sep']
+        except KeyError:
+            self.sep = ","
+        try:
+            self.infer_schema = parameters['infer_schema']
+        except KeyError:
+            self.infer_schema = True
         self.set_io(inputs, outputs)
         metadata_obj = MetadataGet('123456')
         self.metadata = metadata_obj.get_metadata(self.database_id)
@@ -36,11 +45,13 @@ class DataReader(operation):
             code = """{} = spark.read.csv('{}',
             header={}, sep='{}' ,inferSchema={})""".format(
                 self.outputs[0], self.metadata['url'],
-                "True", ",", "True")
+                self.header, self.sep, self.infer_schema)
 
         elif self.metadata['format'] == 'PARQUET_FILE':
+            # TO DO
             pass
         elif self.metadata['format'] == 'JSON_FILE':
+            # TO DO
             pass
 
         return dedent(code)
@@ -120,7 +131,8 @@ class Sample(operation):
     '''
     Returns a sampled subset of this DataFrame.
     Parameters:
-    - withReplacement -> can elements be sampled multiple times (replaced when sampled out)
+    - withReplacement -> can elements be sampled multiple times
+                        (replaced when sampled out)
     - fraction -> fraction of the data frame to be sampled.
         without replacement: probability that each element is chosen; 
             fraction must be [0, 1]
@@ -193,11 +205,20 @@ class ReadCSV(operation):
     def __init__(self, parameters, inputs, outputs):
         self.set_io(inputs, outputs)
         self.url = parameters['url']
+        try:
+	    self.header = parameters['header']
+        except KeyError:
+	    self.header = "True"
+        try:
+	    self.separator = parameters['separator']
+        except KeyError:
+	    self.separator = ";"
+
 
     def generate_code(self):
-        code = """{0} = spark.read.csv('{1}',
-            header=True, sep=',' ,inferSchema=True)""".format(
-            self.outputs[0], self.url)
+        code = """{} = spark.read.csv('{}',
+            header={}, sep='{}' ,inferSchema=True)""".format(
+            self.outputs[0], self.url, self.header, self.separator)
         return dedent(code)
 
 
@@ -222,62 +243,75 @@ class Transformation(operation):
     '''
     Returns a new DataFrame applying the expression to the specified column.
     Parameters:
-        - New columns: boolean indicating if a new columns should be created
-        - Alias: new name of the column. If it is empty, keep the same name
+        - Alias: new column name. If the name is the same of an existing, replace it.
         - Expression: json describing the transformation expression
     '''
     def __init__(self, parameters, inputs, outputs):
         self.set_io(inputs, outputs)
-        self.new_column = parameters['new_column']
-        if parameters['alias'] == "":
-            self.alias = None
-        else:
-            self.alias = parameters['alias']
+        self.alias = parameters['alias']
         self.json_expression = parameters['expression']
-        self.built_expression = ''
-        self.target_column = ''
-
-        print "\n\n", json.dumps(self.json_expression, indent=3), "\n\n"
-
-
     def generate_code(self):
-
-        # First, builds the expression and identify the target column
+        # Builds the expression and identify the target column
         expression = Expression(self.json_expression)
-        self.built_expression = expression.parsed_expression
-        self.target_column = expression.target
-
-        # For testing without using expression parser:
-        #self.built_expression = self.json_expression
-        #self.target_column = "sex"
-
-        # Transform and replace the existing column with the same name
-        if self.new_column == 0 and self.alias == None:
-            code = '''{} = {}.withColumn("{}", {})'''.format(self.outputs[0],
-                self.inputs[0], self.target_column,self.built_expression)
-
-        # Transform the existing column and rename it
-        elif self.new_column == 0 and self.alias != None:
-            code = '''{} = {}.withColumn("{}", {}).withColumnRenamed("{}", "{}")
-                '''.format(self.outputs[0],self.inputs[0], self.target_column,
-                    self.built_expression, self.target_column, self.alias)
-
-        # Create a new column and set a default name for it
-        elif self.new_column == 1 and self.alias == None:
-            code = '''
-                new_name = "column" + str(len({}.columns))
-                {} = {}.withColumn(new_name, {})
-            '''.format(self.inputs[0], self.outputs[0],self.inputs[0],
-                       self.built_expression)
-
-        # Create a new column and set the new name stored in 'alias'
-        else:
-            code = '''{} = {}.withColumn("{}", {})'''.format(self.outputs[0],
-                self.inputs[0], self.alias,self.built_expression)
-
-
+        built_expression = expression.parsed_expression
+        # Builds the code
+        code = '''{} = {}.withColumn('{}', {})'''.format(self.outputs[0],
+            self.inputs[0], self.alias,built_expression)
         return dedent(code)
 
+
+
+class Select(operation):
+    '''
+    Projects a set of expressions and returns a new DataFrame.
+    Paramaters:
+    - The list of columns selected.
+    '''
+    def __init__(self, parameters, inputs, outputs):
+        self.set_io(inputs, outputs)
+        self.columns = map(lambda x: str(x), parameters['columns'])
+        print self.columns
+    def generate_code(self):
+        code = '''{} = {}.select({})'''.format(
+            self.outputs[0],self.inputs[0], self.columns)
+        return dedent(code)
+
+
+
+class Aggregation(operation):
+    '''
+    Compute aggregates and returns the result as a DataFrame.
+    Parameters:
+        - Expression: a single dict mapping from string to string, then the key
+        is the column to perform aggregation on, and the value is the aggregate
+        function. The available aggregate functions are avg, max, min, sum, count.
+    '''
+
+    def __init__(self, parameters, inputs, outputs):
+        self.set_io(inputs, outputs)
+        self.column = parameters['column']
+        self.function = parameters['function']
+    def generate_code(self):
+        info = {self.column: self.function}
+        code = '''{} = {}.groupBy('{}').agg({})'''.format(
+            self.outputs[0],self.inputs[0], self.column, json.dumps(info))
+        return dedent(code)
+
+
+
+class Filter(operation):
+    '''
+    Filters rows using the given condition.
+    Parameters:
+        - The expression (==, <, >)
+    '''
+    def __init__(self, parameters, inputs, outputs):
+        self.set_io(inputs, outputs)
+        self.expression = parameters['expression']
+    def generate_code(self):
+        code = '''{} = {}.filter('{}')'''.format(
+            self.outputs[0], self.inputs[0], self.expression)
+        return dedent(code)
 
 
 
@@ -300,12 +334,22 @@ class Save(operation):
         self.tags =  ast.literal_eval(parameters['tags'])
         self.set_io(inputs, outputs)
         self.workflow = parameters['workflow']
+        try:
+	    self.mode = parameters['mode']
+        except KeyError:
+	    self.mode = "error"
+        try:
+	    self.header = parameters['header']
+        except KeyError:
+	    self.header = "True"
+
+
 
     def generate_code(self):
 
         if (self.format == "CSV"):
-            code_save = """{}.write.csv('{}', header=True)""".format(
-                self.inputs[0], self.url)
+            code_save = """{}.write.csv('{}', header={}, mode='{}')""".format(
+                self.inputs[0], self.url, self.header, self.mode)
         elif (self.format == "PARQUET"):
             pass
         elif (self.format == "JSON"):
@@ -319,6 +363,8 @@ class Save(operation):
             types_names['StringType'] = "TEXT"
             types_names['LongType'] = "LONG"
             types_names['DoubleType'] = "DOUBLE"
+            types_names['TimestampType'] = "DATETIME"
+
 
             schema = []
             for att in {0}.schema:

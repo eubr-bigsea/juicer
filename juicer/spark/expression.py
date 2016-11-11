@@ -4,10 +4,8 @@ class Expression:
 
     def __init__(self, json_code):
         self.code =  json_code
-        self.right = ''
-        self.left = ''
+        self.functions = self.build_functions_dict()
         self.parsed_expression = self.parse(self.code)
-        self.print_expression()
 
 
     def parse(self, tree):
@@ -19,11 +17,11 @@ class Expression:
 
         # Literal parsing
         elif tree['type'] == 'Literal':
-            return str("'" + tree['value'] + "'")
+            return str("'" + str(tree['value']) + "'")
 
         # Expression parsing
         elif tree['type'] == 'CallExpression':
-            string = tree['callee']['name'] + "("
+            string = self.functions[tree['callee']['name']] + "("
             for i in range(0, len(tree['arguments']) - 1):
                 string += self.parse(tree['arguments'][i]) + ","
             string += self.parse(tree['arguments'][len(tree['arguments']) - 1]) + ")"
@@ -31,7 +29,7 @@ class Expression:
 
         # Identifier parsing
         elif tree['type'] == 'Identifier':
-            return str(tree['name'])
+            return str("col('"  + tree['name'] + "')")
 
         # Unary Expression parsing
         elif tree['type'] == 'UnaryExpression':
@@ -39,5 +37,7 @@ class Expression:
             return string
 
 
-    def print_expression(self):
-        print self.parsed_expression
+    def build_functions_dict(self):
+        dict = {}
+        dict['replace'] = 'regexp_replace'
+        return dict
