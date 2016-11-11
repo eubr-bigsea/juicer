@@ -19,20 +19,17 @@ class DataReader(operation):
     Parameters:
     - Limonero database ID
     '''
+    DATA_SOURCE_ID_PARAM = 'data_source'
+    HEADER_PARAM = 'header'
+    SEPARATOR_PARAM = 'separator'
+    INFER_SCHEMA_PARAM = 'infer_schema'
+
     def __init__(self, parameters, inputs, outputs):
-        self.database_id = parameters['database_id']
-        try:
-            self.header = parameters['header']
-        except KeyError:
-            self.header = True
-        try:
-            self.sep = parameters['sep']
-        except KeyError:
-            self.sep = ","
-        try:
-            self.infer_schema = parameters['infer_schema']
-        except KeyError:
-            self.infer_schema = True
+        self.database_id = parameters[self.DATA_SOURCE_ID_PARAM]
+        self.header = parameters.get(self.HEADER_PARAM, True)
+        self.sep = parameters.get(self.SEPARATOR_PARAM, ',')
+        self.infer_schema = parameters.get(self.INFER_SCHEMA_PARAM, True)
+
         self.set_io(inputs, outputs)
         metadata_obj = MetadataGet('123456')
         self.metadata = metadata_obj.get_metadata(self.database_id)
@@ -85,7 +82,7 @@ class AddLines(operation):
     def __init__(self, parameters, inputs, outputs):
         self.set_io(inputs, outputs)
     def generate_code(self):
-        code = "{0} = {1}.unionAll({2})".format(self.outputs[0], 
+        code = "{0} = {1}.unionAll({2})".format(self.outputs[0],
             self.inputs[0], self.inputs[1])
         return dedent(code)
 
@@ -106,7 +103,7 @@ class Sort(operation):
         self.ascending = map(lambda x: int(x), ast.literal_eval(parameters['ascending']))
         self.set_io(inputs, outputs)
     def generate_code(self):
-        code = "{0} = {1}.orderBy({2}, ascending={3})".format(self.outputs[0], 
+        code = "{0} = {1}.orderBy({2}, ascending={3})".format(self.outputs[0],
         self.inputs[0], str(json.dumps(self.columns)), str(json.dumps(self.ascending)))
         return dedent(code)
 
@@ -119,7 +116,7 @@ class Distinct(operation):
     No parameters required.
     '''
     def __init__(self, parameters, inputs, outputs):
-       self.set_io(inputs, outputs) 
+       self.set_io(inputs, outputs)
     def generate_code(self):
         code = "{} = {}.distinct()".format(
             self.outputs[0], self.inputs[0])
@@ -147,7 +144,7 @@ class Sample(operation):
         self.set_io(inputs, outputs)
     def generate_code(self):
         code = "{} = {}.sample(withReplacement={}, fraction={}, seed={})".format(
-            self.outputs[0], self.inputs[0], self.withReplacement, 
+            self.outputs[0], self.inputs[0], self.withReplacement,
             self.fraction, self.seed)
         return dedent(code)
 

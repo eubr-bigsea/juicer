@@ -1,1 +1,84 @@
-{"name":"WF01","datetime":"2016-09-09-16:38:55","tasks":[{"id":"0000001","ports":[{"id":"1","type":"out"}],"log_level":"INFO","operation_name":"DATA_READER","framework":"spark","parameters":[{"infile":"hdfs://spark01.ctweb.inweb.org.br:9000/fernando/infile.csv","has_header":"True","sep":","}]},{"id":"0000002","ports":[{"id":"1","type":"in"},{"id":"2","type":"out"},{"id":"3","type":"out"}],"log_level":"INFO","operation_name":"RANDOM_SPLIT","framework":"spark","parameters":[{"seed":"15","weights":["2.0","3.0"]}]},{"id":"0000003","ports":[{"id":"2","type":"in"},{"id":"3","type":"in"},{"id":"4","type":"out"}],"log_level":"INFO","next_task_id":"NULL","operation_name":"DISTINCT_UNION","framework":"spark","parameters":[{"distinct":"True"}]}],"user":{"login":"fernandocarvalho","token":"JUHBhbuyhdwiuyhBKJ8736hjkf"}}
+{
+  "name": "WF01",
+  "datetime": "2016-09-09-16:38:55",
+  "tasks": [
+    {
+      "id": "0000001",
+      "ports": [
+        {
+          "id": "1",
+          "type": "out"
+        }
+      ],
+      "log_level": "INFO",
+      "operation_name": "DATA_READER",
+      "framework": "spark",
+      "parameters": [
+        {
+          "infile": "hdfs://spark01.ctweb.inweb.org.br:9000/fernando/infile.csv",
+          "has_header": "True",
+          "sep": ","
+        }
+      ]
+    },
+    {
+      "id": "0000002",
+      "ports": [
+        {
+          "id": "1",
+          "type": "in"
+        },
+        {
+          "id": "2",
+          "type": "out"
+        },
+        {
+          "id": "3",
+          "type": "out"
+        }
+      ],
+      "log_level": "INFO",
+      "operation_name": "RANDOM_SPLIT",
+      "framework": "spark",
+      "parameters": [
+        {
+          "seed": "15",
+          "weights": [
+            "2.0",
+            "3.0"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "0000003",
+      "ports": [
+        {
+          "id": "2",
+          "type": "in"
+        },
+        {
+          "id": "3",
+          "type": "in"
+        },
+        {
+          "id": "4",
+          "type": "out"
+        }
+      ],
+      "log_level": "INFO",
+      "next_task_id": "NULL",
+      "operation_name": "DISTINCT_UNION",
+      "framework": "spark",
+      "parameters": [
+        {
+          "distinct": "True"
+        }
+      ]
+    }
+  ],
+  "user": {
+    "login": "fernandocarvalho",
+    "token": "JUHBhbuyhdwiuyhBKJ8736hjkf"
+  }
+}
