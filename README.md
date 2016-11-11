@@ -1,4 +1,6 @@
 # Juicer
+[logo]: docs/img/juicer.png "Lemonade Juicer"
+
 Juicer is the workflow processor manager for the Lemonade. Its responsibilities include:
 
 1. Receive a workflow specification in JSON format from Citron and convert it into executable code. Current version *transpile* code only to Python language (interpreted),
