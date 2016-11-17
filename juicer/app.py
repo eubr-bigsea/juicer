@@ -1,16 +1,13 @@
 # !/usr/bin/env python
 # -*- coding: utf-8 -*-
-import eventlet
 import argparse
-
-import requests
-from eventlet import wsgi
-import redis
 import logging
-import os
+
+import redis
+import requests
 from juicer.spark.control import Spark
+from juicer.workflow.workflow import Workflow
 from six import StringIO
-from workflow import Workflow
 
 # eventlet.monkey_patch()
 import json
@@ -89,9 +86,19 @@ class JuicerSparkService:
 
             generated = StringIO()
             spark_instance.output = generated
-            spark_instance.execution()
-            print generated
+            try:
+                spark_instance.execution()
+            except ValueError as ve:
+                log.exception("At least one parameter is missing", exc_info=ve)
+                break
+            except:
+                raise
+
+
+            generated.seek(0)
+            print generated.read()
             raw_input('Pressione ENTER')
+            break
 
 
 def main(workflow_id):
