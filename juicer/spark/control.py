@@ -147,8 +147,13 @@ class Spark:
             'filter': operation.Filter,
             'intersection': operation.Intersection,
             'join': operation.Join,
+            # synonym for select
+            'projection': operation.Select,
             'split': operation.RandomSplit,
             'read-csv': operation.ReadCSV,
+            # synonym for distinct
+            'replace': operation.Replace,
+            'remove-duplicated-rows': operation.Distinct,
             'sample': operation.Sample,
             'save': operation.Save,
             'select': operation.Select,

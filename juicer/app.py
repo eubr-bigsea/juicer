@@ -97,7 +97,7 @@ class JuicerSparkService:
 
             generated.seek(0)
             print generated.read()
-            raw_input('Pressione ENTER')
+            #raw_input('Pressione ENTER')
             break
 
 

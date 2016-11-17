@@ -89,17 +89,28 @@ class RandomSplit(Operation):
     - Optional seed in case of deterministic random operation
     ('0' means no seed).
     """
+    SEED_PARAM = 'seed'
+    WEIGHTS_PARAM = 'weights'
 
     def __init__(self, parameters, inputs, outputs):
         Operation.__init__(self, inputs, outputs)
-        self.weights = map(lambda x: float(x),
-                           ast.literal_eval(parameters['weights']))
-        self.seed = parameters['seed']
+        value = float(parameters.get(self.WEIGHTS_PARAM, 50))
+        self.weights = [value, 100 - value]
+        self.seed = parameters.get(self.SEED_PARAM, int(random() * time.time()))
 
     def generate_code(self):
-        code = """{0}, {1} = {2}.randomSplit({3}, {4})""".format(
-            self.outputs[0], self.outputs[1], self.inputs[0],
-            json.dumps(self.weights), self.seed)
+        if len(self.inputs) == 1:
+            output1 = self.outputs[0] if len(
+                self.outputs) else '{}_tmp1'.format(
+                self.inputs[0])
+            output2 = self.outputs[1] if len(
+                self.outputs) == 2 else '{}_tmp2'.format(
+                self.inputs[0])
+            code = """{0}, {1} = {2}.randomSplit({3}, {4})""".format(
+                output1, output2, self.inputs[0],
+                json.dumps(self.weights), self.seed)
+        else:
+            code = ""
         return dedent(code)
 
 
@@ -115,7 +126,7 @@ class AddRows(Operation):
 
     def generate_code(self):
         output = self.outputs[0] if len(self.outputs) else '{}_tmp'.format(
-            self.inputs[1])
+            self.inputs[0])
 
         if len(self.inputs) == 2:
             code = "{0} = {1}.unionAll({2})".format(output,
@@ -135,18 +146,29 @@ class Sort(Operation):
     Condition: the list of columns should have the same size of the list of 
                boolean to indicating if it is ascending sorting.
     """
+    ATTRIBUTES_PARAM = 'attributes'
+    ASCENDING_PARAM = 'ascending'
 
     def __init__(self, parameters, inputs, outputs):
         Operation.__init__(self, inputs, outputs)
-        self.columns = ast.literal_eval(parameters['columns'])
+        if self.ATTRIBUTES_PARAM in parameters:
+            self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
+        else:
+            raise ValueError(
+                "Parameter '{}' must be informed for task {}".format(
+                    self.ATTRIBUTES_PARAM, self.__class__))
+
         self.ascending = map(lambda x: int(x),
-                             ast.literal_eval(parameters['ascending']))
+                             parameters.get(self.ASCENDING_PARAM,
+                                            [1] * len(self.attributes)))
 
     def generate_code(self):
+        output = self.outputs[0] if len(self.outputs) else '{}_tmp'.format(
+            self.inputs[0])
         code = "{0} = {1}.orderBy({2}, ascending={3})".format(
-            self.outputs[0], self.inputs[0],
-            str(json.dumps(self.columns)),
-            str(json.dumps(self.ascending)))
+            output, self.inputs[0],
+            json.dumps(self.attributes),
+            json.dumps(self.ascending))
 
         return dedent(code)
 
@@ -154,15 +176,28 @@ class Sort(Operation):
 class Distinct(Operation):
     """
     Returns a new DataFrame containing the distinct rows in this DataFrame.
-    No parameters required.
+    Parameters: attributes to consider during operation (keys)
     """
+    ATTRIBUTES_PARAM = 'attributes'
 
     def __init__(self, parameters, inputs, outputs):
         Operation.__init__(self, inputs, outputs)
+        if self.ATTRIBUTES_PARAM in parameters:
+            self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
+        else:
+            self.attributes = []
 
     def generate_code(self):
-        code = "{} = {}.distinct()".format(
-            self.outputs[0], self.inputs[0])
+        output = self.outputs[0] if len(self.outputs) else '{}_tmp'.format(
+            self.inputs[0])
+        if len(self.inputs) == 1:
+            if self.attributes:
+                code = "{} = {}.dropDuplicates(subset={})".format(
+                    output, self.inputs[0], json.dumps(self.attributes))
+            else:
+                code = "{} = {}.dropDuplicates()".format(output, self.inputs[0])
+        else:
+            code = ""
 
         return dedent(code)
 
@@ -285,7 +320,7 @@ class Join(Operation):
                                        in on_clause])
 
         output = self.outputs[0] if len(self.outputs) else '{}_tmp'.format(
-            self.inputs[1])
+            self.inputs[0])
 
         code = """
             cond_{0} = [{1}]
@@ -367,18 +402,28 @@ class Transformation(Operation):
 class Select(Operation):
     """
     Projects a set of expressions and returns a new DataFrame.
-    Paramaters:
+    Parameters:
     - The list of columns selected.
     """
+    ATTRIBUTES_PARAM = 'attributes'
+    ASCENDING_PARAM = 'ascending'
 
     def __init__(self, parameters, inputs, outputs):
         Operation.__init__(self, inputs, outputs)
-        self.columns = map(lambda x: str(x), parameters['columns'])
-        # print self.columns
+        if self.ATTRIBUTES_PARAM in parameters:
+            self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
+        else:
+            raise ValueError(
+                "Parameter '{}' must be informed for task {}".format(
+                    self.ATTRIBUTES_PARAM, self.__class__))
 
     def generate_code(self):
+        output = self.outputs[0] if len(self.outputs) else '{}_tmp'.format(
+            self.inputs[0])
+
         code = """{} = {}.select({})""".format(
-            self.outputs[0], self.inputs[0], self.columns)
+            output, self.inputs[0],
+            ', '.join(['"{}"'.format(x) for x in self.attributes]))
         return dedent(code)
 
 
@@ -407,7 +452,7 @@ class Aggregation(Operation):
     def generate_code(self):
         info = {self.attributes: self.function}
         output = self.outputs[0] if len(self.outputs) else '{}_tmp'.format(
-            self.inputs[1])
+            self.inputs[0])
         if len(self.inputs) == 1:
             code = """{} = {}.groupBy('{}').agg({})""".format(
                 output, self.inputs[0], self.attributes, json.dumps(info))
@@ -552,6 +597,7 @@ class CleanMissing(Operation):
           * "VALUE": replace by parameter "value",
           * "MEDIAN": replace by median value
           * "MODE": replace by mode value
+          * "MEAN": replace by mean value
           * "REMOVE_ROW": remove entire row
           * "REMOVE_COLUMN": remove entire column
         - value: optional, used to replace missing values
@@ -581,18 +627,62 @@ class CleanMissing(Operation):
             self.has_code = False
 
     def generate_code(self):
-        if self.has_code:
-            # @FIXME Implement
-            output = self.outputs[0] if len(self.outputs) else '{}_tmp'.format(
-                self.inputs[1])
-            if self.cleaning_mode == 'REMOVE_ROW':
-                code = """{} = {}.na.drop(subset=[{}])""".format(
-                    output, self.inputs[0],
-                    ', '.join("'{}'".format(x) for x in self.attributes))
-            else:
-                code = 'FIXME'
+        if not self.has_code:
+            return "{} = {}".format(self.outputs[0], self.inputs[0])
+
+        output = self.outputs[0] if len(self.outputs) else '{}_tmp'.format(
+            self.inputs[0])
+        if self.cleaning_mode == 'REMOVE_ROW':
+            code = """{} = {}.dropna(how='any', subset=[{}])""".format(
+                output, self.inputs[0],
+                ', '.join("'{}'".format(x) for x in self.attributes))
+        elif self.cleaning_mode == 'VALUE':
+            value = ast.literal_eval(self.value)
+            if not (isinstance(value, int) or isinstance(value, float)):
+                value = '"{}"'.format(value)
+            code = """{} = {}.na.fill(value={}, subset=[{}])""".format(
+                output, self.inputs[0], value,
+                ', '.join("'{}'".format(x) for x in self.attributes))
+        elif self.cleaning_mode == 'REMOVE_COLUMN':
+            select_list = [
+                "(count('{0}') / count('*')).alias('{0}')".format(attr) for
+                attr in self.attributes]
+
+            partial = [
+                "# Computes which columns have missings and delete them",
+                "count_{0} = {0}.select({1}).collect()".format(
+                    self.inputs[0], ', '.join(select_list)),
+                "drop_{0} = [c for c in {1} if count_{0}[0][c] < 1.0]".format(
+                    self.inputs[0], json.dumps(self.attributes)),
+                # Based on http://stackoverflow.com/a/35674589/1646932
+                "{0} = {1}.select([c for c in {1}.columns if c not in drop_{1}])".format(
+                    output,
+                    self.inputs[0])
+
+            ]
+            code = "\n".join(partial)
+        elif self.cleaning_mode == 'MODE':
+            code = "@FIXME"
+        elif self.cleaning_mode == "MEDIAN":
+            # See http://stackoverflow.com/a/31437177/1646932
+            # But null values cause exception
+            # @FIXME: Not working, need to perform approxQuantile for each attr
+            code = """
+                # Computes median value for columns",
+                mdn_{0} = {0}.dropna().approxQuantile([avg(c).alias(c) for c in {1}]).collect()
+                values_{2} = dict([(c, mdn_{0}[0][c]) for c in {1}])
+                {2} = {0}.na.fill(value=values_{2})""".format(
+                self.inputs[0], json.dumps(self.attributes), output)
+            code = "@FIXME"
+        elif self.cleaning_mode == 'MEAN':
+            code = """
+                # Computes mean value for columns",
+                avg_{0} = {0}.select([avg(c).alias(c) for c in {1}]).collect()
+                values_{2} = dict([(c, avg_{0}[0][c]) for c in {1}])
+                {2} = {0}.na.fill(value=values_{2})""".format(
+                self.inputs[0], json.dumps(self.attributes), output)
         else:
-            code = "{} = {}".format(self.outputs[0], self.inputs[0])
+            code = 'FIXME'
         return dedent(code)
 
 
@@ -609,15 +699,42 @@ class AddColumns(Operation):
     def generate_code(self):
         if self.has_code:
             output = self.outputs[0] if len(self.outputs) else '{}_tmp'.format(
-                self.inputs[1])
+                self.inputs[0])
             code = """
                 w_{0}_{1} = Window().orderBy()
                 {0}_inx =  {0}.withColumn("_inx", rowNumber().over(w_{0}_{1}))
                 {1}_inx =  {1}.withColumn("_inx", rowNumber().over(w_{0}_{1})
-                {2} = {0}_indexed.join(
-                        {1}_inx, {0}_inx._inx == {0}_inx._inx, 'inner')\\
+                {2} = {0}_indexed.join({1}_inx, {0}_inx._inx == {0}_inx._inx,
+                                             'inner')
                     .drop({0}_inx._inx).drop({1}_inx._inx)
                 """.format(self.inputs[0], self.inputs[1], output)
+            return dedent(code)
+
+        return ""
+
+
+class Replace(Operation):
+    """
+    Replaces values of columns by specified value
+    @FIXME: implementar
+    """
+    ATTRIBUTES_PARAM = 'attributes'
+
+    def __init__(self, parameters, inputs, outputs):
+        Operation.__init__(self, inputs, outputs)
+        if self.ATTRIBUTES_PARAM in parameters:
+            self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
+        else:
+            raise ValueError(
+                "Parameter '{}' must be informed for task {}".format(
+                    self.ATTRIBUTES_PARAM, self.__class__))
+
+    def generate_code(self):
+        if self.has_code:
+            output = self.outputs[0] if len(self.outputs) else '{}_tmp'.format(
+                self.inputs[0])
+            code = """ """
+
             return dedent(code)
 
         return ""
