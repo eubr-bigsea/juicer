@@ -263,8 +263,14 @@ class Intersection(Operation):
         self.parameters = parameters
 
     def generate_code(self):
-        code = "{} = {}.intersect({})".format(
-            self.outputs[0], self.inputs[0], self.inputs[1])
+        if len(self.inputs) == 2:
+            output = self.outputs[0] if len(self.outputs) else '{}_tmp'.format(
+                self.inputs[0])
+
+            code = "{} = {}.intersect({})".format(
+                output, self.inputs[0], self.inputs[1])
+        else:
+            code = ''
         return dedent(code)
 
 
@@ -759,8 +765,9 @@ class AddColumns(Operation):
 
 class Replace(Operation):
     """
-    Replaces values of columns by specified value
-    @FIXME: implementar
+    Replaces values of columns by specified value. Similar to Transformation
+    operation.
+    @deprecated
     """
     ATTRIBUTES_PARAM = 'attributes'
 
@@ -782,3 +789,30 @@ class Replace(Operation):
             return dedent(code)
 
         return ""
+
+
+class PearsonCorrelation(Operation):
+    """
+    Calculates the correlation of two columns of a DataFrame as a double value.
+    """
+    ATTRIBUTES_PARAM = 'attributes'
+
+    def __init__(self, parameters, inputs, outputs):
+        Operation.__init__(self, inputs, outputs)
+        if self.ATTRIBUTES_PARAM in parameters:
+            self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
+        else:
+            raise ValueError(
+                "Parameter '{}' must be informed for task {}".format(
+                    self.ATTRIBUTES_PARAM, self.__class__))
+
+    def generate_code(self):
+        if len(self.inputs) == 1:
+            output = self.outputs[0] if len(self.outputs) else '{}_tmp'.format(
+                self.inputs[0])
+            code = """{} = {}.corr('{}').agg({})""".format(
+                output, self.inputs[0], self.attributes, json.dumps(info))
+        else:
+            code = ''
+
+        return dedent(code)
