@@ -102,11 +102,13 @@ class Sort(operation):
                boolean to indicating if it is ascending sorting.
     '''
     def __init__(self, parameters, inputs, outputs):
-        self.columns = ast.literal_eval(parameters['columns'])
-        self.ascending = map(lambda x: int(x), ast.literal_eval(parameters['ascending']))
+        #self.columns = ast.literal_eval(parameters['columns'])
+        #self.ascending = map(lambda x: int(x), ast.literal_eval(parameters['ascending']))
+        self.columns = map(lambda x: str(x), parameters['columns'])
+        self.ascending = map(lambda x: str(x), parameters['ascending'])
         self.set_io(inputs, outputs)
     def generate_code(self):
-        code = "{0} = {1}.orderBy({2}, ascending={3})".format(self.outputs[0], 
+        code = "{} = {}.orderBy({}, ascending={})".format(self.outputs[0], 
         self.inputs[0], str(json.dumps(self.columns)), str(json.dumps(self.ascending)))
         return dedent(code)
 
@@ -181,18 +183,81 @@ class Difference(operation):
 
 
 class Join(operation):
-    '''
+    """
     Joins with another DataFrame, using the given join expression.
     The expression must be defined as a string parameter.
-    '''
+    """
+    KEEP_RIGHT_KEYS_PARAM = 'keep_right_keys'
+    MATCH_CASE_PARAM = 'match_case'
+    JOIN_TYPE_PARAM = 'join_type_param'
+    LEFT_ATTRIBUTES_PARAM = 'left_attributes'
+    RIGHT_ATTRIBUTES_PARAM = 'right_attributes'
+
     def __init__(self, parameters, inputs, outputs):
         self.set_io(inputs, outputs)
-        #self.expression = parameters['expression']
-        self.column = ast.literal_eval(parameters['column'])
+        self.keep_right_keys = parameters.get(self.KEEP_RIGHT_KEYS_PARAM, False)
+        self.match_case = parameters.get(self.MATCH_CASE_PARAM, False)
+        self.join_type = parameters.get(self.JOIN_TYPE_PARAM, 'inner')
+
+        if not all([self.LEFT_ATTRIBUTES_PARAM in parameters,
+                    self.RIGHT_ATTRIBUTES_PARAM in parameters]):
+            raise ValueError(
+                "Parameters '{}' and {} must be informed for task {}".format(
+                    self.LEFT_ATTRIBUTES_PARAM, self.RIGHT_ATTRIBUTES_PARAM,
+                    self.__class__))
+        else:
+            self.left_attributes = parameters.get(self.LEFT_ATTRIBUTES_PARAM)
+            self.right_attributes = parameters.get(self.RIGHT_ATTRIBUTES_PARAM)
+
     def generate_code(self):
-        code = '{} = {}.join({}, {})'.format(self.outputs[0],
-            self.inputs[0],self.inputs[1],self.column)
+        on_clause = zip(self.left_attributes, self.right_attributes)
+        join_condition = ', '.join([
+                                       '{}.{} == {}.{}'.format(self.inputs[0],
+                                                               pair[0],
+                                                               self.inputs[1],
+                                                               pair[1]) for pair
+                                       in on_clause])
+
+        output = self.outputs[0] if len(self.outputs) else '{}_tmp'.format(
+            self.inputs[1])
+
+        code = """
+            cond_{0} = [{1}]
+            {0} = {2}.join({3}, on=cond_{0}, how='{4}')""".format(
+            output, join_condition, self.inputs[0], self.inputs[1],
+            self.join_type)
+
+
+        # TO-DO: Convert str False to boolean for evaluation
+        if self.keep_right_keys == "False":
+            for column in self.right_attributes:
+                code += """.drop({}.{})""".format(self.inputs[1], column)
+
         return dedent(code)
+
+
+# class Join(operation):
+#     '''
+#     Joins with another DataFrame, using the given join expression.
+#     Parameters:
+#         - Columns left: name of the columns from the first dataframe
+#         - Columns right: name of the columns from the second dataframe
+#         - Join type: inner, outer, left_outer, right_outer or leftsemi (Default: inner)
+#     '''
+#     def __init__(self, parameters, inputs, outputs):
+#         self.set_io(inputs, outputs)
+#         self.columns_left = map(lambda x: str(x), parameters['columns_left'])
+#         self.columns_right = map(lambda x: str(x), parameters['columns_right'])
+#         self.type = parameters.get('type','inner')
+#     def generate_code(self):
+#         expressions = []
+#         for i in range(0,len(self.columns_left)):
+#             expressions.append("""({}.{} == {}.{})""".format(self.inputs[0],
+#                     self.columns_left[i], self.inputs[1], self.columns_right[i]))
+#         code = """{} = {}.join({}, {}, '{}')""".format(self.outputs[0],
+#             self.inputs[0],self.inputs[1],' & '.join(expressions), self.type)
+#
+#         return dedent(code)
 
 
 
@@ -206,13 +271,13 @@ class ReadCSV(operation):
         self.set_io(inputs, outputs)
         self.url = parameters['url']
         try:
-	    self.header = parameters['header']
+            self.header = parameters['header']
         except KeyError:
-	    self.header = "True"
+            self.header = "True"
         try:
-	    self.separator = parameters['separator']
+            self.separator = parameters['separator']
         except KeyError:
-	    self.separator = ";"
+            self.separator = ";"
 
 
     def generate_code(self):
@@ -234,7 +299,7 @@ class Drop(operation):
         self.column = parameters['column']
     def generate_code(self):
         code = """{} = {}.drop('{}')""".format(
-            self.outputs[0], self.outputs[1], self.column)
+            self.outputs[0], self.inputs[0], self.column)
         return dedent(code)
 
 
@@ -270,7 +335,6 @@ class Select(operation):
     def __init__(self, parameters, inputs, outputs):
         self.set_io(inputs, outputs)
         self.columns = map(lambda x: str(x), parameters['columns'])
-        print self.columns
     def generate_code(self):
         code = '''{} = {}.select({})'''.format(
             self.outputs[0],self.inputs[0], self.columns)
@@ -289,12 +353,22 @@ class Aggregation(operation):
 
     def __init__(self, parameters, inputs, outputs):
         self.set_io(inputs, outputs)
-        self.column = parameters['column']
-        self.function = parameters['function']
+        self.group_by = map(lambda x: str(x), parameters['group_by'])
+        self.columns = map(lambda x: str(x), parameters['columns'])
+        self.function = map(lambda x: str(x), parameters['functions'])
+        self.names = map(lambda x: str(x), parameters['new_names'])
     def generate_code(self):
-        info = {self.column: self.function}
-        code = '''{} = {}.groupBy('{}').agg({})'''.format(
-            self.outputs[0],self.inputs[0], self.column, json.dumps(info))
+        elements = []
+        for i in range(0, len(self.columns)):
+            content = '''{}('{}').alias('{}')'''.format(self.function[i], self.columns[i],
+                           self.names[i])
+            elements.append(content)
+        code = '''{} = {}.groupBy({}).agg({})'''.format(
+            self.outputs[0],self.inputs[0], self.group_by, ', '.join(elements))
+
+        #info = {self.column: self.function}
+        #code = '''{} = {}.groupBy('{}').agg({})'''.format(
+        #    self.outputs[0],self.inputs[0], self.column, json.dumps(info))
         return dedent(code)
 
 
@@ -312,6 +386,24 @@ class Filter(operation):
         code = '''{} = {}.filter('{}')'''.format(
             self.outputs[0], self.inputs[0], self.expression)
         return dedent(code)
+
+
+class DatetimeToBins(operation):
+    '''
+    '''
+    def __init__(self, parameters, inputs, outputs):
+        self.set_io(inputs, outputs)
+        self.target_column = parameters['target_column']
+        self.new_column = parameters['new_column']
+        self.group_size = parameters['group_size']
+    def generate_code(self):
+        code = '''
+            from bins import *
+            {} = datetime_to_bins({}, {}, '{}', '{}')
+            '''.format(self.outputs[0], self.inputs[0], self.group_size, 
+		self.target_column, self.new_column)
+        return dedent(code)
+
 
 
 

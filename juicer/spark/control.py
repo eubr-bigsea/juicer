@@ -77,7 +77,7 @@ class Spark:
 
             # Just for testing. Remove from here.
             for out in output_list:
-                self.output.write("print \"" + task['operation']['name'] + "\" \n")
+                self.output.write("print \"" + task['operation']['name'] + " " + task['id'] + "\" \n")
                 self.output.write(out + ".show()\n")
             # Until here.
 
@@ -99,6 +99,7 @@ class Spark:
         self.classes['SELECT'] = operation.Select
         self.classes['AGGREGATION'] = operation.Aggregation
         self.classes['FILTER'] = operation.Filter
+        self.classes['DATETIME_TO_BINS'] = operation.DatetimeToBins
 
 
 
