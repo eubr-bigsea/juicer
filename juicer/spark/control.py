@@ -129,6 +129,7 @@ class Spark:
             'filter': operation.Filter,
             'intersection': operation.Intersection,
             'join': operation.Join,
+            'pearson-correlation': operation.
             # synonym for select
             'projection': operation.Select,
             'split': operation.RandomSplit,
@@ -139,6 +140,8 @@ class Spark:
             'sample': operation.Sample,
             'save': operation.Save,
             'select': operation.Select,
+            # synonym of intersection'
+            'set-intersection': operation.Intersection,
             'sort': operation.Sort,
             'svm-classification': operation.SvmClassification,
             'transformation': operation.Transformation,

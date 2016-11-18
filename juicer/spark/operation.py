@@ -161,6 +161,7 @@ class Sort(Operation):
         self.ascending = map(lambda x: int(x),
                              parameters.get(self.ASCENDING_PARAM,
                                             [1] * len(self.attributes)))
+
     def generate_code(self):
         output = self.outputs[0] if len(self.outputs) else '{}_tmp'.format(
             self.inputs[0])
@@ -259,6 +260,7 @@ class Intersection(Operation):
 
     def __init__(self, parameters, inputs, outputs):
         Operation.__init__(self, inputs, outputs)
+        self.parameters = parameters
 
     def generate_code(self):
         code = "{} = {}.intersect({})".format(
@@ -332,6 +334,7 @@ class Join(Operation):
                 code += """.drop({}.{})""".format(self.inputs[1], column)
 
         return dedent(code)
+
 
 class ReadCSV(Operation):
     """
@@ -457,27 +460,30 @@ class Aggregation(Operation):
         self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
         self.function = parameters['function']
 
-    '''
     def generate_code(self):
         elements = []
         for i in range(0, len(self.columns)):
-            content = '''{}('{}').alias('{}')'''.format(self.function[i], self.columns[i],
-                           self.names[i])
+            content = '''{}('{}').alias('{}')'''.format(self.function[i],
+                                                        self.columns[i],
+                                                        self.names[i])
             elements.append(content)
         code = '''{} = {}.groupBy({}).agg({})'''.format(
-            self.outputs[0],self.inputs[0], self.group_by, ', '.join(elements))
+            self.outputs[0], self.inputs[0], self.group_by, ', '.join(elements))
 
-    '''    
-    def generate_code(self):
-        info = {self.attributes: self.function}
-        output = self.outputs[0] if len(self.outputs) else '{}_tmp'.format(
-            self.inputs[0])
-        if len(self.inputs) == 1:
-            code = """{} = {}.groupBy('{}').agg({})""".format(
-                output, self.inputs[0], self.attributes, json.dumps(info))
-        else:
-            code = ""
-        return dedent(code)
+
+'''
+
+def generate_code(self):
+    info = {self.attributes: self.function}
+    output = self.outputs[0] if len(self.outputs) else '{}_tmp'.format(
+        self.inputs[0])
+    if len(self.inputs) == 1:
+        code = """{} = {}.groupBy('{}').agg({})""".format(
+            output, self.inputs[0], self.attributes, json.dumps(info))
+    else:
+        code = ""
+    return dedent(code)
+'''
 
 
 class Filter(Operation):
@@ -497,27 +503,26 @@ class Filter(Operation):
         return dedent(code)
 
 
-<<<<<<< HEAD
-class DatetimeToBins(operation):
-    '''
-    '''
+class DatetimeToBins(Operation):
+    """
+    """
+
     def __init__(self, parameters, inputs, outputs):
-        self.set_io(inputs, outputs)
+        Operation.__init__(self, inputs, outputs)
         self.target_column = parameters['target_column']
         self.new_column = parameters['new_column']
         self.group_size = parameters['group_size']
+
     def generate_code(self):
         code = '''
             from bins import *
             {} = datetime_to_bins({}, {}, '{}', '{}')
-            '''.format(self.outputs[0], self.inputs[0], self.group_size, 
-		self.target_column, self.new_column)
+            '''.format(self.outputs[0], self.inputs[0], self.group_size,
+                       self.target_column, self.new_column)
         return dedent(code)
 
 
-
-
-class Save(operation):
+class Save(Operation):
     """
     Saves the content of the DataFrame at the specified path
     and generate the code to call the Limonero API.
