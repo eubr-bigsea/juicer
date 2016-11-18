@@ -1,9 +1,10 @@
+import json
 
-from workflow import Workflow
+import requests
 from IO import IO
 from juicer.spark.control import Spark
 from juicer.compss.control import Compss
-
+from juicer.workflow.workflow import Workflow
 
 if __name__ == '__main__':
 
@@ -11,19 +12,29 @@ if __name__ == '__main__':
     io = IO()
 
     # Create the workflow, sort the tasks and plot the graph (optional)
+    '''
     workflow = Workflow(io.args['json'])
     workflow.read_json()
     workflow.sort_tasks()
     workflow.print_workflow()
-    #workflow.plot_workflow(io.args['graph_outfile'])
+    '''
+    r = requests.get(
+        'http://beta.ctweb.inweb.org.br/tahiti/workflows/{}?token=123456'.format(
+            io.args['workflow']))
+    workflow = Workflow(None)
+    # loader.set_workflow(json.loads(msg))
+    workflow_def = json.loads(r.text)
+    workflow.set_workflow(workflow_def)
+    workflow.sort_tasks()
 
-    if workflow.workflow['workflow']['framework'].lower() == "spark":
+    # workflow.plot_workflow(io.args['graph_outfile'])
+
+    if workflow.workflow.get('framework', 'spark').lower() == "spark":
         spark_instance = Spark(io.args['outfile'], workflow.workflow,
-        workflow.sorted_tasks)
+                               workflow.sorted_tasks)
         spark_instance.execution()
 
-
-    elif workflow.workflow['workflow']['framework'].lower() == "compss":
+    elif workflow.workflow.get('framework').lower() == "compss":
         compss_instance = Compss(io.args['outfile'], workflow.workflow,
-        workflow.sorted_tasks)
+                                 workflow.sorted_tasks)
         compss_instance.execution()

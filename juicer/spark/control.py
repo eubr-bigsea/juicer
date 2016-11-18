@@ -134,8 +134,8 @@ class Spark:
             'projection': operation.Select,
             'split': operation.RandomSplit,
             'read-csv': operation.ReadCSV,
-            # synonym for distinct
             'replace': operation.Replace,
+            # synonym for distinct
             'remove-duplicated-rows': operation.Distinct,
             'sample': operation.Sample,
             'save': operation.Save,

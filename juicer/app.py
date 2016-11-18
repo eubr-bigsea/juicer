@@ -74,9 +74,8 @@ class JuicerSparkService:
             # self.redis_conn.hset(_id, 'status', Statuses.RUNNING)
 
             loader = Workflow(None)
-            import post
             # loader.set_workflow(json.loads(msg))
-            loader.set_workflow(post.workflow)
+            #loader.set_workflow(post.workflow)
 
             loader.verify_workflow()
             loader.sort_tasks()

@@ -296,7 +296,7 @@ class Join(Operation):
     """
     KEEP_RIGHT_KEYS_PARAM = 'keep_right_keys'
     MATCH_CASE_PARAM = 'match_case'
-    JOIN_TYPE_PARAM = 'join_type_param'
+    JOIN_TYPE_PARAM = 'join_type'
     LEFT_ATTRIBUTES_PARAM = 'left_attributes'
     RIGHT_ATTRIBUTES_PARAM = 'right_attributes'
 
