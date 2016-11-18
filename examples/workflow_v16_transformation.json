@@ -1,0 +1,81 @@
+{  
+   "workflow":{  
+      "id":223,
+      "name":"Test1234",
+      "framework":"Spark",
+      "tasks":[  
+         {  
+            "id":"001",
+            "log_level":"INFO",
+            "operation":{  
+               "name":"DATA_READER",
+               "id":434
+            },
+            "parameters":[  
+               {  
+                  "name":"database_id",
+                  "value":4,
+                  "category":"EXECUTION"
+               }
+            ],
+            "ports":[  
+               {  
+                  "direction":"out",
+                  "id":1,
+                  "interface":"dataframe"
+               }
+            ]
+         },
+         {  
+            "id":"002",
+            "log_level":"INFO",
+            "operation":{  
+               "name":"TRANSFORMATION",
+               "id":434
+            },
+            "parameters":[  
+               {  
+                  "name":"expression",
+                  "value":
+{
+    "type": "BinaryExpression",
+    "operator": "+",
+    "left": {
+        "type": "Identifier",
+        "name": "age"
+    },
+    "right": {
+        "type": "Literal",
+        "value": 4,
+        "raw": "4"
+    }
+},
+                  "category":"EXECUTION"
+               },
+               {
+                  "name":"alias",
+                  "value":"sex",
+                  "category":"EXECUTION"
+               }
+            ],
+            "ports":[  
+               {
+                  "direction":"in",
+                  "id":1,
+                  "interface":"dataframe"
+               },
+               {
+                  "direction":"out",
+                  "id":2,
+                  "interface":"dataframe"
+               }
+            ]
+         }
+      ]
+   },
+   "user":{  
+      "login":"fernando",
+      "id":432,
+      "name":"Fernando Carvalho"
+   }
+}

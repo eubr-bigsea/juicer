@@ -1,0 +1,86 @@
+{
+	"workflow": {
+		"id": 223,
+		"name": "Test_compss",
+		"framework": "compss",
+		"tasks": 
+		[
+			{
+				"id": "001", 
+				"log_level": "INFO",
+				"operation": {
+					"name": "DATA_READER",
+					"id": 4
+				},
+				"parameters": [
+					{
+						"name": "database_id",
+						"value": 4,
+						"category": "EXECUTION"
+					}
+				],
+				"ports":[
+					{
+						"direction": "out",
+						"id": 1,
+						"interface": "dataframe"
+					}
+				]
+			},
+			{
+				"id": "002", 
+				"log_level": "INFO",
+				"operation": {
+					"name": "KMEANS",
+					"id": 2001
+				},
+				"parameters":[
+                    {
+                        "name": "k",
+                        "value": "2",
+                        "category": "EXECUTION"
+                    },
+                    {
+                        "name": "max_iterations",
+                        "value": "30",
+                        "category": "EXECUTION"
+                    },
+                    {
+                        "name": "init_mode",
+                        "value": "random",
+                        "category": "EXECUTION"
+                    },
+                    {
+                        "name": "epsilon",
+                        "value": 1e-4,
+                        "category": "EXECUTION"
+                    },
+                    {
+                        "name": "num_frag",
+                        "value": "3",
+                        "category": "EXECUTION"
+                    }
+                ],
+				"ports":[
+                    {
+                        "direction": "in",
+                        "id": 1,
+                        "interface": "dataframe"
+                    },
+                    {
+                        "direction": "out",
+                        "id": 2,
+                        "interface": "dataframe"
+                    }
+
+                ]
+
+			}
+		]
+	},
+	"user": {
+		"login": "fernando",
+		"id": 432,
+		"name": "Fernando Carvalho"
+	}
+}
