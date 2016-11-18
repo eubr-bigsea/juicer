@@ -129,7 +129,7 @@ class Spark:
             'filter': operation.Filter,
             'intersection': operation.Intersection,
             'join': operation.Join,
-            'pearson-correlation': operation.
+            'pearson-correlation': operation.PearsonCorrelation,
             # synonym for select
             'projection': operation.Select,
             'split': operation.RandomSplit,

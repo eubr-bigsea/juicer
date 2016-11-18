@@ -810,8 +810,8 @@ class PearsonCorrelation(Operation):
         if len(self.inputs) == 1:
             output = self.outputs[0] if len(self.outputs) else '{}_tmp'.format(
                 self.inputs[0])
-            code = """{} = {}.corr('{}').agg({})""".format(
-                output, self.inputs[0], self.attributes, json.dumps(info))
+            code = """{} = {}.corr('{}', '{}')""".format(
+                output, self.inputs[0], self.attributes[0], self.attributes[1])
         else:
             code = ''
 
