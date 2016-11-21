@@ -1,3 +1,4 @@
+import juicer.spark.ml_operation
 from juicer.spark import operation
 from textwrap import dedent
 
@@ -72,7 +73,7 @@ class Spark:
                                                 flow['target_port'])
 
             if flow_id not in sequential_ports:
-                sequential_ports[flow_id] = 'df_{}'.format(
+                sequential_ports[flow_id] = 'df{}'.format(
                     len(sequential_ports))
 
             if source_id not in ports:
@@ -125,7 +126,7 @@ class Spark:
             'difference': operation.Difference,
             'distinct': operation.Distinct,
             'drop': operation.Drop,
-            'evaluate-model': operation.EvaluateModel,
+            'evaluate-model': juicer.spark.ml_operation.EvaluateModel,
             'filter': operation.Filter,
             'intersection': operation.Intersection,
             'join': operation.Join,
@@ -143,7 +144,7 @@ class Spark:
             # synonym of intersection'
             'set-intersection': operation.Intersection,
             'sort': operation.Sort,
-            'svm-classification': operation.SvmClassification,
+            'svm-classification': juicer.spark.ml_operation.SvmClassification,
             'transformation': operation.Transformation,
 
         }

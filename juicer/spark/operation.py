@@ -2,10 +2,9 @@
 import ast
 import json
 import logging
+import time
 from random import random
 from textwrap import dedent
-
-import time
 
 from expression import Expression
 from metadata import MetadataGet
@@ -624,20 +623,6 @@ class NoOp(Operation):
         self.has_code = False
 
 
-class SvmClassification(Operation):
-    def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, inputs, outputs)
-        self.parameters = parameters
-        self.has_code = False
-
-
-class EvaluateModel(Operation):
-    def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, inputs, outputs)
-        self.parameters = parameters
-        self.has_code = False
-
-
 class CleanMissing(Operation):
     """
     Clean missing fields from data set
@@ -651,11 +636,19 @@ class CleanMissing(Operation):
           * "REMOVE_ROW": remove entire row
           * "REMOVE_COLUMN": remove entire column
         - value: optional, used to replace missing values
-        @FIXME: Implement
     """
     ATTRIBUTES_PARAM = 'attributes'
     CLEANING_MODE_PARAM = 'cleaning_mode'
     VALUE_PARAMETER = 'value'
+    MIN_MISSING_RATIO_PARAM = 'min_missing_ratio'
+    MAX_MISSING_RATIO_PARAM = 'max_missing_ratio'
+
+    VALUE = 'VALUE'
+    MEAN = 'MEAN'
+    MODE = 'MODE'
+    MEDIAN = 'MEDIAN'
+    REMOVE_ROW = 'REMOVE_ROW'
+    REMOVE_COLUMN = 'REMOVE_COLUMN'
 
     def __init__(self, parameters, inputs, outputs):
         Operation.__init__(self, inputs, outputs)
@@ -666,13 +659,17 @@ class CleanMissing(Operation):
                 "Parameter '{}' must be informed for task {}".format(
                     self.ATTRIBUTES_PARAM, self.__class__))
         self.cleaning_mode = parameters.get(self.CLEANING_MODE_PARAM,
-                                            'REMOVE_ROW')
+                                            self.REMOVE_ROW)
 
         self.value = parameters.get(self.VALUE_PARAMETER)
+        self.min_missing_ratio = float(
+            parameters.get(self.MIN_MISSING_RATIO_PARAM))
+        self.max_missing_ratio = float(
+            parameters.get(self.MAX_MISSING_RATIO_PARAM))
 
         # In this case, nothing will be generated besides create reference to
         # data frame
-        if (self.value is None and self.cleaning_mode == 'VALUE') or len(
+        if (self.value is None and self.cleaning_mode == self.VALUE) or len(
                 self.inputs) == 0:
             self.has_code = False
 
@@ -682,58 +679,93 @@ class CleanMissing(Operation):
 
         output = self.outputs[0] if len(self.outputs) else '{}_tmp'.format(
             self.inputs[0])
-        if self.cleaning_mode == 'REMOVE_ROW':
-            code = """{} = {}.dropna(how='any', subset=[{}])""".format(
-                output, self.inputs[0],
-                ', '.join("'{}'".format(x) for x in self.attributes))
-        elif self.cleaning_mode == 'VALUE':
+        pre_code = []
+        partial = []
+        attrs_json = json.dumps(self.attributes)
+
+        if any([self.min_missing_ratio, self.max_missing_ratio]):
+            self.min_missing_ratio = self.min_missing_ratio or 0.0
+            self.max_missing_ratio = self.max_missing_ratio or 1.0
+
+            # Based on http://stackoverflow.com/a/35674589/1646932
+            select_list = [
+                "\n    (count('{0}') / count('*')).alias('{0}')".format(attr)
+                for attr in self.attributes]
+            pre_code.extend([
+                "# Computes the ratio of missing values for each attribute",
+                "ratio_{0} = {0}.select({1}).collect()".format(
+                    self.inputs[0], ', '.join(select_list)), "",
+                "attributes_{0} = [c for c in {1} "
+                "\n        if {2} <= count_{0}[0][c] <= {3}]".format(
+                    self.inputs[0], attrs_json, self.min_missing_ratio,
+                    self.max_missing_ratio)
+            ])
+        else:
+            pre_code.append(
+                "attributes_{0} = {1}".format(self.inputs[0], attrs_json))
+
+        if self.cleaning_mode == self.REMOVE_ROW:
+            partial.append("""
+                {0} = {1}.na.drop(how='any', subset=attributes_{1})""".format(
+                output, self.inputs[0]))
+
+        elif self.cleaning_mode == self.VALUE:
             value = ast.literal_eval(self.value)
             if not (isinstance(value, int) or isinstance(value, float)):
                 value = '"{}"'.format(value)
-            code = """{} = {}.na.fill(value={}, subset=[{}])""".format(
-                output, self.inputs[0], value,
-                ', '.join("'{}'".format(x) for x in self.attributes))
-        elif self.cleaning_mode == 'REMOVE_COLUMN':
-            select_list = [
-                "(count('{0}') / count('*')).alias('{0}')".format(attr) for
-                attr in self.attributes]
+            partial.append(
+                "\n    {0} = {1}.na.fill(value={2}, subset=attributes_{1})".format(
+                    output, self.inputs[0], value))
 
-            partial = [
-                "# Computes which columns have missings and delete them",
-                "count_{0} = {0}.select({1}).collect()".format(
-                    self.inputs[0], ', '.join(select_list)),
-                "drop_{0} = [c for c in {1} if count_{0}[0][c] < 1.0]".format(
-                    self.inputs[0], json.dumps(self.attributes)),
-                # Based on http://stackoverflow.com/a/35674589/1646932
-                "{0} = {1}.select([c for c in {1}.columns if c not in drop_{1}])".format(
-                    output,
-                    self.inputs[0])
+        elif self.cleaning_mode == self.REMOVE_COLUMN:
+            # Based on http://stackoverflow.com/a/35674589/1646932"
+            partial.append(
+                "\n{0} = {1}.select("
+                "[c for c in {1}.columns if c not in attributes_{1}])".format(
+                    output, self.inputs[0]))
 
-            ]
-            code = "\n".join(partial)
-        elif self.cleaning_mode == 'MODE':
-            code = "@FIXME"
-        elif self.cleaning_mode == "MEDIAN":
+        elif self.cleaning_mode == self.MODE:
+            # Based on http://stackoverflow.com/a/36695251/1646932
+            partial.append("""
+                md_replace_{1} = dict()
+                for md_attr_{1} in attributes_{1}:
+                    md_count_{1} = {0}.groupBy(md_attr_{1}).count()\\
+                        .orderBy(desc('count')).limit(1)
+                    md_replace_{1}[md_attr_{1}] = md_count_{1}.collect()[0][0]
+             {0} = {1}.fillna(value=md_replace_{1})""".format(
+                output, self.inputs[0])
+            )
+
+        elif self.cleaning_mode == self.MEDIAN:
             # See http://stackoverflow.com/a/31437177/1646932
-            # But null values cause exception
-            # @FIXME: Not working, need to perform approxQuantile for each attr
-            code = """
-                # Computes median value for columns",
-                mdn_{0} = {0}.dropna().approxQuantile([avg(c).alias(c) for c in {1}]).collect()
-                values_{2} = dict([(c, mdn_{0}[0][c]) for c in {1}])
-                {2} = {0}.na.fill(value=values_{2})""".format(
-                self.inputs[0], json.dumps(self.attributes), output)
-            code = "@FIXME"
-        elif self.cleaning_mode == 'MEAN':
-            code = """
-                # Computes mean value for columns",
-                avg_{0} = {0}.select([avg(c).alias(c) for c in {1}]).collect()
-                values_{2} = dict([(c, avg_{0}[0][c]) for c in {1}])
-                {2} = {0}.na.fill(value=values_{2})""".format(
-                self.inputs[0], json.dumps(self.attributes), output)
+            # But null values cause exception, so it needs to remove them
+            partial.append("""
+                mdn_replace_{1} = dict()
+                for mdn_attr_{1} in attributes_{1}:
+                    # Computes median value for column with relat. error = 10%
+                    mdn_{1} = {1}.na.drop(subset=[mdn_attr_{1}])\\
+                        .approxQuantile(mdn_attr_{1}, [.5], .1)
+                    md_replace_{1}[mdn_attr_{1}] = mdn_{1}[0]
+                {0} = {1}.fillna(value=mdn_replace_{1})""".format(
+                output, self.inputs[0]))
+
+        elif self.cleaning_mode == self.MEAN:
+            partial.append("""
+                avg_{1} = {1}.select([avg(c).alias(c) for c in attributes_{1}]).collect()
+                values_{1} = dict([(c, avg_{1}[0][c]) for c in attributes_{1}])
+                {0} = {1}.na.fill(value=values_{1})""".format(output,
+                                                              self.inputs[0]))
         else:
-            code = 'FIXME'
-        return dedent(code)
+            raise ValueError(
+                "Parameter '{}' has an incorrect value '{}' in {}".format(
+                    self.CLEANING_MODE_PARAM, self.cleaning_mode,
+                    self.__class__))
+
+        return '\n'.join(pre_code) + \
+               "\nif len(attributes_{0}) > 0:".format(self.inputs[0]) + \
+               '\n    '.join([dedent(line) for line in partial]).replace('\n',
+                                                                         '\n    ') + \
+               "\nelse:\n    {0} = {1}".format(output, self.inputs[0])
 
 
 class AddColumns(Operation):
@@ -794,6 +826,7 @@ class Replace(Operation):
 class PearsonCorrelation(Operation):
     """
     Calculates the correlation of two columns of a DataFrame as a double value.
+    @deprecated: It should be used as a function in expressions
     """
     ATTRIBUTES_PARAM = 'attributes'
 
