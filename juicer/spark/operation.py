@@ -64,18 +64,21 @@ class DataReader(Operation):
         # Should we create a dict with the CSV info at Limonero?
         # such as header and sep.
         code = ''
-        if self.metadata['format'] == 'CSV':
-            code = """{} = spark.read.csv('{}',
-            header={}, sep='{}', inferSchema={})""".format(
-                self.outputs[0], self.metadata['url'],
-                self.header, self.sep, self.infer_schema)
+        if len(self.outputs) == 1:
+            if self.metadata['format'] == 'CSV':
+                code = """{} = spark.read.csv('{}',
+                header={}, sep='{}', inferSchema={})""".format(
+                    self.outputs[0], self.metadata['url'],
+                    self.header, self.sep, self.infer_schema)
 
-        elif self.metadata['format'] == 'PARQUET_FILE':
-            # TO DO
-            pass
-        elif self.metadata['format'] == 'JSON_FILE':
-            # TO DO
-            pass
+            elif self.metadata['format'] == 'PARQUET_FILE':
+                # TO DO
+                pass
+            elif self.metadata['format'] == 'JSON_FILE':
+                # TO DO
+                pass
+        else:
+            code = ''
 
         return dedent(code)
 
