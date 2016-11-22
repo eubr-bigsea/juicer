@@ -13,6 +13,7 @@ from pyspark.sql import SparkSession
 
 {%- for instance in instances %}
 {%- if instance.has_code %}
+
 def {{instance.parameters.task.operation.slug.replace('-', '_')}}_generate_{{instance.get_output_names('_')}}({{instance.get_inputs_names}}):
     {%- if instance.parameters.task.forms.comment.value %}
     """
@@ -24,11 +25,10 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_generate_{{ins
     return {{instance.get_output_names()}}
 {%- endif %}
 {% endfor %}
-
 def main():
     spark = SparkSession.builder\
-        .appName('## {{workflow_name}} ##')
-         .getOrCreate()
+           .appName('## {{workflow_name}} ##')\
+           .getOrCreate()
 
     {%- for instance in instances %}
     {%- if instance.has_code %}
@@ -40,9 +40,10 @@ def main():
         {%- for instance in instances %}
         {%- if instance.has_code %}
         {%- for variable in instance.get_output_names('|').split('|')%}
-        '{{variable}}': {{variable}}
+        '{{variable}}': {{variable}},
         {%- endfor %}
         {%- endif %}
         {%- endfor %}
     }
+
 main()
