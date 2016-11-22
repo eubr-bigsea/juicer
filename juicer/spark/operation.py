@@ -7,7 +7,7 @@ from random import random
 from textwrap import dedent
 
 from expression import Expression
-from metadata import MetadataGet
+from juicer.dist.metadata import MetadataGet
 
 log = logging.getLogger()
 log.setLevel(logging.DEBUG)
@@ -16,13 +16,30 @@ log.setLevel(logging.DEBUG)
 class Operation:
     """ Defines an operation in Lemonade """
 
-    def __init__(self, inputs, outputs):
+    def __init__(self, parameters, inputs, outputs):
+        self.parameters = parameters
         self.inputs = inputs
         self.outputs = outputs
 
         # Indicate if operation generates code or not. Some operations, e.g.
         # Comment, does not generate code
-        self.has_code = True
+        self.has_code = len(self.inputs) > 0 or len(self.outputs) > 0
+
+    @property
+    def get_inputs_names(self):
+        return ', '.join(self.inputs)
+
+    def get_output_names(self, sep=", "):
+        result = ''
+        if len(self.outputs) > 0:
+            result = sep.join(self.outputs)
+        elif len(self.inputs) > 0:
+            result = '{}_tmp'.format(self.inputs[0])
+        else:
+            raise ValueError(
+                "Operation has neither input nor output: {}".format(
+                    self.__class__))
+        return result
 
     def test_null_operation(self):
         """
@@ -44,7 +61,7 @@ class DataReader(Operation):
     INFER_SCHEMA_PARAM = 'infer_schema'
 
     def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, inputs, outputs)
+        Operation.__init__(self, parameters, inputs, outputs)
         if self.DATA_SOURCE_ID_PARAM in parameters:
             self.database_id = parameters[self.DATA_SOURCE_ID_PARAM]
             self.header = parameters.get(self.HEADER_PARAM, False)
@@ -95,7 +112,7 @@ class RandomSplit(Operation):
     WEIGHTS_PARAM = 'weights'
 
     def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, inputs, outputs)
+        Operation.__init__(self, parameters, inputs, outputs)
         value = float(parameters.get(self.WEIGHTS_PARAM, 50))
         self.weights = [value, 100 - value]
         self.seed = parameters.get(self.SEED_PARAM, int(random() * time.time()))
@@ -123,7 +140,7 @@ class AddRows(Operation):
     """
 
     def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, inputs, outputs)
+        Operation.__init__(self, parameters, inputs, outputs)
         self.parameters = parameters
 
     def generate_code(self):
@@ -152,7 +169,7 @@ class Sort(Operation):
     ASCENDING_PARAM = 'ascending'
 
     def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, inputs, outputs)
+        Operation.__init__(self, parameters, inputs, outputs)
         if self.ATTRIBUTES_PARAM in parameters:
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
         else:
@@ -183,7 +200,7 @@ class Distinct(Operation):
     ATTRIBUTES_PARAM = 'attributes'
 
     def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, inputs, outputs)
+        Operation.__init__(self, parameters, inputs, outputs)
         if self.ATTRIBUTES_PARAM in parameters:
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
         else:
@@ -222,7 +239,7 @@ class Sample(Operation):
     WITH_REPLACEMENT_PARAM = 'withReplacement'
 
     def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, inputs, outputs)
+        Operation.__init__(self, parameters, inputs, outputs)
         if self.FRACTION_PARAM in parameters:
             self.withReplacement = parameters.get(self.WITH_REPLACEMENT_PARAM,
                                                   False)
@@ -261,7 +278,7 @@ class Intersection(Operation):
     """
 
     def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, inputs, outputs)
+        Operation.__init__(self, parameters, inputs, outputs)
         self.parameters = parameters
 
     def generate_code(self):
@@ -283,7 +300,7 @@ class Difference(Operation):
     """
 
     def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, inputs, outputs)
+        Operation.__init__(self, parameters, inputs, outputs)
 
     def generate_code(self):
         code = "{} = {}.subtract({})".format(
@@ -303,7 +320,7 @@ class Join(Operation):
     RIGHT_ATTRIBUTES_PARAM = 'right_attributes'
 
     def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, inputs, outputs)
+        Operation.__init__(self, parameters, inputs, outputs)
         self.keep_right_keys = parameters.get(self.KEEP_RIGHT_KEYS_PARAM, False)
         self.match_case = parameters.get(self.MATCH_CASE_PARAM, False)
         self.join_type = parameters.get(self.JOIN_TYPE_PARAM, 'inner')
@@ -352,7 +369,7 @@ class ReadCSV(Operation):
     """
 
     def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, inputs, outputs)
+        Operation.__init__(self, parameters, inputs, outputs)
         self.url = parameters['url']
         try:
             self.header = parameters['header']
@@ -378,7 +395,7 @@ class Drop(Operation):
     """
 
     def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, inputs, outputs)
+        Operation.__init__(self, parameters, inputs, outputs)
         self.column = parameters['column']
 
     def generate_code(self):
@@ -395,21 +412,36 @@ class Transformation(Operation):
         replace it.
         - Expression: json describing the transformation expression
     """
+    ALIAS_PARAM = 'alias'
+    EXPRESSION_PARAM = 'expression'
 
     def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, inputs, outputs)
-        self.alias = parameters['alias']
-        self.json_expression = parameters['expression']
+        Operation.__init__(self, parameters, inputs, outputs)
+        if all(['alias' in parameters, 'expression' in parameters]):
+            self.alias = parameters['alias']
+            self.json_expression = json.loads(parameters['expression'])['tree']
+        else:
+            raise ValueError(
+                "Parameters '{}' and {} must be informed for task {}".format(
+                    self.ALIAS_PARAM, self.EXPRESSION_PARAM, self.__class__))
 
     def generate_code(self):
-        # Builds the expression and identify the target column
-        expression = Expression(self.json_expression)
-        built_expression = expression.parsed_expression
-        # Builds the code
-        code = """{} = {}.withColumn('{}', {})""".format(self.outputs[0],
-                                                         self.inputs[0],
-                                                         self.alias,
-                                                         built_expression)
+        if len(self.inputs) > 0:
+            # Builds the expression and identify the target column
+            expression = Expression(self.json_expression)
+            built_expression = expression.parsed_expression
+            if len(self.outputs) > 0:
+                output = self.outputs[0]
+            else:
+                output = '{}_tmp'.format(self.inputs[0])
+
+            # Builds the code
+            code = """{} = {}.withColumn('{}', {})""".format(output,
+                                                             self.inputs[0],
+                                                             self.alias,
+                                                             built_expression)
+        else:
+            code = ''
         return dedent(code)
 
 
@@ -423,7 +455,7 @@ class Select(Operation):
     ASCENDING_PARAM = 'ascending'
 
     def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, inputs, outputs)
+        Operation.__init__(self, parameters, inputs, outputs)
         if self.ATTRIBUTES_PARAM in parameters:
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
         else:
@@ -454,7 +486,7 @@ class Aggregation(Operation):
     FUNCTION_PARAM = 'function'
 
     def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, inputs, outputs)
+        Operation.__init__(self, parameters, inputs, outputs)
         self.group_by = map(lambda x: str(x), parameters['group_by'])
         self.columns = map(lambda x: str(x), parameters['columns'])
         self.function = map(lambda x: str(x), parameters['functions'])
@@ -502,7 +534,7 @@ class Filter(Operation):
     """
 
     def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, inputs, outputs)
+        Operation.__init__(self, parameters, inputs, outputs)
         self.expression = parameters['expression']
 
     def generate_code(self):
@@ -516,7 +548,7 @@ class DatetimeToBins(Operation):
     """
 
     def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, inputs, outputs)
+        Operation.__init__(self, parameters, inputs, outputs)
         self.target_column = parameters['target_column']
         self.new_column = parameters['new_column']
         self.group_size = parameters['group_size']
@@ -536,72 +568,86 @@ class Save(Operation):
     and generate the code to call the Limonero API.
     Parameters:
         - Database name
-        - URL for storage
+        - Path for storage
         - Storage ID
         - Database tags
         - Workflow that generated the database
     """
+    NAME_PARAM = 'name'
+    PATH_PARAM = 'url'
+    STORAGE_ID_PARAM = 'storage_id'
+    FORMAT_PARAM = 'format'
+    TAGS_PARAM = 'tags'
+    OVERWRITE_MODE_PARAM = 'mode'
+    HEADER_PARAM = 'header'
+
+    MODE_ERROR = 'error'
+    MODE_APPEND = 'append'
+    MODE_OVERWRITE = 'overwrite'
+    MODE_IGNORE = 'ignore'
+
+    FORMAT_PARQUET = 'PARQUET'
+    FORMAT_CSV = 'CSV'
+    FORMAT_JSON = 'JSON'
 
     def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, inputs, outputs)
-        self.name = parameters['name']
-        self.format = parameters['format']
-        self.url = parameters['url']
-        self.storage_id = parameters['storage_id']
-        self.tags = ast.literal_eval(parameters['tags'])
-        self.workflow = parameters['workflow']
-        try:
-            self.mode = parameters['mode']
-        except KeyError:
-            self.mode = "error"
-        try:
-            self.header = parameters['header']
-        except KeyError:
-            self.header = "True"
+        Operation.__init__(self, parameters, inputs, outputs)
+
+        self.name = parameters.get(self.NAME_PARAM)
+        self.format = parameters.get(self.FORMAT_PARAM)
+        self.url = parameters.get(self.PATH_PARAM)
+        self.storage_id = parameters.get(self.STORAGE_ID_PARAM)
+        self.tags = ast.literal_eval(parameters.get(self.TAGS_PARAM, '[]'))
+
+        self.workflow = parameters.get('workflow', '')
+
+        self.mode = parameters.get(self.OVERWRITE_MODE_PARAM, self.MODE_ERROR)
+        self.header = parameters.get(self.HEADER_PARAM, True)
 
     def generate_code(self):
 
         code_save = ''
-        if self.format == "CSV":
+        if self.format == self.FORMAT_JSON:
             code_save = """{}.write.csv('{}', header={}, mode='{}')""".format(
                 self.inputs[0], self.url, self.header, self.mode)
-        elif self.format == "PARQUET":
+        elif self.format == self.FORMAT_PARQUET:
             pass
-        elif self.format == "JSON":
+        elif self.format == self.FORMAT_JSON:
             pass
 
         code_api = """
             from metadata import MetadataPost
 
-            types_names = dict()
-            types_names['IntegerType'] = "INTEGER"
-            types_names['StringType'] = "TEXT"
-            types_names['LongType'] = "LONG"
-            types_names['DoubleType'] = "DOUBLE"
-            types_names['TimestampType'] = "DATETIME"
+            types_names = {{
+                'IntegerType': "INTEGER",
+                'StringType': "TEXT",
+                'LongType': "LONG",
+                'DoubleType': "DOUBLE",
+                'TimestampType': "DATETIME",
+            }}
 
 
             schema = []
             for att in {0}.schema:
-                data = dict()
-                data['name'] = att.name
-                data['dataType'] = types_names[str(att.dataType)]
-                data['nullable'] = att.nullable
-                data['metadata'] = att.metadata
-                schema.append(data)
+                schema.append({{
+                    'name': att.name,
+                    'dataType': types_names[str(att.dataType)],
+                    'nullable': att.nullable,
+                    'metadata': att.metadata,
+                }})
 
-            parameters = dict()
-            parameters['name'] = "{1}"
-            parameters['format'] = "{2}"
-            parameters['storage_id'] = {3}
-            parameters['provenience'] = str("{4}")
-            parameters['description'] = "{5}"
-            parameters['user_id'] = "{6}"
-            parameters['user_login'] = "{7}"
-            parameters['user_name'] = "{8}"
-            parameters['workflow_id'] = "{9}"
-            parameters['url'] = "{10}"
-
+            parameters = {{
+                'name': "{1}",
+                'format': "{2}",
+                'storage_id': {3},
+                'provenience': str("{4}"),
+                'description': "{5}",
+                'user_id': "{6}",
+                'user_login': "{7}",
+                'user_name': "{8}",
+                'workflow_id': "{9}",
+                'url': "{10}",
+            }}
             instance = MetadataPost('{11}', schema, parameters)
             """.format(self.inputs[0], self.name, self.format, self.storage_id,
                        str(json.dumps(self.workflow)).replace("\"", "'"),
@@ -621,7 +667,7 @@ class NoOp(Operation):
     """ Null operation """
 
     def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, inputs, outputs)
+        Operation.__init__(self, parameters, inputs, outputs)
         self.parameters = parameters
         self.has_code = False
 
@@ -654,7 +700,7 @@ class CleanMissing(Operation):
     REMOVE_COLUMN = 'REMOVE_COLUMN'
 
     def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, inputs, outputs)
+        Operation.__init__(self, parameters, inputs, outputs)
         if self.ATTRIBUTES_PARAM in parameters:
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
         else:
@@ -778,7 +824,7 @@ class AddColumns(Operation):
     """
 
     def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, inputs, outputs)
+        Operation.__init__(self, parameters, inputs, outputs)
         self.has_code = len(inputs) == 2
 
     def generate_code(self):
@@ -807,7 +853,7 @@ class Replace(Operation):
     ATTRIBUTES_PARAM = 'attributes'
 
     def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, inputs, outputs)
+        Operation.__init__(self, parameters, inputs, outputs)
         if self.ATTRIBUTES_PARAM in parameters:
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
         else:
@@ -834,7 +880,7 @@ class PearsonCorrelation(Operation):
     ATTRIBUTES_PARAM = 'attributes'
 
     def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, inputs, outputs)
+        Operation.__init__(self, parameters, inputs, outputs)
         if self.ATTRIBUTES_PARAM in parameters:
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
         else:

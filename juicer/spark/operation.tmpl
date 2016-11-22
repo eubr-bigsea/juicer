@@ -1,0 +1,48 @@
+# coding=utf-8
+
+#
+# Auto-generated Spark code from Lemonade Workflow
+# (c) Speed Labs - Departamento de Ciência da Computação
+# (c) Universidade Federal de Minas Gerais
+# More information about Lemonade
+#
+from pyspark.sql.functions import *
+from pyspark.sql.window import Window
+from pyspark.sql.types import *
+from pyspark.sql import SparkSession
+
+{%- for instance in instances %}
+{%- if instance.has_code %}
+def {{instance.parameters.task.operation.slug.replace('-', '_')}}_generate_{{instance.get_output_names('_')}}({{instance.get_inputs_names}}):
+    {%- if instance.parameters.task.forms.comment.value %}
+    """
+    {{instance.parameters.task.forms.comment.value.replace('"', '')}}
+    """
+    {%- endif %}
+    {{instance.generate_code() | indent(width=4, indentfirst=False)}}
+
+    return {{instance.get_output_names()}}
+{%- endif %}
+{% endfor %}
+
+def main():
+    spark = SparkSession.builder\
+        .appName('## {{workflow_name}} ##')
+         .getOrCreate()
+
+    {%- for instance in instances %}
+    {%- if instance.has_code %}
+    {{instance.get_output_names()}} = {{instance.parameters.task.operation.slug.replace('-', '_')}}_generate_{{instance.get_output_names()}}({{instance.get_inputs_names}})
+    {%- endif %}
+    {%- endfor %}
+
+    return {
+        {%- for instance in instances %}
+        {%- if instance.has_code %}
+        {%- for variable in instance.get_output_names('|').split('|')%}
+        '{{variable}}': {{variable}}
+        {%- endfor %}
+        {%- endif %}
+        {%- endfor %}
+    }
+main()

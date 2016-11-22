@@ -1,9 +1,16 @@
+import zipfile
+
+import os
+
+import jinja2
 import juicer.spark.ml_operation
 from juicer.spark import operation
 from textwrap import dedent
 
 
 class Spark:
+    DIST_ZIP_FILE = '/tmp/lemonade-lib-python.zip'
+
     def __init__(self, outfile, workflow, tasks):
         self.output = open(outfile, "w")
         self.workflow = workflow
@@ -30,7 +37,7 @@ class Spark:
             .builder \\
             .appName('## {} ##') \\
             .getOrCreate()
-        """.format(self.workflow['name'])
+        """.format(self.workflow['name'].encode('utf8'))
         self.output.write(dedent(code))
 
     def map_port(self, task, input_list, output_list):
@@ -57,6 +64,38 @@ class Spark:
                 # Implement!
                 pass
 
+    def build_dist_file(self):
+        """
+        Build a Zip file containing files in dist packages. Such packages
+        contain code to be executed in the Spark cluster and should be
+        distributed among all nodes.
+        """
+        project_base = os.path.join(
+            os.path.abspath(os.path.dirname(__file__)), '..')
+
+        lib_paths = [
+            os.path.join(project_base, 'spark/dist'),
+            os.path.join(project_base, 'dist')
+        ]
+        build = os.path.exists(self.DIST_ZIP_FILE)
+        while not build:
+            for lib_path in lib_paths:
+                dist_files = os.listdir(lib_path)
+                zip_mtime = os.path.getmtime(self.DIST_ZIP_FILE)
+                for f in dist_files:
+                    if zip_mtime < os.path.getmtime(os.path.join(lib_path, f)):
+                        build = True
+                        break
+                if build:
+                    break
+            build = build or False
+
+        if build:
+            zf = zipfile.PyZipFile(self.DIST_ZIP_FILE, mode='w')
+            for lib_path in lib_paths:
+                zf.writepy(lib_path)
+            zf.close()
+
     def execution(self):
         """ Executes the tasks in Lemonade's workflow """
 
@@ -67,10 +106,7 @@ class Spark:
             source_id = flow['source_id']
             target_id = flow['target_id']
 
-            flow_id = '[{}:{}]=>[{}:{}]'.format(source_id,
-                                                flow['source_port'],
-                                                target_id,
-                                                flow['target_port'])
+            flow_id = '[{}:{}]'.format(source_id, flow['source_port'], )
 
             if flow_id not in sequential_ports:
                 sequential_ports[flow_id] = 'df{}'.format(
@@ -81,11 +117,16 @@ class Spark:
             if target_id not in ports:
                 ports[target_id] = {'outputs': [], 'inputs': []}
 
-            ports[source_id]['outputs'].append(sequential_ports[flow_id])
-            ports[target_id]['inputs'].append(sequential_ports[flow_id])
+            sequence = sequential_ports[flow_id]
+            if sequence not in ports[source_id]['outputs']:
+                ports[source_id]['outputs'].append(sequence)
+            if sequence not in ports[target_id]['inputs']:
+                ports[target_id]['inputs'].append(sequence)
 
+        env_setup = {'instances': [],
+                     'workflow_name': self.workflow.get('name')}
         for task in self.tasks:
-            self.output.write("\n# {}\n".format(task['operation']['name']))
+            ##self.output.write("\n# {}\n".format(task['operation']['name']))
             # input_list = []
             # output_list = []
             # self.map_port(task, input_list, output_list)
@@ -96,17 +137,20 @@ class Spark:
                 if all([definition.get('category',
                                        'execution').lower() == "execution",
                         definition['value'] is not None]):
+                    #print '###{} ==== {}'.format(parameter, definition['value'])
                     parameters[parameter] = definition['value']
 
             # Operation SAVE requires the complete workflow
             if task['operation']['name'] == 'SAVE':
                 parameters['workflow'] = self.workflow
 
+            parameters['task'] = task
             instance = class_name(parameters,
                                   ports.get(task['id'], {}).get('inputs', []),
                                   ports.get(task['id'], {}).get('outputs', []))
             if instance.has_code:
-                self.output.write(instance.generate_code() + "\n")
+                ## self.output.write(instance.generate_code() + "\n")
+                env_setup['instances'].append(instance)
 
                 # Just for testing. Remove from here.
                 # for out in output_list:
@@ -114,6 +158,11 @@ class Spark:
                 #        "print \"" + task['operation']['name'] + "\" \n")
                 # self.output.write(out + ".show()\n")
                 # Until here.
+        template_loader = jinja2.FileSystemLoader(
+            searchpath=os.path.dirname(__file__))
+        template_env = jinja2.Environment(loader=template_loader)
+        template = template_env.get_template("operation.tmpl")
+        print template.render(env_setup).encode('utf8')
 
     def assign_operations(self):
         self.classes = {

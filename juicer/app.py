@@ -74,8 +74,8 @@ class JuicerSparkService:
             # self.redis_conn.hset(_id, 'status', Statuses.RUNNING)
 
             r = requests.get(
-                "http://beta.ctweb.inweb.org.br/tahiti/workflows/21410"
-                "?token=123456")
+                "http://beta.ctweb.inweb.org.br/tahiti/workflows/{}"
+                "?token=123456".format(self.workflow_id))
 
             loader = Workflow(None)
             loader.set_workflow(json.loads(r.text))
