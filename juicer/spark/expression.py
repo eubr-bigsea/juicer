@@ -4,8 +4,10 @@ import json
 class Expression:
     def __init__(self, json_code):
         self.code = json_code
-        self.functions = self.build_functions_dict()
-        self.parsed_expression = self.parse(self.code)
+        self.functions = {}
+        self.build_functions_dict()
+
+        self.parsed_expression = self.parse(json_code)
 
     def parse(self, tree):
 
@@ -21,11 +23,7 @@ class Expression:
 
         # Expression parsing
         elif tree['type'] == 'CallExpression':
-            string = self.functions[tree['callee']['name']] + "("
-            for i in range(0, len(tree['arguments']) - 1):
-                string += self.parse(tree['arguments'][i]) + ","
-            string += self.parse(
-                tree['arguments'][len(tree['arguments']) - 1]) + ")"
+            string = self.functions[tree['callee']['name']](tree)
             return string
 
         # Identifier parsing
@@ -37,6 +35,32 @@ class Expression:
             string = "(" + tree['operator'] + self.parse(tree['argument']) + ")"
             return string
 
+    def get_window_function(self, spec):
+        """
+        Window funciton is slightly different from the Spark counterpart: the
+        last parameter indicates if it is using the start or end field in
+        window object. See Spark documentation about window. And a cast to
+        timestamp is needed.
+        """
+        arguments = [self.parse(x) for x in spec['arguments']]
+
+        field_name = 'start' if arguments[-1] != 'end' else 'end'
+        result = """{}({}).{}.cast(timestamp')""".format(
+            spec['callee']['name'],
+            ', '.join(arguments[:-1]),
+            field_name)
+        return result
+
+    def get_function_call(self, spec, name=None):
+
+        arguments = ', '.join([self.parse(x) for x in spec['arguments']])
+        result = '{}({})'.format(spec['callee']['name'], arguments)
+        return result
+
     def build_functions_dict(self):
-        dict = {'REPLACE': 'regexp_replace'}
-        return dict
+        functions = {
+            'regexp_replace': self.get_function_call,
+            'to_date': self.get_function_call,
+            'window': self.get_window_function
+        }
+        self.functions.update(functions)

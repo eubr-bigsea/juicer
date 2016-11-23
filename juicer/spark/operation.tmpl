@@ -21,14 +21,14 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_generate_{{ins
     """
     {%- endif %}
     {{instance.generate_code() | indent(width=4, indentfirst=False)}}
-
     return {{instance.get_output_names()}}
 {%- endif %}
 {% endfor %}
 def main():
+    app_name = '## {{workflow_name}} ##'
     spark = SparkSession.builder\
-           .appName('## {{workflow_name}} ##')\
-           .getOrCreate()
+                        .appName(app_name)\
+                        .getOrCreate()
 
     {%- for instance in instances %}
     {%- if instance.has_code %}
