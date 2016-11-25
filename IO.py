@@ -11,7 +11,6 @@ class IO:
             code', required=False)
         parser.add_argument('-g', '--graph_outfile', help='Outfile name to plot the  \
             workflow graph', required=False)
-
         parser.add_argument("-w", "--workflow", type=int, required=True,
                             help="Workflow identification number")
         self.args = vars(parser.parse_args())

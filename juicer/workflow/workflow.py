@@ -82,3 +82,4 @@ class Workflow:
         for task in self.sorted_tasks:
             print "\t", task['operation']['name'], task['id']
         print "\n\n"
+

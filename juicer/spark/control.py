@@ -122,6 +122,8 @@ class Spark:
             'clean-missing': operation.CleanMissing,
             'comment': operation.NoOp,
             'data-reader': operation.DataReader,
+            'data-writer': operation.Save,
+            'save': operation.Save,
             'difference': operation.Difference,
             'distinct': operation.Distinct,
             'drop': operation.Drop,
