@@ -64,9 +64,9 @@ class DataReader(Operation):
         Operation.__init__(self, parameters, inputs, outputs)
         if self.DATA_SOURCE_ID_PARAM in parameters:
             self.database_id = parameters[self.DATA_SOURCE_ID_PARAM]
-            self.header = parameters.get(self.HEADER_PARAM, False)
+            self.header = bool(parameters.get(self.HEADER_PARAM, False))
             self.sep = parameters.get(self.SEPARATOR_PARAM, ',')
-            self.infer_schema = parameters.get(self.INFER_SCHEMA_PARAM, True)
+            self.infer_schema = bool(parameters.get(self.INFER_SCHEMA_PARAM, True))
 
             metadata_obj = MetadataGet('123456')
             self.metadata = metadata_obj.get_metadata(self.database_id)
@@ -80,6 +80,7 @@ class DataReader(Operation):
         # For now, just accept CSV files.
         # Should we create a dict with the CSV info at Limonero?
         # such as header and sep.
+        #print "\n\n",self.metadata,"\n\n"
         code = ''
         if len(self.outputs) == 1:
             if self.metadata['format'] == 'CSV':
@@ -404,6 +405,31 @@ class Drop(Operation):
         return dedent(code)
 
 
+# class Transformation(Operation):
+#     """
+#     Returns a new DataFrame applying the expression to the specified column.
+#     Parameters:
+#         - Alias: new column name. If the name is the same of an existing,
+#         replace it.
+#         - Expression: json describing the transformation expression
+#     """
+#
+#     def __init__(self, parameters, inputs, outputs):
+#         Operation.__init__(self, inputs, outputs)
+#         self.alias = parameters['alias']
+#         self.json_expression = parameters['expression']
+#
+#     def generate_code(self):
+#         # Builds the expression and identify the target column
+#         expression = Expression(self.json_expression)
+#         built_expression = expression.parsed_expression
+#         # Builds the code
+#         code = """{} = {}.withColumn('{}', {})""".format(self.outputs[0],
+#                                                          self.inputs[0],
+#                                                          self.alias,
+#                                                          built_expression)
+#         return dedent(code)
+
 class Transformation(Operation):
     """
     Returns a new DataFrame applying the expression to the specified column.
@@ -443,6 +469,7 @@ class Transformation(Operation):
         else:
             code = ''
         return dedent(code)
+
 
 
 class Select(Operation):
@@ -604,39 +631,40 @@ class Save(Operation):
         self.mode = parameters.get(self.OVERWRITE_MODE_PARAM, self.MODE_ERROR)
         self.header = parameters.get(self.HEADER_PARAM, True)
 
+
     def generate_code(self):
 
         code_save = ''
-        if self.format == self.FORMAT_JSON:
+        if self.format == self.FORMAT_CSV:
             code_save = """{}.write.csv('{}', header={}, mode='{}')""".format(
                 self.inputs[0], self.url, self.header, self.mode)
         elif self.format == self.FORMAT_PARQUET:
             pass
         elif self.format == self.FORMAT_JSON:
             pass
+    
+        code = dedent(code_save)
 
-        code_api = """
-            from metadata import MetadataPost
 
-            types_names = {{
+        if not (self.workflow == ''):
+            code_api = """
+                from metadata import MetadataPost
+                types_names = {{
                 'IntegerType': "INTEGER",
                 'StringType': "TEXT",
                 'LongType': "LONG",
                 'DoubleType': "DOUBLE",
                 'TimestampType': "DATETIME",
-            }}
-
-
-            schema = []
-            for att in {0}.schema:
+                }}
+                schema = []
+                for att in {0}.schema:
                 schema.append({{
                     'name': att.name,
                     'dataType': types_names[str(att.dataType)],
                     'nullable': att.nullable,
                     'metadata': att.metadata,
                 }})
-
-            parameters = {{
+                parameters = {{
                 'name': "{1}",
                 'format': "{2}",
                 'storage_id': {3},
@@ -647,9 +675,9 @@ class Save(Operation):
                 'user_name': "{8}",
                 'workflow_id': "{9}",
                 'url': "{10}",
-            }}
-            instance = MetadataPost('{11}', schema, parameters)
-            """.format(self.inputs[0], self.name, self.format, self.storage_id,
+                }}
+                instance = MetadataPost('{11}', schema, parameters)
+                """.format(self.inputs[0], self.name, self.format, self.storage_id,
                        str(json.dumps(self.workflow)).replace("\"", "'"),
                        self.workflow['workflow']['name'],
                        self.workflow['user']['id'],
@@ -657,8 +685,7 @@ class Save(Operation):
                        self.workflow['user']['name'],
                        self.workflow['workflow']['id'], self.url, "123456"
                        )
-
-        code = dedent(code_save) + dedent(code_api)
+            code += dedent(code_api)
 
         return code
 
