@@ -2,13 +2,12 @@
 import ast
 import json
 import logging
+import time
 from random import random
 from textwrap import dedent
 
-import time
-
 from expression import Expression
-from metadata import MetadataGet
+from juicer.dist.metadata import MetadataGet
 
 log = logging.getLogger()
 log.setLevel(logging.DEBUG)
@@ -17,13 +16,30 @@ log.setLevel(logging.DEBUG)
 class Operation:
     """ Defines an operation in Lemonade """
 
-    def __init__(self, inputs, outputs):
+    def __init__(self, parameters, inputs, outputs):
+        self.parameters = parameters
         self.inputs = inputs
         self.outputs = outputs
 
         # Indicate if operation generates code or not. Some operations, e.g.
         # Comment, does not generate code
-        self.has_code = True
+        self.has_code = len(self.inputs) > 0 or len(self.outputs) > 0
+
+    @property
+    def get_inputs_names(self):
+        return ', '.join(self.inputs)
+
+    def get_output_names(self, sep=", "):
+        result = ''
+        if len(self.outputs) > 0:
+            result = sep.join(self.outputs)
+        elif len(self.inputs) > 0:
+            result = '{}_tmp'.format(self.inputs[0])
+        else:
+            raise ValueError(
+                "Operation has neither input nor output: {}".format(
+                    self.__class__))
+        return result
 
     def test_null_operation(self):
         """
@@ -45,7 +61,7 @@ class DataReader(Operation):
     INFER_SCHEMA_PARAM = 'infer_schema'
 
     def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, inputs, outputs)
+        Operation.__init__(self, parameters, inputs, outputs)
         if self.DATA_SOURCE_ID_PARAM in parameters:
             self.database_id = parameters[self.DATA_SOURCE_ID_PARAM]
             self.header = bool(parameters.get(self.HEADER_PARAM, False))
@@ -66,18 +82,21 @@ class DataReader(Operation):
         # such as header and sep.
         #print "\n\n",self.metadata,"\n\n"
         code = ''
-        if self.metadata['format'] == 'CSV':
-            code = """{} = spark.read.csv('{}',
-            header={}, sep='{}', inferSchema={})""".format(
-                self.outputs[0], self.metadata['url'],
-                self.header, self.sep, self.infer_schema)
+        if len(self.outputs) == 1:
+            if self.metadata['format'] == 'CSV':
+                code = """{} = spark.read.csv('{}',
+                header={}, sep='{}', inferSchema={})""".format(
+                    self.outputs[0], self.metadata['url'],
+                    self.header, self.sep, self.infer_schema)
 
-        elif self.metadata['format'] == 'PARQUET_FILE':
-            # TO DO
-            pass
-        elif self.metadata['format'] == 'JSON_FILE':
-            # TO DO
-            pass
+            elif self.metadata['format'] == 'PARQUET_FILE':
+                # TO DO
+                pass
+            elif self.metadata['format'] == 'JSON_FILE':
+                # TO DO
+                pass
+        else:
+            code = ''
 
         return dedent(code)
 
@@ -94,7 +113,7 @@ class RandomSplit(Operation):
     WEIGHTS_PARAM = 'weights'
 
     def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, inputs, outputs)
+        Operation.__init__(self, parameters, inputs, outputs)
         value = float(parameters.get(self.WEIGHTS_PARAM, 50))
         self.weights = [value, 100 - value]
         self.seed = parameters.get(self.SEED_PARAM, int(random() * time.time()))
@@ -122,7 +141,7 @@ class AddRows(Operation):
     """
 
     def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, inputs, outputs)
+        Operation.__init__(self, parameters, inputs, outputs)
         self.parameters = parameters
 
     def generate_code(self):
@@ -151,7 +170,7 @@ class Sort(Operation):
     ASCENDING_PARAM = 'ascending'
 
     def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, inputs, outputs)
+        Operation.__init__(self, parameters, inputs, outputs)
         if self.ATTRIBUTES_PARAM in parameters:
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
         else:
@@ -182,7 +201,7 @@ class Distinct(Operation):
     ATTRIBUTES_PARAM = 'attributes'
 
     def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, inputs, outputs)
+        Operation.__init__(self, parameters, inputs, outputs)
         if self.ATTRIBUTES_PARAM in parameters:
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
         else:
@@ -221,7 +240,7 @@ class Sample(Operation):
     WITH_REPLACEMENT_PARAM = 'withReplacement'
 
     def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, inputs, outputs)
+        Operation.__init__(self, parameters, inputs, outputs)
         if self.FRACTION_PARAM in parameters:
             self.withReplacement = parameters.get(self.WITH_REPLACEMENT_PARAM,
                                                   False)
@@ -260,7 +279,7 @@ class Intersection(Operation):
     """
 
     def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, inputs, outputs)
+        Operation.__init__(self, parameters, inputs, outputs)
         self.parameters = parameters
 
     def generate_code(self):
@@ -282,7 +301,7 @@ class Difference(Operation):
     """
 
     def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, inputs, outputs)
+        Operation.__init__(self, parameters, inputs, outputs)
 
     def generate_code(self):
         code = "{} = {}.subtract({})".format(
@@ -302,7 +321,7 @@ class Join(Operation):
     RIGHT_ATTRIBUTES_PARAM = 'right_attributes'
 
     def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, inputs, outputs)
+        Operation.__init__(self, parameters, inputs, outputs)
         self.keep_right_keys = parameters.get(self.KEEP_RIGHT_KEYS_PARAM, False)
         self.match_case = parameters.get(self.MATCH_CASE_PARAM, False)
         self.join_type = parameters.get(self.JOIN_TYPE_PARAM, 'inner')
@@ -351,7 +370,7 @@ class ReadCSV(Operation):
     """
 
     def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, inputs, outputs)
+        Operation.__init__(self, parameters, inputs, outputs)
         self.url = parameters['url']
         try:
             self.header = parameters['header']
@@ -377,7 +396,7 @@ class Drop(Operation):
     """
 
     def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, inputs, outputs)
+        Operation.__init__(self, parameters, inputs, outputs)
         self.column = parameters['column']
 
     def generate_code(self):
@@ -423,7 +442,7 @@ class Transformation(Operation):
     EXPRESSION_PARAM = 'expression'
 
     def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, inputs, outputs)
+        Operation.__init__(self, parameters, inputs, outputs)
         if all(['alias' in parameters, 'expression' in parameters]):
             self.alias = parameters['alias']
             self.json_expression = json.loads(parameters['expression'])['tree']
@@ -463,7 +482,7 @@ class Select(Operation):
     ASCENDING_PARAM = 'ascending'
 
     def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, inputs, outputs)
+        Operation.__init__(self, parameters, inputs, outputs)
         if self.ATTRIBUTES_PARAM in parameters:
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
         else:
@@ -494,7 +513,7 @@ class Aggregation(Operation):
     FUNCTION_PARAM = 'function'
 
     def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, inputs, outputs)
+        Operation.__init__(self, parameters, inputs, outputs)
         self.group_by = map(lambda x: str(x), parameters['group_by'])
         self.columns = map(lambda x: str(x), parameters['columns'])
         self.function = map(lambda x: str(x), parameters['functions'])
@@ -542,7 +561,7 @@ class Filter(Operation):
     """
 
     def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, inputs, outputs)
+        Operation.__init__(self, parameters, inputs, outputs)
         self.expression = parameters['expression']
 
     def generate_code(self):
@@ -556,7 +575,7 @@ class DatetimeToBins(Operation):
     """
 
     def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, inputs, outputs)
+        Operation.__init__(self, parameters, inputs, outputs)
         self.target_column = parameters['target_column']
         self.new_column = parameters['new_column']
         self.group_size = parameters['group_size']
@@ -599,7 +618,7 @@ class Save(Operation):
     FORMAT_JSON = 'JSON'
 
     def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, inputs, outputs)
+        Operation.__init__(self, parameters, inputs, outputs)
 
         self.name = parameters.get(self.NAME_PARAM)
         self.format = parameters.get(self.FORMAT_PARAM)
@@ -630,7 +649,6 @@ class Save(Operation):
         if not (self.workflow == ''):
             code_api = """
                 from metadata import MetadataPost
-
                 types_names = {{
                 'IntegerType': "INTEGER",
                 'StringType': "TEXT",
@@ -638,8 +656,6 @@ class Save(Operation):
                 'DoubleType': "DOUBLE",
                 'TimestampType': "DATETIME",
                 }}
-
-
                 schema = []
                 for att in {0}.schema:
                 schema.append({{
@@ -648,7 +664,6 @@ class Save(Operation):
                     'nullable': att.nullable,
                     'metadata': att.metadata,
                 }})
-
                 parameters = {{
                 'name': "{1}",
                 'format': "{2}",
@@ -679,21 +694,7 @@ class NoOp(Operation):
     """ Null operation """
 
     def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, inputs, outputs)
-        self.parameters = parameters
-        self.has_code = False
-
-
-class SvmClassification(Operation):
-    def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, inputs, outputs)
-        self.parameters = parameters
-        self.has_code = False
-
-
-class EvaluateModel(Operation):
-    def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, inputs, outputs)
+        Operation.__init__(self, parameters, inputs, outputs)
         self.parameters = parameters
         self.has_code = False
 
@@ -711,14 +712,22 @@ class CleanMissing(Operation):
           * "REMOVE_ROW": remove entire row
           * "REMOVE_COLUMN": remove entire column
         - value: optional, used to replace missing values
-        @FIXME: Implement
     """
     ATTRIBUTES_PARAM = 'attributes'
     CLEANING_MODE_PARAM = 'cleaning_mode'
     VALUE_PARAMETER = 'value'
+    MIN_MISSING_RATIO_PARAM = 'min_missing_ratio'
+    MAX_MISSING_RATIO_PARAM = 'max_missing_ratio'
+
+    VALUE = 'VALUE'
+    MEAN = 'MEAN'
+    MODE = 'MODE'
+    MEDIAN = 'MEDIAN'
+    REMOVE_ROW = 'REMOVE_ROW'
+    REMOVE_COLUMN = 'REMOVE_COLUMN'
 
     def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, inputs, outputs)
+        Operation.__init__(self, parameters, inputs, outputs)
         if self.ATTRIBUTES_PARAM in parameters:
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
         else:
@@ -726,13 +735,17 @@ class CleanMissing(Operation):
                 "Parameter '{}' must be informed for task {}".format(
                     self.ATTRIBUTES_PARAM, self.__class__))
         self.cleaning_mode = parameters.get(self.CLEANING_MODE_PARAM,
-                                            'REMOVE_ROW')
+                                            self.REMOVE_ROW)
 
         self.value = parameters.get(self.VALUE_PARAMETER)
+        self.min_missing_ratio = float(
+            parameters.get(self.MIN_MISSING_RATIO_PARAM))
+        self.max_missing_ratio = float(
+            parameters.get(self.MAX_MISSING_RATIO_PARAM))
 
         # In this case, nothing will be generated besides create reference to
         # data frame
-        if (self.value is None and self.cleaning_mode == 'VALUE') or len(
+        if (self.value is None and self.cleaning_mode == self.VALUE) or len(
                 self.inputs) == 0:
             self.has_code = False
 
@@ -742,58 +755,93 @@ class CleanMissing(Operation):
 
         output = self.outputs[0] if len(self.outputs) else '{}_tmp'.format(
             self.inputs[0])
-        if self.cleaning_mode == 'REMOVE_ROW':
-            code = """{} = {}.dropna(how='any', subset=[{}])""".format(
-                output, self.inputs[0],
-                ', '.join("'{}'".format(x) for x in self.attributes))
-        elif self.cleaning_mode == 'VALUE':
+        pre_code = []
+        partial = []
+        attrs_json = json.dumps(self.attributes)
+
+        if any([self.min_missing_ratio, self.max_missing_ratio]):
+            self.min_missing_ratio = self.min_missing_ratio or 0.0
+            self.max_missing_ratio = self.max_missing_ratio or 1.0
+
+            # Based on http://stackoverflow.com/a/35674589/1646932
+            select_list = [
+                "\n    (count('{0}') / count('*')).alias('{0}')".format(attr)
+                for attr in self.attributes]
+            pre_code.extend([
+                "# Computes the ratio of missing values for each attribute",
+                "ratio_{0} = {0}.select({1}).collect()".format(
+                    self.inputs[0], ', '.join(select_list)), "",
+                "attributes_{0} = [c for c in {1} "
+                "\n        if {2} <= count_{0}[0][c] <= {3}]".format(
+                    self.inputs[0], attrs_json, self.min_missing_ratio,
+                    self.max_missing_ratio)
+            ])
+        else:
+            pre_code.append(
+                "attributes_{0} = {1}".format(self.inputs[0], attrs_json))
+
+        if self.cleaning_mode == self.REMOVE_ROW:
+            partial.append("""
+                {0} = {1}.na.drop(how='any', subset=attributes_{1})""".format(
+                output, self.inputs[0]))
+
+        elif self.cleaning_mode == self.VALUE:
             value = ast.literal_eval(self.value)
             if not (isinstance(value, int) or isinstance(value, float)):
                 value = '"{}"'.format(value)
-            code = """{} = {}.na.fill(value={}, subset=[{}])""".format(
-                output, self.inputs[0], value,
-                ', '.join("'{}'".format(x) for x in self.attributes))
-        elif self.cleaning_mode == 'REMOVE_COLUMN':
-            select_list = [
-                "(count('{0}') / count('*')).alias('{0}')".format(attr) for
-                attr in self.attributes]
+            partial.append(
+                "\n    {0} = {1}.na.fill(value={2}, subset=attributes_{1})".format(
+                    output, self.inputs[0], value))
 
-            partial = [
-                "# Computes which columns have missings and delete them",
-                "count_{0} = {0}.select({1}).collect()".format(
-                    self.inputs[0], ', '.join(select_list)),
-                "drop_{0} = [c for c in {1} if count_{0}[0][c] < 1.0]".format(
-                    self.inputs[0], json.dumps(self.attributes)),
-                # Based on http://stackoverflow.com/a/35674589/1646932
-                "{0} = {1}.select([c for c in {1}.columns if c not in drop_{1}])".format(
-                    output,
-                    self.inputs[0])
+        elif self.cleaning_mode == self.REMOVE_COLUMN:
+            # Based on http://stackoverflow.com/a/35674589/1646932"
+            partial.append(
+                "\n{0} = {1}.select("
+                "[c for c in {1}.columns if c not in attributes_{1}])".format(
+                    output, self.inputs[0]))
 
-            ]
-            code = "\n".join(partial)
-        elif self.cleaning_mode == 'MODE':
-            code = "@FIXME"
-        elif self.cleaning_mode == "MEDIAN":
+        elif self.cleaning_mode == self.MODE:
+            # Based on http://stackoverflow.com/a/36695251/1646932
+            partial.append("""
+                md_replace_{1} = dict()
+                for md_attr_{1} in attributes_{1}:
+                    md_count_{1} = {0}.groupBy(md_attr_{1}).count()\\
+                        .orderBy(desc('count')).limit(1)
+                    md_replace_{1}[md_attr_{1}] = md_count_{1}.collect()[0][0]
+             {0} = {1}.fillna(value=md_replace_{1})""".format(
+                output, self.inputs[0])
+            )
+
+        elif self.cleaning_mode == self.MEDIAN:
             # See http://stackoverflow.com/a/31437177/1646932
-            # But null values cause exception
-            # @FIXME: Not working, need to perform approxQuantile for each attr
-            code = """
-                # Computes median value for columns",
-                mdn_{0} = {0}.dropna().approxQuantile([avg(c).alias(c) for c in {1}]).collect()
-                values_{2} = dict([(c, mdn_{0}[0][c]) for c in {1}])
-                {2} = {0}.na.fill(value=values_{2})""".format(
-                self.inputs[0], json.dumps(self.attributes), output)
-            code = "@FIXME"
-        elif self.cleaning_mode == 'MEAN':
-            code = """
-                # Computes mean value for columns",
-                avg_{0} = {0}.select([avg(c).alias(c) for c in {1}]).collect()
-                values_{2} = dict([(c, avg_{0}[0][c]) for c in {1}])
-                {2} = {0}.na.fill(value=values_{2})""".format(
-                self.inputs[0], json.dumps(self.attributes), output)
+            # But null values cause exception, so it needs to remove them
+            partial.append("""
+                mdn_replace_{1} = dict()
+                for mdn_attr_{1} in attributes_{1}:
+                    # Computes median value for column with relat. error = 10%
+                    mdn_{1} = {1}.na.drop(subset=[mdn_attr_{1}])\\
+                        .approxQuantile(mdn_attr_{1}, [.5], .1)
+                    md_replace_{1}[mdn_attr_{1}] = mdn_{1}[0]
+                {0} = {1}.fillna(value=mdn_replace_{1})""".format(
+                output, self.inputs[0]))
+
+        elif self.cleaning_mode == self.MEAN:
+            partial.append("""
+                avg_{1} = {1}.select([avg(c).alias(c) for c in attributes_{1}]).collect()
+                values_{1} = dict([(c, avg_{1}[0][c]) for c in attributes_{1}])
+                {0} = {1}.na.fill(value=values_{1})""".format(output,
+                                                              self.inputs[0]))
         else:
-            code = 'FIXME'
-        return dedent(code)
+            raise ValueError(
+                "Parameter '{}' has an incorrect value '{}' in {}".format(
+                    self.CLEANING_MODE_PARAM, self.cleaning_mode,
+                    self.__class__))
+
+        return '\n'.join(pre_code) + \
+               "\nif len(attributes_{0}) > 0:".format(self.inputs[0]) + \
+               '\n    '.join([dedent(line) for line in partial]).replace('\n',
+                                                                         '\n    ') + \
+               "\nelse:\n    {0} = {1}".format(output, self.inputs[0])
 
 
 class AddColumns(Operation):
@@ -803,7 +851,7 @@ class AddColumns(Operation):
     """
 
     def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, inputs, outputs)
+        Operation.__init__(self, parameters, inputs, outputs)
         self.has_code = len(inputs) == 2
 
     def generate_code(self):
@@ -832,7 +880,7 @@ class Replace(Operation):
     ATTRIBUTES_PARAM = 'attributes'
 
     def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, inputs, outputs)
+        Operation.__init__(self, parameters, inputs, outputs)
         if self.ATTRIBUTES_PARAM in parameters:
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
         else:
@@ -854,11 +902,12 @@ class Replace(Operation):
 class PearsonCorrelation(Operation):
     """
     Calculates the correlation of two columns of a DataFrame as a double value.
+    @deprecated: It should be used as a function in expressions
     """
     ATTRIBUTES_PARAM = 'attributes'
 
     def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, inputs, outputs)
+        Operation.__init__(self, parameters, inputs, outputs)
         if self.ATTRIBUTES_PARAM in parameters:
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
         else:
