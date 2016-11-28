@@ -73,9 +73,13 @@ class JuicerSparkService:
 
             # self.redis_conn.hset(_id, 'status', Statuses.RUNNING)
 
+            r = requests.get(
+                "http://beta.ctweb.inweb.org.br/tahiti/workflows/{}"
+                "?token=123456".format(self.workflow_id))
+
             loader = Workflow(None)
-            # loader.set_workflow(json.loads(msg))
-            #loader.set_workflow(post.workflow)
+            loader.set_workflow(json.loads(r.text))
+            # loader.set_workflow(post.workflow)
 
             loader.verify_workflow()
             loader.sort_tasks()
@@ -93,10 +97,9 @@ class JuicerSparkService:
             except:
                 raise
 
-
             generated.seek(0)
             print generated.read()
-            #raw_input('Pressione ENTER')
+            # raw_input('Pressione ENTER')
             break
 
 
