@@ -1,4 +1,4 @@
-# coding=utf-8
+# -*- coding: utf-8 -*-
 import ast
 import json
 import logging
@@ -8,6 +8,7 @@ from textwrap import dedent
 
 from expression import Expression
 from juicer.dist.metadata import MetadataGet
+from juicer.service import limonero_service
 
 log = logging.getLogger()
 log.setLevel(logging.DEBUG)
@@ -60,13 +61,18 @@ class DataReader(Operation):
     SEPARATOR_PARAM = 'separator'
     INFER_SCHEMA_PARAM = 'infer_schema'
 
+    INFER_FROM_LIMONERO = 'FROM_LIMONERO'
+    INFER_FROM_DATA = 'FROM_DATA'
+    DO_NOT_INFER = 'NO'
+
     def __init__(self, parameters, inputs, outputs):
         Operation.__init__(self, parameters, inputs, outputs)
         if self.DATA_SOURCE_ID_PARAM in parameters:
             self.database_id = parameters[self.DATA_SOURCE_ID_PARAM]
             self.header = bool(parameters.get(self.HEADER_PARAM, False))
             self.sep = parameters.get(self.SEPARATOR_PARAM, ',')
-            self.infer_schema = bool(parameters.get(self.INFER_SCHEMA_PARAM, True))
+            self.infer_schema = parameters.get(self.INFER_SCHEMA_PARAM,
+                                               self.INFER_FROM_LIMONERO)
 
             metadata_obj = MetadataGet('123456')
             self.metadata = metadata_obj.get_metadata(self.database_id)
@@ -80,14 +86,24 @@ class DataReader(Operation):
         # For now, just accept CSV files.
         # Should we create a dict with the CSV info at Limonero?
         # such as header and sep.
-        #print "\n\n",self.metadata,"\n\n"
+        # print "\n\n",self.metadata,"\n\n"
         code = ''
+        infer_from_data = self.infer_schema == self.INFER_FROM_DATA
+        infer_from_limonero = self.infer_schema == self.INFER_FROM_LIMONERO
         if len(self.outputs) == 1:
             if self.metadata['format'] == 'CSV':
-                code = """{} = spark.read.csv('{}',
+                code = """{} = spark_session.read.csv('{}',
                 header={}, sep='{}', inferSchema={})""".format(
                     self.outputs[0], self.metadata['url'],
-                    self.header, self.sep, self.infer_schema)
+                    self.header, self.sep, infer_from_data)
+
+                if infer_from_limonero:
+                    print '(' * 30
+                    print self.metadata
+                    print ')' * 30
+                    pass
+                # FIXME: Evaluate if it is good idea to always use cache
+                code += '\n{}.cache()'.format(self.outputs[0])
 
             elif self.metadata['format'] == 'PARQUET_FILE':
                 # TO DO
@@ -382,7 +398,7 @@ class ReadCSV(Operation):
             self.separator = ";"
 
     def generate_code(self):
-        code = """{} = spark.read.csv('{}',
+        code = """{} = spark_session.read.csv('{}',
             header={}, sep='{}' ,inferSchema=True)""".format(
             self.outputs[0], self.url, self.header, self.separator)
         return dedent(code)
@@ -404,31 +420,6 @@ class Drop(Operation):
             self.outputs[0], self.inputs[0], self.column)
         return dedent(code)
 
-
-# class Transformation(Operation):
-#     """
-#     Returns a new DataFrame applying the expression to the specified column.
-#     Parameters:
-#         - Alias: new column name. If the name is the same of an existing,
-#         replace it.
-#         - Expression: json describing the transformation expression
-#     """
-#
-#     def __init__(self, parameters, inputs, outputs):
-#         Operation.__init__(self, inputs, outputs)
-#         self.alias = parameters['alias']
-#         self.json_expression = parameters['expression']
-#
-#     def generate_code(self):
-#         # Builds the expression and identify the target column
-#         expression = Expression(self.json_expression)
-#         built_expression = expression.parsed_expression
-#         # Builds the code
-#         code = """{} = {}.withColumn('{}', {})""".format(self.outputs[0],
-#                                                          self.inputs[0],
-#                                                          self.alias,
-#                                                          built_expression)
-#         return dedent(code)
 
 class Transformation(Operation):
     """
@@ -469,7 +460,6 @@ class Transformation(Operation):
         else:
             code = ''
         return dedent(code)
-
 
 
 class Select(Operation):
@@ -536,6 +526,7 @@ class Aggregation(Operation):
             elements.append(content)
         code = '''{} = {}.groupBy({}).agg({})'''.format(
             self.outputs[0], self.inputs[0], self.group_by, ', '.join(elements))
+        return dedent(code)
 
 
 '''
@@ -601,8 +592,8 @@ class Save(Operation):
         - Workflow that generated the database
     """
     NAME_PARAM = 'name'
-    PATH_PARAM = 'url'
-    STORAGE_ID_PARAM = 'storage_id'
+    PATH_PARAM = 'path'
+    STORAGE_ID_PARAM = 'storage'
     FORMAT_PARAM = 'format'
     TAGS_PARAM = 'tags'
     OVERWRITE_MODE_PARAM = 'mode'
@@ -616,6 +607,9 @@ class Save(Operation):
     FORMAT_PARQUET = 'PARQUET'
     FORMAT_CSV = 'CSV'
     FORMAT_JSON = 'JSON'
+    WORKFLOW_JSON_PARAM = 'workflow_json'
+    USER_PARAM = 'user'
+    WORKFLOW_ID_PARAM = 'id'
 
     def __init__(self, parameters, inputs, outputs):
         Operation.__init__(self, parameters, inputs, outputs)
@@ -625,28 +619,50 @@ class Save(Operation):
         self.url = parameters.get(self.PATH_PARAM)
         self.storage_id = parameters.get(self.STORAGE_ID_PARAM)
         self.tags = ast.literal_eval(parameters.get(self.TAGS_PARAM, '[]'))
+        self.path = parameters.get(self.PATH_PARAM)
 
-        self.workflow = parameters.get('workflow', '')
+        self.workflow_json = parameters.get(self.WORKFLOW_JSON_PARAM, '')
 
         self.mode = parameters.get(self.OVERWRITE_MODE_PARAM, self.MODE_ERROR)
-        self.header = parameters.get(self.HEADER_PARAM, True)
+        self.header = parameters.get(self.HEADER_PARAM, True) in (1, '1', True)
 
+        self.user = parameters.get(self.USER_PARAM)
+        self.workflow_id = parameters.get(self.WORKFLOW_ID_PARAM)
 
     def generate_code(self):
 
+        # Retrieve Storage URL
+        # @FIXME Hardcoded!
+        storage = limonero_service.get_storage_info(
+            'http://beta.ctweb.inweb.org.br/limonero', '123456',
+            self.storage_id)
+
+        final_url = '{}{}{}'.format(storage['url'], self.path,
+                                    self.name.replace(' ', '_'))
+
         code_save = ''
         if self.format == self.FORMAT_CSV:
-            code_save = """{}.write.csv('{}', header={}, mode='{}')""".format(
-                self.inputs[0], self.url, self.header, self.mode)
+            code_save = dedent("""
+            {}.write.csv('{}',
+                         header={}, mode='{}')""".format(
+                self.inputs[0], final_url, self.header, self.mode))
+            # Need to generate an output, even though it is not used.
+            code_save += '\n{0}_tmp = {0}'.format(self.inputs[0])
         elif self.format == self.FORMAT_PARQUET:
-            pass
+            code_save = dedent("""
+            {}.write.parquet('{}', mode='{}')""".format(self.inputs[0],
+                                                        final_url, self.mode))
+            # Need to generate an output, even though it is not used.
+            code_save += '\n{0}_tmp = {0}'.format(self.inputs[0])
         elif self.format == self.FORMAT_JSON:
             pass
-    
+
         code = dedent(code_save)
 
-
-        if not (self.workflow == ''):
+        print '#' * 20
+        print self.user
+        print '#' * 20
+        if True or not self.workflow_json == '':
             code_api = """
                 from metadata import MetadataPost
                 types_names = {{
@@ -677,14 +693,15 @@ class Save(Operation):
                 'url': "{10}",
                 }}
                 instance = MetadataPost('{11}', schema, parameters)
-                """.format(self.inputs[0], self.name, self.format, self.storage_id,
-                       str(json.dumps(self.workflow)).replace("\"", "'"),
-                       self.workflow['workflow']['name'],
-                       self.workflow['user']['id'],
-                       self.workflow['user']['login'],
-                       self.workflow['user']['name'],
-                       self.workflow['workflow']['id'], self.url, "123456"
-                       )
+                """.format(self.inputs[0], self.name, self.format,
+                           self.storage_id,
+                           self.workflow_json,
+                           self.user['name'],
+                           self.user['user']['id'],
+                           self.user['user']['login'],
+                           self.user['user']['name'],
+                           self.workflow_id, final_url, "123456"
+                           )
             code += dedent(code_api)
 
         return code
@@ -790,8 +807,8 @@ class CleanMissing(Operation):
             if not (isinstance(value, int) or isinstance(value, float)):
                 value = '"{}"'.format(value)
             partial.append(
-                "\n    {0} = {1}.na.fill(value={2}, subset=attributes_{1})".format(
-                    output, self.inputs[0], value))
+                "\n    {0} = {1}.na.fill(value={2}, "
+                "subset=attributes_{1})".format(output, self.inputs[0], value))
 
         elif self.cleaning_mode == self.REMOVE_COLUMN:
             # Based on http://stackoverflow.com/a/35674589/1646932"
@@ -827,7 +844,8 @@ class CleanMissing(Operation):
 
         elif self.cleaning_mode == self.MEAN:
             partial.append("""
-                avg_{1} = {1}.select([avg(c).alias(c) for c in attributes_{1}]).collect()
+                avg_{1} = {1}.select([avg(c).alias(c)
+                                        for c in attributes_{1}]).collect()
                 values_{1} = dict([(c, avg_{1}[0][c]) for c in attributes_{1}])
                 {0} = {1}.na.fill(value=values_{1})""".format(output,
                                                               self.inputs[0]))
@@ -839,8 +857,9 @@ class CleanMissing(Operation):
 
         return '\n'.join(pre_code) + \
                "\nif len(attributes_{0}) > 0:".format(self.inputs[0]) + \
-               '\n    '.join([dedent(line) for line in partial]).replace('\n',
-                                                                         '\n    ') + \
+               '\n    '.join([dedent(line) for line in partial]).replace(
+                   '\n',
+                   '\n    ') + \
                "\nelse:\n    {0} = {1}".format(output, self.inputs[0])
 
 
@@ -892,7 +911,7 @@ class Replace(Operation):
         if self.has_code:
             output = self.outputs[0] if len(self.outputs) else '{}_tmp'.format(
                 self.inputs[0])
-            code = """ """
+            code = output
 
             return dedent(code)
 

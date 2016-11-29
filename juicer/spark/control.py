@@ -1,3 +1,4 @@
+import json
 import zipfile
 
 import os
@@ -6,7 +7,7 @@ import jinja2
 import juicer.spark.ml_operation
 from juicer.spark import operation
 from textwrap import dedent
-
+'4 minutes'
 
 class Spark:
     DIST_ZIP_FILE = '/tmp/lemonade-lib-python.zip'
@@ -124,7 +125,9 @@ class Spark:
                 ports[target_id]['inputs'].append(sequence)
 
         env_setup = {'instances': [],
-                     'workflow_name': self.workflow.get('name')}
+                     'workflow_name': self.workflow.get('name'),
+                     }
+        workflow_json = json.dumps(self.workflow)
         for task in self.tasks:
             ##self.output.write("\n# {}\n".format(task['operation']['name']))
             # input_list = []
@@ -137,7 +140,7 @@ class Spark:
                 if all([definition.get('category',
                                        'execution').lower() == "execution",
                         definition['value'] is not None]):
-                    #print '###{} ==== {}'.format(parameter, definition['value'])
+                    # print '###{} ==== {}'.format(parameter, definition['value'])
                     parameters[parameter] = definition['value']
 
             # Operation SAVE requires the complete workflow
@@ -145,6 +148,9 @@ class Spark:
                 parameters['workflow'] = self.workflow
 
             parameters['task'] = task
+            parameters['workflow_json'] = workflow_json
+            parameters['user'] = self.workflow.get('user', {})
+            parameters['workflow_id'] = self.workflow.get('id')
             instance = class_name(parameters,
                                   ports.get(task['id'], {}).get('inputs', []),
                                   ports.get(task['id'], {}).get('outputs', []))
@@ -173,7 +179,6 @@ class Spark:
             'comment': operation.NoOp,
             'data-reader': operation.DataReader,
             'data-writer': operation.Save,
-            'save': operation.Save,
             'difference': operation.Difference,
             'distinct': operation.Distinct,
             'drop': operation.Drop,
@@ -184,7 +189,6 @@ class Spark:
             'pearson-correlation': operation.PearsonCorrelation,
             # synonym for select
             'projection': operation.Select,
-            'split': operation.RandomSplit,
             'read-csv': operation.ReadCSV,
             'replace': operation.Replace,
             # synonym for distinct
@@ -195,6 +199,7 @@ class Spark:
             # synonym of intersection'
             'set-intersection': operation.Intersection,
             'sort': operation.Sort,
+            'split': operation.RandomSplit,
             'svm-classification': juicer.spark.ml_operation.SvmClassification,
             'transformation': operation.Transformation,
 
