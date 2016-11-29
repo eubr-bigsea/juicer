@@ -1,6 +1,9 @@
 import json
 import zipfile
 
+import juicer.spark.data_operation
+import juicer.spark.etl_operation
+import juicer.spark.statistic_operation
 import os
 
 import jinja2
@@ -172,35 +175,35 @@ class Spark:
 
     def assign_operations(self):
         self.classes = {
-            'add-columns': operation.AddColumns,
-            'add-rows': operation.AddRows,
-            'aggregation': operation.Aggregation,
-            'clean-missing': operation.CleanMissing,
+            'add-columns': juicer.spark.etl_operation.AddColumns,
+            'add-rows': juicer.spark.etl_operation.AddRows,
+            'aggregation': juicer.spark.etl_operation.Aggregation,
+            'clean-missing': juicer.spark.etl_operation.CleanMissing,
             'comment': operation.NoOp,
-            'data-reader': operation.DataReader,
-            'data-writer': operation.Save,
-            'difference': operation.Difference,
-            'distinct': operation.Distinct,
-            'drop': operation.Drop,
+            'data-reader': juicer.spark.data_operation.DataReader,
+            'data-writer': juicer.spark.data_operation.Save,
+            'difference': juicer.spark.etl_operation.Difference,
+            'distinct': juicer.spark.etl_operation.Distinct,
+            'drop': juicer.spark.etl_operation.Drop,
             'evaluate-model': juicer.spark.ml_operation.EvaluateModel,
-            'filter': operation.Filter,
-            'intersection': operation.Intersection,
-            'join': operation.Join,
-            'pearson-correlation': operation.PearsonCorrelation,
+            'filter': juicer.spark.etl_operation.Filter,
+            'intersection': juicer.spark.etl_operation.Intersection,
+            'join': juicer.spark.etl_operation.Join,
+            'pearson-correlation': juicer.spark.statistic_operation.PearsonCorrelation,
             # synonym for select
-            'projection': operation.Select,
-            'read-csv': operation.ReadCSV,
-            'replace': operation.Replace,
+            'projection': juicer.spark.etl_operation.Select,
+            'read-csv': juicer.spark.data_operation.ReadCSV,
+            'replace': juicer.spark.etl_operation.Replace,
             # synonym for distinct
-            'remove-duplicated-rows': operation.Distinct,
-            'sample': operation.Sample,
-            'save': operation.Save,
-            'select': operation.Select,
+            'remove-duplicated-rows': juicer.spark.etl_operation.Distinct,
+            'sample': juicer.spark.etl_operation.Sample,
+            'save': juicer.spark.data_operation.Save,
+            'select': juicer.spark.etl_operation.Select,
             # synonym of intersection'
-            'set-intersection': operation.Intersection,
-            'sort': operation.Sort,
-            'split': operation.RandomSplit,
+            'set-intersection': juicer.spark.etl_operation.Intersection,
+            'sort': juicer.spark.etl_operation.Sort,
+            'split': juicer.spark.etl_operation.RandomSplit,
             'svm-classification': juicer.spark.ml_operation.SvmClassification,
-            'transformation': operation.Transformation,
+            'transformation': juicer.spark.etl_operation.Transformation,
 
         }

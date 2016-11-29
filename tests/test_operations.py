@@ -1,7 +1,8 @@
 import pytest
 import context
-from juicer.spark.operation import RandomSplit
-from juicer.spark.operation import DataReader
+from juicer.spark.etl_operation import RandomSplit, Sort, Distinct, Sample, \
+    Intersection, Difference
+from juicer.spark.data_operation import DataReader
 from juicer.spark.operation import Union
 from juicer.spark.operation import Sort
 from juicer.spark.operation import Distinct
