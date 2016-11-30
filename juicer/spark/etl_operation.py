@@ -87,17 +87,20 @@ class Sort(Operation):
                 "Parameter '{}' must be informed for task {}".format(
                     self.ATTRIBUTES_PARAM, self.__class__))
 
-        self.ascending = map(lambda x: int(x),
-                             parameters.get(self.ASCENDING_PARAM,
-                                            [1] * len(self.attributes)))
+        self.has_code = len(self.inputs) == 1
 
     def generate_code(self):
         output = self.outputs[0] if len(self.outputs) else '{}_tmp'.format(
             self.inputs[0])
-        code = "{0} = {1}.orderBy({2}, ascending={3})".format(
-            output, self.inputs[0],
-            json.dumps(self.attributes),
-            json.dumps(self.ascending))
+        ascending = []
+        attributes = []
+        for attr in self.attributes:
+            attributes.append(attr['attribute'])
+            ascending.append(1 if attr['f'] == 'asc' else 0)
+
+        code = "{0} = {1}.orderBy({2}, \n            ascending={3})".format(
+            output, self.inputs[0], json.dumps(attributes),
+            json.dumps(ascending))
 
         return dedent(code)
 
@@ -387,7 +390,8 @@ class Aggregation(Operation):
         elements = []
         for i, function in enumerate(self.functions):
             elements.append('''{}('{}').alias('{}')'''.format(
-                function['f'].lower(), function['attribute'], function['alias']))
+                function['f'].lower(), function['attribute'],
+                function['alias']))
 
         output = self.outputs[0] if len(self.outputs) else '{}_tmp'.format(
             self.inputs[0])
@@ -406,14 +410,29 @@ class Filter(Operation):
     Parameters:
         - The expression (==, <, >)
     """
+    FILTER_PARAM = 'filter'
 
     def __init__(self, parameters, inputs, outputs):
         Operation.__init__(self, parameters, inputs, outputs)
-        self.expression = parameters['expression']
+        if self.FILTER_PARAM not in parameters:
+            raise ValueError(
+                "Parameter '{}' must be informed for task {}".format(
+                    self.FILTER_PARAM, self.__class__))
+
+        self.filter = parameters.get(self.FILTER_PARAM)
+
+        self.has_code = len(self.inputs) == 1
 
     def generate_code(self):
-        code = """{} = {}.filter('{}')""".format(
-            self.outputs[0], self.inputs[0], self.expression)
+        output = self.outputs[0] if len(self.outputs) else '{}_tmp'.format(
+            self.inputs[0])
+
+        filters = [
+            "(col('{0}') {1} '{2}')".format(f['attribute'], f['f'], f['value'])
+            for f in self.filter]
+
+        code = """{} = {}.filter({})""".format(
+            output, self.inputs[0], ' & '.join(filters))
         return dedent(code)
 
 

@@ -10,7 +10,9 @@ import jinja2
 import juicer.spark.ml_operation
 from juicer.spark import operation
 from textwrap import dedent
+
 '4 minutes'
+
 
 class Spark:
     DIST_ZIP_FILE = '/tmp/lemonade-lib-python.zip'
@@ -187,6 +189,8 @@ class Spark:
             'drop': juicer.spark.etl_operation.Drop,
             'evaluate-model': juicer.spark.ml_operation.EvaluateModel,
             'filter': juicer.spark.etl_operation.Filter,
+            # Alias for filter
+            'filter-selection': juicer.spark.etl_operation.Filter,
             'intersection': juicer.spark.etl_operation.Intersection,
             'join': juicer.spark.etl_operation.Join,
             'pearson-correlation': juicer.spark.statistic_operation.PearsonCorrelation,
