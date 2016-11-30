@@ -4,6 +4,8 @@ import time
 from random import random
 from textwrap import dedent
 
+import sys
+
 from juicer.spark.expression import Expression
 from juicer.spark.operation import Operation
 
@@ -369,28 +371,32 @@ class Aggregation(Operation):
 
     def __init__(self, parameters, inputs, outputs):
         Operation.__init__(self, parameters, inputs, outputs)
-        self.group_by = map(lambda x: str(x), parameters['group_by'])
-        self.columns = map(lambda x: str(x), parameters['columns'])
-        self.function = map(lambda x: str(x), parameters['functions'])
-        self.names = map(lambda x: str(x), parameters['new_names'])
+
+        self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
+        self.functions = parameters.get(self.FUNCTION_PARAM)
 
         if not all([self.ATTRIBUTES_PARAM in parameters,
-                    self.FUNCTION_PARAM in parameters]):
+                    self.FUNCTION_PARAM in parameters,
+                    self.attributes, self.functions]):
             raise ValueError(
                 "Parameters '{}' and {} must be informed for task {}".format(
                     self.ATTRIBUTES_PARAM, self.FUNCTION_PARAM, self.__class__))
-        self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
-        self.function = parameters['function']
+        self.has_code = len(self.inputs) == 1
 
     def generate_code(self):
         elements = []
-        for i in range(0, len(self.columns)):
-            content = '''{}('{}').alias('{}')'''.format(self.function[i],
-                                                        self.columns[i],
-                                                        self.names[i])
-            elements.append(content)
-        code = '''{} = {}.groupBy({}).agg({})'''.format(
-            self.outputs[0], self.inputs[0], self.group_by, ', '.join(elements))
+        for i, function in enumerate(self.functions):
+            elements.append('''{}('{}').alias('{}')'''.format(
+                function['f'].lower(), function['attribute'], function['alias']))
+
+        output = self.outputs[0] if len(self.outputs) else '{}_tmp'.format(
+            self.inputs[0])
+
+        group_by = ', '.join(
+            ["col('{}')".format(attr) for attr in self.attributes])
+
+        code = '''{} = {}.groupBy({}).agg(\n        {})'''.format(
+            output, self.inputs[0], group_by, ', \n        '.join(elements))
         return dedent(code)
 
 

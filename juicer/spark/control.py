@@ -161,7 +161,7 @@ class Spark:
                 ## self.output.write(instance.generate_code() + "\n")
                 env_setup['instances'].append(instance)
 
-                # Just for testing. Remove from here.
+                # Just for testing. Remove from here.0
                 # for out in output_list:
                 #    self.output.write(
                 #        "print \"" + task['operation']['name'] + "\" \n")
