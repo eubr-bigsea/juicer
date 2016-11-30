@@ -1,38 +1,52 @@
-# coding=utf-8
+# -*- coding: utf-8 -*-
+#!/usr/bin/env python
 
 #
 # Auto-generated Spark code from Lemonade Workflow
 # (c) Speed Labs - Departamento de Ciência da Computação
-# (c) Universidade Federal de Minas Gerais
-# More information about Lemonade
+#     Universidade Federal de Minas Gerais
+# More information about Lemonade to be provided
 #
-from pyspark.sql.functions import *
-from pyspark.sql.window import Window
-from pyspark.sql.types import *
+
 from pyspark.sql import SparkSession
+from pyspark.sql.window import Window
+from pyspark.sql.functions import *
+from pyspark.sql.types import *
 
 {%- for instance in instances %}
 {%- if instance.has_code %}
 
-def {{instance.parameters.task.operation.slug.replace('-', '_')}}_generate_{{instance.get_output_names('_')}}({{instance.get_inputs_names}}):
-    {%- if instance.parameters.task.forms.comment.value %}
+def {{instance.parameters.task.operation.slug.replace('-', '_')}}_generate_{{instance.get_output_names('_')}}(spark_session
+        {%- if instance.get_inputs_names %}, {{instance.get_inputs_names}}{% endif %}):
+    {%- if instance.parameters.task.forms.comment %}
     """
     {{instance.parameters.task.forms.comment.value.replace('"', '')}}
     """
     {%- endif %}
     {{instance.generate_code() | indent(width=4, indentfirst=False)}}
+    {%- for variable in instance.get_output_names('|').split('|')%}
+    print '#' * 20
+    print '== {} =='.format('{{variable}}')
+    {{variable}}.show()
+    # {{variable}}.printSchema()
+    schema = {{variable}}.schema
+    for attr in schema:
+        print attr.nullable, attr.metadata
+    {%- endfor %}
+
     return {{instance.get_output_names()}}
 {%- endif %}
 {% endfor %}
 def main():
-    app_name = '## {{workflow_name}} ##'
-    spark = SparkSession.builder\
+    app_name = u'## {{workflow_name}} ##'
+    spark_session = SparkSession.builder\
                         .appName(app_name)\
                         .getOrCreate()
 
     {%- for instance in instances %}
     {%- if instance.has_code %}
-    {{instance.get_output_names()}} = {{instance.parameters.task.operation.slug.replace('-', '_')}}_generate_{{instance.get_output_names()}}({{instance.get_inputs_names}})
+    {{instance.get_output_names()}} = {{instance.parameters.task.operation.slug.replace('-', '_')}}_generate_{{instance.get_output_names()}}(spark_session
+        {%- if instance.get_inputs_names %}, {{instance.get_inputs_names}}{% endif %})
     {%- endif %}
     {%- endfor %}
 

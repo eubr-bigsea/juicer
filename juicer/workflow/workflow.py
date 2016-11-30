@@ -31,8 +31,17 @@ class Workflow:
         print self.workflow
 
     def verify_workflow(self):
-        """ Verifies if the workflow is valid """
-        # IMPLEMENT!
+        """
+        Verifies if the workflow is valid.
+        Validations to be implemented:
+        - Supported platform
+        - Workflow without input
+        - Supported operations in platform
+        - Consistency between tasks and flows
+        - Port consistency
+        - Task parameters
+        - Referenced attributes names existing in input dataframes
+        """
         pass
 
     def sort_tasks(self):
