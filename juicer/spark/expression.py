@@ -78,7 +78,8 @@ class Expression:
         bins_size = arguments[-2][1:-1] + ' seconds'
 
         # COLOCAR A PALAVRA SECONDS DEPOIS DO PARAMETRO SEGUNDOS
-        result = """window({}, '{}').{}.cast('timestamp')""".format(
+        result = """window(from_unixtime(col({})/1e6), '{}').{}.cast('timestamp')""".format(
+#        result = """window({}, '{}').{}.cast('timestamp')""".format(
             ', '.join(arguments[:-2]), bins_size, field_name)
         return result
 
