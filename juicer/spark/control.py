@@ -180,6 +180,7 @@ class Spark:
             'add-columns': juicer.spark.etl_operation.AddColumns,
             'add-rows': juicer.spark.etl_operation.AddRows,
             'aggregation': juicer.spark.etl_operation.Aggregation,
+            'change-attribute': juicer.spark.data_operation.ChangeAttribute,
             'clean-missing': juicer.spark.etl_operation.CleanMissing,
             'comment': operation.NoOp,
             'data-reader': juicer.spark.data_operation.DataReader,

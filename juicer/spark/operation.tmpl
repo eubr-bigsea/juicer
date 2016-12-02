@@ -24,14 +24,17 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_generate_{{ins
     """
     {%- endif %}
     {{instance.generate_code() | indent(width=4, indentfirst=False)}}
+
+    # Debug code
     {%- for variable in instance.get_output_names('|').split('|')%}
     print '#' * 20
+    print '|| {} ||'.format('{{instance.__class__}}')
     print '== {} =='.format('{{variable}}')
     {{variable}}.show()
     # {{variable}}.printSchema()
     schema = {{variable}}.schema
     for attr in schema:
-        print attr.nullable, attr.metadata
+        print attr.name, attr.nullable, attr.metadata
     {%- endfor %}
 
     return {{instance.get_output_names()}}

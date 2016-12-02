@@ -94,12 +94,14 @@ class Expression:
 
     def build_functions_dict(self):
         functions = {
+            'col': self.get_function_call,
+            'date_format': self.get_function_call,
+            'group_datetime': self.get_window_function,
+            'regexp_extract': self.get_function_call,
             'regexp_replace': self.get_function_call,
             'to_date': self.get_function_call,
-            'window': self.get_window_function,
-            'group_datetime': self.get_window_function,
-            'date_format': self.get_function_call,
             'when': self.get_when_function,
-            'col': self.get_function_call
+            'window': self.get_window_function,
+
         }
         self.functions.update(functions)

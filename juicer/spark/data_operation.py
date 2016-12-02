@@ -4,6 +4,8 @@ import json
 import pprint
 from textwrap import dedent
 
+import sys
+
 from juicer.dist.metadata import MetadataGet
 from juicer.service import limonero_service
 from juicer.spark.operation import Operation
@@ -19,6 +21,7 @@ class DataReader(Operation):
     HEADER_PARAM = 'header'
     SEPARATOR_PARAM = 'separator'
     INFER_SCHEMA_PARAM = 'infer_schema'
+    NULL_VALUES_PARAM = 'null_values'
 
     INFER_FROM_LIMONERO = 'FROM_LIMONERO'
     INFER_FROM_DATA = 'FROM_DATA'
@@ -28,8 +31,10 @@ class DataReader(Operation):
         "INTEGER": 'IntegerType',
         "TEXT": 'StringType',
         "LONG": 'LongType',
+        "FLOAT": 'FloatType',
         "DOUBLE": 'DoubleType',
         "DATETIME": 'TimestampType',
+        "CHARACTER": 'StringType'
     }
 
     def __init__(self, parameters, inputs, outputs):
@@ -40,6 +45,8 @@ class DataReader(Operation):
             self.sep = parameters.get(self.SEPARATOR_PARAM, ',')
             self.infer_schema = parameters.get(self.INFER_SCHEMA_PARAM,
                                                self.INFER_FROM_LIMONERO)
+            self.null_values = [v.strip() for v in parameters.get(
+                self.NULL_VALUES_PARAM, '').split(",")]
 
             metadata_obj = MetadataGet('123456')
             self.metadata = metadata_obj.get_metadata(self.database_id)
@@ -88,11 +95,18 @@ class DataReader(Operation):
             if self.metadata['format'] == 'CSV':
                 code.append(
                     "url_{0} = '{1}'".format(output, self.metadata['url']))
-                code.append(
-                    "{0} = spark_session.read.csv(url_{0}, schema=schema_{0}, "
-                    "header={1}, sep='{2}', inferSchema={3})".format(
-                        output, self.header, self.sep,
-                        infer_from_data))
+                null_option = ''.join(
+                    [".option('nullValue', '{}')".format(n) for n in
+                     self.null_values]) if self.null_values else ""
+                code_csv = """{0} = spark_session.read\\
+                       {4}\\
+                       .option('treatEmptyValuesAsNulls',
+                               'true')\\
+                       .csv(url_{0}, schema=schema_{0},
+                            header={1}, sep='{2}',
+                            inferSchema={3}, mode='DROPMALFORMED')""".format(
+                    output, self.header, self.sep, infer_from_data, null_option)
+                code.append(code_csv)
 
                 # FIXME: Evaluate if it is good idea to always use cache
                 code.append('{}.cache()'.format(output))
@@ -258,3 +272,87 @@ class ReadCSV(Operation):
             header={}, sep='{}' ,inferSchema=True)""".format(
             self.outputs[0], self.url, self.header, self.separator)
         return dedent(code)
+
+
+class ChangeAttribute(Operation):
+    ATTRIBUTES_PARAM = 'attributes'
+    IS_FEATURE_PARAM = 'is_feature'
+    IS_LABEL_PARAM = 'is_label'
+    NULLABLE_PARAM = 'nullable'
+    NEW_NAME_PARAM = 'new_name'
+    NEW_DATA_TYPE_PARAM = 'new_data_type'
+    KEEP_VALUE = 'keep'
+
+    def __init__(self, parameters, inputs, outputs):
+        Operation.__init__(self, parameters, inputs, outputs)
+
+        if self.ATTRIBUTES_PARAM in parameters:
+            self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
+        else:
+            raise ValueError(
+                "Parameter '{}' must be informed for task {}".format(
+                    self.ATTRIBUTES_PARAM, self.__class__))
+        self.has_code = len(self.inputs) == 1
+
+    def generate_code(self):
+        del self.parameters['workflow_json']
+        code = []
+        output = self.outputs[0] if len(self.outputs) else '{}_tmp'.format(
+            self.inputs[0])
+        if self.parameters.get(self.NEW_DATA_TYPE_PARAM,
+                               'keep') == self.KEEP_VALUE:
+            # Do not require processing data frame, change only meta data
+            code.append('{0} = {1}'.format(output, self.inputs[0]))
+
+            for attr in self.attributes:
+                code.append(
+                    "\ninx_{0} = [i for i, _ in enumerate({0}.schema) "
+                    "if _.name.lower() == '{1}']".format(output,
+                                                         attr.lower()))
+
+                nullable = self.parameters.get(self.NULLABLE_PARAM,
+                                               self.KEEP_VALUE)
+                if nullable != self.KEEP_VALUE:
+                    code.append(
+                        ChangeAttribute.change_meta(
+                            output, attr, 'nullable', nullable == 'true'))
+
+                feature = self.parameters.get(self.IS_FEATURE_PARAM,
+                                              self.KEEP_VALUE)
+                if feature != self.KEEP_VALUE:
+                    code.append(
+                        ChangeAttribute.change_meta(
+                            output, attr, 'feature', feature == 'true'))
+
+                label = self.parameters.get(self.IS_LABEL_PARAM,
+                                            self.KEEP_VALUE)
+                if label != self.KEEP_VALUE:
+                    code.append(
+                        ChangeAttribute.change_meta(
+                            output, attr, 'label', label == 'true'))
+
+            format_name = self.parameters[self.NEW_NAME_PARAM]
+            if format_name:
+                rename = [
+                    "withColumnRenamed('{}', '{}')".format(
+                        attr, ChangeAttribute.new_name(format_name, attr)) for
+                    attr in self.attributes]
+
+                code.append('{0} = {0}.{1}'.format(
+                    output, '\\\n              .'.join(rename)))
+
+        else:
+            # Changing data type requires to rebuild data frame
+            pass
+        return '\n'.join(code)  # json.dumps(self.parameters)
+
+    @staticmethod
+    def new_name(format_new_name, name):
+        return format_new_name.format(name)
+
+    @staticmethod
+    def change_meta(output, attr_name, meta_name, value):
+        return dedent("if inx_{0}:\n"
+                      "    {0}.schema.fields[inx_{0}[0]]"
+                      ".metadata['{2}'] = {3}".format(output, attr_name,
+                                                      meta_name, value))

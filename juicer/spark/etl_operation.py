@@ -26,15 +26,15 @@ class RandomSplit(Operation):
         value = float(parameters.get(self.WEIGHTS_PARAM, 50))
         self.weights = [value, 100 - value]
         self.seed = parameters.get(self.SEED_PARAM, int(random() * time.time()))
+        self.has_code = len(self.outputs) > 0
 
     def generate_code(self):
         if len(self.inputs) == 1:
             output1 = self.outputs[0] if len(
-                self.outputs) else '{}_tmp1'.format(
+                self.outputs) else '{}_tmp'.format(
                 self.inputs[0])
-            output2 = self.outputs[1] if len(
-                self.outputs) == 2 else '{}_tmp2'.format(
-                self.inputs[0])
+            output2 = self.outputs[1] if len(self.outputs) == 2 else '_'
+
             code = """{0}, {1} = {2}.randomSplit({3}, {4})""".format(
                 output1, output2, self.inputs[0],
                 json.dumps(self.weights), self.seed)
@@ -475,10 +475,11 @@ class CleanMissing(Operation):
                                             self.REMOVE_ROW)
 
         self.value = parameters.get(self.VALUE_PARAMETER)
+
         self.min_missing_ratio = float(
-            parameters.get(self.MIN_MISSING_RATIO_PARAM))
+            parameters.get(self.MIN_MISSING_RATIO_PARAM, 0))
         self.max_missing_ratio = float(
-            parameters.get(self.MAX_MISSING_RATIO_PARAM))
+            parameters.get(self.MAX_MISSING_RATIO_PARAM, 1))
 
         # In this case, nothing will be generated besides create reference to
         # data frame
@@ -509,7 +510,7 @@ class CleanMissing(Operation):
                 "ratio_{0} = {0}.select({1}).collect()".format(
                     self.inputs[0], ', '.join(select_list)), "",
                 "attributes_{0} = [c for c in {1} "
-                "\n        if {2} <= count_{0}[0][c] <= {3}]".format(
+                "\n        if {2} <= ratio_{0}[0][c] <= {3}]".format(
                     self.inputs[0], attrs_json, self.min_missing_ratio,
                     self.max_missing_ratio)
             ])

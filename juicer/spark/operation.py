@@ -18,16 +18,19 @@ class Operation:
         # Comment, does not generate code
         self.has_code = len(self.inputs) > 0 or len(self.outputs) > 0
 
+        # How many output ports the operation has
+        self.expected_output_ports = 1
+
     @property
     def get_inputs_names(self):
         return ', '.join(self.inputs)
 
     def get_output_names(self, sep=", "):
-        result = ''
         if len(self.outputs) > 0:
             result = sep.join(self.outputs)
         elif len(self.inputs) > 0:
-            result = '{}_tmp'.format(self.inputs[0])
+            if self.expected_output_ports == 1:
+                result = '{}_tmp'.format(self.inputs[0])
         else:
             raise ValueError(
                 "Operation has neither input nor output: {}".format(
