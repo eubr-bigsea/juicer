@@ -21,11 +21,16 @@ class Operation:
         # How many output ports the operation has
         self.expected_output_ports = 1
 
+    def generate_code(self):
+        raise NotImplementedError("Method generate_code should be implemented "
+                                  "in {} subclass".format(self.__class__))
+
     @property
     def get_inputs_names(self):
         return ', '.join(self.inputs)
 
     def get_output_names(self, sep=", "):
+        result = ''
         if len(self.outputs) > 0:
             result = sep.join(self.outputs)
         elif len(self.inputs) > 0:
@@ -36,6 +41,9 @@ class Operation:
                 "Operation has neither input nor output: {}".format(
                     self.__class__))
         return result
+
+    def get_data_out_names(self, sep=','):
+        return self.get_output_names(sep)
 
     def test_null_operation(self):
         """

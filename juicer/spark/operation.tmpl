@@ -8,6 +8,9 @@
 # More information about Lemonade to be provided
 #
 
+from pyspark.ml import Pipeline
+from pyspark.ml.classification import *
+from pyspark.ml.feature import *
 from pyspark.sql import SparkSession
 from pyspark.sql.window import Window
 from pyspark.sql.functions import *
@@ -25,17 +28,20 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_generate_{{ins
     {%- endif %}
     {{instance.generate_code() | indent(width=4, indentfirst=False)}}
 
+    {%- set out = instance.get_data_out_names('|') %}
+    {%- if out %}
     # Debug code
-    {%- for variable in instance.get_output_names('|').split('|')%}
+    {%- for variable in out.split('|')%}
     print '#' * 20
     print '|| {} ||'.format('{{instance.__class__}}')
     print '== {} =='.format('{{variable}}')
-    {{variable}}.show()
+    {{ variable }}.show()
     # {{variable}}.printSchema()
     schema = {{variable}}.schema
     for attr in schema:
         print attr.name, attr.nullable, attr.metadata
     {%- endfor %}
+    {%- endif %}
 
     return {{instance.get_output_names()}}
 {%- endif %}
@@ -48,7 +54,7 @@ def main():
 
     {%- for instance in instances %}
     {%- if instance.has_code %}
-    {{instance.get_output_names()}} = {{instance.parameters.task.operation.slug.replace('-', '_')}}_generate_{{instance.get_output_names()}}(spark_session
+    {{instance.get_output_names()}} = {{instance.parameters.task.operation.slug.replace('-', '_')}}_generate_{{instance.get_output_names('_')}}(spark_session
         {%- if instance.get_inputs_names %}, {{instance.get_inputs_names}}{% endif %})
     {%- endif %}
     {%- endfor %}
@@ -57,10 +63,8 @@ def main():
         {%- for instance in instances %}
         {%- if instance.has_code %}
         {%- for variable in instance.get_output_names('|').split('|')%}
-        '{{variable}}': {{variable}},
+        '{{instance.parameters.task.id}}': ({{variable}},),
         {%- endfor %}
         {%- endif %}
         {%- endfor %}
     }
-
-main()

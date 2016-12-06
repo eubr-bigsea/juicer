@@ -180,8 +180,11 @@ class Spark:
             'add-columns': juicer.spark.etl_operation.AddColumns,
             'add-rows': juicer.spark.etl_operation.AddRows,
             'aggregation': juicer.spark.etl_operation.Aggregation,
+            'apply-model': juicer.spark.ml_operation.ApplyModel,
             'change-attribute': juicer.spark.data_operation.ChangeAttribute,
             'clean-missing': juicer.spark.etl_operation.CleanMissing,
+            'classification-model':
+                juicer.spark.ml_operation.ClassificationModel,
             'comment': operation.NoOp,
             'data-reader': juicer.spark.data_operation.DataReader,
             'data-writer': juicer.spark.data_operation.Save,
@@ -189,14 +192,19 @@ class Spark:
             'distinct': juicer.spark.etl_operation.Distinct,
             'drop': juicer.spark.etl_operation.Drop,
             'evaluate-model': juicer.spark.ml_operation.EvaluateModel,
+            'feature-assembler': juicer.spark.ml_operation.FeatureAssembler,
+            'feature-indexer': juicer.spark.ml_operation.FeatureIndexer,
             'filter': juicer.spark.etl_operation.Filter,
             # Alias for filter
             'filter-selection': juicer.spark.etl_operation.Filter,
             'intersection': juicer.spark.etl_operation.Intersection,
             'join': juicer.spark.etl_operation.Join,
-            'pearson-correlation': juicer.spark.statistic_operation.PearsonCorrelation,
+            'pearson-correlation':
+                juicer.spark.statistic_operation.PearsonCorrelation,
             # synonym for select
             'projection': juicer.spark.etl_operation.Select,
+            'random-forest-classifier':
+                juicer.spark.ml_operation.RandomForestClassifierOperation,
             'read-csv': juicer.spark.data_operation.ReadCSV,
             'replace': juicer.spark.etl_operation.Replace,
             # synonym for distinct
@@ -208,7 +216,8 @@ class Spark:
             'set-intersection': juicer.spark.etl_operation.Intersection,
             'sort': juicer.spark.etl_operation.Sort,
             'split': juicer.spark.etl_operation.RandomSplit,
-            'svm-classification': juicer.spark.ml_operation.SvmClassification,
+            'svm-classification':
+                juicer.spark.ml_operation.SvmClassifierOperation,
             'transformation': juicer.spark.etl_operation.Transformation,
 
         }
