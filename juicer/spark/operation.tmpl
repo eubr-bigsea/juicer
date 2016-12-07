@@ -10,6 +10,7 @@
 
 from pyspark.ml import Pipeline
 from pyspark.ml.classification import *
+from pyspark.ml.evaluation import *
 from pyspark.ml.feature import *
 from pyspark.sql import SparkSession
 from pyspark.sql.window import Window
@@ -39,7 +40,7 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_generate_{{ins
     # {{variable}}.printSchema()
     schema = {{variable}}.schema
     for attr in schema:
-        print attr.name, attr.nullable, attr.metadata
+        print attr.name, attr.dataType, attr.nullable, attr.metadata
     {%- endfor %}
     {%- endif %}
 
@@ -54,7 +55,7 @@ def main():
 
     {%- for instance in instances %}
     {%- if instance.has_code %}
-    {{instance.get_output_names()}} = {{instance.parameters.task.operation.slug.replace('-', '_')}}_generate_{{instance.get_output_names('_')}}(spark_session
+    {{instance.get_output_names(", ")}} = {{instance.parameters.task.operation.slug.replace('-', '_')}}_generate_{{instance.get_output_names('_')}}(spark_session
         {%- if instance.get_inputs_names %}, {{instance.get_inputs_names}}{% endif %})
     {%- endif %}
     {%- endfor %}
@@ -62,9 +63,11 @@ def main():
     return {
         {%- for instance in instances %}
         {%- if instance.has_code %}
-        {%- for variable in instance.get_output_names('|').split('|')%}
-        '{{instance.parameters.task.id}}': ({{variable}},),
-        {%- endfor %}
+        '{{instance.parameters.task.id}}': (
+        {%- for variable in instance.get_output_names(', ').split('|') -%}
+        {{variable}},
+        {%- endfor -%}
+        ),
         {%- endif %}
         {%- endfor %}
     }

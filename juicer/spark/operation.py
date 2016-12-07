@@ -21,6 +21,15 @@ class Operation:
         # How many output ports the operation has
         self.expected_output_ports = 1
 
+        if len(self.inputs) > 0:
+            self.output = self.outputs[0] if len(
+                self.outputs) else '{}_tmp_{}'.format(
+                self.inputs[0], parameters['task']['order'])
+        elif len(self.outputs) > 0:
+            self.output = self.outputs[0]
+        else:
+            self.output = "NO_OUTPUT_WITHOUT_CONNECTIONS"
+
     def generate_code(self):
         raise NotImplementedError("Method generate_code should be implemented "
                                   "in {} subclass".format(self.__class__))
@@ -35,7 +44,8 @@ class Operation:
             result = sep.join(self.outputs)
         elif len(self.inputs) > 0:
             if self.expected_output_ports == 1:
-                result = '{}_tmp'.format(self.inputs[0])
+                result = '{}_tmp_{}'.format(self.inputs[0],
+                                            self.parameters['task']['order'])
         else:
             raise ValueError(
                 "Operation has neither input nor output: {}".format(

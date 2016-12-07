@@ -134,7 +134,7 @@ class Distinct(Operation):
         return dedent(code)
 
 
-class Sample(Operation):
+class SampleOrPartition(Operation):
     """
     Returns a sampled subset of this DataFrame.
     Parameters:

@@ -10,25 +10,6 @@ log = logging.getLogger()
 log.setLevel(logging.DEBUG)
 
 
-class ClassifierOperation(Operation):
-    """
-    Base class for classification algorithms
-    """
-
-    def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, parameters, inputs, outputs)
-
-    def generate_code(self):
-        pass
-
-
-class EvaluateModel(Operation):
-    def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, parameters, inputs, outputs)
-        self.parameters = parameters
-        self.has_code = False
-
-
 class FeatureIndexer(Operation):
     """
     A label indexer that maps a string attribute of labels to an ML attribute of
@@ -70,9 +51,6 @@ class FeatureIndexer(Operation):
                                    self.alias[:len(self.attributes)])]
 
     def generate_code(self):
-        output = self.outputs[0] if len(self.outputs) else '{}_tmp'.format(
-            self.inputs[0])
-
         if self.type == self.TYPE_STRING:
             code = """
                 col_alias = dict({3})
@@ -91,7 +69,7 @@ class FeatureIndexer(Operation):
                 {1}_without_null = {1}.na.fill('NA', subset=col_alias.keys())
 
                 {2} = pipeline.fit({1}_without_null).transform({1}_without_null)
-            """.format(self.attributes, self.inputs[0], output,
+            """.format(self.attributes, self.inputs[0], self.output,
                        json.dumps(zip(self.attributes, self.alias)))
         elif self.type == self.TYPE_VECTOR:
             code = """
@@ -111,7 +89,7 @@ class FeatureIndexer(Operation):
                 {1}_without_null = {1}.na.fill('NA', subset=col_alias.keys())
 
                 {2} = pipeline.fit({1}_without_null).transform({1}_without_null)
-            """.format(self.attributes, self.inputs[0], output,
+            """.format(self.attributes, self.inputs[0], self.output,
                        json.dumps(zip(self.attributes, self.alias)),
                        self.max_categories)
         else:
@@ -152,14 +130,11 @@ class FeatureAssembler(Operation):
         self.has_code = len(self.inputs) > 0
 
     def generate_code(self):
-        output = self.outputs[0] if len(self.outputs) else '{}_tmp'.format(
-            self.inputs[0])
-
         code = """
             assembler = VectorAssembler(inputCols={0}, outputCol="{1}")
             {3}_without_null = {3}.na.drop(subset={0})
             {2} = assembler.transform({3}_without_null)
-        """.format(json.dumps(self.attributes), self.alias, output,
+        """.format(json.dumps(self.attributes), self.alias, self.output,
                    self.inputs[0])
 
         return dedent(code)
@@ -168,50 +143,87 @@ class FeatureAssembler(Operation):
 class ApplyModel(Operation):
     def __init__(self, parameters, inputs, outputs):
         Operation.__init__(self, parameters, inputs, outputs)
-        self.has_code = False
+        self.has_code = len(self.inputs) == 2
 
     def generate_code(self):
-        pass
+        code = """
+        {0} = {1}.transform({2})
+        """.format(self.output, self.inputs[1], self.inputs[0])
+
+        return dedent(code)
+
+
+class EvaluateModel(Operation):
+    PREDICTION_ATTRIBUTE_PARAM = 'prediction-attribute'
+    LABEL_ATTRIBUTE_PARAM = 'label-attribute'
+    METRIC_PARAM = 'metric'
+
+    METRIC_TO_EVALUATOR = {
+        'areaUnderROC': ('BinaryClassificationEvaluator', 'rawPredictionCol'),
+        'areaUnderPR': ('BinaryClassificationEvaluator', 'rawPredictionCol'),
+        'f1': ('MulticlassClassificationEvaluator', 'predictionCol'),
+        'weightedPrecision': (
+            'MulticlassClassificationEvaluator', 'predictionCol'),
+        'weightedRecall': (
+            'MulticlassClassificationEvaluator', 'predictionCol'),
+        'accuracy': ('MulticlassClassificationEvaluator', 'predictionCol'),
+        'rmse': ('RegressionEvaluator', 'predictionCol'),
+        'mse': ('RegressionEvaluator', 'predictionCol'),
+        'mae': ('RegressionEvaluator', 'predictionCol'),
+    }
+
+    def __init__(self, parameters, inputs, outputs):
+        Operation.__init__(self, parameters, inputs, outputs)
+        self.has_code = len(self.inputs) == 2
+        # @FIXME: validate if metric is compatible with Model using workflow
+
+        self.prediction_attribute = (parameters.get(
+            self.PREDICTION_ATTRIBUTE_PARAM) or '')[0]
+        self.label_attribute = (parameters.get(
+            self.LABEL_ATTRIBUTE_PARAM) or [''])[0]
+        self.metric = parameters.get(self.METRIC_PARAM) or ''
+
+        if all([self.prediction_attribute != '', self.label_attribute != '',
+                self.metric != '']):
+            pass
+        else:
+            msg = "Parameters '{}', '{}' and '{}' must be informed for task {}"
+            raise ValueError(msg.format(
+                self.PREDICTION_ATTRIBUTE_PARAM, self.LABEL_ATTRIBUTE_PARAM,
+                self.METRIC_PARAM, self.__class__))
+        if self.metric in self.METRIC_TO_EVALUATOR:
+            self.evaluator = self.METRIC_TO_EVALUATOR[self.metric][0]
+            self.param_prediction_col = self.METRIC_TO_EVALUATOR[self.metric][1]
+        else:
+            raise ValueError('Invalid metric value {}'.format(self.metric))
+
+    def get_data_out_names(self, sep=','):
+        return ''
+
+    def generate_code(self):
+        code = """
+        # Creates the evaluator according to the model
+        # (user should not change it)
+        evaluator = {6}({7}='{3}',
+                              labelCol='{4}', metricName='{5}')
+
+        {0} = evaluator.evaluate({2})
+        """.format(self.output, self.inputs[1], self.inputs[0],
+                   self.prediction_attribute, self.label_attribute, self.metric,
+                   self.evaluator, self.param_prediction_col)
+
+        return dedent(code)
 
 
 class ClassificationModel(Operation):
     def __init__(self, parameters, inputs, outputs):
         Operation.__init__(self, parameters, inputs, outputs)
 
-        output = self.outputs[0] if len(self.outputs) else '{}_tmp'.format(
-            self.inputs[0])
-        self.output = output.replace('df', 'classification')
-
         self.has_code = len(self.outputs) > 0 and len(self.inputs) == 2
-        if self.has_code:
-            self.inputs[1] = self.inputs[1].replace('df', 'classifier')
-
-    def get_data_out_names(self, sep=','):
-        return ''
-
-    def get_output_names(self, sep=','):
-        return self.output
-
-    def generate_code(self):
-        return "{0} = ''".format(self.output)
-
-
-class SvmClassifierOperation(ClassifierOperation):
-    def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, parameters, inputs, outputs)
-        self.parameters = parameters
-        self.has_code = False
-
-
-class RandomForestClassifierOperation(ClassifierOperation):
-    def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, parameters, inputs, outputs)
-
-        output = self.outputs[0] if len(self.outputs) else '{}_tmp'.format(
-            self.inputs[0])
-        self.output = output.replace('df', 'classifier')
-
-        self.has_code = len(self.outputs) > 0
+        # @FIXME How to change output name?
+        # self.output = output.replace('df', 'classification')
+        # if self.has_code:
+        #    self.inputs[1] = self.inputs[1].replace('df', 'classifier')
 
     def get_data_out_names(self, sep=','):
         return ''
@@ -221,6 +233,64 @@ class RandomForestClassifierOperation(ClassifierOperation):
 
     def generate_code(self):
         code = """
-        {0} = RandomForestClassifier()
-        """.format(self.output)
+        {1}.setLabelCol('survived').setFeaturesCol('features')\\
+                .setNumTrees(10)
+        {0} = {1}.fit({2})
+        """.format(self.output, self.inputs[1], self.inputs[0])
+
         return dedent(code)
+
+
+class ClassifierOperation(Operation):
+    """
+    Base class for classification algorithms
+    """
+
+    def __init__(self, parameters, inputs, outputs):
+        Operation.__init__(self, parameters, inputs, outputs)
+        self.has_code = len(self.outputs) > 0
+        self.name = "FIXME"
+
+    def get_data_out_names(self, sep=','):
+        return ''
+
+    def get_output_names(self, sep=','):
+        return self.output
+
+    def generate_code(self):
+        code = """
+        {0} = {1}()
+        """.format(self.output, self.name)
+        return dedent(code)
+
+
+class SvmClassifierOperation(ClassifierOperation):
+    def __init__(self, parameters, inputs, outputs):
+        Operation.__init__(self, parameters, inputs, outputs)
+        self.parameters = parameters
+        self.has_code = False
+        self.name = 'SVM'
+
+
+class DecisionTreeClassifierOperation(ClassifierOperation):
+    def __init__(self, parameters, inputs, outputs):
+        Operation.__init__(self, parameters, inputs, outputs)
+        self.name = 'DecisionTreeClassifier'
+
+
+class GBTClassifierOperation(ClassifierOperation):
+    def __init__(self, parameters, inputs, outputs):
+        Operation.__init__(self, parameters, inputs, outputs)
+        self.name = 'GBTClassifier'
+
+
+class NaiveBayesClassifier(ClassifierOperation):
+    def __init__(self, parameters, inputs, outputs):
+        Operation.__init__(self, parameters, inputs, outputs)
+        self.name = 'NaiveBayesClassifier'
+
+
+class RandomForestClassifierOperation(ClassifierOperation):
+    def __init__(self, parameters, inputs, outputs):
+        Operation.__init__(self, parameters, inputs, outputs)
+        self.name = 'RandomForestClassifier'

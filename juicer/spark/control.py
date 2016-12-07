@@ -133,7 +133,7 @@ class Spark:
                      'workflow_name': self.workflow.get('name'),
                      }
         workflow_json = json.dumps(self.workflow)
-        for task in self.tasks:
+        for i, task in enumerate(self.tasks):
             ##self.output.write("\n# {}\n".format(task['operation']['name']))
             # input_list = []
             # output_list = []
@@ -151,6 +151,10 @@ class Spark:
             # Operation SAVE requires the complete workflow
             if task['operation']['name'] == 'SAVE':
                 parameters['workflow'] = self.workflow
+
+            # Some temporary variables need to be identified by a sequential
+            # number, so it will be stored in this field
+            task['order'] = i
 
             parameters['task'] = task
             parameters['workflow_json'] = workflow_json
@@ -188,6 +192,8 @@ class Spark:
             'comment': operation.NoOp,
             'data-reader': juicer.spark.data_operation.DataReader,
             'data-writer': juicer.spark.data_operation.Save,
+            'decision-tree-classifier':
+                juicer.spark.ml_operation.DecisionTreeClassifierOperation,
             'difference': juicer.spark.etl_operation.Difference,
             'distinct': juicer.spark.etl_operation.Distinct,
             'drop': juicer.spark.etl_operation.Drop,
@@ -197,8 +203,11 @@ class Spark:
             'filter': juicer.spark.etl_operation.Filter,
             # Alias for filter
             'filter-selection': juicer.spark.etl_operation.Filter,
+            'gbt-classifier': juicer.spark.ml_operation.GBTClassifierOperation,
             'intersection': juicer.spark.etl_operation.Intersection,
             'join': juicer.spark.etl_operation.Join,
+            'naive-bayes-classifier':
+                juicer.spark.ml_operation.NaiveBayesClassifier,
             'pearson-correlation':
                 juicer.spark.statistic_operation.PearsonCorrelation,
             # synonym for select
@@ -209,7 +218,7 @@ class Spark:
             'replace': juicer.spark.etl_operation.Replace,
             # synonym for distinct
             'remove-duplicated-rows': juicer.spark.etl_operation.Distinct,
-            'sample': juicer.spark.etl_operation.Sample,
+            'sample': juicer.spark.etl_operation.SampleOrPartition,
             'save': juicer.spark.data_operation.Save,
             'select': juicer.spark.etl_operation.Select,
             # synonym of intersection'
