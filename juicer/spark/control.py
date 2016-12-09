@@ -190,6 +190,8 @@ class Spark:
             'classification-model':
                 juicer.spark.ml_operation.ClassificationModel,
             'comment': operation.NoOp,
+            'cross-validation':
+                juicer.spark.ml_operation.CrossValidationOperation,
             'data-reader': juicer.spark.data_operation.DataReader,
             'data-writer': juicer.spark.data_operation.Save,
             'decision-tree-classifier':

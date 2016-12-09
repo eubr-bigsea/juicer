@@ -101,7 +101,7 @@ class FeatureIndexer(Operation):
     def get_output_names(self, sep=','):
         output = self.outputs[0] if len(self.outputs) else '{}_tmp'.format(
             self.inputs[0])
-        return sep.join([output, 'models', 'labels'])
+        return sep.join([output, 'models'])
 
     def get_data_out_names(self, sep=','):
         return self.outputs[0] if len(self.outputs) else '{}_tmp'.format(
@@ -154,8 +154,8 @@ class ApplyModel(Operation):
 
 
 class EvaluateModel(Operation):
-    PREDICTION_ATTRIBUTE_PARAM = 'prediction-attribute'
-    LABEL_ATTRIBUTE_PARAM = 'label-attribute'
+    PREDICTION_ATTRIBUTE_PARAM = 'prediction_attribute'
+    LABEL_ATTRIBUTE_PARAM = 'label_attribute'
     METRIC_PARAM = 'metric'
 
     METRIC_TO_EVALUATOR = {
@@ -178,7 +178,7 @@ class EvaluateModel(Operation):
         # @FIXME: validate if metric is compatible with Model using workflow
 
         self.prediction_attribute = (parameters.get(
-            self.PREDICTION_ATTRIBUTE_PARAM) or '')[0]
+            self.PREDICTION_ATTRIBUTE_PARAM) or [''])[0]
         self.label_attribute = (parameters.get(
             self.LABEL_ATTRIBUTE_PARAM) or [''])[0]
         self.metric = parameters.get(self.METRIC_PARAM) or ''
@@ -197,21 +197,86 @@ class EvaluateModel(Operation):
         else:
             raise ValueError('Invalid metric value {}'.format(self.metric))
 
+        self.has_code = len(self.inputs) > 0 or len(self.output) > 0
+
+    def get_data_out_names(self, sep=','):
+        return ''
+
+    def get_output_namesx(self, sep=", "):
+        output_evaluator = self.outputs[1] if len(
+            self.outputs) > 1 else '{}_tmp_{}'.format(
+            self.inputs[0], self.parameters['task']['order'])
+
+        return sep.join([self.output, output_evaluator])
+
+    def generate_code(self):
+        if len(self.inputs) > 0:  # Not being used with a cross validator
+            code = """
+            # Creates the evaluator according to the model
+            # (user should not change it)
+            evaluator = {6}({7}='{3}',
+                                  labelCol='{4}', metricName='{5}')
+
+            {0} = evaluator.evaluate({2})
+            """.format(self.output, self.inputs[1], self.inputs[0],
+                       self.prediction_attribute, self.label_attribute,
+                       self.metric,
+                       self.evaluator, self.param_prediction_col)
+        elif len(self.output) > 0:  # Used with cross validator
+            code = """
+            {5} = {0}({1}='{2}',
+                            labelCol='{3}', metricName='{4}')
+            """.format(self.evaluator, self.param_prediction_col,
+                       self.prediction_attribute, self.label_attribute,
+                       self.metric, self.output)
+
+        return dedent(code)
+
+
+class CrossValidationOperation(Operation):
+    """
+    Cross validation operation used to evaluate classifier results using as many
+    as folds provided in input.
+    """
+
+    def __init__(self, parameters, inputs, outputs):
+        Operation.__init__(self, parameters, inputs, outputs)
+
+        self.has_code = len(self.inputs) == 3
+
+    def get_output_names(self, sep=", "):
+        return sep.join([self.output, 'best_model'])
+
     def get_data_out_names(self, sep=','):
         return ''
 
     def generate_code(self):
         code = """
-        # Creates the evaluator according to the model
-        # (user should not change it)
-        evaluator = {6}({7}='{3}',
-                              labelCol='{4}', metricName='{5}')
+            estimator = {0}
+            if estimator.__class__ == 'LinearRegression':
+                param_grid = estimator.maxIter
+            elif estimator.__class__  == NaiveBayes:
+                pass
+            elif estimator.__class__ == DecisionTreeClassifier:
+                # param_grid = (estimator.maxDepth, [2,3,4,5,6,7,8,9])
+                param_grid = (estimator.impurity, ['gini', 'entropy'])
+            elif estimator.__class__ == GBTClassifier:
+                pass
+            elif estimator.__class__ == RandomForestClassifier:
+                param_grid = estimator.maxDepth
 
-        {0} = evaluator.evaluate({2})
-        """.format(self.output, self.inputs[1], self.inputs[0],
-                   self.prediction_attribute, self.label_attribute, self.metric,
-                   self.evaluator, self.param_prediction_col)
+            evaluator = {2}
 
+            {0}.setLabelCol('survived').setFeaturesCol('features')
+
+            grid = ParamGridBuilder().addGrid(*param_grid).build()
+            cv = CrossValidator(estimator=estimator, estimatorParamMaps=grid,
+                                evaluator=evaluator)
+            cv_model = cv.fit({1})
+            best_model  = cv_model.bestModel
+            {3} = evaluator.evaluate(cv_model.transform({1}))
+            """.format(self.inputs[0], self.inputs[1], self.inputs[2],
+                       self.output)
         return dedent(code)
 
 
@@ -233,6 +298,7 @@ class ClassificationModel(Operation):
 
     def generate_code(self):
         code = """
+        # @FIXME!!!!!
         {1}.setLabelCol('survived').setFeaturesCol('features')\\
                 .setNumTrees(10)
         {0} = {1}.fit({2})
@@ -287,7 +353,7 @@ class GBTClassifierOperation(ClassifierOperation):
 class NaiveBayesClassifier(ClassifierOperation):
     def __init__(self, parameters, inputs, outputs):
         Operation.__init__(self, parameters, inputs, outputs)
-        self.name = 'NaiveBayesClassifier'
+        self.name = 'NaiveBayes'
 
 
 class RandomForestClassifierOperation(ClassifierOperation):

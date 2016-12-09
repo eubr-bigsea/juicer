@@ -150,36 +150,69 @@ class SampleOrPartition(Operation):
     FRACTION_PARAM = 'fraction'
     SEED_PARAM = 'seed'
     WITH_REPLACEMENT_PARAM = 'withReplacement'
+    TYPE_PARAM = 'type'
+    FOLD_SIZE_PARAM = 'fold_size'
+    FOLD_COUNT_PARAM = 'fold_count'
+    VALUE_PARAM = 'value'
+
+    TYPE_PERCENT = 'percent'
+    TYPE_VALUE = 'value'
+    TYPE_HEAD = 'head'
 
     def __init__(self, parameters, inputs, outputs):
         Operation.__init__(self, parameters, inputs, outputs)
-        if self.FRACTION_PARAM in parameters:
-            self.withReplacement = parameters.get(self.WITH_REPLACEMENT_PARAM,
-                                                  False)
-            self.fraction = float(parameters[self.FRACTION_PARAM])
-            if not (0 <= self.fraction <= 100):
-                msg = "Parameter '{}' must be in range [0, 100] for task {}" \
-                    .format(self.FRACTION_PARAM, __name__)
-                raise ValueError(msg)
-            if self.fraction > 1.0:
-                self.fraction *= 0.01
 
-            self.seed = parameters.get(self.SEED_PARAM,
-                                       int(random() * time.time()))
+        self.seed = parameters.get(self.SEED_PARAM,
+                                   int(random() * time.time()))
+        self.fold_count = parameters.get(self.FOLD_COUNT_PARAM, 10)
+        self.fold_size = parameters.get(self.FOLD_SIZE_PARAM, 1000)
+        self.type = parameters.get(self.TYPE_PARAM, self.TYPE_PERCENT)
+        self.withReplacement = parameters.get(self.WITH_REPLACEMENT_PARAM,
+                                              False)
+
+        if self.type == self.TYPE_PERCENT:
+            if self.FRACTION_PARAM in parameters:
+                self.fraction = float(parameters[self.FRACTION_PARAM])
+                if not (0 <= self.fraction <= 100):
+                    msg = "Parameter '{}' must be in " \
+                          "range [0, 100] for task {}" \
+                        .format(self.FRACTION_PARAM, __name__)
+                    raise ValueError(msg)
+                if self.fraction > 1.0:
+                    self.fraction *= 0.01
+            else:
+                raise ValueError(
+                    "Parameter '{}' must be informed for task {}".format(
+                        self.FRACTION_PARAM, self.__class__))
+        elif self.type in [self.TYPE_VALUE, self.TYPE_HEAD]:
+            self.value = int(parameters.get(self.VALUE_PARAM, 100))
         else:
             raise ValueError(
-                "Parameter '{}' must be informed for task {}".format(
-                    self.FRACTION_PARAM, self.__class__))
+                "Invalid type '{}' for task {}".format(
+                    self.type, self.__class__))
+
+        self.has_code = len(self.inputs) == 1
 
     def generate_code(self):
-        if len(self.outputs) > 0:
-            output = self.outputs[0]
-        else:
-            output = '{}_tmp'.format(self.inputs[0])
-
-        code = "{} = {}.sample(withReplacement={}, fraction={}, seed={})" \
-            .format(output, self.inputs[0], self.withReplacement,
-                    self.fraction, self.seed)
+        code = ''
+        if self.type == self.TYPE_PERCENT:
+            code = ("{} = {}.sample(withReplacement={}, fraction={}, seed={})"
+                    .format(self.output, self.inputs[0],
+                            self.withReplacement,
+                            self.fraction, self.seed))
+        elif self.type == self.VALUE_PARAM:
+            # Spark 2.0.2 DataFrame API does not have takeSample implemented
+            # See [SPARK-15324]
+            # This implementation may be innefficient!
+            code = ("{} = {}.sample(withReplacement={}, "
+                    "fraction={}, seed={}).limit({})"
+                    .format(self.output, self.inputs[0],
+                            self.withReplacement,
+                            1.0, self.seed, self.value))
+            pass
+        elif self.type == self.TYPE_HEAD:
+            code = "{} = {}.limit({})" \
+                .format(self.output, self.inputs[0], self.value)
 
         return dedent(code)
 
