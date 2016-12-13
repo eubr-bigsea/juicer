@@ -1,8 +1,22 @@
+import json
+import zipfile
+
+import juicer.spark.data_operation
+import juicer.spark.etl_operation
+import juicer.spark.statistic_operation
+import os
+
+import jinja2
+import juicer.spark.ml_operation
 from juicer.spark import operation
 from textwrap import dedent
 
+'4 minutes'
+
 
 class Spark:
+    DIST_ZIP_FILE = '/tmp/lemonade-lib-python.zip'
+
     def __init__(self, outfile, workflow, tasks):
         self.output = open(outfile, "w")
         self.workflow = workflow
@@ -29,7 +43,7 @@ class Spark:
             .builder \\
             .appName('## {} ##') \\
             .getOrCreate()
-        """.format(self.workflow['name'])
+        """.format(self.workflow['name'].encode('utf8'))
         self.output.write(dedent(code))
 
     def map_port(self, task, input_list, output_list):
@@ -56,6 +70,38 @@ class Spark:
                 # Implement!
                 pass
 
+    def build_dist_file(self):
+        """
+        Build a Zip file containing files in dist packages. Such packages
+        contain code to be executed in the Spark cluster and should be
+        distributed among all nodes.
+        """
+        project_base = os.path.join(
+            os.path.abspath(os.path.dirname(__file__)), '..')
+
+        lib_paths = [
+            os.path.join(project_base, 'spark/dist'),
+            os.path.join(project_base, 'dist')
+        ]
+        build = os.path.exists(self.DIST_ZIP_FILE)
+        while not build:
+            for lib_path in lib_paths:
+                dist_files = os.listdir(lib_path)
+                zip_mtime = os.path.getmtime(self.DIST_ZIP_FILE)
+                for f in dist_files:
+                    if zip_mtime < os.path.getmtime(os.path.join(lib_path, f)):
+                        build = True
+                        break
+                if build:
+                    break
+            build = build or False
+
+        if build:
+            zf = zipfile.PyZipFile(self.DIST_ZIP_FILE, mode='w')
+            for lib_path in lib_paths:
+                zf.writepy(lib_path)
+            zf.close()
+
     def execution(self):
         """ Executes the tasks in Lemonade's workflow """
 
@@ -66,13 +112,10 @@ class Spark:
             source_id = flow['source_id']
             target_id = flow['target_id']
 
-            flow_id = '[{}:{}]=>[{}:{}]'.format(source_id,
-                                                flow['source_port'],
-                                                target_id,
-                                                flow['target_port'])
+            flow_id = '[{}:{}]'.format(source_id, flow['source_port'], )
 
             if flow_id not in sequential_ports:
-                sequential_ports[flow_id] = 'df_{}'.format(
+                sequential_ports[flow_id] = 'df{}'.format(
                     len(sequential_ports))
 
             if source_id not in ports:
@@ -80,11 +123,18 @@ class Spark:
             if target_id not in ports:
                 ports[target_id] = {'outputs': [], 'inputs': []}
 
-            ports[source_id]['outputs'].append(sequential_ports[flow_id])
-            ports[target_id]['inputs'].append(sequential_ports[flow_id])
+            sequence = sequential_ports[flow_id]
+            if sequence not in ports[source_id]['outputs']:
+                ports[source_id]['outputs'].append(sequence)
+            if sequence not in ports[target_id]['inputs']:
+                ports[target_id]['inputs'].append(sequence)
 
+        env_setup = {'instances': [],
+                     'workflow_name': self.workflow.get('name'),
+                     }
+        workflow_json = json.dumps(self.workflow)
         for task in self.tasks:
-            self.output.write("\n# {}\n".format(task['operation']['name']))
+            ##self.output.write("\n# {}\n".format(task['operation']['name']))
             # input_list = []
             # output_list = []
             # self.map_port(task, input_list, output_list)
@@ -95,57 +145,69 @@ class Spark:
                 if all([definition.get('category',
                                        'execution').lower() == "execution",
                         definition['value'] is not None]):
+                    # print '###{} ==== {}'.format(parameter, definition['value'])
                     parameters[parameter] = definition['value']
 
             # Operation SAVE requires the complete workflow
             if task['operation']['name'] == 'SAVE':
                 parameters['workflow'] = self.workflow
 
+            parameters['task'] = task
+            parameters['workflow_json'] = workflow_json
+            parameters['user'] = self.workflow.get('user', {})
+            parameters['workflow_id'] = self.workflow.get('id')
             instance = class_name(parameters,
                                   ports.get(task['id'], {}).get('inputs', []),
                                   ports.get(task['id'], {}).get('outputs', []))
             if instance.has_code:
-                self.output.write(instance.generate_code() + "\n")
+                ## self.output.write(instance.generate_code() + "\n")
+                env_setup['instances'].append(instance)
 
-                # Just for testing. Remove from here.
+                # Just for testing. Remove from here.0
                 # for out in output_list:
                 #    self.output.write(
                 #        "print \"" + task['operation']['name'] + "\" \n")
                 # self.output.write(out + ".show()\n")
                 # Until here.
+        template_loader = jinja2.FileSystemLoader(
+            searchpath=os.path.dirname(__file__))
+        template_env = jinja2.Environment(loader=template_loader)
+        template = template_env.get_template("operation.tmpl")
+        print template.render(env_setup).encode('utf8')
 
     def assign_operations(self):
         self.classes = {
-            'add-columns': operation.AddColumns,
-            'add-rows': operation.AddRows,
-            'aggregation': operation.Aggregation,
-            'clean-missing': operation.CleanMissing,
+            'add-columns': juicer.spark.etl_operation.AddColumns,
+            'add-rows': juicer.spark.etl_operation.AddRows,
+            'aggregation': juicer.spark.etl_operation.Aggregation,
+            'clean-missing': juicer.spark.etl_operation.CleanMissing,
             'comment': operation.NoOp,
-            'data-reader': operation.DataReader,
-            'data-writer': operation.Save,
-            'save': operation.Save,
-            'difference': operation.Difference,
-            'distinct': operation.Distinct,
-            'drop': operation.Drop,
-            'evaluate-model': operation.EvaluateModel,
-            'filter': operation.Filter,
-            'intersection': operation.Intersection,
-            'join': operation.Join,
-            'pearson-correlation': operation.PearsonCorrelation,
+            'data-reader': juicer.spark.data_operation.DataReader,
+            'data-writer': juicer.spark.data_operation.Save,
+            'difference': juicer.spark.etl_operation.Difference,
+            'distinct': juicer.spark.etl_operation.Distinct,
+            'drop': juicer.spark.etl_operation.Drop,
+            'evaluate-model': juicer.spark.ml_operation.EvaluateModel,
+            'filter': juicer.spark.etl_operation.Filter,
+            # Alias for filter
+            'filter-selection': juicer.spark.etl_operation.Filter,
+            'intersection': juicer.spark.etl_operation.Intersection,
+            'join': juicer.spark.etl_operation.Join,
+            'pearson-correlation': juicer.spark.statistic_operation.PearsonCorrelation,
             # synonym for select
-            'projection': operation.Select,
-            'split': operation.RandomSplit,
-            'read-csv': operation.ReadCSV,
-            'replace': operation.Replace,
+            'projection': juicer.spark.etl_operation.Select,
+            'read-csv': juicer.spark.data_operation.ReadCSV,
+            'replace': juicer.spark.etl_operation.Replace,
             # synonym for distinct
-            'remove-duplicated-rows': operation.Distinct,
-            'sample': operation.Sample,
-            'save': operation.Save,
-            'select': operation.Select,
+            'remove-duplicated-rows': juicer.spark.etl_operation.Distinct,
+            'sample': juicer.spark.etl_operation.Sample,
+            'save': juicer.spark.data_operation.Save,
+            'select': juicer.spark.etl_operation.Select,
             # synonym of intersection'
-            'set-intersection': operation.Intersection,
-            'sort': operation.Sort,
-            'svm-classification': operation.SvmClassification,
-            'transformation': operation.Transformation,
+            'set-intersection': juicer.spark.etl_operation.Intersection,
+            'sort': juicer.spark.etl_operation.Sort,
+            'split': juicer.spark.etl_operation.RandomSplit,
+            'svm-classification': juicer.spark.ml_operation.SvmClassification,
+            'transformation': juicer.spark.etl_operation.Transformation,
 
         }
