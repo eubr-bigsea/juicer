@@ -71,7 +71,10 @@ class Expression:
         field_name = 'start' if arguments[-1] != 'end' else 'end'
         bins_size = '{} seconds'.format(arguments[-2])
 
-        result = """window({}, '{}').{}.cast('timestamp')""".format(
+        # COLOCAR A PALAVRA SECONDS DEPOIS DO PARAMETRO SEGUNDOS
+        result = """window(from_unixtime(col({})/1e6), '{}').{}.cast('timestamp')""".format(
+#        result = """window({}, '{}').{}.cast('timestamp')""".format(
+
             ', '.join(arguments[:-2]), bins_size, field_name)
         return result
 
