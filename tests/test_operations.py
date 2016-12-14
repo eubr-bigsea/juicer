@@ -1,6 +1,6 @@
 import pytest
 import context
-from juicer.spark.etl_operation import RandomSplit, Sort, Distinct, Sample, \
+from juicer.spark.etl_operation import RandomSplit, Sort, Distinct, SampleOrPartition, \
     Intersection, Difference
 from juicer.spark.data_operation import DataReader
 from juicer.spark.operation import Union
@@ -107,7 +107,7 @@ class TestSample:
         }
         self.inputs = ['input_1']
         self.outputs = ['output_1']
-        self.class_name = Sample
+        self.class_name = SampleOrPartition
         instance =  self.class_name(self.parameters, self.inputs, self.outputs)
         assert instance.generate_code() == \
             "output_1 = input_1.sample(withReplacement={}, fraction={}, seed={})".format(

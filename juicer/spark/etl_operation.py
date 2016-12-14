@@ -21,20 +21,22 @@ class RandomSplit(Operation):
     SEED_PARAM = 'seed'
     WEIGHTS_PARAM = 'weights'
 
-    def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, parameters, inputs, outputs)
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
+                           named_outputs)
         value = float(parameters.get(self.WEIGHTS_PARAM, 50))
         self.weights = [value, 100 - value]
         self.seed = parameters.get(self.SEED_PARAM, int(random() * time.time()))
+        self.has_code = len(self.outputs) > 0
 
     def generate_code(self):
         if len(self.inputs) == 1:
             output1 = self.outputs[0] if len(
-                self.outputs) else '{}_tmp1'.format(
+                self.outputs) else '{}_tmp'.format(
                 self.inputs[0])
-            output2 = self.outputs[1] if len(
-                self.outputs) == 2 else '{}_tmp2'.format(
-                self.inputs[0])
+            output2 = self.outputs[1] if len(self.outputs) == 2 else '_'
+
             code = """{0}, {1} = {2}.randomSplit({3}, {4})""".format(
                 output1, output2, self.inputs[0],
                 json.dumps(self.weights), self.seed)
@@ -49,8 +51,10 @@ class AddRows(Operation):
     Takes no parameters.
     """
 
-    def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, parameters, inputs, outputs)
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
+                           named_outputs)
         self.parameters = parameters
 
     def generate_code(self):
@@ -78,8 +82,10 @@ class Sort(Operation):
     ATTRIBUTES_PARAM = 'attributes'
     ASCENDING_PARAM = 'ascending'
 
-    def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, parameters, inputs, outputs)
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
+                           named_outputs)
         if self.ATTRIBUTES_PARAM in parameters:
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
         else:
@@ -112,8 +118,10 @@ class Distinct(Operation):
     """
     ATTRIBUTES_PARAM = 'attributes'
 
-    def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, parameters, inputs, outputs)
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
+                           named_outputs)
         if self.ATTRIBUTES_PARAM in parameters:
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
         else:
@@ -134,7 +142,7 @@ class Distinct(Operation):
         return dedent(code)
 
 
-class Sample(Operation):
+class SampleOrPartition(Operation):
     """
     Returns a sampled subset of this DataFrame.
     Parameters:
@@ -150,36 +158,71 @@ class Sample(Operation):
     FRACTION_PARAM = 'fraction'
     SEED_PARAM = 'seed'
     WITH_REPLACEMENT_PARAM = 'withReplacement'
+    TYPE_PARAM = 'type'
+    FOLD_SIZE_PARAM = 'fold_size'
+    FOLD_COUNT_PARAM = 'fold_count'
+    VALUE_PARAM = 'value'
 
-    def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, parameters, inputs, outputs)
-        if self.FRACTION_PARAM in parameters:
-            self.withReplacement = parameters.get(self.WITH_REPLACEMENT_PARAM,
-                                                  False)
-            self.fraction = float(parameters[self.FRACTION_PARAM])
-            if not (0 <= self.fraction <= 100):
-                msg = "Parameter '{}' must be in range [0, 100] for task {}" \
-                    .format(self.FRACTION_PARAM, __name__)
-                raise ValueError(msg)
-            if self.fraction > 1.0:
-                self.fraction *= 0.01
+    TYPE_PERCENT = 'percent'
+    TYPE_VALUE = 'value'
+    TYPE_HEAD = 'head'
 
-            self.seed = parameters.get(self.SEED_PARAM,
-                                       int(random() * time.time()))
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
+                           named_outputs)
+
+        self.seed = parameters.get(self.SEED_PARAM,
+                                   int(random() * time.time()))
+        self.fold_count = parameters.get(self.FOLD_COUNT_PARAM, 10)
+        self.fold_size = parameters.get(self.FOLD_SIZE_PARAM, 1000)
+        self.type = parameters.get(self.TYPE_PARAM, self.TYPE_PERCENT)
+        self.withReplacement = parameters.get(self.WITH_REPLACEMENT_PARAM,
+                                              False)
+
+        if self.type == self.TYPE_PERCENT:
+            if self.FRACTION_PARAM in parameters:
+                self.fraction = float(parameters[self.FRACTION_PARAM])
+                if not (0 <= self.fraction <= 100):
+                    msg = "Parameter '{}' must be in " \
+                          "range [0, 100] for task {}" \
+                        .format(self.FRACTION_PARAM, __name__)
+                    raise ValueError(msg)
+                if self.fraction > 1.0:
+                    self.fraction *= 0.01
+            else:
+                raise ValueError(
+                    "Parameter '{}' must be informed for task {}".format(
+                        self.FRACTION_PARAM, self.__class__))
+        elif self.type in [self.TYPE_VALUE, self.TYPE_HEAD]:
+            self.value = int(parameters.get(self.VALUE_PARAM, 100))
         else:
             raise ValueError(
-                "Parameter '{}' must be informed for task {}".format(
-                    self.FRACTION_PARAM, self.__class__))
+                "Invalid type '{}' for task {}".format(
+                    self.type, self.__class__))
+
+        self.has_code = len(self.inputs) == 1
 
     def generate_code(self):
-        if len(self.outputs) > 0:
-            output = self.outputs[0]
-        else:
-            output = '{}_tmp'.format(self.inputs[0])
-
-        code = "{} = {}.sample(withReplacement={}, fraction={}, seed={})" \
-            .format(output, self.inputs[0], self.withReplacement,
-                    self.fraction, self.seed)
+        code = ''
+        if self.type == self.TYPE_PERCENT:
+            code = ("{} = {}.sample(withReplacement={}, fraction={}, seed={})"
+                    .format(self.output, self.inputs[0],
+                            self.withReplacement,
+                            self.fraction, self.seed))
+        elif self.type == self.VALUE_PARAM:
+            # Spark 2.0.2 DataFrame API does not have takeSample implemented
+            # See [SPARK-15324]
+            # This implementation may be innefficient!
+            code = ("{} = {}.sample(withReplacement={}, "
+                    "fraction={}, seed={}).limit({})"
+                    .format(self.output, self.inputs[0],
+                            self.withReplacement,
+                            1.0, self.seed, self.value))
+            pass
+        elif self.type == self.TYPE_HEAD:
+            code = "{} = {}.limit({})" \
+                .format(self.output, self.inputs[0], self.value)
 
         return dedent(code)
 
@@ -190,8 +233,10 @@ class Intersection(Operation):
     and another frame.
     """
 
-    def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, parameters, inputs, outputs)
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
+                           named_outputs)
         self.parameters = parameters
 
     def generate_code(self):
@@ -212,8 +257,10 @@ class Difference(Operation):
     frame.
     """
 
-    def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, parameters, inputs, outputs)
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
+                           named_outputs)
 
     def generate_code(self):
         code = "{} = {}.subtract({})".format(
@@ -232,8 +279,10 @@ class Join(Operation):
     LEFT_ATTRIBUTES_PARAM = 'left_attributes'
     RIGHT_ATTRIBUTES_PARAM = 'right_attributes'
 
-    def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, parameters, inputs, outputs)
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
+                           named_outputs)
         self.keep_right_keys = parameters.get(self.KEEP_RIGHT_KEYS_PARAM, False)
         self.match_case = parameters.get(self.MATCH_CASE_PARAM, False)
         self.join_type = parameters.get(self.JOIN_TYPE_PARAM, 'inner')
@@ -281,8 +330,10 @@ class Drop(Operation):
     The only parameters is the name of the columns to be removed.
     """
 
-    def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, parameters, inputs, outputs)
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
+                           named_outputs)
         self.column = parameters['column']
 
     def generate_code(self):
@@ -302,8 +353,10 @@ class Transformation(Operation):
     ALIAS_PARAM = 'alias'
     EXPRESSION_PARAM = 'expression'
 
-    def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, parameters, inputs, outputs)
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
+                           named_outputs)
         if all(['alias' in parameters, 'expression' in parameters]):
             self.alias = parameters['alias']
             self.json_expression = json.loads(parameters['expression'])['tree']
@@ -341,8 +394,10 @@ class Select(Operation):
     ATTRIBUTES_PARAM = 'attributes'
     ASCENDING_PARAM = 'ascending'
 
-    def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, parameters, inputs, outputs)
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
+                           named_outputs)
         if self.ATTRIBUTES_PARAM in parameters:
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
         else:
@@ -372,8 +427,10 @@ class Aggregation(Operation):
     ATTRIBUTES_PARAM = 'attributes'
     FUNCTION_PARAM = 'function'
 
-    def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, parameters, inputs, outputs)
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
+                           named_outputs)
 
         self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
         self.functions = parameters.get(self.FUNCTION_PARAM)
@@ -412,8 +469,10 @@ class Filter(Operation):
     """
     FILTER_PARAM = 'filter'
 
-    def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, parameters, inputs, outputs)
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
+                           named_outputs)
         if self.FILTER_PARAM not in parameters:
             raise ValueError(
                 "Parameter '{}' must be informed for task {}".format(
@@ -463,8 +522,10 @@ class CleanMissing(Operation):
     REMOVE_ROW = 'REMOVE_ROW'
     REMOVE_COLUMN = 'REMOVE_COLUMN'
 
-    def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, parameters, inputs, outputs)
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
+                           named_outputs)
         if self.ATTRIBUTES_PARAM in parameters:
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
         else:
@@ -475,10 +536,11 @@ class CleanMissing(Operation):
                                             self.REMOVE_ROW)
 
         self.value = parameters.get(self.VALUE_PARAMETER)
+
         self.min_missing_ratio = float(
-            parameters.get(self.MIN_MISSING_RATIO_PARAM))
+            parameters.get(self.MIN_MISSING_RATIO_PARAM, 0))
         self.max_missing_ratio = float(
-            parameters.get(self.MAX_MISSING_RATIO_PARAM))
+            parameters.get(self.MAX_MISSING_RATIO_PARAM, 1))
 
         # In this case, nothing will be generated besides create reference to
         # data frame
@@ -509,7 +571,7 @@ class CleanMissing(Operation):
                 "ratio_{0} = {0}.select({1}).collect()".format(
                     self.inputs[0], ', '.join(select_list)), "",
                 "attributes_{0} = [c for c in {1} "
-                "\n        if {2} <= count_{0}[0][c] <= {3}]".format(
+                "\n        if {2} <= ratio_{0}[0][c] <= {3}]".format(
                     self.inputs[0], attrs_json, self.min_missing_ratio,
                     self.max_missing_ratio)
             ])
@@ -589,8 +651,10 @@ class AddColumns(Operation):
     Implementation based on post http://stackoverflow.com/a/40510320/1646932
     """
 
-    def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, parameters, inputs, outputs)
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
+                           named_outputs)
         self.has_code = len(inputs) == 2
 
     def generate_code(self):
@@ -618,8 +682,10 @@ class Replace(Operation):
     """
     ATTRIBUTES_PARAM = 'attributes'
 
-    def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, parameters, inputs, outputs)
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
+                           named_outputs)
         if self.ATTRIBUTES_PARAM in parameters:
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
         else:
