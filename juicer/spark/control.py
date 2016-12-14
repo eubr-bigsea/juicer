@@ -4,6 +4,7 @@ import zipfile
 import juicer.spark.data_operation
 import juicer.spark.etl_operation
 import juicer.spark.statistic_operation
+import juicer.spark.text_operation
 import os
 
 import jinja2
@@ -119,14 +120,20 @@ class Spark:
                     len(sequential_ports))
 
             if source_id not in ports:
-                ports[source_id] = {'outputs': [], 'inputs': []}
+                ports[source_id] = {'outputs': [], 'inputs': [],
+                                    'named_inputs': {}, 'named_outputs': {}}
             if target_id not in ports:
-                ports[target_id] = {'outputs': [], 'inputs': []}
+                ports[target_id] = {'outputs': [], 'inputs': [],
+                                    'named_inputs': {}, 'named_outputs': {}}
 
             sequence = sequential_ports[flow_id]
             if sequence not in ports[source_id]['outputs']:
+                ports[source_id]['named_outputs'][
+                    flow['source_port_name']] = sequence
                 ports[source_id]['outputs'].append(sequence)
             if sequence not in ports[target_id]['inputs']:
+                ports[target_id]['named_inputs'][
+                    flow['target_port_name']] = sequence
                 ports[target_id]['inputs'].append(sequence)
 
         env_setup = {'instances': [],
@@ -160,9 +167,11 @@ class Spark:
             parameters['workflow_json'] = workflow_json
             parameters['user'] = self.workflow.get('user', {})
             parameters['workflow_id'] = self.workflow.get('id')
-            instance = class_name(parameters,
-                                  ports.get(task['id'], {}).get('inputs', []),
-                                  ports.get(task['id'], {}).get('outputs', []))
+            port = ports.get(task['id'], {})
+            instance = class_name(parameters, port.get('inputs', []),
+                                  port.get('outputs', []),
+                                  port.get('named_inputs', {}),
+                                  port.get('named_outputs', {}))
             if instance.has_code:
                 ## self.output.write(instance.generate_code() + "\n")
                 env_setup['instances'].append(instance)
@@ -189,6 +198,8 @@ class Spark:
             'clean-missing': juicer.spark.etl_operation.CleanMissing,
             'classification-model':
                 juicer.spark.ml_operation.ClassificationModel,
+            'clustering-model':
+                juicer.spark.ml_operation.ClusteringModelOperation,
             'comment': operation.NoOp,
             'cross-validation':
                 juicer.spark.ml_operation.CrossValidationOperation,
@@ -208,8 +219,9 @@ class Spark:
             'gbt-classifier': juicer.spark.ml_operation.GBTClassifierOperation,
             'intersection': juicer.spark.etl_operation.Intersection,
             'join': juicer.spark.etl_operation.Join,
+            'lda-clustering': juicer.spark.ml_operation.LdaClusteringOperation,
             'naive-bayes-classifier':
-                juicer.spark.ml_operation.NaiveBayesClassifier,
+                juicer.spark.ml_operation.NaiveBayesClassifierOperation,
             'pearson-correlation':
                 juicer.spark.statistic_operation.PearsonCorrelation,
             # synonym for select
@@ -220,6 +232,8 @@ class Spark:
             'replace': juicer.spark.etl_operation.Replace,
             # synonym for distinct
             'remove-duplicated-rows': juicer.spark.etl_operation.Distinct,
+            'remove-stop-words':
+                juicer.spark.text_operation.RemoveStopWordsOperation,
             'sample': juicer.spark.etl_operation.SampleOrPartition,
             'save': juicer.spark.data_operation.Save,
             'select': juicer.spark.etl_operation.Select,
@@ -229,6 +243,8 @@ class Spark:
             'split': juicer.spark.etl_operation.RandomSplit,
             'svm-classification':
                 juicer.spark.ml_operation.SvmClassifierOperation,
+            'tokenizer': juicer.spark.text_operation.TokenizerOperation,
+            'topic-report': juicer.spark.ml_operation.TopicReportOperation,
             'transformation': juicer.spark.etl_operation.Transformation,
-
+            'word-to-vector': juicer.spark.text_operation.WordToVectorOperation
         }

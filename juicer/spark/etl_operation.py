@@ -21,8 +21,10 @@ class RandomSplit(Operation):
     SEED_PARAM = 'seed'
     WEIGHTS_PARAM = 'weights'
 
-    def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, parameters, inputs, outputs)
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
+                           named_outputs)
         value = float(parameters.get(self.WEIGHTS_PARAM, 50))
         self.weights = [value, 100 - value]
         self.seed = parameters.get(self.SEED_PARAM, int(random() * time.time()))
@@ -49,8 +51,10 @@ class AddRows(Operation):
     Takes no parameters.
     """
 
-    def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, parameters, inputs, outputs)
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
+                           named_outputs)
         self.parameters = parameters
 
     def generate_code(self):
@@ -78,8 +82,10 @@ class Sort(Operation):
     ATTRIBUTES_PARAM = 'attributes'
     ASCENDING_PARAM = 'ascending'
 
-    def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, parameters, inputs, outputs)
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
+                           named_outputs)
         if self.ATTRIBUTES_PARAM in parameters:
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
         else:
@@ -112,8 +118,10 @@ class Distinct(Operation):
     """
     ATTRIBUTES_PARAM = 'attributes'
 
-    def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, parameters, inputs, outputs)
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
+                           named_outputs)
         if self.ATTRIBUTES_PARAM in parameters:
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
         else:
@@ -159,8 +167,10 @@ class SampleOrPartition(Operation):
     TYPE_VALUE = 'value'
     TYPE_HEAD = 'head'
 
-    def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, parameters, inputs, outputs)
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
+                           named_outputs)
 
         self.seed = parameters.get(self.SEED_PARAM,
                                    int(random() * time.time()))
@@ -223,8 +233,10 @@ class Intersection(Operation):
     and another frame.
     """
 
-    def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, parameters, inputs, outputs)
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
+                           named_outputs)
         self.parameters = parameters
 
     def generate_code(self):
@@ -245,8 +257,10 @@ class Difference(Operation):
     frame.
     """
 
-    def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, parameters, inputs, outputs)
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
+                           named_outputs)
 
     def generate_code(self):
         code = "{} = {}.subtract({})".format(
@@ -265,8 +279,10 @@ class Join(Operation):
     LEFT_ATTRIBUTES_PARAM = 'left_attributes'
     RIGHT_ATTRIBUTES_PARAM = 'right_attributes'
 
-    def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, parameters, inputs, outputs)
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
+                           named_outputs)
         self.keep_right_keys = parameters.get(self.KEEP_RIGHT_KEYS_PARAM, False)
         self.match_case = parameters.get(self.MATCH_CASE_PARAM, False)
         self.join_type = parameters.get(self.JOIN_TYPE_PARAM, 'inner')
@@ -314,8 +330,10 @@ class Drop(Operation):
     The only parameters is the name of the columns to be removed.
     """
 
-    def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, parameters, inputs, outputs)
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
+                           named_outputs)
         self.column = parameters['column']
 
     def generate_code(self):
@@ -335,8 +353,10 @@ class Transformation(Operation):
     ALIAS_PARAM = 'alias'
     EXPRESSION_PARAM = 'expression'
 
-    def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, parameters, inputs, outputs)
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
+                           named_outputs)
         if all(['alias' in parameters, 'expression' in parameters]):
             self.alias = parameters['alias']
             self.json_expression = json.loads(parameters['expression'])['tree']
@@ -374,8 +394,10 @@ class Select(Operation):
     ATTRIBUTES_PARAM = 'attributes'
     ASCENDING_PARAM = 'ascending'
 
-    def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, parameters, inputs, outputs)
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
+                           named_outputs)
         if self.ATTRIBUTES_PARAM in parameters:
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
         else:
@@ -405,8 +427,10 @@ class Aggregation(Operation):
     ATTRIBUTES_PARAM = 'attributes'
     FUNCTION_PARAM = 'function'
 
-    def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, parameters, inputs, outputs)
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
+                           named_outputs)
 
         self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
         self.functions = parameters.get(self.FUNCTION_PARAM)
@@ -445,8 +469,10 @@ class Filter(Operation):
     """
     FILTER_PARAM = 'filter'
 
-    def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, parameters, inputs, outputs)
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
+                           named_outputs)
         if self.FILTER_PARAM not in parameters:
             raise ValueError(
                 "Parameter '{}' must be informed for task {}".format(
@@ -496,8 +522,10 @@ class CleanMissing(Operation):
     REMOVE_ROW = 'REMOVE_ROW'
     REMOVE_COLUMN = 'REMOVE_COLUMN'
 
-    def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, parameters, inputs, outputs)
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
+                           named_outputs)
         if self.ATTRIBUTES_PARAM in parameters:
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
         else:
@@ -623,8 +651,10 @@ class AddColumns(Operation):
     Implementation based on post http://stackoverflow.com/a/40510320/1646932
     """
 
-    def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, parameters, inputs, outputs)
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
+                           named_outputs)
         self.has_code = len(inputs) == 2
 
     def generate_code(self):
@@ -652,8 +682,10 @@ class Replace(Operation):
     """
     ATTRIBUTES_PARAM = 'attributes'
 
-    def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, parameters, inputs, outputs)
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
+                           named_outputs)
         if self.ATTRIBUTES_PARAM in parameters:
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
         else:

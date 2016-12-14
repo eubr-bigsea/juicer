@@ -7,9 +7,12 @@
 #     Universidade Federal de Minas Gerais
 # More information about Lemonade to be provided
 #
+import string
+import unicodedata
 
 from pyspark.ml import Pipeline
 from pyspark.ml.classification import *
+from pyspark.ml.clustering import *
 from pyspark.ml.evaluation import *
 from pyspark.ml.feature import *
 from pyspark.ml.tuning import *
@@ -17,6 +20,17 @@ from pyspark.sql import SparkSession
 from pyspark.sql.window import Window
 from pyspark.sql.functions import *
 from pyspark.sql.types import *
+
+
+# Global utilities functions definitions
+strip_accents = udf(
+    lambda text: ''.join(c for c in unicodedata.normalize('NFD', text)
+        if unicodedata.category(c) != 'Mn'), StringType())
+strip_punctuation = udf(lambda text:
+                        text.translate(
+                            dict((ord(char), None)
+                                for char in string.punctuation)),
+                        StringType())
 
 def juicer_debug(name, variable, df):
     """ Debug code """

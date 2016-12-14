@@ -36,24 +36,33 @@ class DataReader(Operation):
         "DATETIME": 'TimestampType',
         "CHARACTER": 'StringType'
     }
+    SEPARATORS = {
+        '{tab}': '\\t'
+    }
 
-    def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, parameters, inputs, outputs)
-        if self.DATA_SOURCE_ID_PARAM in parameters:
-            self.database_id = parameters[self.DATA_SOURCE_ID_PARAM]
-            self.header = bool(parameters.get(self.HEADER_PARAM, False))
-            self.sep = parameters.get(self.SEPARATOR_PARAM, ',')
-            self.infer_schema = parameters.get(self.INFER_SCHEMA_PARAM,
-                                               self.INFER_FROM_LIMONERO)
-            self.null_values = [v.strip() for v in parameters.get(
-                self.NULL_VALUES_PARAM, '').split(",")]
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
+                           named_outputs)
+        self.has_code = len(self.outputs) > 0
+        if self.has_code:
+            if self.DATA_SOURCE_ID_PARAM in parameters:
+                self.database_id = parameters[self.DATA_SOURCE_ID_PARAM]
+                self.header = bool(parameters.get(self.HEADER_PARAM, False))
+                self.sep = parameters.get(self.SEPARATOR_PARAM, ',')
+                if self.sep in self.SEPARATORS:
+                    self.sep = self.SEPARATORS[self.sep]
+                self.infer_schema = parameters.get(self.INFER_SCHEMA_PARAM,
+                                                   self.INFER_FROM_LIMONERO)
+                self.null_values = [v.strip() for v in parameters.get(
+                    self.NULL_VALUES_PARAM, '').split(",")]
 
-            metadata_obj = MetadataGet('123456')
-            self.metadata = metadata_obj.get_metadata(self.database_id)
-        else:
-            raise ValueError(
-                "Parameter '{}' must be informed for task {}".format(
-                    self.DATA_SOURCE_ID_PARAM, self.__class__))
+                metadata_obj = MetadataGet('123456')
+                self.metadata = metadata_obj.get_metadata(self.database_id)
+            else:
+                raise ValueError(
+                    "Parameter '{}' must be informed for task {}".format(
+                        self.DATA_SOURCE_ID_PARAM, self.__class__))
 
     def generate_code(self):
 
@@ -82,10 +91,12 @@ class DataReader(Operation):
                                     ['feature', 'label', 'nullable', 'type',
                                      'size', 'precision', 'enumeration',
                                      'missing_representation'] if attr[k]}
-                        code.append("schema_{0}.add('{1}', {2}(), {3}, {4})"
+                        code.append("schema_{0}.add('{1}', {2}(), {3},\n{5}{4})"
                                     .format(output, attr['name'], data_type,
                                             attr['nullable'],
-                                            pprint.pformat(metadata, indent=0)))
+                                            pprint.pformat(metadata, indent=0),
+                                            ' ' * 20
+                                            ))
                     code.append("")
                 else:
                     raise ValueError(
@@ -152,8 +163,10 @@ class Save(Operation):
     USER_PARAM = 'user'
     WORKFLOW_ID_PARAM = 'workflow_id'
 
-    def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, parameters, inputs, outputs)
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
+                           named_outputs)
 
         self.name = parameters.get(self.NAME_PARAM)
         self.format = parameters.get(self.FORMAT_PARAM)
@@ -255,8 +268,10 @@ class ReadCSV(Operation):
     HDFS without using the Limonero API.
     """
 
-    def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, parameters, inputs, outputs)
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
+                           named_outputs)
         self.url = parameters['url']
         try:
             self.header = parameters['header']
@@ -283,8 +298,10 @@ class ChangeAttribute(Operation):
     NEW_DATA_TYPE_PARAM = 'new_data_type'
     KEEP_VALUE = 'keep'
 
-    def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, parameters, inputs, outputs)
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
+                           named_outputs)
 
         if self.ATTRIBUTES_PARAM in parameters:
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)

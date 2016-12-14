@@ -9,10 +9,13 @@ log.setLevel(logging.DEBUG)
 class Operation:
     """ Defines an operation in Lemonade """
 
-    def __init__(self, parameters, inputs, outputs):
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
         self.parameters = parameters
         self.inputs = inputs
         self.outputs = outputs
+        self.named_inputs = named_inputs
+        self.named_outputs = named_outputs
 
         # Indicate if operation generates code or not. Some operations, e.g.
         # Comment, does not generate code
@@ -67,8 +70,10 @@ class DatetimeToBins(Operation):
     """
     """
 
-    def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, parameters, inputs, outputs)
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
+                           named_outputs)
         self.target_column = parameters['target_column']
         self.new_column = parameters['new_column']
         self.group_size = parameters['group_size']
@@ -85,7 +90,12 @@ class DatetimeToBins(Operation):
 class NoOp(Operation):
     """ Null operation """
 
-    def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, parameters, inputs, outputs)
+    def generate_code(self):
+        pass
+
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
+                           named_outputs)
         self.parameters = parameters
         self.has_code = False
