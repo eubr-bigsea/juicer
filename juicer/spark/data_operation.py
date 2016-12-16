@@ -74,10 +74,9 @@ class DataReader(Operation):
         infer_from_data = self.infer_schema == self.INFER_FROM_DATA
         infer_from_limonero = self.infer_schema == self.INFER_FROM_LIMONERO
         if len(self.outputs) == 1:
-            output = self.outputs[0]
             if infer_from_limonero:
                 if 'attributes' in self.metadata:
-                    code.append('schema_{0} = StructType()'.format(output))
+                    code.append('schema_{0} = StructType()'.format(self.output))
                     for attr in self.metadata.get('attributes', []):
                         data_type = self.LIMONERO_TO_SPARK_DATA_TYPES[
                             attr['type']]
@@ -92,7 +91,8 @@ class DataReader(Operation):
                                      'size', 'precision', 'enumeration',
                                      'missing_representation'] if attr[k]}
                         code.append("schema_{0}.add('{1}', {2}(), {3},\n{5}{4})"
-                                    .format(output, attr['name'], data_type,
+                                    .format(self.output, attr['name'],
+                                            data_type,
                                             attr['nullable'],
                                             pprint.pformat(metadata, indent=0),
                                             ' ' * 20
@@ -102,10 +102,10 @@ class DataReader(Operation):
                     raise ValueError(
                         "Metadata do not include attributes information")
             else:
-                code.append('schema_{0} = None'.format(output))
+                code.append('schema_{0} = None'.format(self.output))
             if self.metadata['format'] == 'CSV':
                 code.append(
-                    "url_{0} = '{1}'".format(output, self.metadata['url']))
+                    "url_{0} = '{1}'".format(self.output, self.metadata['url']))
                 null_option = ''.join(
                     [".option('nullValue', '{}')".format(n) for n in
                      self.null_values]) if self.null_values else ""
@@ -116,11 +116,12 @@ class DataReader(Operation):
                        .csv(url_{0}, schema=schema_{0},
                             header={1}, sep='{2}',
                             inferSchema={3}, mode='DROPMALFORMED')""".format(
-                    output, self.header, self.sep, infer_from_data, null_option)
+                    self.output, self.header, self.sep, infer_from_data,
+                    null_option)
                 code.append(code_csv)
 
                 # FIXME: Evaluate if it is good idea to always use cache
-                code.append('{}.cache()'.format(output))
+                code.append('{}.cache()'.format(self.output))
 
             elif self.metadata['format'] == 'PARQUET_FILE':
                 # TO DO
@@ -184,6 +185,12 @@ class Save(Operation):
         self.workflow_id = parameters.get(self.WORKFLOW_ID_PARAM)
         self.has_code = len(self.inputs) == 1
 
+    def get_data_out_names(self, sep=','):
+        return ''
+
+    def get_output_names(self, sep=", "):
+        return self.output
+
     def generate_code(self):
         # Retrieve Storage URL
         # @FIXME Hardcoded!
@@ -193,7 +200,6 @@ class Save(Operation):
 
         final_url = '{}{}{}'.format(storage['url'], self.path,
                                     self.name.replace(' ', '_'))
-
         code_save = ''
         if self.format == self.FORMAT_CSV:
             code_save = dedent("""
@@ -201,7 +207,6 @@ class Save(Operation):
                          header={}, mode='{}')""".format(
                 self.inputs[0], final_url, self.header, self.mode))
             # Need to generate an output, even though it is not used.
-            code_save += '\n{0}_tmp = {0}'.format(self.inputs[0])
         elif self.format == self.FORMAT_PARQUET:
             code_save = dedent("""
             {}.write.parquet('{}', mode='{}')""".format(self.inputs[0],
@@ -223,6 +228,7 @@ class Save(Operation):
                 'LongType': "LONG",
                 'DoubleType': "DOUBLE",
                 'TimestampType': "DATETIME",
+                'FloatType': "FLOAT"
                 }}
                 schema = []
                 # nullable information is also stored in metadata
@@ -257,6 +263,8 @@ class Save(Operation):
                            self.workflow_id, final_url, "123456"
                            )
             code += dedent(code_api)
+            # No return
+            code += '{} = None'.format(self.output)
 
         return code
 
@@ -314,17 +322,15 @@ class ChangeAttribute(Operation):
     def generate_code(self):
         del self.parameters['workflow_json']
         code = []
-        output = self.outputs[0] if len(self.outputs) else '{}_tmp'.format(
-            self.inputs[0])
         if self.parameters.get(self.NEW_DATA_TYPE_PARAM,
                                'keep') == self.KEEP_VALUE:
             # Do not require processing data frame, change only meta data
-            code.append('{0} = {1}'.format(output, self.inputs[0]))
+            code.append('{0} = {1}'.format(self.output, self.inputs[0]))
 
             for attr in self.attributes:
                 code.append(
                     "\ninx_{0} = [i for i, _ in enumerate({0}.schema) "
-                    "if _.name.lower() == '{1}']".format(output,
+                    "if _.name.lower() == '{1}']".format(self.output,
                                                          attr.lower()))
 
                 nullable = self.parameters.get(self.NULLABLE_PARAM,
@@ -332,21 +338,21 @@ class ChangeAttribute(Operation):
                 if nullable != self.KEEP_VALUE:
                     code.append(
                         ChangeAttribute.change_meta(
-                            output, attr, 'nullable', nullable == 'true'))
+                            self.output, attr, 'nullable', nullable == 'true'))
 
                 feature = self.parameters.get(self.IS_FEATURE_PARAM,
                                               self.KEEP_VALUE)
                 if feature != self.KEEP_VALUE:
                     code.append(
                         ChangeAttribute.change_meta(
-                            output, attr, 'feature', feature == 'true'))
+                            self.output, attr, 'feature', feature == 'true'))
 
                 label = self.parameters.get(self.IS_LABEL_PARAM,
                                             self.KEEP_VALUE)
                 if label != self.KEEP_VALUE:
                     code.append(
                         ChangeAttribute.change_meta(
-                            output, attr, 'label', label == 'true'))
+                            self.output, attr, 'label', label == 'true'))
 
             format_name = self.parameters[self.NEW_NAME_PARAM]
             if format_name:
@@ -356,7 +362,7 @@ class ChangeAttribute(Operation):
                     attr in self.attributes]
 
                 code.append('{0} = {0}.{1}'.format(
-                    output, '\\\n              .'.join(rename)))
+                    self.output, '\\\n              .'.join(rename)))
 
         else:
             # Changing data type requires to rebuild data frame

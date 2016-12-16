@@ -69,7 +69,7 @@ def main():
     spark_session = SparkSession.builder\
                         .appName(app_name)\
                         .getOrCreate()
-
+    spark_session.sparkContext.addPyFile('/tmp/dist.zip')
     {%- for instance in instances %}
     {%- if instance.has_code %}
     {{instance.get_output_names(", ")}} = {{instance.parameters.task.operation.slug.replace('-', '_')}}_generate_{{instance.get_output_names('_')}}(spark_session
