@@ -13,6 +13,10 @@ from pyspark.sql.window import Window
 from pyspark.sql.functions import *
 from pyspark.sql.types import *
 
+import sys
+import re
+import json
+
 {%- for instance in instances %}
 {%- if instance.has_code %}
 

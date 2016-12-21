@@ -4,6 +4,7 @@ import zipfile
 import juicer.spark.data_operation
 import juicer.spark.etl_operation
 import juicer.spark.statistic_operation
+import juicer.spark.geo_operation
 import os
 
 import jinja2
@@ -189,6 +190,7 @@ class Spark:
             'drop': juicer.spark.etl_operation.Drop,
             'evaluate-model': juicer.spark.ml_operation.EvaluateModel,
             'filter': juicer.spark.etl_operation.Filter,
+            'read-shapefile': juicer.spark.geo_operation.ReadShapefile,
             # Alias for filter
             'filter-selection': juicer.spark.etl_operation.Filter,
             'intersection': juicer.spark.etl_operation.Intersection,

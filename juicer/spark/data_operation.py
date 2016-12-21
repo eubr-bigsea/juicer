@@ -255,6 +255,9 @@ class ReadCSV(Operation):
 
     def generate_code(self):
         code = """{} = spark_session.read.csv('{}',
-            header={}, sep='{}' ,inferSchema=True)""".format(
+            header={}, sep='{}',inferSchema=True)""".format(
             self.outputs[0], self.url, self.header, self.separator)
         return dedent(code)
+
+
+
