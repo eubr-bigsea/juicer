@@ -150,6 +150,9 @@ class WordToVectorOperation(Operation):
     def get_data_out_names(self, sep=','):
         return self.output
 
+    def get_output_names(self, sep=", "):
+        return sep.join([self.output, self.named_outputs['vocabulary']])
+
     def generate_code(self):
         if self.type == self.TYPE_COUNT:
             code = dedent("""
@@ -172,8 +175,10 @@ class WordToVectorOperation(Operation):
             {2} = model.transform({1})
             """)
         if 'vocabulary' in self.named_outputs:
-            code += "{} = [v.vocabulary for v in model.stages]".format(
-                self.named_outputs['vocabulary'])
+            code += dedent("""
+                {} = dict([(col_alias[i][1], v.vocabulary)
+                        for i, v in enumerate(model.stages)])""".format(
+                self.named_outputs['vocabulary']))
 
         code = code.format(self.attributes, self.inputs[0],
                            self.named_outputs['output data'],

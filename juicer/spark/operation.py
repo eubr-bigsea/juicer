@@ -16,6 +16,7 @@ class Operation:
         self.outputs = outputs
         self.named_inputs = named_inputs
         self.named_outputs = named_outputs
+        self.multiple_inputs = False
 
         # Indicate if operation generates code or not. Some operations, e.g.
         # Comment, does not generate code
@@ -50,9 +51,10 @@ class Operation:
                 result = '{}_tmp_{}'.format(self.inputs[0],
                                             self.parameters['task']['order'])
         else:
-            raise ValueError(
-                "Operation has neither input nor output: {}".format(
-                    self.__class__))
+            #raise ValueError(
+            #    "Operation has neither input nor output: {}".format(
+            #        self.__class__))
+            pass
         return result
 
     def get_data_out_names(self, sep=','):
@@ -64,6 +66,17 @@ class Operation:
         An operation does nothing if it has zero inputs or outputs.
         """
         return any([len(self.outputs) == 0, len(self.inputs) == 0])
+
+
+class ReportOperation(Operation):
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
+                           named_outputs)
+
+    def generate_code(self):
+        raise NotImplementedError("Method generate_code should be implemented "
+                                  "in {} subclass".format(self.__class__))
 
 
 class DatetimeToBins(Operation):

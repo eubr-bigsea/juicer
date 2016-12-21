@@ -8,8 +8,8 @@
 # More information about Lemonade to be provided
 #
 import string
+import json
 import unicodedata
-
 from pyspark.ml import Pipeline
 from pyspark.ml.classification import *
 from pyspark.ml.clustering import *
@@ -20,6 +20,7 @@ from pyspark.sql import SparkSession
 from pyspark.sql.window import Window
 from pyspark.sql.functions import *
 from pyspark.sql.types import *
+from timeit import default_timer as timer
 
 
 # Global utilities functions definitions
@@ -41,38 +42,55 @@ def juicer_debug(name, variable, df):
     schema = df.schema
     for attr in schema:
         print attr.name, attr.dataType, attr.nullable, attr.metadata
-
+{% autopep8 %}
 {%- for instance in instances %}
 {%- if instance.has_code %}
-
-def {{instance.parameters.task.operation.slug.replace('-', '_')}}_generate_{{instance.get_output_names('_')}}(spark_session
+def {{instance.parameters.task.operation.slug.replace('-', '_')}}_gen_{{instance.get_output_names('_')}}(spark_session
         {%- if instance.get_inputs_names %}, {{instance.get_inputs_names}}{% endif %}):
     {%- if instance.parameters.task.forms.comment %}
     """
     {{instance.parameters.task.forms.comment.value.replace('"', '')}}
     """
     {%- endif %}
+    start = timer()
     {{instance.generate_code() | indent(width=4, indentfirst=False)}}
-
+    {%- if instance.parameters.get('logging', {}).get('log_level') == 'DEBUG' %}
     {%- set out = instance.get_data_out_names('|') %}
     {%- if out %}
     {%- for variable in out.split('|')%}
     juicer_debug('{{instance.__class__}}', '{{variable}}', {{variable}})
     {%- endfor %}
     {%- endif %}
-    return {{instance.get_output_names()}}
+    {%- endif %}
+
+    time_elapsed = timer() - start
+    return {% if instance.get_output_names() %} {{instance.get_output_names()}}, {% endif %}time_elapsed
 
 {%- endif %}
 {% endfor %}
+
 def main():
     app_name = u'## {{workflow_name}} ##'
     spark_session = SparkSession.builder\
                         .appName(app_name)\
                         .getOrCreate()
-    spark_session.sparkContext.addPyFile('/tmp/dist.zip')
+    # spark_session.sparkContext.addPyFile('/tmp/dist.zip')
+
+    # Declares and initializes variabels in order to do not generate NameError.
+    # Some tasks may not generate code, but at least one of their outputs is
+    # connected to a valid input in a task generating code. This happens when
+    # task has a port with multiplicity MANY
     {%- for instance in instances %}
     {%- if instance.has_code %}
-    {{instance.get_output_names(", ")}} = {{instance.parameters.task.operation.slug.replace('-', '_')}}_generate_{{instance.get_output_names('_')}}(spark_session
+    {%- if instance.multiple_inputs %}
+    {{instance.get_inputs_names.replace(',', '=') }} = None
+    {% endif %}
+    {%- endif %}
+    {%- endfor %}
+
+    {%- for instance in instances %}
+    {%- if instance.has_code %}
+    {% if instance.get_output_names(", ") %}{{instance.get_output_names(", ")}}, {% endif %}ts_{{instance.output}} = {{instance.parameters.task.operation.slug.replace('-', '_')}}_gen_{{instance.get_output_names('_')}}(spark_session
         {%- if instance.get_inputs_names %}, {{instance.get_inputs_names}}{% endif %})
     {%- endif %}
     {%- endfor %}
@@ -80,11 +98,12 @@ def main():
     return {
         {%- for instance in instances %}
         {%- if instance.has_code %}
-        '{{instance.parameters.task.id}}': (
+        '{{instance.parameters.task.id}}': ({%- if instance.get_output_names() %}
         {%- for variable in instance.get_output_names(', ').split('|') -%}
         {{variable}},
-        {%- endfor -%}
-        ),
+        {%- endfor -%}{% endif -%}
+        ts_{{instance.output}}),
         {%- endif %}
         {%- endfor %}
     }
+{% endautopep8 %}

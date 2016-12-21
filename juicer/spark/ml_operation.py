@@ -3,7 +3,7 @@ import json
 import logging
 from textwrap import dedent
 
-from juicer.spark.operation import Operation
+from juicer.spark.operation import Operation, ReportOperation
 from itertools import izip_longest
 
 log = logging.getLogger()
@@ -247,6 +247,7 @@ class CrossValidationOperation(Operation):
     Cross validation operation used to evaluate classifier results using as many
     as folds provided in input.
     """
+    NUM_FOLDS_PARAM = 'folds'
 
     def __init__(self, parameters, inputs, outputs, named_inputs,
                  named_outputs):
@@ -254,16 +255,27 @@ class CrossValidationOperation(Operation):
                            named_outputs)
 
         self.has_code = len(self.inputs) == 3
+        self.num_folds = parameters.get(self.NUM_FOLDS_PARAM, 3)
+
+    @property
+    def get_inputs_names(self):
+        return ', '.join([self.named_inputs['algorithm'],
+                          self.named_inputs['input data'],
+                          self.named_inputs['evaluator']])
 
     def get_output_names(self, sep=", "):
-        return sep.join([self.output, 'best_model'])
+        return sep.join([self.output,
+                         'eval_{}'.format(self.output),
+                         'best_model_{}'.format(self.output)])
 
     def get_data_out_names(self, sep=','):
         return ''
 
     def generate_code(self):
-        code = """
-            estimator = {0}
+        code = dedent("""
+            grid_builder = ParamGridBuilder()
+            estimator, param_grid = {algorithm}
+            '''
             if estimator.__class__ == 'LinearRegression':
                 param_grid = estimator.maxIter
             elif estimator.__class__  == NaiveBayes:
@@ -275,20 +287,56 @@ class CrossValidationOperation(Operation):
                 pass
             elif estimator.__class__ == RandomForestClassifier:
                 param_grid = estimator.maxDepth
+            '''
+            for param_name, values in param_grid.iteritems():
+                param = getattr(estimator, param_name)
+                grid_builder.addGrid(param, values)
 
-            evaluator = {2}
+            evaluator = {evaluator}
 
-            {0}.setLabelCol('survived').setFeaturesCol('features')
-
-            grid = ParamGridBuilder().addGrid(*param_grid).build()
+            grid = grid_builder.build()
             cv = CrossValidator(estimator=estimator, estimatorParamMaps=grid,
-                                evaluator=evaluator)
-            cv_model = cv.fit({1})
-            best_model  = cv_model.bestModel
-            {3} = evaluator.evaluate(cv_model.transform({1}))
-            """.format(self.inputs[0], self.inputs[1], self.inputs[2],
-                       self.output)
-        return dedent(code)
+                                evaluator=evaluator, numFolds={folds})
+            cv_model = cv.fit({input_data})
+            evaluated_data = cv_model.transform({input_data})
+            best_model_{output}  = cv_model.bestModel
+            metric_result = evaluator.evaluate(evaluated_data)
+            {output} = evaluated_data
+            """.format(algorithm=self.named_inputs['algorithm'],
+                       input_data=self.named_inputs['input data'],
+                       evaluator=self.named_inputs['evaluator'],
+                       output=self.output,
+                       folds=self.num_folds))
+
+        # If there is an output needing the evaluation result, it must be
+        # processed here (summarization of data results)
+        needs_evaluation = 'evaluation' in self.named_outputs
+        if needs_evaluation:
+            eval_code = """
+            grouped_result = evaluated_data.select(
+                    evaluator.getLabelCol(), evaluator.getPredictionCol())\\
+                    .groupBy(
+                        evaluator.getLabelCol(),
+                        evaluator.getPredictionCol()).count().collect()
+            eval_{output} = {{
+                'metric': {{
+                    'name': evaluator.getMetricName(),
+                    'value': metric_result
+                }},
+                'estimator': {{
+                    'name': estimator.__class__.__name__,
+                    'predictionCol': evaluator.getPredictionCol(),
+                    'labelCol': evaluator.getLabelCol()
+                }},
+                'confusion_matrix': {{
+                    'data': json.dumps(grouped_result)
+                }},
+                'evaluator': evaluator
+            }}
+            """.format(output=self.output)
+            code = '\n'.join([code, dedent(eval_code)])
+
+        return code
 
 
 class ClassificationModel(Operation):
@@ -306,7 +354,7 @@ class ClassificationModel(Operation):
             msg = "Parameters '{}' and '{}' must be informed for task {}"
             raise ValueError(msg.format(
                 self.FEATURES_ATTRIBUTE_PARAM, self.LABEL_ATTRIBUTE_PARAM,
-                self.__class__))
+                self.__class__.__name__))
 
         self.label = parameters.get(self.LABEL_ATTRIBUTE_PARAM)[0]
         self.features = parameters.get(self.FEATURES_ATTRIBUTE_PARAM)[0]
@@ -336,6 +384,8 @@ class ClassifierOperation(Operation):
     """
     Base class for classification algorithms
     """
+    FEATURES_PARAM = 'features'
+    LABEL_PARAM = 'label'
 
     def __init__(self, parameters, inputs, outputs, named_inputs,
                  named_outputs):
@@ -343,21 +393,40 @@ class ClassifierOperation(Operation):
                            named_outputs)
         self.has_code = len(self.outputs) > 0
         self.name = "FIXME"
-        self.set_values = []
+        if 'paramgrid' not in parameters:
+            raise ValueError(
+                'Parameter grid must be informed for classifier {}'.format(
+                    self.__class__))
+
+        if not all([self.LABEL_PARAM in parameters['paramgrid'],
+                    self.FEATURES_PARAM in parameters['paramgrid']]):
+            msg = "Parameters '{}' and '{}' must be informed for task {}"
+            raise ValueError(msg.format(
+                self.FEATURES_PARAM, self.LABEL_PARAM,
+                self.__class__))
+
+        self.label = parameters['paramgrid'].get(self.LABEL_PARAM)
+        self.attributes = parameters['paramgrid'].get(self.FEATURES_PARAM)
 
     def get_data_out_names(self, sep=','):
         return ''
 
-    def get_output_names(self, sep=','):
+    def get_output_names(self, sep=', '):
         return self.output
 
     def generate_code(self):
-        declare = "{0} = {1}()".format(self.output, self.name)
+        param_grid = {
+            'featuresCol': self.attributes,
+            'labelCol': self.label
+        }
+        declare = dedent("""
+        param_grid = {2}
+        # Output result is the classifier and its parameters. Parameters are
+        # need in classification model or cross valitor.
+        {0} = ({1}(), param_grid)
+        """).format(self.output, self.name, json.dumps(param_grid, indent=4))
+
         code = [declare]
-        code.extend([
-                        '{0}.set{1}({2})'.format(self.output, name, v)
-                        for name, v in self.set_values
-                        ])
         return "\n".join(code)
 
 
@@ -382,8 +451,9 @@ class DecisionTreeClassifierOperation(ClassifierOperation):
 class GBTClassifierOperation(ClassifierOperation):
     def __init__(self, parameters, inputs, outputs, named_inputs,
                  named_outputs):
-        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
-                           named_outputs)
+        ClassifierOperation.__init__(self, parameters, inputs, outputs,
+                                     named_inputs,
+                                     named_outputs)
         self.name = 'GBTClassifier'
 
 
@@ -401,7 +471,32 @@ class RandomForestClassifierOperation(ClassifierOperation):
         ClassifierOperation.__init__(self, parameters, inputs, outputs,
                                      named_inputs, named_outputs)
         self.name = 'RandomForestClassifier'
-        self.set_values.append(['NumTrees', 10])
+
+
+class PerceptronClassifier(ClassifierOperation):
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        ClassifierOperation.__init__(self, parameters, inputs, outputs,
+                                     named_inputs, named_outputs)
+        self.name = 'MultilayerPerceptronClassificationModel'
+
+
+class ClassificationReport(ReportOperation):
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        ReportOperation.__init__(self, parameters, inputs, outputs,
+                                 named_inputs, named_outputs)
+        self.has_code = len(self.inputs) > 1
+        self.multiple_inputs = True
+
+    def get_data_out_names(self, sep=','):
+        return ''
+
+    def generate_code(self):
+        code = dedent("""
+            {output} = "ok"
+        """.format(output=self.output))
+        return code
 
 
 """
@@ -424,26 +519,32 @@ class ClusteringModelOperation(Operation):
                 self.FEATURES_ATTRIBUTE_PARAM, self.__class__))
 
         self.features = parameters.get(self.FEATURES_ATTRIBUTE_PARAM)[0]
-        self.model_out = self.named_inputs.get('model', '{}_model_tmp'.format(
-            self.inputs[0]))
 
     @property
     def get_inputs_names(self):
         return ', '.join([self.named_inputs['train input data'],
-                         self.named_inputs['algorithm']])
+                          self.named_inputs['algorithm']])
 
     def get_data_out_names(self, sep=','):
         return ''
 
     def get_output_names(self, sep=', '):
-        return sep.join([self.output, self.model_out])
+        return sep.join([self.named_outputs['output data'],
+                         self.named_outputs['model']])
 
     def generate_code(self):
         code = """
-        {0} = {1}.fit({2})
-        {3} =  None
-        """.format(self.model_out, self.named_inputs['algorithm'],
-                   self.named_inputs['train input data'], self.output)
+        {algorithm}.setFeaturesCol('{features}')
+        {model} = {algorithm}.fit({input})
+        # There is no way to pass which attribute was used in clustering, so
+        # this information will be stored in uid (hack).
+        {model}.uid += '|{features}'
+        {output} = {model}.transform({input})
+        """.format(model=self.named_outputs['model'],
+                   algorithm=self.named_inputs['algorithm'],
+                   input=self.named_inputs['train input data'],
+                   output=self.output,
+                   features=self.features)
 
         return dedent(code)
 
@@ -506,12 +607,38 @@ class LdaClusteringOperation(ClusteringOperation):
         self.name = "LDA"
 
 
-class TopicReportOperation(ClusteringOperation):
+class TopicReportOperation(ReportOperation):
+    """
+    Produces a report for topic identification in text
+    """
+    TERMS_PER_TOPIC_PARAM = 'terms_per_topic'
+
     def __init__(self, parameters, inputs, outputs, named_inputs,
                  named_outputs):
-        ClusteringOperation.__init__(self, parameters, inputs, outputs,
-                                     named_inputs, named_outputs)
-        self.has_code = False
+        ReportOperation.__init__(self, parameters, inputs, outputs,
+                                 named_inputs, named_outputs)
+        self.terms_per_topic = parameters.get(self.TERMS_PER_TOPIC_PARAM, 20)
+
+        self.has_code = len(self.inputs) == 3
 
     def generate_code(self):
-        pass
+        code = dedent("""
+            topic_df = {model}.describeTopics(maxTermsPerTopic={tpt})
+            # See hack in ClusteringModelOperation
+            features = {model}.uid.split('|')[1]
+            for row in topic_df.collect():
+                topic_number = row[0]
+                topic_terms  = row[1]
+                print "Topic: ", topic_number
+                print '========================='
+                print '\\t',
+                for inx in topic_terms[:{tpt}]:
+                    print {vocabulary}[features][inx],
+                print
+            {output} =  {input}
+        """.format(model=self.named_inputs['model'],
+                   tpt=self.terms_per_topic,
+                   vocabulary=self.named_inputs['vocabulary'],
+                   output=self.get_output_names('output data'),
+                   input=self.named_inputs['input data']))
+        return code

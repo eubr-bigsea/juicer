@@ -1,16 +1,17 @@
 import json
 import zipfile
+from textwrap import dedent
 
+import autopep8
+import jinja2
 import juicer.spark.data_operation
 import juicer.spark.etl_operation
+import juicer.spark.ml_operation
 import juicer.spark.statistic_operation
 import juicer.spark.text_operation
 import os
-
-import jinja2
-import juicer.spark.ml_operation
+from juicer.jinja2_custom import AutoPep8Extension
 from juicer.spark import operation
-from textwrap import dedent
 
 '4 minutes'
 
@@ -149,11 +150,23 @@ class Spark:
 
             parameters = {}
             for parameter, definition in task['forms'].iteritems():
-                if all([definition.get('category',
-                                       'execution').lower() == "execution",
+                # @FIXME: Fix wrong name of form category
+                # (using name instead of category)
+                cat = definition.get('category', 'execution logging').lower()
+                cat = 'paramgrid' if cat == 'param grid' else cat
+                cat = 'logging' if cat == 'execution logging' else cat
+
+                if all([cat in ["execution", 'paramgrid', 'param grid',
+                                'execution logging', 'logging'],
                         definition['value'] is not None]):
                     # print '###{} ==== {}'.format(parameter, definition['value'])
-                    parameters[parameter] = definition['value']
+
+                    if cat in ['paramgrid', 'logging']:
+                        if cat not in parameters:
+                            parameters[cat] = {}
+                        parameters[cat][parameter] = definition['value']
+                    else:
+                        parameters[parameter] = definition['value']
 
             # Operation SAVE requires the complete workflow
             if task['operation']['name'] == 'SAVE':
@@ -172,19 +185,20 @@ class Spark:
                                   port.get('outputs', []),
                                   port.get('named_inputs', {}),
                                   port.get('named_outputs', {}))
-            if instance.has_code:
-                ## self.output.write(instance.generate_code() + "\n")
-                env_setup['instances'].append(instance)
+            # if instance.has_code:
+            ## self.output.write(instance.generate_code() + "\n")
+            env_setup['instances'].append(instance)
 
-                # Just for testing. Remove from here.0
-                # for out in output_list:
-                #    self.output.write(
-                #        "print \"" + task['operation']['name'] + "\" \n")
-                # self.output.write(out + ".show()\n")
-                # Until here.
+            # Just for testing. Remove from here.0
+            # for out in output_list:
+            #    self.output.write(
+            #        "print \"" + task['operation']['name'] + "\" \n")
+            # self.output.write(out + ".show()\n")
+            # Until here.
         template_loader = jinja2.FileSystemLoader(
             searchpath=os.path.dirname(__file__))
-        template_env = jinja2.Environment(loader=template_loader)
+        template_env = jinja2.Environment(loader=template_loader,
+                                          extensions=[AutoPep8Extension])
         template = template_env.get_template("operation.tmpl")
         print template.render(env_setup).encode('utf8')
 
@@ -198,6 +212,8 @@ class Spark:
             'clean-missing': juicer.spark.etl_operation.CleanMissing,
             'classification-model':
                 juicer.spark.ml_operation.ClassificationModel,
+            'classification-report':
+                juicer.spark.ml_operation.ClassificationReport,
             'clustering-model':
                 juicer.spark.ml_operation.ClusteringModelOperation,
             'comment': operation.NoOp,
@@ -224,6 +240,8 @@ class Spark:
                 juicer.spark.ml_operation.NaiveBayesClassifierOperation,
             'pearson-correlation':
                 juicer.spark.statistic_operation.PearsonCorrelation,
+            'perceptron-classifier':
+                juicer.spark.ml_operation.PerceptronClassifier,
             # synonym for select
             'projection': juicer.spark.etl_operation.Select,
             'random-forest-classifier':
