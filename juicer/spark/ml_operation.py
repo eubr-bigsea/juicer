@@ -607,6 +607,27 @@ class LdaClusteringOperation(ClusteringOperation):
         self.name = "LDA"
 
 
+class KMeansClusteringOperation(ClusteringOperation):
+    K_PARAM = 'number_of_topics'
+    MAX_ITERATIONS_PARAM = 'max_iterations'
+
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        ClusteringOperation.__init__(self, parameters, inputs, outputs,
+                                     named_inputs, named_outputs)
+        self.number_of_clusters = parameters.get(self.K_PARAM,
+                                                 10)
+
+        self.max_iterations = parameters.get(self.MAX_ITERATIONS_PARAM, 10)
+
+        self.set_values = [
+            ['MaxIter', self.max_iterations],
+            ['K', self.number_of_clusters],
+        ]
+        self.has_code = len(self.output) > 1
+        self.name = "KMeans"
+
+
 class TopicReportOperation(ReportOperation):
     """
     Produces a report for topic identification in text

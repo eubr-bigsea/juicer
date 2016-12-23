@@ -6,7 +6,7 @@ from textwrap import dedent
 
 import sys
 
-from juicer.dist.metadata import MetadataGet
+from juicer.include.metadata import MetadataGet
 from juicer.service import limonero_service
 from juicer.spark.operation import Operation
 
