@@ -7,8 +7,11 @@
 #     Universidade Federal de Minas Gerais
 # More information about Lemonade to be provided
 #
-import string
+import os
 import json
+import string
+import sys
+import time
 import unicodedata
 from pyspark.ml import Pipeline
 from pyspark.ml.classification import *
@@ -22,7 +25,8 @@ from pyspark.sql.functions import *
 from pyspark.sql.types import *
 from timeit import default_timer as timer
 
-
+reload(sys)
+sys.setdefaultencoding('utf8')
 # Global utilities functions definitions
 strip_accents = udf(
     lambda text: ''.join(c for c in unicodedata.normalize('NFD', text)
@@ -70,10 +74,21 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_gen_{{instance
 {% endfor %}
 
 def main():
+    start = time.time()
     app_name = u'## {{workflow_name}} ##'
-    spark_session = SparkSession.builder\
-                        .appName(app_name)\
-                        .getOrCreate()
+
+    spark_options = {
+        "driver-library-path": '{}/lib/native/'.format(
+            os.environ.get('HADOOP_HOME')),
+
+    }
+    builder = SparkSession.builder.appName(app_name)
+
+    spark_session = builder.getOrCreate()
+    for option, value in spark_options.iteritems():
+        spark_session.conf.set(option, value)
+
+    session_start_time = time.time()
     # spark_session.sparkContext.addPyFile('/tmp/dist.zip')
 
     # Declares and initializes variabels in order to do not generate NameError.
@@ -95,6 +110,8 @@ def main():
     {%- endif %}
     {%- endfor %}
 
+    end = time.time()
+    print "{}\t{}".format(end - start, end - session_start_time)
     return {
         {%- for instance in instances %}
         {%- if instance.has_code %}
@@ -106,4 +123,7 @@ def main():
         {%- endif %}
         {%- endfor %}
     }
+{%- if execute_main %}
+main()
+{%- endif %}
 {% endautopep8 %}

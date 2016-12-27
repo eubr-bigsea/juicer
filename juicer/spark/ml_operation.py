@@ -72,7 +72,8 @@ class FeatureIndexer(Operation):
 
                 {2} = pipeline.fit({1}_without_null).transform({1}_without_null)
             """.format(self.attributes, self.inputs[0], self.output,
-                       json.dumps(zip(self.attributes, self.alias)))
+                       json.dumps(zip(self.attributes, self.alias),
+                                  indent=None))
         elif self.type == self.TYPE_VECTOR:
             code = """
                 col_alias = dict({3})
@@ -513,12 +514,15 @@ class ClusteringModelOperation(Operation):
                            named_outputs)
 
         self.has_code = len(self.outputs) > 0 and len(self.inputs) == 2
+
         if self.FEATURES_ATTRIBUTE_PARAM not in parameters:
             msg = "Parameter '{}' must be informed for task {}"
             raise ValueError(msg.format(
                 self.FEATURES_ATTRIBUTE_PARAM, self.__class__))
 
         self.features = parameters.get(self.FEATURES_ATTRIBUTE_PARAM)[0]
+        self.model = self.named_outputs.get('model', '{}_model'.format(
+            self.named_outputs['output data']))
 
     @property
     def get_inputs_names(self):
@@ -529,8 +533,7 @@ class ClusteringModelOperation(Operation):
         return ''
 
     def get_output_names(self, sep=', '):
-        return sep.join([self.named_outputs['output data'],
-                         self.named_outputs['model']])
+        return sep.join([self.named_outputs['output data'], self.model])
 
     def generate_code(self):
         code = """
@@ -540,7 +543,7 @@ class ClusteringModelOperation(Operation):
         # this information will be stored in uid (hack).
         {model}.uid += '|{features}'
         {output} = {model}.transform({input})
-        """.format(model=self.named_outputs['model'],
+        """.format(model=self.model,
                    algorithm=self.named_inputs['algorithm'],
                    input=self.named_inputs['train input data'],
                    output=self.output,
@@ -610,6 +613,14 @@ class LdaClusteringOperation(ClusteringOperation):
 class KMeansClusteringOperation(ClusteringOperation):
     K_PARAM = 'number_of_topics'
     MAX_ITERATIONS_PARAM = 'max_iterations'
+    TYPE_PARAMETER = 'type'
+    INIT_MODE_PARAMETER = 'init_mode'
+
+    TYPE_TRADITIONAL = 'kmeans'
+    TYPE_BISECTING = 'bisecting'
+
+    INIT_MODE_KMEANS_PARALLEL = 'k-means||'
+    INIT_MODE_RANDOM = 'random'
 
     def __init__(self, parameters, inputs, outputs, named_inputs,
                  named_outputs):
@@ -619,13 +630,28 @@ class KMeansClusteringOperation(ClusteringOperation):
                                                  10)
 
         self.max_iterations = parameters.get(self.MAX_ITERATIONS_PARAM, 10)
+        self.type = parameters.get(self.TYPE_PARAMETER)
 
         self.set_values = [
             ['MaxIter', self.max_iterations],
             ['K', self.number_of_clusters],
         ]
+        if self.type == self.TYPE_BISECTING:
+            self.name = "BisectingKMeans"
+        elif self.type == self.TYPE_TRADITIONAL:
+            if parameters.get(
+                    self.INIT_MODE_PARAMETER) == self.INIT_MODE_RANDOM:
+                self.init_mode = self.INIT_MODE_RANDOM
+            else:
+                self.init_mode = self.INIT_MODE_KMEANS_PARALLEL
+            self.set_values.append(['InitMode', '"{}"'.format(self.init_mode)])
+            self.name = "KMeans"
+        else:
+            raise ValueError(
+                'Invalid type {} for class {}'.format(
+                    self.type, self.__class__))
+
         self.has_code = len(self.output) > 1
-        self.name = "KMeans"
 
 
 class TopicReportOperation(ReportOperation):
@@ -647,6 +673,7 @@ class TopicReportOperation(ReportOperation):
             topic_df = {model}.describeTopics(maxTermsPerTopic={tpt})
             # See hack in ClusteringModelOperation
             features = {model}.uid.split('|')[1]
+            '''
             for row in topic_df.collect():
                 topic_number = row[0]
                 topic_terms  = row[1]
@@ -656,6 +683,7 @@ class TopicReportOperation(ReportOperation):
                 for inx in topic_terms[:{tpt}]:
                     print {vocabulary}[features][inx],
                 print
+            '''
             {output} =  {input}
         """.format(model=self.named_inputs['model'],
                    tpt=self.terms_per_topic,

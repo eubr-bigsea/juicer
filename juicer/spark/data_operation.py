@@ -24,7 +24,7 @@ class DataReader(Operation):
     NULL_VALUES_PARAM = 'null_values'
 
     INFER_FROM_LIMONERO = 'FROM_LIMONERO'
-    INFER_FROM_DATA = 'FROM_DATA'
+    INFER_FROM_DATA = 'FROM_VALUES'
     DO_NOT_INFER = 'NO'
 
     LIMONERO_TO_SPARK_DATA_TYPES = {

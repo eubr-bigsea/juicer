@@ -33,6 +33,7 @@ class Spark:
         self.count_dataframes = 0
         self.classes = {}
         self.assign_operations()
+        self.execute_main = False
 
     def print_session(self):
         """ Print the PySpark header and session init  """
@@ -149,10 +150,11 @@ class Spark:
             class_name = self.classes[task['operation']['slug']]
 
             parameters = {}
+            #print task['forms']
             for parameter, definition in task['forms'].iteritems():
                 # @FIXME: Fix wrong name of form category
                 # (using name instead of category)
-                cat = definition.get('category', 'execution logging').lower()
+                cat = definition.get('category', 'execution').lower() # FIXME!!!
                 cat = 'paramgrid' if cat == 'param grid' else cat
                 cat = 'logging' if cat == 'execution logging' else cat
 
@@ -188,6 +190,7 @@ class Spark:
             # if instance.has_code:
             ## self.output.write(instance.generate_code() + "\n")
             env_setup['instances'].append(instance)
+            env_setup['execute_main'] = self.execute_main
 
             # Just for testing. Remove from here.0
             # for out in output_list:
@@ -235,6 +238,8 @@ class Spark:
             'gbt-classifier': juicer.spark.ml_operation.GBTClassifierOperation,
             'intersection': juicer.spark.etl_operation.Intersection,
             'join': juicer.spark.etl_operation.Join,
+            'k-means-clustering':
+                juicer.spark.ml_operation.KMeansClusteringOperation,
             'lda-clustering': juicer.spark.ml_operation.LdaClusteringOperation,
             'naive-bayes-classifier':
                 juicer.spark.ml_operation.NaiveBayesClassifierOperation,
