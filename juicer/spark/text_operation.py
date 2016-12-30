@@ -95,7 +95,7 @@ class RemoveStopWordsOperation(Operation):
             code = "sw = {}".format(json.dumps(self.stop_word_list))
         else:
             code = "sw = [stop[0].strip() for stop in {}.collect()]".format(
-                self.inputs[1])
+                self.named_inputs['stop words'])
 
         code += dedent("""
             col_alias = {3}
@@ -104,10 +104,9 @@ class RemoveStopWordsOperation(Operation):
 
             # Use Pipeline to process all attributes once
             pipeline = Pipeline(stages=removers)
-
             {2} = pipeline.fit({1}).transform({1})
-        """.format(self.attributes, self.inputs[0], self.output,
-                   json.dumps(zip(self.attributes, self.alias)), ))
+        """.format(self.attributes, self.named_inputs['input data'],
+                   self.output, json.dumps(zip(self.attributes, self.alias)), ))
         return code
 
 
@@ -151,7 +150,8 @@ class WordToVectorOperation(Operation):
         return self.output
 
     def get_output_names(self, sep=", "):
-        return sep.join([self.output, self.named_outputs['vocabulary']])
+        return sep.join([self.output, self.named_outputs.get(
+            'vocabulary', '{}_vocab'.format(self.inputs[0]))])
 
     def generate_code(self):
         if self.type == self.TYPE_COUNT:
@@ -174,15 +174,61 @@ class WordToVectorOperation(Operation):
             model = pipeline.fit({1})
             {2} = model.transform({1})
             """)
-        if 'vocabulary' in self.named_outputs:
-            code += dedent("""
-                {} = dict([(col_alias[i][1], v.vocabulary)
-                        for i, v in enumerate(model.stages)])""".format(
-                self.named_outputs['vocabulary']))
+        vocab_out = self.named_outputs.get('vocabulary',
+                                           '{}_vocab'.format(self.inputs[0]))
+        code += dedent("""
+            {} = dict([(col_alias[i][1], v.vocabulary)
+                    for i, v in enumerate(model.stages)])""".format(vocab_out))
 
         code = code.format(self.attributes, self.inputs[0],
                            self.named_outputs['output data'],
                            json.dumps(zip(self.attributes, self.alias)),
                            self.minimum_tf, self.minimum_df, self.vocab_size)
+
+        return code
+
+
+class GenerateNGramsOperation(Operation):
+    """ Generates N-Grams from word vectors """
+    ATTRIBUTES_PARAM = 'attributes'
+    ALIAS_PARAM = 'alias'
+    N_PARAM = 'n'
+
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
+                           named_outputs)
+        if self.ATTRIBUTES_PARAM in parameters:
+            self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
+        else:
+            raise ValueError(
+                "Parameter '{}' must be informed for task {}".format(
+                    self.ATTRIBUTES_PARAM, self.__class__))
+
+        self.n = int(self.parameters.get(self.N_PARAM, 2))
+        self.alias = [alias.strip() for alias in
+                      parameters.get(self.ALIAS_PARAM, '').split(',')]
+        # Adjust alias in order to have the same number of aliases as attributes
+        # by filling missing alias with the attribute name sufixed by _indexed.
+        self.alias = [x[1] or '{}_tokenized'.format(x[0]) for x in
+                      izip_longest(self.attributes,
+                                   self.alias[:len(self.attributes)])]
+
+        self.has_code = len(self.inputs) > 0
+
+    def generate_code(self):
+        code = dedent("""
+            col_alias = {alias}
+            n_gramers = [NGram(n={n}, inputCol=col,
+                           outputCol=alias) for col, alias in col_alias]
+            # Use Pipeline to process all attributes once
+            print '=' * 20
+            {input}.show()
+            print '=' * 20
+            pipeline = Pipeline(stages=n_gramers)
+            model = pipeline.fit({input})
+            {output} = model.transform({input})
+            """).format(alias=json.dumps(zip(self.attributes, self.alias)),
+                        n=self.n, input=self.inputs[0], output=self.output)
 
         return code

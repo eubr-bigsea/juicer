@@ -419,15 +419,16 @@ class Aggregation(Operation):
         Operation.__init__(self, parameters, inputs, outputs, named_inputs,
                            named_outputs)
 
-        self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
+        self.attributes = parameters.get(self.ATTRIBUTES_PARAM, [])
         self.functions = parameters.get(self.FUNCTION_PARAM)
 
-        if not all([self.ATTRIBUTES_PARAM in parameters,
-                    self.FUNCTION_PARAM in parameters,
-                    self.attributes, self.functions]):
+        self.group_all = len(self.attributes) == 0
+
+        if not all([self.FUNCTION_PARAM in parameters, self.functions]):
             raise ValueError(
-                "Parameters '{}' and {} must be informed for task {}".format(
-                    self.ATTRIBUTES_PARAM, self.FUNCTION_PARAM, self.__class__))
+                "Parameter '{}' must be informed for task {}".format(
+                    self.FUNCTION_PARAM, self.__class__))
+
         self.has_code = len(self.inputs) == 1
 
     def generate_code(self):
@@ -437,11 +438,17 @@ class Aggregation(Operation):
                 function['f'].lower(), function['attribute'],
                 function['alias']))
 
-        group_by = ', '.join(
-            ["col('{}')".format(attr) for attr in self.attributes])
+        if not self.group_all:
+            group_by = ', '.join(
+                ["col('{}')".format(attr) for attr in self.attributes])
 
-        code = '''{} = {}.groupBy({}).agg(\n        {})'''.format(
-            self.output, self.inputs[0], group_by, ', \n        '.join(elements))
+            code = '''{} = {}.groupBy({}).agg(\n        {})'''.format(
+                self.output, self.inputs[0], group_by,
+                ', \n        '.join(elements))
+        else:
+            code = '''{output} = {input}.agg(\n        {elements})'''.format(
+                output=self.output, input=self.inputs[0],
+                elements=', \n        '.join(elements))
         return dedent(code)
 
 

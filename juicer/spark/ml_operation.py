@@ -521,8 +521,11 @@ class ClusteringModelOperation(Operation):
                 self.FEATURES_ATTRIBUTE_PARAM, self.__class__))
 
         self.features = parameters.get(self.FEATURES_ATTRIBUTE_PARAM)[0]
+
+        self.output = self.named_outputs['output data']
         self.model = self.named_outputs.get('model', '{}_model'.format(
-            self.named_outputs['output data']))
+            self.output))
+        # self.named_outputs['output data']))
 
     @property
     def get_inputs_names(self):
@@ -583,6 +586,8 @@ class LdaClusteringOperation(ClusteringOperation):
     NUMBER_OF_TOPICS_PARAM = 'number_of_topics'
     OPTIMIZER_PARAM = 'optimizer'
     MAX_ITERATIONS_PARAM = 'max_iterations'
+    DOC_CONCENTRATION_PARAM = 'doc_concentration'
+    TOPIC_CONCENTRATION_PARAM = 'topic_concentration'
 
     ONLINE_OPTIMIZER = 'online'
     EM_OPTIMIZER = 'em'
@@ -591,8 +596,8 @@ class LdaClusteringOperation(ClusteringOperation):
                  named_outputs):
         ClusteringOperation.__init__(self, parameters, inputs, outputs,
                                      named_inputs, named_outputs)
-        self.number_of_clusters = parameters.get(self.NUMBER_OF_TOPICS_PARAM,
-                                                 10)
+        self.number_of_clusters = int(parameters.get(
+            self.NUMBER_OF_TOPICS_PARAM, 10))
         self.optimizer = parameters.get(self.OPTIMIZER_PARAM,
                                         self.ONLINE_OPTIMIZER)
         if self.optimizer not in [self.ONLINE_OPTIMIZER, self.EM_OPTIMIZER]:
@@ -602,9 +607,19 @@ class LdaClusteringOperation(ClusteringOperation):
 
         self.max_iterations = parameters.get(self.MAX_ITERATIONS_PARAM, 10)
 
+        self.doc_concentration = self.number_of_clusters * [
+            float(parameters.get(self.DOC_CONCENTRATION_PARAM,
+                                 self.number_of_clusters)) / 50.0]
+
+        self.topic_concentration = float(
+            parameters.get(self.TOPIC_CONCENTRATION_PARAM, 0.1))
+
         self.set_values = [
-            ['MaxIter', self.max_iterations], ['K', self.number_of_clusters],
+            ['DocConcentration', self.doc_concentration],
+            ['K', self.number_of_clusters],
+            ['MaxIter', self.max_iterations],
             ['Optimizer', "'{}'".format(self.optimizer)],
+            ['TopicConcentration', self.topic_concentration],
         ]
         self.has_code = len(self.output) > 1
         self.name = "LDA"
@@ -615,6 +630,7 @@ class KMeansClusteringOperation(ClusteringOperation):
     MAX_ITERATIONS_PARAM = 'max_iterations'
     TYPE_PARAMETER = 'type'
     INIT_MODE_PARAMETER = 'init_mode'
+    TOLERANCE_PARAMETER = 'tolerance'
 
     TYPE_TRADITIONAL = 'kmeans'
     TYPE_BISECTING = 'bisecting'
@@ -631,10 +647,12 @@ class KMeansClusteringOperation(ClusteringOperation):
 
         self.max_iterations = parameters.get(self.MAX_ITERATIONS_PARAM, 10)
         self.type = parameters.get(self.TYPE_PARAMETER)
+        self.tolerance = float(parameters.get(self.TOLERANCE_PARAMETER, 0.001))
 
         self.set_values = [
             ['MaxIter', self.max_iterations],
             ['K', self.number_of_clusters],
+            ['Tol', self.tolerance],
         ]
         if self.type == self.TYPE_BISECTING:
             self.name = "BisectingKMeans"
@@ -651,6 +669,30 @@ class KMeansClusteringOperation(ClusteringOperation):
                 'Invalid type {} for class {}'.format(
                     self.type, self.__class__))
 
+        self.has_code = len(self.output) > 1
+
+
+class GaussianMixtureClusteringOperation(ClusteringOperation):
+    K_PARAM = 'number_of_topics'
+    MAX_ITERATIONS_PARAM = 'max_iterations'
+    TOLERANCE_PARAMETER = 'tolerance'
+
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        ClusteringOperation.__init__(self, parameters, inputs, outputs,
+                                     named_inputs, named_outputs)
+        self.number_of_clusters = parameters.get(self.K_PARAM,
+                                                 10)
+
+        self.max_iterations = parameters.get(self.MAX_ITERATIONS_PARAM, 10)
+        self.tolerance = float(parameters.get(self.TOLERANCE_PARAMETER, 0.001))
+
+        self.set_values = [
+            ['MaxIter', self.max_iterations],
+            ['K', self.number_of_clusters],
+            ['Tol', self.tolerance],
+        ]
+        self.name = "GaussianMixture"
         self.has_code = len(self.output) > 1
 
 

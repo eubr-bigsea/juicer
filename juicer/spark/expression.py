@@ -115,7 +115,11 @@ class Expression:
     def build_functions_dict(self):
         spark_sql_functions = {
             'col': self.get_function_call_wrap_col,
+            'concat': self.get_function_call_wrap_col,
+            'concat_ws': self.get_function_call,
             'date_format': self.get_function_call_wrap_col,
+            'length': self.get_function_call_wrap_col,
+            'lit': self.get_function_call,
             'lower': self.get_function_call_wrap_col,
             'regexp_extract': self.get_function_call,
             'regexp_replace': self.get_function_call,

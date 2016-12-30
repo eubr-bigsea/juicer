@@ -154,6 +154,8 @@ class Spark:
             for parameter, definition in task['forms'].iteritems():
                 # @FIXME: Fix wrong name of form category
                 # (using name instead of category)
+                #print definition.get('category')
+                #raw_input()
                 cat = definition.get('category', 'execution').lower() # FIXME!!!
                 cat = 'paramgrid' if cat == 'param grid' else cat
                 cat = 'logging' if cat == 'execution logging' else cat
@@ -235,6 +237,10 @@ class Spark:
             'filter': juicer.spark.etl_operation.Filter,
             # Alias for filter
             'filter-selection': juicer.spark.etl_operation.Filter,
+            'gaussian-mixture-clustering':
+                juicer.spark.ml_operation.GaussianMixtureClusteringOperation,
+            'generate-n-grams':
+                juicer.spark.text_operation.GenerateNGramsOperation,
             'gbt-classifier': juicer.spark.ml_operation.GBTClassifierOperation,
             'intersection': juicer.spark.etl_operation.Intersection,
             'join': juicer.spark.etl_operation.Join,
