@@ -30,6 +30,8 @@ class DataReader(Operation):
         "LONG": 'LongType',
         "DOUBLE": 'DoubleType',
         "DATETIME": 'TimestampType',
+        "CHARACTER": 'StringType',
+        "FLOAT": 'DoubleType',
     }
 
     def __init__(self, parameters, inputs, outputs):

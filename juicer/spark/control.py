@@ -191,6 +191,7 @@ class Spark:
             'evaluate-model': juicer.spark.ml_operation.EvaluateModel,
             'filter': juicer.spark.etl_operation.Filter,
             'read-shapefile': juicer.spark.geo_operation.ReadShapefile,
+            'within': juicer.spark.geo_operation.GeoWithin,
             # Alias for filter
             'filter-selection': juicer.spark.etl_operation.Filter,
             'intersection': juicer.spark.etl_operation.Intersection,
