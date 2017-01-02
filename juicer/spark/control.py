@@ -5,15 +5,13 @@ import juicer.spark.data_operation
 import juicer.spark.etl_operation
 import juicer.spark.statistic_operation
 import juicer.spark.geo_operation
+import juicer.spark.text_operation
 import os
 
 import jinja2
 import juicer.spark.ml_operation
 from juicer.spark import operation
 from textwrap import dedent
-
-'4 minutes'
-
 
 class Spark:
     DIST_ZIP_FILE = '/tmp/lemonade-lib-python.zip'
@@ -120,21 +118,27 @@ class Spark:
                     len(sequential_ports))
 
             if source_id not in ports:
-                ports[source_id] = {'outputs': [], 'inputs': []}
+                ports[source_id] = {'outputs': [], 'inputs': [],
+                                    'named_inputs': {}, 'named_outputs': {}}
             if target_id not in ports:
-                ports[target_id] = {'outputs': [], 'inputs': []}
+                ports[target_id] = {'outputs': [], 'inputs': [],
+                                    'named_inputs': {}, 'named_outputs': {}}
 
             sequence = sequential_ports[flow_id]
             if sequence not in ports[source_id]['outputs']:
+                ports[source_id]['named_outputs'][
+                    flow['source_port_name']] = sequence
                 ports[source_id]['outputs'].append(sequence)
             if sequence not in ports[target_id]['inputs']:
+                ports[target_id]['named_inputs'][
+                    flow['target_port_name']] = sequence
                 ports[target_id]['inputs'].append(sequence)
 
         env_setup = {'instances': [],
                      'workflow_name': self.workflow.get('name'),
                      }
         workflow_json = json.dumps(self.workflow)
-        for task in self.tasks:
+        for i, task in enumerate(self.tasks):
             ##self.output.write("\n# {}\n".format(task['operation']['name']))
             # input_list = []
             # output_list = []
@@ -153,13 +157,19 @@ class Spark:
             if task['operation']['name'] == 'SAVE':
                 parameters['workflow'] = self.workflow
 
+            # Some temporary variables need to be identified by a sequential
+            # number, so it will be stored in this field
+            task['order'] = i
+
             parameters['task'] = task
             parameters['workflow_json'] = workflow_json
             parameters['user'] = self.workflow.get('user', {})
             parameters['workflow_id'] = self.workflow.get('id')
-            instance = class_name(parameters,
-                                  ports.get(task['id'], {}).get('inputs', []),
-                                  ports.get(task['id'], {}).get('outputs', []))
+            port = ports.get(task['id'], {})
+            instance = class_name(parameters, port.get('inputs', []),
+                                  port.get('outputs', []),
+                                  port.get('named_inputs', {}),
+                                  port.get('named_outputs', {}))
             if instance.has_code:
                 ## self.output.write(instance.generate_code() + "\n")
                 env_setup['instances'].append(instance)
@@ -181,36 +191,60 @@ class Spark:
             'add-columns': juicer.spark.etl_operation.AddColumns,
             'add-rows': juicer.spark.etl_operation.AddRows,
             'aggregation': juicer.spark.etl_operation.Aggregation,
+            'apply-model': juicer.spark.ml_operation.ApplyModel,
+            'change-attribute': juicer.spark.data_operation.ChangeAttribute,
             'clean-missing': juicer.spark.etl_operation.CleanMissing,
+            'classification-model':
+                juicer.spark.ml_operation.ClassificationModel,
+            'clustering-model':
+                juicer.spark.ml_operation.ClusteringModelOperation,
             'comment': operation.NoOp,
+            'cross-validation':
+                juicer.spark.ml_operation.CrossValidationOperation,
             'data-reader': juicer.spark.data_operation.DataReader,
             'data-writer': juicer.spark.data_operation.Save,
+            'decision-tree-classifier':
+                juicer.spark.ml_operation.DecisionTreeClassifierOperation,
             'difference': juicer.spark.etl_operation.Difference,
             'distinct': juicer.spark.etl_operation.Distinct,
             'drop': juicer.spark.etl_operation.Drop,
             'evaluate-model': juicer.spark.ml_operation.EvaluateModel,
+            'feature-assembler': juicer.spark.ml_operation.FeatureAssembler,
+            'feature-indexer': juicer.spark.ml_operation.FeatureIndexer,
             'filter': juicer.spark.etl_operation.Filter,
             'read-shapefile': juicer.spark.geo_operation.ReadShapefile,
             'within': juicer.spark.geo_operation.GeoWithin,
             # Alias for filter
             'filter-selection': juicer.spark.etl_operation.Filter,
+            'gbt-classifier': juicer.spark.ml_operation.GBTClassifierOperation,
             'intersection': juicer.spark.etl_operation.Intersection,
             'join': juicer.spark.etl_operation.Join,
-            'pearson-correlation': juicer.spark.statistic_operation.PearsonCorrelation,
+            'lda-clustering': juicer.spark.ml_operation.LdaClusteringOperation,
+            'naive-bayes-classifier':
+                juicer.spark.ml_operation.NaiveBayesClassifierOperation,
+            'pearson-correlation':
+                juicer.spark.statistic_operation.PearsonCorrelation,
             # synonym for select
             'projection': juicer.spark.etl_operation.Select,
+            'random-forest-classifier':
+                juicer.spark.ml_operation.RandomForestClassifierOperation,
             'read-csv': juicer.spark.data_operation.ReadCSV,
             'replace': juicer.spark.etl_operation.Replace,
             # synonym for distinct
             'remove-duplicated-rows': juicer.spark.etl_operation.Distinct,
-            'sample': juicer.spark.etl_operation.Sample,
+            'remove-stop-words':
+                juicer.spark.text_operation.RemoveStopWordsOperation,
+            'sample': juicer.spark.etl_operation.SampleOrPartition,
             'save': juicer.spark.data_operation.Save,
             'select': juicer.spark.etl_operation.Select,
             # synonym of intersection'
             'set-intersection': juicer.spark.etl_operation.Intersection,
             'sort': juicer.spark.etl_operation.Sort,
             'split': juicer.spark.etl_operation.RandomSplit,
-            'svm-classification': juicer.spark.ml_operation.SvmClassification,
+            'svm-classification':
+                juicer.spark.ml_operation.SvmClassifierOperation,
+            'tokenizer': juicer.spark.text_operation.TokenizerOperation,
+            'topic-report': juicer.spark.ml_operation.TopicReportOperation,
             'transformation': juicer.spark.etl_operation.Transformation,
-
+            'word-to-vector': juicer.spark.text_operation.WordToVectorOperation
         }

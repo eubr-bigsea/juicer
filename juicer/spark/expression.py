@@ -80,6 +80,7 @@ class Expression:
 
     def get_when_function(self, spec):
         """
+        Map when() function call in Lemonade into when() call in Spark.
         """
         arguments = [self.parse(x) for x in spec['arguments']]
         # print >> sys.stderr, group(arguments[:-1], 2)
@@ -91,18 +92,45 @@ class Expression:
         return '.'.join(code)
 
     def get_function_call(self, spec):
+        """ Deprecated: use get_function_call_wrap_col instead """
         arguments = ', '.join([self.parse(x) for x in spec['arguments']])
         result = '{}({})'.format(spec['callee']['name'], arguments)
         return result
 
+    def get_function_call_wrap_col(self, spec):
+        """
+        Wrap column name with col() function call, if such call is not present.
+        """
+        callee = spec['arguments'][0].get('callee', {})
+        # Evaluates if column name is wrapped in a col() function call
+        arguments = ', '.join([self.parse(x) for x in spec['arguments']])
+        if any([all([callee.get('type') == 'Identifier',
+                    callee.get('name') == 'col']),
+               callee.get('type') == 'Identifier']):
+            result = '{}({})'.format(spec['callee']['name'], arguments)
+        else:
+            result = '{}(col({}))'.format(spec['callee']['name'], arguments)
+        return result
+
     def build_functions_dict(self):
-        functions = {
+        spark_sql_functions = {
+            'col': self.get_function_call_wrap_col,
+            'date_format': self.get_function_call_wrap_col,
+            'lower': self.get_function_call_wrap_col,
+            'regexp_extract': self.get_function_call,
             'regexp_replace': self.get_function_call,
-            'to_date': self.get_function_call,
-            'window': self.get_window_function,
-            'group_datetime': self.get_window_function,
-            'date_format': self.get_function_call,
+            'to_date': self.get_function_call_wrap_col,
             'when': self.get_when_function,
-            'col': self.get_function_call
+            'window': self.get_window_function,
+
         }
-        self.functions.update(functions)
+        # Functions that does not exist on Spark, but can be implemented in
+        # Python as a UDF.
+        custom_functions = {
+            'group_datetime': self.get_window_function,
+            'strip_accents': self.get_function_call_wrap_col,
+            'strip_punctuation': self.get_function_call_wrap_col,
+        }
+
+        self.functions.update(spark_sql_functions)
+        self.functions.update(custom_functions)

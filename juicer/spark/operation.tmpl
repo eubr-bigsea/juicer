@@ -7,15 +7,43 @@
 #     Universidade Federal de Minas Gerais
 # More information about Lemonade to be provided
 #
+import string
+import unicodedata
+import sys
+import re
+import json
 
+from pyspark.ml import Pipeline
+from pyspark.ml.classification import *
+from pyspark.ml.clustering import *
+from pyspark.ml.evaluation import *
+from pyspark.ml.feature import *
+from pyspark.ml.tuning import *
 from pyspark.sql import SparkSession
 from pyspark.sql.window import Window
 from pyspark.sql.functions import *
 from pyspark.sql.types import *
 
-import sys
-import re
-import json
+# Global utilities functions definitions
+strip_accents = udf(
+    lambda text: ''.join(c for c in unicodedata.normalize('NFD', text)
+        if unicodedata.category(c) != 'Mn'), StringType())
+strip_punctuation = udf(lambda text:
+                        text.translate(
+                            dict((ord(char), None)
+                                for char in string.punctuation)),
+                        StringType())
+
+def juicer_debug(name, variable, df):
+    """ Debug code """
+    print '#' * 20
+    print '|| {} ||'.format(name)
+    print '== {} =='.format(variable)
+    df.show()
+    schema = df.schema
+    for attr in schema:
+        print attr.name, attr.dataType, attr.nullable, attr.metadata
+
 
 {%- for instance in instances %}
 {%- if instance.has_code %}
@@ -28,17 +56,15 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_generate_{{ins
     """
     {%- endif %}
     {{instance.generate_code() | indent(width=4, indentfirst=False)}}
-    {%- for variable in instance.get_output_names('|').split('|')%}
-    print '#' * 20
-    print '== {} =='.format('{{variable}}')
-    {{variable}}.show()
-    # {{variable}}.printSchema()
-    schema = {{variable}}.schema
-    for attr in schema:
-        print attr.nullable, attr.metadata
-    {%- endfor %}
 
+    {%- set out = instance.get_data_out_names('|') %}
+    {%- if out %}
+    {%- for variable in out.split('|')%}
+    juicer_debug('{{instance.__class__}}', '{{variable}}', {{variable}})
+    {%- endfor %}
+    {%- endif %}
     return {{instance.get_output_names()}}
+
 {%- endif %}
 {% endfor %}
 def main():
@@ -49,7 +75,7 @@ def main():
 
     {%- for instance in instances %}
     {%- if instance.has_code %}
-    {{instance.get_output_names()}} = {{instance.parameters.task.operation.slug.replace('-', '_')}}_generate_{{instance.get_output_names()}}(spark_session
+    {{instance.get_output_names(", ")}} = {{instance.parameters.task.operation.slug.replace('-', '_')}}_generate_{{instance.get_output_names('_')}}(spark_session
         {%- if instance.get_inputs_names %}, {{instance.get_inputs_names}}{% endif %})
     {%- endif %}
     {%- endfor %}
@@ -57,11 +83,12 @@ def main():
     return {
         {%- for instance in instances %}
         {%- if instance.has_code %}
-        {%- for variable in instance.get_output_names('|').split('|')%}
-        '{{variable}}': {{variable}},
-        {%- endfor %}
+        '{{instance.parameters.task.id}}': (
+        {%- for variable in instance.get_output_names(', ').split('|') -%}
+        {{variable}},
+        {%- endfor -%}
+        ),
         {%- endif %}
         {%- endfor %}
     }
 
-main()

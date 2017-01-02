@@ -9,14 +9,33 @@ log.setLevel(logging.DEBUG)
 class Operation:
     """ Defines an operation in Lemonade """
 
-    def __init__(self, parameters, inputs, outputs):
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
         self.parameters = parameters
         self.inputs = inputs
         self.outputs = outputs
+        self.named_inputs = named_inputs
+        self.named_outputs = named_outputs
 
         # Indicate if operation generates code or not. Some operations, e.g.
         # Comment, does not generate code
         self.has_code = len(self.inputs) > 0 or len(self.outputs) > 0
+
+        # How many output ports the operation has
+        self.expected_output_ports = 1
+
+        if len(self.inputs) > 0:
+            self.output = self.outputs[0] if len(
+                self.outputs) else '{}_tmp_{}'.format(
+                self.inputs[0], parameters['task']['order'])
+        elif len(self.outputs) > 0:
+            self.output = self.outputs[0]
+        else:
+            self.output = "NO_OUTPUT_WITHOUT_CONNECTIONS"
+
+    def generate_code(self):
+        raise NotImplementedError("Method generate_code should be implemented "
+                                  "in {} subclass".format(self.__class__))
 
     @property
     def get_inputs_names(self):
@@ -27,12 +46,17 @@ class Operation:
         if len(self.outputs) > 0:
             result = sep.join(self.outputs)
         elif len(self.inputs) > 0:
-            result = '{}_tmp'.format(self.inputs[0])
+            if self.expected_output_ports == 1:
+                result = '{}_tmp_{}'.format(self.inputs[0],
+                                            self.parameters['task']['order'])
         else:
             raise ValueError(
                 "Operation has neither input nor output: {}".format(
                     self.__class__))
         return result
+
+    def get_data_out_names(self, sep=','):
+        return self.get_output_names(sep)
 
     def test_null_operation(self):
         """
@@ -46,8 +70,10 @@ class DatetimeToBins(Operation):
     """
     """
 
-    def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, parameters, inputs, outputs)
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
+                           named_outputs)
         self.target_column = parameters['target_column']
         self.new_column = parameters['new_column']
         self.group_size = parameters['group_size']
@@ -64,7 +90,12 @@ class DatetimeToBins(Operation):
 class NoOp(Operation):
     """ Null operation """
 
-    def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, parameters, inputs, outputs)
+    def generate_code(self):
+        pass
+
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
+                           named_outputs)
         self.parameters = parameters
         self.has_code = False
