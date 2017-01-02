@@ -417,7 +417,7 @@ class Select(Operation):
 
 class Aggregation(Operation):
     """
-    Compute aggregates and returns the result as a DataFrame.
+    Computes aggregates and returns the result as a DataFrame.
     Parameters:
         - Expression: a single dict mapping from string to string, then the key
         is the column to perform aggregation on, and the value is the aggregate

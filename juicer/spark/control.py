@@ -4,6 +4,7 @@ import zipfile
 import juicer.spark.data_operation
 import juicer.spark.etl_operation
 import juicer.spark.statistic_operation
+import juicer.spark.geo_operation
 import juicer.spark.text_operation
 import os
 
@@ -11,9 +12,6 @@ import jinja2
 import juicer.spark.ml_operation
 from juicer.spark import operation
 from textwrap import dedent
-
-'4 minutes'
-
 
 class Spark:
     DIST_ZIP_FILE = '/tmp/lemonade-lib-python.zip'
@@ -214,6 +212,8 @@ class Spark:
             'feature-assembler': juicer.spark.ml_operation.FeatureAssembler,
             'feature-indexer': juicer.spark.ml_operation.FeatureIndexer,
             'filter': juicer.spark.etl_operation.Filter,
+            'read-shapefile': juicer.spark.geo_operation.ReadShapefile,
+            'within': juicer.spark.geo_operation.GeoWithin,
             # Alias for filter
             'filter-selection': juicer.spark.etl_operation.Filter,
             'gbt-classifier': juicer.spark.ml_operation.GBTClassifierOperation,

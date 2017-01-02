@@ -9,6 +9,9 @@
 #
 import string
 import unicodedata
+import sys
+import re
+import json
 
 from pyspark.ml import Pipeline
 from pyspark.ml.classification import *
@@ -20,7 +23,6 @@ from pyspark.sql import SparkSession
 from pyspark.sql.window import Window
 from pyspark.sql.functions import *
 from pyspark.sql.types import *
-
 
 # Global utilities functions definitions
 strip_accents = udf(
@@ -41,6 +43,7 @@ def juicer_debug(name, variable, df):
     schema = df.schema
     for attr in schema:
         print attr.name, attr.dataType, attr.nullable, attr.metadata
+
 
 {%- for instance in instances %}
 {%- if instance.has_code %}
@@ -88,3 +91,4 @@ def main():
         {%- endif %}
         {%- endfor %}
     }
+
