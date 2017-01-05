@@ -37,10 +37,11 @@ class Statuses:
 
 
 class JuicerSparkService:
-    def __init__(self, redis_conn, workflow_id):
+    def __init__(self, redis_conn, workflow_id, execute_main):
         self.redis_conn = redis_conn
         self.workflow_id = workflow_id
         self.state = "LOADING"
+        self.execute_main = execute_main
         self.states = {
             "EMPTY": {
                 "START": self.start
@@ -86,6 +87,7 @@ class JuicerSparkService:
 
             spark_instance = Spark("/tmp/lixo1234", loader.workflow,
                                    loader.sorted_tasks)
+            spark_instance.execute_main = self.execute_main
 
             generated = StringIO()
             spark_instance.output = generated
@@ -103,9 +105,9 @@ class JuicerSparkService:
             break
 
 
-def main(workflow_id):
+def main(workflow_id, execute_main):
     redis_conn = redis.StrictRedis()
-    service = JuicerSparkService(redis_conn, workflow_id)
+    service = JuicerSparkService(redis_conn, workflow_id, execute_main)
     service.run()
 
 
@@ -114,9 +116,11 @@ if __name__ == "__main__":
     # parser.add_argument("-c", "--config", type=str, help="Configuration file")
     parser.add_argument("-w", "--workflow", type=int, required=True,
                         help="Workflow identification number")
+    parser.add_argument("-e", "--execute-main", action="store_true",
+                        help="Write code to run the program (it calls main()")
     args = parser.parse_args()
 
-    main(args.workflow)
+    main(args.workflow, args.execute_main)
     '''
     if True:
         app.run(debug=True, port=8000)

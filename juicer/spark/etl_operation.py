@@ -96,8 +96,6 @@ class Sort(Operation):
         self.has_code = len(self.inputs) == 1
 
     def generate_code(self):
-        output = self.outputs[0] if len(self.outputs) else '{}_tmp'.format(
-            self.inputs[0])
         ascending = []
         attributes = []
         for attr in self.attributes:
@@ -105,7 +103,7 @@ class Sort(Operation):
             ascending.append(1 if attr['f'] == 'asc' else 0)
 
         code = "{0} = {1}.orderBy({2}, \n            ascending={3})".format(
-            output, self.inputs[0], json.dumps(attributes),
+            self.output, self.inputs[0], json.dumps(attributes),
             json.dumps(ascending))
 
         return dedent(code)
@@ -128,14 +126,13 @@ class Distinct(Operation):
             self.attributes = []
 
     def generate_code(self):
-        output = self.outputs[0] if len(self.outputs) else '{}_tmp'.format(
-            self.inputs[0])
         if len(self.inputs) == 1:
             if self.attributes:
                 code = "{} = {}.dropDuplicates(subset={})".format(
                     output, self.inputs[0], json.dumps(self.attributes))
             else:
-                code = "{} = {}.dropDuplicates()".format(output, self.inputs[0])
+                code = "{} = {}.dropDuplicates()".format(self.output,
+                                                         self.inputs[0])
         else:
             code = ""
 
@@ -306,9 +303,6 @@ class Join(Operation):
                                                                pair[1]) for pair
                                        in on_clause])
 
-        output = self.outputs[0] if len(self.outputs) else '{}_tmp'.format(
-            self.inputs[0])
-
         code = """
             cond_{0} = [{1}]
             {0} = {2}.join({3}, on=cond_{0}, how='{4}')""".format(
@@ -370,13 +364,9 @@ class Transformation(Operation):
             # Builds the expression and identify the target column
             expression = Expression(self.json_expression)
             built_expression = expression.parsed_expression
-            if len(self.outputs) > 0:
-                output = self.outputs[0]
-            else:
-                output = '{}_tmp'.format(self.inputs[0])
 
             # Builds the code
-            code = """{} = {}.withColumn('{}', {})""".format(output,
+            code = """{} = {}.withColumn('{}', {})""".format(self.output,
                                                              self.inputs[0],
                                                              self.alias,
                                                              built_expression)
@@ -406,11 +396,8 @@ class Select(Operation):
                     self.ATTRIBUTES_PARAM, self.__class__))
 
     def generate_code(self):
-        output = self.outputs[0] if len(self.outputs) else '{}_tmp'.format(
-            self.inputs[0])
-
         code = """{} = {}.select({})""".format(
-            output, self.inputs[0],
+            self.output, self.inputs[0],
             ', '.join(['"{}"'.format(x) for x in self.attributes]))
         return dedent(code)
 
@@ -432,15 +419,16 @@ class Aggregation(Operation):
         Operation.__init__(self, parameters, inputs, outputs, named_inputs,
                            named_outputs)
 
-        self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
+        self.attributes = parameters.get(self.ATTRIBUTES_PARAM, [])
         self.functions = parameters.get(self.FUNCTION_PARAM)
 
-        if not all([self.ATTRIBUTES_PARAM in parameters,
-                    self.FUNCTION_PARAM in parameters,
-                    self.attributes, self.functions]):
+        self.group_all = len(self.attributes) == 0
+
+        if not all([self.FUNCTION_PARAM in parameters, self.functions]):
             raise ValueError(
-                "Parameters '{}' and {} must be informed for task {}".format(
-                    self.ATTRIBUTES_PARAM, self.FUNCTION_PARAM, self.__class__))
+                "Parameter '{}' must be informed for task {}".format(
+                    self.FUNCTION_PARAM, self.__class__))
+
         self.has_code = len(self.inputs) == 1
 
     def generate_code(self):
@@ -450,14 +438,17 @@ class Aggregation(Operation):
                 function['f'].lower(), function['attribute'],
                 function['alias']))
 
-        output = self.outputs[0] if len(self.outputs) else '{}_tmp'.format(
-            self.inputs[0])
+        if not self.group_all:
+            group_by = ', '.join(
+                ["col('{}')".format(attr) for attr in self.attributes])
 
-        group_by = ', '.join(
-            ["col('{}')".format(attr) for attr in self.attributes])
-
-        code = '''{} = {}.groupBy({}).agg(\n        {})'''.format(
-            output, self.inputs[0], group_by, ', \n        '.join(elements))
+            code = '''{} = {}.groupBy({}).agg(\n        {})'''.format(
+                self.output, self.inputs[0], group_by,
+                ', \n        '.join(elements))
+        else:
+            code = '''{output} = {input}.agg(\n        {elements})'''.format(
+                output=self.output, input=self.inputs[0],
+                elements=', \n        '.join(elements))
         return dedent(code)
 
 
