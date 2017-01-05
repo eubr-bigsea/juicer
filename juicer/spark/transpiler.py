@@ -1,75 +1,50 @@
+# -*- coding: utf-8 -*-
 import json
 import zipfile
 from textwrap import dedent
 
-import autopep8
+import sys
+
 import jinja2
 import juicer.spark.data_operation
 import juicer.spark.etl_operation
+import juicer.spark.geo_operation
 import juicer.spark.ml_operation
 import juicer.spark.statistic_operation
-import juicer.spark.geo_operation
 import juicer.spark.text_operation
 import os
 from juicer.jinja2_custom import AutoPep8Extension
 from juicer.spark import operation
+from juicer.util import sort_topologically
 
-class Spark:
+
+class SparkTranspiler:
+    """
+    Convert Lemonada workflow representation (JSON) into code to be run in
+    Apache Spark.
+    """
     DIST_ZIP_FILE = '/tmp/lemonade-lib-python.zip'
 
-    def __init__(self, outfile, workflow, tasks):
-        self.output = open(outfile, "w")
+    def __init__(self, workflow, out=None):
+        self.out = sys.stdout if out is None else out
         self.workflow = workflow
-        self.print_session()
 
-        # Sorted tasks! Do not use the workflow tasks
-        self.tasks = tasks
+        graph = {}
+        all_tasks = {}
+        for task in workflow['tasks']:
+            graph[task['id']] = []
+            all_tasks[task['id']] = task
+        for flow in workflow['flows']:
+            graph[flow['target_id']].append(flow['source_id'])
 
-        # Store the name of the dataframe in each port
-        self.dataframes = {}
+        dependency = sort_topologically(graph)
+        self.tasks = [all_tasks[item] for sublist in dependency for item in
+                      sublist]
 
-        self.count_dataframes = 0
-        self.classes = {}
-        self.assign_operations()
+        self.operations = {}
+
+        self._assign_operations()
         self.execute_main = False
-
-    def print_session(self):
-        """ Print the PySpark header and session init  """
-        code = """
-        from pyspark.sql.functions import *
-        from pyspark.sql.window import Window
-        from pyspark.sql.types import *
-        from pyspark.sql import SparkSession
-        spark = SparkSession \\
-            .builder \\
-            .appName('## {} ##') \\
-            .getOrCreate()
-        """.format(self.workflow['name'].encode('utf8'))
-        self.output.write(dedent(code))
-
-    def map_port(self, task, input_list, output_list):
-        """ Map each port of a task to a dict """
-        for port in task['ports']:
-            if port['interface'] == "dataframe":
-                # If port is out, create a new data frame and increment the counter
-                if port['direction'] == 'out':
-                    self.dataframes[port['id']] = self.workflow['name'] + \
-                                                  '_df_' + str(
-                        self.count_dataframes)
-                    output_list.append(self.dataframes[port['id']])
-                    self.count_dataframes += 1
-                # If port is in, just retrieve the name of the existing dataframe
-                else:
-                    input_list.append(self.dataframes[port['id']])
-
-            # For now, the only interface is dataframe. In the future,
-            # others, such as models, should be implemented
-            elif port['interface'] == "model":
-                # Implement!
-                pass
-            else:
-                # Implement!
-                pass
 
     def build_dist_file(self):
         """
@@ -103,8 +78,8 @@ class Spark:
                 zf.writepy(lib_path)
             zf.close()
 
-    def execution(self):
-        """ Executes the tasks in Lemonade's workflow """
+    def transpile(self):
+        """ Transpile the tasks from Lemonade's workflow into Spark code """
 
         ports = {}
         sequential_ports = {}
@@ -145,16 +120,17 @@ class Spark:
             # input_list = []
             # output_list = []
             # self.map_port(task, input_list, output_list)
-            class_name = self.classes[task['operation']['slug']]
+            class_name = self.operations[task['operation']['slug']]
 
             parameters = {}
-            #print task['forms']
+            # print task['forms']
             for parameter, definition in task['forms'].iteritems():
                 # @FIXME: Fix wrong name of form category
                 # (using name instead of category)
-                #print definition.get('category')
-                #raw_input()
-                cat = definition.get('category', 'execution').lower() # FIXME!!!
+                # print definition.get('category')
+                # raw_input()
+                cat = definition.get('category',
+                                     'execution').lower()  # FIXME!!!
                 cat = 'paramgrid' if cat == 'param grid' else cat
                 cat = 'logging' if cat == 'execution logging' else cat
 
@@ -203,10 +179,10 @@ class Spark:
         template_env = jinja2.Environment(loader=template_loader,
                                           extensions=[AutoPep8Extension])
         template = template_env.get_template("operation.tmpl")
-        print template.render(env_setup).encode('utf8')
+        self.out.write(template.render(env_setup))
 
-    def assign_operations(self):
-        self.classes = {
+    def _assign_operations(self):
+        self.operations = {
             'add-columns': juicer.spark.etl_operation.AddColumns,
             'add-rows': juicer.spark.etl_operation.AddRows,
             'aggregation': juicer.spark.etl_operation.Aggregation,

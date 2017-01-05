@@ -35,7 +35,6 @@ class DataReader(Operation):
         "DOUBLE": 'DoubleType',
         "DATETIME": 'TimestampType',
         "CHARACTER": 'StringType',
-        "FLOAT": 'DoubleType',
     }
     SEPARATORS = {
         '{tab}': '\\t'
@@ -59,7 +58,12 @@ class DataReader(Operation):
                     self.NULL_VALUES_PARAM, '').split(",")]
 
                 metadata_obj = MetadataGet('123456')
-                self.metadata = metadata_obj.get_metadata(self.database_id)
+
+                # @FIXME Parameter
+                url = 'http://beta.ctweb.inweb.org.br/limonero/datasources'
+                token = '123456'
+                self.metadata = limonero_service.get_data_source_info(
+                    url, self.database_id, token)
             else:
                 raise ValueError(
                     "Parameter '{}' must be informed for task {}".format(
@@ -297,7 +301,7 @@ class ReadCSV(Operation):
             self.outputs[0], self.url, self.header, self.separator)
         return dedent(code)
 
- 
+
 class ChangeAttribute(Operation):
     ATTRIBUTES_PARAM = 'attributes'
     IS_FEATURE_PARAM = 'is_feature'
@@ -380,5 +384,4 @@ class ChangeAttribute(Operation):
                       "    {0}.schema.fields[inx_{0}[0]]"
                       ".metadata['{2}'] = {3}".format(output, attr_name,
                                                       meta_name, value))
-    
-    
+

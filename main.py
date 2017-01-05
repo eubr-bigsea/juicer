@@ -2,7 +2,7 @@ import json
 
 import requests
 from IO import IO
-from juicer.spark.control import Spark
+from juicer.spark.transpiler import SparkTranspiler
 from juicer.compss.control import Compss
 from juicer.workflow.workflow import Workflow
 
@@ -26,9 +26,9 @@ if __name__ == '__main__':
         workflow.plot_workflow(io.args['graph_outfile'])
 
     if workflow.workflow.get('framework', 'spark').lower() == "spark":
-        spark_instance = Spark(io.args['outfile'], workflow.workflow,
-                               workflow.sorted_tasks)
-        spark_instance.execution()
+        spark_instance = SparkTranspiler(io.args['outfile'], workflow.workflow,
+                                         workflow.sorted_tasks)
+        spark_instance.transpile()
 
     elif workflow.workflow.get('framework').lower() == "compss":
         compss_instance = Compss(io.args['outfile'], workflow.workflow,

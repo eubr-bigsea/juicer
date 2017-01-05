@@ -1,14 +1,13 @@
 from juicer.compss import operation
 
-class Compss:
 
+class Compss:
     def __init__(self, outfile, workflow, tasks):
         self.output = open(outfile, "w")
         self.workflow = workflow
         self.tasks = tasks
         self.classes = {}
         self.assign_operations()
-
 
     def execution(self):
         for task in self.tasks:
@@ -24,4 +23,3 @@ class Compss:
     def assign_operations(self):
         self.classes['KMEANS'] = operation.Kmeans
         self.classes['DATA_READER'] = operation.DataReader
-

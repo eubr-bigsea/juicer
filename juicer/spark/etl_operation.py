@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import ast
 import json
 import time
@@ -31,17 +32,14 @@ class RandomSplit(Operation):
         self.has_code = len(self.outputs) > 0
 
     def generate_code(self):
-        if len(self.inputs) == 1:
-            output1 = self.outputs[0] if len(
-                self.outputs) else '{}_tmp'.format(
-                self.inputs[0])
-            output2 = self.outputs[1] if len(self.outputs) == 2 else '_'
+        output1 = self.outputs[0] if len(
+            self.outputs) else '{}_tmp'.format(
+            self.inputs[0])
+        output2 = self.outputs[1] if len(self.outputs) == 2 else '_'
 
-            code = """{0}, {1} = {2}.randomSplit({3}, {4})""".format(
-                output1, output2, self.inputs[0],
-                json.dumps(self.weights), self.seed)
-        else:
-            code = ""
+        code = """{0}, {1} = {2}.randomSplit({3}, {4})""".format(
+            output1, output2, self.inputs[0],
+            json.dumps(self.weights), self.seed)
         return dedent(code)
 
 
@@ -56,17 +54,14 @@ class AddRows(Operation):
         Operation.__init__(self, parameters, inputs, outputs, named_inputs,
                            named_outputs)
         self.parameters = parameters
+        self.has_code = len(self.inputs) == 2 and len(self.output) > 0
 
     def generate_code(self):
         output = self.outputs[0] if len(self.outputs) else '{}_tmp'.format(
             self.inputs[0])
 
-        if len(self.inputs) == 2:
-            code = "{0} = {1}.unionAll({2})".format(output,
-                                                    self.inputs[0],
-                                                    self.inputs[1])
-        else:
-            code = ""
+        code = "{0} = {1}.unionAll({2})".format(
+            output, self.inputs[0], self.inputs[1])
         return dedent(code)
 
 
@@ -125,17 +120,15 @@ class Distinct(Operation):
         else:
             self.attributes = []
 
-    def generate_code(self):
-        if len(self.inputs) == 1:
-            if self.attributes:
-                code = "{} = {}.dropDuplicates(subset={})".format(
-                    output, self.inputs[0], json.dumps(self.attributes))
-            else:
-                code = "{} = {}.dropDuplicates()".format(self.output,
-                                                         self.inputs[0])
-        else:
-            code = ""
+        self.has_code = len(self.inputs) == 1
 
+    def generate_code(self):
+        if self.attributes:
+            code = "{} = {}.dropDuplicates(subset={})".format(
+                self.output, self.inputs[0], json.dumps(self.attributes))
+        else:
+            code = "{} = {}.dropDuplicates()".format(self.output,
+                                                     self.inputs[0])
         return dedent(code)
 
 
@@ -193,10 +186,6 @@ class SampleOrPartition(Operation):
                         self.FRACTION_PARAM, self.__class__))
         elif self.type in [self.TYPE_VALUE, self.TYPE_HEAD]:
             self.value = int(parameters.get(self.VALUE_PARAM, 100))
-        else:
-            raise ValueError(
-                "Invalid type '{}' for task {}".format(
-                    self.type, self.__class__))
 
         self.has_code = len(self.inputs) == 1
 
@@ -235,16 +224,14 @@ class Intersection(Operation):
         Operation.__init__(self, parameters, inputs, outputs, named_inputs,
                            named_outputs)
         self.parameters = parameters
+        self.has_code = len(self.inputs) == 2
 
     def generate_code(self):
-        if len(self.inputs) == 2:
-            output = self.outputs[0] if len(self.outputs) else '{}_tmp'.format(
-                self.inputs[0])
+        output = self.outputs[0] if len(self.outputs) else '{}_tmp'.format(
+            self.inputs[0])
 
-            code = "{} = {}.intersect({})".format(
-                output, self.inputs[0], self.inputs[1])
-        else:
-            code = ''
+        code = "{} = {}.intersect({})".format(
+            output, self.inputs[0], self.inputs[1])
         return dedent(code)
 
 
@@ -280,7 +267,7 @@ class Join(Operation):
                  named_outputs):
         Operation.__init__(self, parameters, inputs, outputs, named_inputs,
                            named_outputs)
-        self.keep_right_keys = parameters.get(self.KEEP_RIGHT_KEYS_PARAM, False)
+        self.keep_right_keys = parameters.get(self.KEEP_RIGHT_KEYS_PARAM, True)
         self.match_case = parameters.get(self.MATCH_CASE_PARAM, False)
         self.join_type = parameters.get(self.JOIN_TYPE_PARAM, 'inner')
 
@@ -306,11 +293,11 @@ class Join(Operation):
         code = """
             cond_{0} = [{1}]
             {0} = {2}.join({3}, on=cond_{0}, how='{4}')""".format(
-            output, join_condition, self.inputs[0], self.inputs[1],
+            self.output, join_condition, self.inputs[0], self.inputs[1],
             self.join_type)
 
-        # TO-DO: Convert str False to boolean for evaluation
-        if self.keep_right_keys == "False":
+        # @TODO: This may not work
+        if self.keep_right_keys in ["False", "false", False]:
             for column in self.right_attributes:
                 code += """.drop({}.{})""".format(self.inputs[1], column)
 
@@ -358,20 +345,19 @@ class Transformation(Operation):
             raise ValueError(
                 "Parameters '{}' and {} must be informed for task {}".format(
                     self.ALIAS_PARAM, self.EXPRESSION_PARAM, self.__class__))
+        self.has_code = len(self.inputs) > 0
 
     def generate_code(self):
-        if len(self.inputs) > 0:
-            # Builds the expression and identify the target column
-            expression = Expression(self.json_expression)
-            built_expression = expression.parsed_expression
+        params = {'input': self.inputs[0]}
+        # Builds the expression and identify the target column
+        expression = Expression(self.json_expression, params)
+        built_expression = expression.parsed_expression
 
-            # Builds the code
-            code = """{} = {}.withColumn('{}', {})""".format(self.output,
-                                                             self.inputs[0],
-                                                             self.alias,
-                                                             built_expression)
-        else:
-            code = ''
+        # Builds the code
+        code = """{} = {}.withColumn('{}', {})""".format(self.output,
+                                                         self.inputs[0],
+                                                         self.alias,
+                                                         built_expression)
         return dedent(code)
 
 
@@ -422,6 +408,7 @@ class Aggregation(Operation):
         self.attributes = parameters.get(self.ATTRIBUTES_PARAM, [])
         self.functions = parameters.get(self.FUNCTION_PARAM)
 
+        # Attributes are optional
         self.group_all = len(self.attributes) == 0
 
         if not all([self.FUNCTION_PARAM in parameters, self.functions]):

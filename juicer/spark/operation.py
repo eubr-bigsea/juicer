@@ -51,7 +51,7 @@ class Operation:
                 result = '{}_tmp_{}'.format(self.inputs[0],
                                             self.parameters['task']['order'])
         else:
-            #raise ValueError(
+            # raise ValueError(
             #    "Operation has neither input nor output: {}".format(
             #        self.__class__))
             pass
@@ -59,13 +59,6 @@ class Operation:
 
     def get_data_out_names(self, sep=','):
         return self.get_output_names(sep)
-
-    def test_null_operation(self):
-        """
-        Test if an operation is null, i.e, does nothing.
-        An operation does nothing if it has zero inputs or outputs.
-        """
-        return any([len(self.outputs) == 0, len(self.inputs) == 0])
 
 
 class ReportOperation(Operation):
@@ -100,15 +93,12 @@ class DatetimeToBins(Operation):
         return dedent(code)
 
 
+# noinspection PyAbstractClass
 class NoOp(Operation):
     """ Null operation """
-
-    def generate_code(self):
-        pass
 
     def __init__(self, parameters, inputs, outputs, named_inputs,
                  named_outputs):
         Operation.__init__(self, parameters, inputs, outputs, named_inputs,
                            named_outputs)
-        self.parameters = parameters
         self.has_code = False

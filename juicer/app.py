@@ -5,7 +5,7 @@ import logging
 
 import redis
 import requests
-from juicer.spark.control import Spark
+from juicer.spark.transpiler import SparkTranspiler
 from juicer.workflow.workflow import Workflow
 from six import StringIO
 
@@ -85,14 +85,14 @@ class JuicerSparkService:
             loader.verify_workflow()
             loader.sort_tasks()
 
-            spark_instance = Spark("/tmp/lixo1234", loader.workflow,
-                                   loader.sorted_tasks)
+            spark_instance = SparkTranspiler("/tmp/lixo1234", loader.workflow,
+                                             loader.sorted_tasks)
             spark_instance.execute_main = self.execute_main
 
             generated = StringIO()
             spark_instance.output = generated
             try:
-                spark_instance.execution()
+                spark_instance.transpile()
             except ValueError as ve:
                 log.exception("At least one parameter is missing", exc_info=ve)
                 break
