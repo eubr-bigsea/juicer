@@ -4,7 +4,6 @@ import requests
 from IO import IO
 from juicer.spark.control import Spark
 from juicer.compss.control import Compss
-
 from juicer.workflow.workflow import Workflow
 
 

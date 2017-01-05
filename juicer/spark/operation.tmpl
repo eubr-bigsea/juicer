@@ -7,12 +7,14 @@
 #     Universidade Federal de Minas Gerais
 # More information about Lemonade to be provided
 #
-import os
 import json
+import os
+import re
 import string
 import sys
 import time
 import unicodedata
+
 from pyspark.ml import Pipeline
 from pyspark.ml.classification import *
 from pyspark.ml.clustering import *
@@ -27,6 +29,7 @@ from timeit import default_timer as timer
 
 reload(sys)
 sys.setdefaultencoding('utf8')
+
 # Global utilities functions definitions
 strip_accents = udf(
     lambda text: ''.join(c for c in unicodedata.normalize('NFD', text)

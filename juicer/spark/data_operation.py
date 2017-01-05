@@ -34,7 +34,8 @@ class DataReader(Operation):
         "FLOAT": 'FloatType',
         "DOUBLE": 'DoubleType',
         "DATETIME": 'TimestampType',
-        "CHARACTER": 'StringType'
+        "CHARACTER": 'StringType',
+        "FLOAT": 'DoubleType',
     }
     SEPARATORS = {
         '{tab}': '\\t'
@@ -292,11 +293,11 @@ class ReadCSV(Operation):
 
     def generate_code(self):
         code = """{} = spark_session.read.csv('{}',
-            header={}, sep='{}' ,inferSchema=True)""".format(
+            header={}, sep='{}',inferSchema=True)""".format(
             self.outputs[0], self.url, self.header, self.separator)
         return dedent(code)
 
-
+ 
 class ChangeAttribute(Operation):
     ATTRIBUTES_PARAM = 'attributes'
     IS_FEATURE_PARAM = 'is_feature'
@@ -379,3 +380,5 @@ class ChangeAttribute(Operation):
                       "    {0}.schema.fields[inx_{0}[0]]"
                       ".metadata['{2}'] = {3}".format(output, attr_name,
                                                       meta_name, value))
+    
+    
