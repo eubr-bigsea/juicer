@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
 import json
-import zipfile
-from textwrap import dedent
-
+import pdb
 import sys
+import zipfile
 
 import jinja2
 import juicer.spark.data_operation
@@ -12,10 +11,60 @@ import juicer.spark.geo_operation
 import juicer.spark.ml_operation
 import juicer.spark.statistic_operation
 import juicer.spark.text_operation
+import juicer.spark.ws_operation
 import os
 from juicer.jinja2_custom import AutoPep8Extension
 from juicer.spark import operation
 from juicer.util import sort_topologically
+import networkx as nx
+
+
+class DependencyController:
+    """ Evaluates if a dependency is met when generating code. """
+
+    def __init__(self, requires):
+        self._satisfied = set()
+        self.requires = requires
+
+    def satisfied(self, _id):
+        self._satisfied.add(_id)
+
+    def is_satisfied(self, _id):
+        return True  # len(self.requires[_id].difference(self._satisfied)) == 0
+
+
+class SparkTranspilerVisitor:
+    def __init__(self):
+        pass
+
+    def visit(self, workflow, operations, params):
+        raise NotImplementedError()
+
+
+class RemoveTasksWhenMultiplexingVisitor(SparkTranspilerVisitor):
+    def visit(self, graph, operations, params):
+
+        external_input_op = juicer.spark.ws_operation.MultiplexerOperation
+        for task_id in graph.node:
+            task = graph.node[task_id]
+            op = operations.get(task.get('operation').get('slug'))
+            if op == external_input_op:
+                # Found root
+                if params.get('service'):
+                    # Remove the left side of the tree
+                    # left_side_flow = [f for f in workflow['flows']]
+                    flow = graph.in_edges(task_id, data=True)
+                    pdb.set_trace()
+                    # remove other side
+                    pass
+                else:
+                    flow = [f for f in graph['flows'] if
+                            f['target_id'] == task.id and f[
+                                'target_port_name'] == 'input data 2']
+                    if flow:
+                        pdb.set_trace()
+                    pass
+        return graph
 
 
 class SparkTranspiler:
@@ -24,27 +73,31 @@ class SparkTranspiler:
     Apache Spark.
     """
     DIST_ZIP_FILE = '/tmp/lemonade-lib-python.zip'
+    VISITORS = [RemoveTasksWhenMultiplexingVisitor]
 
-    def __init__(self, workflow, out=None):
-        self.out = sys.stdout if out is None else out
-        self.workflow = workflow
-
-        graph = {}
-        all_tasks = {}
-        for task in workflow['tasks']:
-            graph[task['id']] = []
-            all_tasks[task['id']] = task
-        for flow in workflow['flows']:
-            graph[flow['target_id']].append(flow['source_id'])
-
-        dependency = sort_topologically(graph)
-        self.tasks = [all_tasks[item] for sublist in dependency for item in
-                      sublist]
-
+    def __init__(self, workflow, graph, out=None, params=None):
         self.operations = {}
-
         self._assign_operations()
+        self.graph = graph
+        self.params = params if params is not None else {}
+
+        self.out = sys.stdout if out is None else out
+
+        self.workflow_json = json.dumps(workflow)
+        self.workflow_name = workflow['name']
+        self.workflow_id = workflow['id']
+        self.workflow_user = workflow.get('user', {})
+
+        self.requires_info = {}
+
+        # dependency = sort_topologically(graph)
+        # self.tasks = [all_tasks[item] for sublist in dependency for item in
+        #               sublist]
+
         self.execute_main = False
+        for visitor in self.VISITORS:
+            self.workflow = visitor().visit(
+                self.graph, self.operations, params)
 
     def build_dist_file(self):
         """
@@ -84,46 +137,41 @@ class SparkTranspiler:
         ports = {}
         sequential_ports = {}
 
-        for flow in self.workflow['flows']:
-            source_id = flow['source_id']
-            target_id = flow['target_id']
+        for source_id in self.graph.edge:
+            for target_id in self.graph.edge[source_id]:
+                flow = self.graph.edge[source_id][target_id]
 
-            flow_id = '[{}:{}]'.format(source_id, flow['source_port'], )
+                flow_id = '[{}:{}]'.format(source_id, flow['source_port'], )
 
-            if flow_id not in sequential_ports:
-                sequential_ports[flow_id] = 'df{}'.format(
-                    len(sequential_ports))
+                if flow_id not in sequential_ports:
+                    sequential_ports[flow_id] = 'df{}'.format(
+                        len(sequential_ports))
 
-            if source_id not in ports:
-                ports[source_id] = {'outputs': [], 'inputs': [],
-                                    'named_inputs': {}, 'named_outputs': {}}
-            if target_id not in ports:
-                ports[target_id] = {'outputs': [], 'inputs': [],
-                                    'named_inputs': {}, 'named_outputs': {}}
+                if source_id not in ports:
+                    ports[source_id] = {'outputs': [], 'inputs': [],
+                                        'named_inputs': {}, 'named_outputs': {}}
+                if target_id not in ports:
+                    ports[target_id] = {'outputs': [], 'inputs': [],
+                                        'named_inputs': {}, 'named_outputs': {}}
 
-            sequence = sequential_ports[flow_id]
-            if sequence not in ports[source_id]['outputs']:
-                ports[source_id]['named_outputs'][
-                    flow['source_port_name']] = sequence
-                ports[source_id]['outputs'].append(sequence)
-            if sequence not in ports[target_id]['inputs']:
-                ports[target_id]['named_inputs'][
-                    flow['target_port_name']] = sequence
-                ports[target_id]['inputs'].append(sequence)
+                sequence = sequential_ports[flow_id]
+                if sequence not in ports[source_id]['outputs']:
+                    ports[source_id]['named_outputs'][
+                        flow['source_port_name']] = sequence
+                    ports[source_id]['outputs'].append(sequence)
+                if sequence not in ports[target_id]['inputs']:
+                    ports[target_id]['named_inputs'][
+                        flow['target_port_name']] = sequence
+                    ports[target_id]['inputs'].append(sequence)
 
-        env_setup = {'instances': [],
-                     'workflow_name': self.workflow.get('name'),
-                     }
-        workflow_json = json.dumps(self.workflow)
-        for i, task in enumerate(self.tasks):
-            ##self.output.write("\n# {}\n".format(task['operation']['name']))
-            # input_list = []
-            # output_list = []
-            # self.map_port(task, input_list, output_list)
+        env_setup = {'instances': [], 'workflow_name': self.workflow_name}
+
+        sorted_tasks_id = nx.topological_sort(self.graph)
+        for i, task_id in enumerate(sorted_tasks_id):
+            task = self.graph.node[task_id]
             class_name = self.operations[task['operation']['slug']]
 
             parameters = {}
-            # print task['forms']
             for parameter, definition in task['forms'].iteritems():
                 # @FIXME: Fix wrong name of form category
                 # (using name instead of category)
@@ -137,7 +185,6 @@ class SparkTranspiler:
                 if all([cat in ["execution", 'paramgrid', 'param grid',
                                 'execution logging', 'logging'],
                         definition['value'] is not None]):
-                    # print '###{} ==== {}'.format(parameter, definition['value'])
 
                     if cat in ['paramgrid', 'logging']:
                         if cat not in parameters:
@@ -155,31 +202,25 @@ class SparkTranspiler:
             task['order'] = i
 
             parameters['task'] = task
-            parameters['workflow_json'] = workflow_json
-            parameters['user'] = self.workflow.get('user', {})
-            parameters['workflow_id'] = self.workflow.get('id')
+            parameters['workflow_json'] = self.workflow_json
+            parameters['user'] = self.workflow_user
+            parameters['workflow_id'] = self.workflow_id
             port = ports.get(task['id'], {})
             instance = class_name(parameters, port.get('inputs', []),
                                   port.get('outputs', []),
                                   port.get('named_inputs', {}),
                                   port.get('named_outputs', {}))
-            # if instance.has_code:
-            ## self.output.write(instance.generate_code() + "\n")
+            env_setup['dependency_controller'] = DependencyController(
+                self.requires_info)
             env_setup['instances'].append(instance)
             env_setup['execute_main'] = self.execute_main
 
-            # Just for testing. Remove from here.0
-            # for out in output_list:
-            #    self.output.write(
-            #        "print \"" + task['operation']['name'] + "\" \n")
-            # self.output.write(out + ".show()\n")
-            # Until here.
         template_loader = jinja2.FileSystemLoader(
             searchpath=os.path.dirname(__file__))
         template_env = jinja2.Environment(loader=template_loader,
                                           extensions=[AutoPep8Extension])
         template = template_env.get_template("operation.tmpl")
-        self.out.write(template.render(env_setup))
+        self.out.write(template.render(env_setup).encode('utf8'))
 
     def _assign_operations(self):
         self.operations = {
@@ -206,6 +247,8 @@ class SparkTranspiler:
             'distinct': juicer.spark.etl_operation.Distinct,
             'drop': juicer.spark.etl_operation.Drop,
             'evaluate-model': juicer.spark.ml_operation.EvaluateModel,
+            'external-input':
+                juicer.spark.data_operation.ExternalInputOperation,
             'feature-assembler': juicer.spark.ml_operation.FeatureAssembler,
             'feature-indexer': juicer.spark.ml_operation.FeatureIndexer,
             'filter': juicer.spark.etl_operation.Filter,
@@ -223,6 +266,8 @@ class SparkTranspiler:
             'k-means-clustering':
                 juicer.spark.ml_operation.KMeansClusteringOperation,
             'lda-clustering': juicer.spark.ml_operation.LdaClusteringOperation,
+            'multiplexer':
+                juicer.spark.ws_operation.MultiplexerOperation,
             'naive-bayes-classifier':
                 juicer.spark.ml_operation.NaiveBayesClassifierOperation,
             'pearson-correlation':
@@ -242,6 +287,7 @@ class SparkTranspiler:
             'sample': juicer.spark.etl_operation.SampleOrPartition,
             'save': juicer.spark.data_operation.Save,
             'select': juicer.spark.etl_operation.Select,
+            'service-output': juicer.spark.ws_operation.ServiceOutputOperation,
             # synonym of intersection'
             'set-intersection': juicer.spark.etl_operation.Intersection,
             'sort': juicer.spark.etl_operation.Sort,

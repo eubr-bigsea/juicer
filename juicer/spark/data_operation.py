@@ -63,7 +63,7 @@ class DataReader(Operation):
                 url = 'http://beta.ctweb.inweb.org.br/limonero/datasources'
                 token = '123456'
                 self.metadata = limonero_service.get_data_source_info(
-                    url, self.database_id, token)
+                    url, token, self.database_id)
             else:
                 raise ValueError(
                     "Parameter '{}' must be informed for task {}".format(
@@ -385,3 +385,15 @@ class ChangeAttribute(Operation):
                       ".metadata['{2}'] = {3}".format(output, attr_name,
                                                       meta_name, value))
 
+
+class ExternalInputOperation(Operation):
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
+                           named_outputs)
+
+        self.has_code = len(self.output) > 0
+
+    def generate_code(self):
+        code = """{out} = None""".format(out=self.output)
+        return code

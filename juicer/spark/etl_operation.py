@@ -245,6 +245,7 @@ class Difference(Operation):
                  named_outputs):
         Operation.__init__(self, parameters, inputs, outputs, named_inputs,
                            named_outputs)
+        self.has_code = len(self.inputs) == 2
 
     def generate_code(self):
         code = "{} = {}.subtract({})".format(

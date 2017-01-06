@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 import argparse
 import logging
+import pdb
 
 import redis
 import requests
@@ -37,10 +38,11 @@ class Statuses:
 
 
 class JuicerSparkService:
-    def __init__(self, redis_conn, workflow_id, execute_main):
+    def __init__(self, redis_conn, workflow_id, execute_main, params):
         self.redis_conn = redis_conn
         self.workflow_id = workflow_id
         self.state = "LOADING"
+        self.params = params
         self.execute_main = execute_main
         self.states = {
             "EMPTY": {
@@ -54,7 +56,8 @@ class JuicerSparkService:
     def start(self):
         pass
 
-    def get_operations(self):
+    @staticmethod
+    def get_operations():
         url = 'http://beta.ctweb.inweb.org.br/tahiti/operations?token=123456'
         r = requests.get(url)
         ops = json.loads(r.text)
@@ -78,19 +81,14 @@ class JuicerSparkService:
                 "http://beta.ctweb.inweb.org.br/tahiti/workflows/{}"
                 "?token=123456".format(self.workflow_id))
 
-            loader = Workflow(None)
-            loader.set_workflow(json.loads(r.text))
-            # loader.set_workflow(post.workflow)
-
+            loader = Workflow(json.loads(r.text))
             loader.verify_workflow()
-            loader.sort_tasks()
-
-            spark_instance = SparkTranspiler("/tmp/lixo1234", loader.workflow,
-                                             loader.sorted_tasks)
+            spark_instance = SparkTranspiler(loader.workflow, loader.graph,
+                                             params=self.params)
             spark_instance.execute_main = self.execute_main
 
-            generated = StringIO()
-            spark_instance.output = generated
+            # generated = StringIO()
+            # spark_instance.output = generated
             try:
                 spark_instance.transpile()
             except ValueError as ve:
@@ -99,15 +97,15 @@ class JuicerSparkService:
             except:
                 raise
 
-            generated.seek(0)
-            print generated.read()
+            # generated.seek(0)
+            # print generated.read()
             # raw_input('Pressione ENTER')
             break
 
 
-def main(workflow_id, execute_main):
+def main(workflow_id, execute_main, params):
     redis_conn = redis.StrictRedis()
-    service = JuicerSparkService(redis_conn, workflow_id, execute_main)
+    service = JuicerSparkService(redis_conn, workflow_id, execute_main, params)
     service.run()
 
 
@@ -118,9 +116,13 @@ if __name__ == "__main__":
                         help="Workflow identification number")
     parser.add_argument("-e", "--execute-main", action="store_true",
                         help="Write code to run the program (it calls main()")
+
+    parser.add_argument("-s", "--service", required=False,
+                        action="store_true",
+                        help="Indicates if workflow will run as a service")
     args = parser.parse_args()
 
-    main(args.workflow, args.execute_main)
+    main(args.workflow, args.execute_main, {"service": args.service})
     '''
     if True:
         app.run(debug=True, port=8000)

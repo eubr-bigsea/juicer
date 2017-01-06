@@ -1,34 +1,24 @@
-import json
-
 import networkx as nx
-try:
-
-    import matplotlib as matpl
-
-    matpl.use('Agg')
-    import matplotlib.pyplot as plt
-    import Tkinter
-except:
-    pass
 
 
 class Workflow:
-    def __init__(self, infile):
-        # Infile with the workflow json
-        self.infile = infile
+    def __init__(self, workflow_data):
+        self.graph = nx.DiGraph()
+        self.workflow = workflow_data
+        for task in workflow_data['tasks']:
+            self.graph.add_node(task.get('id'), attr_dict=task)
+
+        for flow in workflow_data['flows']:
+            self.graph.add_edge(flow['source_id'], flow['target_id'],
+                                attr_dict=flow)
+
         # Workflow dictionary
-        self.workflow = {}
+        # self.workflow = workflow_data
         # Topological sorted tasks according to their dependencies
-        self.sorted_tasks = []
+        # self.sorted_tasks = []
 
-    def set_workflow(self, workflow):
-        self.workflow = workflow
-
-    def read_json(self):
-        """ Opens the Json file and build the workflow dict """
-        with open(self.infile) as json_infile:
-            self.workflow = json.load(json_infile)
-        print self.workflow
+    # def set_workflow(self, workflow):
+    #     self.workflow = workflow
 
     def verify_workflow(self):
         """
@@ -65,15 +55,15 @@ class Workflow:
         """ Plot the workflow graph """
         workflow_graph = self.builds_workflow_graph(self.sorted_tasks,
                                                     self.workflow['flows'])
-        pos = nx.spring_layout(workflow_graph)
-        nx.draw(workflow_graph, pos, node_color='#004a7b', node_size=2000,
-                edge_color='#555555', width=1.5, edge_cmap=None,
-                with_labels=True,
-                label_pos=50.3, alpha=1, arrows=True, node_shape='s',
-                font_size=8,
-                font_color='#FFFFFF')
-        plt.savefig(filename, dpi=300, orientation='landscape', format=None,
-                    bbox_inches=None, pad_inches=0.1)
+        # pos = nx.spring_layout(workflow_graph)
+        # nx.draw(workflow_graph, pos, node_color='#004a7b', node_size=2000,
+        #         edge_color='#555555', width=1.5, edge_cmap=None,
+        #         with_labels=True,
+        #         label_pos=50.3, alpha=1, arrows=True, node_shape='s',
+        #         font_size=8,
+        #         font_color='#FFFFFF')
+        # plt.savefig(filename, dpi=300, orientation='landscape', format=None,
+        #             bbox_inches=None, pad_inches=0.1)
 
     def builds_workflow_graph(self, tasks, flows):
         """ Builds a graph with the tasks """
@@ -85,10 +75,3 @@ class Workflow:
         for flow in flows:
             workflow_graph.add_edge(flow['source_id'], flow['target_id'])
         return workflow_graph
-
-    def print_workflow(self):
-        print "\nTASKS:\n"
-        for task in self.sorted_tasks:
-            print "\t", task['operation']['name'], task['id']
-        print "\n\n"
-
