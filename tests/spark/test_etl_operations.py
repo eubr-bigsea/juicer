@@ -6,8 +6,8 @@ from textwrap import dedent
 import pytest
 from juicer.spark.etl_operation import RandomSplit, Sort, Distinct, \
     SampleOrPartition, AddRows, Intersection, Difference, Join, Drop, \
-    Transformation, Select, Aggregation
-from tests import compare_ast
+    Transformation, Select, Aggregation, Filter, CleanMissing, AddColumns
+from tests import compare_ast, format_code_comparison
 
 
 def debug_ast(code, expected_code):
@@ -16,6 +16,25 @@ def debug_ast(code, expected_code):
     print '*' * 20
     print expected_code
     print '*' * 20
+
+
+def test_add_columns_minimum_params_success():
+    params = {}
+    inputs = ['input_1', 'input_2']
+    outputs = ['output_1']
+    instance = AddColumns(params, inputs, outputs,
+                          named_inputs={}, named_outputs={})
+    code = instance.generate_code()
+    expected_code = dedent("""
+    w_{in0}_{in1} = Window().orderBy()
+    {in0}_inx = {in0}.withColumn('_inx', rowNumber().over(w_{in0}_{in1}))
+    {in1}_inx = {in1}.withColumn('_inx', rowNumber().over(w_{in0}_{in1}))
+
+    {out} = {in0}_inx.join({in1}_inx, {in0}_inx._inx == {in1}_inx._inx,
+                'inner').drop({in0}_inx._inx).drop({in1}_inx._inx)""".format(
+        out=outputs[0], in0=inputs[0], in1=inputs[1]))
+    result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
+    assert result, msg + format_code_comparison(code, expected_code)
 
 
 def test_add_rows_minimal_params_success():
@@ -81,6 +100,98 @@ def test_aggregation_missing_function_param_failure():
                     named_inputs={}, named_outputs={})
 
 
+def test_clean_missing_minimal_params_success():
+    params = {
+        CleanMissing.ATTRIBUTES_PARAM: ['name'],
+        CleanMissing.MIN_MISSING_RATIO_PARAM: "0.0",
+        CleanMissing.MAX_MISSING_RATIO_PARAM: "1.0",
+    }
+    inputs = ['input_1']
+    outputs = ['output_1']
+    instance = CleanMissing(params, inputs, outputs,
+                            named_inputs={}, named_outputs={})
+    code = instance.generate_code()
+    expected_code = dedent("""
+    ratio_{input_1} = {input_1}.select(
+        (count('{attribute}') / count('*')).alias('{attribute}')).collect()
+    attributes_{input_1} = [c for c in ["{attribute}"]
+                 if 0.0 <= ratio_{input_1}[0][c] <= 1.0]
+    if len(attributes_input_1) > 0:
+        {output_1} = {input_1}.na.drop(how='any', subset=attributes_{input_1})
+    else:
+        {output_1} = {input_1}
+    """.format(input_1=inputs[0], attribute=params['attributes'][0],
+               output_1=outputs[0]))
+    result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
+    assert result, msg + format_code_comparison(code, expected_code)
+
+
+def test_clean_missing_without_missing_rating_params_success():
+    params = {
+        CleanMissing.ATTRIBUTES_PARAM: ['name'],
+    }
+    inputs = ['input_1']
+    outputs = ['output_1']
+    instance = CleanMissing(params, inputs, outputs,
+                            named_inputs={}, named_outputs={})
+    code = instance.generate_code()
+    expected_code = dedent("""
+    attributes_{input_1} = ['{attribute}']
+    if len(attributes_input_1) > 0:
+        {output_1} = {input_1}.na.drop(how='any', subset=attributes_{input_1})
+    else:
+        {output_1} = {input_1}
+    """.format(input_1=inputs[0], attribute=params['attributes'][0],
+               output_1=outputs[0]))
+    result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
+    assert result, msg + format_code_comparison(code, expected_code)
+
+
+def test_clean_missing_minimal_params_type_value_success():
+    params = {
+        CleanMissing.ATTRIBUTES_PARAM: ['name'],
+        CleanMissing.MIN_MISSING_RATIO_PARAM: "0.0",
+        CleanMissing.MAX_MISSING_RATIO_PARAM: "1.0",
+        CleanMissing.VALUE_PARAMETER: "200",
+        CleanMissing.CLEANING_MODE_PARAM: CleanMissing.VALUE
+    }
+    inputs = ['input_1']
+    outputs = ['output_1']
+    instance = CleanMissing(params, inputs, outputs,
+                            named_inputs={}, named_outputs={})
+    code = instance.generate_code()
+    expected_code = dedent("""
+    ratio_{input_1} = {input_1}.select(
+        (count('{attribute}') / count('*')).alias('{attribute}')).collect()
+    attributes_{input_1} = [c for c in ["{attribute}"]
+                 if 0.0 <= ratio_{input_1}[0][c] <= 1.0]
+    if len(attributes_input_1) > 0:
+        {output_1} = {input_1}.na.fill(value={value},
+                subset=attributes_{input_1})
+    else:
+        {output_1} = {input_1}
+    """.format(input_1=inputs[0], attribute=params['attributes'][0],
+               output_1=outputs[0], value=params[CleanMissing.VALUE_PARAMETER]))
+    result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
+    assert result, msg + format_code_comparison(code, expected_code)
+
+    # Test with value being number
+    params[CleanMissing.VALUE_PARAMETER] = 1200
+    instance = CleanMissing(params, inputs, outputs,
+                            named_inputs={}, named_outputs={})
+    code = instance.generate_code()
+    expected_code = expected_code.replace('200', '1200')
+    result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
+    assert result, msg + format_code_comparison(code, expected_code)
+
+
+def test_clean_missing_missing_attribute_param_failure():
+    inputs = ['input_1']
+    outputs = ['output_1']
+    with pytest.raises(ValueError):
+        CleanMissing({}, inputs, outputs, named_inputs={}, named_outputs={})
+
+
 def test_difference_minimal_params_success():
     params = {}
     inputs = ['input_1', 'input_2']
@@ -132,6 +243,36 @@ def test_drop_minimal_params_success():
     expected_code = "output_1 = input_1.drop('{}')".format(params['column'])
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
     assert result, msg
+
+
+def test_filter_minimum_params_success():
+    params = {
+        Filter.FILTER_PARAM: [{
+            'attribute': 'code',
+            'f': '>',
+            'value': '201'
+        }]
+    }
+    inputs = ['input_1']
+    outputs = ['output_1']
+    instance = Filter(params, inputs, outputs,
+                      named_inputs={}, named_outputs={})
+    code = instance.generate_code()
+    expected_code = ("output_1 = input_1.filter("
+                     "col('{attribute}') {f} '{value}')").format(
+        **params[Filter.FILTER_PARAM][0])
+    result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
+    assert result, msg + format_code_comparison(code, expected_code)
+
+
+def test_filter_missing_parameter_filter_failure():
+    params = {
+    }
+    inputs = ['input_1']
+    outputs = ['output_1']
+    with pytest.raises(ValueError):
+        Filter(params, inputs, outputs,
+               named_inputs={}, named_outputs={})
 
 
 def test_intersection_minimal_params_success():

@@ -44,6 +44,7 @@ class SparkTranspilerVisitor:
 class RemoveTasksWhenMultiplexingVisitor(SparkTranspilerVisitor):
     def visit(self, graph, operations, params):
 
+        return graph
         external_input_op = juicer.spark.ws_operation.MultiplexerOperation
         for task_id in graph.node:
             task = graph.node[task_id]
@@ -81,7 +82,11 @@ class SparkTranspiler:
         self.graph = graph
         self.params = params if params is not None else {}
 
-        self.out = sys.stdout if out is None else out
+        self.using_stdout = out is None
+        if self.using_stdout:
+            self.out = sys.stdout
+        else:
+            self.out = out
 
         self.workflow_json = json.dumps(workflow)
         self.workflow_name = workflow['name']
@@ -220,7 +225,11 @@ class SparkTranspiler:
         template_env = jinja2.Environment(loader=template_loader,
                                           extensions=[AutoPep8Extension])
         template = template_env.get_template("operation.tmpl")
-        self.out.write(template.render(env_setup).encode('utf8'))
+        v = template.render(env_setup)
+        if self.using_stdout:
+            self.out.write(v.encode('utf8'))
+        else:
+            self.out.write(v)
 
     def _assign_operations(self):
         self.operations = {
@@ -279,7 +288,6 @@ class SparkTranspiler:
             'random-forest-classifier':
                 juicer.spark.ml_operation.RandomForestClassifierOperation,
             'read-csv': juicer.spark.data_operation.ReadCSV,
-            'replace': juicer.spark.etl_operation.Replace,
             # synonym for distinct
             'remove-duplicated-rows': juicer.spark.etl_operation.Distinct,
             'remove-stop-words':

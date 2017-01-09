@@ -516,20 +516,16 @@ class CleanMissing(Operation):
 
         self.value = parameters.get(self.VALUE_PARAMETER)
 
-        self.min_missing_ratio = float(
-            parameters.get(self.MIN_MISSING_RATIO_PARAM, 0))
-        self.max_missing_ratio = float(
-            parameters.get(self.MAX_MISSING_RATIO_PARAM, 1))
+        self.min_missing_ratio = parameters.get(self.MIN_MISSING_RATIO_PARAM)
+        self.max_missing_ratio = parameters.get(self.MAX_MISSING_RATIO_PARAM)
 
         # In this case, nothing will be generated besides create reference to
         # data frame
-        if (self.value is None and self.cleaning_mode == self.VALUE) or len(
-                self.inputs) == 0:
-            self.has_code = False
+        self.has_code = all([
+            any([self.value is not None, self.cleaning_mode != self.VALUE]),
+            len(self.inputs) > 0])
 
     def generate_code(self):
-        if not self.has_code:
-            return "{} = {}".format(self.outputs[0], self.inputs[0])
 
         output = self.outputs[0] if len(self.outputs) else '{}_tmp'.format(
             self.inputs[0])
@@ -538,8 +534,8 @@ class CleanMissing(Operation):
         attrs_json = json.dumps(self.attributes)
 
         if any([self.min_missing_ratio, self.max_missing_ratio]):
-            self.min_missing_ratio = self.min_missing_ratio or 0.0
-            self.max_missing_ratio = self.max_missing_ratio or 1.0
+            self.min_missing_ratio = float(self.min_missing_ratio)
+            self.max_missing_ratio = float(self.max_missing_ratio)
 
             # Based on http://stackoverflow.com/a/35674589/1646932
             select_list = [
@@ -564,12 +560,11 @@ class CleanMissing(Operation):
                 output, self.inputs[0]))
 
         elif self.cleaning_mode == self.VALUE:
-            value = ast.literal_eval(self.value)
-            if not (isinstance(value, int) or isinstance(value, float)):
-                value = '"{}"'.format(value)
+            # value = ast.literal_eval(self.value)
             partial.append(
                 "\n    {0} = {1}.na.fill(value={2}, "
-                "subset=attributes_{1})".format(output, self.inputs[0], value))
+                "subset=attributes_{1})".format(output, self.inputs[0],
+                                                self.value))
 
         elif self.cleaning_mode == self.REMOVE_COLUMN:
             # Based on http://stackoverflow.com/a/35674589/1646932"
@@ -637,47 +632,14 @@ class AddColumns(Operation):
         self.has_code = len(inputs) == 2
 
     def generate_code(self):
-        if self.has_code:
-            output = self.outputs[0] if len(self.outputs) else '{}_tmp'.format(
-                self.inputs[0])
-            code = """
-                w_{0}_{1} = Window().orderBy()
-                {0}_inx =  {0}.withColumn("_inx", rowNumber().over(w_{0}_{1}))
-                {1}_inx =  {1}.withColumn("_inx", rowNumber().over(w_{0}_{1})
-                {2} = {0}_indexed.join({1}_inx, {0}_inx._inx == {0}_inx._inx,
-                                             'inner')
-                    .drop({0}_inx._inx).drop({1}_inx._inx)
-                """.format(self.inputs[0], self.inputs[1], output)
-            return dedent(code)
-
-        return ""
-
-
-class Replace(Operation):
-    """
-    Replaces values of columns by specified value. Similar to Transformation
-    operation.
-    @deprecated
-    """
-    ATTRIBUTES_PARAM = 'attributes'
-
-    def __init__(self, parameters, inputs, outputs, named_inputs,
-                 named_outputs):
-        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
-                           named_outputs)
-        if self.ATTRIBUTES_PARAM in parameters:
-            self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
-        else:
-            raise ValueError(
-                "Parameter '{}' must be informed for task {}".format(
-                    self.ATTRIBUTES_PARAM, self.__class__))
-
-    def generate_code(self):
-        if self.has_code:
-            output = self.outputs[0] if len(self.outputs) else '{}_tmp'.format(
-                self.inputs[0])
-            code = output
-
-            return dedent(code)
-
-        return ""
+        output = self.outputs[0] if len(self.outputs) else '{}_tmp'.format(
+            self.inputs[0])
+        code = """
+            w_{0}_{1} = Window().orderBy()
+            {0}_inx = {0}.withColumn("_inx", rowNumber().over(w_{0}_{1}))
+            {1}_inx = {1}.withColumn("_inx", rowNumber().over(w_{0}_{1}))
+            {2} = {0}_inx.join({1}_inx, {0}_inx._inx == {1}_inx._inx,
+                                         'inner')\
+                .drop({0}_inx._inx).drop({1}_inx._inx)
+            """.format(self.inputs[0], self.inputs[1], output)
+        return dedent(code)

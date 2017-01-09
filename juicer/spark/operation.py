@@ -61,36 +61,12 @@ class Operation:
         return self.get_output_names(sep)
 
 
+# noinspection PyAbstractClass
 class ReportOperation(Operation):
     def __init__(self, parameters, inputs, outputs, named_inputs,
                  named_outputs):
         Operation.__init__(self, parameters, inputs, outputs, named_inputs,
                            named_outputs)
-
-    def generate_code(self):
-        raise NotImplementedError("Method generate_code should be implemented "
-                                  "in {} subclass".format(self.__class__))
-
-
-class DatetimeToBins(Operation):
-    """
-    """
-
-    def __init__(self, parameters, inputs, outputs, named_inputs,
-                 named_outputs):
-        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
-                           named_outputs)
-        self.target_column = parameters['target_column']
-        self.new_column = parameters['new_column']
-        self.group_size = parameters['group_size']
-
-    def generate_code(self):
-        code = '''
-            from bins import *
-            {} = datetime_to_bins({}, {}, '{}', '{}')
-            '''.format(self.outputs[0], self.inputs[0], self.group_size,
-                       self.target_column, self.new_column)
-        return dedent(code)
 
 
 # noinspection PyAbstractClass

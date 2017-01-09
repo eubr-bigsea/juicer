@@ -2,8 +2,11 @@
 import ast
 
 
-def compare_ast(node1, node2):
+def format_code_comparison(node1, node2):
+    return '\n>>>>>\n{}\n>>>>>\n{}\n-----'.format(node1, node2)
 
+
+def compare_ast(node1, node2):
     if type(node1) != type(node2):
         return False, 'Different types: ({}) != ({}) [{}, {}]'.format(
             type(node1), type(node2), node1, node2)
