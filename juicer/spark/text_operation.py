@@ -7,11 +7,19 @@ from juicer.spark.operation import Operation
 
 
 class TokenizerOperation(Operation):
+    '''
+    Tokenization is the process of taking text (such as a sentence) and
+    breaking it into individual terms (usually words). A simple Tokenizer
+    class provides this functionality. The example below shows how to
+    split sentences into sequences of words.
+    '''
+
     TYPE_PARAM = 'type'
     ATTRIBUTES_PARAM = 'attributes'
     ALIAS_PARAM = 'alias'
     EXPRESSION_PARAM = 'expression'
     MINIMUM_SIZE = 'min_token_length'
+
     TYPE_SIMPLE = 'simple'
     TYPE_REGEX = 'regex'
 
@@ -57,6 +65,11 @@ class TokenizerOperation(Operation):
 
 
 class RemoveStopWordsOperation(Operation):
+    '''
+    Stop words are words which should be excluded from the input,
+    typically because the words appear frequently and don’t carry
+    as much meaning.
+    '''
     ATTRIBUTES_PARAM = 'attributes'
     ALIAS_PARAM = 'alias'
     STOP_WORD_LIST_PARAM = 'stop_word_list'
@@ -111,6 +124,15 @@ class RemoveStopWordsOperation(Operation):
 
 
 class WordToVectorOperation(Operation):
+    '''
+    Word2Vec is an Estimator which takes sequences of words that
+    represents documents and trains a Word2VecModel. The model is
+    a Map(String, Vector) essentially, which maps each word to an
+    unique fix-sized vector. The Word2VecModel transforms each
+    documents into a vector using the average of all words in the
+    document, which aims to other computations of documents such
+    as similarity calculation consequencely.
+    '''
     TYPE_PARAM = 'type'
     ATTRIBUTES_PARAM = 'attributes'
     ALIAS_PARAM = 'alias'
@@ -189,7 +211,11 @@ class WordToVectorOperation(Operation):
 
 
 class GenerateNGramsOperation(Operation):
-    """ Generates N-Grams from word vectors """
+    """ Generates N-Grams from word vectors
+    An n-gram is a sequence of n tokens (typically words) for some
+    integer n. The NGram class can be used to transform input features
+    into n-grams.
+    """
     ATTRIBUTES_PARAM = 'attributes'
     ALIAS_PARAM = 'alias'
     N_PARAM = 'n'
