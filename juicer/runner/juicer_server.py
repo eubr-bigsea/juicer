@@ -3,15 +3,21 @@
 "
 """
 import argparse
+import errno
 import json
 import logging
 import multiprocessing
+import signal
 import subprocess
 import sys
+import time
+import urlparse
 
 import os
+import redis
 import yaml
 from juicer.exceptions import JuicerException
+from juicer.runner.control import StateControlRedis
 
 logging.basicConfig(
     format=('[%(levelname)s] %(asctime)s,%(msecs)05.1f '
@@ -21,157 +27,40 @@ log = logging.getLogger()
 log.setLevel(logging.DEBUG)
 
 
-class StateControlRedis:
-    """
-    Controls state of Workflows, Minions and Jobs in Lemonade.
-    For minions, it is important to know if they are running or not and which
-    state they keep.
-    For workflows, it is important to avoid running them twice.
-    Job queue is used to control which commands minions should execute.
-    Finally, job output queues contains messages from minions to be sent to
-    user interface.
-    """
-    START_QUEUE_NAME = 'queue_start'
-
-    def __init__(self, redis_conn):
-        self.redis_conn = redis_conn
-
-    def pop_start_queue(self, block=True):
-        if block:
-            result = self.redis_conn.blpop(self.START_QUEUE_NAME)[1]
-        else:
-            result = self.redis_conn.lpop(self.START_QUEUE_NAME)
-        return result
-
-    def push_start_queue(self, data):
-        self.redis_conn.rpush(self.START_QUEUE_NAME, data)
-
-    def pop_job_queue(self, job_id, block=True):
-        key = 'queue_job:{}'.format(job_id)
-        if block:
-            result = self.redis_conn.blpop(key)[1]
-        else:
-            result = self.redis_conn.lpop(key)
-        return result
-
-    def push_job_queue(self, job_id, data):
-        key = 'queue_job:{}'.format(job_id)
-        self.redis_conn.rpush(key, data)
-
-    def get_job_queue_size(self, job_id):
-        key = 'queue_job:{}'.format(job_id)
-        return self.redis_conn.llen(key)
-
-    def get_workflow_status(self, workflow_id):
-        key = 'record_workflow:{}'.format(workflow_id)
-        return self.redis_conn.hget(key, 'status')
-
-    def set_workflow_status(self, workflow_id, status):
-        key = 'record_workflow:{}'.format(workflow_id)
-        self.redis_conn.hset(key, 'status', status)
-
-    def get_workflow_data(self, workflow_id):
-        key = 'record_workflow:{}'.format(workflow_id)
-        return self.redis_conn.hgetall(key)
-
-    def get_minion_status(self, job_id):
-        key = 'key_minion_job:{}'.format(job_id)
-        return self.redis_conn.get(key)
-
-    def set_minion_status(self, job_id, status, ex=120, nx=True):
-        key = 'key_minion_job:{}'.format(job_id)
-        return self.redis_conn.set(key, status, ex=ex, nx=nx)
-
-    def pop_job_output_queue(self, job_id, block=True):
-        key = 'queue_output_job:{job_id}'.format(job_id=job_id)
-        if block:
-            result = self.redis_conn.blpop(key)[1]
-        else:
-            result = self.redis_conn.lpop(key)
-        return result
-
-    def push_job_output_queue(self, job_id, data):
-        key = 'queue_output_job:{job_id}'.format(job_id=job_id)
-        self.redis_conn.rpush(key, data)
-
-    def get_job_output_queue_size(self, job_id):
-        key = 'queue_output_job:{job_id}'.format(job_id=job_id)
-        return self.redis_conn.llen(key)
-
-
 class JuicerServer:
     """
     Server
     """
     STARTED = 'STARTED'
     LOADED = 'LOADED'
+    HELP_UNHANDLED_EXCEPTION = 1
+    HELP_STATE_LOST = 2
 
-    def __init__(self, config):
-        self.queue = multiprocessing.Queue()
-        self.consumer_process = None
-        self.executor_process = None
+    def __init__(self, config, minion_executable, log_dir='/tmp',
+                 config_file_path=None):
+        self.minion_support_process = None
         self.start_process = None
         self.config = config
+        self.config_file_path = config_file_path
+        self.minion_executable = minion_executable
+        self.log_dir = log_dir
 
-    # def consume(self):
-    #     filename = '/mnt/spark/teste.py'
-    #     cached_stamp = os.stat(filename).st_mtime
-    #     p = multiprocessing.current_process()
-    #     # print 'Starting:', p.name, p.pid
-    #     sys.stdout.flush()
-    #     while True:
-    #         stamp = os.stat(filename).st_mtime
-    #         if stamp != cached_stamp:
-    #             cached_stamp = stamp
-    #             time.sleep(2)
-    #             self.queue.put(filename)
-    #     time.sleep(2)
-    #     # print 'Exiting :', p.name, p.pid
-    #     sys.stdout.flush()
+    def start(self):
+        log.info('Starting master process. Reading "start" queue ')
+        minions_executable = os.path.abspath(
+            os.path.join(os.path.dirname(__file__), 'minion.py'))
+        log_dir = self.config['juicer'].get('log', {}).get('path', '/tmp')
 
-    # def execute(self):
-    #     p = multiprocessing.current_process()
-    #     # print 'Starting:', p.name, p.pid
-    #     sys.stdout.flush()
-    #     modules = {}
-    #     while True:
-    #         filepath = self.queue.get()
-    #         path = os.path.dirname(filepath)
-    #         name = os.path.basename(filepath)
-    #
-    #         m = modules.get(filepath)
-    #         if m is None:
-    #             if path not in sys.path:
-    #                 sys.path.append(path)
-    #             print 'loading'
-    #             m = importlib.import_module(name.split('.')[0])
-    #             modules[filepath] = m
-    #         else:
-    #             print 'Reloading'
-    #             reload(m)
-    #
-    #         print 'Starting processing'
-    #         m.main()
-    #         print 'Finished processing'
-    #
-    #     print 'Exiting :', p.name, p.pid
-    #     sys.stdout.flush()
+        parsed_url = urlparse.urlparse(
+            self.config['juicer']['servers']['redis_url'])
+        redis_conn = redis.StrictRedis(host=parsed_url.hostname,
+                                       port=parsed_url.port)
 
-    # def start(self):
-    #     log.info('Starting master process. Reading "start" queue ')
-    #     parsed_url = urlparse.urlparse(
-    #         self.config['juicer']['servers']['redis_url'])
-    #     redis_con = redis.StrictRedis(host=parsed_url.hostname,
-    #                                   port=parsed_url.port)
-    #     minions_executable = os.path.abspath(
-    #         os.path.join(os.path.dirname(__file__), 'minion.py'))
-    #     log_dir = self.config['juicer'].get('log', {}).get('path', '/tmp')
-    #
-    #     while True:
-    #         self.read_start_queue(log_dir, minions_executable, redis_con)
+        while True:
+            self.read_start_queue(redis_conn)
 
     # noinspection PyMethodMayBeStatic
-    def read_start_queue(self, log_dir, minions_executable, redis_conn):
+    def read_start_queue(self, redis_conn):
 
         state_control = StateControlRedis(redis_conn)
         msg = state_control.pop_start_queue()
@@ -182,8 +71,6 @@ class JuicerServer:
             if job_id is None:
                 raise ValueError('Job id not informed')
             minion_id = 'minion_{}'.format(job_id)
-            stdout_log = os.path.join(log_dir, minion_id + '_out.log')
-            stderr_log = os.path.join(log_dir, minion_id + '_err.log')
 
             if state_control.get_workflow_status(
                     item['workflow_id']) == JuicerServer.STARTED:
@@ -194,15 +81,7 @@ class JuicerServer:
             if minion_info:
                 log.debug('Minion %s is running.', minion_id)
             else:
-                log.debug('Forking minion %s.', minion_id)
-                # Expires in 120 seconds and sets only if it doesn't exist
-                state_control.set_minion_status(
-                    job_id, self.STARTED, ex=120, nx=True)
-                open_opts = ['nohup', sys.executable, minions_executable,
-                             '-j', job_id]
-                p = subprocess.Popen(
-                    open_opts, stdout=open(stdout_log, 'a'),
-                    stderr=open(stderr_log, 'a'))  # , preexec_fn=os.setpgrp)
+                self._start_minion(job_id, state_control)
 
             # requeue message to minion processing
             state_control.push_job_queue(job_id, msg)
@@ -224,19 +103,70 @@ class JuicerServer:
                     job_id, json.dumps({'code': 500, 'message': ex.message}))
                 # raise
 
+    def _start_minion(self, job_id, state_control, restart=False):
+
+        minion_id = 'minion_{}'.format(job_id)
+        stdout_log = os.path.join(self.log_dir, minion_id + '_out.log')
+        stderr_log = os.path.join(self.log_dir, minion_id + '_err.log')
+
+        log.debug('Forking minion %s.', minion_id)
+
+        # Expires in 30 seconds and sets only if it doesn't exist
+        state_control.set_minion_status(job_id, self.STARTED, ex=30,
+                                        nx=restart)
+        open_opts = ['nohup', sys.executable, self.minion_executable,
+                     '-j', job_id, '-c', self.config_file_path]
+        subprocess.Popen(open_opts, stdout=open(stdout_log, 'a'),
+                         stderr=open(stderr_log, 'a'))
+
+    def minion_support(self):
+        parsed_url = urlparse.urlparse(
+            self.config['juicer']['servers']['redis_url'])
+        redis_conn = redis.StrictRedis(host=parsed_url.hostname,
+                                       port=parsed_url.port)
+        while True:
+            self.read_minion_support_queue(redis_conn)
+
+    def read_minion_support_queue(self, redis_conn):
+        try:
+            state_control = StateControlRedis(redis_conn)
+            ticket = json.loads(state_control.pop_master_queue())
+            job_id = ticket.get('job_id')
+            reason = ticket.get('reason')
+            log.info("Master received a ticket for job %s", job_id)
+            if reason == self.HELP_UNHANDLED_EXCEPTION:
+                # Let's kill the minion and start another
+                minion_info = json.loads(
+                    state_control.get_minion_status(job_id))
+                while True:
+                    try:
+                        os.kill(minion_info['pid'], signal.SIGKILL)
+                    except OSError as err:
+                        if err.errno == errno.ESRCH:
+                            break
+                    time.sleep(.5)
+
+                self._start_minion(job_id, state_control)
+
+            elif reason == self.HELP_STATE_LOST:
+                pass
+            else:
+                log.warn("Unknown help reason %s", reason)
+
+        except Exception as ex:
+            log.error(ex)
+
     def process(self):
-        # self.consumer_process = multiprocessing.Process(name="consumer",
-        #                                                 target=self.consume)
-        # self.executor_process = multiprocessing.Process(name="executor",
-        #                                                 target=self.execute)
-        # self.consumer_process.daemon = False
-        # self.executor_process.daemon = False
-        # self.consumer_process.start()
-        # self.executor_process.start()
         self.start_process = multiprocessing.Process(
-            name="master", target=self.read_start_queue)
+            name="master", target=self.start)
         self.start_process.daemon = False
+
+        self.minion_support_process = multiprocessing.Process(
+            name="help_desk", target=self.minion_support)
+        self.minion_support_process.daemon = False
+
         self.start_process.start()
+        self.minion_support_process.start()
 
 
 if __name__ == '__main__':
@@ -249,5 +179,5 @@ if __name__ == '__main__':
         juicer_config = yaml.load(config_file.read())
 
     log.info('Starting Juicer Server')
-    server = JuicerServer(juicer_config)
+    server = JuicerServer(juicer_config, args.config)
     server.process()

@@ -12,11 +12,10 @@ import juicer.spark.ml_operation
 import juicer.spark.statistic_operation
 import juicer.spark.text_operation
 import juicer.spark.ws_operation
-import os
-from juicer.jinja2_custom import AutoPep8Extension
-from juicer.spark import operation
-from juicer.util import sort_topologically
 import networkx as nx
+import os
+from juicer import operation
+from juicer.util.jinja2_custom import AutoPep8Extension
 
 
 class DependencyController:

@@ -1,14 +1,11 @@
 # -*- coding: utf-8 -*-
 import ast
-import json
 import pprint
 from textwrap import dedent
 
-import sys
-
 from juicer.include.metadata import MetadataGet
+from juicer.operation import Operation
 from juicer.service import limonero_service
-from juicer.spark.operation import Operation
 
 
 class DataReader(Operation):

@@ -1,10 +1,10 @@
 # coding=utf-8
 import json
 import logging
+from itertools import izip_longest
 from textwrap import dedent
 
-from juicer.spark.operation import Operation, ReportOperation
-from itertools import izip_longest
+from juicer.operation import Operation, ReportOperation
 
 log = logging.getLogger()
 log.setLevel(logging.DEBUG)

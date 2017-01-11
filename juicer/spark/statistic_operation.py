@@ -1,6 +1,6 @@
 from textwrap import dedent
 
-from juicer.spark.operation import Operation
+from juicer.operation import Operation
 
 
 class PearsonCorrelation(Operation):
