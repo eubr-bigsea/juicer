@@ -10,8 +10,7 @@ class TokenizerOperation(Operation):
     '''
     Tokenization is the process of taking text (such as a sentence) and
     breaking it into individual terms (usually words). A simple Tokenizer
-    class provides this functionality. The example below shows how to
-    split sentences into sequences of words.
+    class provides this functionality.
     '''
 
     TYPE_PARAM = 'type'
@@ -74,6 +73,7 @@ class RemoveStopWordsOperation(Operation):
     ALIAS_PARAM = 'alias'
     STOP_WORD_LIST_PARAM = 'stop_word_list'
     STOP_WORD_ATTRIBUTE_PARAM = 'stop_word_attribute'
+    STOP_WORD_LANGUAGE = 'stop_word_language'
 
     def __init__(self, parameters, inputs, outputs, named_inputs,
                  named_outputs):
