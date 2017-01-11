@@ -21,13 +21,12 @@ class PearsonCorrelation(Operation):
                 "Parameter '{}' must be informed for task {}".format(
                     self.ATTRIBUTES_PARAM, self.__class__))
 
+        self.has_code = len(self.inputs) == 1
+
     def generate_code(self):
-        if len(self.inputs) == 1:
-            output = self.outputs[0] if len(self.outputs) else '{}_tmp'.format(
-                self.inputs[0])
-            code = """{} = {}.corr('{}', '{}')""".format(
-                output, self.inputs[0], self.attributes[0], self.attributes[1])
-        else:
-            code = ''
+        output = self.outputs[0] if len(self.outputs) else '{}_tmp'.format(
+            self.inputs[0])
+        code = """{} = {}.corr('{}', '{}')""".format(
+            output, self.inputs[0], self.attributes[0], self.attributes[1])
 
         return dedent(code)
