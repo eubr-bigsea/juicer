@@ -29,4 +29,4 @@ def get_storage_info(base_url, token, storage_id):
 
 
 def get_data_source_info(base_url, token, data_source_id):
-    return query_limonero(base_url, 'datasources', token, data_source_id)
+    return query_limonero(base_url, '', token, data_source_id)

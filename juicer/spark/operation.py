@@ -51,7 +51,7 @@ class Operation:
                 result = '{}_tmp_{}'.format(self.inputs[0],
                                             self.parameters['task']['order'])
         else:
-            #raise ValueError(
+            # raise ValueError(
             #    "Operation has neither input nor output: {}".format(
             #        self.__class__))
             pass
@@ -60,55 +60,21 @@ class Operation:
     def get_data_out_names(self, sep=','):
         return self.get_output_names(sep)
 
-    def test_null_operation(self):
-        """
-        Test if an operation is null, i.e, does nothing.
-        An operation does nothing if it has zero inputs or outputs.
-        """
-        return any([len(self.outputs) == 0, len(self.inputs) == 0])
 
-
+# noinspection PyAbstractClass
 class ReportOperation(Operation):
     def __init__(self, parameters, inputs, outputs, named_inputs,
                  named_outputs):
         Operation.__init__(self, parameters, inputs, outputs, named_inputs,
                            named_outputs)
 
-    def generate_code(self):
-        raise NotImplementedError("Method generate_code should be implemented "
-                                  "in {} subclass".format(self.__class__))
 
-
-class DatetimeToBins(Operation):
-    """
-    """
-
-    def __init__(self, parameters, inputs, outputs, named_inputs,
-                 named_outputs):
-        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
-                           named_outputs)
-        self.target_column = parameters['target_column']
-        self.new_column = parameters['new_column']
-        self.group_size = parameters['group_size']
-
-    def generate_code(self):
-        code = '''
-            from bins import *
-            {} = datetime_to_bins({}, {}, '{}', '{}')
-            '''.format(self.outputs[0], self.inputs[0], self.group_size,
-                       self.target_column, self.new_column)
-        return dedent(code)
-
-
+# noinspection PyAbstractClass
 class NoOp(Operation):
     """ Null operation """
 
-    def generate_code(self):
-        pass
-
     def __init__(self, parameters, inputs, outputs, named_inputs,
                  named_outputs):
         Operation.__init__(self, parameters, inputs, outputs, named_inputs,
                            named_outputs)
-        self.parameters = parameters
         self.has_code = False

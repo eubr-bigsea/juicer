@@ -1,10 +1,7 @@
 # -*- coding: utf-8 -*-
 import ast
-import json
 import pprint
 from textwrap import dedent
-
-import sys
 
 from juicer.include.metadata import MetadataGet
 from juicer.service import limonero_service
@@ -35,7 +32,6 @@ class DataReader(Operation):
         "DOUBLE": 'DoubleType',
         "DATETIME": 'TimestampType',
         "CHARACTER": 'StringType',
-        "FLOAT": 'DoubleType',
     }
     SEPARATORS = {
         '{tab}': '\\t'
@@ -59,7 +55,12 @@ class DataReader(Operation):
                     self.NULL_VALUES_PARAM, '').split(",")]
 
                 metadata_obj = MetadataGet('123456')
-                self.metadata = metadata_obj.get_metadata(self.database_id)
+
+                # @FIXME Parameter
+                url = 'http://beta.ctweb.inweb.org.br/limonero/datasources'
+                token = '123456'
+                self.metadata = limonero_service.get_data_source_info(
+                    url, token, self.database_id)
             else:
                 raise ValueError(
                     "Parameter '{}' must be informed for task {}".format(
@@ -297,7 +298,7 @@ class ReadCSV(Operation):
             self.outputs[0], self.url, self.header, self.separator)
         return dedent(code)
 
- 
+
 class ChangeAttribute(Operation):
     ATTRIBUTES_PARAM = 'attributes'
     IS_FEATURE_PARAM = 'is_feature'
@@ -380,5 +381,16 @@ class ChangeAttribute(Operation):
                       "    {0}.schema.fields[inx_{0}[0]]"
                       ".metadata['{2}'] = {3}".format(output, attr_name,
                                                       meta_name, value))
-    
-    
+
+
+class ExternalInputOperation(Operation):
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
+                           named_outputs)
+
+        self.has_code = len(self.output) > 0
+
+    def generate_code(self):
+        code = """{out} = None""".format(out=self.output)
+        return code

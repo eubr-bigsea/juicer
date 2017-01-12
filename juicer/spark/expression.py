@@ -1,46 +1,38 @@
 import sys
 
-
-def group(lst, n):
-    """group([0,3,4,10,2,3], 2) => [(0,3), (4,10), (2,3)]
-
-    Group a list into consecutive n-tuples. Incomplete tuples are
-    discarded e.g.
-
-    >>> group(range(10), 3)
-    [(0, 1, 2), (3, 4, 5), (6, 7, 8)]
-    """
-    return zip(*[lst[i::n] for i in range(n)])
+from juicer.util import group
 
 
 class Expression:
-    def __init__(self, json_code):
+    def __init__(self, json_code, params):
         self.code = json_code
         self.functions = {}
         self.build_functions_dict()
-        self.parsed_expression = self.parse(json_code)
+        self.parsed_expression = self.parse(json_code, params)
 
-    def parse(self, tree):
-
+    def parse(self, tree, params):
         # print "\n\n",tree,"\n\n"
         # Binary Expression parsing
         if tree['type'] == 'BinaryExpression':
-            return "({} {} {})".format(self.parse(tree['left']),
-                                       tree['operator'],
-                                       self.parse(tree['right']))
+            return "{} {} {}".format(
+                self.parse(tree['left'], params), tree['operator'],
+                self.parse(tree['right'], params))
 
         # Literal parsing
         elif tree['type'] == 'Literal':
-            return tree['raw']
+            return tree['value']
             # return str("'" + str(tree['value']) + "'")
 
         # Expression parsing
         elif tree['type'] == 'CallExpression':
-            return self.functions[tree['callee']['name']](tree)
+            return self.functions[tree['callee']['name']](tree, params)
 
         # Identifier parsing
         elif tree['type'] == 'Identifier':
-            return "col('{}')".format(tree['name'])
+            if 'input' in params:
+                return "{}.{}".format(params['input'], tree['name'])
+            else:
+                return "col('{}')".format(tree['name'])
 
         # Unary Expression parsing
         elif tree['type'] == 'UnaryExpression':
@@ -59,7 +51,7 @@ class Expression:
         else:
             raise ValueError("Unknown type: {}".format(tree['type']))
 
-    def get_window_function(self, spec):
+    def get_window_function(self, spec, params):
         """
         Window funciton is slightly different from the Spark counterpart: the
         last parameter indicates if it is using the start or end field in
@@ -72,13 +64,12 @@ class Expression:
         bins_size = '{} seconds'.format(arguments[-2])
 
         # COLOCAR A PALAVRA SECONDS DEPOIS DO PARAMETRO SEGUNDOS
-        result = """window(from_unixtime(col({})/1e6), '{}').{}.cast('timestamp')""".format(
-#        result = """window({}, '{}').{}.cast('timestamp')""".format(
-
+        result = ("""window(from_unixtime(col({})/1e6), '{}')
+                    .{}.cast('timestamp')""").format(
             ', '.join(arguments[:-2]), bins_size, field_name)
         return result
 
-    def get_when_function(self, spec):
+    def get_when_function(self, spec, params):
         """
         Map when() function call in Lemonade into when() call in Spark.
         """
@@ -91,25 +82,30 @@ class Expression:
 
         return '.'.join(code)
 
-    def get_function_call(self, spec):
+    def get_function_call(self, spec, params):
         """ Deprecated: use get_function_call_wrap_col instead """
         arguments = ', '.join([self.parse(x) for x in spec['arguments']])
         result = '{}({})'.format(spec['callee']['name'], arguments)
         return result
 
-    def get_function_call_wrap_col(self, spec):
+    def get_function_call_wrap_col(self, spec, params):
         """
         Wrap column name with col() function call, if such call is not present.
         """
         callee = spec['arguments'][0].get('callee', {})
         # Evaluates if column name is wrapped in a col() function call
-        arguments = ', '.join([self.parse(x) for x in spec['arguments']])
-        if any([all([callee.get('type') == 'Identifier',
-                    callee.get('name') == 'col']),
-               callee.get('type') == 'Identifier']):
-            result = '{}({})'.format(spec['callee']['name'], arguments)
+        arguments = ', '.join(
+            [self.parse(x, params) for x in spec['arguments']])
+        if 'input' not in params:
+            if any([all([callee.get('type') == 'Identifier',
+                         callee.get('name') == 'col']),
+                    callee.get('type') == 'Identifier']):
+                result = '{}({})'.format(spec['callee']['name'], arguments)
+            else:
+                result = '{}(col({}))'.format(spec['callee']['name'], arguments)
         else:
-            result = '{}(col({}))'.format(spec['callee']['name'], arguments)
+            result = '{}({}.{})'.format(spec['callee']['name'], params['input'],
+                                        arguments)
         return result
 
     def build_functions_dict(self):
