@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import collections
 import json
 
 import sys
@@ -10,7 +11,7 @@ import errno
 import mock
 from juicer.runner.juicer_server import JuicerServer
 from juicer.runner.control import StateControlRedis
-from mockredis.client import mock_strict_redis_client
+from mockredis.client import mock_strict_redis_client, MockRedis
 
 
 def test_runner_read_start_queue_success():
@@ -222,3 +223,60 @@ def test_runner_master_queue_client_shutdown_success():
                 mocked_kill.assert_called_once_with(status['pid'],
                                                     signal.SIGKILL)
 
+
+def test_runner_master_watch_minion_process_success():
+    config = {
+        'juicer': {
+            'servers': {
+                'redis_url': "nonexisting.mock"
+            }
+        }
+    }
+
+    class PubSub:
+        def __init__(self, m_redis):
+            self.mocked_redis = m_redis
+            self.channel = ""
+
+        def psubscribe(self, channel):
+            self.channel = channel
+
+        def listen(self):
+            for v in self.mocked_redis.pubsub_channels[self.channel]:
+                yield v
+
+    class CustomMockRedis(MockRedis):
+        def __init__(self, strict=False, clock=None, load_lua_dependencies=True,
+                     blocking_timeout=1000, blocking_sleep_interval=0.01,
+                     **kwargs):
+            super(CustomMockRedis, self).__init__(strict, clock,
+                                                  load_lua_dependencies,
+                                                  blocking_timeout,
+                                                  blocking_sleep_interval,
+                                                  **kwargs)
+            self.pubsub = lambda: PubSub(self)
+            self.pubsub_channels = collections.defaultdict(list)
+
+        def publish(self, channel, message):
+            self.pubsub_channels[channel].append(message)
+
+        def script_kill(self):
+            pass
+
+    with mock.patch('redis.StrictRedis',
+                    CustomMockRedis) as mocked_redis:
+        server = JuicerServer(config, 'faked_minions.py')
+        mocked_redis_conn = mocked_redis()
+
+        mocked_redis_conn.pubsub_channels['__keyevent@*__:expired'].append(
+            {'pattern': None, 'type': 'psubscribe',
+             'channel': '__keyevent@*__:expired', 'data': 1L}
+        )
+        mocked_redis_conn.pubsub_channels['__keyevent@*__:expired'].append(
+            {'pattern': '__keyevent@*__:expired', 'type': 'pmessage',
+             'channel': '__keyevent@0__:expired', 'data': 'a'}
+        )
+        # Configure minion
+
+        # Start of testing
+        server.watch_minion_process(mocked_redis_conn)

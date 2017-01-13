@@ -38,8 +38,11 @@ class JuicerServer:
 
     def __init__(self, config, minion_executable, log_dir='/tmp',
                  config_file_path=None):
+
         self.minion_support_process = None
         self.start_process = None
+        self.minion_status_process = None
+
         self.config = config
         self.config_file_path = config_file_path
         self.minion_executable = minion_executable
@@ -156,6 +159,21 @@ class JuicerServer:
         except Exception as ex:
             log.error(ex)
 
+    def watch_minion_status(self):
+        parsed_url = urlparse.urlparse(
+            self.config['juicer']['servers']['redis_url'])
+        redis_conn = redis.StrictRedis(host=parsed_url.hostname,
+                                       port=parsed_url.port)
+        JuicerServer.watch_minion_process(redis_conn)
+
+    @staticmethod
+    def watch_minion_process(redis_conn):
+        pubsub = redis_conn.pubsub()
+        pubsub.psubscribe('__keyevent@*__:expired')
+        for msg in pubsub.listen():
+            if msg.get('type') == 'pmessage' and 'minion' in msg.get('data'):
+                log.warn('Minion {id} stoped'.format(id=msg.get('data')))
+
     def process(self):
         self.start_process = multiprocessing.Process(
             name="master", target=self.start)
@@ -164,6 +182,10 @@ class JuicerServer:
         self.minion_support_process = multiprocessing.Process(
             name="help_desk", target=self.minion_support)
         self.minion_support_process.daemon = False
+
+        self.minion_status_process = multiprocessing.Process(
+            name="minion_status", target=self.watch_minion_status)
+        self.minion_status_process.daemon = False
 
         self.start_process.start()
         self.minion_support_process.start()
