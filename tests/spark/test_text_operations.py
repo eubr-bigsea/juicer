@@ -52,7 +52,6 @@ def test_tokenizer_operation_type_simple_success():
 
     assert result, msg + debug_ast(code, expected_code)
 
-# @FIXME
 def test_tokenizer_operation_type_regexp_success():
     params = {
         TokenizerOperation.TYPE_PARAM: 'regex',
@@ -69,35 +68,39 @@ def test_tokenizer_operation_type_regexp_success():
 
     code = instance.generate_code()
 
+    import pdb
     expected_code = dedent("""
             col_alias = {3}
-            pattern = {4}
+            pattern_exp = r'{4}'
             min_token_length = {5}
 
-            regextokenizers = [RegexTokenizer(inputCol=col, outputCol=alias)
-                                for col, alias in col_alias], pattern=pattern,
-                                 minTokenLength=min_token_length)
+            regextokenizers = [RegexTokenizer(inputCol=col, outputCol=alias,
+                                pattern=pattern_exp,
+                                minTokenLength=min_token_length)
+                                for col, alias in col_alias]
 
             # Use Pipeline to process all attributes once
             pipeline = Pipeline(stages=regextokenizers)
 
             {2} = pipeline.fit({1}).transform({1})
-        """.format(params[TokenizerOperation.ATTRIBUTES_PARAM], inputs, outputs,
+        """.format(params[TokenizerOperation.TYPE_PARAM], inputs[0], outputs[0],
                    json.dumps(zip(params[TokenizerOperation.ATTRIBUTES_PARAM],
                                   params[TokenizerOperation.ALIAS_PARAM])),
                    params[TokenizerOperation.EXPRESSION_PARAM],
                    params[TokenizerOperation.MINIMUM_SIZE]))
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
+
     assert result, msg + debug_ast(code, expected_code)
 
 
 def test_remove_stopwords_operations_2_params_success():
     params = {
-        RemoveStopWordsOperation.ATTRIBUTES_PARAM: 'text',
-        RemoveStopWordsOperation.ALIAS_PARAM: 'col_alias',
+        RemoveStopWordsOperation.ATTRIBUTES_PARAM: ['text'],
+        RemoveStopWordsOperation.ALIAS_PARAM: 'c',
         RemoveStopWordsOperation.STOP_WORD_LIST_PARAM: 'df_2',
-        RemoveStopWordsOperation.STOP_WORD_ATTRIBUTE_PARAM: 'stop_word'
+        RemoveStopWordsOperation.STOP_WORD_ATTRIBUTE_PARAM: 'stop_word',
+        RemoveStopWordsOperation.STOP_WORD_CASE_SENSITIVE: 'False'
     }
     # Input data, and StopWords list
     inputs = ['df_1', 'df_2']
@@ -114,27 +117,32 @@ def test_remove_stopwords_operations_2_params_success():
 
     expected_code += dedent("""
         col_alias = {3}
+        case_sensitive = {4}
         removers = [StopWordsRemover(inputCol=col, outputCol=alias,
-                    stopWords=sw)for col, alias in col_alias]
+                    stopWords=sw, caseSensitive=case_sensitive)
+                    for col, alias in col_alias]
 
         # Use Pipeline to process all attributes once
         pipeline = Pipeline(stages=removers)
         {2} = pipeline.fit({1}).transform({1})
         """).format(params[RemoveStopWordsOperation.ATTRIBUTES_PARAM], inputs[0],
-                   outputs,
+                   outputs[0],
                    json.dumps(zip(params[RemoveStopWordsOperation.ATTRIBUTES_PARAM],
-                                params[RemoveStopWordsOperation.ALIAS_PARAM]))
+                                params[RemoveStopWordsOperation.ALIAS_PARAM])),
+                   params[RemoveStopWordsOperation.STOP_WORD_CASE_SENSITIVE]
                    )
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
-    assert result, msg
+    assert result, msg + debug_ast(code, expected_code)
 
 
 def test_remove_stopwords_operations_1_params_success():
     params = {
-        RemoveStopWordsOperation.ATTRIBUTES_PARAM: 'text',
-        RemoveStopWordsOperation.ALIAS_PARAM: 'col_alias',
-        RemoveStopWordsOperation.STOP_WORD_LANGUAGE: 'english'
+        RemoveStopWordsOperation.ATTRIBUTES_PARAM: ['text'],
+        RemoveStopWordsOperation.ALIAS_PARAM: 'c',
+        RemoveStopWordsOperation.STOP_WORD_LIST_PARAM: 'stop_word_list',
+        RemoveStopWordsOperation.STOP_WORD_LANGUAGE: 'english',
+        RemoveStopWordsOperation.STOP_WORD_CASE_SENSITIVE: 'False'
     }
     inputs = ['df_1']
     outputs = ['output_1']
@@ -145,31 +153,30 @@ def test_remove_stopwords_operations_1_params_success():
 
     code = instance.generate_code()
 
-    expected_code = "sw = StopWordsRemover.loadDefaultStopWords({})".format(
-        params[RemoveStopWordsOperation.STOP_WORD_LANGUAGE])
-    #
-    # if len(inputs) != 2:
-    #     expected_code = "sw = {}".format(json.dumps
-    # (params[RemoveStopWordsOperation.STOP_WORD_LIST_PARAM]))
-    # else:
-    #     expected_code = "sw = [stop[0].strip() for stop in {}.collect()]".
-    # format(named_inputs['stop words'])
+    if len(inputs) != 2:
+        expected_code = "sw = StopWordsRemover.loadDefaultStopWords({})".format(
+            params[RemoveStopWordsOperation.STOP_WORD_LANGUAGE])
 
     expected_code += dedent("""
         col_alias = {3}
+        case_sensitive = {4}
         removers = [StopWordsRemover(inputCol=col, outputCol=alias,
-                    stopWords=sw)for col, alias in col_alias]
+                    stopWords=sw, caseSensitive=case_sensitive)
+                    for col, alias in col_alias]
 
         # Use Pipeline to process all attributes once
         pipeline = Pipeline(stages=removers)
         {2} = pipeline.fit({1}).transform({1})
         """.format(params[RemoveStopWordsOperation.ATTRIBUTES_PARAM], inputs[0],
-                   outputs,
+                   outputs[0],
                    json.dumps(zip(params[RemoveStopWordsOperation.ATTRIBUTES_PARAM],
-                                params[RemoveStopWordsOperation.ALIAS_PARAM]))))
+                                params[RemoveStopWordsOperation.ALIAS_PARAM]))),
+                   params[RemoveStopWordsOperation.STOP_WORD_CASE_SENSITIVE])
+
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
-    assert result, msg
+
+    assert result, msg + debug_ast(code, expected_code)
 
 
 # Test WordToVectorOperation
@@ -229,7 +236,6 @@ def test_word_to_vector_word2vec_operation_success():
     instance = WordToVectorOperation(params, inputs, outputs,
                                      named_inputs={},
                                      named_outputs={})
-
     code = instance.generate_code()
     # @FIXME Implement
     # Word2Vec(self, vectorSize=100, minCount=5, numPartitions=1, stepSize=0.025,
@@ -250,7 +256,6 @@ def test_word_to_vector_word2vec_operation_success():
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
     assert result, msg
 
-
 # Test NGramOperations
 def test_n_gram_operations_success():
 
@@ -267,7 +272,6 @@ def test_n_gram_operations_success():
                                        named_outputs={})
 
     code = instance.generate_code()
-
 
     # NGram(self, n=2, inputCol=None, outputCol=None
     expected_code = dedent("""
@@ -286,9 +290,8 @@ def test_n_gram_operations_success():
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
     assert result, msg
 
-    # Test NGramOperations
 
-
+# Test NGramOperations
 def test_n_gram_operations_failure():
     params = {
         GenerateNGramsOperation.ATTRIBUTES_PARAM: 'text',

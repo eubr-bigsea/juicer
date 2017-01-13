@@ -35,6 +35,9 @@ class TokenizerOperation(Operation):
                     self.ATTRIBUTES_PARAM, self.__class__))
 
         self.type = self.parameters.get(self.TYPE_PARAM, self.TYPE_SIMPLE)
+        if self.type not in [self.TYPE_REGEX, self.TYPE_SIMPLE]:
+            raise ValueError(
+                'Invalid type for operation Tokenizer: {}'.format(self.type))
         self.alias = [alias.strip() for alias in
                       parameters.get(self.ALIAS_PARAM, '').split(',')]
         # Adjust alias in order to have the same number of aliases as attributes
@@ -48,17 +51,38 @@ class TokenizerOperation(Operation):
         self.has_code = len(self.inputs) > 0
 
     def generate_code(self):
-        code = """
-            col_alias = {3}
-            tokenizers = [Tokenizer(inputCol=col, outputCol=alias)
-                                for col, alias in col_alias]
+        if self.type == self.TYPE_SIMPLE:
 
-            # Use Pipeline to process all attributes once
-            pipeline = Pipeline(stages=tokenizers)
+            code = """
+                col_alias = {3}
+                tokenizers = [Tokenizer(inputCol=col, outputCol=alias)
+                                    for col, alias in col_alias]
 
-            {2} = pipeline.fit({1}).transform({1})
-        """.format(self.attributes, self.inputs[0], self.output,
-                   json.dumps(zip(self.attributes, self.alias)))
+                # Use Pipeline to process all attributes once
+                pipeline = Pipeline(stages=tokenizers)
+
+                {2} = pipeline.fit({1}).transform({1})
+            """.format(self.attributes, self.inputs[0], self.output,
+                       json.dumps(zip(self.attributes, self.alias)))
+
+        elif self.type == self.TYPE_REGEX:
+            code = """
+                col_alias = {3}
+                pattern_exp = r'{4}'
+                min_token_length = {5}
+                regextokenizers = [RegexTokenizer(inputCol=col, outputCol=alias,
+                                    pattern=pattern_exp,
+                                    minTokenLength=min_token_length)
+                                    for col, alias in col_alias]
+
+                # Use Pipeline to process all attributes once
+                pipeline = Pipeline(stages=regextokenizers)
+
+                {2} = pipeline.fit({1}).transform({1})
+            """.format(self.attributes, self.inputs[0], self.output,
+                       json.dumps(zip(self.attributes, self.alias)),
+                       self.expression_param,
+                       self.min_token_lenght)
 
         return dedent(code)
 
@@ -74,6 +98,7 @@ class RemoveStopWordsOperation(Operation):
     STOP_WORD_LIST_PARAM = 'stop_word_list'
     STOP_WORD_ATTRIBUTE_PARAM = 'stop_word_attribute'
     STOP_WORD_LANGUAGE = 'stop_word_language'
+    STOP_WORD_CASE_SENSITIVE = 'sw_case_sensitive'
 
     def __init__(self, parameters, inputs, outputs, named_inputs,
                  named_outputs):
@@ -101,25 +126,57 @@ class RemoveStopWordsOperation(Operation):
                       izip_longest(self.attributes,
                                    self.alias[:len(self.attributes)])]
 
+        self.stop_word_language = self.parameters.get(
+                                  self.STOP_WORD_LANGUAGE, 'english')
+
+        self.sw_case_sensitive = self.parameters.get(
+                                self.STOP_WORD_CASE_SENSITIVE, 'False')
+
         self.has_code = len(self.inputs) > 0
 
     def generate_code(self):
         if len(self.inputs) != 2:
-            code = "sw = {}".format(json.dumps(self.stop_word_list))
-        else:
-            code = "sw = [stop[0].strip() for stop in {}.collect()]".format(
-                self.named_inputs['stop words'])
+            """
+            Loads the default stop words for the given language.
+            Supported languages: danish, dutch, english, finnish,
+            french, german, hungarian, italian, norwegian, portuguese,
+            russian, spanish, swedish, turkish
+            """
+            #code = "sw = {}".format(json.dumps(self.stop_word_list))
+            code = "sw = StopWordsRemover.loadDefaultStopWords({})".format(
+                    self.stop_word_language)
 
-        code += dedent("""
+            code += dedent("""
             col_alias = {3}
+            case_sensitive = {4}
             removers = [StopWordsRemover(inputCol=col, outputCol=alias,
-                            stopWords=sw)for col, alias in col_alias]
+                        stopWords=sw,
+                        caseSensitive=case_sensitive)
+                        for col, alias in col_alias]
 
             # Use Pipeline to process all attributes once
             pipeline = Pipeline(stages=removers)
             {2} = pipeline.fit({1}).transform({1})
         """.format(self.attributes, self.named_inputs['input data'],
-                   self.output, json.dumps(zip(self.attributes, self.alias)), ))
+                   self.output, json.dumps(zip(self.attributes, self.alias)),
+                   self.sw_case_sensitive))
+        else:
+            code = "sw = [stop[0].strip() for stop in {}.collect()]".format(
+                self.named_inputs['stop words'])
+
+            code += dedent("""
+                col_alias = {3}
+                case_sensitive = {4}
+                removers = [StopWordsRemover(inputCol=col, outputCol=alias,
+                                stopWords=sw, caseSensitive=case_sensitive)
+                                for col, alias in col_alias]
+
+                # Use Pipeline to process all attributes once
+                pipeline = Pipeline(stages=removers)
+                {2} = pipeline.fit({1}).transform({1})
+            """.format(self.attributes, self.named_inputs['input data'],
+                       self.output, json.dumps(zip(self.attributes, self.alias)),
+                       self.sw_case_sensitive))
         return code
 
 
