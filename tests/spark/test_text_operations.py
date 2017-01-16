@@ -2,6 +2,7 @@
 import ast
 import json
 from textwrap import dedent
+import pdb
 
 import pytest
 # Import Operations to test
@@ -68,7 +69,7 @@ def test_tokenizer_operation_type_regexp_success():
 
     code = instance.generate_code()
 
-    import pdb
+
     expected_code = dedent("""
             col_alias = {3}
             pattern_exp = r'{4}'
@@ -170,13 +171,12 @@ def test_remove_stopwords_operations_1_params_success():
         """.format(params[RemoveStopWordsOperation.ATTRIBUTES_PARAM], inputs[0],
                    outputs[0],
                    json.dumps(zip(params[RemoveStopWordsOperation.ATTRIBUTES_PARAM],
-                                params[RemoveStopWordsOperation.ALIAS_PARAM]))),
-                   params[RemoveStopWordsOperation.STOP_WORD_CASE_SENSITIVE])
-
+                                params[RemoveStopWordsOperation.ALIAS_PARAM])),
+                   params[RemoveStopWordsOperation.STOP_WORD_CASE_SENSITIVE]))
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
 
-    assert result, msg + debug_ast(code, expected_code)
+    assert result, msg
 
 
 # Test WordToVectorOperation
@@ -185,19 +185,21 @@ def test_remove_stopwords_operations_1_params_success():
 def test_word_to_vector_count_operation_success():
     params = {
         WordToVectorOperation.TYPE_PARAM: 'count',
-        WordToVectorOperation.ATTRIBUTES_PARAM: 'text',
-        WordToVectorOperation.ALIAS_PARAM: 'col_alias',
-        WordToVectorOperation.VOCAB_SIZE_PARAM: '6',
-        WordToVectorOperation.MINIMUM_DF_PARAM: '5',
-        WordToVectorOperation.MINIMUM_TF_PARAM: '4'
+        WordToVectorOperation.ATTRIBUTES_PARAM: ['text'],
+        WordToVectorOperation.ALIAS_PARAM: 'c',
+        WordToVectorOperation.VOCAB_SIZE_PARAM: 6,
+        WordToVectorOperation.MINIMUM_DF_PARAM: 5,
+        WordToVectorOperation.MINIMUM_TF_PARAM: 4
     }
 
     inputs = ['df_1']
-    outputs = ['output_1']
+    outputs = ['output_1', 'df_vocab']
+
 
     instance = WordToVectorOperation(params, inputs, outputs,
                                      named_inputs={},
-                                     named_outputs={})
+                                     named_outputs={'output data' :'output_1',
+                                                    'vocabulary': 'df_vocab'})
 
     code = instance.generate_code()
 
@@ -206,62 +208,86 @@ def test_word_to_vector_count_operation_success():
                 vectorizers = [CountVectorizer(minTF={4}, minDF={5},
                                vocabSize={6}, binary=False, inputCol=col,
                                outputCol=alias) for col, alias in col_alias]
-                """.format(params[WordToVectorOperation.ATTRIBUTES_PARAM], inputs[0],
+                # Use Pipeline to process all attributes once
+                pipeline = Pipeline(stages=vectorizers)
+                model = pipeline.fit({1})
+                {2} = model.transform({1})
+
+                {7} = dict([(col_alias[i][1], v.vocabulary)
+                        for i, v in enumerate(model.stages)])
+                """
+               .format(params[WordToVectorOperation.ATTRIBUTES_PARAM],
+                        inputs[0],
                         outputs[0],
                         json.dumps(zip(params[WordToVectorOperation.ATTRIBUTES_PARAM],
                                         params[WordToVectorOperation.ALIAS_PARAM])),
                         params[WordToVectorOperation.MINIMUM_TF_PARAM],
                         params[WordToVectorOperation.MINIMUM_DF_PARAM],
-                        params[WordToVectorOperation.VOCAB_SIZE_PARAM]
+                        params[WordToVectorOperation.VOCAB_SIZE_PARAM],
+                        outputs[1]
+
                         ))
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
-    assert result, msg
+    assert result, msg + debug_ast(code, expected_code)
 
 
 # Check requirements
 def test_word_to_vector_word2vec_operation_success():
     params = {
         WordToVectorOperation.TYPE_PARAM: 'word2vec',
-        WordToVectorOperation.ATTRIBUTES_PARAM: 'text',
-        WordToVectorOperation.ALIAS_PARAM: 'col_alias',
-        WordToVectorOperation.VOCAB_SIZE_PARAM: '6',
-        WordToVectorOperation.MINIMUM_DF_PARAM: '5',
-        WordToVectorOperation.MINIMUM_TF_PARAM: '4'
+        WordToVectorOperation.ATTRIBUTES_PARAM: ['text'],
+        WordToVectorOperation.ALIAS_PARAM: 'c',
+        WordToVectorOperation.MINIMUM_COUNT: 3,
+        WordToVectorOperation.MINIMUM_VECTOR_SIZE: 0
     }
 
     inputs = ['df_1']
-    outputs = ['output_1']
+    outputs = ['output_1', 'df_vocab']
 
     instance = WordToVectorOperation(params, inputs, outputs,
                                      named_inputs={},
-                                     named_outputs={})
+                                     named_outputs={'output data' :'output_1',
+                                                     'vocabulary': 'df_vocab'})
     code = instance.generate_code()
-    # @FIXME Implement
-    # Word2Vec(self, vectorSize=100, minCount=5, numPartitions=1, stepSize=0.025,
-    # maxIter=1, seed=None,
-    # inputCol=None, outputCol=None, windowSize=5, maxSentenceLength=1000)[source]
+    # @FIXME Check
+
     expected_code = dedent("""
                 col_alias = {3}
-                vectorizers = [Word2Vec(vectorSize={4}, minCount=2,
+                vectorizers = [Word2Vec(vectorSize={4}, minCount={5},
+                            numPartitions=1,
+                            stepSize=0.025,
+                            maxIter=1,
+                            seed=None,
                             inputCol=col,
-                            outputCol=alias) for col, alias in col_alias]
+                            outputCol=alias
+                            ) for col, alias in col_alias]
+                # Use Pipeline to process all attributes once
+                pipeline = Pipeline(stages=vectorizers)
+                model = pipeline.fit({1})
+                {2} = model.transform({1})
 
-                """.format(params[WordToVectorOperation.ATTRIBUTES_PARAM], inputs[0],
-                        outputs,
+                {6} = dict([(col_alias[i][1], v.vocabulary)
+                        for i, v in enumerate(model.stages)])
+                """.format(params[WordToVectorOperation.ATTRIBUTES_PARAM],
+                        inputs[0],
+                        outputs[0],
                         json.dumps(zip(params[WordToVectorOperation.ATTRIBUTES_PARAM],
                                       params[WordToVectorOperation.ALIAS_PARAM])),
-                        params[WordToVectorOperation.VOCAB_SIZE_PARAM]))
+                        params[WordToVectorOperation.MINIMUM_VECTOR_SIZE],
+                        params[WordToVectorOperation.MINIMUM_COUNT],
+                        outputs[1]))
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
-    assert result, msg
+    assert result, msg + debug_ast(code, expected_code)
+
 
 # Test NGramOperations
 def test_n_gram_operations_success():
 
     params = {
-        GenerateNGramsOperation.ATTRIBUTES_PARAM: 'text',
-        GenerateNGramsOperation.ALIAS_PARAM: 'col_alias',
+        GenerateNGramsOperation.ATTRIBUTES_PARAM: ['text'],
+        GenerateNGramsOperation.ALIAS_PARAM: 'c',
         GenerateNGramsOperation.N_PARAM: '2'
     }
     inputs = ['df_1']
@@ -283,18 +309,23 @@ def test_n_gram_operations_success():
             model = pipeline.fit({1})
             {2} = model.transform({1})
             """.format(params[GenerateNGramsOperation.N_PARAM],
-                    inputs, outputs,
+                    inputs[0], outputs[0],
                     json.dumps(zip(params[GenerateNGramsOperation.ATTRIBUTES_PARAM],
                                     params[GenerateNGramsOperation.ALIAS_PARAM]))))
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
-    assert result, msg
+    assert result, msg + debug_ast(code, expected_code)
 
 
 # Test NGramOperations
 def test_n_gram_operations_failure():
     params = {
-        GenerateNGramsOperation.ATTRIBUTES_PARAM: 'text',
-        GenerateNGramsOperation.ALIAS_PARAM: 'col_alias',
-        GenerateNGramsOperation.N_PARAM: '-1'
+        GenerateNGramsOperation.ATTRIBUTES_PARAM: ['text'],
+        GenerateNGramsOperation.ALIAS_PARAM: 'c'
     }
+    inputs = ['df_1']
+    outputs = ['output_1']
+
+    with pytest.raises(ValueError):
+        GenerateNGramsOperation(params, inputs, outputs, named_inputs={},
+                          named_outputs={})

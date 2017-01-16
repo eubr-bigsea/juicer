@@ -197,6 +197,9 @@ class WordToVectorOperation(Operation):
     MINIMUM_DF_PARAM = 'minimum_df'
     MINIMUM_TF_PARAM = 'minimum_tf'
 
+    MINIMUM_VECTOR_SIZE = 'minimum_size'
+    MINIMUM_COUNT = 'minimum_count'
+
     TYPE_COUNT = 'count'
     TYPE_WORD2VEC = 'word2vec'
 
@@ -223,6 +226,10 @@ class WordToVectorOperation(Operation):
         self.vocab_size = parameters.get(self.VOCAB_SIZE_PARAM, 1000)
         self.minimum_df = parameters.get(self.MINIMUM_DF_PARAM, 5)
         self.minimum_tf = parameters.get(self.MINIMUM_TF_PARAM, 1)
+
+        self.minimum_size = parameters.get(self.MINIMUM_VECTOR_SIZE, 3)
+        self.minimum_count = parameters.get(self.MINIMUM_COUNT, 0)
+
         self.has_code = len(self.inputs) > 0
 
     def get_data_out_names(self, sep=','):
@@ -239,31 +246,60 @@ class WordToVectorOperation(Operation):
                 vectorizers = [CountVectorizer(minTF={4}, minDF={5},
                                vocabSize={6}, binary=False, inputCol=col,
                                outputCol=alias) for col, alias in col_alias]""")
-        elif self.type == self.TYPE_WORD2VEC:
-            # @FIXME Implement
-            code = ""
-        else:
-            raise ValueError(
-                "Invalid type '{}' for task {}".format(self.type,
-                                                       self.__class__))
 
-        code += dedent("""
+            code += dedent("""
             # Use Pipeline to process all attributes once
             pipeline = Pipeline(stages=vectorizers)
             model = pipeline.fit({1})
             {2} = model.transform({1})
             """)
-        vocab_out = self.named_outputs.get('vocabulary',
+
+            vocab_out = self.named_outputs.get('vocabulary',
                                            '{}_vocab'.format(self.inputs[0]))
-        code += dedent("""
-            {} = dict([(col_alias[i][1], v.vocabulary)
-                    for i, v in enumerate(model.stages)])""".format(vocab_out))
+            code += dedent("""
+                {} = dict([(col_alias[i][1], v.vocabulary)
+                        for i, v in enumerate(model.stages)])""".format(vocab_out))
 
-        code = code.format(self.attributes, self.inputs[0],
-                           self.named_outputs['output data'],
-                           json.dumps(zip(self.attributes, self.alias)),
-                           self.minimum_tf, self.minimum_df, self.vocab_size)
+            code = code.format(self.attributes, self.inputs[0],
+                               self.named_outputs['output data'],
+                               json.dumps(zip(self.attributes, self.alias)),
+                               self.minimum_tf, self.minimum_df, self.vocab_size)
 
+        elif self.type == self.TYPE_WORD2VEC:
+            # @FIXME Check
+            code = dedent("""
+                col_alias = {3}
+                vectorizers = [Word2Vec(vectorSize={4},
+                            minCount={5},
+                            numPartitions=1,
+                            stepSize=0.025,
+                            maxIter=1,
+                            seed=None,
+                            inputCol=col,
+                            outputCol=alias) for col, alias in col_alias]""")
+
+            code += dedent("""
+            # Use Pipeline to process all attributes once
+            pipeline = Pipeline(stages=vectorizers)
+            model = pipeline.fit({1})
+            {2} = model.transform({1})
+            """)
+
+            vocab_out = self.named_outputs.get('vocabulary',
+                                               '{}_vocab'.format(self.inputs[0]))
+            code += dedent("""
+                {} = dict([(col_alias[i][1], v.vocabulary)
+                        for i, v in enumerate(model.stages)])""".format(vocab_out))
+
+            code = code.format(self.attributes, self.inputs[0],
+                               self.named_outputs['output data'],
+                               json.dumps(zip(self.attributes, self.alias)),
+                               self.minimum_size, self.minimum_count)
+
+        else:
+            raise ValueError(
+                "Invalid type '{}' for task {}".format(self.type,
+                                                       self.__class__))
         return code
 
 
@@ -281,6 +317,13 @@ class GenerateNGramsOperation(Operation):
                  named_outputs):
         Operation.__init__(self, parameters, inputs, outputs, named_inputs,
                            named_outputs)
+        if self.N_PARAM in parameters:
+            self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
+        else:
+            raise ValueError(
+                "Parameter '{}' must be informed for task {}".format(
+                    self.N_PARAM, self.__class__))
+
         if self.ATTRIBUTES_PARAM in parameters:
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
         else:
@@ -305,9 +348,6 @@ class GenerateNGramsOperation(Operation):
             n_gramers = [NGram(n={n}, inputCol=col,
                            outputCol=alias) for col, alias in col_alias]
             # Use Pipeline to process all attributes once
-            print '=' * 20
-            {input}.show()
-            print '=' * 20
             pipeline = Pipeline(stages=n_gramers)
             model = pipeline.fit({input})
             {output} = model.transform({input})
