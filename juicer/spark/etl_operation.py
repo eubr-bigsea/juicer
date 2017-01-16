@@ -1,14 +1,11 @@
 # -*- coding: utf-8 -*-
-import ast
 import json
 import time
 from random import random
 from textwrap import dedent
 
-import sys
-
+from juicer.operation import Operation
 from juicer.spark.expression import Expression
-from juicer.spark.operation import Operation
 
 
 class RandomSplit(Operation):

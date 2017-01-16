@@ -1,4 +1,4 @@
-from juicer.spark.operation import Operation
+from juicer.operation import Operation
 
 
 class MultiplexerOperation(Operation):

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from io import StringIO
 
-from juicer.spark.operation import Operation
+from juicer.operation import Operation
 from juicer.spark.transpiler import SparkTranspiler
 from juicer.workflow.workflow import Workflow
 

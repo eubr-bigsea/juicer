@@ -3,7 +3,7 @@ import json
 from itertools import izip_longest
 from textwrap import dedent
 
-from juicer.spark.operation import Operation
+from juicer.operation import Operation
 
 
 class TokenizerOperation(Operation):

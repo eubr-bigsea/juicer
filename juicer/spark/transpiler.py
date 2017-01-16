@@ -12,11 +12,10 @@ import juicer.spark.ml_operation
 import juicer.spark.statistic_operation
 import juicer.spark.text_operation
 import juicer.spark.ws_operation
-import os
-from juicer.jinja2_custom import AutoPep8Extension
-from juicer.spark import operation
-from juicer.util import sort_topologically
 import networkx as nx
+import os
+from juicer import operation
+from juicer.util.jinja2_custom import AutoPep8Extension
 
 
 class DependencyController:
@@ -55,7 +54,7 @@ class RemoveTasksWhenMultiplexingVisitor(SparkTranspilerVisitor):
                     # Remove the left side of the tree
                     # left_side_flow = [f for f in workflow['flows']]
                     flow = graph.in_edges(task_id, data=True)
-                    pdb.set_trace()
+                    #pdb.set_trace()
                     # remove other side
                     pass
                 else:
@@ -144,30 +143,32 @@ class SparkTranspiler:
 
         for source_id in self.graph.edge:
             for target_id in self.graph.edge[source_id]:
-                flow = self.graph.edge[source_id][target_id]
+                # Nodes accept multiple edges from same source
+                for flow in self.graph.edge[source_id][target_id].values():
+                    flow_id = '[{}:{}]'.format(source_id, flow['source_port'], )
 
-                flow_id = '[{}:{}]'.format(source_id, flow['source_port'], )
+                    if flow_id not in sequential_ports:
+                        sequential_ports[flow_id] = 'df{}'.format(
+                            len(sequential_ports))
 
-                if flow_id not in sequential_ports:
-                    sequential_ports[flow_id] = 'df{}'.format(
-                        len(sequential_ports))
+                    if source_id not in ports:
+                        ports[source_id] = {'outputs': [], 'inputs': [],
+                                            'named_inputs': {},
+                                            'named_outputs': {}}
+                    if target_id not in ports:
+                        ports[target_id] = {'outputs': [], 'inputs': [],
+                                            'named_inputs': {},
+                                            'named_outputs': {}}
 
-                if source_id not in ports:
-                    ports[source_id] = {'outputs': [], 'inputs': [],
-                                        'named_inputs': {}, 'named_outputs': {}}
-                if target_id not in ports:
-                    ports[target_id] = {'outputs': [], 'inputs': [],
-                                        'named_inputs': {}, 'named_outputs': {}}
-
-                sequence = sequential_ports[flow_id]
-                if sequence not in ports[source_id]['outputs']:
-                    ports[source_id]['named_outputs'][
-                        flow['source_port_name']] = sequence
-                    ports[source_id]['outputs'].append(sequence)
-                if sequence not in ports[target_id]['inputs']:
-                    ports[target_id]['named_inputs'][
-                        flow['target_port_name']] = sequence
-                    ports[target_id]['inputs'].append(sequence)
+                    sequence = sequential_ports[flow_id]
+                    if sequence not in ports[source_id]['outputs']:
+                        ports[source_id]['named_outputs'][
+                            flow['source_port_name']] = sequence
+                        ports[source_id]['outputs'].append(sequence)
+                    if sequence not in ports[target_id]['inputs']:
+                        ports[target_id]['named_inputs'][
+                            flow['target_port_name']] = sequence
+                        ports[target_id]['inputs'].append(sequence)
 
         env_setup = {'instances': [], 'workflow_name': self.workflow_name}
 
@@ -211,6 +212,7 @@ class SparkTranspiler:
             parameters['user'] = self.workflow_user
             parameters['workflow_id'] = self.workflow_id
             port = ports.get(task['id'], {})
+
             instance = class_name(parameters, port.get('inputs', []),
                                   port.get('outputs', []),
                                   port.get('named_inputs', {}),
