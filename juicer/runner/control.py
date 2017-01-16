@@ -9,34 +9,35 @@ class StateControlRedis:
     user interface.
     """
     START_QUEUE_NAME = 'queue_start'
+    QUEUE_JOB = 'queue_job_{}'
 
     def __init__(self, redis_conn):
         self.redis_conn = redis_conn
 
-    def pop_start_queue(self, block=True):
+    def pop_queue(self, queue, block=True):
         if block:
-            result = self.redis_conn.blpop(self.START_QUEUE_NAME)[1]
+            result = self.redis_conn.blpop(queue)[1]
         else:
-            result = self.redis_conn.lpop(self.START_QUEUE_NAME)
+            result = self.redis_conn.lpop(queue)
         return result
+
+    def push_queue(self, queue, data):
+        self.redis_conn.rpush(queue, data)
+
+    def pop_start_queue(self, block=True):
+        return self.pop_queue(self.START_QUEUE_NAME, block)
 
     def push_start_queue(self, data):
-        self.redis_conn.rpush(self.START_QUEUE_NAME, data)
+        self.push_queue(self.START_QUEUE_NAME, data)
 
     def pop_job_queue(self, job_id, block=True):
-        key = 'queue_job_{}'.format(job_id)
-        if block:
-            result = self.redis_conn.blpop(key)[1]
-        else:
-            result = self.redis_conn.lpop(key)
-        return result
+        return self.pop_queue(self.QUEUE_JOB.format(job_id), block)
 
     def push_job_queue(self, job_id, data):
-        key = 'queue_job_{}'.format(job_id)
-        self.redis_conn.rpush(key, data)
+        self.push_queue(self.QUEUE_JOB.format(job_id), data)
 
     def get_job_queue_size(self, job_id):
-        key = 'queue_job_{}'.format(job_id)
+        key = self.QUEUE_JOB.format(job_id)
         return self.redis_conn.llen(key)
 
     def get_workflow_status(self, workflow_id):
@@ -89,4 +90,20 @@ class StateControlRedis:
 
     def get_master_queue_size(self):
         key = 'queue_master'
+        return self.redis_conn.llen(key)
+
+    def pop_job_delivery_queue(self, job_id, block=True):
+        key = 'queue_delivery_job_{job_id}'.format(job_id=job_id)
+        if block:
+            result = self.redis_conn.blpop(key)[1]
+        else:
+            result = self.redis_conn.lpop(key)
+        return result
+
+    def push_job_delivery_queue(self, job_id, data):
+        key = 'queue_delivery_job_{job_id}'.format(job_id=job_id)
+        self.redis_conn.rpush(key, data)
+
+    def get_job_delivery_queue_size(self, job_id):
+        key = 'queue_delivery_job_{job_id}'.format(job_id=job_id)
         return self.redis_conn.llen(key)

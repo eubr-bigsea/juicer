@@ -3,7 +3,7 @@ import networkx as nx
 
 class Workflow:
     def __init__(self, workflow_data):
-        self.graph = nx.DiGraph()
+        self.graph = nx.MultiDiGraph()
         self.workflow = workflow_data
         for task in workflow_data['tasks']:
             self.graph.add_node(task.get('id'), attr_dict=task)

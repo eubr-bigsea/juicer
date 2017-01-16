@@ -82,7 +82,8 @@ class JuicerSparkService:
                 "?token=123456".format(self.workflow_id))
 
             loader = Workflow(json.loads(r.text))
-            loader.verify_workflow()
+            # FIXME: Implement validation
+            # loader.verify_workflow()
             spark_instance = SparkTranspiler(loader.workflow, loader.graph,
                                              params=self.params)
             spark_instance.execute_main = self.execute_main
