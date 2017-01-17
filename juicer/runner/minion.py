@@ -4,7 +4,6 @@ import urlparse
 
 import redis
 import yaml
-from juicer.runner.control import StateControlRedis
 from juicer.spark.spark_minion import SparkMinion
 
 logging.basicConfig(
@@ -13,26 +12,6 @@ logging.basicConfig(
     datefmt='%H:%M:%S')
 log = logging.getLogger()
 log.setLevel(logging.DEBUG)
-
-
-class Minion:
-    def __init__(self, config, job_id):
-        self.config = config
-        parsed_url = urlparse.urlparse(
-            self.config['juicer']['servers']['redis_url'])
-        self.redis_conn = redis.StrictRedis(host=parsed_url.hostname,
-                                            port=parsed_url.port)
-        self.state_control = StateControlRedis(self.redis_conn)
-        self.job_id = job_id
-
-    def process(self):
-        raise NotImplementedError()
-
-
-class CompssMinion(Minion):
-    def process(self):
-        pass
-
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -47,9 +26,13 @@ if __name__ == '__main__':
     with open(args.config) as config_file:
         juicer_config = yaml.load(config_file.read())
 
+    parsed_url = urlparse.urlparse(
+        juicer_config['juicer']['servers']['redis_url'])
+    redis_conn = redis.StrictRedis(host=parsed_url.hostname,
+                                   port=parsed_url.port)
     if args.type == 'SPARK':
         log.info('Starting Juicer Spark Minion')
-        server = SparkMinion(juicer_config, args.job_id)
+        server = SparkMinion(redis_conn, args.job_id, juicer_config)
         server.process()
     else:
         raise ValueError(
