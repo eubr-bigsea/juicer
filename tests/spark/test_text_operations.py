@@ -2,7 +2,6 @@
 import ast
 import json
 from textwrap import dedent
-import pdb
 
 import pytest
 # Import Operations to test
@@ -101,7 +100,7 @@ def test_remove_stopwords_operations_2_params_success():
         RemoveStopWordsOperation.ALIAS_PARAM: 'c',
         RemoveStopWordsOperation.STOP_WORD_LIST_PARAM: 'df_2',
         RemoveStopWordsOperation.STOP_WORD_ATTRIBUTE_PARAM: 'stop_word',
-        RemoveStopWordsOperation.STOP_WORD_CASE_SENSITIVE: 'False'
+        RemoveStopWordsOperation.STOP_WORD_CASE_SENSITIVE_PARAM: 'False'
     }
     # Input data, and StopWords list
     inputs = ['df_1', 'df_2']
@@ -130,7 +129,7 @@ def test_remove_stopwords_operations_2_params_success():
                    outputs[0],
                    json.dumps(zip(params[RemoveStopWordsOperation.ATTRIBUTES_PARAM],
                                 params[RemoveStopWordsOperation.ALIAS_PARAM])),
-                   params[RemoveStopWordsOperation.STOP_WORD_CASE_SENSITIVE]
+                   params[RemoveStopWordsOperation.STOP_WORD_CASE_SENSITIVE_PARAM]
                    )
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
@@ -142,8 +141,8 @@ def test_remove_stopwords_operations_1_params_success():
         RemoveStopWordsOperation.ATTRIBUTES_PARAM: ['text'],
         RemoveStopWordsOperation.ALIAS_PARAM: 'c',
         RemoveStopWordsOperation.STOP_WORD_LIST_PARAM: 'stop_word_list',
-        RemoveStopWordsOperation.STOP_WORD_LANGUAGE: 'english',
-        RemoveStopWordsOperation.STOP_WORD_CASE_SENSITIVE: 'False'
+        RemoveStopWordsOperation.STOP_WORD_LANGUAGE_PARAM: 'english',
+        RemoveStopWordsOperation.STOP_WORD_CASE_SENSITIVE_PARAM: 'False'
     }
     inputs = ['df_1']
     outputs = ['output_1']
@@ -156,7 +155,7 @@ def test_remove_stopwords_operations_1_params_success():
 
     if len(inputs) != 2:
         expected_code = "sw = StopWordsRemover.loadDefaultStopWords({})".format(
-            params[RemoveStopWordsOperation.STOP_WORD_LANGUAGE])
+            params[RemoveStopWordsOperation.STOP_WORD_LANGUAGE_PARAM])
 
     expected_code += dedent("""
         col_alias = {3}
@@ -172,7 +171,7 @@ def test_remove_stopwords_operations_1_params_success():
                    outputs[0],
                    json.dumps(zip(params[RemoveStopWordsOperation.ATTRIBUTES_PARAM],
                                 params[RemoveStopWordsOperation.ALIAS_PARAM])),
-                   params[RemoveStopWordsOperation.STOP_WORD_CASE_SENSITIVE]))
+                   params[RemoveStopWordsOperation.STOP_WORD_CASE_SENSITIVE_PARAM]))
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
 
@@ -238,8 +237,8 @@ def test_word_to_vector_word2vec_operation_success():
         WordToVectorOperation.TYPE_PARAM: 'word2vec',
         WordToVectorOperation.ATTRIBUTES_PARAM: ['text'],
         WordToVectorOperation.ALIAS_PARAM: 'c',
-        WordToVectorOperation.MINIMUM_COUNT: 3,
-        WordToVectorOperation.MINIMUM_VECTOR_SIZE: 0
+        WordToVectorOperation.MINIMUM_COUNT_PARAM: 3,
+        WordToVectorOperation.MINIMUM_VECTOR_SIZE_PARAM: 0
     }
 
     inputs = ['df_1']
@@ -274,8 +273,8 @@ def test_word_to_vector_word2vec_operation_success():
                         outputs[0],
                         json.dumps(zip(params[WordToVectorOperation.ATTRIBUTES_PARAM],
                                       params[WordToVectorOperation.ALIAS_PARAM])),
-                        params[WordToVectorOperation.MINIMUM_VECTOR_SIZE],
-                        params[WordToVectorOperation.MINIMUM_COUNT],
+                        params[WordToVectorOperation.MINIMUM_VECTOR_SIZE_PARAM],
+                        params[WordToVectorOperation.MINIMUM_COUNT_PARAM],
                         outputs[1]))
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
@@ -318,7 +317,7 @@ def test_n_gram_operations_success():
 
 
 # Test NGramOperations
-def test_n_gram_operations_failure():
+def test_n_gram_missing_param_failure():
     params = {
         GenerateNGramsOperation.ATTRIBUTES_PARAM: ['text'],
         GenerateNGramsOperation.ALIAS_PARAM: 'c'

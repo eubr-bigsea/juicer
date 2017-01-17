@@ -97,8 +97,8 @@ class RemoveStopWordsOperation(Operation):
     ALIAS_PARAM = 'alias'
     STOP_WORD_LIST_PARAM = 'stop_word_list'
     STOP_WORD_ATTRIBUTE_PARAM = 'stop_word_attribute'
-    STOP_WORD_LANGUAGE = 'stop_word_language'
-    STOP_WORD_CASE_SENSITIVE = 'sw_case_sensitive'
+    STOP_WORD_LANGUAGE_PARAM = 'stop_word_language'
+    STOP_WORD_CASE_SENSITIVE_PARAM = 'sw_case_sensitive'
 
     def __init__(self, parameters, inputs, outputs, named_inputs,
                  named_outputs):
@@ -127,10 +127,10 @@ class RemoveStopWordsOperation(Operation):
                                    self.alias[:len(self.attributes)])]
 
         self.stop_word_language = self.parameters.get(
-                                  self.STOP_WORD_LANGUAGE, 'english')
+                                  self.STOP_WORD_LANGUAGE_PARAM, 'english')
 
         self.sw_case_sensitive = self.parameters.get(
-                                self.STOP_WORD_CASE_SENSITIVE, 'False')
+                                self.STOP_WORD_CASE_SENSITIVE_PARAM, 'False')
 
         self.has_code = len(self.inputs) > 0
 
@@ -197,8 +197,8 @@ class WordToVectorOperation(Operation):
     MINIMUM_DF_PARAM = 'minimum_df'
     MINIMUM_TF_PARAM = 'minimum_tf'
 
-    MINIMUM_VECTOR_SIZE = 'minimum_size'
-    MINIMUM_COUNT = 'minimum_count'
+    MINIMUM_VECTOR_SIZE_PARAM = 'minimum_size'
+    MINIMUM_COUNT_PARAM = 'minimum_count'
 
     TYPE_COUNT = 'count'
     TYPE_WORD2VEC = 'word2vec'
@@ -227,8 +227,8 @@ class WordToVectorOperation(Operation):
         self.minimum_df = parameters.get(self.MINIMUM_DF_PARAM, 5)
         self.minimum_tf = parameters.get(self.MINIMUM_TF_PARAM, 1)
 
-        self.minimum_size = parameters.get(self.MINIMUM_VECTOR_SIZE, 3)
-        self.minimum_count = parameters.get(self.MINIMUM_COUNT, 0)
+        self.minimum_size = parameters.get(self.MINIMUM_VECTOR_SIZE_PARAM, 3)
+        self.minimum_count = parameters.get(self.MINIMUM_COUNT_PARAM, 0)
 
         self.has_code = len(self.inputs) > 0
 
