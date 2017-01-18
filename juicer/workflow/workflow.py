@@ -1,5 +1,6 @@
 import networkx as nx
 import matplotlib.pyplot as plt
+from juicer.service import tahiti_service
 
 class Workflow:
     """
@@ -15,11 +16,12 @@ class Workflow:
     WORKFLOW_PARAM = 'workflow'
     GRAPH_PARAM = 'graph'
 
+    WORKFLOW_GRAPH_SOURCE_ID_PARAM = 'source_id'
+    WORKFLOW_GRAPH_TARGET_ID_PARAM = 'target_id'
+
     def __init__(self, workflow_data):
 
         self.workflow_graph = nx.MultiDiGraph()
-
-        # self.graph = nx.MultiDiGraph()
 
         # Workflow dictionary
         self.workflow_data = workflow_data
@@ -29,7 +31,18 @@ class Workflow:
         # Topological sorted tasks according to their dependencies
         self.sorted_tasks = []
 
-        self.sort_tasks()
+        if self.check_null_target_id_tasks() \
+                and \
+            self.check_null_source_id_tasks():
+
+            self.sorted_tasks = self.get_topological_sorted_tasks()
+        else:
+            raise AttributeError(
+                "Parameter '{}/{}' must be informed for task {}".format(
+                    self.WORKFLOW_GRAPH_SOURCE_ID_PARAM,
+                    self.WORKFLOW_GRAPH_TARGET_ID_PARAM,
+                    self.__class__))
+
 
 
     def builds_initial_workflow_graph(self):
@@ -59,6 +72,9 @@ class Workflow:
 
 
     def plot_workflow_graph_image(self):
+        """
+             Show the image from workflow_graph
+        """
         # Change layout according to necessity
         pos = nx.spring_layout(self.workflow_graph)
         nx.draw(self.workflow_graph, pos, node_color='#004a7b', node_size=2000,
@@ -72,50 +88,69 @@ class Workflow:
         # plt.savefig(filename, dpi=300, orientation='landscape', format=None,
         # bbox_inches=None, pad_inches=0.1)
 
-    def sort_tasks(self):
-        """ Create the tasks Graph and perform topological sorting """
+    def get_topological_sorted_tasks(self):
+
+        """ Create the tasks Graph and perform topological sorting
+
+            A topological sort is a nonunique permutation of the nodes
+            such that an edge from u to v implies that u appears before
+            v in the topological sort order.
+
+            :return: Return a list of nodes in topological sort order.
+        """
         # First, map the tasks IDs to their original position
         tasks_position = {}
 
         for count_position, task in enumerate(self.workflow_data['tasks']):
             tasks_position[task['id']] = count_position
 
-
-        # Then, performs topological sorting
-        # workflow_graph_aux = self.builds_workflow_graph()
-        # workflow_graph_aux = self.builds_sorted_workflow_graph(
-        #     self.workflow_data['tasks'], self.workflow_data['flows'])
-
         sorted_tasks_id = nx.topological_sort(self.workflow_graph, reverse=False)
 
-        # self.sorted_tasks = tasks_position
-        # self.sorted_tasks = sorted_tasks_id
-
-
-        # Finally, create a new array of tasks in the topogical order
-        for task_id in sorted_tasks_id:
-            self.sorted_tasks.append(self.workflow_data['tasks']
-                                     [tasks_position[task_id]])
-
-    # Need to be implemented
-    def topological_sorted_tasks(self):
-        return 1
+        return sorted_tasks_id
 
     def check_null_source_id_tasks(self):
         for flow in self.workflow_data['flows']:
-            if flow['source_id'] is None:
-                print("Existem tarefas nulas")
+            if flow['source_id'] == "":
                 return 0
-            else:
-                pass
-
         return 1
 
     def check_null_target_id_tasks(self):
-        return 0
+        for flow in self.workflow_data['flows']:
+            if flow['target_id'] == "":
+                return 0
+        return 1
 
-    # def verify_workflow(self):
-    #     """
+
+    def get_reversed_graph(self):
+        """
+            Return the reverse of the graph.
+            The reverse is a graph with the same nodes
+            and edges but with the directions of the edges reversed.
+        """
+        workflow_graph_reversed = self.workflow_graph.reverse()
+
+        return workflow_graph_reversed
+
+
+    def get_ports_from_operation_tasks(self):
+        params = {
+            'base_url':'http://beta.ctweb.inweb.org.br',
+            'item_path': 'tahiti/operations',
+            'token': '123456',
+            'item_id': '1'
+        }
+
+        x = tahiti_service.query_tahiti_operations(params['base_url'],
+                                                   params['item_path'],
+                                                   params['token'],
+                                                   params['item_id'])
+
+        # print x
+
+        return x
+
+   # def verify_workflow(self):
+   #     """
     #     Verifies if the workflow is valid.
     #     Validations to be implemented:
     #     - Supported platform
