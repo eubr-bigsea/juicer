@@ -56,7 +56,7 @@ class FeatureIndexer(Operation):
         if self.type == self.TYPE_STRING:
             code = """
                 col_alias = dict({3})
-                indexers = [StringIndexer(inputCol=col, outputCol=alias,
+                indexers = [feature.StringIndexer(inputCol=col, outputCol=alias,
                                 handleInvalid='skip')
                                     for col, alias in col_alias.iteritems()]
 
@@ -64,7 +64,7 @@ class FeatureIndexer(Operation):
                 pipeline = Pipeline(stages=indexers)
                 models = dict([(col[0], indexers[i].fit({1})) for i, col in
                                 enumerate(col_alias)])
-                labels = [model.labels for model in models.itervalues()]
+                # labels = [model.labels for model in models.itervalues()]
 
                 # Spark ML 2.0.1 do not deal with null in indexer.
                 # See SPARK-11569
@@ -77,7 +77,7 @@ class FeatureIndexer(Operation):
         elif self.type == self.TYPE_VECTOR:
             code = """
                 col_alias = dict({3})
-                indexers = [VectorIndexer(maxCategories={4},
+                indexers = [feature.VectorIndexer(maxCategories={4},
                                 inputCol=col, outputCol=alias)
                                     for col, alias in col_alias.iteritems()]
 
@@ -136,7 +136,7 @@ class FeatureAssembler(Operation):
 
     def generate_code(self):
         code = """
-            assembler = VectorAssembler(inputCols={0}, outputCol="{1}")
+            assembler = feature.VectorAssembler(inputCols={0}, outputCol="{1}")
             {3}_without_null = {3}.na.drop(subset={0})
             {2} = assembler.transform({3}_without_null)
         """.format(json.dumps(self.attributes), self.alias, self.output,
@@ -166,17 +166,20 @@ class EvaluateModel(Operation):
     METRIC_PARAM = 'metric'
 
     METRIC_TO_EVALUATOR = {
-        'areaUnderROC': ('BinaryClassificationEvaluator', 'rawPredictionCol'),
-        'areaUnderPR': ('BinaryClassificationEvaluator', 'rawPredictionCol'),
-        'f1': ('MulticlassClassificationEvaluator', 'predictionCol'),
+        'areaUnderROC': (
+            'evaluation.BinaryClassificationEvaluator', 'rawPredictionCol'),
+        'areaUnderPR': (
+            'evaluation.BinaryClassificationEvaluator', 'rawPredictionCol'),
+        'f1': ('evaluation.MulticlassClassificationEvaluator', 'predictionCol'),
         'weightedPrecision': (
-            'MulticlassClassificationEvaluator', 'predictionCol'),
+            'evaluation.MulticlassClassificationEvaluator', 'predictionCol'),
         'weightedRecall': (
-            'MulticlassClassificationEvaluator', 'predictionCol'),
-        'accuracy': ('MulticlassClassificationEvaluator', 'predictionCol'),
-        'rmse': ('RegressionEvaluator', 'predictionCol'),
-        'mse': ('RegressionEvaluator', 'predictionCol'),
-        'mae': ('RegressionEvaluator', 'predictionCol'),
+            'evaluation.MulticlassClassificationEvaluator', 'predictionCol'),
+        'accuracy': (
+            'evaluation.MulticlassClassificationEvaluator', 'predictionCol'),
+        'rmse': ('evaluation.RegressionEvaluator', 'predictionCol'),
+        'mse': ('evaluation.RegressionEvaluator', 'predictionCol'),
+        'mae': ('evaluation.RegressionEvaluator', 'predictionCol'),
     }
 
     def __init__(self, parameters, inputs, outputs, named_inputs,
@@ -274,31 +277,30 @@ class CrossValidationOperation(Operation):
 
     def generate_code(self):
         code = dedent("""
-            grid_builder = ParamGridBuilder()
+            grid_builder = tuning.ParamGridBuilder()
             estimator, param_grid = {algorithm}
-            '''
-            if estimator.__class__ == 'LinearRegression':
-                param_grid = estimator.maxIter
-            elif estimator.__class__  == NaiveBayes:
-                pass
-            elif estimator.__class__ == DecisionTreeClassifier:
-                # param_grid = (estimator.maxDepth, [2,3,4,5,6,7,8,9])
-                param_grid = (estimator.impurity, ['gini', 'entropy'])
-            elif estimator.__class__ == GBTClassifier:
-                pass
-            elif estimator.__class__ == RandomForestClassifier:
-                param_grid = estimator.maxDepth
-            '''
+
+            # if estimator.__class__ == classification.LinearRegression:
+            #     param_grid = estimator.maxIter
+            # elif estimator.__class__  == classification.NaiveBayes:
+            #     pass
+            # elif estimator.__class__ == classification.DecisionTreeClassifier:
+            #     # param_grid = (estimator.maxDepth, [2,3,4,5,6,7,8,9])
+            #     param_grid = (estimator.impurity, ['gini', 'entropy'])
+            # elif estimator.__class__ == classification.GBTClassifier:
+            #     pass
+            # elif estimator.__class__ == classification.RandomForestClassifier:
+            #     param_grid = estimator.maxDepth
             for param_name, values in param_grid.iteritems():
                 param = getattr(estimator, param_name)
                 grid_builder.addGrid(param, values)
 
             evaluator = {evaluator}
 
-            grid = grid_builder.build()
-            cv = CrossValidator(estimator=estimator, estimatorParamMaps=grid,
-                                evaluator=evaluator, numFolds={folds})
-            cv_model = cv.fit({input_data})
+            cross_validator = tuning.CrossValidator(
+                estimator=estimator, estimatorParamMaps=grid_builder.build(),
+                evaluator=evaluator, numFolds={folds})
+            cv_model = cross_validator.fit({input_data})
             evaluated_data = cv_model.transform({input_data})
             best_model_{output}  = cv_model.bestModel
             metric_result = evaluator.evaluate(evaluated_data)
@@ -316,9 +318,8 @@ class CrossValidationOperation(Operation):
             eval_code = """
             grouped_result = evaluated_data.select(
                     evaluator.getLabelCol(), evaluator.getPredictionCol())\\
-                    .groupBy(
-                        evaluator.getLabelCol(),
-                        evaluator.getPredictionCol()).count().collect()
+                    .groupBy(evaluator.getLabelCol(),
+                             evaluator.getPredictionCol()).count().collect()
             eval_{output} = {{
                 'metric': {{
                     'name': evaluator.getMetricName(),
@@ -438,7 +439,7 @@ class SvmClassifierOperation(ClassifierOperation):
                                      named_inputs, named_outputs)
         self.parameters = parameters
         self.has_code = False
-        self.name = 'SVM'
+        self.name = 'classification.SVM'
 
 
 class DecisionTreeClassifierOperation(ClassifierOperation):
@@ -446,7 +447,7 @@ class DecisionTreeClassifierOperation(ClassifierOperation):
                  named_outputs):
         ClassifierOperation.__init__(self, parameters, inputs, outputs,
                                      named_inputs, named_outputs)
-        self.name = 'DecisionTreeClassifier'
+        self.name = 'classification.DecisionTreeClassifier'
 
 
 class GBTClassifierOperation(ClassifierOperation):
@@ -455,7 +456,7 @@ class GBTClassifierOperation(ClassifierOperation):
         ClassifierOperation.__init__(self, parameters, inputs, outputs,
                                      named_inputs,
                                      named_outputs)
-        self.name = 'GBTClassifier'
+        self.name = 'classification.GBTClassifier'
 
 
 class NaiveBayesClassifierOperation(ClassifierOperation):
@@ -463,7 +464,7 @@ class NaiveBayesClassifierOperation(ClassifierOperation):
                  named_outputs):
         ClassifierOperation.__init__(self, parameters, inputs, outputs,
                                      named_inputs, named_outputs)
-        self.name = 'NaiveBayes'
+        self.name = 'classification.NaiveBayes'
 
 
 class RandomForestClassifierOperation(ClassifierOperation):
@@ -471,7 +472,7 @@ class RandomForestClassifierOperation(ClassifierOperation):
                  named_outputs):
         ClassifierOperation.__init__(self, parameters, inputs, outputs,
                                      named_inputs, named_outputs)
-        self.name = 'RandomForestClassifier'
+        self.name = 'classification.RandomForestClassifier'
 
 
 class PerceptronClassifier(ClassifierOperation):
@@ -479,7 +480,7 @@ class PerceptronClassifier(ClassifierOperation):
                  named_outputs):
         ClassifierOperation.__init__(self, parameters, inputs, outputs,
                                      named_inputs, named_outputs)
-        self.name = 'MultilayerPerceptronClassificationModel'
+        self.name = 'classification.MultilayerPerceptronClassificationModel'
 
 
 class ClassificationReport(ReportOperation):
@@ -622,7 +623,7 @@ class LdaClusteringOperation(ClusteringOperation):
             ['TopicConcentration', self.topic_concentration],
         ]
         self.has_code = len(self.output) > 1
-        self.name = "LDA"
+        self.name = "clustering.LDA"
 
 
 class KMeansClusteringOperation(ClusteringOperation):
@@ -663,7 +664,7 @@ class KMeansClusteringOperation(ClusteringOperation):
             else:
                 self.init_mode = self.INIT_MODE_KMEANS_PARALLEL
             self.set_values.append(['InitMode', '"{}"'.format(self.init_mode)])
-            self.name = "KMeans"
+            self.name = "clustering.KMeans"
         else:
             raise ValueError(
                 'Invalid type {} for class {}'.format(
@@ -692,7 +693,7 @@ class GaussianMixtureClusteringOperation(ClusteringOperation):
             ['K', self.number_of_clusters],
             ['Tol', self.tolerance],
         ]
-        self.name = "GaussianMixture"
+        self.name = "clustering.GaussianMixture"
         self.has_code = len(self.output) > 1
 
 

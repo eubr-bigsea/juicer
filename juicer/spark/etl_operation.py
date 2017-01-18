@@ -536,14 +536,15 @@ class CleanMissing(Operation):
 
             # Based on http://stackoverflow.com/a/35674589/1646932
             select_list = [
-                "\n    (count('{0}') / count('*')).alias('{0}')".format(attr)
+                ("\n    (functions.count('{0}') / "
+                 "functions.count('*')).alias('{0}')").format(attr)
                 for attr in self.attributes]
             pre_code.extend([
                 "# Computes the ratio of missing values for each attribute",
                 "ratio_{0} = {0}.select({1}).collect()".format(
                     self.inputs[0], ', '.join(select_list)), "",
                 "attributes_{0} = [c for c in {1} "
-                "\n        if {2} <= ratio_{0}[0][c] <= {3}]".format(
+                "\n                  if {2} <= ratio_{0}[0][c] <= {3}]".format(
                     self.inputs[0], attrs_json, self.min_missing_ratio,
                     self.max_missing_ratio)
             ])
@@ -597,7 +598,7 @@ class CleanMissing(Operation):
 
         elif self.cleaning_mode == self.MEAN:
             partial.append("""
-                avg_{1} = {1}.select([avg(c).alias(c)
+                avg_{1} = {1}.select([functions.avg(c).alias(c)
                                         for c in attributes_{1}]).collect()
                 values_{1} = dict([(c, avg_{1}[0][c]) for c in attributes_{1}])
                 {0} = {1}.na.fill(value=values_{1})""".format(output,

@@ -25,13 +25,13 @@ class DataReader(Operation):
     DO_NOT_INFER = 'NO'
 
     LIMONERO_TO_SPARK_DATA_TYPES = {
-        "INTEGER": 'IntegerType',
-        "TEXT": 'StringType',
-        "LONG": 'LongType',
-        "FLOAT": 'FloatType',
-        "DOUBLE": 'DoubleType',
-        "DATETIME": 'TimestampType',
-        "CHARACTER": 'StringType',
+        "INTEGER": 'types.IntegerType',
+        "TEXT": 'types.StringType',
+        "LONG": 'types.LongType',
+        "FLOAT": 'types.FloatType',
+        "DOUBLE": 'types.DoubleType',
+        "DATETIME": 'types.TimestampType',
+        "CHARACTER": 'types.StringType',
     }
     SEPARATORS = {
         '{tab}': '\\t'
@@ -78,7 +78,7 @@ class DataReader(Operation):
         if len(self.outputs) == 1:
             if infer_from_limonero:
                 if 'attributes' in self.metadata:
-                    code.append('schema_{0} = StructType()'.format(self.output))
+                    code.append('schema_{0} = types.StructType()'.format(self.output))
                     for attr in self.metadata.get('attributes', []):
                         data_type = self.LIMONERO_TO_SPARK_DATA_TYPES[
                             attr['type']]
@@ -226,7 +226,7 @@ class Save(Operation):
                 from metadata import MetadataPost
                 types_names = {{
                 'IntegerType': "INTEGER",
-                'StringType': "TEXT",
+                'types.StringType': "TEXT",
                 'LongType': "LONG",
                 'DoubleType': "DOUBLE",
                 'TimestampType': "DATETIME",
