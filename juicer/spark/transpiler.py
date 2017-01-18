@@ -237,6 +237,7 @@ class SparkTranspiler:
                                           extensions=[AutoPep8Extension])
         template = template_env.get_template("operation.tmpl")
         v = template.render(env_setup)
+
         if using_stdout:
             out.write(v.encode('utf8'))
         else:
