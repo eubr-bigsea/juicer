@@ -1,17 +1,9 @@
 import argparse
-import logging
 import urlparse
 
 import redis
 import yaml
 from juicer.spark.spark_minion import SparkMinion
-
-logging.basicConfig(
-    format=('[%(levelname)s] %(asctime)s,%(msecs)05.1f '
-            '(%(funcName)s) %(message)s'),
-    datefmt='%H:%M:%S')
-log = logging.getLogger()
-log.setLevel(logging.DEBUG)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
