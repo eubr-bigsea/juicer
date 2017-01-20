@@ -2,3 +2,9 @@
 
 exclude_lines =
     if __name__ == .__main__.:
+    while True:
+    raise NotImplementedError()
+    log.info
+    log.debug
+    log.warn
+    log.error

@@ -120,7 +120,7 @@ def test_transpiler_basic_flow_success():
 
     out = StringIO()
     loader = Workflow(workflow)
-    transpiler = SparkTranspiler(loader.workflow, out=out, graph=loader.graph)
+    transpiler = SparkTranspiler()
 
     class FakeOp(Operation):
         name = u'# Fake'
@@ -135,6 +135,6 @@ def test_transpiler_basic_flow_success():
     for op in transpiler.operations:
         transpiler.operations[op] = FakeOp
 
-    transpiler.transpile()
+    transpiler.transpile(loader.workflow, loader.graph, {}, out=out)
     out.seek(0)
     print out.read()

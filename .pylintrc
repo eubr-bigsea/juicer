@@ -1,0 +1,6 @@
+[MESSAGES CONTROL]
+disable=C0111
+[TYPECHECK]
+ignored-modules=pyspark.sql.functions
+[VARIABLES]
+dummy-variables-rgx=_|dummy|spark_session|df
