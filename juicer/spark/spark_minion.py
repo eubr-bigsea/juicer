@@ -1,5 +1,4 @@
 # coding=utf-8
-import pyspark
 
 import codecs
 import gc
