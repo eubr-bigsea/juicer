@@ -33,6 +33,9 @@ class SparkMinion(Minion):
     MNN001 = ('MNN001', 'Port output format not supported.')
     MNN002 = ('MNN002', 'Success getting data from task.')
     MNN003 = ('MNN003', 'State does not exists, processing job.')
+    MNN004 = ('MNN004', 'Invalid port.')
+    MNN005 = ('MNN005', 'Unable to retrieve data because a previous error.')
+    MNN006 = ('MNN006', 'Invalid Python code or incorrect encoding: {}')
 
     def __init__(self, redis_conn, job_id, config):
         Minion.__init__(self, redis_conn, job_id, config)
@@ -51,11 +54,11 @@ class SparkMinion(Minion):
 
         sys.path.append(self.tmp_dir)
 
-    def _generate_output(self, msg, status=None):
+    def _generate_output(self, msg, status=None, code=None):
         """
         Sends feedback about execution of this minion.
         """
-        obj = {'message': msg, 'job_id': self.job_id,
+        obj = {'message': msg, 'job_id': self.job_id, 'code': code,
                'date': datetime.datetime.now().isoformat(),
                'status': status if status is not None else 'OK'}
 
@@ -84,6 +87,7 @@ class SparkMinion(Minion):
             self._perform_execute()
 
     def _perform_execute(self):
+        result = True
         try:
             job_info = json.loads(
                 self.state_control.pop_job_queue(self.job_id))
@@ -114,19 +118,21 @@ class SparkMinion(Minion):
                       len(gc.get_objects()))
 
         except UnicodeEncodeError as ude:
-            pdb.set_trace()
-            msg = 'Invalid encode error: {}'.format(ude)
+            msg = self.MNN006[1].format(ude)
             log.warn(msg)
-            self._generate_output(msg, 'ERROR')
+            self._generate_output(self.MNN006[1], 'ERROR', self.MNN006[0])
+            result = False
         except ValueError as ve:
-            pdb.set_trace()
             msg = 'Invalid message format: {}'.format(ve.message)
             log.warn(msg)
             self._generate_output(msg, 'ERROR')
+            result = False
         except SyntaxError as se:
-            msg = 'Invalid Python code: {}'.format(se)
+            msg = self.MNN006[1].format(se)
             log.warn(msg)
-            self._generate_output(msg, 'ERROR')
+            self._generate_output(self.MNN006[1], 'ERROR', self.MNN006[0])
+            result = False
+        return result
 
     def deliver(self):
         """
@@ -164,21 +170,26 @@ class SparkMinion(Minion):
             self._read_dataframe_data(request, task_id)
         else:
             data = {'status': 'WARNING', 'code': self.MNN003[0],
-                    'message': self.MNN003[0]}
+                    'message': self.MNN003[1]}
             self._send_to_output(data)
 
             # FIXME: Report missing or process workflow until this task
             workflow = request['workflow']
             self.state_control.push_job_queue(self.job_id, workflow)
-            self._perform_execute()
-
-            self._read_dataframe_data(request, task_id)
+            if self._perform_execute():
+                self._read_dataframe_data(request, task_id)
+            else:
+                data = {'status': 'ERROR', 'code': self.MNN005[0],
+                        'message': self.MNN005[1]}
+                self._send_to_output(data)
 
     def _read_dataframe_data(self, request, task_id):
         # Perform a collection action in data frame.
         # FIXME: Evaluate if there is a better way to identify the port
         port = int(request.get('port'))
-        if len(self.state[task_id]) >= port:
+
+        # Last position in state is the execution time, so it should be ignored
+        if len(self.state[task_id]) - 1 >= port:
             df = self.state[task_id][port]
 
             # Evaluating if df has method "take" allows unit testing
@@ -199,13 +210,11 @@ class SparkMinion(Minion):
                         'message': self.MNN001[1]}
                 self._send_to_output(data)
         else:
-            data = {'status': 'ERROR', 'code': self.MNN001[0],
-                    'message': self.MNN001[1]}
+            data = {'status': 'ERROR', 'code': self.MNN004[0],
+                    'message': self.MNN004[1]}
             self._send_to_output(data)
 
     def process(self):
-        self.execute()
-        return
         self.execute_process = multiprocessing.Process(
             name="minion", target=self.execute)
         self.execute_process.daemon = False
