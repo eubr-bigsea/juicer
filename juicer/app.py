@@ -12,20 +12,12 @@ from six import StringIO
 
 # eventlet.monkey_patch()
 import json
-from flask import Flask
-
-app = Flask(__name__)
 
 logging.basicConfig(
     format='[%(levelname)s] %(asctime)s,%(msecs)05.1f (%(funcName)s) %(message)s',
     datefmt='%H:%M:%S')
 log = logging.getLogger()
 log.setLevel(logging.DEBUG)
-
-
-@app.route("/")
-def hello():
-    return "Hello World!"
 
 
 class Statuses:
