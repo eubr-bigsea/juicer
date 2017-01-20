@@ -23,7 +23,7 @@ if __name__ == '__main__':
     redis_conn = redis.StrictRedis(host=parsed_url.hostname,
                                    port=parsed_url.port)
     if args.type == 'SPARK':
-        log.info('Starting Juicer Spark Minion')
+        # log.info('Starting Juicer Spark Minion')
         server = SparkMinion(redis_conn, args.job_id, juicer_config)
         server.process()
     else:

@@ -1,4 +1,6 @@
 # coding=utf-8
+import pyspark
+
 import codecs
 import gc
 import importlib
@@ -26,6 +28,11 @@ class SparkMinion(Minion):
     """
     Controls the execution of Spark code in Lemonade Juicer.
     """
+    # Errors and messages
+    MNN000 = ('MNN000', 'Success.')
+    MNN001 = ('MNN001', 'Port output format not supported.')
+    MNN002 = ('MNN002', 'Success getting data from task.')
+    MNN003 = ('MNN003', 'State does not exists, processing job.')
 
     def __init__(self, redis_conn, job_id, config):
         Minion.__init__(self, redis_conn, job_id, config)
@@ -44,12 +51,15 @@ class SparkMinion(Minion):
 
         sys.path.append(self.tmp_dir)
 
-    def _generate_output(self, msg):
+    def _generate_output(self, msg, status=None):
         """
         Sends feedback about execution of this minion.
         """
-        m = json.dumps({'message': msg, 'job_id': self.job_id,
-                        'date': datetime.datetime.now().isoformat()})
+        obj = {'message': msg, 'job_id': self.job_id,
+               'date': datetime.datetime.now().isoformat(),
+               'status': status if status is not None else 'OK'}
+
+        m = json.dumps(obj)
         self.state_control.push_job_output_queue(self.job_id, m)
 
     def ping(self):
@@ -93,6 +103,9 @@ class SparkMinion(Minion):
             if self.module is None:
                 self.module = importlib.import_module(module_name)
             else:
+                # Get rid of .pyc file if it exists
+                if os.path.isfile('{}c'.format(generated_code_path)):
+                    os.remove('{}c'.format(generated_code_path))
                 # Hot swap of code
                 self.module = imp.reload(self.module)
 
@@ -101,17 +114,19 @@ class SparkMinion(Minion):
                       len(gc.get_objects()))
 
         except UnicodeEncodeError as ude:
+            pdb.set_trace()
             msg = 'Invalid encode error: {}'.format(ude)
             log.warn(msg)
-            self._generate_output(msg)
+            self._generate_output(msg, 'ERROR')
         except ValueError as ve:
+            pdb.set_trace()
             msg = 'Invalid message format: {}'.format(ve.message)
             log.warn(msg)
-            self._generate_output(msg)
+            self._generate_output(msg, 'ERROR')
         except SyntaxError as se:
             msg = 'Invalid Python code: {}'.format(se)
             log.warn(msg)
-            self._generate_output(msg)
+            self._generate_output(msg, 'ERROR')
 
     def deliver(self):
         """
@@ -121,37 +136,72 @@ class SparkMinion(Minion):
             self._perform_deliver()
 
     @staticmethod
-    def _convert_to_csv_field(v):
-        t = type(v)
-        if t in [datetime.datetime]:
-            return v.isoformat()
-        elif t in [unicode, str]:
-            return '"{}"'.format(v)
-        else:
-            return str(v)
+    def _convert_to_csv(row):
+        result = []
+        for v in row:
+            t = type(v)
+            if t in [datetime.datetime]:
+                result.append(v.isoformat())
+            elif t in [unicode, str]:
+                result.append('"{}"'.format(v))
+            else:
+                result.append(str(v))
+        return ','.join(result)
+
+    def _send_to_output(self, data):
+        self.state_control.push_job_output_queue(
+            self.job_id, json.dumps(data))
 
     def _perform_deliver(self):
+
         request = json.loads(
             self.state_control.pop_job_delivery_queue(self.job_id))
+        task_id = request['task_id']
         # FIXME: state must expire. How to identify this in the interface?
         # FIXME: Define how to identify the request.
         # FIXME: Define where to store generated data (Redis?)
-        if request.get('task_id') in self.state:
-            # Perform a collection action in data frame.
-            # FIXME: Evaluate if there is a better way to identify the port
-            port = int(request.get('port'))
-            df = self.state[request['task_id'][port]]
-
-            # FIXME define as a parameter?:
-            result = df.take(100).rdd.map(
-                lambda x: ",".join(
-                    map(SparkMinion._convert_to_csv_field, x))).collect()
-            self.state_control.push_queue(request.get('output'),
-                                          '\n'.join(result))
-
+        if task_id in self.state:
+            self._read_dataframe_data(request, task_id)
         else:
-            pass
-            # FIXME: Report missing or process until this task
+            data = {'status': 'WARNING', 'code': self.MNN003[0],
+                    'message': self.MNN003[0]}
+            self._send_to_output(data)
+
+            # FIXME: Report missing or process workflow until this task
+            workflow = request['workflow']
+            self.state_control.push_job_queue(self.job_id, workflow)
+            self._perform_execute()
+
+            self._read_dataframe_data(request, task_id)
+
+    def _read_dataframe_data(self, request, task_id):
+        # Perform a collection action in data frame.
+        # FIXME: Evaluate if there is a better way to identify the port
+        port = int(request.get('port'))
+        if len(self.state[task_id]) >= port:
+            df = self.state[task_id][port]
+
+            # Evaluating if df has method "take" allows unit testing
+            # instead of testing exact pyspark.sql.dataframe.Dataframe
+            # type check.
+            if df is not None and hasattr(df, 'take'):
+                # FIXME define as a parameter?:
+                result = df.take(100).rdd.map(
+                    SparkMinion._convert_to_csv).collect()
+                out_queue = request.get('output')
+                self.state_control.push_queue(
+                    out_queue, '\n'.join(result))
+                data = {'status': 'SUCCESS', 'code': self.MNN002[0],
+                        'message': self.MNN002[1], 'output': out_queue}
+                self._send_to_output(data)
+            else:
+                data = {'status': 'ERROR', 'code': self.MNN001[0],
+                        'message': self.MNN001[1]}
+                self._send_to_output(data)
+        else:
+            data = {'status': 'ERROR', 'code': self.MNN001[0],
+                    'message': self.MNN001[1]}
+            self._send_to_output(data)
 
     def process(self):
         self.execute()
