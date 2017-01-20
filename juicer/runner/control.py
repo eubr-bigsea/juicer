@@ -9,7 +9,7 @@ class StateControlRedis:
     user interface.
     """
     START_QUEUE_NAME = 'queue_start'
-    QUEUE_JOB = 'queue_job_{}'
+    QUEUE_JOB = 'queue_workflow_{}'
 
     def __init__(self, redis_conn):
         self.redis_conn = redis_conn
@@ -52,12 +52,12 @@ class StateControlRedis:
         key = 'record_workflow_{}'.format(workflow_id)
         return self.redis_conn.hgetall(key)
 
-    def get_minion_status(self, job_id):
-        key = 'key_minion_job_{}'.format(job_id)
+    def get_minion_status(self, workflow_id):
+        key = 'key_minion_workflow_{}'.format(workflow_id)
         return self.redis_conn.get(key)
 
-    def set_minion_status(self, job_id, status, ex=30, nx=True):
-        key = 'key_minion_job_{}'.format(job_id)
+    def set_minion_status(self, workflow_id, status, ex=30, nx=True):
+        key = 'key_minion_workflow_{}'.format(workflow_id)
         return self.redis_conn.set(key, status, ex=ex, nx=nx)
 
     def pop_job_output_queue(self, job_id, block=True):
