@@ -2,7 +2,13 @@ language: python
 python:
   - "2.7"
 # command to install dependencies
-install: "pip install -r requirements.txt"
+install: 
+   - pip install -r requirements.txt
+   - cd /tmp
+   - wget http://d3kbcqa49mib13.cloudfront.net/spark-2.1.0-bin-hadoop2.6.tgz
+   - tar xf spark-2.1.0-bin-hadoop2.6.tgz && mv spark-2.1.0-bin-hadoop2.6 spark
+   - export SPARK_HOME=/tmp/spark
+   - export PYTHONPATH=$SPARK_HOME/python:$PYTHONPATH
 # command to run tests
 script: pytest
 cache: pip
