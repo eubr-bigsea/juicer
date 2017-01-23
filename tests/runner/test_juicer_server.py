@@ -22,9 +22,9 @@ def test_runner_read_start_queue_success():
             }
         }
     }
-    job_id = 1
+    app_id = 1
     workflow_id = 1000
-    workflow = {"job_id": job_id, 'workflow_id': workflow_id}
+    workflow = {"app_id": app_id, 'workflow_id': workflow_id}
 
     with mock.patch('redis.StrictRedis',
                     mock_strict_redis_client) as mocked_redis:
@@ -41,25 +41,25 @@ def test_runner_read_start_queue_success():
             server.read_start_queue(mocked_redis_conn)
 
             assert state_control.get_minion_status(
-                job_id) == JuicerServer.STARTED
+                app_id) == JuicerServer.STARTED
 
             assert mocked_popen.call_args_list[0][0][0] == [
-                'nohup', sys.executable, 'faked_minions.py', '-j', job_id, '-c',
+                'nohup', sys.executable, 'faked_minions.py', '-a', app_id, '-c',
                 'config.yaml']
             assert mocked_popen.called
 
             # Was command removed from the queue?
             assert state_control.pop_start_queue(False) is None
 
-            assert json.loads(state_control.pop_job_queue(job_id)) == workflow
+            assert json.loads(state_control.pop_app_queue(app_id)) == workflow
 
             assert state_control.get_workflow_status(
                 workflow_id) == JuicerServer.STARTED
-            assert json.loads(state_control.pop_job_output_queue(job_id)) == {
+            assert json.loads(state_control.pop_app_output_queue(app_id)) == {
                 'code': 0, 'message': 'Workflow will start soon'}
 
 
-def test_runner_read_start_queue_already_started_failure():
+def test_runner_read_start_queue_workflow_not_started_failure():
     config = {
         'juicer': {
             'servers': {
@@ -67,9 +67,9 @@ def test_runner_read_start_queue_already_started_failure():
             }
         }
     }
-    job_id = 1
+    app_id = 1
     workflow_id = 1000
-    workflow = {"job_id": job_id, 'workflow_id': workflow_id}
+    workflow = {"app_id": app_id, 'workflow_id': workflow_id}
 
     with mock.patch('redis.StrictRedis',
                     mock_strict_redis_client) as mocked_redis:
@@ -82,25 +82,24 @@ def test_runner_read_start_queue_already_started_failure():
             state_control.push_start_queue(json.dumps(workflow))
 
             # This workflow is being processed, should not start it again
-            state_control.set_workflow_status(workflow_id, JuicerServer.STARTED)
+            # state_control.set_workflow_status(workflow_id, JuicerServer.STARTED)
+            server.active_minions[app_id] = '_'
 
             # Start of testing
             server.read_start_queue(mocked_redis_conn)
 
-            assert state_control.get_minion_status(job_id) is None
+            assert state_control.get_minion_status(app_id) is None
             assert not mocked_popen.called
             # Was command removed from the queue?
             assert state_control.pop_start_queue(False) is None
 
-            assert state_control.get_job_queue_size(workflow_id) == 0
+            assert state_control.get_app_queue_size(workflow_id) == 0
 
-            assert state_control.get_workflow_status(
-                workflow_id) == JuicerServer.STARTED
-
-            x = state_control.pop_job_output_queue(job_id, False)
-            assert json.loads(
-                x) == {
-                       "message": "Workflow is already started", "code": 1000}
+            x = state_control.pop_app_output_queue(app_id, False)
+            assert json.loads(x) == {
+                "message": 'Workflow {} should be started'.format(workflow_id),
+                "code": 1000
+                }
 
 
 def test_runner_read_start_queue_minion_already_running_success():
@@ -111,9 +110,9 @@ def test_runner_read_start_queue_minion_already_running_success():
             }
         }
     }
-    job_id = 1
+    app_id = 1
     workflow_id = 1000
-    workflow = {"job_id": job_id, 'workflow_id': workflow_id}
+    workflow = {"app_id": app_id, 'workflow_id': workflow_id}
 
     with mock.patch('redis.StrictRedis',
                     mock_strict_redis_client) as mocked_redis:
@@ -124,22 +123,22 @@ def test_runner_read_start_queue_minion_already_running_success():
 
             # Publishes a message to process data
             state_control.push_start_queue(json.dumps(workflow))
-            state_control.set_minion_status(job_id, JuicerServer.STARTED)
+            state_control.set_minion_status(app_id, JuicerServer.STARTED)
 
             # Start of testing
             server.read_start_queue(mocked_redis_conn)
 
             assert state_control.get_minion_status(
-                job_id) == JuicerServer.STARTED
+                app_id) == JuicerServer.STARTED
 
             assert not mocked_popen.called
             # Was command removed from the queue?
             assert mocked_redis_conn.lpop('start') is None
-            assert json.loads(state_control.pop_job_queue(job_id)) == workflow
+            assert json.loads(state_control.pop_app_queue(app_id)) == workflow
 
             assert state_control.get_workflow_status(
                 workflow_id) == JuicerServer.STARTED
-            assert json.loads(state_control.pop_job_output_queue(job_id)) == {
+            assert json.loads(state_control.pop_app_output_queue(app_id)) == {
                 'code': 0, 'message': 'Workflow will start soon'}
 
 
@@ -151,10 +150,10 @@ def test_runner_read_start_queue_missing_details_failure():
             }
         }
     }
-    job_id = 1
+    app_id = 1
     workflow_id = 1000
     # incorrect key, should raise exception
-    workflow = {"xjob_id": job_id, 'workflow_id': workflow_id}
+    workflow = {"xapp_id": app_id, 'workflow_id': workflow_id}
 
     with mock.patch('redis.StrictRedis',
                     mock_strict_redis_client) as mocked_redis:
@@ -166,19 +165,19 @@ def test_runner_read_start_queue_missing_details_failure():
 
             # Publishes a message to process data
             state_control.push_start_queue(json.dumps(workflow))
-            state_control.set_minion_status(job_id, JuicerServer.STARTED)
+            state_control.set_minion_status(app_id, JuicerServer.STARTED)
 
             # Start of testing
             server.read_start_queue(mocked_redis_conn)
 
             assert state_control.get_minion_status(
-                job_id) == JuicerServer.STARTED
+                app_id) == JuicerServer.STARTED
 
             assert not mocked_popen.called
             # Was command removed from the queue?
             assert state_control.pop_start_queue(block=False) is None
-            assert state_control.pop_job_queue(job_id, block=False) is None
-            assert state_control.pop_job_output_queue(job_id,
+            assert state_control.pop_app_queue(app_id, block=False) is None
+            assert state_control.pop_app_output_queue(app_id,
                                                       block=False) is None
 
             assert mocked_redis_conn.hget(workflow_id, 'status') is None
@@ -192,8 +191,8 @@ def test_runner_master_queue_client_shutdown_success():
             }
         }
     }
-    job_id = 1
-    ticket = {"job_id": job_id, 'reason': JuicerServer.HELP_UNHANDLED_EXCEPTION}
+    app_id = 1
+    ticket = {"app_id": app_id, 'reason': JuicerServer.HELP_UNHANDLED_EXCEPTION}
 
     with mock.patch('redis.StrictRedis',
                     mock_strict_redis_client) as mocked_redis:
@@ -205,8 +204,8 @@ def test_runner_master_queue_client_shutdown_success():
                 state_control = StateControlRedis(mocked_redis_conn)
 
                 # Configure minion
-                status = {'job_id': job_id, 'pid': 9999}
-                state_control.set_minion_status(job_id, json.dumps(status))
+                status = {'app_id': app_id, 'pid': 9999}
+                state_control.set_minion_status(app_id, json.dumps(status))
                 error = OSError()
                 error.errno = errno.ESRCH
                 mocked_kill.side_effect = error
@@ -216,7 +215,7 @@ def test_runner_master_queue_client_shutdown_success():
                 # Start of testing
                 server.read_minion_support_queue(mocked_redis_conn)
 
-                assert state_control.get_minion_status(job_id) == 'STARTED'
+                assert state_control.get_minion_status(app_id) == 'STARTED'
 
                 assert mocked_popen.called
 
@@ -280,3 +279,25 @@ def test_runner_master_watch_minion_process_success():
 
         # Start of testing
         server.watch_minion_process(mocked_redis_conn)
+
+
+def test_multiple_jobs_single_app():
+    """ TODO
+    - Start a juicer server
+    - Instanciate a minion for an application
+    - Submit more than one job to the same (workflow_id,app_id)
+    - Assert that just one minion was launched and that these jobs shared the
+      same spark_session
+    """
+    assert True
+
+def test_multiple_jobs_multiple_apps():
+    """ TODO
+    - Start a juicer server
+    - Instanciate two minions for two different aplications
+    - Submit jobs for both minions
+    - Assert that two minions were launched and two spark_sessions were created
+    """
+    assert True
+
+
