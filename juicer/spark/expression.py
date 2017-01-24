@@ -91,6 +91,40 @@ class Expression:
 
         return '.'.join(code)
 
+    def get_strip_accents_function(self, spec, params):
+        callee = spec['arguments'][0].get('callee', {})
+        # Evaluates if column name is wrapped in a col() function call
+        arguments = ', '.join(
+            [self.parse(x, params) for x in spec['arguments']])
+
+        strip_accents = (
+            "functions.udf("
+            "lambda text: ''.join(c for c in unicodedata.normalize('NFD', text) "
+                "if unicodedata.category(c) != 'Mn'), "
+            "types.StringType())"
+            )
+        
+        result = '{}({})'.format(strip_accents, arguments)
+
+        return result
+
+    def get_strip_punctuation_function(self, spec, params):
+        callee = spec['arguments'][0].get('callee', {})
+        # Evaluates if column name is wrapped in a col() function call
+        arguments = ', '.join(
+            [self.parse(x, params) for x in spec['arguments']])
+
+        strip_punctuation = (
+            "functions.udf("
+            "lambda text: text.translate("
+                "dict((ord(char), None) for char in string.punctuation)), "
+            "types.StringType())"
+            )
+        
+        result = '{}({})'.format(strip_punctuation, arguments)
+
+        return result
+
     def get_function_call(self, spec, params):
         """
         Wrap column name with col() function call, if such call is not present.
@@ -176,14 +210,16 @@ class Expression:
             'upper': self.get_function_call,
             'weekofyear': self.get_function_call,
             'year': self.get_function_call,
-
         }
+
         # Functions that does not exist on Spark, but can be implemented in
-        # Python as a UDF.
+        # Python as a UDF. For now, and due simplicity, we require that every
+        # custom function is necessarily defined here. Also, we
+        # should not use 'get_function_call' for code generation in this case.
         custom_functions = {
             'group_datetime': self.get_window_function,
-            'strip_accents': self.get_function_call,
-            'strip_punctuation': self.get_function_call,
+            'strip_accents': self.get_strip_accents_function,
+            'strip_punctuation': self.get_strip_punctuation_function,
             'when': self.get_when_function,
             'window': self.get_window_function,
         }

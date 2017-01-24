@@ -15,7 +15,7 @@ import unicodedata
 
 from timeit import default_timer as timer
 
-# from pyspark.ml import classification, evaluation, feature, tuning, clustering
+from pyspark.ml import classification, evaluation, feature, tuning, clustering
 from pyspark.sql import functions, types
 
 # from pyspark.ml import Pipeline
@@ -41,17 +41,6 @@ def sparkLogging(spark_session):
 
 reload(sys)
 sys.setdefaultencoding('utf8')
-
-# Global utilities functions definitions
-# strip_accents = functions.udf(
-#     lambda text: ''.join(c for c in unicodedata.normalize('NFD', text)
-#                          if unicodedata.category(c) != 'Mn'),
-#     types.StringType())
-# strip_punctuation = functions.udf(lambda text:
-#                                   text.translate(
-#                                       dict((ord(char), None)
-#                                            for char in string.punctuation)),
-#                                   types.StringType())
 
 def juicer_debug(spark_session, name, variable, data_frame):
     """ Debug code """
@@ -102,13 +91,6 @@ def main(spark_session, cached_state):
 
     start = time.time()
 
-    spark_session.sparkContext.setLogLevel ('INFO')
-    print 'appName', spark_session.sparkContext.appName
-    print 'session', spark_session
-
-    test_rdd = spark_session.sparkContext.parallelize (range(1, 1000000))
-    print test_rdd.count() 
-
     session_start_time = time.time()
     # spark_session.sparkContext.addPyFile('/tmp/dist.zip')
 
@@ -136,6 +118,7 @@ def main(spark_session, cached_state):
     # Task **{{instance.parameters.task.operation.name}}** did not genarate code
     {%- endif %}
     {%- endfor %}
+
 
     end = time.time()
     print "{}\t{}".format(end - start, end - session_start_time)

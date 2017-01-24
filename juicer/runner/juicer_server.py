@@ -21,7 +21,7 @@ from juicer.runner.control import StateControlRedis
 
 logging.basicConfig(
     format=('[%(levelname)s] %(asctime)s,%(msecs)05.1f '
-            '(%(funcName)s) %(message)s'),
+            '(%(funcName)s:%(lineno)s) %(message)s'),
     datefmt='%H:%M:%S')
 log = logging.getLogger()
 log.setLevel(logging.DEBUG)
@@ -72,20 +72,17 @@ class JuicerServer:
         state_control = StateControlRedis(redis_conn)
         msg = state_control.pop_start_queue()
         item = json.loads(msg)
-        app_id = item.get('app_id')
-        workflow_id = item['workflow_id']
 
         try:
+            app_id = item.get('app_id')
+            workflow_id = item.get('workflow_id')
+            app_id = str(app_id) if app_id else None
+            workflow_id = str(workflow_id) if workflow_id else None
+
             if app_id is None:
                 raise ValueError('Application id not informed')
             elif item.get(self.TERMINATION_PILL, 'false').lower() in ('true'):
-                # In this case we got a request for terminating this workflow
-                # execution instance (app). Thus, we are going to explicitly
-                # terminate the workflow, clear any remaining metadata and return
-                assert app_id in self.active_minions
-                log.debug("Received termination pill for app %s", app_id)
-                os.kill(self.active_minions[app_id].pid, signal.SIGTERM)
-                del self.active_minions[app_id]
+                self._terminate_minion(app_id)
                 return
 
             # NOTE: Currently we are assuming that clients will only submit one
@@ -101,8 +98,7 @@ class JuicerServer:
             
             # Get minion status, if it exists
             minion_info = state_control.get_minion_status(app_id)
-            log.debug('Minion status for app %s: %s', app_id,
-                    state_control.get_minion_status(app_id))
+            log.debug('Minion status for app %s: %s', app_id, minion_info)
 
             # If there is status registered for the application then we do not
             # need to launch a minion for it, because it is already running.
@@ -110,7 +106,8 @@ class JuicerServer:
             if minion_info:
                 log.debug('Minion %s is running.', 'minion_{}'.format(app_id))
             else:
-                minion_process = self._start_minion(app_id, state_control)
+                minion_process = self._start_minion(
+                        workflow_id, app_id, state_control)
                 self.active_minions[app_id] = minion_process
             
             # Make the message (workflow partial execution) visible to the
@@ -134,7 +131,7 @@ class JuicerServer:
                 state_control.push_app_output_queue(
                     app_id, json.dumps({'code': 500, 'message': ex.message}))
 
-    def _start_minion(self, app_id, state_control, restart=False):
+    def _start_minion(self, workflow_id, app_id, state_control, restart=False):
 
         minion_id = 'minion_{}'.format(app_id)
         stdout_log = os.path.join(self.log_dir, minion_id + '_out.log')
@@ -142,15 +139,23 @@ class JuicerServer:
         log.debug('Forking minion %s.', minion_id)
 
         # Expires in 30 seconds and sets only if it doesn't exist
-        state_control.set_minion_status(app_id,
-                self.STARTED, ex=30, nx=False)
+        state_control.set_minion_status(app_id, self.STARTED, ex=30, nx=False)
 
         # Setup command and launch the minion script. We return the subprocess
         # created as part of an active minion.
         open_opts = ['nohup', sys.executable, self.minion_executable,
-                '-a', app_id, '-c', self.config_file_path]
+                '-w', workflow_id, '-a', app_id, '-c', self.config_file_path]
         return subprocess.Popen(open_opts,
                 stdout=open(stdout_log, 'a'), stderr=open(stderr_log, 'a'))
+
+    def _terminate_minion(self, app_id):
+        # In this case we got a request for terminating this workflow
+        # execution instance (app). Thus, we are going to explicitly
+        # terminate the workflow, clear any remaining metadata and return
+        assert app_id in self.active_minions
+        log.info("Received termination pill for app %s", app_id)
+        os.kill(self.active_minions[app_id].pid, signal.SIGTERM)
+        del self.active_minions[app_id]
 
     def minion_support(self):
         parsed_url = urlparse.urlparse(
@@ -164,6 +169,7 @@ class JuicerServer:
         try:
             state_control = StateControlRedis(redis_conn)
             ticket = json.loads(state_control.pop_master_queue())
+            workflow_id = ticket.get('workflow_id')
             app_id = ticket.get('app_id')
             reason = ticket.get('reason')
             log.info("Master received a ticket for app %s", app_id)
@@ -179,7 +185,7 @@ class JuicerServer:
                             break
                     time.sleep(.5)
 
-                self._start_minion(app_id, state_control)
+                self._start_minion(workflow_id, app_id, state_control)
 
             elif reason == self.HELP_STATE_LOST:
                 pass

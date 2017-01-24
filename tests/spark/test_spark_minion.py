@@ -93,13 +93,15 @@ class DataFrame:
 
 # noinspection PyProtectedMember
 def test_minion_ping_success():
+    workflow_id = 6666
     app_id = 897987
 
     with mock.patch('redis.StrictRedis',
                     mock_strict_redis_client) as mocked_redis:
         redis_conn = mocked_redis()
-        minion = SparkMinion(redis_conn=redis_conn, app_id=app_id,
-                             config=config)
+        minion = SparkMinion(redis_conn=redis_conn,
+                workflow_id=workflow_id, app_id=app_id,
+                config=config)
         minion._perform_ping()
 
         state_control = StateControlRedis(redis_conn)
@@ -111,13 +113,15 @@ def test_minion_ping_success():
 
 # noinspection PyProtectedMember
 def test_minion_generate_output_success():
+    workflow_id = 6666
     app_id = 897987
 
     with mock.patch('redis.StrictRedis',
                     mock_strict_redis_client) as mocked_redis:
         redis_conn = mocked_redis()
-        minion = SparkMinion(redis_conn=redis_conn, app_id=app_id,
-                             config=config)
+        minion = SparkMinion(redis_conn=redis_conn,
+                workflow_id=workflow_id, app_id=app_id,
+                config=config)
 
         state_control = StateControlRedis(redis_conn)
 
@@ -127,7 +131,7 @@ def test_minion_generate_output_success():
             result = json.loads(
                 state_control.pop_app_output_queue(app_id, False))
             assert sorted(result.keys()) == sorted(
-                ['date', 'status', 'message', 'app_id', 'code'])
+                ['date', 'status', 'message', 'workflow_id', 'app_id', 'code'])
             assert result['app_id'] == app_id
             assert result['message'] == msg
         assert state_control.get_app_output_queue_size(app_id) == 0
@@ -135,6 +139,7 @@ def test_minion_generate_output_success():
 
 # noinspection PyProtectedMember
 def test_minion_perform_execute_success():
+    workflow_id = 6666
     app_id = 897447
     function_name = 'juicer.spark.transpiler.SparkTranspiler.transpile'
 
@@ -145,8 +150,9 @@ def test_minion_perform_execute_success():
             mocked_transpile.side_effect = get_side_effect(None, 0, 1)
 
             redis_conn = mocked_redis()
-            minion = SparkMinion(redis_conn=redis_conn, app_id=app_id,
-                                 config=config)
+            minion = SparkMinion(redis_conn=redis_conn,
+                    workflow_id=workflow_id, app_id=app_id,
+                    config=config)
 
             # Configure mocked redis
             state_control = StateControlRedis(redis_conn)
@@ -166,6 +172,7 @@ def test_minion_perform_execute_success():
 
 # noinspection PyProtectedMember
 def test_minion_perform_execute_reload_code_success():
+    workflow_id = 6666
     app_id = 667788
     function_name = 'juicer.spark.transpiler.SparkTranspiler.transpile'
 
@@ -176,8 +183,9 @@ def test_minion_perform_execute_reload_code_success():
             mocked_transpile.side_effect = get_side_effect(None, None, 2)
 
             redis_conn = mocked_redis()
-            minion = SparkMinion(redis_conn=redis_conn, app_id=app_id,
-                                 config=config)
+            minion = SparkMinion(redis_conn=redis_conn,
+                    workflow_id=workflow_id, app_id=app_id,
+                    config=config)
 
             # Configure mocked redis
             state_control = StateControlRedis(redis_conn)
@@ -206,6 +214,7 @@ def test_minion_perform_execute_reload_code_success():
 
 # noinspection PyProtectedMember
 def test_minion_generate_invalid_code_failure():
+    workflow_id = 6666
     app_id = 666
     function_name = 'juicer.spark.transpiler.SparkTranspiler.transpile'
 
@@ -215,8 +224,9 @@ def test_minion_generate_invalid_code_failure():
             # Setup for mocked_transpile
             mocked_transpile.side_effect = get_side_effect(None, None, 4)
             redis_conn = mocked_redis()
-            minion = SparkMinion(redis_conn=redis_conn, app_id=app_id,
-                                 config=config)
+            minion = SparkMinion(redis_conn=redis_conn,
+                    workflow_id=workflow_id, app_id=app_id,
+                    config=config)
             # Configure mocked redis
             with open(os.path.join(os.path.dirname(__file__),
                                    'fixtures/simple_workflow.json')) as f:
@@ -237,6 +247,7 @@ def test_minion_generate_invalid_code_failure():
 
 # noinspection PyProtectedMember
 def test_minion_perform_deliver_success():
+    workflow_id = 6666
     app_id = 1000
     out_queue = 'queue_2000'
     sconf = SparkConf()
@@ -256,8 +267,9 @@ def test_minion_perform_deliver_success():
             'output': out_queue
         }
         state_control.push_app_delivery_queue(app_id, json.dumps(data))
-        minion = SparkMinion(redis_conn=redis_conn, app_id=app_id,
-                             config=config)
+        minion = SparkMinion(redis_conn=redis_conn,
+                workflow_id=workflow_id, app_id=app_id,
+                config=config)
         minion.state = {
             data['task_id']: (df0, 35.92)
         }
@@ -276,6 +288,7 @@ def test_minion_perform_deliver_success():
 
 # noinspection PyProtectedMember
 def test_minion_perform_deliver_missing_state_process_app_with_success():
+    workflow_id = 6666
     app_id = 1000
     out_queue = 'queue_2000'
     task_id = '033f-284ab-28987e'
@@ -298,8 +311,9 @@ def test_minion_perform_deliver_missing_state_process_app_with_success():
             }
 
             state_control.push_app_delivery_queue(app_id, json.dumps(data))
-            minion = SparkMinion(redis_conn=redis_conn, app_id=app_id,
-                                 config=config)
+            minion = SparkMinion(redis_conn=redis_conn,
+                    workflow_id=workflow_id, app_id=app_id,
+                    config=config)
             minion.state = {
             }
             minion._perform_deliver()
@@ -317,6 +331,7 @@ def test_minion_perform_deliver_missing_state_process_app_with_success():
 
 # noinspection PyProtectedMember
 def test_minion_perform_deliver_missing_state_process_app_with_failure():
+    workflow_id = 6666
     app_id = 6000
     out_queue = 'queue_2000'
     task_id = '033f-284ab-28987e'
@@ -340,8 +355,9 @@ def test_minion_perform_deliver_missing_state_process_app_with_failure():
             }
 
             state_control.push_app_delivery_queue(app_id, json.dumps(data))
-            minion = SparkMinion(redis_conn=redis_conn, app_id=app_id,
-                                 config=config)
+            minion = SparkMinion(redis_conn=redis_conn,
+                    workflow_id=workflow_id, app_id=app_id,
+                    config=config)
             minion.state = {
             }
             minion._perform_deliver()
@@ -379,6 +395,7 @@ def test_minion_perform_deliver_missing_state_process_app_with_failure():
 
 # noinspection PyProtectedMember
 def test_minion_perform_deliver_missing_state_invalid_port_failure():
+    workflow_id = 6666
     app_id = 5001
     out_queue = 'queue_50001'
     task_id = 'f033f-284ab-28987e-232add'
@@ -401,8 +418,9 @@ def test_minion_perform_deliver_missing_state_invalid_port_failure():
             }
 
             state_control.push_app_delivery_queue(app_id, json.dumps(data))
-            minion = SparkMinion(redis_conn=redis_conn, app_id=app_id,
-                                 config=config)
+            minion = SparkMinion(redis_conn=redis_conn,
+                    workflow_id=workflow_id, app_id=app_id,
+                    config=config)
             minion.state = {}
             minion._perform_deliver()
 
@@ -424,6 +442,7 @@ def test_minion_perform_deliver_missing_state_invalid_port_failure():
 
 # noinspection PyProtectedMember
 def test_minion_perform_deliver_missing_state_unsupported_output_failure():
+    workflow_id = 6666
     app_id = 4001
     out_queue = 'queue_40001'
     task_id = 'f033f-284ab-28987e-232add'
@@ -446,8 +465,9 @@ def test_minion_perform_deliver_missing_state_unsupported_output_failure():
             }
 
             state_control.push_app_delivery_queue(app_id, json.dumps(data))
-            minion = SparkMinion(redis_conn=redis_conn, app_id=app_id,
-                                 config=config)
+            minion = SparkMinion(redis_conn=redis_conn,
+                    workflow_id=workflow_id, app_id=app_id,
+                    config=config)
             minion.state = {
             }
             minion._perform_deliver()
@@ -467,22 +487,68 @@ def test_minion_perform_deliver_missing_state_unsupported_output_failure():
             result = state_control.pop_queue(out_queue, False)
             assert result is None, 'Wrong CSV generated'
 
-def test_terminate_minion():
-    """ TODO
-    - Start a juicer server
-    - Instanciate two minions
-    - Kill the first, assert that it was killed and the other remains
-    - Kill the second, assert that all minions were killed and their state
-      cleaned
+def test_runner_minion_spark_configuration():
     """
-    assert True
-
-def test_minion_spark_configuration():
-    """ TODO
     - Start a juicer server
     - Instanciate one minion passing specific configurations w.r.t. runtime
       environments (app_configs)
     - Assert that the spark context within the minion inherited the same configs
       that it was supposed to inherit
     """
-    assert True
+    
+    try:
+        from pyspark.sql import SparkSession
+    except ImportError as ie:
+        # we will skip this test because pyspark is not installed
+        return
+
+    workflow_id = '6666'
+    app_id = '897447'
+    app_configs = {'spark.master': 'local[3]',
+            'config1': '1', 'config2': '2'}
+    function_name = 'juicer.spark.transpiler.SparkTranspiler.transpile'
+
+    with mock.patch('redis.StrictRedis',
+                    mock_strict_redis_client) as mocked_redis:
+        with mock.patch(function_name) as mocked_transpile:
+            # Setup for mocked_transpile
+            mocked_transpile.side_effect = get_side_effect(None, 0, 1)
+
+            redis_conn = mocked_redis()
+            minion = SparkMinion(redis_conn=redis_conn,
+                    workflow_id=workflow_id, app_id=app_id,
+                    config=config)
+
+            # Configure mocked redis
+            state_control = StateControlRedis(redis_conn)
+            with open(os.path.join(os.path.dirname(__file__),
+                                   'fixtures/simple_workflow.json')) as f:
+                data = json.loads(f.read())
+
+            state_control.push_app_queue(app_id, json.dumps({
+                'workflow_id': workflow_id,
+                'app_id': app_id,
+                'app_configs': app_configs,
+                'workflow': data
+                }))
+
+            minion._perform_execute()
+
+            # check spark session health
+            assert not minion.spark_session is None
+            assert minion.is_spark_session_available()
+
+            # check configs
+            ctx_configs = minion.spark_session.sparkContext.getConf().getAll()
+            ctx_configs = {k:v for k,v in ctx_configs}
+            for k,v in app_configs.iteritems():
+                assert ctx_configs[k] == v
+
+            # check app name
+            assert minion.spark_session.sparkContext.appName == \
+                    data['name']
+
+            # check proper termination
+            minion.terminate()
+            assert not minion.is_spark_session_available()
+

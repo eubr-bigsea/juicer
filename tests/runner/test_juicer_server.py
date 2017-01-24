@@ -3,6 +3,7 @@ import collections
 import json
 
 import sys
+import os
 
 import signal
 
@@ -22,8 +23,8 @@ def test_runner_read_start_queue_success():
             }
         }
     }
-    app_id = 1
-    workflow_id = 1000
+    app_id = '1'
+    workflow_id = '1000'
     workflow = {"app_id": app_id, 'workflow_id': workflow_id}
 
     with mock.patch('redis.StrictRedis',
@@ -44,7 +45,8 @@ def test_runner_read_start_queue_success():
                 app_id) == JuicerServer.STARTED
 
             assert mocked_popen.call_args_list[0][0][0] == [
-                'nohup', sys.executable, 'faked_minions.py', '-a', app_id, '-c',
+                'nohup', sys.executable, 'faked_minions.py',
+                '-w', workflow_id, '-a', app_id, '-c',
                 'config.yaml']
             assert mocked_popen.called
 
@@ -67,8 +69,8 @@ def test_runner_read_start_queue_workflow_not_started_failure():
             }
         }
     }
-    app_id = 1
-    workflow_id = 1000
+    app_id = '1'
+    workflow_id = '1000'
     workflow = {"app_id": app_id, 'workflow_id': workflow_id}
 
     with mock.patch('redis.StrictRedis',
@@ -281,23 +283,150 @@ def test_runner_master_watch_minion_process_success():
         server.watch_minion_process(mocked_redis_conn)
 
 
-def test_multiple_jobs_single_app():
-    """ TODO
+def test_runner_multiple_jobs_single_app():
+    """
     - Start a juicer server
     - Instanciate a minion for an application
     - Submit more than one job to the same (workflow_id,app_id)
-    - Assert that just one minion was launched and that these jobs shared the
-      same spark_session
+    - Assert that just one minion was launched
     """
-    assert True
+    
+    config = {
+        'juicer': {
+            'servers': {
+                'redis_url': "nonexisting.mock"
+            }
+        }
+    }
+    app_id = 1
+    workflow_id = 1000
+    workflow = {"app_id": app_id, 'workflow_id': workflow_id}
 
-def test_multiple_jobs_multiple_apps():
-    """ TODO
+    with mock.patch('redis.StrictRedis',
+            mock_strict_redis_client) as mocked_redis:
+        with mock.patch('subprocess.Popen') as mocked_popen:
+            server = JuicerServer(config, 'faked_minions.py')
+            mocked_redis_conn = mocked_redis()
+            
+            # Publishes a message to process data
+            state_control = StateControlRedis(mocked_redis_conn)
+            
+            # Publishes a message to process data
+            state_control.push_start_queue(json.dumps(workflow))
+            state_control.push_start_queue(json.dumps(workflow))
+            
+            # Start of testing
+            server.read_start_queue(mocked_redis_conn)
+            server.read_start_queue(mocked_redis_conn)
+
+            assert len(server.active_minions) == 1
+            assert mocked_popen.called
+
+
+def test_runner_multiple_jobs_multiple_apps():
+    """
     - Start a juicer server
     - Instanciate two minions for two different aplications
     - Submit jobs for both minions
-    - Assert that two minions were launched and two spark_sessions were created
+    - Assert that two minions were launched
     """
-    assert True
+    
+    config = {
+        'juicer': {
+            'servers': {
+                'redis_url': "nonexisting.mock"
+            }
+        }
+    }
+    app_id = 1
+    workflow_id = 1000
+    workflow1 = {"app_id": app_id, 'workflow_id': workflow_id}
+    workflow2 = {"app_id": app_id + 1, 'workflow_id': workflow_id + 1}
+
+    with mock.patch('redis.StrictRedis',
+            mock_strict_redis_client) as mocked_redis:
+        with mock.patch('subprocess.Popen') as mocked_popen:
+            server = JuicerServer(config, 'faked_minions.py')
+            mocked_redis_conn = mocked_redis()
+            
+            # Publishes a message to process data
+            state_control = StateControlRedis(mocked_redis_conn)
+            
+            # Publishes a message to process data
+            state_control.push_start_queue(json.dumps(workflow1))
+            state_control.push_start_queue(json.dumps(workflow2))
+            state_control.push_start_queue(json.dumps(workflow2))
+            state_control.push_start_queue(json.dumps(workflow1))
+            
+            # Start of testing
+            server.read_start_queue(mocked_redis_conn)
+            server.read_start_queue(mocked_redis_conn)
+            server.read_start_queue(mocked_redis_conn)
+            server.read_start_queue(mocked_redis_conn)
+
+            assert len(server.active_minions) == 2
+            assert mocked_popen.called
+
+def test_runner_minion_termination():
+    """
+    - Start a juicer server
+    - Instanciate two minions
+    - Kill the first, assert that it was killed and the other remains
+    - Kill the second, assert that all minions were killed and their state
+      cleaned
+    """
+
+    try:
+        from pyspark.sql import SparkSession
+    except ImportError as ie:
+        # we will skip this test because pyspark is not installed
+        return
+    
+    config = {
+        'juicer': {
+            'servers': {
+                'redis_url': "nonexisting.mock"
+            }
+        }
+    }
+    app_id = 1
+    workflow_id = 1000
+    workflow1 = {"app_id": app_id, 'workflow_id': workflow_id}
+    workflow1_kill = {"app_id": app_id, 'workflow_id': workflow_id,
+            "terminate": "true"}
+    workflow2 = {"app_id": app_id + 1, 'workflow_id': workflow_id + 1}
+    workflow2_kill = {"app_id": app_id + 1, 'workflow_id': workflow_id + 1,
+            "terminate": "true"}
+
+    with mock.patch('redis.StrictRedis',
+            mock_strict_redis_client) as mocked_redis:
+        config_file_path = os.path.join(os.path.dirname(__file__),
+                'fixtures', 'juicer-server-config.yaml')
+        server = JuicerServer(config, 'faked_minions.py',
+                config_file_path=config_file_path)
+        mocked_redis_conn = mocked_redis()
+        
+        # Publishes a message to process data
+        state_control = StateControlRedis(mocked_redis_conn)
+        
+        # Publishes a message to process data
+        state_control.push_start_queue(json.dumps(workflow1))
+        state_control.push_start_queue(json.dumps(workflow2))
+        
+        # Start of testing
+        server.read_start_queue(mocked_redis_conn)
+        server.read_start_queue(mocked_redis_conn)
+
+        assert len(server.active_minions) == 2
+
+        # kill first minion
+        state_control.push_start_queue(json.dumps(workflow1_kill))
+        server.read_start_queue(mocked_redis_conn)
+        assert len(server.active_minions) == 1
+        
+        # kill second minion
+        state_control.push_start_queue(json.dumps(workflow2_kill))
+        server.read_start_queue(mocked_redis_conn)
+        assert len(server.active_minions) == 0
 
 

@@ -9,7 +9,6 @@ import multiprocessing
 import sys
 import signal
 import time
-from pyspark.sql import SparkSession
 from io import StringIO
 
 import datetime
@@ -21,9 +20,12 @@ from juicer.spark.transpiler import SparkTranspiler
 from juicer.util.string_importer import StringImporter
 from juicer.workflow.workflow import Workflow
 
+logging.basicConfig(
+    format=('[%(levelname)s] %(asctime)s,%(msecs)05.1f '
+        '(%(funcName)s:%(lineno)s) %(message)s'),
+    datefmt='%H:%M:%S')
 log = logging.getLogger()
-log.setLevel(logging.WARN)
-
+log.setLevel(logging.INFO)
 
 class SparkMinion(Minion):
     """
@@ -38,8 +40,8 @@ class SparkMinion(Minion):
     MNN005 = ('MNN005', 'Unable to retrieve data because a previous error.')
     MNN006 = ('MNN006', 'Invalid Python code or incorrect encoding: {}')
 
-    def __init__(self, redis_conn, app_id, config):
-        Minion.__init__(self, redis_conn, app_id, config)
+    def __init__(self, redis_conn, workflow_id, app_id, config):
+        Minion.__init__(self, redis_conn, workflow_id, app_id, config)
 
         self.execute_process = None
         self.ping_process = None
@@ -67,7 +69,8 @@ class SparkMinion(Minion):
         """
         Sends feedback about execution of this minion.
         """
-        obj = {'message': msg, 'app_id': self.app_id, 'code': code,
+        obj = {'message': msg, 'workflow_id': self.workflow_id,
+                'app_id': self.app_id, 'code': code,
                'date': datetime.datetime.now().isoformat(),
                'status': status if status is not None else 'OK'}
 
@@ -115,6 +118,8 @@ class SparkMinion(Minion):
                 self.transpiler.transpile(
                     loader.workflow, loader.graph, {}, out)
 
+            # If there is no module loaded or the module loaded is not the one
+            # related to this job then we force the import
             if self.module is None or self.module.__name__ != module_name:
                 self.module = importlib.import_module(module_name)
             else:
@@ -130,9 +135,15 @@ class SparkMinion(Minion):
             # to avoid re-computing the same tasks over and over again, in case
             # of several partial workflow executions.
             app_configs = app_info.get('app_configs', {})
-            self.state = self.module.main(
+            new_state = self.module.main(
                     self.get_or_create_spark_session(loader, app_configs),
                     self.state)
+            self.state = new_state
+
+            # TODO: Maybe we should merge the state instead of replacing it.
+            # However first we must synchronize its access in the delivery
+            # process.
+            # {{ self.state = self.state.update(new_state) }}
 
             log.debug('Objects in memory after loading module: %s',
                       len(gc.get_objects()))
@@ -152,7 +163,20 @@ class SparkMinion(Minion):
             log.warn(msg)
             self._generate_output(self.MNN006[1], 'ERROR', self.MNN006[0])
             result = False
+        except Exception as ee:
+            log.error(ee.message)
+            self._generate_output(ee.message, 'ERROR', code=1000)
+            result = False
         return result
+
+    def is_spark_session_available(self):
+        """
+        Check whether the spark session is available, i.e., the spark session
+        is set and not stopped.
+        """
+        return self.spark_session and \
+                self.spark_session.sparkContext._jsc and \
+                not self.spark_session.sparkContext._jsc.sc().isStopped()
 
     def get_or_create_spark_session(self, loader, app_configs):
         """
@@ -160,19 +184,21 @@ class SparkMinion(Minion):
         one. Ideally the spark session instanciation is done only once, in order
         to support partial workflow executions within the same context.
         """
-        if not self.spark_session:
+        from pyspark.sql import SparkSession
+        if not self.is_spark_session_available():
 
             if "HADOOP_HOME" in os.environ:
                 app_configs['driver-library-path'] = \
                         '{}/lib/native/'.format(os.environ.get('HADOOP_HOME'))
 
-            app_name = u'## {} ##'.format(loader.workflow.get('name',
+            app_name = u'{}'.format(loader.workflow.get('name',
                 'minion_{}'.format(self.app_id)))
             spark_builder = SparkSession.builder.appName(app_name)
             for option, value in app_configs.iteritems():
                 spark_builder = spark_builder.config(option, value)
 
             self.spark_session = spark_builder.getOrCreate()
+            self.spark_session.sparkContext.setLogLevel ('INFO')
 
         return self.spark_session
 
@@ -258,6 +284,9 @@ class SparkMinion(Minion):
             self._send_to_output(data)
 
     def terminate(self, _signal, _frame):
+        self.terminate()
+    
+    def terminate(self):
         """
         This is a handler that reacts to a sigkill signal. The most feasible
         scenario is when the JuicerServer is demanding the termination of this
@@ -267,9 +296,12 @@ class SparkMinion(Minion):
         log.info('Closing spark session and terminating subprocesses')
         if self.spark_session:
             self.spark_session.stop()
-        os.kill(self.execute_process.pid, signal.SIGKILL)
-        os.kill(self.ping_process.pid, signal.SIGKILL)
-        os.kill(self.delivery_process.pid, signal.SIGKILL)
+        if self.execute_process:
+            os.kill(self.execute_process.pid, signal.SIGKILL)
+        if self.ping_process:
+            os.kill(self.ping_process.pid, signal.SIGKILL)
+        if self.delivery_process:
+            os.kill(self.delivery_process.pid, signal.SIGKILL)
 
     def process(self):
         self.execute_process = multiprocessing.Process(
@@ -294,5 +326,5 @@ class SparkMinion(Minion):
         self.ping_process.join()
         self.delivery_process.join()
 
-        # TODO: clean state files in the temporary directory (maybe pack it and
-        # persist somewhere else ?)
+        # TODO: clean state files in the temporary directory after joining
+        # (maybe pack it and persist somewhere else ?)
