@@ -11,26 +11,28 @@ def debug_instance(instance_wf):
     print
     print '*' * 20
     print instance_wf.workflow_graph.nodes()
-    print '*' * 20
+    print '*' * 21
     print instance_wf.workflow_graph.edges()
-    print '*' * 20
+    print '*' * 22
     print instance_wf.workflow_graph.is_multigraph()
-    print '*' * 20
+    print '*' * 23
     print instance_wf.workflow_graph.number_of_edges()
-    print '*' * 20
+    print '*' * 24
     print instance_wf.sorted_tasks
-    print '*' * 20
+    print '*' * 25
     test = instance_wf.get_reversed_graph()
     print test.edges()
-    print '*' * 20
-    print nx.topological_sort(test, reverse=False)
-    print '*' * 40
-    print instance_wf.get_ports_from_operation_tasks()
-    print '*' * 40
+    print '*' * 26
+    print instance_wf.workflow_graph.in_degree()
+    print instance_wf.check_in_degree_edges()
+    print '*' * 27
+    print instance_wf.workflow_graph.out_degree()
+    print instance_wf.check_out_degree_edges()
+    print '*' * 28
 
-    ## Show image
+    # Show image
     # pos = nx.spring_layout(instance_wf.workflow_graph)
-    # pos = nx.fruchterman_reingold_layout(instance_wf.graph)
+    # pos = nx.fruchterman_reingold_layout(instance_wf.workflow_graph)
     # nx.draw(instance_wf.workflow_graph, pos, node_color='#004a7b', node_size=2000,
     #         edge_color='#555555', width=1.5, edge_cmap=None,
     #         with_labels=True, style='dashed',
@@ -40,6 +42,40 @@ def debug_instance(instance_wf):
     # plt.show()
     # plt.savefig(filename, dpi=300, orientation='landscape', format=None,
                  # bbox_inches=None, pad_inches=0.1)
+
+
+def test_workflow_sequence_missing_outdegree_edge_failure():
+    workflow_test = json.load(
+        open("./tests/workflow/workflow_missing_out_degree_edge.txt"),
+        encoding='utf-8')
+
+    instance_wf = Workflow(workflow_test)
+
+    with pytest.raises(AttributeError):
+        instance_wf.check_out_degree_edges()
+
+def test_workflow_sequence_outdegree_edge_success():
+    workflow_test = json.load(
+        open("./tests/workflow/workflow_out_degree_edge_success.txt"),
+        encoding='utf-8')
+
+    instance_wf = Workflow(workflow_test)
+
+    instance_wf.check_out_degree_edges()
+
+    assert 1 == instance_wf.check_out_degree_edges()
+
+
+
+def test_workflow_sequence_missing_indegree_edge_success():
+    workflow_test = json.load(
+        open("./tests/workflow/workflow_in_degree_edge_success.txt"),
+        encoding='utf-8')
+    instance_wf = Workflow(workflow_test)
+
+    instance_wf.check_in_degree_edges()
+    print debug_instance(instance_wf)
+    assert instance_wf, debug_instance(instance_wf)
 
 def test_workflow_sequence_success():
 
@@ -71,3 +107,16 @@ def test_workflow_sequence_missing_sourceid_value_failure():
     workflow_test = json.load(open("./tests/workflow/workflow_missing_sourceid.txt"))
     with pytest.raises(AttributeError):
         Workflow(workflow_test)
+
+
+def test_workflow_check_out_degree_node_success():
+    return 0
+
+def test_workflow_sequence_missing_edges_failure():
+    return 0
+
+def test_workflow_sequence_multiplicity_many_success():
+    return 0
+
+def test_workflow_sequence_multiplicity_one_success():
+    return 0
