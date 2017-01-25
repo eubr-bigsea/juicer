@@ -6,8 +6,11 @@ log = logging.getLogger()
 log.setLevel(logging.DEBUG)
 
 
-class Operation:
+class Operation(object):
     """ Defines an operation in Lemonade """
+    __slots__ = ('parameters', 'inputs', 'outputs', 'inputs', 'named_inputs',
+                 'named_outputs', 'multiple_inputs', 'has_code',
+                 'expected_output_ports', 'output')
 
     def __init__(self, parameters, inputs, outputs, named_inputs,
                  named_outputs):
