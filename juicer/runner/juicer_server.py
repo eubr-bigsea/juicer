@@ -98,13 +98,15 @@ class JuicerServer:
             
             # Get minion status, if it exists
             minion_info = state_control.get_minion_status(app_id)
-            log.debug('Minion status for app %s: %s', app_id, minion_info)
+            log.debug('Minion status for (workflow_id=%s,app_id=%s): %s',
+		workflow_id, app_id, minion_info)
 
             # If there is status registered for the application then we do not
             # need to launch a minion for it, because it is already running.
             # Otherwise, we launch a new minion for the application.
             if minion_info:
-                log.debug('Minion %s is running.', 'minion_{}'.format(app_id))
+                log.debug('Minion (workflow_id=%s,app_id=%s) is running.',
+			workflow_id, app_id)
             else:
                 minion_process = self._start_minion(
                         workflow_id, app_id, state_control)
@@ -116,7 +118,8 @@ class JuicerServer:
             state_control.push_app_queue(app_id, msg)
             state_control.set_workflow_status(workflow_id, self.STARTED)
 
-            log.info('Generating code for app %s', app_id)
+            log.info('Generating code for (workflow_id=%s,app_id=%s)',
+		workflow_id, app_id)
             state_control.push_app_output_queue(app_id, json.dumps(
                 {'code': 0, 'message': 'Workflow will start soon'}))
 
@@ -133,7 +136,7 @@ class JuicerServer:
 
     def _start_minion(self, workflow_id, app_id, state_control, restart=False):
 
-        minion_id = 'minion_{}'.format(app_id)
+        minion_id = 'minion_{}_{}'.format(workflow_id, app_id)
         stdout_log = os.path.join(self.log_dir, minion_id + '_out.log')
         stderr_log = os.path.join(self.log_dir, minion_id + '_err.log')
         log.debug('Forking minion %s.', minion_id)

@@ -42,12 +42,11 @@ class JuicerClient:
                 "terminate": "true" if self.terminate else "false"
                 }
 
-        print workflow_json
+	print app_submission
+
         workflow_dict = json.loads(workflow_json)
         app_submission['workflow'] = workflow_dict
         app_submission_json = json.dumps(app_submission)
-        print app_submission
-        print app_submission_json
         
         state_control.push_start_queue(json.dumps(app_submission))
 
@@ -59,7 +58,7 @@ def main(redisserver, workflow_id, app_id, appconfigs, terminate):
 
     # app configs (spark) 'config1=value1,config2=value2, ...'
     if appconfigs:
-        app_configs = [kv.split("=") for kv in appconfigs.split("=")]
+        app_configs = [kv.split("=") for kv in appconfigs.split(",")]
         app_configs = {kv[0]:kv[1] for kv in app_configs}
     else:
         app_configs = {}
@@ -87,7 +86,6 @@ if __name__ == "__main__":
             help="terminate the context identified by (workflowid,appid)")
 
     args = parser.parse_args()
-    print args
 
     main(args.redis_server,
             args.workflow_id, args.app_id, args.app_configs, args.terminate)

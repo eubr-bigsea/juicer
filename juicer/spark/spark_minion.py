@@ -58,7 +58,7 @@ class SparkMinion(Minion):
 
         self.job_count = 0
         self.spark_session = None
-        signal.signal(signal.SIGTERM, self.terminate)
+        signal.signal(signal.SIGTERM, self._terminate)
 
     def get_and_inc_job_count(self):
         ccount = self.job_count
@@ -107,7 +107,8 @@ class SparkMinion(Minion):
             workflow = app_info.get('workflow')
 
             loader = Workflow(workflow)
-            module_name = 'juicer_app_{}_{}'.format(
+            module_name = 'juicer_app_{}_{}_{}'.format(
+		    self.workflow_id,
                     self.app_id,
                     self.get_and_inc_job_count())
 
@@ -283,7 +284,7 @@ class SparkMinion(Minion):
                     'message': self.MNN004[1]}
             self._send_to_output(data)
 
-    def terminate(self, _signal, _frame):
+    def _terminate(self, _signal, _frame):
         self.terminate()
     
     def terminate(self):
@@ -296,6 +297,7 @@ class SparkMinion(Minion):
         log.info('Closing spark session and terminating subprocesses')
         if self.spark_session:
             self.spark_session.stop()
+	    self.spark_session = None
         if self.execute_process:
             os.kill(self.execute_process.pid, signal.SIGKILL)
         if self.ping_process:
