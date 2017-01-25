@@ -4,8 +4,6 @@ from __future__ import print_function
 import json
 from textwrap import dedent
 
-from datetime import datetime
-
 import mock
 import os
 from dummy_spark import SparkConf, SparkContext
