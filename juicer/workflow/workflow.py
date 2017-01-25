@@ -30,8 +30,6 @@ class Workflow:
         # Construct graph
         self.workflow_graph = self.builds_initial_workflow_graph()
 
-        # self.number_of_outc = self.check_outdegree_edges()
-
         # Topological sorted tasks according to their dependencies
         self.sorted_tasks = []
 
@@ -43,7 +41,7 @@ class Workflow:
             self.sorted_tasks = self.get_topological_sorted_tasks()
         else:
             raise AttributeError(
-                "Parameter '{}/{}' must be informed for task {}".format(
+                "Port '{}/{}' must be informed for operation{}".format(
                     self.WORKFLOW_GRAPH_SOURCE_ID_PARAM,
                     self.WORKFLOW_GRAPH_TARGET_ID_PARAM,
                     self.__class__))
@@ -60,10 +58,10 @@ class Workflow:
 
             self.workflow_graph.add_node(
                 task.get('id'),
-                tahiti_indegree_required=query_tahiti['N_INPUT'],
-                tahiti_indegree_multiplicity=query_tahiti['M_INPUT'],
-                tahiti_outdegree_required=query_tahiti['N_OUTPUT'],
-                tahiti_outdegree_multiplicity=query_tahiti['M_OUTPUT'],
+                in_degree_required=query_tahiti['N_INPUT'],
+                in_degree_multiplicity_required=query_tahiti['M_INPUT'],
+                out_degree_required=query_tahiti['N_OUTPUT'],
+                ou_degree_multiplicity_required=query_tahiti['M_OUTPUT'],
                 attr_dict=task)
 
         for flow in self.workflow_data['flows']:
@@ -83,11 +81,11 @@ class Workflow:
     def check_in_degree_edges(self):
         for nodes in self.workflow_graph.nodes():
             if self.workflow_graph.node[nodes]['in_degree'] == \
-                    self.workflow_graph.node[nodes]['tahiti_indegree_required']:
+                    self.workflow_graph.node[nodes]['in_degree_required']:
                 pass
             else:
                 raise AttributeError(
-                    "Parameter '{} in node {}' missing, must be informed for flow {}".
+                    "Port '{} in node {}' missing, must be informed for operation {}".
                     format(
                         self.WORKFLOW_GRAPH_TARGET_ID_PARAM,
                         nodes,
@@ -98,12 +96,12 @@ class Workflow:
 
         for nodes in self.workflow_graph.nodes():
             if self.workflow_graph.node[nodes]['out_degree'] == \
-                    self.workflow_graph.node[nodes]['tahiti_outdegree_required']:
+                    self.workflow_graph.node[nodes]['out_degree_required']:
                 pass
             else:
                 raise AttributeError(
 
-                    "Parameter '{}' missing, must be informed for flow {}".format(
+                    "Port '{}' missing, must be informed for operation {}".format(
                         self.WORKFLOW_GRAPH_SOURCE_ID_PARAM,
                         self.__class__)
                 )
@@ -120,10 +118,10 @@ class Workflow:
 
             workflow_graph.add_node(
                 task.get('id'),
-                tahiti_indegree_required=query_tahiti['N_INPUT'],
-                tahiti_indegree_multiplicity=query_tahiti['M_INPUT'],
-                tahiti_outdegree_required=query_tahiti['N_OUTPUT'],
-                tahiti_outdegree_multiplicity=query_tahiti['M_OUTPUT'],
+                in_degree_required=query_tahiti['N_INPUT'],
+                in_degree_multiplicity_required=query_tahiti['M_INPUT'],
+                out_degree_required=query_tahiti['N_OUTPUT'],
+                ou_degree_multiplicity_required=query_tahiti['M_OUTPUT'],
                 attr_dict=task)
 
         for flow in flows:
@@ -137,7 +135,6 @@ class Workflow:
                 in_degree(nodes)
             self.workflow_graph.node[nodes]['out_degree'] = self.workflow_graph. \
                 out_degree(nodes)
-        print self.workflow_graph.nodes()
         return workflow_graph
 
 
@@ -181,29 +178,31 @@ class Workflow:
     def check_null_source_id_tasks(self):
         for flow in self.workflow_data['flows']:
             if flow['source_id'] == "":
-                return 0
-        return 1
+                return False
+        return True
 
     def check_null_target_id_tasks(self):
         for flow in self.workflow_data['flows']:
             if flow['target_id'] == "":
-                return 0
-        return 1
+                return False
+        return True
 
 
-    def get_reversed_graph(self):
-        """
-            Return the reverse of the graph.
-            The reverse is a graph with the same nodes
-            and edges but with the directions of the edges reversed.
-        """
-        workflow_graph_reversed = self.workflow_graph.reverse()
-
-        return workflow_graph_reversed
-
-
+    # @FIX-ME - NOT WORKING YET
     def get_all_ports_operations_tasks(self):
-        return 0
+        params = {
+            'base_url':'http://beta.ctweb.inweb.org.br',
+            'item_path': 'tahiti/operations',
+            'token': '123456',
+            'item_id': ''
+        }
+
+        # Querying tahiti operations to get number of inputs and outputs
+        operations = tahiti_service.query_tahiti(params['base_url'],
+                                                       params['item_path'],
+                                                       params['token'],
+                                                       params['item_id'])
+        return operations
 
     def get_ports_from_operation_tasks(self, id_operation):
         # Can i put this information here?
@@ -215,7 +214,7 @@ class Workflow:
         }
 
         # Querying tahiti operations to get number of inputs and outputs
-        x = tahiti_service.query_tahiti_operations(params['base_url'],
+        operations_ports = tahiti_service.query_tahiti(params['base_url'],
                                                    params['item_path'],
                                                    params['token'],
                                                    params['item_id'])
@@ -227,15 +226,15 @@ class Workflow:
                     'M_OUTPUT': 'None'
                  }
 
-        for y in x['ports']:
-            if y['type'] == 'INPUT':
-                result['M_INPUT'] = y['multiplicity']
+        for port in operations_ports['ports']:
+            if port['type'] == 'INPUT':
+                result['M_INPUT'] = port['multiplicity']
                 if 'N_INPUT' in result:
                     result['N_INPUT'] += 1
                 else:
                     result['N_INPUT'] = 1
-            elif y['type'] == 'OUTPUT':
-                result['M_OUTPUT'] = y['multiplicity']
+            elif port['type'] == 'OUTPUT':
+                result['M_OUTPUT'] = port['multiplicity']
                 if 'N_OUTPUT' in result:
                     result['N_OUTPUT'] += 1
                 else:
@@ -250,8 +249,8 @@ class Workflow:
                     self.workflow_graph.node[atr]['out_degree'],
                     self.workflow_graph.in_degree(atr),
                     self.workflow_graph.out_degree(atr),
-                    self.workflow_graph.node[atr]['tahiti_indegree_required'],
-                    self.workflow_graph.node[atr]['tahiti_outdegree_required']
+                    self.workflow_graph.node[atr]['in_degree_required'],
+                    self.workflow_graph.node[atr]['out_degree_required']
                     )
         else:
             raise KeyError("The node informed doesn't exist")

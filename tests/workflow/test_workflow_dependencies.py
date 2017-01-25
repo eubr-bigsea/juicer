@@ -20,15 +20,17 @@ def debug_instance(instance_wf):
     print '*' * 24
     print instance_wf.sorted_tasks
     print '*' * 25
-    test = instance_wf.get_reversed_graph()
+    test = instance_wf.workflow_graph.reverse()
     print test.edges()
     print '*' * 26
+    print instance_wf.workflow_graph.node['8']
     print instance_wf.workflow_graph.in_degree()
     print instance_wf.check_in_degree_edges()
     print '*' * 27
     print instance_wf.workflow_graph.out_degree()
     print instance_wf.check_out_degree_edges()
     print '*' * 28
+    # print instance_wf.get_all_ports_operations_tasks()
 
     # Show image
     # pos = nx.spring_layout(instance_wf.workflow_graph)
@@ -46,7 +48,7 @@ def debug_instance(instance_wf):
 
 def test_workflow_sequence_missing_outdegree_edge_failure():
     workflow_test = json.load(
-        open("./tests/workflow/workflow_missing_out_degree_edge.txt"),
+        open("./fixtures/workflow/workflow_missing_out_degree_edge.txt"),
         encoding='utf-8')
 
     instance_wf = Workflow(workflow_test)
@@ -54,69 +56,72 @@ def test_workflow_sequence_missing_outdegree_edge_failure():
     with pytest.raises(AttributeError):
         instance_wf.check_out_degree_edges()
 
+
 def test_workflow_sequence_outdegree_edge_success():
     workflow_test = json.load(
-        open("./tests/workflow/workflow_out_degree_edge_success.txt"),
+        open("./fixtures/workflow/workflow_out_degree_edge_success.txt"),
         encoding='utf-8')
 
     instance_wf = Workflow(workflow_test)
 
     instance_wf.check_out_degree_edges()
 
-    assert 1 == instance_wf.check_out_degree_edges()
+    assert True == instance_wf.check_out_degree_edges()
 
 
-
-def test_workflow_sequence_missing_indegree_edge_success():
+def test_workflow_sequence_indegree_edge_success():
     workflow_test = json.load(
-        open("./tests/workflow/workflow_in_degree_edge_success.txt"),
+        open("./fixtures/workflow/workflow_in_degree_edge_success.txt"),
         encoding='utf-8')
     instance_wf = Workflow(workflow_test)
 
-    instance_wf.check_in_degree_edges()
-    print debug_instance(instance_wf)
-    assert instance_wf, debug_instance(instance_wf)
+    # print debug_instance(instance_wf)
+    assert True == instance_wf.check_in_degree_edges()
 
-def test_workflow_sequence_success():
 
-    # workflow_completo
-    workflow_test = json.load(open("./tests/workflow/workflow_correct_changedid.txt"),
-                              encoding='utf-8')
-
-    # workflow_test = json.dumps(json.load(
-        # open("./tests/workflow/workflow_correct_changedid.txt"), encoding='utf-8'))
+def test_workflow_sequence_missing_indegree_edge_failure():
+    workflow_test = json.load(
+        open("./fixtures/workflow/workflow_missing_in_degree_edge.txt"),
+        encoding='utf-8')
 
     instance_wf = Workflow(workflow_test)
 
-    # sorted_tasks_id = nx.topological_sort(instance_wf, reverse=False)
-    # print sorted_tasks_id
+    with pytest.raises(AttributeError):
+        instance_wf.check_in_degree_edges()
+
+
+def test_workflow_sequence_success():
+    # workflow_completo
+    workflow_test = json.load(
+                            open("./fixtures/workflow/workflow_correct_changedid.txt"),
+                             encoding='utf-8')
+
+    instance_wf = Workflow(workflow_test)
 
     print debug_instance(instance_wf)
-    assert instance_wf, debug_instance(instance_wf)
+    assert instance_wf
+
 
 def test_workflow_sequence_missing_targetid_value_failure():
 
     # workflow with missing target_id
-    workflow_test = json.load(open("./tests/workflow/workflow_missing_targetid.txt"))
+    workflow_test = json.load(open("./fixtures/workflow/workflow_missing_targetid.txt"))
     with pytest.raises(AttributeError):
         Workflow(workflow_test)
+
 
 def test_workflow_sequence_missing_sourceid_value_failure():
 
     # workflow with missing target_id
-    workflow_test = json.load(open("./tests/workflow/workflow_missing_sourceid.txt"))
+    workflow_test = json.load(open("./fixtures/workflow/workflow_missing_sourceid.txt"))
     with pytest.raises(AttributeError):
         Workflow(workflow_test)
 
 
-def test_workflow_check_out_degree_node_success():
-    return 0
-
-def test_workflow_sequence_missing_edges_failure():
-    return 0
-
+# @CHECK requirements
 def test_workflow_sequence_multiplicity_many_success():
     return 0
 
+# @CHECK requirements
 def test_workflow_sequence_multiplicity_one_success():
     return 0

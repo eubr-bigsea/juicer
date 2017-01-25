@@ -8,7 +8,7 @@ log = logging.getLogger()
 log.setLevel(logging.DEBUG)
 
 
-def query_tahiti_operations(base_url, item_path, token, item_id):
+def query_tahiti(base_url, item_path, token, item_id):
     headers = {'X-Auth-Token': token}
     url = '{}/{}/{}'.format(base_url, item_path, item_id)
 
@@ -25,8 +25,8 @@ def query_tahiti_operations(base_url, item_path, token, item_id):
 
 
 def get_storage_info(base_url, token, storage_id):
-    return query_tahiti_operations(base_url, 'storages', token, storage_id)
+    return query_tahiti(base_url, 'storages', token, storage_id)
 
 
 def get_data_source_info(base_url, token, data_source_id):
-    return query_tahiti_operations(base_url, '', token, data_source_id)
+    return query_tahiti(base_url, '', token, data_source_id)
