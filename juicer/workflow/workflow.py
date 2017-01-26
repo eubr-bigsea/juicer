@@ -34,9 +34,9 @@ class Workflow:
         self.sorted_tasks = []
 
         # Verify null edges to topological_sorted_tasks
-        if self.check_null_target_id_tasks() \
+        if self.is_there_null_target_id_tasks() \
                 and \
-            self.check_null_source_id_tasks():
+            self.is_there_null_source_id_tasks():
 
             self.sorted_tasks = self.get_topological_sorted_tasks()
         else:
@@ -175,13 +175,13 @@ class Workflow:
 
         return sorted_tasks_id
 
-    def check_null_source_id_tasks(self):
+    def is_there_null_source_id_tasks(self):
         for flow in self.workflow_data['flows']:
             if flow['source_id'] == "":
                 return False
         return True
 
-    def check_null_target_id_tasks(self):
+    def is_there_null_target_id_tasks(self):
         for flow in self.workflow_data['flows']:
             if flow['target_id'] == "":
                 return False
@@ -241,8 +241,25 @@ class Workflow:
                     result['N_OUTPUT'] = 1
         return result
 
+    def workflow_execution_parcial(self):
+
+        topological_sort = self.get_topological_sorted_tasks()
+
+        for node_obj in topological_sort:
+            # print self.workflow_graph.node[node]
+            print (nx.ancestors(self.workflow_graph,node_obj),
+                   self.workflow_graph.predecessors(node_obj),
+                   node_obj,
+                   self.workflow_graph.node[node_obj]['in_degree_required'],
+                   self.workflow_graph.node[node_obj]['in_degree'],
+                   self.workflow_graph.node[node_obj]['out_degree_required'],
+                   self.workflow_graph.node[node_obj]['out_degree']
+                   )
+        print topological_sort
+
+        return True
     # only to debug
-    def verify_outdegree_edges(self, atr):
+    def check_outdegree_edges(self, atr):
 
         if self.workflow_graph.has_node(atr):
             return (self.workflow_graph.node[atr]['in_degree'],

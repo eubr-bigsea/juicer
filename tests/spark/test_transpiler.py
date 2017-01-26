@@ -3,6 +3,7 @@ from io import StringIO
 
 from juicer.spark.operation import Operation
 from juicer.spark.transpiler import SparkTranspiler
+
 from juicer.workflow.workflow import Workflow
 
 
@@ -120,7 +121,9 @@ def test_transpiler_basic_flow_success():
 
     out = StringIO()
     loader = Workflow(workflow)
-    transpiler = SparkTranspiler(loader.workflow, out=out, graph=loader.graph)
+    transpiler = SparkTranspiler(loader.workflow_data,
+                                 out=out,
+                                 graph=loader.workflow_graph)
 
     class FakeOp(Operation):
         name = u'# Fake'

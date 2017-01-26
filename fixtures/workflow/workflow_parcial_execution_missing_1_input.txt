@@ -1,0 +1,96 @@
+{
+  "id": 13,
+  "name": "Clustering example",
+  "description": null,
+  "enabled": true,
+  "created": "2016-12-12T20:13:07+00:00",
+  "updated": "2016-12-12T20:13:07+00:00",
+  "version": 1,
+  "image": null,
+  "tasks": [
+    {
+      "id": "multiplexer",
+      "left": 118,
+      "top": 217,
+      "z_index": 12,
+      "forms": {
+        "choose_input_2_if": {
+          "category": "execution",
+          "value": "WEB_SERVICE"
+        },
+        "color": {
+          "category": "appearance",
+          "value": {
+            "foreground": "#222222",
+            "background": "#BBDD77"
+          }
+        }
+      },
+      "version": 8,
+      "operation": {
+        "id": 57,
+        "name": "Data multiplexer",
+        "slug": "multiplexer"
+      }
+    },
+    {
+      "id": "data-reader",
+      "left": 64,
+      "top": 79,
+      "z_index": 12,
+      "forms": {
+        "comment": {
+          "category": "Appearance",
+          "value": "Corpus\n"
+        },
+        "color": {
+          "category": "appearance",
+          "value": {
+            "foreground": "#FFFFFF",
+            "background": "#92A77E"
+          }
+        },
+        "data_source": {
+          "category": "Execution",
+          "value": "88"
+        },
+        "separator": {
+          "category": "Execution",
+          "value": "{tab}"
+        },
+        "infer_schema": {
+          "category": "Execution",
+          "value": "FROM_LIMONERO"
+        }
+      },
+      "version": 22,
+      "operation": {
+        "id": 18,
+        "name": "Data reader",
+        "slug": "data-reader"
+      }
+    }
+  ],
+  "flows": [
+    {
+         "source_port": 35,
+         "target_port": 126,
+         "source_port_name": "output data",
+         "target_port_name": "input data 1",
+         "source_id": "data-reader",
+         "target_id": "multiplexer"
+    }
+  ],
+  "platform": {
+    "id": 1,
+    "name": "Spark",
+    "slug": "spark",
+    "description": "Apache Spark 2.0 execution platform",
+    "icon": "/static/spark.png"
+  },
+  "user": {
+    "login": "admin",
+    "id": 0,
+    "name": "admin"
+  }
+}

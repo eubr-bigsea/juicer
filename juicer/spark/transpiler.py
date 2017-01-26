@@ -146,7 +146,7 @@ class SparkTranspiler:
             for target_id in self.graph.edge[source_id]:
                 flow = self.graph.edge[source_id][target_id]
 
-                flow_id = '[{}:{}]'.format(source_id, flow['source_port'], )
+                flow_id = '[{}:{}]'.format(source_id, flow[0]['source_port'], )
 
                 if flow_id not in sequential_ports:
                     sequential_ports[flow_id] = 'df{}'.format(
@@ -162,11 +162,11 @@ class SparkTranspiler:
                 sequence = sequential_ports[flow_id]
                 if sequence not in ports[source_id]['outputs']:
                     ports[source_id]['named_outputs'][
-                        flow['source_port_name']] = sequence
+                        flow[0]['source_port_name']] = sequence
                     ports[source_id]['outputs'].append(sequence)
                 if sequence not in ports[target_id]['inputs']:
                     ports[target_id]['named_inputs'][
-                        flow['target_port_name']] = sequence
+                        flow[0]['target_port_name']] = sequence
                     ports[target_id]['inputs'].append(sequence)
 
         env_setup = {'instances': [], 'workflow_name': self.workflow_name}

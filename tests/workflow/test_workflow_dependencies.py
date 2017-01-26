@@ -23,12 +23,11 @@ def debug_instance(instance_wf):
     test = instance_wf.workflow_graph.reverse()
     print test.edges()
     print '*' * 26
-    print instance_wf.workflow_graph.node['8']
     print instance_wf.workflow_graph.in_degree()
-    print instance_wf.check_in_degree_edges()
+    # print instance_wf.check_in_degree_edges()
     print '*' * 27
     print instance_wf.workflow_graph.out_degree()
-    print instance_wf.check_out_degree_edges()
+    # print instance_wf.check_out_degree_edges()
     print '*' * 28
     # print instance_wf.get_all_ports_operations_tasks()
 
@@ -93,19 +92,22 @@ def test_workflow_sequence_missing_indegree_edge_failure():
 def test_workflow_sequence_success():
     # workflow_completo
     workflow_test = json.load(
-                            open("./fixtures/workflow/workflow_correct_changedid.txt"),
-                             encoding='utf-8')
+        open("./fixtures/workflow/workflow_correct_changedid.txt"),
+        encoding='utf-8')
 
     instance_wf = Workflow(workflow_test)
 
     print debug_instance(instance_wf)
+    print instance_wf.workflow_execution_parcial()
     assert instance_wf
 
 
 def test_workflow_sequence_missing_targetid_value_failure():
 
     # workflow with missing target_id
-    workflow_test = json.load(open("./fixtures/workflow/workflow_missing_targetid.txt"))
+    workflow_test = json.load(
+        open("./fixtures/workflow/workflow_missing_targetid.txt"),
+        encoding='utf-8')
     with pytest.raises(AttributeError):
         Workflow(workflow_test)
 
@@ -113,10 +115,26 @@ def test_workflow_sequence_missing_targetid_value_failure():
 def test_workflow_sequence_missing_sourceid_value_failure():
 
     # workflow with missing target_id
-    workflow_test = json.load(open("./fixtures/workflow/workflow_missing_sourceid.txt"))
+    workflow_test = json.load(
+        open("./fixtures/workflow/workflow_missing_sourceid.txt"),
+        encoding='utf-8')
     with pytest.raises(AttributeError):
         Workflow(workflow_test)
 
+
+def test_workflow_parcial_execution_success():
+    # workflow with missing target_id
+    workflow_test = json.load(
+        # open("./fixtures/workflow/workflow_parcial_execution.txt"),
+        # open("./fixtures/workflow/workflow_parcial_execution_tasks.txt"),
+        open("./fixtures/workflow/workflow_parcial_execution_missing_1_input.txt"),
+        encoding='utf-8')
+
+    instance_wf = Workflow(workflow_test)
+
+    print debug_instance(instance_wf)
+    print instance_wf.workflow_execution_parcial()
+    assert instance_wf
 
 # @CHECK requirements
 def test_workflow_sequence_multiplicity_many_success():
