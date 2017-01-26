@@ -19,15 +19,18 @@ logging.basicConfig(
 log = logging.getLogger()
 log.setLevel(logging.DEBUG)
 
-
 class JuicerClient:
-    def __init__(self, redis_conn,
-            workflow_id, app_id, app_configs={}, terminate=False):
+    
+    def __init__(self, redis_conn, workflow_id, app_id, msg_type,
+            app_configs, task_id, output, port):
         self.redis_conn = redis_conn
         self.workflow_id = workflow_id
         self.app_id = app_id
+        self.msg_type = msg_type
         self.app_configs = app_configs
-        self.terminate = terminate
+        self.task_id = task_id
+        self.output = output
+        self.port = port
 
     def run(self):
         log.debug('Processing workflow queue %s', self.workflow_id)
@@ -38,8 +41,11 @@ class JuicerClient:
         app_submission = {
                 "workflow_id": self.workflow_id,
                 "app_id": self.app_id,
+                "type": self.msg_type,
                 "app_configs": self.app_configs,
-                "terminate": "true" if self.terminate else "false"
+                "task_id": self.task_id,
+                "output": self.output,
+                "port": self.port
                 }
 
 	print app_submission
@@ -50,7 +56,16 @@ class JuicerClient:
         
         state_control.push_start_queue(json.dumps(app_submission))
 
-def main(redisserver, workflow_id, app_id, appconfigs, terminate):
+def main(redisserver, workflow_id, app_id, msg_type, appconfigs,
+        task_id, output, port):
+
+    # check if message type is valid
+    valid_msg_types = ("execute", "deliver", "terminate")
+    if not msg_type in valid_msg_types:
+        print "Invalid message type '%s'. Supported message types: %s" % (
+                msg_type, valid_msg_types)
+        return
+
     # redis server parsing
     parsed_url = urlparse.urlparse(redisserver)
     redis_conn = redis.StrictRedis(host=parsed_url.hostname,
@@ -64,7 +79,8 @@ def main(redisserver, workflow_id, app_id, appconfigs, terminate):
         app_configs = {}
 
     client = JuicerClient(redis_conn,
-            workflow_id, app_id, app_configs, terminate)
+            workflow_id, app_id, msg_type, app_configs,
+            task_id, output, port)
     client.run()
 
 if __name__ == "__main__":
@@ -79,13 +95,23 @@ if __name__ == "__main__":
     parser.add_argument("-a", "--app_id", type=str, required=True,
             help="Application identification number")
     
-    parser.add_argument("-c", "--app_configs", type=str, default="",
+    parser.add_argument("-t", "--msg_type", type=str, required=True,
+            help="Message type (execute, deliver or terminate)")
+    
+    parser.add_argument("-c", "--app_configs", type=str, default=None,
             help="Key value configuration for the spark application")
-
-    parser.add_argument("-t", "--terminate", type=bool, default=False,
-            help="terminate the context identified by (workflowid,appid)")
+    
+    parser.add_argument("-i", "--task_id", type=str, default="",
+            help="Task id for deliver request")
+    
+    parser.add_argument("-o", "--output", type=str, default="",
+            help="Output queue name for fetching results from Redis")
+    
+    parser.add_argument("-p", "--port", type=str, default="",
+            help="Port used to identify results")
 
     args = parser.parse_args()
 
     main(args.redis_server,
-            args.workflow_id, args.app_id, args.app_configs, args.terminate)
+            args.workflow_id, args.app_id, args.msg_type, args.app_configs,
+            args.task_id, args.output, args.port)

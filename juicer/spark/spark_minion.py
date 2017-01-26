@@ -15,6 +15,8 @@ import datetime
 import imp
 
 import os
+from juicer.runner import juicer_protocol
+from juicer.runner.juicer_server import JuicerServer
 from juicer.runner.minion_base import Minion
 from juicer.spark.transpiler import SparkTranspiler
 from juicer.util.string_importer import StringImporter
@@ -45,7 +47,6 @@ class SparkMinion(Minion):
 
         self.execute_process = None
         self.ping_process = None
-        self.delivery_process = None
         self.module = None
 
         self.string_importer = StringImporter()
@@ -88,24 +89,74 @@ class SparkMinion(Minion):
         status = {
             'status': 'READY', 'pid': os.getpid(),
         }
-        self.state_control.set_minion_status(self.app_id, json.dumps(status),
-                                             nx=False)
+        self.state_control.set_minion_status(self.app_id,
+                json.dumps(status), ex=30, nx=False)
 
     def execute(self):
         """
         Starts consuming jobs that must be processed by this minion.
         """
         while True:
-            self._perform_execute()
+            try:
+                self._process_message()
+            except KeyError as ke:
+                log.error('Message does not match any convention: %s', msg_type)
 
-    def _perform_execute(self):
+    def _process_message(self):
+        # Get next message
+        msg_info = json.loads(
+            self.state_control.pop_app_queue(self.app_id))
+
+        # Sanity check: this minion should not process messages from another
+        # workflow/app
+        assert msg_info['workflow_id'] == self.workflow_id, \
+                'Expected workflow_id=%s, got workflow_id=%s' % ( \
+                self.workflow_id, msg_info['workflow_id'])
+        
+        assert msg_info['app_id'] == self.app_id, \
+                'Expected app_id=%s, got app_id=%s' % ( \
+                self.workflow_id, msg_info['app_id'])
+
+        # Extract the message type
+        msg_type = msg_info['type']
+        self._generate_output('Processing message %s for app %s' %
+                (msg_type, self.app_id))
+
+        # Forward the message according to its purpose
+        if msg_type == juicer_protocol.EXECUTE:
+            log.info('Execute message received')
+            workflow = msg_info['workflow']
+            # TODO: We should consider the case in which the spark session is
+            # already instanciated and this new request asks for a different set
+            # of configurations:
+            # - Should we rebuild the context from scratch and execute all jobs so far?
+            # - Should we ignore this part of the request and execute over the existing
+            # (old configs) spark session?
+            app_configs = msg_info.get('app_configs', {})
+            
+            self._perform_execute(workflow, app_configs)
+
+        elif msg_type == juicer_protocol.DELIVER:
+            log.info('Deliver message received')
+            task_id = msg_info.get('task_id')
+            output = msg_info.get('output')
+            port = int(msg_info.get('port'))
+            workflow = msg_info['workflow']
+            app_configs = msg_info.get('app_configs', {})
+
+            self._perform_deliver(task_id, output, port, workflow, app_configs)
+
+        elif msg_type == juicer_protocol.TERMINATE:
+            log.info('Terminate message received')
+            self.terminate()
+
+        else:
+            log.warn('Unknown message type %s', msg_type)
+            self._generate_output('Unknown message type %s' % msg_type)
+
+    def _perform_execute(self, workflow, app_configs):
         result = True
         try:
-            app_info = json.loads(
-                self.state_control.pop_app_queue(self.app_id))
-            self._generate_output('Starting app {}'.format(self.app_id))
-            workflow = app_info.get('workflow')
-
             loader = Workflow(workflow)
             module_name = 'juicer_app_{}_{}_{}'.format(
 		    self.workflow_id,
@@ -119,32 +170,24 @@ class SparkMinion(Minion):
                 self.transpiler.transpile(
                     loader.workflow, loader.graph, {}, out)
 
-            # If there is no module loaded or the module loaded is not the one
-            # related to this job then we force the import
-            if self.module is None or self.module.__name__ != module_name:
-                self.module = importlib.import_module(module_name)
-            else:
-                # Get rid of .pyc file if it exists
-                if os.path.isfile('{}c'.format(generated_code_path)):
-                    os.remove('{}c'.format(generated_code_path))
-                # Hot swap of code
-                self.module = imp.reload(self.module)
+            # Get rid of .pyc file if it exists
+            if os.path.isfile('{}c'.format(generated_code_path)):
+                os.remove('{}c'.format(generated_code_path))
+            self.module = importlib.import_module(module_name)
+            self.module = imp.reload(self.module)
 
             # Starting execution. At this point, the transpiler have created a
             # module with a main function that receives a spark_session and the
             # current state (if any). We pass the current state to the execution
             # to avoid re-computing the same tasks over and over again, in case
             # of several partial workflow executions.
-            app_configs = app_info.get('app_configs', {})
             new_state = self.module.main(
                     self.get_or_create_spark_session(loader, app_configs),
                     self.state)
-            self.state = new_state
 
-            # TODO: Maybe we should merge the state instead of replacing it.
-            # However first we must synchronize its access in the delivery
-            # process.
-            # {{ self.state = self.state.update(new_state) }}
+            # We update the state incrementally, i.e., new task results can be
+            # overwritten but never lost.
+            self.state.update(new_state)
 
             log.debug('Objects in memory after loading module: %s',
                       len(gc.get_objects()))
@@ -185,6 +228,7 @@ class SparkMinion(Minion):
         one. Ideally the spark session instanciation is done only once, in order
         to support partial workflow executions within the same context.
         """
+
         from pyspark.sql import SparkSession
         if not self.is_spark_session_available():
 
@@ -192,8 +236,10 @@ class SparkMinion(Minion):
                 app_configs['driver-library-path'] = \
                         '{}/lib/native/'.format(os.environ.get('HADOOP_HOME'))
 
-            app_name = u'{}'.format(loader.workflow.get('name',
-                'minion_{}'.format(self.app_id)))
+            app_name = u'%s(workflow_id=%s,app_id=%s)' % (
+                    loader.workflow.get('name', ''),
+                    self.workflow_id, self.app_id)
+
             spark_builder = SparkSession.builder.appName(app_name)
             for option, value in app_configs.iteritems():
                 spark_builder = spark_builder.config(option, value)
@@ -202,14 +248,6 @@ class SparkMinion(Minion):
             self.spark_session.sparkContext.setLogLevel ('INFO')
 
         return self.spark_session
-
-
-    def deliver(self):
-        """
-        Process requests to deliver data processed by this minion.
-        """
-        while True:
-            self._perform_deliver()
 
     @staticmethod
     def _convert_to_csv(row):
@@ -228,35 +266,26 @@ class SparkMinion(Minion):
         self.state_control.push_app_output_queue(
             self.app_id, json.dumps(data))
 
-    def _perform_deliver(self):
-
-        request = json.loads(
-            self.state_control.pop_app_delivery_queue(self.app_id))
-        task_id = request['task_id']
+    def _perform_deliver(self, task_id, output, port, workflow, app_configs):
         # FIXME: state must expire. How to identify this in the interface?
         # FIXME: Define how to identify the request.
         # FIXME: Define where to store generated data (Redis?)
         if task_id in self.state:
-            self._read_dataframe_data(request, task_id)
+            self._read_dataframe_data(task_id, output, port)
         else:
             data = {'status': 'WARNING', 'code': self.MNN003[0],
                     'message': self.MNN003[1]}
             self._send_to_output(data)
 
             # FIXME: Report missing or process workflow until this task
-            workflow = request['workflow']
-            self.state_control.push_app_queue(self.app_id, workflow)
-            if self._perform_execute():
-                self._read_dataframe_data(request, task_id)
+            if self._perform_execute(workflow, app_configs):
+                self._read_dataframe_data(task_id, output, port)
             else:
                 data = {'status': 'ERROR', 'code': self.MNN005[0],
                         'message': self.MNN005[1]}
                 self._send_to_output(data)
 
-    def _read_dataframe_data(self, request, task_id):
-        # Perform a collection action in data frame.
-        # FIXME: Evaluate if there is a better way to identify the port
-        port = int(request.get('port'))
+    def _read_dataframe_data(self, task_id, output, port):
 
         # Last position in state is the execution time, so it should be ignored
         if len(self.state[task_id]) - 1 >= port:
@@ -269,11 +298,10 @@ class SparkMinion(Minion):
                 # FIXME define as a parameter?:
                 result = df.take(100).rdd.map(
                     SparkMinion._convert_to_csv).collect()
-                out_queue = request.get('output')
                 self.state_control.push_queue(
-                    out_queue, '\n'.join(result))
+                    output, '\n'.join(result))
                 data = {'status': 'SUCCESS', 'code': self.MNN002[0],
-                        'message': self.MNN002[1], 'output': out_queue}
+                        'message': self.MNN002[1], 'output': output}
                 self._send_to_output(data)
             else:
                 data = {'status': 'ERROR', 'code': self.MNN001[0],
@@ -297,15 +325,16 @@ class SparkMinion(Minion):
         log.info('Closing spark session and terminating subprocesses')
         if self.spark_session:
             self.spark_session.stop()
+            self.spark_session.sparkContext.stop()
 	    self.spark_session = None
         if self.execute_process:
             os.kill(self.execute_process.pid, signal.SIGKILL)
         if self.ping_process:
             os.kill(self.ping_process.pid, signal.SIGKILL)
-        if self.delivery_process:
-            os.kill(self.delivery_process.pid, signal.SIGKILL)
 
     def process(self):
+        log.info('Spark minion (workflow_id=%s,app_id=%s) started (pid=%s)',
+                self.workflow_id, self.app_id, os.getpid())
         self.execute_process = multiprocessing.Process(
             name="minion", target=self.execute)
         self.execute_process.daemon = False
@@ -314,19 +343,13 @@ class SparkMinion(Minion):
             name="ping process", target=self.ping)
         self.ping_process.daemon = False
 
-        self.delivery_process = multiprocessing.Process(
-            name="delivery", target=self.deliver)
-        self.delivery_process.daemon = False
-
         self.execute_process.start()
         self.ping_process.start()
-        self.delivery_process.start()
 
         # We join the following processes because this script only terminates by
         # explicitly receiving a SIGKILL signal.
         self.execute_process.join()
         self.ping_process.join()
-        self.delivery_process.join()
 
         # TODO: clean state files in the temporary directory after joining
         # (maybe pack it and persist somewhere else ?)

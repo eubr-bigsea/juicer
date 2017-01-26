@@ -25,7 +25,12 @@ def test_runner_read_start_queue_success():
     }
     app_id = '1'
     workflow_id = '1000'
-    workflow = {"app_id": app_id, 'workflow_id': workflow_id}
+    workflow = {
+        'workflow_id': workflow_id,
+        'app_id': app_id,
+        'type': 'execute',
+        'workflow': ''
+    }
 
     with mock.patch('redis.StrictRedis',
                     mock_strict_redis_client) as mocked_redis:
@@ -58,7 +63,7 @@ def test_runner_read_start_queue_success():
             assert state_control.get_workflow_status(
                 workflow_id) == JuicerServer.STARTED
             assert json.loads(state_control.pop_app_output_queue(app_id)) == {
-                'code': 0, 'message': 'Workflow will start soon'}
+                'code': 0, 'message': 'Minion is processing message execute'}
 
 
 def test_runner_read_start_queue_workflow_not_started_failure():
@@ -71,7 +76,12 @@ def test_runner_read_start_queue_workflow_not_started_failure():
     }
     app_id = '1'
     workflow_id = '1000'
-    workflow = {"app_id": app_id, 'workflow_id': workflow_id}
+    workflow = {
+        'workflow_id': workflow_id,
+        'app_id': app_id,
+        'type': 'execute',
+        'workflow': ''
+    }
 
     with mock.patch('redis.StrictRedis',
                     mock_strict_redis_client) as mocked_redis:
@@ -85,7 +95,7 @@ def test_runner_read_start_queue_workflow_not_started_failure():
 
             # This workflow is being processed, should not start it again
             # state_control.set_workflow_status(workflow_id, JuicerServer.STARTED)
-            server.active_minions[app_id] = '_'
+            server.active_minions[(workflow_id, app_id)] = '_'
 
             # Start of testing
             server.read_start_queue(mocked_redis_conn)
@@ -114,7 +124,12 @@ def test_runner_read_start_queue_minion_already_running_success():
     }
     app_id = 1
     workflow_id = 1000
-    workflow = {"app_id": app_id, 'workflow_id': workflow_id}
+    workflow = {
+        'workflow_id': workflow_id,
+        'app_id': app_id,
+        'type': 'execute',
+        'workflow': ''
+    }
 
     with mock.patch('redis.StrictRedis',
                     mock_strict_redis_client) as mocked_redis:
@@ -141,7 +156,7 @@ def test_runner_read_start_queue_minion_already_running_success():
             assert state_control.get_workflow_status(
                 workflow_id) == JuicerServer.STARTED
             assert json.loads(state_control.pop_app_output_queue(app_id)) == {
-                'code': 0, 'message': 'Workflow will start soon'}
+                'code': 0, 'message': 'Minion is processing message execute'}
 
 
 def test_runner_read_start_queue_missing_details_failure():
@@ -155,7 +170,12 @@ def test_runner_read_start_queue_missing_details_failure():
     app_id = 1
     workflow_id = 1000
     # incorrect key, should raise exception
-    workflow = {"xapp_id": app_id, 'workflow_id': workflow_id}
+    workflow = {
+        'workflow_id': workflow_id,
+        'xapp_id': app_id,
+        'type': 'execute',
+        'workflow': ''
+    }
 
     with mock.patch('redis.StrictRedis',
                     mock_strict_redis_client) as mocked_redis:
@@ -300,7 +320,12 @@ def test_runner_multiple_jobs_single_app():
     }
     app_id = 1
     workflow_id = 1000
-    workflow = {"app_id": app_id, 'workflow_id': workflow_id}
+    workflow = {
+        'workflow_id': workflow_id,
+        'app_id': app_id,
+        'type': 'execute',
+        'workflow': ''
+    }
 
     with mock.patch('redis.StrictRedis',
             mock_strict_redis_client) as mocked_redis:
@@ -338,10 +363,21 @@ def test_runner_multiple_jobs_multiple_apps():
             }
         }
     }
+
     app_id = 1
     workflow_id = 1000
-    workflow1 = {"app_id": app_id, 'workflow_id': workflow_id}
-    workflow2 = {"app_id": app_id + 1, 'workflow_id': workflow_id + 1}
+    workflow1 = {
+        'workflow_id': workflow_id,
+        'app_id': app_id,
+        'type': 'execute',
+        'workflow': ''
+    }
+    workflow2 = {
+        'workflow_id': workflow_id + 1,
+        'app_id': app_id + 1,
+        'type': 'execute',
+        'workflow': ''
+    }
 
     with mock.patch('redis.StrictRedis',
             mock_strict_redis_client) as mocked_redis:
@@ -391,12 +427,31 @@ def test_runner_minion_termination():
     }
     app_id = 1
     workflow_id = 1000
-    workflow1 = {"app_id": app_id, 'workflow_id': workflow_id}
-    workflow1_kill = {"app_id": app_id, 'workflow_id': workflow_id,
-            "terminate": "true"}
-    workflow2 = {"app_id": app_id + 1, 'workflow_id': workflow_id + 1}
-    workflow2_kill = {"app_id": app_id + 1, 'workflow_id': workflow_id + 1,
-            "terminate": "true"}
+    workflow1 = {
+        'workflow_id': workflow_id,
+        'app_id': app_id,
+        'type': 'execute',
+        'workflow': ''
+    }
+    
+    workflow1_kill = {
+        'workflow_id': workflow_id,
+        'app_id': app_id,
+        'type': 'terminate'
+    }
+
+    workflow2 = {
+        'workflow_id': workflow_id + 1,
+        'app_id': app_id + 1,
+        'type': 'execute',
+        'workflow': ''
+    }
+    
+    workflow2_kill = {
+        'workflow_id': workflow_id + 1,
+        'app_id': app_id + 1,
+        'type': 'terminate'
+    }
 
     with mock.patch('redis.StrictRedis',
             mock_strict_redis_client) as mocked_redis:

@@ -9,7 +9,7 @@ class StateControlRedis:
     user interface.
     """
     START_QUEUE_NAME = 'queue_start'
-    QUEUE_JOB = 'queue_app_{}'
+    QUEUE_APP = 'queue_app_{}'
 
     def __init__(self, redis_conn):
         self.redis_conn = redis_conn
@@ -31,13 +31,13 @@ class StateControlRedis:
         self.push_queue(self.START_QUEUE_NAME, data)
 
     def pop_app_queue(self, app_id, block=True):
-        return self.pop_queue(self.QUEUE_JOB.format(app_id), block)
+        return self.pop_queue(self.QUEUE_APP.format(app_id), block)
 
     def push_app_queue(self, app_id, data):
-        self.push_queue(self.QUEUE_JOB.format(app_id), data)
+        self.push_queue(self.QUEUE_APP.format(app_id), data)
 
     def get_app_queue_size(self, app_id):
-        key = self.QUEUE_JOB.format(app_id)
+        key = self.QUEUE_APP.format(app_id)
         return self.redis_conn.llen(key)
 
     def get_workflow_status(self, workflow_id):

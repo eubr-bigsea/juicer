@@ -9,9 +9,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     parser.add_argument("-c", "--config", help="Config file", required=True)
-    parser.add_argument("-w", "--worflow_id", help="Workflow id", type=int,
+    parser.add_argument("-w", "--worflow_id", help="Workflow id", type=str,
                         required=True)
-    parser.add_argument("-a", "--app_id", help="Job id", type=int,
+    parser.add_argument("-a", "--app_id", help="Job id", type=str,
                         required=True)
     parser.add_argument("-t", "--type", help="Execution engine",
                         required=False, default="SPARK")
