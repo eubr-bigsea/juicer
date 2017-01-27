@@ -9,9 +9,11 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     parser.add_argument("-c", "--config", help="Config file", required=True)
-    parser.add_argument("-j", "--job_id", help="Job id", type=int,
+    parser.add_argument("-w", "--worflow_id", help="Workflow id", type=str,
                         required=True)
-    parser.add_argument("-t", "--type", help="Processing technology type",
+    parser.add_argument("-a", "--app_id", help="Job id", type=str,
+                        required=True)
+    parser.add_argument("-t", "--type", help="Execution engine",
                         required=False, default="SPARK")
     args = parser.parse_args()
 
@@ -24,7 +26,8 @@ if __name__ == '__main__':
                                    port=parsed_url.port)
     if args.type == 'SPARK':
         # log.info('Starting Juicer Spark Minion')
-        server = SparkMinion(redis_conn, args.job_id, juicer_config)
+        server = SparkMinion(redis_conn,
+                args.worflow_id, args.app_id, juicer_config)
         server.process()
     else:
         raise ValueError(
