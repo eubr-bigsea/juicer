@@ -127,10 +127,10 @@ class RemoveStopWordsOperation(Operation):
                                    self.alias[:len(self.attributes)])]
 
         self.stop_word_language = self.parameters.get(
-                                  self.STOP_WORD_LANGUAGE_PARAM, 'english')
+            self.STOP_WORD_LANGUAGE_PARAM, 'english')
 
         self.sw_case_sensitive = self.parameters.get(
-                                self.STOP_WORD_CASE_SENSITIVE_PARAM, 'False')
+            self.STOP_WORD_CASE_SENSITIVE_PARAM, 'False')
 
         self.has_code = len(self.inputs) > 0
 
@@ -142,9 +142,9 @@ class RemoveStopWordsOperation(Operation):
             french, german, hungarian, italian, norwegian, portuguese,
             russian, spanish, swedish, turkish
             """
-            #code = "sw = {}".format(json.dumps(self.stop_word_list))
+            # code = "sw = {}".format(json.dumps(self.stop_word_list))
             code = "sw = StopWordsRemover.loadDefaultStopWords({})".format(
-                    self.stop_word_language)
+                self.stop_word_language)
 
             code += dedent("""
             col_alias = {3}
@@ -175,7 +175,8 @@ class RemoveStopWordsOperation(Operation):
                 pipeline = Pipeline(stages=removers)
                 {2} = pipeline.fit({1}).transform({1})
             """.format(self.attributes, self.named_inputs['input data'],
-                       self.output, json.dumps(zip(self.attributes, self.alias)),
+                       self.output,
+                       json.dumps(zip(self.attributes, self.alias)),
                        self.sw_case_sensitive))
         return code
 
@@ -231,6 +232,7 @@ class WordToVectorOperation(Operation):
         self.minimum_count = parameters.get(self.MINIMUM_COUNT_PARAM, 0)
 
         self.has_code = len(self.inputs) > 0
+        self.output = self.named_outputs['output data']
 
     def get_data_out_names(self, sep=','):
         return self.output
@@ -254,16 +256,18 @@ class WordToVectorOperation(Operation):
             {2} = model.transform({1})
             """)
 
-            vocab_out = self.named_outputs.get('vocabulary',
-                                           '{}_vocab'.format(self.inputs[0]))
+            vocab_out = self.named_outputs.get(
+                'vocabulary', '{}_vocab'.format(self.inputs[0]))
             code += dedent("""
                 {} = dict([(col_alias[i][1], v.vocabulary)
-                        for i, v in enumerate(model.stages)])""".format(vocab_out))
+                        for i, v in enumerate(model.stages)])""".format(
+                vocab_out))
 
-            code = code.format(self.attributes, self.inputs[0],
+            code = code.format(self.attributes, self.output,
                                self.named_outputs['output data'],
                                json.dumps(zip(self.attributes, self.alias)),
-                               self.minimum_tf, self.minimum_df, self.vocab_size)
+                               self.minimum_tf, self.minimum_df,
+                               self.vocab_size)
 
         elif self.type == self.TYPE_WORD2VEC:
             # @FIXME Check
@@ -286,10 +290,12 @@ class WordToVectorOperation(Operation):
             """)
 
             vocab_out = self.named_outputs.get('vocabulary',
-                                               '{}_vocab'.format(self.inputs[0]))
+                                               '{}_vocab'.format(
+                                                   self.inputs[0]))
             code += dedent("""
                 {} = dict([(col_alias[i][1], v.vocabulary)
-                        for i, v in enumerate(model.stages)])""".format(vocab_out))
+                        for i, v in enumerate(model.stages)])""".format(
+                vocab_out))
 
             code = code.format(self.attributes, self.inputs[0],
                                self.named_outputs['output data'],
