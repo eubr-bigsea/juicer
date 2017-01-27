@@ -182,7 +182,7 @@ class RemoveStopWordsOperation(Operation):
 
 
 class WordToVectorOperation(Operation):
-    '''
+    """
     Word2Vec is an Estimator which takes sequences of words that
     represents documents and trains a Word2VecModel. The model is
     a Map(String, Vector) essentially, which maps each word to an
@@ -190,7 +190,7 @@ class WordToVectorOperation(Operation):
     documents into a vector using the average of all words in the
     document, which aims to other computations of documents such
     as similarity calculation consequencely.
-    '''
+    """
     TYPE_PARAM = 'type'
     ATTRIBUTES_PARAM = 'attributes'
     ALIAS_PARAM = 'alias'
@@ -233,6 +233,8 @@ class WordToVectorOperation(Operation):
 
         self.has_code = len(self.inputs) > 0
         self.output = self.named_outputs['output data']
+        self.vocab_out = self.named_outputs.get(
+            'vocabulary', '{}_vocab'.format(self.inputs[0]))
 
     def get_data_out_names(self, sep=','):
         return self.output
@@ -255,15 +257,12 @@ class WordToVectorOperation(Operation):
             model = pipeline.fit({1})
             {2} = model.transform({1})
             """)
-
-            vocab_out = self.named_outputs.get(
-                'vocabulary', '{}_vocab'.format(self.inputs[0]))
             code += dedent("""
                 {} = dict([(col_alias[i][1], v.vocabulary)
                         for i, v in enumerate(model.stages)])""".format(
-                vocab_out))
+                self.vocab_out))
 
-            code = code.format(self.attributes, self.output,
+            code = code.format(self.attributes, self.inputs[0],
                                self.named_outputs['output data'],
                                json.dumps(zip(self.attributes, self.alias)),
                                self.minimum_tf, self.minimum_df,
