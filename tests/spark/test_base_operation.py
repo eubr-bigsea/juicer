@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import pytest
-from juicer.spark.operation import Operation
+from juicer.operation import Operation
 
 
 def test_base_operation_generate_code_failure():

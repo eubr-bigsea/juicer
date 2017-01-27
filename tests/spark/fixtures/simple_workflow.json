@@ -1,0 +1,82 @@
+{
+  "id": 14,
+  "name": "Clustering example",
+  "description": null,
+  "enabled": true,
+  "created": "2016-12-12T20:17:44+00:00",
+  "updated": "2016-12-12T20:17:49+00:00",
+  "version": 2,
+  "tasks": [
+    {
+      "id": "b1f91078-aa7c-4f4d-a5cb-436d7bb39b6f",
+      "left": 171,
+      "top": 188,
+      "z_index": 12,
+      "forms": {
+        "attributes": {
+          "category": "Execution",
+          "value": [
+            {
+              "attribute": "survived",
+              "alias": "",
+              "f": "asc"
+            }
+          ]
+        }
+      },
+      "version": 2,
+      "operation": {
+        "id": 32,
+        "name": "Sort",
+        "slug": "sort"
+      }
+    },
+    {
+      "id": "fa46e3dd-1cab-4bf5-ba4c-dd9296cc53ff",
+      "left": 171,
+      "top": 54,
+      "z_index": 11,
+      "forms": {
+        "color": {
+          "category": "appearance",
+          "value": {
+            "foreground": "#FFFFFF",
+            "background": "#557777"
+          }
+        },
+        "data_source": {
+          "category": "Execution",
+          "value": "4"
+        }
+      },
+      "version": 4,
+      "operation": {
+        "id": 18,
+        "name": "Data reader",
+        "slug": "data-reader"
+      }
+    }
+  ],
+  "flows": [
+    {
+      "source_port": 35,
+      "target_port": 61,
+      "source_port_name": "output data",
+      "target_port_name": "input data",
+      "source_id": "fa46e3dd-1cab-4bf5-ba4c-dd9296cc53ff",
+      "target_id": "b1f91078-aa7c-4f4d-a5cb-436d7bb39b6f"
+    }
+  ],
+  "platform": {
+    "id": 1,
+    "name": "Spark",
+    "slug": "spark",
+    "description": "Apache Spark 2.0 execution platform",
+    "icon": "/static/spark.png"
+  },
+  "user": {
+    "login": "admin",
+    "id": 0,
+    "name": "admin"
+  }
+}

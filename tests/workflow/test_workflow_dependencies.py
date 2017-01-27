@@ -29,7 +29,7 @@ def debug_instance(instance_wf):
     print instance_wf.workflow_graph.out_degree()
     # print instance_wf.check_out_degree_edges()
     print '*' * 28
-    # print instance_wf.get_all_ports_operations_tasks()
+    # print instance_wf.get_all_ports_operations_tasks()[0]
 
     # Show image
     # pos = nx.spring_layout(instance_wf.workflow_graph)
@@ -47,7 +47,7 @@ def debug_instance(instance_wf):
 
 def test_workflow_sequence_missing_outdegree_edge_failure():
     workflow_test = json.load(
-        open("./fixtures/workflow/workflow_missing_out_degree_edge.txt"),
+        open("./tests/workflow/fixtures/workflow_missing_out_degree_edge.txt"),
         encoding='utf-8')
 
     instance_wf = Workflow(workflow_test)
@@ -58,19 +58,17 @@ def test_workflow_sequence_missing_outdegree_edge_failure():
 
 def test_workflow_sequence_outdegree_edge_success():
     workflow_test = json.load(
-        open("./fixtures/workflow/workflow_out_degree_edge_success.txt"),
+        open("./tests/workflow/fixtures/workflow_out_degree_edge_success.txt"),
         encoding='utf-8')
 
     instance_wf = Workflow(workflow_test)
-
-    instance_wf.check_out_degree_edges()
 
     assert True == instance_wf.check_out_degree_edges()
 
 
 def test_workflow_sequence_indegree_edge_success():
     workflow_test = json.load(
-        open("./fixtures/workflow/workflow_in_degree_edge_success.txt"),
+        open("./tests/workflow/fixtures/workflow_in_degree_edge_success.txt"),
         encoding='utf-8')
     instance_wf = Workflow(workflow_test)
 
@@ -80,7 +78,7 @@ def test_workflow_sequence_indegree_edge_success():
 
 def test_workflow_sequence_missing_indegree_edge_failure():
     workflow_test = json.load(
-        open("./fixtures/workflow/workflow_missing_in_degree_edge.txt"),
+        open("./tests/workflow/fixtures/workflow_missing_in_degree_edge.txt"),
         encoding='utf-8')
 
     instance_wf = Workflow(workflow_test)
@@ -92,7 +90,7 @@ def test_workflow_sequence_missing_indegree_edge_failure():
 def test_workflow_sequence_success():
     # workflow_completo
     workflow_test = json.load(
-        open("./fixtures/workflow/workflow_correct_changedid.txt"),
+        open("./tests/workflow/fixtures/workflow_correct_changedid.txt"),
         encoding='utf-8')
 
     instance_wf = Workflow(workflow_test)
@@ -106,7 +104,7 @@ def test_workflow_sequence_missing_targetid_value_failure():
 
     # workflow with missing target_id
     workflow_test = json.load(
-        open("./fixtures/workflow/workflow_missing_targetid.txt"),
+        open("./tests/workflow/fixtures/workflow_missing_targetid.txt"),
         encoding='utf-8')
     with pytest.raises(AttributeError):
         Workflow(workflow_test)
@@ -116,18 +114,18 @@ def test_workflow_sequence_missing_sourceid_value_failure():
 
     # workflow with missing target_id
     workflow_test = json.load(
-        open("./fixtures/workflow/workflow_missing_sourceid.txt"),
+        open("./tests/workflow/fixtures/workflow_missing_sourceid.txt"),
         encoding='utf-8')
     with pytest.raises(AttributeError):
         Workflow(workflow_test)
 
-
+# @DEPENDS fields of JSON
 def test_workflow_parcial_execution_success():
     # workflow with missing target_id
     workflow_test = json.load(
-        # open("./fixtures/workflow/workflow_parcial_execution.txt"),
-        # open("./fixtures/workflow/workflow_parcial_execution_tasks.txt"),
-        open("./fixtures/workflow/workflow_parcial_execution_missing_1_input.txt"),
+        # open("./tests/workflow/fixtures/workflow_parcial_execution.txt"),
+        # open("./tests/workflow/fixtures/workflow_parcial_execution_tasks.txt"),
+        open("./tests/workflow/fixtures/workflow_parcial_execution_missing_1_input.txt"),
         encoding='utf-8')
 
     instance_wf = Workflow(workflow_test)

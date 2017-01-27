@@ -113,7 +113,8 @@ def test_clean_missing_minimal_params_success():
     code = instance.generate_code()
     expected_code = dedent("""
     ratio_{input_1} = {input_1}.select(
-        (count('{attribute}') / count('*')).alias('{attribute}')).collect()
+        (functions.count('{attribute}') / functions.count('*')).alias(
+        '{attribute}')).collect()
     attributes_{input_1} = [c for c in ["{attribute}"]
                  if 0.0 <= ratio_{input_1}[0][c] <= 1.0]
     if len(attributes_input_1) > 0:
@@ -162,7 +163,8 @@ def test_clean_missing_minimal_params_type_value_success():
     code = instance.generate_code()
     expected_code = dedent("""
     ratio_{input_1} = {input_1}.select(
-        (count('{attribute}') / count('*')).alias('{attribute}')).collect()
+        (functions.count('{attribute}') / functions.count('*')).alias(
+        '{attribute}')).collect()
     attributes_{input_1} = [c for c in ["{attribute}"]
                  if 0.0 <= ratio_{input_1}[0][c] <= 1.0]
     if len(attributes_input_1) > 0:
@@ -557,18 +559,19 @@ def test_transformation_minumum_params_success():
     }, 'expression': "lower(attr_name)"}
     params = {
         Transformation.EXPRESSION_PARAM: json.dumps(expr),
-        Transformation.ALIAS_PARAM: 'new_column'
+        Transformation.ALIAS_PARAM: 'new_column',
+        'input': 'input_x',
     }
-    inputs = ['input_1']
+    inputs = ['input_x']
     outputs = ['output_1']
     instance = Transformation(params, inputs, outputs,
                               named_inputs={}, named_outputs={})
     code = instance.generate_code()
-    expected_code = "output_1 = input_1.withColumn('{alias}'" \
-                    ", lower(input_1.attr_name))".format(**params)
+    expected_code = "output_1 = {input}.withColumn('{alias}'" \
+                    ", functions.lower('attr_name'))".format(**params)
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
-    assert result, msg
+    assert result, msg + format_code_comparison(code, expected_code)
 
 
 def test_transformation_math_expression_success():

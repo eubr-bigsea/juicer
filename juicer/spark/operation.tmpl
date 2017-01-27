@@ -1,52 +1,56 @@
 # -*- coding: utf-8 -*-
 #!/usr/bin/env python
-
-#
-# Auto-generated Spark code from Lemonade Workflow
-# (c) Speed Labs - Departamento de Ciência da Computação
-#     Universidade Federal de Minas Gerais
-# More information about Lemonade to be provided
-#
+"""
+Auto-generated Spark code from Lemonade Workflow
+(c) Speed Labs - Departamento de Ciência da Computação
+    Universidade Federal de Minas Gerais
+More information about Lemonade to be provided
+"""
 import json
 import os
-import re
 import string
 import sys
 import time
 import unicodedata
 
 from timeit import default_timer as timer
+
+from pyspark.ml import classification, evaluation, feature, tuning, clustering
+from pyspark.sql import functions, types
+
 from pyspark.ml import Pipeline
-from pyspark.ml.classification import *
-from pyspark.ml.clustering import *
-from pyspark.ml.evaluation import *
-from pyspark.ml.feature import *
-from pyspark.ml.tuning import *
+# from pyspark.ml.classification import *
+# from pyspark.ml.clustering import *
+# from pyspark.ml.evaluation import *
+# from pyspark.ml.feature import *
+# from pyspark.ml.tuning import *
 from pyspark.sql import SparkSession
-from pyspark.sql.window import Window
-from pyspark.sql.functions import *
-from pyspark.sql.types import *
+# from pyspark.sql.functions import *
+# from pyspark.sql.types import *
+
+
 
 reload(sys)
 sys.setdefaultencoding('utf8')
 
 # Global utilities functions definitions
-strip_accents = udf(
+strip_accents = functions.udf(
     lambda text: ''.join(c for c in unicodedata.normalize('NFD', text)
-        if unicodedata.category(c) != 'Mn'), StringType())
-strip_punctuation = udf(lambda text:
-                        text.translate(
-                            dict((ord(char), None)
-                                for char in string.punctuation)),
-                        StringType())
+                         if unicodedata.category(c) != 'Mn'),
+    types.StringType())
+strip_punctuation = functions.udf(lambda text:
+                                  text.translate(
+                                      dict((ord(char), None)
+                                           for char in string.punctuation)),
+                                  types.StringType())
 
-def juicer_debug(name, variable, df):
+def juicer_debug(name, variable, data_frame):
     """ Debug code """
     print '#' * 20
     print '|| {} ||'.format(name)
     print '== {} =='.format(variable)
-    df.show()
-    schema = df.schema
+    data_frame.show()
+    schema = data_frame.schema
     for attr in schema:
         print attr.name, attr.dataType, attr.nullable, attr.metadata
 {% autopep8 %}
@@ -54,13 +58,15 @@ def juicer_debug(name, variable, df):
 {%- if instance.has_code %}
 def {{instance.parameters.task.operation.slug.replace('-', '_')}}_gen_{{instance.get_output_names('_')}}(spark_session
         {%- if instance.get_inputs_names %}, {{instance.get_inputs_names}}{% endif %}):
-    {%- if instance.parameters.task.forms.comment %}
+    {%- if instance.parameters.task.forms.comment and instance.parameters.task.forms.comment.value.strip()%}
     """
     {{instance.parameters.task.forms.comment.value.replace('"', '')}}
     """
+    {%- else %}
+    """ Operation {{instance.parameters.task.id }} """
     {%- endif %}
     start = timer()
-    {{instance.generate_code() | indent(width=4, indentfirst=False)}}
+    {{instance.generate_code().strip() | indent(width=4, indentfirst=False)}}
     {%- if instance.parameters.get('logging', {}).get('log_level') == 'DEBUG' %}
     {%- set out = instance.get_data_out_names('|') %}
     {%- if out %}
@@ -77,6 +83,7 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_gen_{{instance
 {% endfor %}
 
 def main():
+    """ Run generated code """
     start = time.time()
     app_name = u'## {{workflow_name}} ##'
 
@@ -129,8 +136,7 @@ def main():
          {%- if instance.has_code and is_satisfied %}
         '{{instance.parameters.task.id}}': ({%- if instance.get_output_names() %}
         {%- for variable in instance.get_output_names(', ').split('|') -%}
-        {{variable}},
-        {%- endfor -%}{% endif -%}
+        {{variable}}, {%- endfor -%}{% endif -%}
         ts_{{instance.output}}),
         {%- endif %}
         {%- endfor %}

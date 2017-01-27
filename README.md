@@ -1,6 +1,8 @@
 # Juicer
 [logo]: docs/img/juicer.png "Lemonade Juicer"
 
+[![Build Status](https://travis-ci.org/eubr-bigsea/juicer.svg?branch=master)](https://travis-ci.org/eubr-bigsea/juicer)
+
 ![alt text][logo]
 
 Juicer is the workflow processor manager for the Lemonade. Its responsibilities include:

@@ -12,11 +12,10 @@ import juicer.spark.ml_operation
 import juicer.spark.statistic_operation
 import juicer.spark.text_operation
 import juicer.spark.ws_operation
-import os
-from juicer.jinja2_custom import AutoPep8Extension
-from juicer.spark import operation
-from juicer.util import sort_topologically
 import networkx as nx
+import os
+from juicer import operation
+from juicer.util.jinja2_custom import AutoPep8Extension
 
 
 class DependencyController:
@@ -55,7 +54,7 @@ class RemoveTasksWhenMultiplexingVisitor(SparkTranspilerVisitor):
                     # Remove the left side of the tree
                     # left_side_flow = [f for f in workflow['flows']]
                     flow = graph.in_edges(task_id, data=True)
-                    pdb.set_trace()
+                    # pdb.set_trace()
                     # remove other side
                     pass
                 else:
@@ -76,9 +75,12 @@ class SparkTranspiler:
     DIST_ZIP_FILE = '/tmp/lemonade-lib-python.zip'
     VISITORS = [RemoveTasksWhenMultiplexingVisitor]
 
-    def __init__(self, workflow, graph, out=None, params=None):
+    def __init__(self):
         self.operations = {}
         self._assign_operations()
+
+    """
+    def pre_transpile(self, workflow, graph, out=None, params=None):
         self.graph = graph
         self.params = params if params is not None else {}
 
@@ -103,6 +105,7 @@ class SparkTranspiler:
         for visitor in self.VISITORS:
             self.workflow = visitor().visit(
                 self.graph, self.operations, params)
+    """
 
     def build_dist_file(self):
         """
@@ -136,48 +139,53 @@ class SparkTranspiler:
                 zf.writepy(lib_path)
             zf.close()
 
-    def transpile(self):
+    def transpile(self, workflow, graph, params, out=None):
         """ Transpile the tasks from Lemonade's workflow into Spark code """
+
+        using_stdout = out is None
+        if using_stdout:
+            out = sys.stdout
 
         ports = {}
         sequential_ports = {}
+        for source_id in graph.edge:
+            for target_id in graph.edge[source_id]:
+                # Nodes accept multiple edges from same source
+                for flow in graph.edge[source_id][target_id].values():
+                    flow_id = '[{}:{}]'.format(source_id, flow['source_port'], )
 
-        for source_id in self.graph.edge:
-            for target_id in self.graph.edge[source_id]:
-                flow = self.graph.edge[source_id][target_id]
+                    if flow_id not in sequential_ports:
+                        sequential_ports[flow_id] = 'df{}'.format(
+                            len(sequential_ports))
+# /
+                    if source_id not in ports:
+                        ports[source_id] = {'outputs': [], 'inputs': [],
+                                            'named_inputs': {},
+                                            'named_outputs': {}}
+                    if target_id not in ports:
+                        ports[target_id] = {'outputs': [], 'inputs': [],
+                                            'named_inputs': {},
+                                            'named_outputs': {}}
 
-                flow_id = '[{}:{}]'.format(source_id, flow[0]['source_port'], )
+                    sequence = sequential_ports[flow_id]
+                    if sequence not in ports[source_id]['outputs']:
+                        ports[source_id]['named_outputs'][
+                            flow['source_port_name']] = sequence
+                        ports[source_id]['outputs'].append(sequence)
+                    if sequence not in ports[target_id]['inputs']:
+                        ports[target_id]['named_inputs'][
+                            flow['target_port_name']] = sequence
+                        ports[target_id]['inputs'].append(sequence)
 
-                if flow_id not in sequential_ports:
-                    sequential_ports[flow_id] = 'df{}'.format(
-                        len(sequential_ports))
+        env_setup = {'instances': [], 'workflow_name': workflow['name']}
 
-                if source_id not in ports:
-                    ports[source_id] = {'outputs': [], 'inputs': [],
-                                        'named_inputs': {}, 'named_outputs': {}}
-                if target_id not in ports:
-                    ports[target_id] = {'outputs': [], 'inputs': [],
-                                        'named_inputs': {}, 'named_outputs': {}}
-
-                sequence = sequential_ports[flow_id]
-                if sequence not in ports[source_id]['outputs']:
-                    ports[source_id]['named_outputs'][
-                        flow[0]['source_port_name']] = sequence
-                    ports[source_id]['outputs'].append(sequence)
-                if sequence not in ports[target_id]['inputs']:
-                    ports[target_id]['named_inputs'][
-                        flow[0]['target_port_name']] = sequence
-                    ports[target_id]['inputs'].append(sequence)
-
-        env_setup = {'instances': [], 'workflow_name': self.workflow_name}
-
-        sorted_tasks_id = nx.topological_sort(self.graph)
+        sorted_tasks_id = nx.topological_sort(graph)
         for i, task_id in enumerate(sorted_tasks_id):
-            task = self.graph.node[task_id]
+            task = graph.node[task_id]
             class_name = self.operations[task['operation']['slug']]
 
             parameters = {}
-            for parameter, definition in task['forms'].iteritems():
+            for parameter, definition in task['forms'].items():
                 # @FIXME: Fix wrong name of form category
                 # (using name instead of category)
                 # print definition.get('category')
@@ -200,25 +208,27 @@ class SparkTranspiler:
 
             # Operation SAVE requires the complete workflow
             if task['operation']['name'] == 'SAVE':
-                parameters['workflow'] = self.workflow
+                parameters['workflow'] = workflow
 
             # Some temporary variables need to be identified by a sequential
             # number, so it will be stored in this field
             task['order'] = i
 
             parameters['task'] = task
-            parameters['workflow_json'] = self.workflow_json
-            parameters['user'] = self.workflow_user
-            parameters['workflow_id'] = self.workflow_id
+            parameters['workflow_json'] = json.dumps(workflow)
+            parameters['user'] = workflow['user']
+            parameters['workflow_id'] = workflow['id']
             port = ports.get(task['id'], {})
+
             instance = class_name(parameters, port.get('inputs', []),
                                   port.get('outputs', []),
                                   port.get('named_inputs', {}),
                                   port.get('named_outputs', {}))
             env_setup['dependency_controller'] = DependencyController(
-                self.requires_info)
+                params.get('requires_info', False))
+
             env_setup['instances'].append(instance)
-            env_setup['execute_main'] = self.execute_main
+            env_setup['execute_main'] = params.get('execute_main', False)
 
         template_loader = jinja2.FileSystemLoader(
             searchpath=os.path.dirname(__file__))
@@ -226,84 +236,104 @@ class SparkTranspiler:
                                           extensions=[AutoPep8Extension])
         template = template_env.get_template("operation.tmpl")
         v = template.render(env_setup)
-        if self.using_stdout:
-            self.out.write(v.encode('utf8'))
+
+        if using_stdout:
+            out.write(v.encode('utf8'))
         else:
-            self.out.write(v)
+            out.write(v)
 
     def _assign_operations(self):
-        self.operations = {
+        etl_ops = {
             'add-columns': juicer.spark.etl_operation.AddColumns,
             'add-rows': juicer.spark.etl_operation.AddRows,
             'aggregation': juicer.spark.etl_operation.Aggregation,
-            'apply-model': juicer.spark.ml_operation.ApplyModel,
-            'change-attribute': juicer.spark.data_operation.ChangeAttribute,
             'clean-missing': juicer.spark.etl_operation.CleanMissing,
+            'difference': juicer.spark.etl_operation.Difference,
+            'distinct': juicer.spark.etl_operation.Distinct,
+            'drop': juicer.spark.etl_operation.Drop,
+            'filter': juicer.spark.etl_operation.Filter,
+            # Alias for filter
+            'filter-selection': juicer.spark.etl_operation.Filter,
+            'intersection': juicer.spark.etl_operation.Intersection,
+            'join': juicer.spark.etl_operation.Join,
+            # synonym for select
+            'projection': juicer.spark.etl_operation.Select,
+            # synonym for distinct
+            'remove-duplicated-rows': juicer.spark.etl_operation.Distinct,
+            'sample': juicer.spark.etl_operation.SampleOrPartition,
+            'select': juicer.spark.etl_operation.Select,
+            # synonym of intersection'
+            'set-intersection': juicer.spark.etl_operation.Intersection,
+            'sort': juicer.spark.etl_operation.Sort,
+            'split': juicer.spark.etl_operation.RandomSplit,
+            'transformation': juicer.spark.etl_operation.Transformation,
+        }
+        ml_ops = {
+            'apply-model': juicer.spark.ml_operation.ApplyModel,
             'classification-model':
                 juicer.spark.ml_operation.ClassificationModel,
             'classification-report':
                 juicer.spark.ml_operation.ClassificationReport,
             'clustering-model':
                 juicer.spark.ml_operation.ClusteringModelOperation,
-            'comment': operation.NoOp,
             'cross-validation':
                 juicer.spark.ml_operation.CrossValidationOperation,
-            'data-reader': juicer.spark.data_operation.DataReader,
-            'data-writer': juicer.spark.data_operation.Save,
             'decision-tree-classifier':
                 juicer.spark.ml_operation.DecisionTreeClassifierOperation,
-            'difference': juicer.spark.etl_operation.Difference,
-            'distinct': juicer.spark.etl_operation.Distinct,
-            'drop': juicer.spark.etl_operation.Drop,
             'evaluate-model': juicer.spark.ml_operation.EvaluateModel,
-            'external-input':
-                juicer.spark.data_operation.ExternalInputOperation,
             'feature-assembler': juicer.spark.ml_operation.FeatureAssembler,
             'feature-indexer': juicer.spark.ml_operation.FeatureIndexer,
-            'filter': juicer.spark.etl_operation.Filter,
-            'read-shapefile': juicer.spark.geo_operation.ReadShapefile,
-            'within': juicer.spark.geo_operation.GeoWithin,
-            # Alias for filter
-            'filter-selection': juicer.spark.etl_operation.Filter,
             'gaussian-mixture-clustering':
                 juicer.spark.ml_operation.GaussianMixtureClusteringOperation,
-            'generate-n-grams':
-                juicer.spark.text_operation.GenerateNGramsOperation,
             'gbt-classifier': juicer.spark.ml_operation.GBTClassifierOperation,
-            'intersection': juicer.spark.etl_operation.Intersection,
-            'join': juicer.spark.etl_operation.Join,
+
             'k-means-clustering':
                 juicer.spark.ml_operation.KMeansClusteringOperation,
             'lda-clustering': juicer.spark.ml_operation.LdaClusteringOperation,
-            'multiplexer':
-                juicer.spark.ws_operation.MultiplexerOperation,
             'naive-bayes-classifier':
                 juicer.spark.ml_operation.NaiveBayesClassifierOperation,
             'pearson-correlation':
                 juicer.spark.statistic_operation.PearsonCorrelation,
             'perceptron-classifier':
                 juicer.spark.ml_operation.PerceptronClassifier,
-            # synonym for select
-            'projection': juicer.spark.etl_operation.Select,
             'random-forest-classifier':
                 juicer.spark.ml_operation.RandomForestClassifierOperation,
-            'read-csv': juicer.spark.data_operation.ReadCSV,
-            # synonym for distinct
-            'remove-duplicated-rows': juicer.spark.etl_operation.Distinct,
-            'remove-stop-words':
-                juicer.spark.text_operation.RemoveStopWordsOperation,
-            'sample': juicer.spark.etl_operation.SampleOrPartition,
-            'save': juicer.spark.data_operation.Save,
-            'select': juicer.spark.etl_operation.Select,
-            'service-output': juicer.spark.ws_operation.ServiceOutputOperation,
-            # synonym of intersection'
-            'set-intersection': juicer.spark.etl_operation.Intersection,
-            'sort': juicer.spark.etl_operation.Sort,
-            'split': juicer.spark.etl_operation.RandomSplit,
             'svm-classification':
                 juicer.spark.ml_operation.SvmClassifierOperation,
-            'tokenizer': juicer.spark.text_operation.TokenizerOperation,
             'topic-report': juicer.spark.ml_operation.TopicReportOperation,
-            'transformation': juicer.spark.etl_operation.Transformation,
+
+        }
+        data_ops = {
+            'change-attribute': juicer.spark.data_operation.ChangeAttribute,
+            'data-reader': juicer.spark.data_operation.DataReader,
+            'data-writer': juicer.spark.data_operation.Save,
+            'external-input':
+                juicer.spark.data_operation.ExternalInputOperation,
+            'read-csv': juicer.spark.data_operation.ReadCSV,
+            'save': juicer.spark.data_operation.Save,
+
+        }
+        other_ops = {
+            'comment': operation.NoOp,
+        }
+        geo_ops = {
+            'read-shapefile': juicer.spark.geo_operation.ReadShapefile,
+            'within': juicer.spark.geo_operation.GeoWithin,
+        }
+        text_ops = {
+            'generate-n-grams':
+                juicer.spark.text_operation.GenerateNGramsOperation,
+            'remove-stop-words':
+                juicer.spark.text_operation.RemoveStopWordsOperation,
+            'tokenizer': juicer.spark.text_operation.TokenizerOperation,
             'word-to-vector': juicer.spark.text_operation.WordToVectorOperation
         }
+        ws_ops = {
+            'multiplexer': juicer.spark.ws_operation.MultiplexerOperation,
+            'service-output': juicer.spark.ws_operation.ServiceOutputOperation,
+
+        }
+        self.operations = {}
+        for ops in [data_ops, etl_ops, geo_ops, ml_ops, other_ops, text_ops,
+                    ws_ops]:
+            self.operations.update(ops)

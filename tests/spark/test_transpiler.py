@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from io import StringIO
 
-from juicer.spark.operation import Operation
+from juicer.operation import Operation
 from juicer.spark.transpiler import SparkTranspiler
 
 from juicer.workflow.workflow import Workflow
@@ -121,9 +121,7 @@ def test_transpiler_basic_flow_success():
 
     out = StringIO()
     loader = Workflow(workflow)
-    transpiler = SparkTranspiler(loader.workflow_data,
-                                 out=out,
-                                 graph=loader.workflow_graph)
+    transpiler = SparkTranspiler()
 
     class FakeOp(Operation):
         name = u'# Fake'
@@ -138,6 +136,6 @@ def test_transpiler_basic_flow_success():
     for op in transpiler.operations:
         transpiler.operations[op] = FakeOp
 
-    transpiler.transpile()
+    transpiler.transpile(loader.workflow_data, loader.workflow_graph, {}, out=out)
     out.seek(0)
     print out.read()

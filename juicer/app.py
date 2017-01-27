@@ -12,20 +12,12 @@ from six import StringIO
 
 # eventlet.monkey_patch()
 import json
-from flask import Flask
-
-app = Flask(__name__)
 
 logging.basicConfig(
     format='[%(levelname)s] %(asctime)s,%(msecs)05.1f (%(funcName)s) %(message)s',
     datefmt='%H:%M:%S')
 log = logging.getLogger()
 log.setLevel(logging.DEBUG)
-
-
-@app.route("/")
-def hello():
-    return "Hello World!"
 
 
 class Statuses:
@@ -82,15 +74,16 @@ class JuicerSparkService:
                 "?token=123456".format(self.workflow_id))
 
             loader = Workflow(json.loads(r.text))
-            loader.verify_workflow()
-            spark_instance = SparkTranspiler(loader.workflow, loader.graph,
-                                             params=self.params)
+            # FIXME: Implement validation
+            # loader.verify_workflow()
+            spark_instance = SparkTranspiler()
             spark_instance.execute_main = self.execute_main
 
             # generated = StringIO()
             # spark_instance.output = generated
             try:
-                spark_instance.transpile()
+                spark_instance.transpile(loader.workflow, loader.graph,
+                                         params=self.params)
             except ValueError as ve:
                 log.exception("At least one parameter is missing", exc_info=ve)
                 break

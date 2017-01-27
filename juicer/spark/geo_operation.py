@@ -1,12 +1,8 @@
 # -*- coding: utf-8 -*-
-import ast
-import json
-import pprint
 from textwrap import dedent
 
 from juicer.dist.metadata import MetadataGet
-from juicer.service import limonero_service
-from juicer.spark.operation import Operation
+from juicer.operation import Operation
 
 class ReadShapefile(Operation):
     """

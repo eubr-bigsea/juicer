@@ -20,6 +20,13 @@ class Workflow:
     WORKFLOW_GRAPH_TARGET_ID_PARAM = 'target_id'
 
     def __init__(self, workflow_data):
+# <<<<<<< HEAD
+# =======
+#         self.graph = nx.MultiDiGraph()
+#         self.workflow = workflow_data
+#         for task in workflow_data['tasks']:
+#             self.graph.add_node(task.get('id'), attr_dict=task)
+# >>>>>>> master
 
         # Initialize
         self.workflow_graph = nx.MultiDiGraph()

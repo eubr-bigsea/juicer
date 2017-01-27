@@ -10,7 +10,11 @@ log.setLevel(logging.DEBUG)
 
 def query_tahiti(base_url, item_path, token, item_id):
     headers = {'X-Auth-Token': token}
-    url = '{}/{}/{}'.format(base_url, item_path, item_id)
+
+    if item_id == '':
+        url = '{}/{}'.format(base_url, item_path)
+    else:
+        url = '{}/{}/{}'.format(base_url, item_path, item_id)
 
     log.debug('Querying Tahiti URL: %s', url)
 
@@ -20,8 +24,8 @@ def query_tahiti(base_url, item_path, token, item_id):
     else:
         raise RuntimeError(
             u"Error loading storage id {}: HTTP {} - {}".format(item_id,
-                                                                r.status_code,
-                                                                r.text))
+                                                               r.status_code,
+                                                               r.text))
 
 
 def get_storage_info(base_url, token, storage_id):
