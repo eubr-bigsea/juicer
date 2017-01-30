@@ -34,6 +34,7 @@ class Workflow:
         # Workflow dictionary
         self.workflow_data = workflow_data
 
+
         # Construct graph
         self.workflow_graph = self.builds_initial_workflow_graph()
 
