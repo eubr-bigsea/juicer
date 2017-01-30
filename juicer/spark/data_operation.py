@@ -200,7 +200,7 @@ class Save(Operation):
             'http://beta.ctweb.inweb.org.br/limonero', '123456',
             self.storage_id)
 
-        final_url = '{}{}{}'.format(storage['url'], self.path,
+        final_url = '{}/{}/{}'.format(storage['url'], self.path,
                                     self.name.replace(' ', '_'))
         code_save = ''
         if self.format == self.FORMAT_CSV:
