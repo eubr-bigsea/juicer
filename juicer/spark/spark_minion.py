@@ -24,7 +24,7 @@ from juicer.workflow.workflow import Workflow
 
 logging.basicConfig(
     format=('[%(levelname)s] %(asctime)s,%(msecs)05.1f '
-        '(%(funcName)s:%(lineno)s) %(message)s'),
+            '(%(funcName)s:%(lineno)s) %(message)s'),
     datefmt='%H:%M:%S')
 log = logging.getLogger()
 log.setLevel(logging.INFO)
@@ -110,11 +110,11 @@ class SparkMinion(Minion):
         # Sanity check: this minion should not process messages from another
         # workflow/app
         assert msg_info['workflow_id'] == self.workflow_id, \
-                'Expected workflow_id=%s, got workflow_id=%s' % ( \
+                'Expected workflow_id=%s, got workflow_id=%s' % (
                 self.workflow_id, msg_info['workflow_id'])
-        
+
         assert msg_info['app_id'] == self.app_id, \
-                'Expected app_id=%s, got app_id=%s' % ( \
+                'Expected app_id=%s, got app_id=%s' % (
                 self.workflow_id, msg_info['app_id'])
 
         # Extract the message type
@@ -133,7 +133,7 @@ class SparkMinion(Minion):
             # - Should we ignore this part of the request and execute over the existing
             # (old configs) spark session?
             app_configs = msg_info.get('app_configs', {})
-            
+
             self._perform_execute(workflow, app_configs)
 
         elif msg_type == juicer_protocol.DELIVER:
@@ -222,6 +222,7 @@ class SparkMinion(Minion):
                 self.spark_session.sparkContext._jsc and \
                 not self.spark_session.sparkContext._jsc.sc().isStopped()
 
+    # noinspection PyUnresolvedReferences
     def get_or_create_spark_session(self, loader, app_configs):
         """
         Get an existing spark session (context) for this minion or create a new
@@ -237,7 +238,7 @@ class SparkMinion(Minion):
                         '{}/lib/native/'.format(os.environ.get('HADOOP_HOME'))
 
             app_name = u'%s(workflow_id=%s,app_id=%s)' % (
-                    loader.workflow.get('name', ''),
+                    loader.workflow_data.get('name', ''),
                     self.workflow_id, self.app_id)
 
             spark_builder = SparkSession.builder.appName(app_name)
@@ -245,7 +246,7 @@ class SparkMinion(Minion):
                 spark_builder = spark_builder.config(option, value)
 
             self.spark_session = spark_builder.getOrCreate()
-            self.spark_session.sparkContext.setLogLevel ('INFO')
+            self.spark_session.sparkContext.setLogLevel('INFO')
 
         return self.spark_session
 
@@ -314,7 +315,7 @@ class SparkMinion(Minion):
 
     def _terminate(self, _signal, _frame):
         self.terminate()
-    
+
     def terminate(self):
         """
         This is a handler that reacts to a sigkill signal. The most feasible
@@ -326,7 +327,7 @@ class SparkMinion(Minion):
         if self.spark_session:
             self.spark_session.stop()
             self.spark_session.sparkContext.stop()
-	    self.spark_session = None
+            self.spark_session = None
         if self.execute_process:
             os.kill(self.execute_process.pid, signal.SIGKILL)
         if self.ping_process:

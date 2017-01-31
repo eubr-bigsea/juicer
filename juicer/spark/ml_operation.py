@@ -812,8 +812,6 @@ class AlternatingLeastSquaresOperation(CollaborativeOperation):
     NUM_USER_BLOCKS_PARAM = 'numUserBlocks'
     NUM_ITEM_BLOCKS_PARAM = 'numItemBlocks'
 
-
-
     def __init__(self, parameters, inputs, outputs, named_inputs,
                  named_outputs):
         CollaborativeOperation.__init__(self, parameters, inputs, outputs,
@@ -830,7 +828,6 @@ class AlternatingLeastSquaresOperation(CollaborativeOperation):
 
         self.has_code = False
         self.name = "collaborativefiltering.ALS"
-
 
     def generate_code(self):
         code = dedent("""
