@@ -51,7 +51,6 @@ class FeatureIndexer(Operation):
         self.alias = [x[1] or '{}_indexed'.format(x[0]) for x in
                       izip_longest(self.attributes,
                                    self.alias[:len(self.attributes)])]
-
     def generate_code(self):
         if self.type == self.TYPE_STRING:
             code = """
@@ -96,6 +95,7 @@ class FeatureIndexer(Operation):
                        json.dumps(zip(self.attributes, self.alias)),
                        self.max_categories)
         else:
+            # Only if the field be open to type
             raise ValueError(
                 "Parameter type has an invalid value {}".format(self.type))
 
