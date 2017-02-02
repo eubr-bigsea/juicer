@@ -148,7 +148,6 @@ class SparkTranspiler:
 
         ports = {}
         sequential_ports = {}
-
         for source_id in graph.edge:
             for target_id in graph.edge[source_id]:
                 # Nodes accept multiple edges from same source
@@ -158,7 +157,7 @@ class SparkTranspiler:
                     if flow_id not in sequential_ports:
                         sequential_ports[flow_id] = 'df{}'.format(
                             len(sequential_ports))
-
+# /
                     if source_id not in ports:
                         ports[source_id] = {'outputs': [], 'inputs': [],
                                             'named_inputs': {},
@@ -302,6 +301,10 @@ class SparkTranspiler:
             'svm-classification':
                 juicer.spark.ml_operation.SvmClassifierOperation,
             'topic-report': juicer.spark.ml_operation.TopicReportOperation,
+            'als-recommender':
+                juicer.spark.ml_operation.AlternatingLeastSquaresOperation,
+            'logistic-regression':
+                juicer.spark.ml_operation.LogisticRegressionClassifierOperation,
 
         }
         data_ops = {

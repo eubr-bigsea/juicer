@@ -282,7 +282,7 @@ class CrossValidationOperation(Operation):
 
             # if estimator.__class__ == classification.LinearRegression:
             #     param_grid = estimator.maxIter
-            # elif estimator.__class__  == classification.NaiveBayes:
+            # elif estimator.__class__  == classification.:
             #     pass
             # elif estimator.__class__ == classification.DecisionTreeClassifier:
             #     # param_grid = (estimator.maxDepth, [2,3,4,5,6,7,8,9])
@@ -442,6 +442,15 @@ class SvmClassifierOperation(ClassifierOperation):
         self.name = 'classification.SVM'
 
 
+class LogisticRegressionClassifierOperation(ClassifierOperation):
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        ClassifierOperation.__init__(self, parameters, inputs, outputs,
+                                     named_inputs, named_outputs)
+        self.parameters = parameters
+        self.name = 'classification.LogisticRegression'
+
+
 class DecisionTreeClassifierOperation(ClassifierOperation):
     def __init__(self, parameters, inputs, outputs, named_inputs,
                  named_outputs):
@@ -499,6 +508,8 @@ class ClassificationReport(ReportOperation):
             {output} = "ok"
         """.format(output=self.output))
         return code
+
+
 
 
 """
@@ -733,4 +744,117 @@ class TopicReportOperation(ReportOperation):
                    vocabulary=self.named_inputs['vocabulary'],
                    output=self.get_output_names('output data'),
                    input=self.named_inputs['input data']))
+        return code
+
+
+"""
+  Collaborative Filtering part
+"""
+
+
+class CollaborativeOperation(Operation):
+    """
+    Base class for Collaborative Filtering algorithm
+    """
+
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
+                           named_outputs)
+        self.has_code = len(self.outputs) > 0
+        self.name = "FIXME"
+        self.set_values = []
+
+        # Define outputs and model
+        self.output = self.named_outputs['output data']
+        self.model = self.named_outputs.get('model', '{}_model'.format(
+            self.output))
+
+    @property
+    def get_inputs_names(self):
+        return ', '.join([self.named_inputs['train input data'],
+                          self.named_inputs['algorithm']])
+
+    def get_data_out_names(self, sep=','):
+        return ''
+
+    def get_output_names(self, sep=', '):
+        return sep.join([self.named_outputs['output data'], self.model])
+
+    def generate_code(self):
+        declare = "{0} = {1}()".format(self.output, self.name)
+        code = [declare]
+        code.extend(['{0}.set{1}({2})'.format(self.output, name, v)
+                     for name, v in self.set_values])
+        return "\n".join(code)
+
+
+
+
+class AlternatingLeastSquaresOperation(CollaborativeOperation):
+    """
+        Alternating Least Squares (ALS) matrix factorization.
+
+        The spark algorithm used is based on
+        `"Collaborative Filtering for Implicit Feedback Datasets",
+        <http://dx.doi.org/10.1109/ICDM.2008.22>`_
+    """
+    RANK_PARAM = 'rank'
+    MAX_ITER_PARAM = 'maxIter'
+    USER_COL_PARAM = 'userCol'
+    ITEM_COL_PARAM = 'itemCol'
+    RATING_COL_PARAM = 'ratingCol'
+    REG_PARAM = 'regParam'
+
+    IMPLICIT_PREFS_PARAM = 'implicitPrefs'
+    ALPHA_PARAM = 'alpha'
+    SEED_PARAM = 'seed'
+    NUM_USER_BLOCKS_PARAM = 'numUserBlocks'
+    NUM_ITEM_BLOCKS_PARAM = 'numItemBlocks'
+
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        CollaborativeOperation.__init__(self, parameters, inputs, outputs,
+                                 named_inputs, named_outputs)
+
+        self.rank = parameters.get(self.RANK_PARAM, 10)
+        self.maxIter = parameters.get(self.MAX_ITER_PARAM, 10)
+        self.userCol = parameters.get(self.USER_COL_PARAM, 'userId')
+        self.itemCol = parameters.get(self.ITEM_COL_PARAM, 'movieId')
+        self.ratingCol = parameters.get(self.RATING_COL_PARAM, 'rating')
+
+        self.regParam = parameters.get(self.REG_PARAM, '0.1')
+        self.implicitPrefs = parameters.get(self.IMPLICIT_PREFS_PARAM, 'False')
+
+        self.has_code = False
+        self.name = "collaborativefiltering.ALS"
+
+    def generate_code(self):
+        code = dedent("""
+                # Build the recommendation model using ALS on the training data
+                als = ALS(maxIter={maxIter}, regParam={regParam},
+                        userCol={userCol}, itemCol={itemCol},
+                        ratingCol={ratingCol])
+
+                {model} = als.fit({input})
+                predictions = model.transform(test)
+
+                # Evaluate the model not support YET
+                # evaluator = RegressionEvaluator(metricName="rmse",
+                #                labelCol={ratingCol},
+                #                predictionCol="prediction")
+
+                # rmse = evaluator.evaluate(predictions)
+                # print("Root-mean-square error = " + str(rmse))
+                """.format(
+                        output=self.named_outputs[0],
+                        input=self.named_inputs[0],
+                        model=self.model,
+                        maxIter=self.maxIter,
+                        regParam=self.regParam,
+                        userCol=self.userCol,
+                        itemCol=self.itemCol,
+                        ratingCol=self.ratingCol)
+                    )
+
         return code
