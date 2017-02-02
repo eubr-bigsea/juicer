@@ -168,7 +168,7 @@ class SparkMinion(Minion):
 
             with codecs.open(generated_code_path, 'w', 'utf8') as out:
                 self.transpiler.transpile(
-                    loader.workflow_data, loader.workflow_graph, {}, out)
+                    loader.workflow, loader.graph, {}, out)
 
             # Get rid of .pyc file if it exists
             if os.path.isfile('{}c'.format(generated_code_path)):

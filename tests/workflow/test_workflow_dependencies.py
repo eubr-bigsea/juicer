@@ -8,33 +8,34 @@ import matplotlib.pyplot as plt
 from juicer.workflow.workflow import Workflow
 
 def debug_instance(instance_wf):
-    print
     print '*' * 20
-    print instance_wf.workflow_graph.nodes()
+    print instance_wf.graph.nodes(data=False)
     print '*' * 21
-    print instance_wf.workflow_graph.edges()
+    print instance_wf.graph.edges()
     print '*' * 22
-    print instance_wf.workflow_graph.is_multigraph()
+    print instance_wf.graph.is_multigraph()
     print '*' * 23
-    print instance_wf.workflow_graph.number_of_edges()
+    print instance_wf.graph.number_of_edges()
     print '*' * 24
     print instance_wf.sorted_tasks
     print '*' * 25
-    test = instance_wf.workflow_graph.reverse()
+    test = instance_wf.graph.reverse()
     print test.edges()
     print '*' * 26
-    print instance_wf.workflow_graph.in_degree()
-    # print instance_wf.check_in_degree_edges()
+    print instance_wf.graph.in_degree()
+    print instance_wf.check_in_degree_edges()
     print '*' * 27
-    print instance_wf.workflow_graph.out_degree()
-    # print instance_wf.check_out_degree_edges()
+    print instance_wf.graph.out_degree()
+    print instance_wf.check_out_degree_edges()
     print '*' * 28
-    # print instance_wf.get_all_ports_operations_tasks()[0]
+    x = instance_wf.get_all_ports_operations_tasks()[0]
+    print x['ports']
 
+    # print instance_wf.get_ports_from_operation_tasks('')
     # Show image
-    # pos = nx.spring_layout(instance_wf.workflow_graph)
-    # pos = nx.fruchterman_reingold_layout(instance_wf.workflow_graph)
-    # nx.draw(instance_wf.workflow_graph, pos, node_color='#004a7b', node_size=2000,
+    # pos = nx.spring_layout(instance_wf.graph)
+    # pos = nx.fruchterman_reingold_layout(instance_wf.graph)
+    # nx.draw(instance_wf.graph, pos, node_color='#004a7b', node_size=2000,
     #         edge_color='#555555', width=1.5, edge_cmap=None,
     #         with_labels=True, style='dashed',
     #         label_pos=50.3, alpha=1, arrows=True, node_shape='s',
@@ -96,7 +97,6 @@ def test_workflow_sequence_success():
     instance_wf = Workflow(workflow_test)
 
     print debug_instance(instance_wf)
-    print instance_wf.workflow_execution_parcial()
     assert instance_wf
 
 
@@ -119,19 +119,17 @@ def test_workflow_sequence_missing_sourceid_value_failure():
     with pytest.raises(AttributeError):
         Workflow(workflow_test)
 
-# @DEPENDS fields of JSON
+# @DEPENDS fields of JSON - In Progress
 def test_workflow_parcial_execution_success():
     # workflow with missing target_id
     workflow_test = json.load(
-        # open("./tests/workflow/fixtures/workflow_parcial_execution.txt"),
+        open("./tests/workflow/fixtures/workflow_parcial_execution.txt"),
         # open("./tests/workflow/fixtures/workflow_parcial_execution_tasks.txt"),
-        open("./tests/workflow/fixtures/workflow_parcial_execution_missing_1_input.txt"),
+        # open("./tests/workflow/fixtures/workflow_parcial_execution_missing_1_input.txt"),
         encoding='utf-8')
 
     instance_wf = Workflow(workflow_test)
 
-    print debug_instance(instance_wf)
-    print instance_wf.workflow_execution_parcial()
     assert instance_wf
 
 # @CHECK requirements
