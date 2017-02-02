@@ -15,6 +15,7 @@ import urlparse
 
 import os
 import redis
+from redis.exceptions import ConnectionError
 import yaml
 from juicer.exceptions import JuicerException
 from juicer.runner import juicer_protocol
@@ -54,6 +55,8 @@ class JuicerServer:
         self.minion_executable = minion_executable
         self.log_dir = log_dir or \
                 self.config['juicer'].get('log', {}).get('path', '/tmp')
+        
+        signal.signal(signal.SIGTERM, self._terminate)
 
     def start(self):
         log.info('Starting master process. Reading "start" queue ')
@@ -68,16 +71,16 @@ class JuicerServer:
 
     # noinspection PyMethodMayBeStatic
     def read_start_queue(self, redis_conn):
-        self.state_control = StateControlRedis(redis_conn)
-        # Process next message
-        msg = self.state_control.pop_start_queue()
-        msg_info = json.loads(msg)
-
-        # Extract message type and common parameters
-        msg_type = msg_info['type']
-        workflow_id = app_id = None
-
         try:
+            self.state_control = StateControlRedis(redis_conn)
+            # Process next message
+            msg = self.state_control.pop_start_queue()
+            msg_info = json.loads(msg)
+
+            # Extract message type and common parameters
+            msg_type = msg_info['type']
+            workflow_id = app_id = None
+
             workflow_id = str(msg_info['workflow_id'])
             app_id = str(msg_info['app_id'])
             # NOTE: Currently we are assuming that clients will only submit one
@@ -100,6 +103,10 @@ class JuicerServer:
             else:
                 log.warn('Unknown message type %s', msg_type)
             
+        except ConnectionError as cx:
+            log.error(cx)
+            time.sleep(1)
+
         except JuicerException as je:
             log.error(je)
             if app_id:
@@ -206,6 +213,10 @@ class JuicerServer:
             else:
                 log.warn("Unknown help reason %s", reason)
 
+        except ConnectionError as cx:
+            log.error(cx)
+            time.sleep(1)
+
         except Exception as ex:
             log.error(ex)
 
@@ -219,12 +230,16 @@ class JuicerServer:
 
     @staticmethod
     def watch_minion_process(redis_conn):
-        pubsub = redis_conn.pubsub()
-        pubsub.psubscribe('__keyevent@*__:expired')
-        for msg in pubsub.listen():
-            log.info('watch subscribe: %s', msg)
-            if msg.get('type') == 'pmessage' and 'minion' in msg.get('data'):
-                log.warn('Minion {id} stopped'.format(id=msg.get('data')))
+        try:
+            pubsub = redis_conn.pubsub()
+            pubsub.psubscribe('__keyevent@*__:expired')
+            for msg in pubsub.listen():
+                log.info('watch subscribe: %s', msg)
+                if msg.get('type') == 'pmessage' and 'minion' in msg.get('data'):
+                    log.warn('Minion {id} stopped'.format(id=msg.get('data')))
+        except ConnectionError as cx:
+            log.error(cx)
+            time.sleep(1)
 
     def process(self):
         log.info('Juicer server started (pid=%s)', os.getpid())
@@ -248,6 +263,17 @@ class JuicerServer:
         self.minion_support_process.join()
         self.minion_watch_process.join()
 
+    def _terminate(self, _signal, _frame):
+        """
+        This is a handler that reacts to a sigkill signal.
+        """
+        log.info('Killing juicer server subprocesses and terminating')
+        if self.start_process:
+            os.kill(self.start_process.pid, signal.SIGKILL)
+        if self.minion_support_process:
+            os.kill(self.minion_support_process.pid, signal.SIGKILL)
+        if self.minion_watch_process:
+            os.kill(self.minion_watch_process.pid, signal.SIGKILL)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
