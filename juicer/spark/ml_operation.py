@@ -44,13 +44,29 @@ class FeatureIndexer(Operation):
         self.type = self.parameters.get(self.TYPE_PARAM, self.TYPE_STRING)
         self.alias = [alias.strip() for alias in
                       parameters.get(self.ALIAS_PARAM, '').split(',')]
-        self.max_categories = parameters.get(self.MAX_CATEGORIES_PARAM, 20)
+
+        if self.MAX_CATEGORIES_PARAM in parameters:
+            self.max_categories = int(parameters.get(self.MAX_CATEGORIES_PARAM))
+            if not (self.max_categories >= 0):
+                msg = "Parameter '{}' must be in " \
+                      "range [x>=0] for task {}" \
+                    .format(self.MAX_CATEGORIES_PARAM, __name__)
+                raise ValueError(msg)
+
+                # self.max_categories = parameters.get(self.MAX_CATEGORIES_PARAM)
+            # else:
+
+        else:
+            raise ValueError(
+                "Parameter '{}' must be informed for task {}".format(
+                    self.MAX_CATEGORIES_PARAM, self.__class__))
 
         # Adjust alias in order to have the same number of aliases as attributes
         # by filling missing alias with the attribute name sufixed by _indexed.
         self.alias = [x[1] or '{}_indexed'.format(x[0]) for x in
                       izip_longest(self.attributes,
                                    self.alias[:len(self.attributes)])]
+
     def generate_code(self):
         if self.type == self.TYPE_STRING:
             code = """
@@ -153,9 +169,14 @@ class ApplyModel(Operation):
         self.has_code = len(self.inputs) == 2
 
     def generate_code(self):
-        code = """
-        {0} = {1}.transform({2})
-        """.format(self.output, self.inputs[1], self.inputs[0])
+        if self.has_code:
+            code = """
+            {0} = {1}.transform({2})
+            """.format(self.outputs[0], self.inputs[1], self.inputs[0])
+        else:
+            raise ValueError(
+                "Parameter '{}' must be informed for task {}".format(
+                    self.inputs, self.__class__))
 
         return dedent(code)
 
@@ -186,6 +207,7 @@ class EvaluateModel(Operation):
                  named_outputs):
         Operation.__init__(self, parameters, inputs, outputs, named_inputs,
                            named_outputs)
+
         self.has_code = len(self.inputs) == 2
         # @FIXME: validate if metric is compatible with Model using workflow
 
@@ -209,7 +231,7 @@ class EvaluateModel(Operation):
         else:
             raise ValueError('Invalid metric value {}'.format(self.metric))
 
-        self.has_code = len(self.inputs) > 0 or len(self.output) > 0
+        self.has_code = len(self.inputs) > 0 and len(self.output) > 0
 
     def get_data_out_names(self, sep=','):
         return ''
@@ -222,26 +244,26 @@ class EvaluateModel(Operation):
         return sep.join([self.output, output_evaluator])
 
     def generate_code(self):
-        code = ''
-        if len(self.inputs) > 0:  # Not being used with a cross validator
-            code = """
-            # Creates the evaluator according to the model
-            # (user should not change it)
-            evaluator = {6}({7}='{3}',
-                                  labelCol='{4}', metricName='{5}')
+        if self.has_code:
+            code = ''
+            if len(self.inputs) > 0:  # Not being used with a cross validator
+                code = """
+                # Creates the evaluator according to the model
+                # (user should not change it)
+                evaluator = {6}({7}='{3}',
+                                      labelCol='{4}', metricName='{5}')
 
-            {0} = evaluator.evaluate({2})
-            """.format(self.output, self.inputs[1], self.inputs[0],
-                       self.prediction_attribute, self.label_attribute,
-                       self.metric,
-                       self.evaluator, self.param_prediction_col)
-        elif len(self.output) > 0:  # Used with cross validator
-            code = """
-            {5} = {0}({1}='{2}',
-                            labelCol='{3}', metricName='{4}')
-            """.format(self.evaluator, self.param_prediction_col,
-                       self.prediction_attribute, self.label_attribute,
-                       self.metric, self.output)
+                {0} = evaluator.evaluate({2})
+                """.format(self.output, self.inputs[1], self.inputs[0],
+                           self.prediction_attribute, self.label_attribute,
+                           self.metric, self.evaluator, self.param_prediction_col)
+            elif len(self.output) > 0:  # Used with cross validator
+                code = """
+                {5} = {0}({1}='{2}',
+                                labelCol='{3}', metricName='{4}')
+                """.format(self.evaluator, self.param_prediction_col,
+                           self.prediction_attribute, self.label_attribute,
+                           self.metric, self.output)
 
         return dedent(code)
 
@@ -826,7 +848,7 @@ class AlternatingLeastSquaresOperation(CollaborativeOperation):
         self.regParam = parameters.get(self.REG_PARAM, '0.1')
         self.implicitPrefs = parameters.get(self.IMPLICIT_PREFS_PARAM, 'False')
 
-        self.has_code = False
+        self.has_code = len(self.output) > 1
         self.name = "collaborativefiltering.ALS"
 
     def generate_code(self):
