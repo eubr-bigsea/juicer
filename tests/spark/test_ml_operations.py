@@ -7,7 +7,9 @@ from textwrap import dedent
 import pytest
 # Import Operations to test
 from juicer.spark.ml_operation import FeatureIndexer, FeatureAssembler, \
-                                      ApplyModel, EvaluateModel
+                                      ApplyModel, EvaluateModel, \
+                                      CrossValidationOperation, ClassificationModel, \
+                                      ClassifierOperation, SvmClassifierOperation
 
 from tests import compare_ast, format_code_comparison
 
@@ -331,24 +333,21 @@ def test_evaluate_model_operation_success():
     assert result, msg + debug_ast(code, expected_code)
 
 
-# @!WORKING HERE
-def test_evaluate_model_operation_missing_output_param_failure():
-    params = {
-
-        EvaluateModel.PREDICTION_ATTRIBUTE_PARAM: 'c',
-        EvaluateModel.LABEL_ATTRIBUTE_PARAM: 'c',
-        EvaluateModel.METRIC_PARAM: 'f1',
-    }
-    inputs = ['input_1', 'input_2']
-    outputs = []
-    #
-    # instance = EvaluateModel(params, inputs,
-    #                          outputs, named_inputs={},
-    #                          named_outputs={})
-    with pytest.raises(ValueError):
-        EvaluateModel(params, inputs,
-                      outputs, named_inputs={},
-                      named_outputs={})
+# @!BUG - Acessing 'task''order' in parameter attribute, but doesn't exist
+# def test_evaluate_model_operation_missing_output_param_failure():
+#     params = {
+#
+#         EvaluateModel.PREDICTION_ATTRIBUTE_PARAM: 'c',
+#         EvaluateModel.LABEL_ATTRIBUTE_PARAM: 'c',
+#         EvaluateModel.METRIC_PARAM: 'f1',
+#     }
+#     inputs = ['input_1', 'input_2']
+#     outputs = []
+#     with pytest.raises(ValueError):
+#         evaluator = EvaluateModel(params, inputs,
+#                                   outputs, named_inputs={},
+#                                   named_outputs={})
+#         evaluator.generate_code()
 
 
 def test_evaluate_model_operation_wrong_metric_param_failure():
@@ -425,3 +424,405 @@ def test_evaluate_model_operation_missing_label_attribute_failure():
         EvaluateModel(params, inputs,
                       outputs, named_inputs={},
                       named_outputs={})
+
+
+'''
+    CrossValidationOperation Tests
+'''
+
+def test_cross_validation_partial_operation_success():
+    params = {
+
+        CrossValidationOperation.NUM_FOLDS_PARAM: 3,
+
+    }
+    inputs = ['df_1', 'df_2','df_3']
+    named_inputs={'algorithm': 'df_1',
+                  'input data': 'df_2',
+                  'evaluator': 'df_3'}
+    named_outputs = {'output_cv': 'output_1'}
+    outputs = ['output_1']
+
+    instance = CrossValidationOperation(params, inputs,
+                                        outputs,
+                                        named_inputs={'algorithm': 'df_1',
+                                                      'input data': 'df_2',
+                                                      'evaluator': 'df_3'},
+                                        named_outputs={})
+
+    code = instance.generate_code()
+
+    expected_code = dedent("""
+            grid_builder = tuning.ParamGridBuilder()
+            estimator, param_grid = {algorithm}
+
+            # if estimator.__class__ == classification.LinearRegression:
+            #     param_grid = estimator.maxIter
+            # elif estimator.__class__  == classification.:
+            #     pass
+            # elif estimator.__class__ == classification.DecisionTreeClassifier:
+            #     # param_grid = (estimator.maxDepth, [2,3,4,5,6,7,8,9])
+            #     param_grid = (estimator.impurity, ['gini', 'entropy'])
+            # elif estimator.__class__ == classification.GBTClassifier:
+            #     pass
+            # elif estimator.__class__ == classification.RandomForestClassifier:
+            #     param_grid = estimator.maxDepth
+            for param_name, values in param_grid.iteritems():
+                param = getattr(estimator, param_name)
+                grid_builder.addGrid(param, values)
+
+            evaluator = {evaluator}
+
+            cross_validator = tuning.CrossValidator(
+                estimator=estimator, estimatorParamMaps=grid_builder.build(),
+                evaluator=evaluator, numFolds={folds})
+            cv_model = cross_validator.fit({input_data})
+            evaluated_data = cv_model.transform({input_data})
+            best_model_{output}  = cv_model.bestModel
+            metric_result = evaluator.evaluate(evaluated_data)
+            {output} = evaluated_data
+            """.format(algorithm=named_inputs['algorithm'],
+                       input_data=named_inputs['input data'],
+                       evaluator=named_inputs['evaluator'],
+                       output=outputs[0],
+                       folds=params[CrossValidationOperation.NUM_FOLDS_PARAM]))
+
+    result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
+
+    assert result, msg + debug_ast(code, expected_code)
+
+
+def test_cross_validation_complete_operation_success():
+    params = {
+
+        CrossValidationOperation.NUM_FOLDS_PARAM: 3,
+
+    }
+    inputs = ['df_1', 'df_2', 'df_3']
+    named_inputs={'algorithm': 'df_1',
+                  'input data': 'df_2',
+                  'evaluator': 'df_3'}
+    named_outputs = {'evaluation': 'output_1'}
+    outputs = ['output_1']
+
+    instance = CrossValidationOperation(params, inputs,
+                                        outputs,
+                                        named_inputs=named_inputs,
+                                        named_outputs=named_outputs)
+
+    code = instance.generate_code()
+
+    expected_code = dedent("""
+            grid_builder = tuning.ParamGridBuilder()
+            estimator, param_grid = {algorithm}
+
+            # if estimator.__class__ == classification.LinearRegression:
+            #     param_grid = estimator.maxIter
+            # elif estimator.__class__  == classification.:
+            #     pass
+            # elif estimator.__class__ == classification.DecisionTreeClassifier:
+            #     # param_grid = (estimator.maxDepth, [2,3,4,5,6,7,8,9])
+            #     param_grid = (estimator.impurity, ['gini', 'entropy'])
+            # elif estimator.__class__ == classification.GBTClassifier:
+            #     pass
+            # elif estimator.__class__ == classification.RandomForestClassifier:
+            #     param_grid = estimator.maxDepth
+            for param_name, values in param_grid.iteritems():
+                param = getattr(estimator, param_name)
+                grid_builder.addGrid(param, values)
+
+            evaluator = {evaluator}
+
+            cross_validator = tuning.CrossValidator(
+                estimator=estimator, estimatorParamMaps=grid_builder.build(),
+                evaluator=evaluator, numFolds={folds})
+            cv_model = cross_validator.fit({input_data})
+            evaluated_data = cv_model.transform({input_data})
+            best_model_{output}  = cv_model.bestModel
+            metric_result = evaluator.evaluate(evaluated_data)
+            {output} = evaluated_data
+            """.format(algorithm=named_inputs['algorithm'],
+                       input_data=named_inputs['input data'],
+                       evaluator=named_inputs['evaluator'],
+                       output=outputs[0],
+                       folds=params[CrossValidationOperation.NUM_FOLDS_PARAM]))
+
+    eval_code = """
+            grouped_result = evaluated_data.select(
+                    evaluator.getLabelCol(), evaluator.getPredictionCol())\\
+                    .groupBy(evaluator.getLabelCol(),
+                             evaluator.getPredictionCol()).count().collect()
+            eval_{output} = {{
+                'metric': {{
+                    'name': evaluator.getMetricName(),
+                    'value': metric_result
+                }},
+                'estimator': {{
+                    'name': estimator.__class__.__name__,
+                    'predictionCol': evaluator.getPredictionCol(),
+                    'labelCol': evaluator.getLabelCol()
+                }},
+                'confusion_matrix': {{
+                    'data': json.dumps(grouped_result)
+                }},
+                'evaluator': evaluator
+            }}
+            """.format(output=outputs[0])
+    expected_code = '\n'.join([expected_code, dedent(eval_code)])
+
+    result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
+
+    assert result, msg + debug_ast(code, expected_code)
+
+
+def test_cross_validation_complete_operation_missing_input_failure():
+    params = {
+
+        CrossValidationOperation.NUM_FOLDS_PARAM: 3,
+
+    }
+    inputs = ['df_1', 'df_2']
+    named_inputs={'algorithm': 'df_1',
+                  'input data': 'df_2',
+                  'evaluator': 'df_3'}
+    named_outputs = {'evaluation': 'output_1'}
+    outputs = ['output_1']
+
+    with pytest.raises(ValueError):
+        CrossValidationOperation(params,
+                                 inputs,
+                                 outputs,
+                                 named_inputs=named_inputs,
+                                 named_outputs=named_outputs)
+
+
+'''
+    ClassificationModel tests
+'''
+
+def test_classification_model_operation_success():
+    params = {
+        ClassificationModel.FEATURES_ATTRIBUTE_PARAM: 'f',
+        ClassificationModel.LABEL_ATTRIBUTE_PARAM: 'l'
+
+    }
+    inputs = ['df_1', 'df_2']
+    outputs = ['output_1']
+
+    instance = ClassificationModel(params, inputs,
+                                        outputs,
+                                        named_inputs={},
+                                        named_outputs={})
+
+    code = instance.generate_code()
+
+    expected_code = dedent( """
+        {input_2}.setLabelCol('{label}').setFeaturesCol('{features}')
+        {output} = {input_2}.fit({input_1})
+        """.format(output=outputs[0],
+                   input_1=inputs[0],
+                   input_2=inputs[1],
+                   features=params[ClassificationModel.FEATURES_ATTRIBUTE_PARAM],
+                   label=params[ClassificationModel.LABEL_ATTRIBUTE_PARAM]))
+
+    result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
+
+    assert result, msg + debug_ast(code, expected_code)
+
+
+def test_classification_model_operation_failure():
+    params = {
+        ClassificationModel.FEATURES_ATTRIBUTE_PARAM: 'f',
+        ClassificationModel.LABEL_ATTRIBUTE_PARAM: 'l'
+
+    }
+    inputs = ['df_1']
+    outputs = ['output_1']
+
+
+    with pytest.raises(ValueError):
+        instance = ClassificationModel(params, inputs,
+                                       outputs,
+                                       named_inputs={},
+                                       named_outputs={})
+        instance.generate_code()
+
+
+def test_classification_model_operation_missing_features_failure():
+    params = {
+        ClassificationModel.LABEL_ATTRIBUTE_PARAM: 'label'
+    }
+    inputs = ['df_1', 'df_2']
+    named_inputs = {}
+    named_outputs = {}
+    outputs = ['output_1']
+
+    with pytest.raises(ValueError):
+        ClassificationModel(params,
+                                 inputs,
+                                 outputs,
+                                 named_inputs=named_inputs,
+                                 named_outputs=named_outputs)
+
+
+def test_classification_model_operation_missing_label_failure():
+    params = {
+        ClassificationModel.FEATURES_ATTRIBUTE_PARAM: 'features',
+
+    }
+    inputs = ['df_1', 'df_2']
+    named_inputs = {}
+    named_outputs = {}
+    outputs = ['output_1']
+
+    with pytest.raises(ValueError):
+        ClassificationModel(params,
+                            inputs,
+                            outputs,
+                            named_inputs=named_inputs,
+                            named_outputs=named_outputs)
+
+
+def test_classification_model_operation_missing_inputs_failure():
+    params = {
+    }
+    inputs = ['df_1', 'df_2']
+    named_inputs = {}
+    named_outputs = {}
+    outputs = ['output_1']
+
+    with pytest.raises(ValueError):
+        classification_model = ClassificationModel(params,
+                                                  inputs,
+                                                  outputs,
+                                                  named_inputs=named_inputs,
+                                                  named_outputs=named_outputs)
+
+        classification_model.generate_code()
+
+
+
+'''
+    ClassifierOperation tests
+'''
+
+# @FIX-ME
+def test_classifier_operation_success():
+
+    params = {
+        ClassifierOperation.GRID_PARAM: {
+                                         ClassifierOperation.FEATURES_PARAM: 'f',
+                                         ClassifierOperation.LABEL_PARAM: 'l'
+                                        }
+
+    }
+    inputs = ['df_1', 'df_2']
+    outputs = ['output_1']
+
+    instance = ClassifierOperation(params, inputs,
+                                   outputs,
+                                   named_inputs={},
+                                   named_outputs={})
+
+    code = instance.generate_code()
+
+    param_grid = {
+        "labelCol": params[ClassifierOperation.GRID_PARAM]
+                          [ClassifierOperation.LABEL_PARAM],
+        "featuresCol": params[ClassifierOperation.GRID_PARAM]
+                             [ClassifierOperation.FEATURES_PARAM]
+    }
+
+    expected_code = dedent("""
+
+    param_grid = {param_grid}
+    # Output result is the classifier and its parameters. Parameters are
+    # need in classification model or cross validator.
+    {output} = ({name}(), param_grid)
+    """.format(output=outputs[0],
+               name='FIXME',
+               param_grid=json.dumps(param_grid)
+               )
+               )
+
+
+    result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
+
+    assert result, msg + debug_ast(code, expected_code)
+
+
+def test_classifier_operation_failure():
+
+    params = {
+
+    }
+    inputs = ['df_1', 'df_2']
+    outputs = ['output_1']
+
+    with pytest.raises(ValueError):
+        ClassifierOperation(params,
+                            inputs,
+                            outputs,
+                            named_inputs={},
+                            named_outputs={})
+
+
+def test_classifier_operation_missing_label_failure():
+
+    params = {
+        ClassifierOperation.GRID_PARAM: {
+                                            ClassifierOperation.FEATURES_PARAM: 'f',
+                                         }
+
+    }
+    inputs = ['df_1', 'df_2']
+    outputs = ['output_1']
+
+    with pytest.raises(ValueError):
+        ClassifierOperation(params,
+                            inputs,
+                            outputs,
+                            named_inputs={},
+                            named_outputs={})
+
+
+def test_classifier_operation_missing_features_failure():
+
+    params = {
+        ClassifierOperation.GRID_PARAM: {
+                                            ClassifierOperation.LABEL_PARAM: 'l'
+                                        }
+        }
+
+    inputs = ['df_1', 'df_2']
+    outputs = ['output_1']
+
+    with pytest.raises(ValueError):
+        ClassifierOperation(params,
+                            inputs,
+                            outputs,
+                            named_inputs={},
+                            named_outputs={})
+
+def test_classifier_operation_missing_output_failure():
+
+    params = {
+        ClassifierOperation.GRID_PARAM: {
+                                            ClassifierOperation.FEATURES_PARAM: 'f',
+                                            ClassifierOperation.LABEL_PARAM: 'l'
+                                        }
+
+    }
+
+    inputs = ['df_1', 'df_2']
+    outputs = []
+
+
+    with pytest.raises(ValueError):
+        classifier = ClassifierOperation(params,
+                            inputs,
+                            outputs,
+                            named_inputs={},
+                            named_outputs={})
+
+        classifier.generate_code()

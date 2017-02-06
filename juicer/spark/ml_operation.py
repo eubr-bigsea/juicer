@@ -208,7 +208,7 @@ class EvaluateModel(Operation):
         Operation.__init__(self, parameters, inputs, outputs, named_inputs,
                            named_outputs)
 
-        self.has_code = len(self.inputs) == 2
+        # self.has_code = len(self.inputs) == 2
         # @FIXME: validate if metric is compatible with Model using workflow
 
         self.prediction_attribute = (parameters.get(
@@ -263,9 +263,9 @@ class EvaluateModel(Operation):
                                 labelCol='{3}', metricName='{4}')
                 """.format(self.evaluator, self.param_prediction_col,
                            self.prediction_attribute, self.label_attribute,
-                           self.metric, self.output)
+                           self.metric, self.output[0])
 
-        return dedent(code)
+            return dedent(code)
 
 
 class CrossValidationOperation(Operation):
@@ -280,7 +280,15 @@ class CrossValidationOperation(Operation):
         Operation.__init__(self, parameters, inputs, outputs, named_inputs,
                            named_outputs)
 
-        self.has_code = len(self.inputs) == 3
+        if len(self.inputs) == 3:
+            self.has_code = True
+        else:
+            self.has_code = False
+            msg = "Parameters '{}', '{}' and '{}' must be informed for task {}"
+            raise ValueError(msg.format(
+                self.named_inputs['algorithm'], self.named_inputs['input data'],
+                self.named_inputs['evaluator'], self.__class__))
+            # raise ValueError('Invalid metric value {}'.format(self.metric))
         self.num_folds = parameters.get(self.NUM_FOLDS_PARAM, 3)
 
     @property
@@ -298,69 +306,70 @@ class CrossValidationOperation(Operation):
         return ''
 
     def generate_code(self):
-        code = dedent("""
-            grid_builder = tuning.ParamGridBuilder()
-            estimator, param_grid = {algorithm}
+            if self.has_code:
+                code = dedent("""
+                    grid_builder = tuning.ParamGridBuilder()
+                    estimator, param_grid = {algorithm}
 
-            # if estimator.__class__ == classification.LinearRegression:
-            #     param_grid = estimator.maxIter
-            # elif estimator.__class__  == classification.:
-            #     pass
-            # elif estimator.__class__ == classification.DecisionTreeClassifier:
-            #     # param_grid = (estimator.maxDepth, [2,3,4,5,6,7,8,9])
-            #     param_grid = (estimator.impurity, ['gini', 'entropy'])
-            # elif estimator.__class__ == classification.GBTClassifier:
-            #     pass
-            # elif estimator.__class__ == classification.RandomForestClassifier:
-            #     param_grid = estimator.maxDepth
-            for param_name, values in param_grid.iteritems():
-                param = getattr(estimator, param_name)
-                grid_builder.addGrid(param, values)
+                    # if estimator.__class__ == classification.LinearRegression:
+                    #     param_grid = estimator.maxIter
+                    # elif estimator.__class__  == classification.:
+                    #     pass
+                    # elif estimator.__class__ == classification.DecisionTreeClassifier:
+                    #     # param_grid = (estimator.maxDepth, [2,3,4,5,6,7,8,9])
+                    #     param_grid = (estimator.impurity, ['gini', 'entropy'])
+                    # elif estimator.__class__ == classification.GBTClassifier:
+                    #     pass
+                    # elif estimator.__class__ == classification.RandomForestClassifier:
+                    #     param_grid = estimator.maxDepth
+                    for param_name, values in param_grid.iteritems():
+                        param = getattr(estimator, param_name)
+                        grid_builder.addGrid(param, values)
 
-            evaluator = {evaluator}
+                    evaluator = {evaluator}
 
-            cross_validator = tuning.CrossValidator(
-                estimator=estimator, estimatorParamMaps=grid_builder.build(),
-                evaluator=evaluator, numFolds={folds})
-            cv_model = cross_validator.fit({input_data})
-            evaluated_data = cv_model.transform({input_data})
-            best_model_{output}  = cv_model.bestModel
-            metric_result = evaluator.evaluate(evaluated_data)
-            {output} = evaluated_data
-            """.format(algorithm=self.named_inputs['algorithm'],
-                       input_data=self.named_inputs['input data'],
-                       evaluator=self.named_inputs['evaluator'],
-                       output=self.output,
-                       folds=self.num_folds))
+                    cross_validator = tuning.CrossValidator(
+                        estimator=estimator, estimatorParamMaps=grid_builder.build(),
+                        evaluator=evaluator, numFolds={folds})
+                    cv_model = cross_validator.fit({input_data})
+                    evaluated_data = cv_model.transform({input_data})
+                    best_model_{output}  = cv_model.bestModel
+                    metric_result = evaluator.evaluate(evaluated_data)
+                    {output} = evaluated_data
+                    """.format(algorithm=self.named_inputs['algorithm'],
+                               input_data=self.named_inputs['input data'],
+                               evaluator=self.named_inputs['evaluator'],
+                               output=self.output,
+                               folds=self.num_folds))
 
-        # If there is an output needing the evaluation result, it must be
-        # processed here (summarization of data results)
-        needs_evaluation = 'evaluation' in self.named_outputs
-        if needs_evaluation:
-            eval_code = """
-            grouped_result = evaluated_data.select(
-                    evaluator.getLabelCol(), evaluator.getPredictionCol())\\
-                    .groupBy(evaluator.getLabelCol(),
-                             evaluator.getPredictionCol()).count().collect()
-            eval_{output} = {{
-                'metric': {{
-                    'name': evaluator.getMetricName(),
-                    'value': metric_result
-                }},
-                'estimator': {{
-                    'name': estimator.__class__.__name__,
-                    'predictionCol': evaluator.getPredictionCol(),
-                    'labelCol': evaluator.getLabelCol()
-                }},
-                'confusion_matrix': {{
-                    'data': json.dumps(grouped_result)
-                }},
-                'evaluator': evaluator
-            }}
-            """.format(output=self.output)
-            code = '\n'.join([code, dedent(eval_code)])
+                # If there is an output needing the evaluation result, it must be
+                # processed here (summarization of data results)
+                needs_evaluation = 'evaluation' in self.named_outputs
+                if needs_evaluation:
+                    eval_code = """
+                    grouped_result = evaluated_data.select(
+                            evaluator.getLabelCol(), evaluator.getPredictionCol())\\
+                            .groupBy(evaluator.getLabelCol(),
+                                     evaluator.getPredictionCol()).count().collect()
+                    eval_{output} = {{
+                        'metric': {{
+                            'name': evaluator.getMetricName(),
+                            'value': metric_result
+                        }},
+                        'estimator': {{
+                            'name': estimator.__class__.__name__,
+                            'predictionCol': evaluator.getPredictionCol(),
+                            'labelCol': evaluator.getLabelCol()
+                        }},
+                        'confusion_matrix': {{
+                            'data': json.dumps(grouped_result)
+                        }},
+                        'evaluator': evaluator
+                    }}
+                    """.format(output=self.output)
+                    code = '\n'.join([code, dedent(eval_code)])
 
-        return code
+                return code
 
 
 class ClassificationModel(Operation):
@@ -373,6 +382,7 @@ class ClassificationModel(Operation):
                            named_outputs)
 
         self.has_code = len(self.outputs) > 0 and len(self.inputs) == 2
+
         if not all([self.FEATURES_ATTRIBUTE_PARAM in parameters,
                     self.LABEL_ATTRIBUTE_PARAM in parameters]):
             msg = "Parameters '{}' and '{}' must be informed for task {}"
@@ -395,19 +405,26 @@ class ClassificationModel(Operation):
         return self.output
 
     def generate_code(self):
-        code = """
-        {1}.setLabelCol('{3}').setFeaturesCol('{4}')
-        {0} = {1}.fit({2})
-        """.format(self.output, self.inputs[1], self.inputs[0],
-                   self.label, self.features)
+        if self.has_code:
+            code = """
+            {1}.setLabelCol('{3}').setFeaturesCol('{4}')
+            {0} = {1}.fit({2})
+            """.format(self.output, self.inputs[1], self.inputs[0],
+                       self.label, self.features)
 
-        return dedent(code)
+            return dedent(code)
+        else:
+            msg = "Parameters '{}' and '{}' must be informed for task {}"
+            raise ValueError(msg.format('[]inputs',
+                                        '[]outputs',
+                                        self.__class__))
 
 
 class ClassifierOperation(Operation):
     """
     Base class for classification algorithms
     """
+    GRID_PARAM = 'paramgrid'
     FEATURES_PARAM = 'features'
     LABEL_PARAM = 'label'
 
@@ -417,6 +434,9 @@ class ClassifierOperation(Operation):
                            named_outputs)
         self.has_code = len(self.outputs) > 0
         self.name = "FIXME"
+
+        # import pdb
+        # pdb.set_trace()
         if 'paramgrid' not in parameters:
             raise ValueError(
                 'Parameter grid must be informed for classifier {}'.format(
@@ -439,19 +459,25 @@ class ClassifierOperation(Operation):
         return self.output
 
     def generate_code(self):
-        param_grid = {
-            'featuresCol': self.attributes,
-            'labelCol': self.label
-        }
-        declare = dedent("""
-        param_grid = {2}
-        # Output result is the classifier and its parameters. Parameters are
-        # need in classification model or cross valitor.
-        {0} = ({1}(), param_grid)
-        """).format(self.output, self.name, json.dumps(param_grid, indent=4))
+        if self.has_code:
+            param_grid = {
+                'featuresCol': self.attributes,
+                'labelCol': self.label
+            }
+            declare = dedent("""
+            param_grid = {2}
+            # Output result is the classifier and its parameters. Parameters are
+            # need in classification model or cross validator.
+            {0} = ({1}(), param_grid)
+            """).format(self.output, self.name, json.dumps(param_grid, indent=4))
 
-        code = [declare]
-        return "\n".join(code)
+            code = [declare]
+            return "\n".join(code)
+        else:
+            raise ValueError(
+                'Parameter output must be informed for classifier {}'.format(
+                    self.__class__))
+
 
 
 class SvmClassifierOperation(ClassifierOperation):

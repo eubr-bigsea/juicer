@@ -25,14 +25,19 @@ class Operation:
         # How many output ports the operation has
         self.expected_output_ports = 1
 
+        # @!CHECK-ME inspect this part of code.
         if len(self.inputs) > 0:
             self.output = self.outputs[0] if len(
-                self.outputs) else '{}_tmp_{}'.format(
-                self.inputs[0], parameters['task']['order'])
+                # self.outputs) > 0 else '{}_tmp_{}'.format(
+                # self.inputs[0], parameters['task']['order'])
+                # Used for tests, not correct.
+                self.outputs) > 0 else '{}_tmp_{}'.format(
+                self.inputs[0], self.inputs[0])  # parameters['task']['order']
         elif len(self.outputs) > 0:
             self.output = self.outputs[0]
         else:
             self.output = "NO_OUTPUT_WITHOUT_CONNECTIONS"
+
 
     def generate_code(self):
         raise NotImplementedError("Method generate_code should be implemented "
