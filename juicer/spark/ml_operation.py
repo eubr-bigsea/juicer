@@ -54,7 +54,7 @@ class FeatureIndexer(Operation):
                 raise ValueError(msg)
 
                 # self.max_categories = parameters.get(self.MAX_CATEGORIES_PARAM)
-            # else:
+                # else:
 
         else:
             raise ValueError(
@@ -306,8 +306,8 @@ class CrossValidationOperation(Operation):
         return ''
 
     def generate_code(self):
-            if self.has_code:
-                code = dedent("""
+        if self.has_code:
+            code = dedent("""
                     grid_builder = tuning.ParamGridBuilder()
                     estimator, param_grid = {algorithm}
 
@@ -342,11 +342,11 @@ class CrossValidationOperation(Operation):
                                output=self.output,
                                folds=self.num_folds))
 
-                # If there is an output needing the evaluation result, it must be
-                # processed here (summarization of data results)
-                needs_evaluation = 'evaluation' in self.named_outputs
-                if needs_evaluation:
-                    eval_code = """
+            # If there is an output needing the evaluation result, it must be
+            # processed here (summarization of data results)
+            needs_evaluation = 'evaluation' in self.named_outputs
+            if needs_evaluation:
+                eval_code = """
                     grouped_result = evaluated_data.select(
                             evaluator.getLabelCol(), evaluator.getPredictionCol())\\
                             .groupBy(evaluator.getLabelCol(),
@@ -367,9 +367,9 @@ class CrossValidationOperation(Operation):
                         'evaluator': evaluator
                     }}
                     """.format(output=self.output)
-                    code = '\n'.join([code, dedent(eval_code)])
+                code = '\n'.join([code, dedent(eval_code)])
 
-                return code
+            return code
 
 
 class ClassificationModel(Operation):
@@ -479,7 +479,6 @@ class ClassifierOperation(Operation):
                     self.__class__))
 
 
-
 class SvmClassifierOperation(ClassifierOperation):
     def __init__(self, parameters, inputs, outputs, named_inputs,
                  named_outputs):
@@ -558,8 +557,6 @@ class ClassificationReport(ReportOperation):
         return code
 
 
-
-
 """
 Clustering part
 """
@@ -581,11 +578,9 @@ class ClusteringModelOperation(Operation):
                 self.FEATURES_ATTRIBUTE_PARAM, self.__class__))
 
         self.features = parameters.get(self.FEATURES_ATTRIBUTE_PARAM)[0]
-
         self.output = self.named_outputs['output data']
         self.model = self.named_outputs.get('model', '{}_model'.format(
             self.output))
-        # self.named_outputs['output data']))
 
     @property
     def get_inputs_names(self):
@@ -599,20 +594,27 @@ class ClusteringModelOperation(Operation):
         return sep.join([self.named_outputs['output data'], self.model])
 
     def generate_code(self):
-        code = """
-        {algorithm}.setFeaturesCol('{features}')
-        {model} = {algorithm}.fit({input})
-        # There is no way to pass which attribute was used in clustering, so
-        # this information will be stored in uid (hack).
-        {model}.uid += '|{features}'
-        {output} = {model}.transform({input})
-        """.format(model=self.model,
-                   algorithm=self.named_inputs['algorithm'],
-                   input=self.named_inputs['train input data'],
-                   output=self.output,
-                   features=self.features)
 
-        return dedent(code)
+        if self.has_code:
+
+            code = """
+            {algorithm}.setFeaturesCol('{features}')
+            {model} = {algorithm}.fit({input})
+            # There is no way to pass which attribute was used in clustering, so
+            # this information will be stored in uid (hack).
+            {model}.uid += '|{features}'
+            {output} = {model}.transform({input})
+            """.format(model=self.model,
+                       algorithm=self.named_inputs['algorithm'],
+                       input=self.named_inputs['train input data'],
+                       output=self.output,
+                       features=self.features)
+
+            return dedent(code)
+        else:
+            msg = "Parameter '{} or {}' must be informed for task {}"
+            raise ValueError(msg.format(
+                self.inputs, self.outputs, self.__class__))
 
 
 class ClusteringOperation(Operation):
@@ -635,11 +637,15 @@ class ClusteringOperation(Operation):
         return self.output
 
     def generate_code(self):
-        declare = "{0} = {1}()".format(self.output, self.name)
-        code = [declare]
-        code.extend(['{0}.set{1}({2})'.format(self.output, name, v)
-                     for name, v in self.set_values])
-        return "\n".join(code)
+        if self.has_code:
+            declare = "{0} = {1}()".format(self.output, self.name)
+            code = [declare]
+            code.extend(['{0}.set{1}({2})'.format(self.output, name, v)
+                         for name, v in self.set_values])
+            return "\n".join(code)
+        else:
+            msg = "Parameter '{}' must be informed for task {}"
+            raise ValueError(msg.format(self.outputs, self.__class__))
 
 
 class LdaClusteringOperation(ClusteringOperation):
@@ -671,6 +677,8 @@ class LdaClusteringOperation(ClusteringOperation):
             float(parameters.get(self.DOC_CONCENTRATION_PARAM,
                                  self.number_of_clusters)) / 50.0]
 
+        # import pdb
+        # pdb.set_trace()
         self.topic_concentration = float(
             parameters.get(self.TOPIC_CONCENTRATION_PARAM, 0.1))
 
@@ -741,9 +749,7 @@ class GaussianMixtureClusteringOperation(ClusteringOperation):
                  named_outputs):
         ClusteringOperation.__init__(self, parameters, inputs, outputs,
                                      named_inputs, named_outputs)
-        self.number_of_clusters = parameters.get(self.K_PARAM,
-                                                 10)
-
+        self.number_of_clusters = parameters.get(self.K_PARAM, 10)
         self.max_iterations = parameters.get(self.MAX_ITERATIONS_PARAM, 10)
         self.tolerance = float(parameters.get(self.TOLERANCE_PARAMETER, 0.001))
 
@@ -837,8 +843,6 @@ class CollaborativeOperation(Operation):
         return "\n".join(code)
 
 
-
-
 class AlternatingLeastSquaresOperation(CollaborativeOperation):
     """
         Alternating Least Squares (ALS) matrix factorization.
@@ -863,7 +867,7 @@ class AlternatingLeastSquaresOperation(CollaborativeOperation):
     def __init__(self, parameters, inputs, outputs, named_inputs,
                  named_outputs):
         CollaborativeOperation.__init__(self, parameters, inputs, outputs,
-                                 named_inputs, named_outputs)
+                                        named_inputs, named_outputs)
 
         self.rank = parameters.get(self.RANK_PARAM, 10)
         self.maxIter = parameters.get(self.MAX_ITER_PARAM, 10)
@@ -871,18 +875,22 @@ class AlternatingLeastSquaresOperation(CollaborativeOperation):
         self.itemCol = parameters.get(self.ITEM_COL_PARAM, 'movieId')
         self.ratingCol = parameters.get(self.RATING_COL_PARAM, 'rating')
 
-        self.regParam = parameters.get(self.REG_PARAM, '0.1')
-        self.implicitPrefs = parameters.get(self.IMPLICIT_PREFS_PARAM, 'False')
+        self.regParam = parameters.get(self.REG_PARAM, 0.1)
+        self.implicitPrefs = parameters.get(self.IMPLICIT_PREFS_PARAM, False)
 
         self.has_code = len(self.output) > 1
         self.name = "collaborativefiltering.ALS"
+
+        # Define input and output
+        self.output = self.named_outputs['output data']
+        self.input = self.named_inputs['train input data']
 
     def generate_code(self):
         code = dedent("""
                 # Build the recommendation model using ALS on the training data
                 als = ALS(maxIter={maxIter}, regParam={regParam},
                         userCol={userCol}, itemCol={itemCol},
-                        ratingCol={ratingCol])
+                        ratingCol={ratingCol})
 
                 {model} = als.fit({input})
                 predictions = model.transform(test)
@@ -895,14 +903,16 @@ class AlternatingLeastSquaresOperation(CollaborativeOperation):
                 # rmse = evaluator.evaluate(predictions)
                 # print("Root-mean-square error = " + str(rmse))
                 """.format(
-                        output=self.named_outputs[0],
-                        input=self.named_inputs[0],
-                        model=self.model,
-                        maxIter=self.maxIter,
-                        regParam=self.regParam,
-                        userCol=self.userCol,
-                        itemCol=self.itemCol,
-                        ratingCol=self.ratingCol)
-                    )
+            output=self.named_outputs['output data'],
+            # input=self.named_inputs[0],
+            # output=self.output[0],
+            input=self.inputs[0],
+            model=self.model,
+            maxIter=self.maxIter,
+            regParam=self.regParam,
+            userCol=self.userCol,
+            itemCol=self.itemCol,
+            ratingCol=self.ratingCol)
+        )
 
         return code

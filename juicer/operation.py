@@ -38,7 +38,6 @@ class Operation:
         else:
             self.output = "NO_OUTPUT_WITHOUT_CONNECTIONS"
 
-
     def generate_code(self):
         raise NotImplementedError("Method generate_code should be implemented "
                                   "in {} subclass".format(self.__class__))
