@@ -4,7 +4,7 @@
 # and termination
 # TODO: rotate logs
 
-usage="Usage: start-juicer.sh (start|stop|status)"
+usage="Usage: juicer-daemon.sh (start|stop|status)"
 
 # this sript requires the command parameter
 if [ $# -le 0 ]; then
@@ -22,13 +22,13 @@ fi
 echo $JUICER_HOME
 
 # get log directory
-if [ "$JUIER_LOG_DIR" = "" ]; then
+if [ "$JUICER_LOG_DIR" = "" ]; then
   export JUICER_LOG_DIR="${JUICER_HOME}/logs"
 fi
 mkdir -p "$JUICER_LOG_DIR"
 
 # get pid directory
-if [ "$JUIER_PID_DIR" = "" ]; then
+if [ "$JUICER_PID_DIR" = "" ]; then
   export JUICER_PID_DIR=/tmp
 fi
 mkdir -p "$JUICER_PID_DIR"

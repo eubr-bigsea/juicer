@@ -274,8 +274,8 @@ def test_minion_generate_invalid_code_failure():
 
 # noinspection PyProtectedMember
 def test_minion_perform_deliver_success():
-    workflow_id = 6666
-    app_id = 1000
+    workflow_id = '6666'
+    app_id = '1000'
     out_queue = 'queue_2000'
     sconf = SparkConf()
     sc = SparkContext(master='', conf=sconf)

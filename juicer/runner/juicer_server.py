@@ -59,6 +59,7 @@ class JuicerServer:
         signal.signal(signal.SIGTERM, self._terminate)
 
     def start(self):
+        signal.signal(signal.SIGTERM, self._terminate_minions)
         log.info('Starting master process. Reading "start" queue ')
 
         parsed_url = urlparse.urlparse(
@@ -71,6 +72,7 @@ class JuicerServer:
 
     # noinspection PyMethodMayBeStatic
     def read_start_queue(self, redis_conn):
+        workflow_id = app_id = None
         try:
             self.state_control = StateControlRedis(redis_conn)
             # Process next message
@@ -79,7 +81,6 @@ class JuicerServer:
 
             # Extract message type and common parameters
             msg_type = msg_info['type']
-            workflow_id = app_id = None
 
             workflow_id = str(msg_info['workflow_id'])
             app_id = str(msg_info['app_id'])
@@ -263,13 +264,20 @@ class JuicerServer:
         self.minion_support_process.join()
         self.minion_watch_process.join()
 
+    def _terminate_minions(self, _signal, _frame):
+        log.info('Terminating %s active minions', len(self.active_minions))
+        minions = [m for m in self.active_minions]
+        for (wid,aid) in minions:
+            self._terminate_minion(wid, aid)
+        sys.exit(0)
+    
     def _terminate(self, _signal, _frame):
         """
         This is a handler that reacts to a sigkill signal.
         """
         log.info('Killing juicer server subprocesses and terminating')
         if self.start_process:
-            os.kill(self.start_process.pid, signal.SIGKILL)
+            os.kill(self.start_process.pid, signal.SIGTERM)
         if self.minion_support_process:
             os.kill(self.minion_support_process.pid, signal.SIGKILL)
         if self.minion_watch_process:

@@ -109,12 +109,12 @@ class SparkMinion(Minion):
 
         # Sanity check: this minion should not process messages from another
         # workflow/app
-        assert msg_info['workflow_id'] == self.workflow_id, \
-                'Expected workflow_id=%s, got workflow_id=%s' % (
+        assert str(msg_info['workflow_id']) == self.workflow_id, \
+                'Expected workflow_id=%s, got workflow_id=%s' % ( \
                 self.workflow_id, msg_info['workflow_id'])
-
-        assert msg_info['app_id'] == self.app_id, \
-                'Expected app_id=%s, got app_id=%s' % (
+        
+        assert str(msg_info['app_id']) == self.app_id, \
+                'Expected app_id=%s, got app_id=%s' % ( \
                 self.workflow_id, msg_info['app_id'])
 
         # Extract the message type
