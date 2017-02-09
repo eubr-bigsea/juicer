@@ -6,6 +6,7 @@
 # {
 #   'workflow_id': <workflow identifier>
 #   'app_id': <app identifier, representing an workflow instance>
+#   'job_id': <job identifier, representing a command submited to the app>
 #   'type': 'execute'
 #   'app_configs': <key value pairs as app resource and env configurations>
 #   'workflow': <workflow that will be transpiled and executed>
@@ -16,6 +17,7 @@ EXECUTE = 'execute'
 # {
 #   'workflow_id': <workflow identifier>
 #   'app_id': <app identifier, representing an workflow instance>
+#   'job_id': <job identifier, representing a command submited to the app>
 #   'type': 'deliver'
 #   'task_id': <identifier of the task result to deliver>
 #   'output': <queue identifier for publishing results>

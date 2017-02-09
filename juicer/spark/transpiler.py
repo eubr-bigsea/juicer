@@ -224,6 +224,7 @@ class SparkTranspiler:
                                   port.get('outputs', []),
                                   port.get('named_inputs', {}),
                                   port.get('named_outputs', {}))
+            instance.out_degree = graph.out_degree(task_id)
             env_setup['dependency_controller'] = DependencyController(
                 params.get('requires_info', False))
 
