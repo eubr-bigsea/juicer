@@ -24,7 +24,6 @@ from pyspark.ml.clustering import *
 from pyspark.ml.evaluation import *
 from pyspark.ml.feature import *
 from pyspark.ml.tuning import *
-# from pyspark.sql import SparkSession
 # from pyspark.sql.functions import *
 # from pyspark.sql.types import *
 
@@ -155,6 +154,15 @@ def main(spark_session, cached_state, emit_event):
         {%- endfor %}
     }
 {%- if execute_main %}
-main()
+
+def dummy_emit_event(room, namespace):
+    def _dummy_emit_event(name, msg, status, identifier):
+        return None
+    return _dummy_emit_event
+
+from pyspark.sql import SparkSession
+spark_session = SparkSession.builder.getOrCreate()
+main(spark_session, {}, dummy_emit_event(room=-1, namespace='/none'))
+
 {%- endif %}
 {% endautopep8 %}
