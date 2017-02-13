@@ -325,13 +325,26 @@ class SparkMinion(Minion):
     def _read_dataframe_data(self, task_id, output, port):
 
         # Last position in state is the execution time, so it should be ignored
-        if (len(self.state[task_id]) - 1) / 2 >= port:
+        port_idx = (len(self.state[task_id]) - 1) / 2
+        if port_idx >= port:
             df = self.state[task_id][port * 2]
+            partial_result = None if port == port_idx else self.state[task_id][port * 2 + 1]
 
-            # Evaluating if df has method "take" allows unit testing
-            # instead of testing exact pyspark.sql.dataframe.Dataframe
-            # type check.
-            if df is not None and hasattr(df, 'take'):
+            # In this case we already have partial data collected for the
+            # particular task
+            if partial_result:
+                self.state_control.push_queue(
+                    output, '\n'.join(partial_result))
+                data = {'status': 'SUCCESS', 'code': self.MNN002[0],
+                        'message': self.MNN002[1], 'output': output}
+                self._send_to_output(data)
+
+            # In this case we do not have partial data collected for the task
+            # Then we must obtain it if the 'take' operation applies
+            elif df is not None and hasattr(df, 'take'):
+                # Evaluating if df has method "take" allows unit testing
+                # instead of testing exact pyspark.sql.dataframe.Dataframe
+                # type check.
                 # FIXME define as a parameter?:
                 result = df.take(100).rdd.map(
                     SparkMinion._convert_to_csv).collect()
@@ -340,10 +353,14 @@ class SparkMinion(Minion):
                 data = {'status': 'SUCCESS', 'code': self.MNN002[0],
                         'message': self.MNN002[1], 'output': output}
                 self._send_to_output(data)
+
+            # In this case, do not make sense to request data for this
+            # particular task output port
             else:
                 data = {'status': 'ERROR', 'code': self.MNN001[0],
                         'message': self.MNN001[1]}
                 self._send_to_output(data)
+
         else:
             data = {'status': 'ERROR', 'code': self.MNN004[0],
                     'message': self.MNN004[1]}

@@ -320,7 +320,7 @@ def test_minion_perform_deliver_success():
                 config=config)
         minion._emit_event = dummy_emit_event
         minion.state = {
-            data['task_id']: (df0, 35.92)
+            data['task_id']: (df0, [], 35.92)
         }
         minion._process_message()
         
