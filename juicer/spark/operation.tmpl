@@ -24,6 +24,7 @@ from pyspark.ml.clustering import *
 from pyspark.ml.evaluation import *
 from pyspark.ml.feature import *
 from pyspark.ml.tuning import *
+from pyspark.ml.recommendation import *
 # from pyspark.sql import SparkSession
 # from pyspark.sql.functions import *
 # from pyspark.sql.types import *
@@ -55,7 +56,7 @@ def juicer_debug(spark_session, name, variable, data_frame):
 {%- for instance in instances %}
 {%- if instance.has_code %}
 def {{instance.parameters.task.operation.slug.replace('-', '_')}}_gen_{{instance.get_output_names('_')}}(
-        spark_session, cached_state
+        spark_session, cached_state, emit_event
         {%- if instance.get_inputs_names %}, {{instance.get_inputs_names}}{% endif %}):
     {%- if instance.parameters.task.forms.comment and instance.parameters.task.forms.comment.value.strip()%}
     """
@@ -65,28 +66,42 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_gen_{{instance
     """ Operation {{instance.parameters.task.id }} """
     {%- endif %}
 
+    emit_event(name='update task', msg='Task running',
+            status='RUNNING', identifier='{{instance.parameters.task.id}}')
     if '{{instance.parameters.task.id}}' in cached_state:
         sparkLogging(spark_session).info ('Cache hit for operation {}'.format('{{instance.parameters.task.id}}'))
         return cached_state.get('{{instance.parameters.task.id}}')
 
     start = timer()
     {{instance.generate_code().strip() | indent(width=4, indentfirst=False)}}
+    {%- set outputs = instance.get_data_out_names('|').split('|') %}
     {%- if instance.parameters.get('logging', {}).get('log_level') == 'DEBUG' %}
-    {%- set out = instance.get_data_out_names('|') %}
-    {%- if out %}
-    {%- for variable in out.split('|')%}
+    {%- if outputs %}
+    {%- for variable in outputs %}
     juicer_debug(spark_session, '{{instance.__class__}}', '{{variable}}', {{variable}})
     {%- endfor %}
     {%- endif %}
     {%- endif %}
 
+    results = (
+          {%- set is_leaf = instance.out_degree == 0 %}
+          {%- for out in instance.get_output_names(',').split(',') %}
+          {#
+          {%- if out in outputs %}
+          #}
+          {{out}}, {%- if is_leaf %} {{out}}.take(100) if hasattr({{out}}, 'take') else [] {%- else %} [] {%- endif %},
+          {#{%- endif %}#}
+          {%- endfor %}
+    )
     time_elapsed = timer() - start
-    return {% if instance.get_output_names() %} {{instance.get_output_names()}}, {% endif %}time_elapsed
+    emit_event(name='update task', msg='Task completed',
+           status='COMPLETED', identifier='{{instance.parameters.task.id}}')
+    return {% if instance.get_output_names() %} results + {% endif %} (time_elapsed,)
 
 {%- endif %}
 {% endfor %}
 
-def main(spark_session, cached_state):
+def main(spark_session, cached_state, emit_event):
     """ Run generated code """
 
     start = time.time()
@@ -111,8 +126,8 @@ def main(spark_session, cached_state):
     {%- if instance.has_code and is_satisfied %}
     {%- set s = dependency_controller.satisfied(instance.parameters.task.id) %}
     {%- if is_satisfied %}
-    {% if instance.get_output_names(", ") %}{{instance.get_output_names(", ")}}, {% endif %}ts_{{instance.output}} = {{instance.parameters.task.operation.slug.replace('-', '_')}}_gen_{{instance.get_output_names('_')}}(spark_session, cached_state
-        {%- if instance.get_inputs_names %}, {{instance.get_inputs_names}}{% endif %})
+    {% if instance.get_output_names(", ") %}{%- for out in instance.get_output_names(',').split(',')%}{{out}}, pr_{{out}}, {% endfor %}{% endif %}ts_{{instance.output}} = {{instance.parameters.task.operation.slug.replace('-', '_')}}_gen_{{instance.get_output_names('_')}}(spark_session, cached_state, emit_event
+       {%- if instance.get_inputs_names %}, {{instance.get_inputs_names}}{% endif %})
     {%- endif %}
     {%- else %}
     # Task **{{instance.parameters.task.operation.name}}** did not genarate code
@@ -128,14 +143,24 @@ def main(spark_session, cached_state):
         {%- for instance in instances %}
          {%- set is_satisfied = dependency_controller.is_satisfied(instance.parameters.task.id) %}
          {%- if instance.has_code and is_satisfied %}
-        '{{instance.parameters.task.id}}': ({%- if instance.get_output_names() %}
-        {%- for variable in instance.get_output_names(', ').split('|') -%}
-        {{variable}}, {%- endfor -%}{% endif -%}
-        ts_{{instance.output}}),
-        {%- endif %}
+             '{{instance.parameters.task.id}}': (
+                 {%- if instance.get_output_names() %}
+                     {%- for variable in instance.get_output_names(', ').split('|') -%}
+                         {{variable}}, pr_{{variable}},
+                     {%- endfor -%}
+                 {% endif -%}
+                 ts_{{instance.output}}),
+                 {%- endif %}
         {%- endfor %}
     }
 {%- if execute_main %}
-main()
+def dummy_emit_event(room, namespace):
+    def _dummy_emit_event(name, msg, status, identifier):
+        return None
+    return _dummy_emit_event
+
+from pyspark.sql import SparkSession
+spark_session = SparkSession.builder.getOrCreate()
+main(spark_session, {}, dummy_emit_event(room=-1, namespace='/none'))
 {%- endif %}
 {% endautopep8 %}

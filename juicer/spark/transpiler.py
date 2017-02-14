@@ -301,6 +301,8 @@ class SparkTranspiler:
             'svm-classification':
                 juicer.spark.ml_operation.SvmClassifierOperation,
             'topic-report': juicer.spark.ml_operation.TopicReportOperation,
+            'recommendation-model': juicer.spark.ml_operation.RecommendationModel,
+            # 'recommendation-model': juicer.spark.ml_operation.CollaborativeOperation,
             'als-recommender':
                 juicer.spark.ml_operation.AlternatingLeastSquaresOperation,
             'logistic-regression':

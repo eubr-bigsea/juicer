@@ -315,10 +315,14 @@ def test_evaluate_model_operation_success():
     }
     inputs = ['input_1', 'input_2']
     outputs = ['output_1']
+    named_inputs={'input data':'input_1',
+                   'model' :'df_model'}
+    named_outputs={'metric' :'df_metric',
+                   'evaluator':'df_evaluator'}
 
     instance = EvaluateModel(params, inputs,
-                             outputs, named_inputs={},
-                             named_outputs={})
+                             outputs, named_inputs=named_inputs,
+                             named_outputs=named_outputs)
 
     code = instance.generate_code()
 
@@ -341,7 +345,6 @@ def test_evaluate_model_operation_success():
                            params[EvaluateModel.METRIC_PARAM]][1]))
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
-
     assert result, msg + debug_ast(code, expected_code)
 
 
@@ -1535,7 +1538,7 @@ def test_collaborative_filtering_operation_success():
                      'model': 'output_1_model'}
     outputs = ['output_1']
 
-    name = "FIXME"
+    name = "als"
     set_values = []
 
     instance = CollaborativeOperation(params, inputs,
@@ -1564,12 +1567,13 @@ def test_als_operation_success():
     params = {
         AlternatingLeastSquaresOperation.RANK_PARAM: 10,
         AlternatingLeastSquaresOperation.MAX_ITER_PARAM: 10,
-        AlternatingLeastSquaresOperation.USER_COL_PARAM: 'userId',
-        AlternatingLeastSquaresOperation.ITEM_COL_PARAM: 'movieId',
-        AlternatingLeastSquaresOperation.RATING_COL_PARAM: 'rating',
+        AlternatingLeastSquaresOperation.USER_COL_PARAM: 'u',
+        AlternatingLeastSquaresOperation.ITEM_COL_PARAM: 'm',
+        AlternatingLeastSquaresOperation.RATING_COL_PARAM: 'r',
         AlternatingLeastSquaresOperation.REG_PARAM: 0.1,
         AlternatingLeastSquaresOperation.IMPLICIT_PREFS_PARAM: False,
 
+        # Could be required
         # AlternatingLeastSquaresOperation.ALPHA_PARAM:'alpha',
         # AlternatingLeastSquaresOperation.SEED_PARAM:'seed',
         # AlternatingLeastSquaresOperation.NUM_USER_BLOCKS_PARAM:'numUserBlocks',
@@ -1578,12 +1582,11 @@ def test_als_operation_success():
 
     inputs = ['df_1', 'df_2']
     named_inputs = {'algorithm': 'df_1',
-                    'train input data': 'df_2'}
-    named_outputs = {'output data': 'output_1',
-                     'model': 'model_output'}
+                    'input data': 'df_2'}
+    named_outputs = {'algorithm': 'algorithm_als'}
     outputs = ['output_1']
 
-    name = "clustering.GaussianMixture"
+    name = "collaborativefiltering.ALS"
 
     instance = AlternatingLeastSquaresOperation(params, inputs,
                                                 outputs,
@@ -1594,12 +1597,12 @@ def test_als_operation_success():
 
     expected_code = dedent("""
                 # Build the recommendation model using ALS on the training data
-                als = ALS(maxIter={maxIter}, regParam={regParam},
-                        userCol={userCol}, itemCol={itemCol},
-                        ratingCol={ratingCol})
+                {output} = ALS(maxIter={maxIter}, regParam={regParam},
+                        userCol='{userCol}', itemCol='{itemCol}',
+                        ratingCol='{ratingCol}')
 
-                {model} = als.fit({input})
-                predictions = model.transform(test)
+                ##model = als.fit({input})
+                #predictions = model.transform(test)
 
                 # Evaluate the model not support YET
                 # evaluator = RegressionEvaluator(metricName="rmse",
@@ -1609,9 +1612,8 @@ def test_als_operation_success():
                 # rmse = evaluator.evaluate(predictions)
                 # print("Root-mean-square error = " + str(rmse))
                 """.format(
-        output=named_outputs['output data'],
+        output=named_outputs['algorithm'],
         input=inputs[0],
-        model=named_outputs['model'],
         maxIter=params[AlternatingLeastSquaresOperation.MAX_ITER_PARAM],
         regParam=params[AlternatingLeastSquaresOperation.REG_PARAM],
         userCol=params[AlternatingLeastSquaresOperation.USER_COL_PARAM],

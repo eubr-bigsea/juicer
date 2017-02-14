@@ -232,15 +232,18 @@ class EvaluateModel(Operation):
             raise ValueError('Invalid metric value {}'.format(self.metric))
 
         self.has_code = len(self.inputs) > 0 and len(self.output) > 0
+        # import pdb
+        # pdb.set_trace()
 
     def get_data_out_names(self, sep=','):
         return ''
 
     def get_output_namesx(self, sep=", "):
-        output_evaluator = self.outputs[1] if len(
-            self.outputs) > 1 else '{}_tmp_{}'.format(
-            self.inputs[0], self.parameters['task']['order'])
-
+        output_evaluator = self.named_outputs['output data'] if len(
+            self.output) > 1 else '{}_tmp_{}'.format(
+            self.named_inputs['input data'], self.named_inputs['input data'])
+        # Some cases this string to _tmp_ doesn't work in the spark code generation
+        # self.parameters['task']['order'])
         return sep.join([self.output, output_evaluator])
 
     def generate_code(self):
@@ -253,8 +256,9 @@ class EvaluateModel(Operation):
                 evaluator = {6}({7}='{3}',
                                       labelCol='{4}', metricName='{5}')
 
-                {0} = evaluator.evaluate({2})
-                """.format(self.output, self.inputs[1], self.inputs[0],
+                {0} = evaluator.evaluate({1})
+                """.format(self.output, self.named_inputs['input data'],
+                           self.named_inputs['model'],
                            self.prediction_attribute, self.label_attribute,
                            self.metric, self.evaluator, self.param_prediction_col)
             elif len(self.output) > 0:  # Used with cross validator
@@ -263,7 +267,7 @@ class EvaluateModel(Operation):
                                 labelCol='{3}', metricName='{4}')
                 """.format(self.evaluator, self.param_prediction_col,
                            self.prediction_attribute, self.label_attribute,
-                           self.metric, self.output[0])
+                           self.metric, self.output)
 
             return dedent(code)
 
@@ -435,8 +439,6 @@ class ClassifierOperation(Operation):
         self.has_code = len(self.outputs) > 0
         self.name = "FIXME"
 
-        # import pdb
-        # pdb.set_trace()
         if 'paramgrid' not in parameters:
             raise ValueError(
                 'Parameter grid must be informed for classifier {}'.format(
@@ -806,6 +808,67 @@ class TopicReportOperation(ReportOperation):
 """
 
 
+class RecommendationModel(Operation):
+    RANK_PARAM = 'rank'
+    MAX_ITER_PARAM = 'max_iter'
+    USER_COL_PARAM = 'user_col'
+    ITEM_COL_PARAM = 'item_col'
+    # RATING_COL_PARAM = 'ratingCol'
+    RATING_COL_PARAM = 'rating_col'
+
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
+                           named_outputs)
+
+        self.has_code = len(self.outputs) > 0 and len(self.inputs) == 2
+
+        if not all([self.RANK_PARAM in parameters['workflow_json'],
+                    self.RATING_COL_PARAM in parameters['workflow_json']]):
+            msg = "Parameters '{}' and '{}' must be informed for task {}"
+            raise ValueError(msg.format(
+                self.RANK_PARAM, self.RATING_COL_PARAM,
+                self.__class__.__name__))
+
+        self.model = self.named_outputs.get('model')
+        self.output = self.named_outputs.get('output data')
+        # self.ratingCol = parameters.get(self.RATING_COL_PARAM)
+        # import pdb
+        # pdb.set_trace()
+
+    @property
+    def get_inputs_names(self):
+        return ', '.join([self.named_inputs['input data'],
+                          self.named_inputs['algorithm']])
+
+    def get_data_out_names(self, sep=','):
+        return ''
+
+    def get_output_names(self, sep=', '):
+        return sep.join([self.output,
+                         self.model])
+
+    def generate_code(self):
+        if self.has_code:
+
+            code = """
+            # {1}.setRank('{3}').setRatingCol('{4}')
+            {0} = {1}.fit({2})
+
+            {output_data} = {0}.transform({2})
+            """.format(self.model, self.named_inputs['algorithm'],
+                       self.named_inputs['input data'],
+                       self.RANK_PARAM, self.RATING_COL_PARAM,
+                       output_data=self.output)
+
+            return dedent(code)
+        else:
+            msg = "Parameters '{}' and '{}' must be informed for task {}"
+            raise ValueError(msg.format('[]inputs',
+                                        '[]outputs',
+                                        self.__class__))
+
+
 class CollaborativeOperation(Operation):
     """
     Base class for Collaborative Filtering algorithm
@@ -815,25 +878,26 @@ class CollaborativeOperation(Operation):
                  named_outputs):
         Operation.__init__(self, parameters, inputs, outputs, named_inputs,
                            named_outputs)
+
         self.has_code = len(self.outputs) > 0
-        self.name = "FIXME"
+        self.name = "als"
         self.set_values = []
 
         # Define outputs and model
-        self.output = self.named_outputs['output data']
+        # self.output = self.named_outputs['output data']
         self.model = self.named_outputs.get('model', '{}_model'.format(
             self.output))
 
     @property
     def get_inputs_names(self):
-        return ', '.join([self.named_inputs['train input data'],
+        return ', '.join([self.named_inputs['input data'],
                           self.named_inputs['algorithm']])
 
     def get_data_out_names(self, sep=','):
-        return ''
+        return self.output
 
     def get_output_names(self, sep=', '):
-        return sep.join([self.named_outputs['output data'], self.model])
+        return sep.join([self.model])
 
     def generate_code(self):
         declare = "{0} = {1}()".format(self.output, self.name)
@@ -843,7 +907,7 @@ class CollaborativeOperation(Operation):
         return "\n".join(code)
 
 
-class AlternatingLeastSquaresOperation(CollaborativeOperation):
+class AlternatingLeastSquaresOperation(Operation):
     """
         Alternating Least Squares (ALS) matrix factorization.
 
@@ -852,11 +916,11 @@ class AlternatingLeastSquaresOperation(CollaborativeOperation):
         <http://dx.doi.org/10.1109/ICDM.2008.22>`_
     """
     RANK_PARAM = 'rank'
-    MAX_ITER_PARAM = 'maxIter'
-    USER_COL_PARAM = 'userCol'
-    ITEM_COL_PARAM = 'itemCol'
-    RATING_COL_PARAM = 'ratingCol'
-    REG_PARAM = 'regParam'
+    MAX_ITER_PARAM = 'max_iter'
+    USER_COL_PARAM = 'user_col'
+    ITEM_COL_PARAM = 'item_col'
+    RATING_COL_PARAM = 'rating_col'
+    REG_PARAM = 'reg_param'
 
     IMPLICIT_PREFS_PARAM = 'implicitPrefs'
     ALPHA_PARAM = 'alpha'
@@ -866,34 +930,38 @@ class AlternatingLeastSquaresOperation(CollaborativeOperation):
 
     def __init__(self, parameters, inputs, outputs, named_inputs,
                  named_outputs):
-        CollaborativeOperation.__init__(self, parameters, inputs, outputs,
-                                        named_inputs, named_outputs)
+        Operation.__init__(self, parameters, inputs, outputs,
+                           named_inputs, named_outputs)
 
         self.rank = parameters.get(self.RANK_PARAM, 10)
         self.maxIter = parameters.get(self.MAX_ITER_PARAM, 10)
-        self.userCol = parameters.get(self.USER_COL_PARAM, 'userId')
-        self.itemCol = parameters.get(self.ITEM_COL_PARAM, 'movieId')
-        self.ratingCol = parameters.get(self.RATING_COL_PARAM, 'rating')
+        self.userCol = parameters.get(self.USER_COL_PARAM, 'user_id')[0]
+        self.itemCol = parameters.get(self.ITEM_COL_PARAM, 'movie_id')[0]
+        self.ratingCol = parameters.get(self.RATING_COL_PARAM, 'rating')[0]
 
+        # import pdb
+        # pdb.set_trace()
         self.regParam = parameters.get(self.REG_PARAM, 0.1)
         self.implicitPrefs = parameters.get(self.IMPLICIT_PREFS_PARAM, False)
 
         self.has_code = len(self.output) > 1
         self.name = "collaborativefiltering.ALS"
 
+
         # Define input and output
-        self.output = self.named_outputs['output data']
-        self.input = self.named_inputs['train input data']
+        # self.output = self.named_outputs['output data']
+        # self.input = self.named_inputs['train input data']
 
     def generate_code(self):
         code = dedent("""
                 # Build the recommendation model using ALS on the training data
-                als = ALS(maxIter={maxIter}, regParam={regParam},
-                        userCol={userCol}, itemCol={itemCol},
-                        ratingCol={ratingCol})
+                {algorithm} = ALS(maxIter={maxIter}, regParam={regParam},
+                        userCol='{userCol}', itemCol='{itemCol}',
+                        ratingCol='{ratingCol}')
 
-                {model} = als.fit({input})
-                predictions = model.transform(test)
+                #
+                ## model = als.fit({input})
+                # predictions = model.transform(test)
 
                 # Evaluate the model not support YET
                 # evaluator = RegressionEvaluator(metricName="rmse",
@@ -903,16 +971,79 @@ class AlternatingLeastSquaresOperation(CollaborativeOperation):
                 # rmse = evaluator.evaluate(predictions)
                 # print("Root-mean-square error = " + str(rmse))
                 """.format(
-            output=self.named_outputs['output data'],
-            # input=self.named_inputs[0],
-            # output=self.output[0],
-            input=self.inputs[0],
-            model=self.model,
+            algorithm=self.named_outputs['algorithm'],
+            input=self.inputs,
             maxIter=self.maxIter,
-            regParam=self.regParam,
-            userCol=self.userCol,
-            itemCol=self.itemCol,
-            ratingCol=self.ratingCol)
+            regParam=float(self.regParam),
+            userCol='{user}'.format(user=self.userCol),
+            itemCol='{item}'.format(item=self.itemCol),
+            ratingCol='{rating}'.format(rating=self.ratingCol))
         )
 
         return code
+
+
+
+class LogisticRegressionClassifier(Operation):
+    FEATURES_PARAM = 'features'
+    LABEL_PARAM = 'label'
+    WEIGHT_COL_PARAM = ''
+    MAX_ITER = 'max_iter'
+    FAMILY_PARAM = 'family'
+    PREDICTION_COL_PARAM = 'prediction'
+
+    REG_PARAM = 'reg_param'
+    ELASTIC_NET_PARAM = 'elastic_net'
+
+    # Have summaries model with measure results
+    TYPE_BINOMIAL = 'binomial'
+    # Multinomial family doesn't have summaries model
+    TYPE_MULTINOMIAL = 'multinomial'
+
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        Operation.__init__(self, parameters, inputs, outputs,
+                                     named_inputs, named_outputs)
+        self.parameters = parameters
+        self.name = 'classification.LR'
+        self.has_code = len(self.outputs) > 0
+
+        if not all([self.LABEL_PARAM in parameters,
+                    self.FEATURES_PARAM in parameters]):
+            msg = "Parameters '{}' and '{}' must be informed for task {}"
+            raise ValueError(msg.format(
+                self.FEATURES_PARAM, self.LABEL_PARAM,
+                self.__class__))
+
+        self.label = parameters.get(self.LABEL_PARAM)
+        self.attributes = parameters.get(self.FEATURES_PARAM)
+        self.output = named_outputs['output result']
+
+        self.max_iter = parameters.get(self.MAX_ITER_PARAM, 10)
+        self.reg_param = parameters.get(self.REG_PARAM, 0.1)
+        self.weight_col = parameters.get(self.WEIGHT_COL_PARAM)
+
+    def get_data_out_names(self, sep=','):
+        return ''
+
+    def get_output_names(self, sep=', '):
+        return self.named_outputs['output result']
+
+    def generate_code(self):
+        if self.has_code:
+            declare = dedent("""
+            {output} = LogisticRegression( featuresCol='{features}', labelCol='{label}',
+                        maxIter={maxIter}, regParam={reg_param}, weightCol='{weight}')
+            """).format(output=self.output,
+                        features=self.attributes,
+                        label = self.label,
+                        max_iter = self.max_iter,
+                        reg_param = self.reg_param,
+                        weight = self.weight_col)
+
+            code = [declare]
+            return "\n".join(code)
+        else:
+            raise ValueError(
+                'Parameter output must be informed for classifier {}'.format(
+                    self.__class__))

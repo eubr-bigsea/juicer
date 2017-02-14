@@ -238,7 +238,7 @@ class SparkMinion(Minion):
                         '{}/lib/native/'.format(os.environ.get('HADOOP_HOME'))
 
             app_name = u'%s(workflow_id=%s,app_id=%s)' % (
-                    loader.workflow_data.get('name', ''),
+                    loader.workflow.get('name', ''),
                     self.workflow_id, self.app_id)
 
             spark_builder = SparkSession.builder.appName(app_name)
