@@ -656,6 +656,13 @@ def test_minion_spark_configuration():
             assert msg['code'] == SparkMinion.MNN008[0], 'Invalid code'
 
 def test_minion_terminate():
+    
+    try:
+        from pyspark.sql import SparkSession
+    except ImportError as ie:
+        # we will skip this test because pyspark is not installed
+        return
+
     workflow_id = '6666'
     app_id = '897447'
     job_id = '1'
