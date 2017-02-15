@@ -280,8 +280,8 @@ def test_apply_model_operation_success():
     expected_code = dedent("""
         {output_1} = {input_2}.transform({input_1})
         """.format(output_1=outputs[0],
-                   input_1=inputs[0],
-                   input_2=inputs[1]))
+                   input_1=inputs[1],
+                   input_2=inputs[0]))
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
 
