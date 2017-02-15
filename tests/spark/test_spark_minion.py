@@ -87,10 +87,23 @@ def get_side_effect(records, task_id, index=0):
             a = 4
             def main(spark_session, cached_data, emit_event):
                 return Invalid Code """), file=out)
+    
+    def side_effect5(w, g, c, out):
+        print(dedent("""
+            def main(spark_session, cached_data, emit_event):
+                import time
+                def infinity_loop(n):
+                    while True:
+                        time.sleep(1)
+                    return 0
+                spark_session.sparkContext.parallelize(range(0,2)). \
+                        map(infinity_loop).count()
+                return {'res', 'version 1.0'}"""), file=out)
 
+    
     return \
-        [side_effect0, side_effect1, side_effect2, side_effect3, side_effect4][
-            index]
+        [side_effect0, side_effect1, side_effect2, side_effect3,
+                side_effect4, side_effect5][index]
 
 
 class DataFrame:
@@ -186,7 +199,7 @@ def test_minion_perform_execute_success():
 
             minion._process_message()
 
-            assert minion.state == {"xyz-647": ("df", [], 27.27)}, 'Invalid state'
+            assert minion._state == {"xyz-647": ("df", [], 27.27)}, 'Invalid state'
 
             assert state_control.get_app_output_queue_size(
                 app_id) == 1, 'Wrong number of output messages'
@@ -228,7 +241,7 @@ def test_minion_perform_execute_reload_code_success():
             state_control.push_app_queue(app_id, json.dumps(workflow))
 
             minion._process_message()
-            assert minion.state == {'res': 'version 1.0'}, 'Invalid state'
+            assert minion._state == {'res': 'version 1.0'}, 'Invalid state'
 
             # Executes the same workflow, but code should be different
             state_control.push_app_queue(app_id, json.dumps(workflow))
@@ -238,7 +251,7 @@ def test_minion_perform_execute_reload_code_success():
             minion.transpiler.transpile = get_side_effect(None, None, 3)
             minion._process_message()
 
-            assert minion.state == {'res': 'version 2.1'}, 'Invalid state'
+            assert minion._state == {'res': 'version 2.1'}, 'Invalid state'
 
             assert state_control.get_app_output_queue_size(
                 app_id) == 2, 'Wrong number of output messages'
@@ -319,7 +332,7 @@ def test_minion_perform_deliver_success():
                 workflow_id=workflow_id, app_id=app_id,
                 config=config)
         minion._emit_event = dummy_emit_event
-        minion.state = {
+        minion._state = {
             data['task_id']: (df0, [], 35.92)
         }
         minion._process_message()
@@ -373,7 +386,7 @@ def test_minion_perform_deliver_missing_state_process_app_with_success():
                     config=config)
             minion.get_or_create_spark_session = dummy_get_or_create_spark_session
             minion._emit_event = dummy_emit_event
-            minion.state = {
+            minion._state = {
             }
             minion._process_message()
            
@@ -426,7 +439,7 @@ def test_minion_perform_deliver_missing_state_process_app_with_failure():
                     workflow_id=workflow_id, app_id=app_id,
                     config=config)
             minion._emit_event = dummy_emit_event
-            minion.state = {
+            minion._state = {
             }
             minion._process_message()
 
@@ -453,10 +466,6 @@ def test_minion_perform_deliver_missing_state_process_app_with_failure():
 
             result = state_control.pop_queue(out_queue, False)
             assert result is None, 'Wrong CSV generated'
-
-
-## def test_minion_perform_deliver_invalid_workflow_with_failure():
-##    assert False, 'To be implemented'
 
 # noinspection PyProtectedMember
 def test_minion_perform_deliver_missing_state_invalid_port_failure():
@@ -493,7 +502,7 @@ def test_minion_perform_deliver_missing_state_invalid_port_failure():
                     config=config)
             minion.get_or_create_spark_session = dummy_get_or_create_spark_session
             minion._emit_event = dummy_emit_event
-            minion.state = {}
+            minion._state = {}
             minion._process_message()
             
             # Discard first status message
@@ -547,7 +556,7 @@ def test_minion_perform_deliver_missing_state_unsupported_output_failure():
             minion._emit_event = dummy_emit_event
             minion.get_or_create_spark_session = dummy_get_or_create_spark_session
             minion._emit_event = dummy_emit_event
-            minion.state = {
+            minion._state = {
             }
             minion._process_message()
             
@@ -557,7 +566,7 @@ def test_minion_perform_deliver_missing_state_unsupported_output_failure():
             msg = json.loads(state_control.pop_app_output_queue(app_id, False))
             assert msg['status'] == 'WARNING', 'Invalid status'
             assert msg['code'] == SparkMinion.MNN003[0], 'Invalid code'
-
+            
             msg = json.loads(state_control.pop_app_output_queue(app_id, False))
             assert msg['status'] == 'ERROR', 'Invalid status'
             assert msg.get('code') == SparkMinion.MNN001[0], 'Invalid code'
@@ -569,7 +578,7 @@ def test_minion_perform_deliver_missing_state_unsupported_output_failure():
             minion.terminate()
             assert not minion.is_spark_session_available()
 
-def test_runner_minion_spark_configuration():
+def test_minion_spark_configuration():
     """
     - Start a juicer server
     - Instanciate one minion passing specific configurations w.r.t. runtime
@@ -622,7 +631,7 @@ def test_runner_minion_spark_configuration():
 
             # check spark session health
             assert not minion.spark_session is None
-            # assert minion.is_spark_session_available()
+            assert minion.is_spark_session_available()
 
             # check configs
             ctx_configs = minion.spark_session.sparkContext.getConf().getAll()
@@ -636,6 +645,97 @@ def test_runner_minion_spark_configuration():
                             data['name'], workflow_id, app_id)
 
             # check proper termination
+            minion.terminate()
+            assert not minion.is_spark_session_available()
+
+            # check output messages, discard first message
+            state_control.pop_app_output_queue(app_id, False)
+
+            msg = json.loads(state_control.pop_app_output_queue(app_id, False))
+            assert msg['status'] == 'SUCCESS', 'Invalid status'
+            assert msg['code'] == SparkMinion.MNN008[0], 'Invalid code'
+
+def test_minion_terminate():
+    workflow_id = '6666'
+    app_id = '897447'
+    job_id = '1'
+    function_name = 'juicer.spark.transpiler.SparkTranspiler.transpile'
+
+    with mock.patch('redis.StrictRedis',
+                    mock_strict_redis_client) as mocked_redis:
+        with mock.patch(function_name) as mocked_transpile:
+            # Setup for mocked_transpile
+            mocked_transpile.side_effect = get_side_effect(None, 0, 5)
+
+            redis_conn = mocked_redis()
+            minion = SparkMinion(redis_conn=redis_conn,
+                    workflow_id=workflow_id, app_id=app_id,
+                    config=config)
+            minion._emit_event = dummy_emit_event
+
+            # Configure mocked redis
+            state_control = StateControlRedis(redis_conn)
+            with open(os.path.join(os.path.dirname(__file__),
+                                   'fixtures/simple_workflow.json')) as f:
+                data = json.loads(f.read())
+
+            # execute message
+            state_control.push_app_queue(app_id, json.dumps({
+                'workflow_id': workflow_id,
+                'app_id': app_id,
+                'job_id': job_id,
+                'type': 'execute',
+                'workflow': data
+                }))
+            minion._process_message_nb()
+            # discard extra message
+            state_control.pop_app_output_queue(app_id, False)
+
+            # job termination
+            state_control.push_app_queue(app_id, json.dumps({
+                'workflow_id': workflow_id,
+                'app_id': app_id,
+                'job_id': job_id,
+                'type': 'terminate'
+                }))
+            minion._process_message()
+            # discard extra message
+            state_control.pop_app_output_queue(app_id, False)
+            
+            # first the spark app will throw an exception regarding the job
+            # canceling
+            msg = json.loads(state_control.pop_app_output_queue(app_id, False))
+            assert msg['status'] == 'ERROR', 'Invalid status'
+            assert msg['code'] == 1000, 'Invalid code'
+
+            # second the minion will report success for the job canceling
+            # operation
+            msg = json.loads(state_control.pop_app_output_queue(app_id, False))
+            assert msg['status'] == 'SUCCESS', 'Invalid status'
+            assert msg['code'] == SparkMinion.MNN007[0], 'Invalid code'
+
+            # assert app still alive
+            assert not minion.spark_session is None
+            assert minion.is_spark_session_available()
+
+            # app termination
+            state_control.push_app_queue(app_id, json.dumps({
+                'workflow_id': workflow_id,
+                'app_id': app_id,
+                'type': 'terminate'
+                }))
+            minion._process_message()
+            # discard extra message
+            state_control.pop_app_output_queue(app_id, False)
+
+            msg = json.loads(state_control.pop_app_output_queue(app_id, False))
+            assert msg['status'] == 'SUCCESS', 'Invalid status'
+            assert msg['code'] == SparkMinion.MNN008[0], 'Invalid code'
+
+            # assert app still alive
+            assert minion.spark_session is None
+            assert not minion.is_spark_session_available()
+
             minion.terminate()
             assert not minion.is_spark_session_available()
 

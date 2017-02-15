@@ -28,11 +28,12 @@ EXECUTE = 'execute'
 DELIVER = 'deliver'
 
 # TERMINATE messages request the termination of a minion
+# NOTE: if 'job_id' is present then we will stop all current jobs and keep the
+# app alive, i.e., its resource context
 # {
 #   'workflow_id': <workflow identifier>
 #   'app_id': <app identifier, representing an workflow instance>
+#   ['job_id': <job identifier, representing a command submited to the app>]
 #   'type': 'terminate'
 # }
 TERMINATE = 'terminate'
-
-

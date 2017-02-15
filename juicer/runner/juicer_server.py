@@ -37,6 +37,7 @@ class JuicerServer:
     """
     STARTED = 'STARTED'
     LOADED = 'LOADED'
+    TERMINATED = 'TERMINATED'
     HELP_UNHANDLED_EXCEPTION = 1
     HELP_STATE_LOST = 2
     
@@ -81,24 +82,14 @@ class JuicerServer:
 
             # Extract message type and common parameters
             msg_type = msg_info['type']
-
             workflow_id = str(msg_info['workflow_id'])
             app_id = str(msg_info['app_id'])
-            # NOTE: Currently we are assuming that clients will only submit one
-            # workflow at a time. Such assumption implies that both workflow_id
-            # and app_id must be individually unique in this server at any point
-            # of time. We plan to change that in the future, by allowing
-            # multiple instances of the same workflow to be launched
-            # concurrently.
-            if self.active_minions.get((workflow_id, app_id), None) and \
-                    self.state_control.get_workflow_status(workflow_id) != self.STARTED:
-                raise JuicerException('Workflow {} should be started'.format(
-                    workflow_id), code=1000)
             
             if msg_type in (juicer_protocol.EXECUTE, juicer_protocol.DELIVER):
                 self._forward_to_minion(msg_type, workflow_id, app_id, msg)
 
             elif msg_type == juicer_protocol.TERMINATE:
+                self._forward_to_minion(msg_type, workflow_id, app_id, msg)
                 self._terminate_minion(workflow_id, app_id)
 
             else:
@@ -149,6 +140,8 @@ class JuicerServer:
 
         log.info('Message %s forwarded to minion (workflow_id=%s,app_id=%s)',
             msg_type, workflow_id, app_id)
+        log.debug('Message content (workflow_id=%s,app_id=%s): %s',
+            workflow_id, app_id, msg)
         self.state_control.push_app_output_queue(app_id, json.dumps(
             {'code': 0, 'message': 'Minion is processing message %s' % msg_type}))
 
