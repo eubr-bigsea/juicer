@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 import argparse
 import logging
+import logging.config;
 import pdb
 
 import redis
@@ -13,10 +14,9 @@ from six import StringIO
 # eventlet.monkey_patch()
 import json
 
-logging.basicConfig(
-    format='[%(levelname)s] %(asctime)s,%(msecs)05.1f (%(funcName)s) %(message)s',
-    datefmt='%H:%M:%S')
-log = logging.getLogger()
+logging.config.fileConfig('logging_config.ini')
+
+log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
 
 
@@ -77,14 +77,14 @@ class JuicerSparkService:
             # FIXME: Implement validation
             # loader.verify_workflow()
             spark_instance = SparkTranspiler()
-            # spark_instance.execute_main = self.execute_main
             self.params['execute_main'] = self.execute_main
 
             # generated = StringIO()
             # spark_instance.output = generated
             try:
-                spark_instance.transpile(loader.workflow, loader.graph,
-                                         params=self.params)
+                spark_instance.transpile(loader.workflow_data,
+                        loader.workflow_graph,
+                        params=self.params)
             except ValueError as ve:
                 log.exception("At least one parameter is missing", exc_info=ve)
                 break
