@@ -14,8 +14,9 @@ class ReadShapefile(Operation):
     """
     DATA_SOURCE_ID_PARAM = 'shapefile'
 
-    def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, parameters, inputs, outputs)
+    def __init__(self, parameters, inputs, outputs, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, inputs, outputs,
+                           named_inputs, named_outputs)
         if self.DATA_SOURCE_ID_PARAM in parameters:
             self.database_id = parameters[self.DATA_SOURCE_ID_PARAM]
             metadata_obj = MetadataGet('123456')
@@ -78,8 +79,9 @@ class GeoWithin(Operation):
     TARGET_LAT_COLUMN_PARAM = 'latitude'
     TARGET_LON_COLUMN_PARAM = 'longitude'
 
-    def __init__(self, parameters, inputs, outputs):
-        Operation.__init__(self, parameters, inputs, outputs)
+    def __init__(self, parameters, inputs, outputs, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, inputs, outputs,
+                           named_inputs, named_outputs)
         self.polygon_column = parameters[self.POLYGON_POINTS_COLUMN_PARAM]
         self.attributes = parameters[self.POLYGON_ATTRIBUTES_COLUMN_PARAM]
         self.alias = parameters[self.POLYGON_ALIAS_COLUMN_PARAM].split(',')
