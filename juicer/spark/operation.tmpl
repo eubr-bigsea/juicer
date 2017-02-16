@@ -50,7 +50,7 @@ def juicer_debug(spark_session, name, variable, data_frame):
     schema = data_frame.schema
     for attr in schema:
         sparkLogging(spark_session).debug('{} {} {} {}'.format(attr.name, attr.dataType, attr.nullable, attr.metadata))
-{% autopep8 %}
+{#% autopep8 %#}
 {%- for instance in instances %}
 {%- if instance.has_code %}
 def {{instance.parameters.task.operation.slug.replace('-', '_')}}_gen_{{instance.get_output_names('_')}}(
@@ -165,4 +165,4 @@ spark_session = SparkSession.builder.getOrCreate()
 main(spark_session, {}, dummy_emit_event(room=-1, namespace='/none'))
 
 {%- endif %}
-{% endautopep8 %}
+{#% endautopep8 %#}
