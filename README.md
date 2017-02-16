@@ -22,3 +22,41 @@ This kind of execution has advantages because keeping Spark context loaded cuts
 out any overhead when starting the processing environment and data loading.
 This approach (keeping the context) is used in many implementations of data
 analytics notebooks, such as Jupyter, Cloudera Hue and Databricks notebook.
+
+## Configuration
+All configuration is defined in a Yaml file located in `conf/juicer-config.yaml`,
+with the following structure:
+
+```
+juicer:
+    debug: true
+    servers:
+        database_url: mysql+pymysql://user:password@server:port/database
+        redis_url: redis://redis_server:6379
+    services:
+        tahiti:
+            url: http://server/tahiti
+            auth_token: "authorization_token"
+    config:
+        tmp_dir: /tmp
+```
+
+You will find the template above in `conf/juicer-config.yaml.template`.
+
+## Running
+
+```
+cd <download_dir>
+./sbin/juicer-daemon.sh start
+```
+
+You can check the stand daemon status with:
+```
+./sbin/juicer-daemon.sh status
+```
+
+You can stop the stand daemon with:
+```
+./sbin/juicer-daemon.sh stop
+```
+

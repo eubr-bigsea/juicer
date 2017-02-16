@@ -107,12 +107,6 @@ def test_runner_read_start_queue_workflow_not_started_failure():
 
             assert state_control.get_app_queue_size(workflow_id) == 0
 
-            x = state_control.pop_app_output_queue(app_id, False)
-            assert json.loads(x) == {
-                "message": 'Workflow {} should be started'.format(workflow_id),
-                "code": 1000
-                }
-
 
 def test_runner_read_start_queue_minion_already_running_success():
     config = {
