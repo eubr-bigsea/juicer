@@ -24,6 +24,8 @@ from pyspark.ml.clustering import *
 from pyspark.ml.evaluation import *
 from pyspark.ml.feature import *
 from pyspark.ml.tuning import *
+from pyspark.ml.recommendation import *
+
 # from pyspark.sql.functions import *
 # from pyspark.sql.types import *
 
@@ -65,8 +67,6 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_gen_{{instance
     {%- endif %}
 
     emit_event(name='update task', msg='Task running',
-        status='RUNNING', identifier='{{instance.parameters.task.id}}')
-
     if '{{instance.parameters.task.id}}' in cached_state:
         sparkLogging(spark_session).info ('Cache hit for operation {}'.format('{{instance.parameters.task.id}}'))
         emit_event(name='update task', msg='Task completed',

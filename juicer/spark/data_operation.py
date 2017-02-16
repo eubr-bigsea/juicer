@@ -105,6 +105,10 @@ class DataReader(Operation):
                         "Metadata do not include attributes information")
             else:
                 code.append('schema_{0} = None'.format(self.output))
+
+            # import pdb
+            # pdb.set_trace()
+
             if self.metadata['format'] == 'CSV':
                 code.append(
                     "url_{0} = '{1}'".format(self.output, self.metadata['url']))
@@ -131,6 +135,22 @@ class DataReader(Operation):
             elif self.metadata['format'] == 'JSON_FILE':
                 # TO DO
                 pass
+            elif self.metadata['format'] == 'LIB_SVM':
+                # Test
+                format_libsvm = 'libsvm'
+                code.append(
+                    "url_{0} = '{1}'".format(self.output, self.metadata['url']))
+
+                code_csv = """{0} = spark_session.read\\
+                            .format('{2}')\\
+                            .load(url_{0}, mode='DROPMALFORMED')
+                """.format(self.output,
+                           infer_from_data,
+                           format_libsvm)
+
+                code.append(code_csv)
+                # # FIXME: Evaluate if it is good idea to always use cache
+                code.append('{}.cache()'.format(self.output))
 
         return '\n'.join(code)
 
@@ -201,7 +221,7 @@ class Save(Operation):
             self.storage_id)
 
         final_url = '{}/{}/{}'.format(storage['url'], self.path,
-                                    self.name.replace(' ', '_'))
+                                      self.name.replace(' ', '_'))
         code_save = ''
         if self.format == self.FORMAT_CSV:
             code_save = dedent("""

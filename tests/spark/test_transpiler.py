@@ -136,6 +136,6 @@ def test_transpiler_basic_flow_success():
     for op in transpiler.operations:
         transpiler.operations[op] = FakeOp
 
-    transpiler.transpile(loader.workflow_data, loader.workflow_graph, {}, out=out)
+    transpiler.transpile(loader.workflow, loader.graph, {}, out=out)
     out.seek(0)
     print out.read()

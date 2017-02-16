@@ -20,32 +20,22 @@ class Workflow:
     WORKFLOW_GRAPH_TARGET_ID_PARAM = 'target_id'
 
     def __init__(self, workflow_data):
-# <<<<<<< HEAD
-# =======
-#         self.graph = nx.MultiDiGraph()
-#         self.workflow = workflow_data
-#         for task in workflow_data['tasks']:
-#             self.graph.add_node(task.get('id'), attr_dict=task)
-# >>>>>>> master
 
         # Initialize
-        self.workflow_graph = nx.MultiDiGraph()
+        self.graph = nx.MultiDiGraph()
 
         # Workflow dictionary
-        self.workflow_data = workflow_data
-
+        self.workflow = workflow_data
 
         # Construct graph
-        self.workflow_graph = self.builds_initial_workflow_graph()
+        self.graph = self.builds_initial_workflow_graph()
 
         # Topological sorted tasks according to their dependencies
         self.sorted_tasks = []
 
         # Verify null edges to topological_sorted_tasks
         if self.is_there_null_target_id_tasks() \
-                and \
-            self.is_there_null_source_id_tasks():
-
+                and self.is_there_null_source_id_tasks():
             self.sorted_tasks = self.get_topological_sorted_tasks()
         else:
             raise AttributeError(
@@ -54,42 +44,65 @@ class Workflow:
                     self.WORKFLOW_GRAPH_TARGET_ID_PARAM,
                     self.__class__))
 
-
-
     def builds_initial_workflow_graph(self):
         """ Builds a graph with the tasks """
 
-        for task in self.workflow_data['tasks']:
+        workflow_graph = nx.MultiDiGraph()
 
-            query_tahiti = self.get_ports_from_operation_tasks(
-                                    task.get('operation')['id'])
+        # Querying all operations from tahiti one time
+        operations_tahiti = self.get_all_ports_operations_tasks()
 
-            self.workflow_graph.add_node(
-                task.get('id'),
-                in_degree_required=query_tahiti['N_INPUT'],
-                in_degree_multiplicity_required=query_tahiti['M_INPUT'],
-                out_degree_required=query_tahiti['N_OUTPUT'],
-                ou_degree_multiplicity_required=query_tahiti['M_OUTPUT'],
-                attr_dict=task)
+        for task in self.workflow['tasks']:
+            for operation in operations_tahiti:
+                if operation['id'] == task.get('operation')['id']:
+                    ports_list = operation['ports']
+                    # Get operation requirements in tahiti
+                    result = {
+                        'N_INPUT': 0,
+                        'N_OUTPUT': 0,
+                        'M_INPUT': 'None',
+                        'M_OUTPUT': 'None'
+                    }
 
-        for flow in self.workflow_data['flows']:
-            self.workflow_graph.add_edge(flow['source_id'], flow['target_id'],
+                    for port in ports_list:
+                        if port['type'] == 'INPUT':
+                            result['M_INPUT'] = port['multiplicity']
+                            if 'N_INPUT' in result:
+                                result['N_INPUT'] += 1
+                            else:
+                                result['N_INPUT'] = 1
+                        elif port['type'] == 'OUTPUT':
+                            result['M_OUTPUT'] = port['multiplicity']
+                            if 'N_OUTPUT' in result:
+                                result['N_OUTPUT'] += 1
+                            else:
+                                result['N_OUTPUT'] = 1
+
+                    self.graph.add_node(
+                        task.get('id'),
+                        in_degree_required=result['N_INPUT'],
+                        in_degree_multiplicity_required=result['M_INPUT'],
+                        out_degree_required=result['N_OUTPUT'],
+                        out_degree_multiplicity_required=result['M_OUTPUT'],
+                        attr_dict=task)
+
+        for flow in self.workflow['flows']:
+            self.graph.add_edge(flow['source_id'], flow['target_id'],
                                 attr_dict=flow)
 
-        for nodes in self.workflow_graph.nodes():
-            self.workflow_graph.node[nodes]['in_degree'] = self.workflow_graph.\
+        for nodes in self.graph.nodes():
+            self.graph.node[nodes]['in_degree'] = self.graph.\
                 in_degree(nodes)
 
-            self.workflow_graph.node[nodes]['out_degree'] = self.workflow_graph.\
+            self.graph.node[nodes]['out_degree'] = self.graph.\
                 out_degree(nodes)
 
-        return self.workflow_graph
-
+        return self.graph
 
     def check_in_degree_edges(self):
-        for nodes in self.workflow_graph.nodes():
-            if self.workflow_graph.node[nodes]['in_degree'] == \
-                    self.workflow_graph.node[nodes]['in_degree_required']:
+        for nodes in self.graph.nodes():
+            if self.graph.node[nodes]['in_degree'] == \
+                    self.graph.node[nodes]['in_degree_required']:
                 pass
             else:
                 raise AttributeError(
@@ -102,9 +115,9 @@ class Workflow:
 
     def check_out_degree_edges(self):
 
-        for nodes in self.workflow_graph.nodes():
-            if self.workflow_graph.node[nodes]['out_degree'] == \
-                    self.workflow_graph.node[nodes]['out_degree_required']:
+        for nodes in self.graph.nodes():
+            if self.graph.node[nodes]['out_degree'] == \
+                    self.graph.node[nodes]['out_degree_required']:
                 pass
             else:
                 raise AttributeError(
@@ -115,33 +128,56 @@ class Workflow:
                 )
         return 1
 
-
     def builds_sorted_workflow_graph(self, tasks, flows):
 
         workflow_graph = nx.MultiDiGraph()
 
+        # Querying all operations from tahiti one time
+        operations_tahiti = self.get_all_ports_operations_tasks()
         for task in tasks:
-            query_tahiti = self.get_ports_from_operation_tasks(
-                                    task.get('operation')['id'])
+            for operation in operations_tahiti:
+                if operations_tahiti[operation]['id'] == task.get('operation')['id']:
+                    ports_list = operations_tahiti[operation]['ports']
+                    # Get operation requirements in tahiti
+                    result = {
+                        'N_INPUT': 0,
+                        'N_OUTPUT': 0,
+                        'M_INPUT': 'None',
+                        'M_OUTPUT': 'None'
+                    }
 
-            workflow_graph.add_node(
-                task.get('id'),
-                in_degree_required=query_tahiti['N_INPUT'],
-                in_degree_multiplicity_required=query_tahiti['M_INPUT'],
-                out_degree_required=query_tahiti['N_OUTPUT'],
-                ou_degree_multiplicity_required=query_tahiti['M_OUTPUT'],
-                attr_dict=task)
+                    for port in ports_list:
+                        if port['type'] == 'INPUT':
+                            result['M_INPUT'] = port['multiplicity']
+                            if 'N_INPUT' in result:
+                                result['N_INPUT'] += 1
+                            else:
+                                result['N_INPUT'] = 1
+                        elif port['type'] == 'OUTPUT':
+                            result['M_OUTPUT'] = port['multiplicity']
+                            if 'N_OUTPUT' in result:
+                                result['N_OUTPUT'] += 1
+                            else:
+                                result['N_OUTPUT'] = 1
+                    # return result
+                    workflow_graph.add_node(
+                                task.get('id'),
+                                in_degree_required=result['N_INPUT'],
+                                in_degree_multiplicity_required=result['M_INPUT'],
+                                out_degree_required=result['N_OUTPUT'],
+                                out_degree_multiplicity_required=result['M_OUTPUT'],
+                                attr_dict=task)
 
         for flow in flows:
-            workflow_graph.add_edge(flow['source_id'], flow['target_id'],
-                                         attr_dict=flow)
+            workflow_graph.add_edge(flow['source_id'],
+                                    flow['target_id'],
+                                    attr_dict=flow)
 
-        print self.workflow_graph.nodes()
         # updating in_degree and out_degree
-        for nodes in self.workflow_graph.nodes():
-            self.workflow_graph.node[nodes]['in_degree'] = self.workflow_graph. \
+        for nodes in self.graph.nodes():
+            self.graph.node[nodes]['in_degree'] = self.graph. \
                 in_degree(nodes)
-            self.workflow_graph.node[nodes]['out_degree'] = self.workflow_graph. \
+            self.graph.node[nodes]['out_degree'] = self.graph. \
                 out_degree(nodes)
         return workflow_graph
 
@@ -151,8 +187,8 @@ class Workflow:
              Show the image from workflow_graph
         """
         # Change layout according to necessity
-        pos = nx.spring_layout(self.workflow_graph)
-        nx.draw(self.workflow_graph, pos, node_color='#004a7b', node_size=2000,
+        pos = nx.spring_layout(self.graph)
+        nx.draw(self.graph, pos, node_color='#004a7b', node_size=2000,
                 edge_color='#555555', width=1.5, edge_cmap=None,
                 with_labels=True, style='dashed',
                 label_pos=50.3, alpha=1, arrows=True, node_shape='s',
@@ -176,27 +212,25 @@ class Workflow:
         # First, map the tasks IDs to their original position
         tasks_position = {}
 
-        for count_position, task in enumerate(self.workflow_data['tasks']):
+        for count_position, task in enumerate(self.workflow['tasks']):
             tasks_position[task['id']] = count_position
 
-        sorted_tasks_id = nx.topological_sort(self.workflow_graph, reverse=False)
+        sorted_tasks_id = nx.topological_sort(self.graph, reverse=False)
 
         return sorted_tasks_id
 
     def is_there_null_source_id_tasks(self):
-        for flow in self.workflow_data['flows']:
+        for flow in self.workflow['flows']:
             if flow['source_id'] == "":
                 return False
         return True
 
     def is_there_null_target_id_tasks(self):
-        for flow in self.workflow_data['flows']:
+        for flow in self.workflow['flows']:
             if flow['target_id'] == "":
                 return False
         return True
 
-
-    # @FIX-ME - NOT WORKING YET
     def get_all_ports_operations_tasks(self):
         params = {
             'base_url':'http://beta.ctweb.inweb.org.br',
@@ -255,27 +289,26 @@ class Workflow:
 
         for node_obj in topological_sort:
             # print self.workflow_graph.node[node]
-            print (nx.ancestors(self.workflow_graph,node_obj),
-                   self.workflow_graph.predecessors(node_obj),
+            print (nx.ancestors(self.graph, node_obj),
+                   self.graph.predecessors(node_obj),
                    node_obj,
-                   self.workflow_graph.node[node_obj]['in_degree_required'],
-                   self.workflow_graph.node[node_obj]['in_degree'],
-                   self.workflow_graph.node[node_obj]['out_degree_required'],
-                   self.workflow_graph.node[node_obj]['out_degree']
+                   self.graph.node[node_obj]['in_degree_required'],
+                   self.graph.node[node_obj]['in_degree'],
+                   self.graph.node[node_obj]['out_degree_required'],
+                   self.graph.node[node_obj]['out_degree']
                    )
-        print topological_sort
-
         return True
+
     # only to debug
     def check_outdegree_edges(self, atr):
 
-        if self.workflow_graph.has_node(atr):
-            return (self.workflow_graph.node[atr]['in_degree'],
-                    self.workflow_graph.node[atr]['out_degree'],
-                    self.workflow_graph.in_degree(atr),
-                    self.workflow_graph.out_degree(atr),
-                    self.workflow_graph.node[atr]['in_degree_required'],
-                    self.workflow_graph.node[atr]['out_degree_required']
+        if self.graph.has_node(atr):
+            return (self.graph.node[atr]['in_degree'],
+                    self.graph.node[atr]['out_degree'],
+                    self.graph.in_degree(atr),
+                    self.graph.out_degree(atr),
+                    self.graph.node[atr]['in_degree_required'],
+                    self.graph.node[atr]['out_degree_required']
                     )
         else:
             raise KeyError("The node informed doesn't exist")

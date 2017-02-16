@@ -44,7 +44,18 @@ class FeatureIndexer(Operation):
         self.type = self.parameters.get(self.TYPE_PARAM, self.TYPE_STRING)
         self.alias = [alias.strip() for alias in
                       parameters.get(self.ALIAS_PARAM, '').split(',')]
-        self.max_categories = parameters.get(self.MAX_CATEGORIES_PARAM, 20)
+
+        if self.MAX_CATEGORIES_PARAM in parameters:
+            self.max_categories = int(parameters.get(self.MAX_CATEGORIES_PARAM))
+            if not (self.max_categories >= 0):
+                msg = "Parameter '{}' must be in " \
+                      "range [x>=0] for task {}" \
+                    .format(self.MAX_CATEGORIES_PARAM, __name__)
+                raise ValueError(msg)
+        else:
+            raise ValueError(
+                "Parameter '{}' must be informed for task {}".format(
+                    self.MAX_CATEGORIES_PARAM, self.__class__))
 
         # Adjust alias in order to have the same number of aliases as attributes
         # by filling missing alias with the attribute name sufixed by _indexed.
@@ -96,6 +107,7 @@ class FeatureIndexer(Operation):
                        json.dumps(zip(self.attributes, self.alias)),
                        self.max_categories)
         else:
+            # Only if the field be open to type
             raise ValueError(
                 "Parameter type has an invalid value {}".format(self.type))
 
@@ -153,9 +165,14 @@ class ApplyModel(Operation):
         self.has_code = len(self.inputs) == 2
 
     def generate_code(self):
-        code = """
-        {0} = {1}.transform({2})
-        """.format(self.output, self.inputs[1], self.inputs[0])
+        if self.has_code:
+            code = """
+            {0} = {2}.transform({1})
+            """.format(self.outputs[0], self.inputs[1], self.inputs[0])
+        else:
+            raise ValueError(
+                "Parameter '{}' must be informed for task {}".format(
+                    self.inputs, self.__class__))
 
         return dedent(code)
 
@@ -186,7 +203,8 @@ class EvaluateModel(Operation):
                  named_outputs):
         Operation.__init__(self, parameters, inputs, outputs, named_inputs,
                            named_outputs)
-        self.has_code = len(self.inputs) == 2
+
+        # self.has_code = len(self.inputs) == 2
         # @FIXME: validate if metric is compatible with Model using workflow
 
         self.prediction_attribute = (parameters.get(
@@ -209,41 +227,43 @@ class EvaluateModel(Operation):
         else:
             raise ValueError('Invalid metric value {}'.format(self.metric))
 
-        self.has_code = len(self.inputs) > 0 or len(self.output) > 0
+        self.has_code = len(self.inputs) > 0 and len(self.output) > 0
 
     def get_data_out_names(self, sep=','):
         return ''
 
     def get_output_namesx(self, sep=", "):
-        output_evaluator = self.outputs[1] if len(
-            self.outputs) > 1 else '{}_tmp_{}'.format(
-            self.inputs[0], self.parameters['task']['order'])
-
+        output_evaluator = self.named_outputs['output data'] if len(
+            self.output) > 1 else '{}_tmp_{}'.format(
+            self.named_inputs['input data'], self.named_inputs['input data'])
+        # Some cases this string to _tmp_ doesn't work in the spark code generation
+        # self.parameters['task']['order'])
         return sep.join([self.output, output_evaluator])
 
     def generate_code(self):
-        code = ''
-        if len(self.inputs) > 0:  # Not being used with a cross validator
-            code = """
-            # Creates the evaluator according to the model
-            # (user should not change it)
-            evaluator = {6}({7}='{3}',
-                                  labelCol='{4}', metricName='{5}')
+        if self.has_code:
+            code = ''
+            if len(self.inputs) > 0:  # Not being used with a cross validator
+                code = """
+                # Creates the evaluator according to the model
+                # (user should not change it)
+                evaluator = {6}({7}='{3}',
+                                      labelCol='{4}', metricName='{5}')
 
-            {0} = evaluator.evaluate({2})
-            """.format(self.output, self.inputs[1], self.inputs[0],
-                       self.prediction_attribute, self.label_attribute,
-                       self.metric,
-                       self.evaluator, self.param_prediction_col)
-        elif len(self.output) > 0:  # Used with cross validator
-            code = """
-            {5} = {0}({1}='{2}',
-                            labelCol='{3}', metricName='{4}')
-            """.format(self.evaluator, self.param_prediction_col,
-                       self.prediction_attribute, self.label_attribute,
-                       self.metric, self.output)
+                {0} = evaluator.evaluate({1})
+                """.format(self.output, self.named_inputs['input data'],
+                           self.named_inputs['model'],
+                           self.prediction_attribute, self.label_attribute,
+                           self.metric, self.evaluator, self.param_prediction_col)
+            elif len(self.output) > 0:  # Used with cross validator
+                code = """
+                {5} = {0}({1}='{2}',
+                                labelCol='{3}', metricName='{4}')
+                """.format(self.evaluator, self.param_prediction_col,
+                           self.prediction_attribute, self.label_attribute,
+                           self.metric, self.output)
 
-        return dedent(code)
+            return dedent(code)
 
 
 class CrossValidationOperation(Operation):
@@ -258,7 +278,15 @@ class CrossValidationOperation(Operation):
         Operation.__init__(self, parameters, inputs, outputs, named_inputs,
                            named_outputs)
 
-        self.has_code = len(self.inputs) == 3
+        if len(self.inputs) == 3:
+            self.has_code = True
+        else:
+            self.has_code = False
+            msg = "Parameters '{}', '{}' and '{}' must be informed for task {}"
+            raise ValueError(msg.format(
+                self.named_inputs['algorithm'], self.named_inputs['input data'],
+                self.named_inputs['evaluator'], self.__class__))
+            # raise ValueError('Invalid metric value {}'.format(self.metric))
         self.num_folds = parameters.get(self.NUM_FOLDS_PARAM, 3)
 
     @property
@@ -276,69 +304,70 @@ class CrossValidationOperation(Operation):
         return ''
 
     def generate_code(self):
-        code = dedent("""
-            grid_builder = tuning.ParamGridBuilder()
-            estimator, param_grid = {algorithm}
+        if self.has_code:
+            code = dedent("""
+                    grid_builder = tuning.ParamGridBuilder()
+                    estimator, param_grid = {algorithm}
 
-            # if estimator.__class__ == classification.LinearRegression:
-            #     param_grid = estimator.maxIter
-            # elif estimator.__class__  == classification.:
-            #     pass
-            # elif estimator.__class__ == classification.DecisionTreeClassifier:
-            #     # param_grid = (estimator.maxDepth, [2,3,4,5,6,7,8,9])
-            #     param_grid = (estimator.impurity, ['gini', 'entropy'])
-            # elif estimator.__class__ == classification.GBTClassifier:
-            #     pass
-            # elif estimator.__class__ == classification.RandomForestClassifier:
-            #     param_grid = estimator.maxDepth
-            for param_name, values in param_grid.iteritems():
-                param = getattr(estimator, param_name)
-                grid_builder.addGrid(param, values)
+                    # if estimator.__class__ == classification.LinearRegression:
+                    #     param_grid = estimator.maxIter
+                    # elif estimator.__class__  == classification.:
+                    #     pass
+                    # elif estimator.__class__ == classification.DecisionTreeClassifier:
+                    #     # param_grid = (estimator.maxDepth, [2,3,4,5,6,7,8,9])
+                    #     param_grid = (estimator.impurity, ['gini', 'entropy'])
+                    # elif estimator.__class__ == classification.GBTClassifier:
+                    #     pass
+                    # elif estimator.__class__ == classification.RandomForestClassifier:
+                    #     param_grid = estimator.maxDepth
+                    for param_name, values in param_grid.iteritems():
+                        param = getattr(estimator, param_name)
+                        grid_builder.addGrid(param, values)
 
-            evaluator = {evaluator}
+                    evaluator = {evaluator}
 
-            cross_validator = tuning.CrossValidator(
-                estimator=estimator, estimatorParamMaps=grid_builder.build(),
-                evaluator=evaluator, numFolds={folds})
-            cv_model = cross_validator.fit({input_data})
-            evaluated_data = cv_model.transform({input_data})
-            best_model_{output}  = cv_model.bestModel
-            metric_result = evaluator.evaluate(evaluated_data)
-            {output} = evaluated_data
-            """.format(algorithm=self.named_inputs['algorithm'],
-                       input_data=self.named_inputs['input data'],
-                       evaluator=self.named_inputs['evaluator'],
-                       output=self.output,
-                       folds=self.num_folds))
+                    cross_validator = tuning.CrossValidator(
+                        estimator=estimator, estimatorParamMaps=grid_builder.build(),
+                        evaluator=evaluator, numFolds={folds})
+                    cv_model = cross_validator.fit({input_data})
+                    evaluated_data = cv_model.transform({input_data})
+                    best_model_{output}  = cv_model.bestModel
+                    metric_result = evaluator.evaluate(evaluated_data)
+                    {output} = evaluated_data
+                    """.format(algorithm=self.named_inputs['algorithm'],
+                               input_data=self.named_inputs['input data'],
+                               evaluator=self.named_inputs['evaluator'],
+                               output=self.output,
+                               folds=self.num_folds))
 
-        # If there is an output needing the evaluation result, it must be
-        # processed here (summarization of data results)
-        needs_evaluation = 'evaluation' in self.named_outputs
-        if needs_evaluation:
-            eval_code = """
-            grouped_result = evaluated_data.select(
-                    evaluator.getLabelCol(), evaluator.getPredictionCol())\\
-                    .groupBy(evaluator.getLabelCol(),
-                             evaluator.getPredictionCol()).count().collect()
-            eval_{output} = {{
-                'metric': {{
-                    'name': evaluator.getMetricName(),
-                    'value': metric_result
-                }},
-                'estimator': {{
-                    'name': estimator.__class__.__name__,
-                    'predictionCol': evaluator.getPredictionCol(),
-                    'labelCol': evaluator.getLabelCol()
-                }},
-                'confusion_matrix': {{
-                    'data': json.dumps(grouped_result)
-                }},
-                'evaluator': evaluator
-            }}
-            """.format(output=self.output)
-            code = '\n'.join([code, dedent(eval_code)])
+            # If there is an output needing the evaluation result, it must be
+            # processed here (summarization of data results)
+            needs_evaluation = 'evaluation' in self.named_outputs
+            if needs_evaluation:
+                eval_code = """
+                    grouped_result = evaluated_data.select(
+                            evaluator.getLabelCol(), evaluator.getPredictionCol())\\
+                            .groupBy(evaluator.getLabelCol(),
+                                     evaluator.getPredictionCol()).count().collect()
+                    eval_{output} = {{
+                        'metric': {{
+                            'name': evaluator.getMetricName(),
+                            'value': metric_result
+                        }},
+                        'estimator': {{
+                            'name': estimator.__class__.__name__,
+                            'predictionCol': evaluator.getPredictionCol(),
+                            'labelCol': evaluator.getLabelCol()
+                        }},
+                        'confusion_matrix': {{
+                            'data': json.dumps(grouped_result)
+                        }},
+                        'evaluator': evaluator
+                    }}
+                    """.format(output=self.output)
+                code = '\n'.join([code, dedent(eval_code)])
 
-        return code
+            return code
 
 
 class ClassificationModel(Operation):
@@ -351,6 +380,7 @@ class ClassificationModel(Operation):
                            named_outputs)
 
         self.has_code = len(self.outputs) > 0 and len(self.inputs) == 2
+
         if not all([self.FEATURES_ATTRIBUTE_PARAM in parameters,
                     self.LABEL_ATTRIBUTE_PARAM in parameters]):
             msg = "Parameters '{}' and '{}' must be informed for task {}"
@@ -373,19 +403,26 @@ class ClassificationModel(Operation):
         return self.output
 
     def generate_code(self):
-        code = """
-        {1}.setLabelCol('{3}').setFeaturesCol('{4}')
-        {0} = {1}.fit({2})
-        """.format(self.output, self.inputs[1], self.inputs[0],
-                   self.label, self.features)
+        if self.has_code:
+            code = """
+            {1}.setLabelCol('{3}').setFeaturesCol('{4}')
+            {0} = {1}.fit({2})
+            """.format(self.output, self.inputs[1], self.inputs[0],
+                       self.label, self.features)
 
-        return dedent(code)
+            return dedent(code)
+        else:
+            msg = "Parameters '{}' and '{}' must be informed for task {}"
+            raise ValueError(msg.format('[]inputs',
+                                        '[]outputs',
+                                        self.__class__))
 
 
 class ClassifierOperation(Operation):
     """
     Base class for classification algorithms
     """
+    GRID_PARAM = 'paramgrid'
     FEATURES_PARAM = 'features'
     LABEL_PARAM = 'label'
 
@@ -395,6 +432,7 @@ class ClassifierOperation(Operation):
                            named_outputs)
         self.has_code = len(self.outputs) > 0
         self.name = "FIXME"
+
         if 'paramgrid' not in parameters:
             raise ValueError(
                 'Parameter grid must be informed for classifier {}'.format(
@@ -417,19 +455,24 @@ class ClassifierOperation(Operation):
         return self.output
 
     def generate_code(self):
-        param_grid = {
-            'featuresCol': self.attributes,
-            'labelCol': self.label
-        }
-        declare = dedent("""
-        param_grid = {2}
-        # Output result is the classifier and its parameters. Parameters are
-        # need in classification model or cross valitor.
-        {0} = ({1}(), param_grid)
-        """).format(self.output, self.name, json.dumps(param_grid, indent=4))
+        if self.has_code:
+            param_grid = {
+                'featuresCol': self.attributes,
+                'labelCol': self.label
+            }
+            declare = dedent("""
+            param_grid = {2}
+            # Output result is the classifier and its parameters. Parameters are
+            # need in classification model or cross validator.
+            {0} = ({1}(), param_grid)
+            """).format(self.output, self.name, json.dumps(param_grid, indent=4))
 
-        code = [declare]
-        return "\n".join(code)
+            code = [declare]
+            return "\n".join(code)
+        else:
+            raise ValueError(
+                'Parameter output must be informed for classifier {}'.format(
+                    self.__class__))
 
 
 class SvmClassifierOperation(ClassifierOperation):
@@ -510,8 +553,6 @@ class ClassificationReport(ReportOperation):
         return code
 
 
-
-
 """
 Clustering part
 """
@@ -533,11 +574,9 @@ class ClusteringModelOperation(Operation):
                 self.FEATURES_ATTRIBUTE_PARAM, self.__class__))
 
         self.features = parameters.get(self.FEATURES_ATTRIBUTE_PARAM)[0]
-
         self.output = self.named_outputs['output data']
         self.model = self.named_outputs.get('model', '{}_model'.format(
             self.output))
-        # self.named_outputs['output data']))
 
     @property
     def get_inputs_names(self):
@@ -551,20 +590,27 @@ class ClusteringModelOperation(Operation):
         return sep.join([self.named_outputs['output data'], self.model])
 
     def generate_code(self):
-        code = """
-        {algorithm}.setFeaturesCol('{features}')
-        {model} = {algorithm}.fit({input})
-        # There is no way to pass which attribute was used in clustering, so
-        # this information will be stored in uid (hack).
-        {model}.uid += '|{features}'
-        {output} = {model}.transform({input})
-        """.format(model=self.model,
-                   algorithm=self.named_inputs['algorithm'],
-                   input=self.named_inputs['train input data'],
-                   output=self.output,
-                   features=self.features)
 
-        return dedent(code)
+        if self.has_code:
+
+            code = """
+            {algorithm}.setFeaturesCol('{features}')
+            {model} = {algorithm}.fit({input})
+            # There is no way to pass which attribute was used in clustering, so
+            # this information will be stored in uid (hack).
+            {model}.uid += '|{features}'
+            {output} = {model}.transform({input})
+            """.format(model=self.model,
+                       algorithm=self.named_inputs['algorithm'],
+                       input=self.named_inputs['train input data'],
+                       output=self.output,
+                       features=self.features)
+
+            return dedent(code)
+        else:
+            msg = "Parameter '{} or {}' must be informed for task {}"
+            raise ValueError(msg.format(
+                self.inputs, self.outputs, self.__class__))
 
 
 class ClusteringOperation(Operation):
@@ -587,11 +633,15 @@ class ClusteringOperation(Operation):
         return self.output
 
     def generate_code(self):
-        declare = "{0} = {1}()".format(self.output, self.name)
-        code = [declare]
-        code.extend(['{0}.set{1}({2})'.format(self.output, name, v)
-                     for name, v in self.set_values])
-        return "\n".join(code)
+        if self.has_code:
+            declare = "{0} = {1}()".format(self.output, self.name)
+            code = [declare]
+            code.extend(['{0}.set{1}({2})'.format(self.output, name, v)
+                         for name, v in self.set_values])
+            return "\n".join(code)
+        else:
+            msg = "Parameter '{}' must be informed for task {}"
+            raise ValueError(msg.format(self.outputs, self.__class__))
 
 
 class LdaClusteringOperation(ClusteringOperation):
@@ -693,9 +743,7 @@ class GaussianMixtureClusteringOperation(ClusteringOperation):
                  named_outputs):
         ClusteringOperation.__init__(self, parameters, inputs, outputs,
                                      named_inputs, named_outputs)
-        self.number_of_clusters = parameters.get(self.K_PARAM,
-                                                 10)
-
+        self.number_of_clusters = parameters.get(self.K_PARAM, 10)
         self.max_iterations = parameters.get(self.MAX_ITERATIONS_PARAM, 10)
         self.tolerance = float(parameters.get(self.TOLERANCE_PARAMETER, 0.001))
 
@@ -752,6 +800,65 @@ class TopicReportOperation(ReportOperation):
 """
 
 
+class RecommendationModel(Operation):
+    RANK_PARAM = 'rank'
+    MAX_ITER_PARAM = 'max_iter'
+    USER_COL_PARAM = 'user_col'
+    ITEM_COL_PARAM = 'item_col'
+    RATING_COL_PARAM = 'rating_col'
+
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
+                           named_outputs)
+
+        self.has_code = len(self.outputs) > 0 and len(self.inputs) == 2
+
+        if not all([self.RANK_PARAM in parameters['workflow_json'],
+                    self.RATING_COL_PARAM in parameters['workflow_json']]):
+            msg = "Parameters '{}' and '{}' must be informed for task {}"
+            raise ValueError(msg.format(
+                self.RANK_PARAM, self.RATING_COL_PARAM,
+                self.__class__.__name__))
+
+        self.model = self.named_outputs.get('model')
+        self.output = self.named_outputs.get('output data')
+        # self.ratingCol = parameters.get(self.RATING_COL_PARAM)
+
+
+    @property
+    def get_inputs_names(self):
+        return ', '.join([self.named_inputs['input data'],
+                          self.named_inputs['algorithm']])
+
+    def get_data_out_names(self, sep=','):
+        return ''
+
+    def get_output_names(self, sep=', '):
+        return sep.join([self.output,
+                         self.model])
+
+    def generate_code(self):
+        if self.has_code:
+
+            code = """
+            # {1}.setRank('{3}').setRatingCol('{4}')
+            {0} = {1}.fit({2})
+
+            {output_data} = {0}.transform({2})
+            """.format(self.model, self.named_inputs['algorithm'],
+                       self.named_inputs['input data'],
+                       self.RANK_PARAM, self.RATING_COL_PARAM,
+                       output_data=self.output)
+
+            return dedent(code)
+        else:
+            msg = "Parameters '{}' and '{}' must be informed for task {}"
+            raise ValueError(msg.format('[]inputs',
+                                        '[]outputs',
+                                        self.__class__))
+
+
 class CollaborativeOperation(Operation):
     """
     Base class for Collaborative Filtering algorithm
@@ -761,25 +868,25 @@ class CollaborativeOperation(Operation):
                  named_outputs):
         Operation.__init__(self, parameters, inputs, outputs, named_inputs,
                            named_outputs)
-        self.has_code = len(self.outputs) > 0
-        self.name = "FIXME"
-        self.set_values = []
 
+        self.has_code = len(self.outputs) > 0
+        self.name = "als"
+        self.set_values = []
         # Define outputs and model
-        self.output = self.named_outputs['output data']
+        # self.output = self.named_outputs['output data']
         self.model = self.named_outputs.get('model', '{}_model'.format(
             self.output))
 
     @property
     def get_inputs_names(self):
-        return ', '.join([self.named_inputs['train input data'],
+        return ', '.join([self.named_inputs['input data'],
                           self.named_inputs['algorithm']])
 
     def get_data_out_names(self, sep=','):
-        return ''
+        return self.output
 
     def get_output_names(self, sep=', '):
-        return sep.join([self.named_outputs['output data'], self.model])
+        return sep.join([self.model])
 
     def generate_code(self):
         declare = "{0} = {1}()".format(self.output, self.name)
@@ -789,9 +896,7 @@ class CollaborativeOperation(Operation):
         return "\n".join(code)
 
 
-
-
-class AlternatingLeastSquaresOperation(CollaborativeOperation):
+class AlternatingLeastSquaresOperation(Operation):
     """
         Alternating Least Squares (ALS) matrix factorization.
 
@@ -800,11 +905,11 @@ class AlternatingLeastSquaresOperation(CollaborativeOperation):
         <http://dx.doi.org/10.1109/ICDM.2008.22>`_
     """
     RANK_PARAM = 'rank'
-    MAX_ITER_PARAM = 'maxIter'
-    USER_COL_PARAM = 'userCol'
-    ITEM_COL_PARAM = 'itemCol'
-    RATING_COL_PARAM = 'ratingCol'
-    REG_PARAM = 'regParam'
+    MAX_ITER_PARAM = 'max_iter'
+    USER_COL_PARAM = 'user_col'
+    ITEM_COL_PARAM = 'item_col'
+    RATING_COL_PARAM = 'rating_col'
+    REG_PARAM = 'reg_param'
 
     IMPLICIT_PREFS_PARAM = 'implicitPrefs'
     ALPHA_PARAM = 'alpha'
@@ -814,30 +919,38 @@ class AlternatingLeastSquaresOperation(CollaborativeOperation):
 
     def __init__(self, parameters, inputs, outputs, named_inputs,
                  named_outputs):
-        CollaborativeOperation.__init__(self, parameters, inputs, outputs,
-                                 named_inputs, named_outputs)
+        Operation.__init__(self, parameters, inputs, outputs,
+                           named_inputs, named_outputs)
 
         self.rank = parameters.get(self.RANK_PARAM, 10)
         self.maxIter = parameters.get(self.MAX_ITER_PARAM, 10)
-        self.userCol = parameters.get(self.USER_COL_PARAM, 'userId')
-        self.itemCol = parameters.get(self.ITEM_COL_PARAM, 'movieId')
-        self.ratingCol = parameters.get(self.RATING_COL_PARAM, 'rating')
+        self.userCol = parameters.get(self.USER_COL_PARAM, 'user_id')[0]
+        self.itemCol = parameters.get(self.ITEM_COL_PARAM, 'movie_id')[0]
+        self.ratingCol = parameters.get(self.RATING_COL_PARAM, 'rating')[0]
 
-        self.regParam = parameters.get(self.REG_PARAM, '0.1')
-        self.implicitPrefs = parameters.get(self.IMPLICIT_PREFS_PARAM, 'False')
+        # import pdb
+        # pdb.set_trace()
+        self.regParam = parameters.get(self.REG_PARAM, 0.1)
+        self.implicitPrefs = parameters.get(self.IMPLICIT_PREFS_PARAM, False)
 
-        self.has_code = False
+        self.has_code = len(self.output) > 1
         self.name = "collaborativefiltering.ALS"
+
+
+        # Define input and output
+        # self.output = self.named_outputs['output data']
+        # self.input = self.named_inputs['train input data']
 
     def generate_code(self):
         code = dedent("""
                 # Build the recommendation model using ALS on the training data
-                als = ALS(maxIter={maxIter}, regParam={regParam},
-                        userCol={userCol}, itemCol={itemCol},
-                        ratingCol={ratingCol])
+                {algorithm} = ALS(maxIter={maxIter}, regParam={regParam},
+                        userCol='{userCol}', itemCol='{itemCol}',
+                        ratingCol='{ratingCol}')
 
-                {model} = als.fit({input})
-                predictions = model.transform(test)
+                #
+                ## model = als.fit({input})
+                # predictions = model.transform(test)
 
                 # Evaluate the model not support YET
                 # evaluator = RegressionEvaluator(metricName="rmse",
@@ -847,14 +960,391 @@ class AlternatingLeastSquaresOperation(CollaborativeOperation):
                 # rmse = evaluator.evaluate(predictions)
                 # print("Root-mean-square error = " + str(rmse))
                 """.format(
-                        output=self.named_outputs[0],
-                        input=self.named_inputs[0],
-                        model=self.model,
-                        maxIter=self.maxIter,
-                        regParam=self.regParam,
-                        userCol=self.userCol,
-                        itemCol=self.itemCol,
-                        ratingCol=self.ratingCol)
-                    )
+            algorithm=self.named_outputs['algorithm'],
+            input=self.inputs,
+            maxIter=self.maxIter,
+            regParam=float(self.regParam),
+            userCol='{user}'.format(user=self.userCol),
+            itemCol='{item}'.format(item=self.itemCol),
+            ratingCol='{rating}'.format(rating=self.ratingCol))
+        )
 
         return code
+
+'''
+    Logistic Regression Classification
+'''
+
+
+class LogisticRegressionModel(Operation):
+    FEATURES_PARAM = 'features'
+    LABEL_PARAM = 'label'
+    WEIGHT_COL_PARAM = ''
+    MAX_ITER_PARAM = 'max_iter'
+    FAMILY_PARAM = 'family'
+    PREDICTION_COL_PARAM = 'prediction'
+
+    REG_PARAM = 'reg_param'
+    ELASTIC_NET_PARAM = 'elastic_net'
+
+    # Have summaries model with measure results
+    TYPE_BINOMIAL = 'binomial'
+    # Multinomial family doesn't have summaries model
+    TYPE_MULTINOMIAL = 'multinomial'
+
+    TYPE_AUTO = 'auto'
+
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
+                           named_outputs)
+
+        self.has_code = len(self.outputs) > 0 and len(self.inputs) == 2
+
+        if not all([self.FEATURES_PARAM in parameters['workflow_json'],
+                    self.LABEL_PARAM in parameters['workflow_json']]):
+            msg = "Parameters '{}' and '{}' must be informed for task {}"
+            raise ValueError(msg.format(
+                self.FEATURES_PARAM, self.LABEL_PARAM,
+                self.__class__.__name__))
+
+        self.model = self.named_outputs.get('model')
+        self.output = self.named_outputs.get('output data')
+
+    @property
+    def get_inputs_names(self):
+        return ', '.join([self.named_inputs['input data'],
+                          self.named_inputs['algorithm']])
+
+    def get_data_out_names(self, sep=','):
+        return ''
+
+    def get_output_names(self, sep=', '):
+        return sep.join([self.output,
+                         self.model])
+
+    def generate_code(self):
+        if self.has_code:
+
+            code = """
+            {0} = {1}.fit({2})
+            {output_data} = {0}.transform({2})
+            """.format(self.model, self.named_inputs['algorithm'],
+                       self.named_inputs['input data'],
+                       output_data=self.output)
+
+            return dedent(code)
+        else:
+            msg = "Parameters '{}' and '{}' must be informed for task {}"
+            raise ValueError(msg.format('[]inputs',
+                                        '[]outputs',
+                                        self.__class__))
+
+
+class LogisticRegressionClassifier(Operation):
+    FEATURES_PARAM = 'features'
+    LABEL_PARAM = 'label'
+    WEIGHT_COL_PARAM = 'weight'
+    MAX_ITER_PARAM = 'max_iter'
+    FAMILY_PARAM = 'family'
+    PREDICTION_COL_PARAM = 'prediction'
+
+    REG_PARAM = 'reg_param'
+    ELASTIC_NET_PARAM = 'elastic_net'
+
+    # Have summaries model with measure results
+    TYPE_BINOMIAL = 'binomial'
+    # Multinomial family doesn't have summaries model
+    TYPE_MULTINOMIAL = 'multinomial'
+
+    TYPE_AUTO = 'auto'
+
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        Operation.__init__(self, parameters, inputs, outputs,
+                           named_inputs, named_outputs)
+        self.parameters = parameters
+        self.name = 'classification.LR'
+        self.has_code = len(self.outputs) > 0
+
+        if not all([self.LABEL_PARAM in parameters,
+                    self.FEATURES_PARAM in parameters]):
+            msg = "Parameters '{}' and '{}' must be informed for task {}"
+            raise ValueError(msg.format(
+                self.FEATURES_PARAM, self.LABEL_PARAM,
+                self.__class__))
+
+        self.label = parameters.get(self.LABEL_PARAM)[0]
+        self.attributes = parameters.get(self.FEATURES_PARAM)[0]
+        self.output = named_outputs['output result']
+        # self.output = named_outputs['algorithm']
+
+        self.max_iter = parameters.get(self.MAX_ITER_PARAM, 10)
+        self.reg_param = parameters.get(self.REG_PARAM, 0.1)
+        self.weight_col = parameters.get(self.WEIGHT_COL_PARAM, None)
+
+        self.type_family = self.parameters.get(self.FAMILY_PARAM, self.TYPE_AUTO)
+
+    def get_data_out_names(self, sep=','):
+        return ''
+
+    def get_output_names(self, sep=', '):
+        return self.named_outputs['output result']
+        # Change it when the named outputs in Tahiti change.
+        # return self.named_outputs['algorithm']
+
+    def generate_code(self):
+        if self.has_code:
+            declare = dedent("""
+            {output} = LogisticRegression( featuresCol='{features}', labelCol='{label}',
+                        maxIter={max_iter}, regParam={reg_param})
+            """).format(output=self.output,
+                        features=self.attributes,
+                        label=self.label,
+                        max_iter=self.max_iter,
+                        reg_param=self.reg_param,
+                        weight=self.weight_col)
+
+            # add , weightCol={weight} if exist
+            code = [declare]
+            return "\n".join(code)
+        else:
+            raise ValueError(
+                'Parameter output must be informed for classifier {}'.format(
+                    self.__class__))
+
+
+'''
+    Regression Algorithms
+'''
+
+
+class RegressionModel(Operation):
+    FEATURES_PARAM = 'features'
+    LABEL_PARAM = 'label'
+
+    MAX_ITER_PARAM = 'max_iter'
+    WEIGHT_COL_PARAM = 'weight'
+    PREDICTION_COL_PARAM = 'prediction'
+    REG_PARAM = 'reg_param'
+    ELASTIC_NET_PARAM = 'elastic_net'
+
+    SOLVER_PARAM = 'solver'
+
+    TYPE_SOLVER_AUTO = 'auto'
+    TYPE_SOLVER_NORMAL = 'normal'
+    # RegType missing -  none (a.k.a. ordinary least squares),    L2 (ridge regression)
+    #                    L1 (Lasso) and   L2 + L1 (elastic net)
+
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
+                           named_outputs)
+
+        self.has_code = len(self.outputs) > 0 and len(self.inputs) == 2
+
+        if not all([self.FEATURES_PARAM in parameters['workflow_json'],
+                    self.LABEL_PARAM in parameters['workflow_json']]):
+            msg = "Parameters '{}' and '{}' must be informed for task {}"
+            raise ValueError(msg.format(
+                self.FEATURES_PARAM, self.LABEL_PARAM,
+                self.__class__.__name__))
+
+        self.model = self.named_outputs.get('model')
+        self.output = self.named_outputs.get('output data')
+
+    @property
+    def get_inputs_names(self):
+        return ', '.join([self.named_inputs['input data'],
+                          self.named_inputs['algorithm']])
+
+    def get_data_out_names(self, sep=','):
+        return ''
+
+    def get_output_names(self, sep=', '):
+        return sep.join([self.output,
+                         self.model])
+
+    def generate_code(self):
+        if self.has_code:
+
+            code = """
+            {0} = {1}.fit({2})
+            {output_data} = {0}.transform({2})
+            """.format(self.model, self.named_inputs['algorithm'],
+                       self.named_inputs['input data'],
+                       output_data=self.output)
+
+            return dedent(code)
+        else:
+            msg = "Parameters '{}' and '{}' must be informed for task {}"
+            raise ValueError(msg.format('[]inputs',
+                                        '[]outputs',
+                                        self.__class__))
+
+
+class LinearRegression(Operation):
+    FEATURES_PARAM = 'features'
+    LABEL_PARAM = 'label'
+
+    MAX_ITER_PARAM = 'max_iter'
+    WEIGHT_COL_PARAM = 'weight'
+    PREDICTION_COL_PARAM = 'prediction'
+    REG_PARAM = 'reg_param'
+    ELASTIC_NET_PARAM = 'elastic_net'
+
+    SOLVER_PARAM = 'solver'
+
+    TYPE_SOLVER_AUTO = 'auto'
+    TYPE_SOLVER_NORMAL = 'normal'
+
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        Operation.__init__(self, parameters, inputs, outputs,
+                           named_inputs, named_outputs)
+        self.parameters = parameters
+        self.name = 'regression.LinearRegression'
+        self.has_code = len(self.outputs) > 0
+
+        if not all([self.LABEL_PARAM in parameters,
+                    self.FEATURES_PARAM in parameters]):
+            msg = "Parameters '{}' and '{}' must be informed for task {}"
+            raise ValueError(msg.format(
+                self.FEATURES_PARAM, self.LABEL_PARAM,
+                self.__class__))
+
+        self.label = parameters.get(self.LABEL_PARAM)[0]
+        self.attributes = parameters.get(self.FEATURES_PARAM)[0]
+        # self.output = named_outputs['output result']
+        self.output = named_outputs['algorithm']
+
+        self.max_iter = parameters.get(self.MAX_ITER_PARAM, 10)
+        self.reg_param = parameters.get(self.REG_PARAM, 0.1)
+        self.weight_col = parameters.get(self.WEIGHT_COL_PARAM, None)
+
+        self.type_solver = self.parameters.get(self.SOLVER_PARAM, self.TYPE_SOLVER_AUTO)
+
+    def get_data_out_names(self, sep=','):
+        return ''
+
+    def get_output_names(self, sep=', '):
+        # return self.named_outputs['output result']
+        # Change it when the named outputs in Tahiti change.
+        return self.named_outputs['algorithm']
+
+    def generate_code(self):
+        if self.has_code:
+            declare = dedent("""
+            {output} = LinearRegression(featuresCol='{features}', labelCol='{label}',
+                        maxIter={max_iter}, regParam={reg_param})
+            """).format(output=self.output,
+                        features=self.attributes,
+                        label=self.label,
+                        max_iter=self.max_iter,
+                        reg_param=self.reg_param)
+
+            # add , weightCol={weight} if exist
+            code = [declare]
+            return "\n".join(code)
+        else:
+            raise ValueError(
+                'Parameter output must be informed for classifier {}'.format(
+                    self.__class__))
+
+class GeneralizedLinearRegression(Operation):
+    FEATURES_PARAM = 'features'
+    LABEL_PARAM = 'label'
+
+    PREDICTION_COL_PARAM = 'prediction'
+    MAX_ITER_PARAM = 'max_iter'
+    WEIGHT_COL_PARAM = 'weight'
+
+    REG_PARAM = 'reg_param'
+    LINK_PREDICTION_COL_PARAM = 'link_prediction_col'
+
+    SOLVER_PARAM = 'solver'
+
+    TYPE_SOLVER_IRLS = 'irls'
+    TYPE_SOLVER_NORMAL = 'normal'
+
+    FAMILY_PARAM = 'family'
+
+    TYPE_FAMILY_GAUSSIAN = 'gaussian'
+    TYPE_FAMILY_BINOMIAL = 'binomial'
+    TYPE_FAMILY_POISSON = 'poisson'
+    TYPE_FAMILY_GAMMA = 'gamma'
+
+    LINK_PARAM = 'link'
+
+    TYPE_LINK_IDENTITY = 'identity'  #gaussian-poisson-gamma
+    TYPE_LINK_LOG = 'log'   #gaussian-poisson-gama
+    TYPE_LINK_INVERSE = 'inverse' #gaussian-gamma
+    TYPE_LINK_LOGIT = 'logit'  #binomial-
+    TYPE_LINK_PROBIT = 'probit'  #binomial
+    TYPE_LINK_CLOGLOG = 'cloglog'  #binomial
+    TYPE_LINK_SQRT = 'sqrt'  #poisson
+
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        Operation.__init__(self, parameters, inputs, outputs,
+                           named_inputs, named_outputs)
+        self.parameters = parameters
+        self.name = 'regression.GeneralizedLinearRegression'
+        self.has_code = len(self.outputs) > 0
+
+        if not all([self.LABEL_PARAM in parameters,
+                    self.FEATURES_PARAM in parameters]):
+            msg = "Parameters '{}' and '{}' must be informed for task {}"
+            raise ValueError(msg.format(
+                self.FEATURES_PARAM, self.LABEL_PARAM,
+                self.__class__))
+
+        self.label = parameters.get(self.LABEL_PARAM)[0]
+        self.attributes = parameters.get(self.FEATURES_PARAM)[0]
+        # self.output = named_outputs['output result']
+        self.output = named_outputs['algorithm']
+
+        self.max_iter = parameters.get(self.MAX_ITER_PARAM, 10)
+        self.reg_param = parameters.get(self.REG_PARAM, 0.1)
+        self.weight_col = parameters.get(self.WEIGHT_COL_PARAM, None)
+
+        self.type_family = self.parameters.get(self.FAMILY_PARAM,
+                                               self.TYPE_FAMILY_BINOMIAL)
+        self.type_link = self.parameters.get(self.LINK_PARAM)
+        self.link_prediction_col = self.parameters.get(self.LINK_PREDICTION_COL_PARAM)
+
+    def get_data_out_names(self, sep=','):
+        return ''
+
+    def get_output_names(self, sep=', '):
+        # return self.named_outputs['output result']
+        # Change it when the named outputs in Tahiti change.
+        return self.named_outputs['algorithm']
+
+    def generate_code(self):
+        if self.has_code:
+            declare = dedent("""
+            {output} = GeneralizedLinearRegression(featuresCol='{features}',
+                                                   labelCol='{label}',
+                                                   maxIter={max_iter},
+                                                   regParam={reg_param},
+                                                   family='{type_family}',
+                                                   link='{type_link}',
+                                                   linkPredictionCol='{link_col}'
+                                                   )
+            """).format(output=self.output,
+                        features=self.attributes,
+                        label=self.label,
+                        max_iter=self.max_iter,
+                        reg_param=self.reg_param,
+                        type_family=self.type_family,
+                        type_link=self.type_link,
+                        link_col=self.link_prediction_col
+                        )
+            # add , weightCol={weight} if exist
+            code = [declare]
+            return "\n".join(code)
+        else:
+            raise ValueError(
+                'Parameter output must be informed for classifier {}'.format(
+                    self.__class__))
