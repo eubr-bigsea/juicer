@@ -17,6 +17,7 @@ class Operation:
         self.named_inputs = named_inputs
         self.named_outputs = named_outputs
         self.multiple_inputs = False
+        self.out_degree = 0
 
         # Indicate if operation generates code or not. Some operations, e.g.
         # Comment, does not generate code

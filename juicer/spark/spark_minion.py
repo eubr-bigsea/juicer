@@ -1,13 +1,16 @@
 # coding=utf-8
 
 import codecs
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError
 import gc
 import importlib
 import json
 import logging
 import multiprocessing
-import sys
 import signal
+import socketio
+import sys
 import time
 from io import StringIO
 
@@ -41,6 +44,8 @@ class SparkMinion(Minion):
     MNN004 = ('MNN004', 'Invalid port.')
     MNN005 = ('MNN005', 'Unable to retrieve data because a previous error.')
     MNN006 = ('MNN006', 'Invalid Python code or incorrect encoding: {}')
+    MNN007 = ('MNN007', 'Job {} was canceled')
+    MNN008 = ('MNN008', 'App {} was terminated')
 
     def __init__(self, redis_conn, workflow_id, app_id, config):
         Minion.__init__(self, redis_conn, workflow_id, app_id, config)
@@ -50,7 +55,7 @@ class SparkMinion(Minion):
         self.module = None
 
         self.string_importer = StringImporter()
-        self.state = {}
+        self._state = {}
         self.transpiler = SparkTranspiler()
         self.config = config
         sys.meta_path.append(self.string_importer)
@@ -61,10 +66,18 @@ class SparkMinion(Minion):
         self.spark_session = None
         signal.signal(signal.SIGTERM, self._terminate)
 
-    def get_and_inc_job_count(self):
-        ccount = self.job_count
-        self.job_count += 1
-        return ccount
+        self.mgr = socketio.RedisManager(config['juicer']['servers']['redis_url'],
+                'job_output')
+
+        self.executor = ThreadPoolExecutor(max_workers=1)
+        self.job_future = None
+
+    def _emit_event(self, room, namespace):
+        def emit_event(name, msg, status, identifier):
+            self.mgr.emit(name,
+                    data={'msg': msg, 'status': status, 'id': identifier},
+                    room=room, namespace=namespace)
+        return emit_event
 
     def _generate_output(self, msg, status=None, code=None):
         """
@@ -98,11 +111,16 @@ class SparkMinion(Minion):
         """
         while True:
             try:
-                self._process_message()
+                self._process_message_nb()
             except KeyError as ke:
                 log.error('Message does not match any convention: %s', msg_type)
 
     def _process_message(self):
+        self._process_message_nb()
+        if self.job_future:
+            self.job_future.result()
+
+    def _process_message_nb(self):
         # Get next message
         msg_info = json.loads(
             self.state_control.pop_app_queue(self.app_id))
@@ -125,6 +143,7 @@ class SparkMinion(Minion):
         # Forward the message according to its purpose
         if msg_type == juicer_protocol.EXECUTE:
             log.info('Execute message received')
+            job_id = msg_info['job_id']
             workflow = msg_info['workflow']
             # TODO: We should consider the case in which the spark session is
             # already instanciated and this new request asks for a different set
@@ -134,34 +153,57 @@ class SparkMinion(Minion):
             # (old configs) spark session?
             app_configs = msg_info.get('app_configs', {})
 
-            self._perform_execute(workflow, app_configs)
+            if self.job_future:
+                self.job_future.result()
+
+            self.job_future = self._execute_future(job_id, workflow, app_configs)
 
         elif msg_type == juicer_protocol.DELIVER:
             log.info('Deliver message received')
             task_id = msg_info.get('task_id')
             output = msg_info.get('output')
             port = int(msg_info.get('port'))
+            job_id = msg_info['job_id']
             workflow = msg_info['workflow']
             app_configs = msg_info.get('app_configs', {})
+            
+            if self.job_future:
+                self.job_future.result()
 
-            self._perform_deliver(task_id, output, port, workflow, app_configs)
+            self.job_future = self._deliver_future(task_id,
+                    output, port, job_id, workflow, app_configs)
 
         elif msg_type == juicer_protocol.TERMINATE:
-            log.info('Terminate message received')
-            self.terminate()
+            job_id = msg_info.get('job_id', None)
+            if job_id:
+                log.info('Terminate message received (job_id=%s)', job_id)
+                self.cancel_job(job_id)
+            else:
+                log.info('Terminate message received (app=%s)', self.app_id)
+                self.terminate()
 
         else:
             log.warn('Unknown message type %s', msg_type)
             self._generate_output('Unknown message type %s' % msg_type)
 
-    def _perform_execute(self, workflow, app_configs):
+    def _execute_future(self, job_id, workflow, app_configs):
+        return self.executor.submit(self._perform_execute,
+                job_id, workflow, app_configs)
+
+    def _perform_execute(self, job_id, workflow, app_configs):
         result = True
         try:
             loader = Workflow(workflow)
+            
+            # Mark job as running
+            self._emit_event(room=job_id, namespace='/stand')(
+                    name='update job', msg='Running job',
+                    status='RUNNING', identifier=job_id)
+
             module_name = 'juicer_app_{}_{}_{}'.format(
-		    self.workflow_id,
+                    self.workflow_id,
                     self.app_id,
-                    self.get_and_inc_job_count())
+                    job_id)
 
             generated_code_path = os.path.join(
                 self.tmp_dir, module_name + '.py')
@@ -175,6 +217,8 @@ class SparkMinion(Minion):
                 os.remove('{}c'.format(generated_code_path))
             self.module = importlib.import_module(module_name)
             self.module = imp.reload(self.module)
+            log.debug('Objects in memory after loading module: %s',
+                      len(gc.get_objects()))
 
             # Starting execution. At this point, the transpiler have created a
             # module with a main function that receives a spark_session and the
@@ -183,32 +227,51 @@ class SparkMinion(Minion):
             # of several partial workflow executions.
             new_state = self.module.main(
                     self.get_or_create_spark_session(loader, app_configs),
-                    self.state)
+                    self._state,
+                    self._emit_event(room=job_id, namespace='/stand'))
+            
+            # Mark job as completed
+            self._emit_event(room=job_id, namespace='/stand')(
+                    name='update job', msg='Job finished',
+                    status='COMPLETED', identifier=job_id)
 
             # We update the state incrementally, i.e., new task results can be
             # overwritten but never lost.
-            self.state.update(new_state)
-
-            log.debug('Objects in memory after loading module: %s',
-                      len(gc.get_objects()))
+            self._state.update(new_state)
 
         except UnicodeEncodeError as ude:
             msg = self.MNN006[1].format(ude)
             log.warn(msg)
+            # Mark job as failed
+            self._emit_event(room=job_id, namespace='/stand')(
+                    name='update job', msg=msg,
+                    status='ERROR', identifier=job_id)
             self._generate_output(self.MNN006[1], 'ERROR', self.MNN006[0])
             result = False
+
         except ValueError as ve:
             msg = 'Invalid message format: {}'.format(ve.message)
             log.warn(msg)
+            self._emit_event(room=job_id, namespace='/stand')(
+                    name='update job', msg=msg,
+                    status='ERROR', identifier=job_id)
             self._generate_output(msg, 'ERROR')
             result = False
+
         except SyntaxError as se:
             msg = self.MNN006[1].format(se)
             log.warn(msg)
+            self._emit_event(room=job_id, namespace='/stand')(
+                    name='update job', msg=msg,
+                    status='ERROR', identifier=job_id)
             self._generate_output(self.MNN006[1], 'ERROR', self.MNN006[0])
             result = False
+
         except Exception as ee:
-            log.error(ee.message)
+            log.error(ee)
+            self._emit_event(room=job_id, namespace='/stand')(
+                    name='update job', msg=ee.message,
+                    status='ERROR', identifier=job_id)
             self._generate_output(ee.message, 'ERROR', code=1000)
             result = False
         return result
@@ -267,11 +330,16 @@ class SparkMinion(Minion):
         self.state_control.push_app_output_queue(
             self.app_id, json.dumps(data))
 
-    def _perform_deliver(self, task_id, output, port, workflow, app_configs):
+    def _deliver_future(self, task_id, output, port, job_id, workflow, app_configs):
+        return self.executor.submit(self._perform_deliver, task_id, output,
+                port, job_id, workflow, app_configs)
+
+    def _perform_deliver(self, task_id, output, port, job_id, workflow, app_configs):
+        result = True
         # FIXME: state must expire. How to identify this in the interface?
         # FIXME: Define how to identify the request.
         # FIXME: Define where to store generated data (Redis?)
-        if task_id in self.state:
+        if task_id in self._state:
             self._read_dataframe_data(task_id, output, port)
         else:
             data = {'status': 'WARNING', 'code': self.MNN003[0],
@@ -279,23 +347,39 @@ class SparkMinion(Minion):
             self._send_to_output(data)
 
             # FIXME: Report missing or process workflow until this task
-            if self._perform_execute(workflow, app_configs):
+            if self._perform_execute(job_id, workflow, app_configs):
                 self._read_dataframe_data(task_id, output, port)
             else:
                 data = {'status': 'ERROR', 'code': self.MNN005[0],
                         'message': self.MNN005[1]}
                 self._send_to_output(data)
+                result = False
+
+        return result
 
     def _read_dataframe_data(self, task_id, output, port):
-
+        result = True
         # Last position in state is the execution time, so it should be ignored
-        if len(self.state[task_id]) - 1 >= port:
-            df = self.state[task_id][port]
+        port_idx = (len(self._state[task_id]) - 1) / 2
+        if port_idx >= port:
+            df = self._state[task_id][port * 2]
+            partial_result = None if port == port_idx else self._state[task_id][port * 2 + 1]
 
-            # Evaluating if df has method "take" allows unit testing
-            # instead of testing exact pyspark.sql.dataframe.Dataframe
-            # type check.
-            if df is not None and hasattr(df, 'take'):
+            # In this case we already have partial data collected for the
+            # particular task
+            if partial_result:
+                self.state_control.push_queue(
+                    output, '\n'.join(partial_result))
+                data = {'status': 'SUCCESS', 'code': self.MNN002[0],
+                        'message': self.MNN002[1], 'output': output}
+                self._send_to_output(data)
+
+            # In this case we do not have partial data collected for the task
+            # Then we must obtain it if the 'take' operation applies
+            elif df is not None and hasattr(df, 'take'):
+                # Evaluating if df has method "take" allows unit testing
+                # instead of testing exact pyspark.sql.dataframe.Dataframe
+                # type check.
                 # FIXME define as a parameter?:
                 result = df.take(100).rdd.map(
                     SparkMinion._convert_to_csv).collect()
@@ -304,14 +388,37 @@ class SparkMinion(Minion):
                 data = {'status': 'SUCCESS', 'code': self.MNN002[0],
                         'message': self.MNN002[1], 'output': output}
                 self._send_to_output(data)
+
+            # In this case, do not make sense to request data for this
+            # particular task output port
             else:
                 data = {'status': 'ERROR', 'code': self.MNN001[0],
                         'message': self.MNN001[1]}
                 self._send_to_output(data)
+                result = False
+
         else:
             data = {'status': 'ERROR', 'code': self.MNN004[0],
                     'message': self.MNN004[1]}
             self._send_to_output(data)
+            result = False
+
+        return result
+
+    def cancel_job(self, job_id):
+        if self.job_future:
+            while True:
+                if self.is_spark_session_available():
+                    self.spark_session.sparkContext.cancelAllJobs()
+                try:
+                    self.job_future.result(timeout=1)
+                    break
+                except TimeoutError as te:
+                    pass
+
+        msg = self.MNN007[1].format(self.app_id)
+        log.info(msg)
+        self._generate_output(msg, 'SUCCESS', self.MNN007[0])
 
     def _terminate(self, _signal, _frame):
         self.terminate()
@@ -323,7 +430,6 @@ class SparkMinion(Minion):
         minion. In this case, we stop and release any allocated resource
         (spark_session) and kill the subprocesses managed in here.
         """
-        log.info('Closing spark session and terminating subprocesses')
         if self.spark_session:
             self.spark_session.stop()
             self.spark_session.sparkContext.stop()
@@ -332,6 +438,12 @@ class SparkMinion(Minion):
             os.kill(self.execute_process.pid, signal.SIGKILL)
         if self.ping_process:
             os.kill(self.ping_process.pid, signal.SIGKILL)
+
+        msg = self.MNN008[1].format(self.app_id)
+        log.info(msg)
+        self._generate_output(msg, 'SUCCESS', self.MNN008[0])
+        self.state_control.unset_minion_status(self.app_id)
+
 
     def process(self):
         log.info('Spark minion (workflow_id=%s,app_id=%s) started (pid=%s)',
