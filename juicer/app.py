@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 import argparse
 import logging
+import logging.config;
 import pdb
 
 import redis
@@ -13,10 +14,9 @@ from six import StringIO
 # eventlet.monkey_patch()
 import json
 
-logging.basicConfig(
-    format='[%(levelname)s] %(asctime)s,%(msecs)05.1f (%(funcName)s) %(message)s',
-    datefmt='%H:%M:%S')
-log = logging.getLogger()
+logging.config.fileConfig('logging_config.ini')
+
+log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
 
 
