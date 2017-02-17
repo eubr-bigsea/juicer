@@ -82,9 +82,9 @@ class JuicerSparkService:
             # generated = StringIO()
             # spark_instance.output = generated
             try:
-                spark_instance.transpile(loader.workflow_data,
-                        loader.workflow_graph,
-                        params=self.params)
+                spark_instance.transpile(loader.workflow,
+                                         loader.graph,
+                                         params=self.params)
             except ValueError as ve:
                 log.exception("At least one parameter is missing", exc_info=ve)
                 break
