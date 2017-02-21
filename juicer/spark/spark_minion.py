@@ -18,6 +18,7 @@ import datetime
 import imp
 
 import os
+from juicer.runner import configuration
 from juicer.runner import juicer_protocol
 from juicer.runner.juicer_server import JuicerServer
 from juicer.runner.minion_base import Minion
@@ -58,6 +59,7 @@ class SparkMinion(Minion):
         self._state = {}
         self.transpiler = SparkTranspiler()
         self.config = config
+        configuration.set_config(self.config)
         sys.meta_path.append(self.string_importer)
         self.tmp_dir = self.config.get('config', {}).get('tmp_dir', '/tmp')
         sys.path.append(self.tmp_dir)

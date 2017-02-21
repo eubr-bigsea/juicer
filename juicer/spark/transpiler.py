@@ -12,6 +12,7 @@ import juicer.spark.ml_operation
 import juicer.spark.statistic_operation
 import juicer.spark.text_operation
 import juicer.spark.ws_operation
+import juicer.spark.vis_operation
 import networkx as nx
 import os
 from juicer import operation
@@ -218,6 +219,7 @@ class SparkTranspiler:
             parameters['workflow_json'] = json.dumps(workflow)
             parameters['user'] = workflow['user']
             parameters['workflow_id'] = workflow['id']
+            parameters['workflow_name'] = workflow['name']
             port = ports.get(task['id'], {})
 
             instance = class_name(parameters, port.get('inputs', []),
@@ -341,7 +343,11 @@ class SparkTranspiler:
             'service-output': juicer.spark.ws_operation.ServiceOutputOperation,
 
         }
+        vis_ops = {
+            'publish-as-visualization': juicer.spark.vis_operation.PublishVisOperation,
+            'bar-chart': juicer.spark.vis_operation.BarChartOperation,
+        }
         self.operations = {}
         for ops in [data_ops, etl_ops, geo_ops, ml_ops, other_ops, text_ops,
-                    ws_ops]:
+                    ws_ops, vis_ops]:
             self.operations.update(ops)

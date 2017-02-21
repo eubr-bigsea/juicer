@@ -7,7 +7,6 @@ import requests
 log = logging.getLogger()
 log.setLevel(logging.DEBUG)
 
-
 def query_limonero(base_url, item_path, token, item_id):
     headers = {'X-Auth-Token': token}
     url = '{}/{}/{}'.format(base_url, item_path, item_id)
@@ -23,10 +22,8 @@ def query_limonero(base_url, item_path, token, item_id):
                                                                 r.status_code,
                                                                 r.text))
 
-
 def get_storage_info(base_url, token, storage_id):
     return query_limonero(base_url, 'storages', token, storage_id)
-
 
 def get_data_source_info(base_url, token, data_source_id):
     return query_limonero(base_url, '', token, data_source_id)
