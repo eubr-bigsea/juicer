@@ -26,9 +26,8 @@ def query_caipirinha(base_url, item_path, token, item_id, data):
                                                                 r.status_code,
                                                                 r.text))
 
-def new_dashboard(base_url, token, title, user_id, user_login, user_name,
+def new_dashboard(base_url, token, title, user,
         workflow_id, workflow_name, visualizations):
-    data = dict(title=title, user_id=user_id, user_login=user_login,
-            user_name=user_name, workflow_id=workflow_id,
+    data = dict(title=title, user=user, workflow_id=workflow_id,
             workflow_name=workflow_name, visualizations=visualizations)
     return query_limonero(base_url, 'dashboards', token, '')

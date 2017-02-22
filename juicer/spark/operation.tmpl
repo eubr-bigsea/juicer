@@ -87,9 +87,7 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_gen_{{instance
     results = (
       {%- set is_leaf = instance.out_degree == 0 %}
       {%- for out in instance.get_output_names(',').split(',') %}
-      {%- if out in outputs %}
          {{out}}, {%- if is_leaf %} {{out}}.take(100) if hasattr({{out}}, 'take') else [] {%- else %} [] {%- endif %},
-      {%- endif %}
       {%- endfor %}
     )
 

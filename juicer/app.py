@@ -7,12 +7,13 @@ import pdb
 
 import redis
 import requests
+from juicer.runner import configuration
 from juicer.spark.transpiler import SparkTranspiler
 from juicer.workflow.workflow import Workflow
 from six import StringIO
 
-# eventlet.monkey_patch()
 import json
+import yaml
 
 logging.config.fileConfig('logging_config.ini')
 
@@ -82,8 +83,8 @@ class JuicerSparkService:
             # generated = StringIO()
             # spark_instance.output = generated
             try:
-                spark_instance.transpile(loader.workflow_data,
-                        loader.workflow_graph,
+                spark_instance.transpile(loader.workflow,
+                        loader.graph,
                         params=self.params)
             except ValueError as ve:
                 log.exception("At least one parameter is missing", exc_info=ve)
@@ -105,7 +106,9 @@ def main(workflow_id, execute_main, params):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    # parser.add_argument("-c", "--config", type=str, help="Configuration file")
+    
+    parser.add_argument("-c", "--config", type=str, required=False, help="Configuration file")
+
     parser.add_argument("-w", "--workflow", type=int, required=True,
                         help="Workflow identification number")
     parser.add_argument("-e", "--execute-main", action="store_true",
@@ -115,6 +118,13 @@ if __name__ == "__main__":
                         action="store_true",
                         help="Indicates if workflow will run as a service")
     args = parser.parse_args()
+
+    juicer_config = {}
+    if args.config:
+        with open(args.config) as config_file:
+            juicer_config = yaml.load(config_file.read())
+
+    configuration.set_config(juicer_config)
 
     main(args.workflow, args.execute_main, {"service": args.service})
     '''

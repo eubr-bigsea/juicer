@@ -156,7 +156,7 @@ class SparkTranspiler:
                     flow_id = '[{}:{}]'.format(source_id, flow['source_port'], )
 
                     if flow_id not in sequential_ports:
-                        sequential_ports[flow_id] = 'df{}'.format(
+                        sequential_ports[flow_id] = 'out{}'.format(
                             len(sequential_ports))
 # /
                     if source_id not in ports:
@@ -220,6 +220,8 @@ class SparkTranspiler:
             parameters['user'] = workflow['user']
             parameters['workflow_id'] = workflow['id']
             parameters['workflow_name'] = workflow['name']
+            parameters['operation_id'] = task['operation']['id']
+            parameters['operation_slug'] = task['operation']['slug']
             port = ports.get(task['id'], {})
 
             instance = class_name(parameters, port.get('inputs', []),
@@ -346,6 +348,10 @@ class SparkTranspiler:
         vis_ops = {
             'publish-as-visualization': juicer.spark.vis_operation.PublishVisOperation,
             'bar-chart': juicer.spark.vis_operation.BarChartOperation,
+            'pie-chart': juicer.spark.vis_operation.PieChartOperation,
+            'area-chart': juicer.spark.vis_operation.AreaChartOperation,
+            'line-chart': juicer.spark.vis_operation.LineChartOperation,
+            'table-visualization': juicer.spark.vis_operation.TableVisOperation
         }
         self.operations = {}
         for ops in [data_ops, etl_ops, geo_ops, ml_ops, other_ops, text_ops,

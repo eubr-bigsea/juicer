@@ -18,6 +18,7 @@ import redis
 from redis.exceptions import ConnectionError
 import yaml
 from juicer.exceptions import JuicerException
+from juicer.runner import configuration
 from juicer.runner import juicer_protocol
 from juicer.runner.control import StateControlRedis
 
@@ -52,6 +53,7 @@ class JuicerServer:
         self.active_minions = {}
 
         self.config = config
+        configuration.set_config(config)
         self.config_file_path = config_file_path
         self.minion_executable = minion_executable
         self.log_dir = log_dir or \

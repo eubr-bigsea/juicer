@@ -746,3 +746,19 @@ def test_minion_terminate():
             minion.terminate()
             assert not minion.is_spark_session_available()
 
+def test_minion_global_configuration():
+    workflow_id = '6666'
+    app_id = '897447'
+   
+    with mock.patch('redis.StrictRedis',
+                    mock_strict_redis_client) as mocked_redis:
+
+        redis_conn = mocked_redis()
+        minion = SparkMinion(redis_conn=redis_conn,
+                workflow_id=workflow_id, app_id=app_id,
+                config=config)
+
+        # the configuration should be set by now, let's check it
+        from juicer.runner import configuration
+        assert configuration.get_config() == config
+

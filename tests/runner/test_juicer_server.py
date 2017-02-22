@@ -478,4 +478,20 @@ def test_runner_minion_termination():
         server.read_start_queue(mocked_redis_conn)
         assert len(server.active_minions) == 0
 
+def test_global_configuration():
+    
+    config = {
+        'juicer': {
+            'servers': {
+                'redis_url': "nonexisting.mock"
+            }
+        }
+    }
 
+    with mock.patch('redis.StrictRedis',
+            mock_strict_redis_client) as mocked_redis:
+        server = JuicerServer(config, 'faked_minions.py')
+
+        # the configuration should be set by now, let's check it
+        from juicer.runner import configuration
+        assert configuration.get_config() == config

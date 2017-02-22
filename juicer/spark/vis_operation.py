@@ -4,6 +4,7 @@ from juicer.operation import Operation
 from juicer.runner import configuration
 from juicer.service import limonero_service
 import time
+import urlparse
 import uuid
 
 class PublishVisOperation(Operation):
@@ -29,11 +30,17 @@ class PublishVisOperation(Operation):
 
     def generate_code(self):
         
-        # Get hbase storage info from Limonero through storage_id
-        limonero_config = self.config['services']['limonero']
+        # Get Limonero configuration
+        limonero_config = self.config['juicer']['services']['limonero']
+        
+        # Get Caipirinha configuration
+        caipirinha_config = self.config['juicer']['services']['caipirinha']
+
+        # Storage refers to the underlying environment used for storing
+        # visualizations, e.g., Hbase
         storage = limonero_service.get_storage_info(
                 limonero_config['url'],
-                limonero_config['auth_token'], limonero_config['storage_id'])
+                str(limonero_config['auth_token']), caipirinha_config['storage_id'])
         
         # Get hbase hostname and port
         parsed_url = urlparse.urlparse(storage['url'])
@@ -45,69 +52,83 @@ class PublishVisOperation(Operation):
 	code_lines = []
 	code_lines.append("import happybase")
         code_lines.append("from juicer.service import caipirinha_service")
-	code_lines.append("connection = happybase.Connection(host={}, port={})".format(host,port))
+	code_lines.append("connection = happybase.Connection(host='{}', port={})".format(host,port))
 	code_lines.append("vis_table = connection.table('visualization')")
         code_lines.append("visualizations = []")
 
         # The following code template will, for each visualization method:
-        # [1] Get dataframe data (collect)
-        # [2] Transform the local data according to the visualization method
-        # [3] Create a visualization id (uuid)
-        # [4] Register a timestamp for the visualization
-        # [5] Insert this particular visualization into hbase
-        # [6] Append the visualization model for later persistency of metadata
-        vis_code_tmpl = """vis_value = {{
-            b'cf:user_id': '{user_id}',
-            b'cf:user': '{user}',
-            b'cf:workflow_id': '{workflow_id}',
-            b'cf:{vis_model}': {vis_model}.transform_data({dfdata}.collect())
+        #
+        # [1] Transform the local data according to the visualization method
+        # [2] Create a visualization id (uuid)
+        # [3] Register a timestamp for the visualization
+        # [4] Insert this particular visualization into hbase
+        # [5] Append the visualization model for later persistency of metadata
+        #
+        # [Considerations concerning Hbase storage schema]
+        #   - We chose to encode data from all columns as json.
+        #   - That means that we assume that every data can be encoded as json,
+        #   including 'cf:data' which is supposed to contain the actual
+        #   visualization data.
+        vis_code_tmpl = \
+        """
+        vis_value = {{
+            b'cf:user_id': json.dumps({user_id}),
+            b'cf:user': json.dumps('{user}'),
+            b'cf:workflow_id': json.dumps({workflow_id}),
+            b'cf:title': json.dumps({vis_model}.title),
+            b'cf:labels': json.dumps({vis_model}.labels),
+            b'cf:orientation': json.dumps({vis_model}.orientation),
+            b'cf:id_attribute': json.dumps({vis_model}.id_attribute),
+            b'cf:value_attribute': json.dumps({vis_model}.value_attribute),
+            b'cf:data': json.dumps({vis_model}.transform_data({dfdata}))
         }}
-        vis_table.put(b'{vis_uuid}', vis_value, timestamp={vis_timestamp})
+        vis_table.put(b'{vis_uuid}', vis_value, timestamp=int(time.time()))
         visualizations.append({{
-            'vis_uuid': {vis_uuid},
-            'vis_type': {vis_model}.__class__.__name__,
-            'vis_timestamp': {vis_timestamp},
-            'title': {vis_model}.title,
-            'labels': {vis_model}.labels,
-            'orientation': {vis_model}.orientation,
-            'id_attribute': {vis_model}.id_attribute,
-            'value_attribute': {vis_model}.value_attribute
-        }})"""
-        for vismodel in self.inputs[1:]:
+            'id': '{vis_uuid}',
+            'type': {{
+                'id': {vis_model}.type_id,
+                'name': {vis_model}.type_name
+            }}
+        }})
+        """
+        for vis_model in self.inputs[1:]:
             vis_uuid = uuid.uuid4()
-            vis_timestamp = int(time.time())
-            code_lines.append(vis_code_tmpl.format(
+            code_lines.append(dedent(vis_code_tmpl.format(
                 user_id=self.parameters['user']['id'],
                 user=self.parameters['user']['login'],
                 workflow_id=self.parameters['workflow_id'],
                 dfdata=self.inputs[0],
                 vis_model=vis_model,
                 vis_uuid=vis_uuid,
-                vis_timestamp=vis_timestamp
-            ))
-        
-        # Get Caipirinha configuration
-        caipirinha_config = self.config['services']['caipirinha']
+                vis_type_id=self.parameters['operation_id'],
+                vis_type_name=self.parameters['operation_slug']
+            )))
 
         # Register this new dashboard with Caipirinha
-        code_lines.append("""caipirinha_service.new_dashboard({base_url}, {token},
-            "{user_name}'s dashboard of workflow '{workflow_name}'",
-            {user_id}, {user_login}, {user_name},
-            {workflow_id}, {workflow_name}, visualizations)""".format(
+        code_lines.append("""caipirinha_service.new_dashboard('{base_url}',
+            '{token}',
+            "{user_name}'s dashboard of workflow '{workflow_name}'", {user}, 
+            {workflow_id}, '{workflow_name}', visualizations)""".format(
                 base_url=caipirinha_config['url'],
                 token=caipirinha_config['auth_token'],
-                user_id=self.parameters['user']['id'],
-                user_login=self.parameters['user']['login'],
                 user_name=self.parameters['user']['name'],
+                user=self.parameters['user'],
                 workflow_id=self.parameters['workflow_id'],
                 workflow_name=self.parameters['workflow_name']
             ))
 
         # Make sure we close the hbase connection
 	code_lines.append("connection.close()")
+        
+        # No return
+        code_lines.append('{} = None'.format(self.output))
 
-        code = '\n'.join(vis_codes)
+        code = '\n'.join(code_lines)
         return dedent(code)
+
+####################################################
+# Visualization operations used to generate models #
+####################################################
 
 class VisualizationMethodOperation(Operation):
     """
@@ -132,31 +153,152 @@ class VisualizationMethodOperation(Operation):
         self.id_attribute = parameters.get(self.ID_ATTR_PARAM, [])
         self.value_attribute = parameters.get(self.VALUE_ATTR_PARAM, [])
     
-    def get_data_out_names(self, sep=','):
-        return ''
-
     def get_output_names(self, sep=','):
         return self.output
 
-    def transform_data(self, data):
-        raise NotImplementedError(
-            "Transformation method is not implemented (%s)" % \
-            type(self).__name__)
-
 class BarChartOperation(VisualizationMethodOperation):
+
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        VisualizationMethodOperation.__init__(self, parameters, inputs,
+                outputs, named_inputs, named_outputs)
+
+    def generate_code(self):
+	code = \
+        """
+        from juicer.spark.vis_operation import BarChartModel
+        {} = BarChartModel('{}','{}','{}','{}','{}',{},{})
+        """.format(self.output,
+                self.parameters['operation_id'],
+                self.parameters['operation_slug'],
+                self.title, self.labels, self.orientation,
+                self.id_attribute, self.value_attribute)
+        return dedent(code)
+
+class PieChartOperation(VisualizationMethodOperation):
     
     def __init__(self, parameters, inputs, outputs, named_inputs,
                  named_outputs):
-        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
-                           named_outputs)
+        VisualizationMethodOperation.__init__(self, parameters, inputs,
+                outputs, named_inputs, named_outputs)
 
     def generate_code(self):
-	code = """from juicer.spark.vis_operation import BarChartOperation
-            {} = BarChartOperation({},{},{},{},{})""".format(self.output,
-                    self.parameters, self.inputs, self.outputs,
-                    self.named_inputs, self.named_outputs)
+	code = \
+        """
+        from juicer.spark.vis_operation import PieChartModel
+        {} = PieChartModel('{}','{}','{}','{}','{}',{},{})
+        """.format(self.output,
+                self.parameters['operation_id'],
+                self.parameters['operation_slug'],
+                self.title, self.labels, self.orientation,
+                self.id_attribute, self.value_attribute)
         return dedent(code)
 
+class LineChartOperation(VisualizationMethodOperation):
+    
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        VisualizationMethodOperation.__init__(self, parameters, inputs,
+                outputs, named_inputs, named_outputs)
+
+    def generate_code(self):
+	code = \
+        """
+        from juicer.spark.vis_operation import LineChartModel
+        {} = LineChartModel('{}','{}','{}','{}','{}',{},{})
+        """.format(self.output,
+                self.parameters['operation_id'],
+                self.parameters['operation_slug'],
+                self.title, self.labels, self.orientation,
+                self.id_attribute, self.value_attribute)
+        return dedent(code)
+
+class AreaChartOperation(VisualizationMethodOperation):
+    
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        VisualizationMethodOperation.__init__(self, parameters, inputs,
+                outputs, named_inputs, named_outputs)
+
+    def generate_code(self):
+	code = \
+        """
+        from juicer.spark.vis_operation import AreaChartModel
+        {} = AreaChartModel('{}','{}','{}','{}','{}',{},{})
+        """.format(self.output,
+                self.parameters['operation_id'],
+                self.parameters['operation_slug'],
+                self.title, self.labels, self.orientation,
+                self.id_attribute, self.value_attribute)
+        return dedent(code)
+
+class TableVisOperation(VisualizationMethodOperation):
+    
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        VisualizationMethodOperation.__init__(self, parameters, inputs,
+                outputs, named_inputs, named_outputs)
+
+    def generate_code(self):
+	code = \
+        """
+        from juicer.spark.vis_operation import TableVisModel
+        {} = TableVisModel('{}','{}','{}','{}','{}',{},{})
+        """.format(self.output,
+                self.parameters['operation_id'],
+                self.parameters['operation_slug'],
+                self.title, self.labels, self.orientation,
+                self.id_attribute, self.value_attribute)
+        return dedent(code)
+
+#######################################################
+# Visualization Models used inside the code generated #
+#######################################################
+
+class VisualizationModel:
+
+    def __init__(self, type_id, type_name, title, labels, orientation,
+            id_attribute, value_attribute):
+        self.type_id = type_id
+        self.type_name = type_name
+        self.title = title
+        self.labels = labels
+        self.orientation = orientation
+        self.id_attribute = id_attribute
+        self.value_attribute = value_attribute
+
     def transform_data(self, data):
-        # TODO: transform data accordingly
-        return data
+        if hasattr(data, 'toJSON'):
+            return data.toJSON().collect()
+        else:
+            return data
+
+class BarChartModel(VisualizationModel):
+    def __init__(self, type_id, type_name, title, labels, orientation,
+            id_attribute, value_attribute):
+        VisualizationModel.__init__(self, type_id, type_name, title, labels,
+                orientation, id_attribute, value_attribute)
+
+class PieChartModel(VisualizationModel):
+    def __init__(self, type_id, type_name, title, labels, orientation,
+            id_attribute, value_attribute):
+        VisualizationModel.__init__(self, type_id, type_name, title, labels,
+                orientation, id_attribute, value_attribute)
+
+class AreaChartModel(VisualizationModel):
+    def __init__(self, type_id, type_name, title, labels, orientation,
+            id_attribute, value_attribute):
+        VisualizationModel.__init__(self, type_id, type_name, title, labels,
+                orientation, id_attribute, value_attribute)
+
+class LineChartModel(VisualizationModel):
+    def __init__(self, type_id, type_name, title, labels, orientation,
+            id_attribute, value_attribute):
+        VisualizationModel.__init__(self, type_id, type_name, title, labels,
+                orientation, id_attribute, value_attribute)
+
+class TableVisModel(VisualizationModel):
+    def __init__(self, type_id, type_name, title, labels, orientation,
+            id_attribute, value_attribute):
+        VisualizationModel.__init__(self, type_id, type_name, title, labels,
+                orientation, id_attribute, value_attribute)
