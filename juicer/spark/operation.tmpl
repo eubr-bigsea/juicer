@@ -67,6 +67,8 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_gen_{{instance
     {%- endif %}
 
     emit_event(name='update task', msg='Task running',
+        status='RUNNING', identifier='{{instance.parameters.task.id}}')
+
     if '{{instance.parameters.task.id}}' in cached_state:
         sparkLogging(spark_session).info ('Cache hit for operation {}'.format('{{instance.parameters.task.id}}'))
         emit_event(name='update task', msg='Task completed',

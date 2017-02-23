@@ -30,4 +30,4 @@ def new_dashboard(base_url, token, title, user,
         workflow_id, workflow_name, visualizations):
     data = dict(title=title, user=user, workflow_id=workflow_id,
             workflow_name=workflow_name, visualizations=visualizations)
-    return query_limonero(base_url, 'dashboards', token, '')
+    return query_caipirinha(base_url, 'dashboards', token, '', json.dumps(data))

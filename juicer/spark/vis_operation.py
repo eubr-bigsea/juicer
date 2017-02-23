@@ -28,6 +28,11 @@ class PublishVisOperation(Operation):
     def get_output_names(self, sep=','):
         return self.output
 
+    @property
+    def get_inputs_names(self):
+        return ', '.join([self.named_inputs['data'],
+            self.named_inputs['visualization']])
+
     def generate_code(self):
         
         # Get Limonero configuration
@@ -51,6 +56,7 @@ class PublishVisOperation(Operation):
         # list for visualizations metadata
 	code_lines = []
 	code_lines.append("import happybase")
+	code_lines.append("import uuid")
         code_lines.append("from juicer.service import caipirinha_service")
 	code_lines.append("connection = happybase.Connection(host='{}', port={})".format(host,port))
 	code_lines.append("vis_table = connection.table('visualization')")
@@ -82,27 +88,29 @@ class PublishVisOperation(Operation):
             b'cf:value_attribute': json.dumps({vis_model}.value_attribute),
             b'cf:data': json.dumps({vis_model}.transform_data({dfdata}))
         }}
-        vis_table.put(b'{vis_uuid}', vis_value, timestamp=int(time.time()))
+        vis_uuid = bytes(uuid.uuid4())
+        vis_table.put(vis_uuid, vis_value, timestamp=int(time.time()))
         visualizations.append({{
-            'id': '{vis_uuid}',
+            'id': vis_uuid,
             'type': {{
                 'id': {vis_model}.type_id,
                 'name': {vis_model}.type_name
             }}
         }})
         """
-        for vis_model in self.inputs[1:]:
-            vis_uuid = uuid.uuid4()
-            code_lines.append(dedent(vis_code_tmpl.format(
-                user_id=self.parameters['user']['id'],
-                user=self.parameters['user']['login'],
-                workflow_id=self.parameters['workflow_id'],
-                dfdata=self.inputs[0],
-                vis_model=vis_model,
-                vis_uuid=vis_uuid,
-                vis_type_id=self.parameters['operation_id'],
-                vis_type_name=self.parameters['operation_slug']
-            )))
+        for vis_model in self.inputs:
+            # NOTE: For now we assume every other input but 'data' are
+            # visualizations strategies that will compose the dashboard
+            if vis_model != self.named_inputs['data']:
+                code_lines.append(dedent(vis_code_tmpl.format(
+                    user_id=self.parameters['user']['id'],
+                    user=self.parameters['user']['login'],
+                    workflow_id=self.parameters['workflow_id'],
+                    dfdata=self.named_inputs['data'],
+                    vis_model=vis_model,
+                    vis_type_id=self.parameters['operation_id'],
+                    vis_type_name=self.parameters['operation_slug']
+                )))
 
         # Register this new dashboard with Caipirinha
         code_lines.append("""caipirinha_service.new_dashboard('{base_url}',
