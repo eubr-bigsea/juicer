@@ -3,6 +3,7 @@ from textwrap import dedent
 from juicer.operation import Operation
 from juicer.runner import configuration
 from juicer.service import limonero_service
+from juicer.util import dataframe_util
 import time
 import urlparse
 import uuid
@@ -13,6 +14,7 @@ class PublishVisOperation(Operation):
     VisualizationMethodOperation and persists the transformed data
     (currently HBase) for forthcoming visualizations
     """
+    TITLE_PARAM = 'title'
     
     def __init__(self, parameters, inputs, outputs, named_inputs,
                  named_outputs):
@@ -20,6 +22,7 @@ class PublishVisOperation(Operation):
                            named_outputs)
 
         self.config = configuration.get_config()
+        self.title = parameters.get(self.TITLE_PARAM, '')
         self.has_code = len(self.inputs) > 1
 
     def get_data_out_names(self, sep=','):
@@ -56,7 +59,6 @@ class PublishVisOperation(Operation):
         # list for visualizations metadata
 	code_lines = []
 	code_lines.append("import happybase")
-	code_lines.append("import uuid")
         code_lines.append("from juicer.service import caipirinha_service")
 	code_lines.append("connection = happybase.Connection(host='{}', port={})".format(host,port))
 	code_lines.append("vis_table = connection.table('visualization')")
@@ -64,8 +66,8 @@ class PublishVisOperation(Operation):
 
         # The following code template will, for each visualization method:
         #
-        # [1] Transform the local data according to the visualization method
-        # [2] Create a visualization id (uuid)
+        # [1] Transform data (and schema) according to the visualization method
+        # [2] Take task_id (uuid) and job_id (int) to identify the dashboard
         # [3] Register a timestamp for the visualization
         # [4] Insert this particular visualization into hbase
         # [5] Append the visualization model for later persistency of metadata
@@ -77,6 +79,8 @@ class PublishVisOperation(Operation):
         #   visualization data.
         vis_code_tmpl = \
         """
+        # Hbase value composed by several columns, the last one refers to the
+        # visualization data
         vis_value = {{
             b'cf:user_id': json.dumps({user_id}),
             b'cf:user': json.dumps('{user}'),
@@ -86,12 +90,13 @@ class PublishVisOperation(Operation):
             b'cf:orientation': json.dumps({vis_model}.orientation),
             b'cf:id_attribute': json.dumps({vis_model}.id_attribute),
             b'cf:value_attribute': json.dumps({vis_model}.value_attribute),
-            b'cf:data': json.dumps({vis_model}.transform_data({dfdata}))
+            b'cf:data': json.dumps({vis_model}.get_data({dfdata})),
+            b'cf:schema': json.dumps({vis_model}.get_schema({dfdata}))
         }}
-        vis_uuid = bytes(uuid.uuid4())
-        vis_table.put(vis_uuid, vis_value, timestamp=int(time.time()))
+        vis_table.put(b'{job_id}-{task_id}', vis_value, timestamp=int(time.time()))
         visualizations.append({{
-            'id': vis_uuid,
+            'job_id': '{job_id}',
+            'task_id': '{task_id}',
             'type': {{
                 'id': {vis_model}.type_id,
                 'name': {vis_model}.type_name
@@ -103,6 +108,8 @@ class PublishVisOperation(Operation):
             # visualizations strategies that will compose the dashboard
             if vis_model != self.named_inputs['data']:
                 code_lines.append(dedent(vis_code_tmpl.format(
+                    job_id=self.parameters['job_id'],
+                    task_id=self.parameters['task']['id'],
                     user_id=self.parameters['user']['id'],
                     user=self.parameters['user']['login'],
                     workflow_id=self.parameters['workflow_id'],
@@ -114,15 +121,18 @@ class PublishVisOperation(Operation):
 
         # Register this new dashboard with Caipirinha
         code_lines.append("""caipirinha_service.new_dashboard('{base_url}',
-            '{token}',
-            "{user_name}'s dashboard of workflow '{workflow_name}'", {user}, 
-            {workflow_id}, '{workflow_name}', visualizations)""".format(
+            '{token}', '{title}', {user}, 
+            {workflow_id}, '{workflow_name}',
+            {job_id}, '{task_id}', visualizations)""".format(
                 base_url=caipirinha_config['url'],
                 token=caipirinha_config['auth_token'],
+                title=self.title,
                 user_name=self.parameters['user']['name'],
                 user=self.parameters['user'],
                 workflow_id=self.parameters['workflow_id'],
-                workflow_name=self.parameters['workflow_name']
+                workflow_name=self.parameters['workflow_name'],
+                job_id=self.parameters['job_id'],
+                task_id=self.parameters['task']['id']
             ))
 
         # Make sure we close the hbase connection
@@ -275,11 +285,11 @@ class VisualizationModel:
         self.id_attribute = id_attribute
         self.value_attribute = value_attribute
 
-    def transform_data(self, data):
-        if hasattr(data, 'toJSON'):
-            return data.toJSON().collect()
-        else:
-            return data
+    def get_data(self, data):
+        return data.rdd.map(dataframe_util.convert_to_csv).collect()
+
+    def get_schema(self, data):
+        return dataframe_util.get_csv_schema(data)
 
 class BarChartModel(VisualizationModel):
     def __init__(self, type_id, type_name, title, labels, orientation,

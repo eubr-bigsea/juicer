@@ -27,7 +27,8 @@ def query_caipirinha(base_url, item_path, token, item_id, data):
                                                                 r.text))
 
 def new_dashboard(base_url, token, title, user,
-        workflow_id, workflow_name, visualizations):
+        workflow_id, workflow_name, job_id, task_id, visualizations):
     data = dict(title=title, user=user, workflow_id=workflow_id,
-            workflow_name=workflow_name, visualizations=visualizations)
+            workflow_name=workflow_name, job_id=job_id, task_id=task_id,
+            visualizations=visualizations)
     return query_caipirinha(base_url, 'dashboards', token, '', json.dumps(data))

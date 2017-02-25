@@ -23,6 +23,7 @@ from juicer.runner import juicer_protocol
 from juicer.runner.juicer_server import JuicerServer
 from juicer.runner.minion_base import Minion
 from juicer.spark.transpiler import SparkTranspiler
+from juicer.util import dataframe_util
 from juicer.util.string_importer import StringImporter
 from juicer.workflow.workflow import Workflow
 
@@ -212,7 +213,7 @@ class SparkMinion(Minion):
 
             with codecs.open(generated_code_path, 'w', 'utf8') as out:
                 self.transpiler.transpile(
-                    loader.workflow, loader.graph, {}, out)
+                    loader.workflow, loader.graph, {}, out, job_id)
 
             # Get rid of .pyc file if it exists
             if os.path.isfile('{}c'.format(generated_code_path)):
@@ -315,19 +316,6 @@ class SparkMinion(Minion):
 
         return self.spark_session
 
-    @staticmethod
-    def _convert_to_csv(row):
-        result = []
-        for v in row:
-            t = type(v)
-            if t in [datetime.datetime]:
-                result.append(v.isoformat())
-            elif t in [unicode, str]:
-                result.append('"{}"'.format(v))
-            else:
-                result.append(str(v))
-        return ','.join(result)
-
     def _send_to_output(self, data):
         self.state_control.push_app_output_queue(
             self.app_id, json.dumps(data))
@@ -384,7 +372,7 @@ class SparkMinion(Minion):
                 # type check.
                 # FIXME define as a parameter?:
                 result = df.take(100).rdd.map(
-                    SparkMinion._convert_to_csv).collect()
+                    dataframe_util.convert_to_csv).collect()
                 self.state_control.push_queue(
                     output, '\n'.join(result))
                 data = {'status': 'SUCCESS', 'code': self.MNN002[0],

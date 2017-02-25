@@ -140,7 +140,7 @@ class SparkTranspiler:
                 zf.writepy(lib_path)
             zf.close()
 
-    def transpile(self, workflow, graph, params, out=None):
+    def transpile(self, workflow, graph, params, out=None, job_id=None):
         """ Transpile the tasks from Lemonade's workflow into Spark code """
 
         using_stdout = out is None
@@ -222,6 +222,7 @@ class SparkTranspiler:
             parameters['workflow_name'] = workflow['name']
             parameters['operation_id'] = task['operation']['id']
             parameters['operation_slug'] = task['operation']['slug']
+            parameters['job_id'] = job_id
             port = ports.get(task['id'], {})
 
             instance = class_name(parameters, port.get('inputs', []),
