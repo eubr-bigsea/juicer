@@ -8,6 +8,7 @@ More information about Lemonade to be provided
 """
 import json
 import os
+import re
 import string
 import sys
 import time
@@ -58,9 +59,9 @@ def juicer_debug(spark_session, name, variable, data_frame):
 def {{instance.parameters.task.operation.slug.replace('-', '_')}}_gen_{{instance.get_output_names('_')}}(
         spark_session, cached_state, emit_event
         {%- if instance.get_inputs_names %}, {{instance.get_inputs_names}}{% endif %}):
-    {%- if instance.parameters.task.forms.comment and instance.parameters.task.forms.comment.value.strip()%}
+    {%- if instance.parameters.task.forms.comment and instance.parameters.task.forms.comment.value %}
     """
-    {{instance.parameters.task.forms.comment.value.replace('"', '')}}
+    {{instance.parameters.task.forms.comment.value.strip().replace('"', '')}}
     """
     {%- else %}
     """ Operation {{instance.parameters.task.id }} """

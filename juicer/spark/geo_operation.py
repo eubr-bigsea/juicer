@@ -65,7 +65,7 @@ class ReadShapefile(Operation):
                     points.append([point[1], point[0]])
                 attributes.append(points)
                 data.append(attributes)
-            {} = SparkSession.createDataFrame(spark_session, data, header)
+            {} = spark_session.createDataFrame(spark_session, data, header)
         """.format(self.metadata, self.outputs[0])
 
         return dedent(code)

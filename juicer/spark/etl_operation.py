@@ -419,13 +419,14 @@ class Aggregation(Operation):
     def generate_code(self):
         elements = []
         for i, function in enumerate(self.functions):
-            elements.append('''{}('{}').alias('{}')'''.format(
+            elements.append('''functions.{}('{}').alias('{}')'''.format(
                 function['f'].lower(), function['attribute'],
                 function['alias']))
 
         if not self.group_all:
             group_by = ', '.join(
-                ["col('{}')".format(attr) for attr in self.attributes])
+                ["functions.col('{}')".format(attr)
+                    for attr in self.attributes])
 
             code = '''{} = {}.groupBy({}).agg(\n        {})'''.format(
                 self.output, self.inputs[0], group_by,
@@ -463,7 +464,7 @@ class Filter(Operation):
             self.inputs[0])
 
         filters = [
-            "(col('{0}') {1} '{2}')".format(f['attribute'], f['f'], f['value'])
+            "(functions.col('{0}') {1} '{2}')".format(f['attribute'], f['f'], f['value'])
             for f in self.filter]
 
         code = """{} = {}.filter({})""".format(

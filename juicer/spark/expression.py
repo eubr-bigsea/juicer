@@ -72,7 +72,7 @@ class Expression:
 
         # FIXME: add the workd 'SECONDS' after parameter 'SEGUNDOS'
         result = (
-            "functions.window(functions.from_unixtime({value}/1e6), '{bin}')"
+            "functions.window(functions.col({value}), '{bin}')"
             ".{start_or_end}.cast('timestamp')").format(
             value=', '.join(arguments[:-2]), bin=bins_size,
             start_or_end=field_name)

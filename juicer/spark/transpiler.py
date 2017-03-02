@@ -208,7 +208,7 @@ class SparkTranspiler:
                         parameters[parameter] = definition['value']
 
             # Operation SAVE requires the complete workflow
-            if task['operation']['name'] == 'SAVE':
+            if task['operation']['slug'] == 'data-writer':
                 parameters['workflow'] = workflow
 
             # Some temporary variables need to be identified by a sequential

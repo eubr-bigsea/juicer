@@ -1,6 +1,7 @@
-import networkx as nx
 import matplotlib.pyplot as plt
+import networkx as nx
 from juicer.service import tahiti_service
+
 
 class Workflow:
     """
@@ -47,54 +48,57 @@ class Workflow:
     def builds_initial_workflow_graph(self):
         """ Builds a graph with the tasks """
 
-        workflow_graph = nx.MultiDiGraph()
-
         # Querying all operations from tahiti one time
-        operations_tahiti = self.get_all_ports_operations_tasks()
+        operations_tahiti = dict(
+            [(op['id'], op) for op in self.get_all_ports_operations_tasks()])
 
         for task in self.workflow['tasks']:
-            for operation in operations_tahiti:
-                if operation['id'] == task.get('operation')['id']:
-                    ports_list = operation['ports']
-                    # Get operation requirements in tahiti
-                    result = {
-                        'N_INPUT': 0,
-                        'N_OUTPUT': 0,
-                        'M_INPUT': 'None',
-                        'M_OUTPUT': 'None'
-                    }
+            operation = operations_tahiti.get(task.get('operation')['id'])
+            if operation:
+                # Slug information is required in order to select which
+                # operation will be executed
+                task['operation']['slug'] = operation['slug']
 
-                    for port in ports_list:
-                        if port['type'] == 'INPUT':
-                            result['M_INPUT'] = port['multiplicity']
-                            if 'N_INPUT' in result:
-                                result['N_INPUT'] += 1
-                            else:
-                                result['N_INPUT'] = 1
-                        elif port['type'] == 'OUTPUT':
-                            result['M_OUTPUT'] = port['multiplicity']
-                            if 'N_OUTPUT' in result:
-                                result['N_OUTPUT'] += 1
-                            else:
-                                result['N_OUTPUT'] = 1
+                ports_list = operation['ports']
+                # Get operation requirements in tahiti
+                result = {
+                    'N_INPUT': 0,
+                    'N_OUTPUT': 0,
+                    'M_INPUT': 'None',
+                    'M_OUTPUT': 'None'
+                }
 
-                    self.graph.add_node(
-                        task.get('id'),
-                        in_degree_required=result['N_INPUT'],
-                        in_degree_multiplicity_required=result['M_INPUT'],
-                        out_degree_required=result['N_OUTPUT'],
-                        out_degree_multiplicity_required=result['M_OUTPUT'],
-                        attr_dict=task)
+                for port in ports_list:
+                    if port['type'] == 'INPUT':
+                        result['M_INPUT'] = port['multiplicity']
+                        if 'N_INPUT' in result:
+                            result['N_INPUT'] += 1
+                        else:
+                            result['N_INPUT'] = 1
+                    elif port['type'] == 'OUTPUT':
+                        result['M_OUTPUT'] = port['multiplicity']
+                        if 'N_OUTPUT' in result:
+                            result['N_OUTPUT'] += 1
+                        else:
+                            result['N_OUTPUT'] = 1
+
+                self.graph.add_node(
+                    task.get('id'),
+                    in_degree_required=result['N_INPUT'],
+                    in_degree_multiplicity_required=result['M_INPUT'],
+                    out_degree_required=result['N_OUTPUT'],
+                    out_degree_multiplicity_required=result['M_OUTPUT'],
+                    attr_dict=task)
 
         for flow in self.workflow['flows']:
             self.graph.add_edge(flow['source_id'], flow['target_id'],
                                 attr_dict=flow)
 
         for nodes in self.graph.nodes():
-            self.graph.node[nodes]['in_degree'] = self.graph.\
+            self.graph.node[nodes]['in_degree'] = self.graph. \
                 in_degree(nodes)
 
-            self.graph.node[nodes]['out_degree'] = self.graph.\
+            self.graph.node[nodes]['out_degree'] = self.graph. \
                 out_degree(nodes)
 
         return self.graph
@@ -106,8 +110,8 @@ class Workflow:
                 pass
             else:
                 raise AttributeError(
-                    "Port '{} in node {}' missing, must be informed for operation {}".
-                    format(
+                    ("Port '{} in node {}' missing, "
+                     "must be informed for operation {}").format(
                         self.WORKFLOW_GRAPH_TARGET_ID_PARAM,
                         nodes,
                         self.__class__))
@@ -121,11 +125,10 @@ class Workflow:
                 pass
             else:
                 raise AttributeError(
-
-                    "Port '{}' missing, must be informed for operation {}".format(
+                    ("Port '{}' missing, must be informed "
+                     "for operation {}").format(
                         self.WORKFLOW_GRAPH_SOURCE_ID_PARAM,
-                        self.__class__)
-                )
+                        self.__class__))
         return 1
 
     def builds_sorted_workflow_graph(self, tasks, flows):
@@ -133,40 +136,41 @@ class Workflow:
         workflow_graph = nx.MultiDiGraph()
 
         # Querying all operations from tahiti one time
-        operations_tahiti = self.get_all_ports_operations_tasks()
+        operations_tahiti = dict(
+            [(op['id'], op) for op in self.get_all_ports_operations_tasks()])
         for task in tasks:
-            for operation in operations_tahiti:
-                if operations_tahiti[operation]['id'] == task.get('operation')['id']:
-                    ports_list = operations_tahiti[operation]['ports']
-                    # Get operation requirements in tahiti
-                    result = {
-                        'N_INPUT': 0,
-                        'N_OUTPUT': 0,
-                        'M_INPUT': 'None',
-                        'M_OUTPUT': 'None'
-                    }
+            operation = operations_tahiti.get(task.get('operation')['id'])
+            if operation is not None:
+                ports_list = operations_tahiti[operation]['ports']
+                # Get operation requirements in tahiti
+                result = {
+                    'N_INPUT': 0,
+                    'N_OUTPUT': 0,
+                    'M_INPUT': 'None',
+                    'M_OUTPUT': 'None'
+                }
 
-                    for port in ports_list:
-                        if port['type'] == 'INPUT':
-                            result['M_INPUT'] = port['multiplicity']
-                            if 'N_INPUT' in result:
-                                result['N_INPUT'] += 1
-                            else:
-                                result['N_INPUT'] = 1
-                        elif port['type'] == 'OUTPUT':
-                            result['M_OUTPUT'] = port['multiplicity']
-                            if 'N_OUTPUT' in result:
-                                result['N_OUTPUT'] += 1
-                            else:
-                                result['N_OUTPUT'] = 1
-                    # return result
-                    workflow_graph.add_node(
-                                task.get('id'),
-                                in_degree_required=result['N_INPUT'],
-                                in_degree_multiplicity_required=result['M_INPUT'],
-                                out_degree_required=result['N_OUTPUT'],
-                                out_degree_multiplicity_required=result['M_OUTPUT'],
-                                attr_dict=task)
+                for port in ports_list:
+                    if port['type'] == 'INPUT':
+                        result['M_INPUT'] = port['multiplicity']
+                        if 'N_INPUT' in result:
+                            result['N_INPUT'] += 1
+                        else:
+                            result['N_INPUT'] = 1
+                    elif port['type'] == 'OUTPUT':
+                        result['M_OUTPUT'] = port['multiplicity']
+                        if 'N_OUTPUT' in result:
+                            result['N_OUTPUT'] += 1
+                        else:
+                            result['N_OUTPUT'] = 1
+                # return result
+                workflow_graph.add_node(
+                    task.get('id'),
+                    in_degree_required=result['N_INPUT'],
+                    in_degree_multiplicity_required=result['M_INPUT'],
+                    out_degree_required=result['N_OUTPUT'],
+                    out_degree_multiplicity_required=result['M_OUTPUT'],
+                    attr_dict=task)
 
         for flow in flows:
             workflow_graph.add_edge(flow['source_id'],
@@ -180,7 +184,6 @@ class Workflow:
             self.graph.node[nodes]['out_degree'] = self.graph. \
                 out_degree(nodes)
         return workflow_graph
-
 
     def plot_workflow_graph_image(self):
         """
@@ -231,9 +234,10 @@ class Workflow:
                 return False
         return True
 
-    def get_all_ports_operations_tasks(self):
+    @staticmethod
+    def get_all_ports_operations_tasks():
         params = {
-            'base_url':'http://beta.ctweb.inweb.org.br',
+            'base_url': 'http://beta.ctweb.inweb.org.br',
             'item_path': 'tahiti/operations',
             'token': '123456',
             'item_id': ''
@@ -241,15 +245,16 @@ class Workflow:
 
         # Querying tahiti operations to get number of inputs and outputs
         operations = tahiti_service.query_tahiti(params['base_url'],
-                                                       params['item_path'],
-                                                       params['token'],
-                                                       params['item_id'])
+                                                 params['item_path'],
+                                                 params['token'],
+                                                 params['item_id'])
         return operations
 
-    def get_ports_from_operation_tasks(self, id_operation):
+    @staticmethod
+    def get_ports_from_operation_tasks(id_operation):
         # Can i put this information here?
         params = {
-            'base_url':'http://beta.ctweb.inweb.org.br',
+            'base_url': 'http://beta.ctweb.inweb.org.br',
             'item_path': 'tahiti/operations',
             'token': '123456',
             'item_id': id_operation
@@ -257,16 +262,16 @@ class Workflow:
 
         # Querying tahiti operations to get number of inputs and outputs
         operations_ports = tahiti_service.query_tahiti(params['base_url'],
-                                                   params['item_path'],
-                                                   params['token'],
-                                                   params['item_id'])
+                                                       params['item_path'],
+                                                       params['token'],
+                                                       params['item_id'])
         # Get operation requirements in tahiti
         result = {
-                    'N_INPUT': 0,
-                    'N_OUTPUT': 0,
-                    'M_INPUT': 'None',
-                    'M_OUTPUT': 'None'
-                 }
+            'N_INPUT': 0,
+            'N_OUTPUT': 0,
+            'M_INPUT': 'None',
+            'M_OUTPUT': 'None'
+        }
 
         for port in operations_ports['ports']:
             if port['type'] == 'INPUT':
@@ -312,59 +317,3 @@ class Workflow:
                     )
         else:
             raise KeyError("The node informed doesn't exist")
-        # return x
-   # def verify_workflow(self):
-   #     """
-    #     Verifies if the workflow is valid.
-    #     Validations to be implemented:
-    #     - Supported platform
-    #     - Workflow without input
-    #     - Supported operations in platform
-    #     - Consistency between tasks and flows
-    #     - Port consistency
-    #     - Task parameters
-    #     - Referenced attributes names existing in input dataframes
-    #     """
-    #     pass
-
-        # def sort_tasks(self):
-        #     """ Create the tasks Graph and perform topological sorting """
-        #     # First, map the tasks IDs to their original position
-        #     tasks_position = {}
-        #
-        #     for count_position, task in enumerate(self.workflow['tasks']):
-        #         tasks_position[task['id']] = count_position
-        #
-        #     # Then, performs topological sorting
-        #     workflow_graph = self.builds_workflow_graph(
-        #         self.workflow['tasks'], self.workflow['flows'])
-        #     sorted_tasks_id = nx.topological_sort(workflow_graph, reverse=False)
-        #     # Finally, create a new array of tasks in the topogical order
-        #     for task_id in sorted_tasks_id:
-        #         self.sorted_tasks.append(
-        #             self.workflow['tasks'][tasks_position[task_id]])
-
-        # def plot_workflow(self, filename):
-        #    """ Plot the workflow graph """
-        # workflow_graph = self.builds_workflow_graph(self.sorted_tasks,
-        #                                                self.workflow['flows'])
-        # pos = nx.spring_layout(workflow_graph)
-        # nx.draw(workflow_graph, pos, node_color='#004a7b', node_size=2000,
-        #         edge_color='#555555', width=1.5, edge_cmap=None,
-        #         with_labels=True,
-        #         label_pos=50.3, alpha=1, arrows=True, node_shape='s',
-        #         font_size=8,
-        #         font_color='#FFFFFF')
-        # plt.savefig(filename, dpi=300, orientation='landscape', format=None,
-        #             bbox_inches=None, pad_inches=0.1)
-
-        # def builds_workflow_graph(self, tasks, flows):
-        #     """ Builds a graph with the tasks """
-        #     workflow_graph = nx.DiGraph()
-        #
-        #     for task in tasks:
-        #         workflow_graph.add_node(task['id'])
-        #
-        #     for flow in flows:
-        #         workflow_graph.add_edge(flow['source_id'], flow['target_id'])
-        #     return workflow_graph

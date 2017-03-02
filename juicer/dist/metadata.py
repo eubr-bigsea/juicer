@@ -1,21 +1,20 @@
 import requests
 import json
 
-class MetadataGet:
 
+class MetadataGet:
     def __init__(self, token):
         self.url = "http://beta.ctweb.inweb.org.br/limonero/datasources"
         self.token = token
 
     def get_metadata(self, id):
         # Call the Limonero API to get the metadata
-        link =  self.url + '/{}?token={}'.format(str(id), str(self.token))
+        link = self.url + '/{}?token={}'.format(str(id), str(self.token))
         data = requests.get(link)
         return json.loads(data.text)
 
 
 class MetadataPost:
-
     def __init__(self, token, df_schema, parameters):
         self.url = "http://beta.ctweb.inweb.org.br/limonero/datasources"
         self.token = token
@@ -30,28 +29,23 @@ class MetadataPost:
         self.build_payload()
         self.post_metadata()
 
-
     def post_metadata(self):
-            response = requests.post(self.url, data=json.dumps(self.payload),
-                          headers=self.headers, params=self.querystring)
-            if response.status_code != 200:
-                print "\nERROR! Status code:",response.status_code, response.text,"\n"
-            #print "requests.post('{0}',data=json.dumps({1}),headers={2},params={3})".format(
+        response = requests.post(self.url, data=json.dumps(self.payload),
+                                 headers=self.headers, params=self.querystring)
+        if response.status_code != 200:
+            print "\nERROR! Status code:", response.status_code, response.text, "\n"
+            # print "requests.post('{0}',data=json.dumps({1}),headers={2},params={3})".format(
             #    self.url, self.payload, self.headers, self.querystring)
 
-
     def build_querystring(self):
-        self.querystring = {"token":"{0}".format(self.token)}
-
-
+        self.querystring = {"token": "{0}".format(self.token)}
 
     def build_headers(self):
         self.headers = {
-            'x-auth-token':"{0}".format(self.token),
-            'content-type':"application/json",
-            'cache-control':"no-cache",
+            'x-auth-token': "{0}".format(self.token),
+            'content-type': "application/json",
+            'cache-control': "no-cache",
         }
-
 
     def build_payload(self):
         attributes = []
@@ -79,10 +73,10 @@ class MetadataPost:
             "name": self.parameters['name'],
             "format": self.parameters['format'],
             "provenience": self.parameters['provenience'],
-            "storage_id":self.parameters['storage_id'],
-            "description":self.parameters['description'],
-            "user_id":self.parameters['user_id'],
-            "user_login":self.parameters['user_login'],
-            "user_name":self.parameters['user_name'],
-            "workflow_id":self.parameters['workflow_id'],
+            "storage_id": self.parameters['storage_id'],
+            "description": self.parameters['description'],
+            "user_id": self.parameters['user_id'],
+            "user_login": self.parameters['user_login'],
+            "user_name": self.parameters['user_name'],
+            "workflow_id": self.parameters['workflow_id'],
         }

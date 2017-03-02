@@ -1,4 +1,5 @@
 # coding=utf-8
+import traceback
 
 import codecs
 from concurrent.futures import ThreadPoolExecutor
@@ -62,8 +63,17 @@ class SparkMinion(Minion):
         self.config = config
         configuration.set_config(self.config)
         sys.meta_path.append(self.string_importer)
+
         self.tmp_dir = self.config.get('config', {}).get('tmp_dir', '/tmp')
         sys.path.append(self.tmp_dir)
+
+        # Add pyspark to path
+        spark_home = os.environ.get('SPARK_HOME')
+        if spark_home:
+            sys.path.append(os.path.join(spark_home, 'python'))
+            log.info('SPARK_HOME set to %s', spark_home)
+        else:
+            log.warn('SPARK_HOME environment variable is not defined')
 
         self.job_count = 0
         self.spark_session = None
@@ -77,9 +87,10 @@ class SparkMinion(Minion):
 
     def _emit_event(self, room, namespace):
         def emit_event(name, msg, status, identifier):
+            log.info('Emit %s %s %s %s', name, msg, status, identifier)
             self.mgr.emit(name,
                     data={'msg': msg, 'status': status, 'id': identifier},
-                    room=room, namespace=namespace)
+                    room=str(room), namespace=namespace)
         return emit_event
 
     def _generate_output(self, msg, status=None, code=None):
@@ -133,7 +144,7 @@ class SparkMinion(Minion):
         assert str(msg_info['workflow_id']) == self.workflow_id, \
                 'Expected workflow_id=%s, got workflow_id=%s' % ( \
                 self.workflow_id, msg_info['workflow_id'])
-        
+
         assert str(msg_info['app_id']) == self.app_id, \
                 'Expected app_id=%s, got app_id=%s' % ( \
                 self.workflow_id, msg_info['app_id'])
@@ -169,7 +180,7 @@ class SparkMinion(Minion):
             job_id = msg_info['job_id']
             workflow = msg_info['workflow']
             app_configs = msg_info.get('app_configs', {})
-            
+
             if self.job_future:
                 self.job_future.result()
 
@@ -194,10 +205,14 @@ class SparkMinion(Minion):
                 job_id, workflow, app_configs)
 
     def _perform_execute(self, job_id, workflow, app_configs):
+
+        # Sleeps 1s in order to wait for client join notification room
+        time.sleep(1)
+
         result = True
         try:
             loader = Workflow(workflow)
-            
+
             # Mark job as running
             self._emit_event(room=job_id, namespace='/stand')(
                     name='update job', msg='Running job',
@@ -218,6 +233,7 @@ class SparkMinion(Minion):
             # Get rid of .pyc file if it exists
             if os.path.isfile('{}c'.format(generated_code_path)):
                 os.remove('{}c'.format(generated_code_path))
+
             self.module = importlib.import_module(module_name)
             self.module = imp.reload(self.module)
             log.debug('Objects in memory after loading module: %s',
@@ -232,7 +248,7 @@ class SparkMinion(Minion):
                     self.get_or_create_spark_session(loader, app_configs),
                     self._state,
                     self._emit_event(room=job_id, namespace='/stand'))
-            
+
             # Mark job as completed
             self._emit_event(room=job_id, namespace='/stand')(
                     name='update job', msg='Job finished',
@@ -271,9 +287,10 @@ class SparkMinion(Minion):
             result = False
 
         except Exception as ee:
-            log.error(ee)
+            tb = traceback.format_exception(*sys.exc_info())
+            log.exception('Unhandled error')
             self._emit_event(room=job_id, namespace='/stand')(
-                    name='update job', msg=ee.message,
+                    name='update job', msg='\n'.join(tb),
                     status='ERROR', identifier=job_id)
             self._generate_output(ee.message, 'ERROR', code=1000)
             result = False

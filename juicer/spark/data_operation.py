@@ -243,7 +243,7 @@ class Save(Operation):
         if not self.workflow_json == '':
             code_api = """
                 # Code to update Limonero metadata information
-                from metadata import MetadataPost
+                from juicer.dist.metadata import MetadataPost
                 types_names = {{
                 'IntegerType': "INTEGER",
                 'types.StringType': "TEXT",
