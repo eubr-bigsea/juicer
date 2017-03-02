@@ -10,7 +10,7 @@ class Operation(object):
     """ Defines an operation in Lemonade """
     __slots__ = ('parameters', 'inputs', 'outputs', 'inputs', 'named_inputs',
                  'named_outputs', 'multiple_inputs', 'has_code',
-                 'expected_output_ports', 'output')
+                 'expected_output_ports', 'output', 'out_degree')
 
     def __init__(self, parameters, inputs, outputs, named_inputs,
                  named_outputs):
