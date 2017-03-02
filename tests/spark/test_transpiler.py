@@ -3,6 +3,7 @@ from io import StringIO
 
 from juicer.operation import Operation
 from juicer.spark.transpiler import SparkTranspiler
+
 from juicer.workflow.workflow import Workflow
 
 

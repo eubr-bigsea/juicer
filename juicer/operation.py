@@ -20,6 +20,7 @@ class Operation(object):
         self.named_inputs = named_inputs
         self.named_outputs = named_outputs
         self.multiple_inputs = False
+        self.out_degree = 0
 
         # Indicate if operation generates code or not. Some operations, e.g.
         # Comment, does not generate code
@@ -28,10 +29,16 @@ class Operation(object):
         # How many output ports the operation has
         self.expected_output_ports = 1
 
+        # @!CHECK-ME inspect this part of code.
         if len(self.inputs) > 0:
             self.output = self.outputs[0] if len(
-                self.outputs) else '{}_tmp_{}'.format(
-                self.inputs[0], parameters['task']['order'])
+                # self.outputs) > 0 else '{}_tmp_{}'.format(
+                # self.inputs[0], parameters['task']['order'])
+                # Used for tests, not correct.
+                self.outputs) > 0 else '{}_tmp_{}'.format(
+                self.inputs[0], self.inputs[0])
+            # Some cases this string to _tmp_ doesn't work in the spark code generation
+            #  parameters['task']['order']
         elif len(self.outputs) > 0:
             self.output = self.outputs[0]
         else:
@@ -52,7 +59,10 @@ class Operation(object):
         elif len(self.inputs) > 0:
             if self.expected_output_ports == 1:
                 result = '{}_tmp_{}'.format(self.inputs[0],
-                                            self.parameters['task']['order'])
+                                            self.inputs[0])
+                # Some cases this string to _tmp_ doesn't work in the spark
+                # code generation
+                # parameters['task']['order']self.parameters['task']['order'])
         else:
             # raise ValueError(
             #    "Operation has neither input nor output: {}".format(

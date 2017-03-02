@@ -148,7 +148,6 @@ class SparkTranspiler:
 
         ports = {}
         sequential_ports = {}
-
         for source_id in graph.edge:
             for target_id in graph.edge[source_id]:
                 # Nodes accept multiple edges from same source
@@ -158,7 +157,7 @@ class SparkTranspiler:
                     if flow_id not in sequential_ports:
                         sequential_ports[flow_id] = 'df{}'.format(
                             len(sequential_ports))
-
+# /
                     if source_id not in ports:
                         ports[source_id] = {'outputs': [], 'inputs': [],
                                             'named_inputs': {},
@@ -225,6 +224,7 @@ class SparkTranspiler:
                                   port.get('outputs', []),
                                   port.get('named_inputs', {}),
                                   port.get('named_outputs', {}))
+            instance.out_degree = graph.out_degree(task_id)
             env_setup['dependency_controller'] = DependencyController(
                 params.get('requires_info', False))
 
@@ -302,6 +302,13 @@ class SparkTranspiler:
             'svm-classification':
                 juicer.spark.ml_operation.SvmClassifierOperation,
             'topic-report': juicer.spark.ml_operation.TopicReportOperation,
+            'recommendation-model': juicer.spark.ml_operation.RecommendationModel,
+            # 'recommendation-model': juicer.spark.ml_operation.CollaborativeOperation,
+            'als-recommender':
+                juicer.spark.ml_operation.AlternatingLeastSquaresOperation,
+            'logistic-model': juicer.spark.ml_operation.LogisticRegressionModel,
+            'logistic-regression':
+                juicer.spark.ml_operation.LogisticRegressionClassifier,
 
         }
         data_ops = {
