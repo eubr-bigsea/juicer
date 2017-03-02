@@ -1251,6 +1251,7 @@ class LinearRegression(Operation):
                 'Parameter output must be informed for classifier {}'.format(
                     self.__class__))
 
+
 class GeneralizedLinearRegression(Operation):
     FEATURES_PARAM = 'features'
     LABEL_PARAM = 'label'
@@ -1340,6 +1341,327 @@ class GeneralizedLinearRegression(Operation):
                         type_family=self.type_family,
                         type_link=self.type_link,
                         link_col=self.link_prediction_col
+                        )
+            # add , weightCol={weight} if exist
+            code = [declare]
+            return "\n".join(code)
+        else:
+            raise ValueError(
+                'Parameter output must be informed for classifier {}'.format(
+                    self.__class__))
+
+
+class DecisionTreeRegression(Operation):
+    FEATURES_PARAM = 'features'
+    LABEL_PARAM = 'label'
+
+    PREDICTION_COL_PARAM = 'prediction'
+
+    MAX_DEPTH_PARAM = 'max_depth'
+    MIN_INSTANCE_PER_NODE_PARAM = 'min_instance'
+    MIN_INFO_GAIN_PARAM = 'min_info_gain'
+    SEED_PARAM = 'seed'
+
+    VARIANCE_COL_PARAM = 'variance_col'
+    IMPURITY_PARAM = 'impurity'
+
+    TYPE_IMPURITY_VARIANCE = 'variance'
+
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        Operation.__init__(self, parameters, inputs, outputs,
+                           named_inputs, named_outputs)
+        self.parameters = parameters
+        self.name = 'regression.DecisionTreeRegressor'
+        self.has_code = len(self.outputs) > 0
+
+        if not all([self.LABEL_PARAM in parameters,
+                    self.FEATURES_PARAM in parameters]):
+            msg = "Parameters '{}' and '{}' must be informed for task {}"
+            raise ValueError(msg.format(
+                self.FEATURES_PARAM, self.LABEL_PARAM,
+                self.__class__))
+
+        self.label = parameters.get(self.LABEL_PARAM)[0]
+        self.attributes = parameters.get(self.FEATURES_PARAM)[0]
+        # self.output = named_outputs['output result']
+        self.output = named_outputs['algorithm']
+
+        self.max_depth = parameters.get(self.MAX_DEPTH_PARAM, 5)
+        self.min_instance = parameters.get(self.MIN_INSTANCE_PER_NODE_PARAM, 1)
+        self.min_info_gain = parameters.get(self.MIN_INFO_GAIN_PARAM, 0.0)
+
+        self.prediction_col = self.parameters.get(self.PREDICTION_COL_PARAM)
+        self.variance_col = self.parameters.get(self.VARIANCE_COL_PARAM, None)
+        self.seed = self.parameters.get(self.SEED_PARAM, None)
+
+        self.impurity = self.parameters.get(self.IMPURITY_PARAM, 'variance')
+
+    def get_data_out_names(self, sep=','):
+        return ''
+
+    def get_output_names(self, sep=', '):
+        # return self.named_outputs['output result']
+        # Change it when the named outputs in Tahiti change.
+        return self.named_outputs['algorithm']
+
+    def generate_code(self):
+        if self.has_code:
+            declare = dedent("""
+            {output} = DecisionTreeRegressor(featuresCol='{features}',
+                                             labelCol='{label}',
+                                             maxDepth={max_iter},
+                                             minInstancesPerNode={min_instance},
+                                             minInfoGain={min_info},
+                                             impurity={impurity},
+                                             seed={seed},
+                                             varianceCol={variance_col}
+                                             )
+            """).format(output=self.output,
+                        features=self.attributes,
+                        label=self.label,
+                        max_depth=self.max_depth,
+                        min_instance=self.min_instance,
+                        min_info=self.min_info_gain,
+                        impurity=self.impurity,
+                        seed=self.seed,
+                        variance_col=self.variance_col
+                        )
+            # add , weightCol={weight} if exist
+            code = [declare]
+            return "\n".join(code)
+        else:
+            raise ValueError(
+                'Parameter output must be informed for classifier {}'.format(
+                    self.__class__))
+
+
+class GradientBoostedTreeRegression(Operation):
+    FEATURES_PARAM = 'features'
+    LABEL_PARAM = 'label'
+
+    PREDICTION_COL_PARAM = 'prediction'
+
+    MAX_ITER_PARAM = 'max_iter'
+    MAX_DEPTH_PARAM = 'max_depth'
+    MIN_INSTANCE_PER_NODE_PARAM = 'min_instance'
+    MIN_INFO_GAIN_PARAM = 'min_info_gain'
+    SEED_PARAM = 'seed'
+
+    VARIANCE_COL_PARAM = 'variance_col'
+    IMPURITY_PARAM = 'impurity'
+
+    TYPE_IMPURITY_VARIANCE = 'variance'
+
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        Operation.__init__(self, parameters, inputs, outputs,
+                           named_inputs, named_outputs)
+        self.parameters = parameters
+        self.name = 'regression.GradientBoostedTreeRegression'
+        self.has_code = len(self.outputs) > 0
+
+        if not all([self.LABEL_PARAM in parameters,
+                    self.FEATURES_PARAM in parameters]):
+            msg = "Parameters '{}' and '{}' must be informed for task {}"
+            raise ValueError(msg.format(
+                self.FEATURES_PARAM, self.LABEL_PARAM,
+                self.__class__))
+
+        self.label = parameters.get(self.LABEL_PARAM)[0]
+        self.attributes = parameters.get(self.FEATURES_PARAM)[0]
+        # self.output = named_outputs['output result']
+        self.output = named_outputs['algorithm']
+
+        self.max_iter = parameters.get(self.MAX_ITER_PARAM, 10)
+        self.max_depth = parameters.get(self.MAX_DEPTH_PARAM, 5)
+        self.min_instance = parameters.get(self.MIN_INSTANCE_PER_NODE_PARAM, 1)
+        self.min_info_gain = parameters.get(self.MIN_INFO_GAIN_PARAM, 0.0)
+
+        self.prediction_col = self.parameters.get(self.PREDICTION_COL_PARAM)
+        self.variance_col = self.parameters.get(self.VARIANCE_COL_PARAM, None)
+        self.seed = self.parameters.get(self.SEED_PARAM, None)
+
+        self.impurity = self.parameters.get(self.IMPURITY_PARAM, 'variance')
+
+    def get_data_out_names(self, sep=','):
+        return ''
+
+    def get_output_names(self, sep=', '):
+        # return self.named_outputs['output result']
+        # Change it when the named outputs in Tahiti change.
+        return self.named_outputs['algorithm']
+
+    def generate_code(self):
+        if self.has_code:
+            declare = dedent("""
+            {output} = GBTRegressor(featuresCol='{features}',
+                                             labelCol='{label}',
+                                             maxDepth={max_depth},
+                                             minInstancesPerNode={min_instance},
+                                             minInfoGain={min_info},
+                                             impurity={impurity},
+                                             seed={seed},
+                                             maxIter={max_iter},
+                                             varianceCol={variance_col}
+                                             )
+            """).format(output=self.output,
+                        features=self.attributes,
+                        label=self.label,
+                        max_depth=self.max_depth,
+                        min_instance=self.min_instance,
+                        min_info=self.min_info_gain,
+                        impurity=self.impurity,
+                        seed=self.seed,
+                        max_iter=self.max_iter,
+                        variance_col=self.variance_col
+                        )
+            # add , weightCol={weight} if exist
+            code = [declare]
+            return "\n".join(code)
+        else:
+            raise ValueError(
+                'Parameter output must be informed for classifier {}'.format(
+                    self.__class__))
+
+
+class AFTSurvivalRegression(Operation):
+    FEATURES_PARAM = 'features'
+    LABEL_PARAM = 'label'
+
+    PREDICTION_COL_PARAM = 'prediction'
+
+    MAX_ITER_PARAM = 'max_iter'
+    AGR_DETPTH_PARAM = 'aggregation_depth'
+    SEED_PARAM = 'seed'
+    CENSOR_COL_PARAM = 'censor'
+    QUANTILES_PROBABILITIES_PARAM = 'quantile_probabilities'
+    QUANTILES_COL_PARAM = 'quantiles_col'
+
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        Operation.__init__(self, parameters, inputs, outputs,
+                           named_inputs, named_outputs)
+        self.parameters = parameters
+        self.name = 'regression.AFTSurvivalRegression'
+        self.has_code = len(self.outputs) > 0
+
+        if not all([self.LABEL_PARAM in parameters,
+                    self.FEATURES_PARAM in parameters]):
+            msg = "Parameters '{}' and '{}' must be informed for task {}"
+            raise ValueError(msg.format(
+                self.FEATURES_PARAM, self.LABEL_PARAM,
+                self.__class__))
+
+        self.label = parameters.get(self.LABEL_PARAM)[0]
+        self.attributes = parameters.get(self.FEATURES_PARAM)[0]
+        # self.output = named_outputs['output result']
+        self.output = named_outputs['algorithm']
+
+        self.prediction_col = self.parameters.get(self.PREDICTION_COL_PARAM)
+        self.max_iter = parameters.get(self.MAX_ITER_PARAM, 10)
+        self.agg_depth = parameters.get(self.AGR_DETPTH_PARAM, 1)
+
+        self.censor = self.parameters.get(self.CENSOR_COL_PARAM, 'censor')
+        self.quantile_prob = self.parameters.get(self.QUANTILES_PROBABILITIES_PARAM, [])
+        self.quantile_col = self.parameters.get(self.QUANTILES_COL_PARAM, 'variance')
+
+    def get_data_out_names(self, sep=','):
+        return ''
+
+    def get_output_names(self, sep=', '):
+        # return self.named_outputs['output result']
+        # Change it when the named outputs in Tahiti change.
+        return self.named_outputs['algorithm']
+
+    def generate_code(self):
+        if self.has_code:
+            declare = dedent("""
+            {output} = AFTSurvivalRegression(featuresCol='{features}',
+                                             labelCol='{label}',
+                                             maxIter={max_iter},
+                                             censorCol={censor},
+                                             quantileProbabilities={quantile_prob},
+                                             quantilesCol={quantile_col},
+                                             predictionCol={prediction_col},
+                                             aggregationDepth={agg_depth}
+                                             )
+            """).format(output=self.output,
+                        features=self.attributes,
+                        label=self.label,
+                        max_iter=self.max_iter,
+                        censor=self.censor,
+                        quantile_prob=self.quantile_prob,
+                        quantile_col=self.quantile_col,
+                        agg_depth=self.agg_depth,
+                        prediction_col=self.prediction_col
+                        )
+            # add , weightCol={weight} if exist
+            code = [declare]
+            return "\n".join(code)
+        else:
+            raise ValueError(
+                'Parameter output must be informed for classifier {}'.format(
+                    self.__class__))
+
+
+class IsotonicRegression(Operation):
+    '''
+        Only univariate (single feature) algorithm supported
+    '''
+    FEATURES_PARAM = 'features'
+    LABEL_PARAM = 'label'
+
+    PREDICTION_COL_PARAM = 'prediction'
+
+    WEIGHT_COL_PARAM = 'weight'
+    ISOTONIC_PARAM = 'isotonic'
+
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
+        Operation.__init__(self, parameters, inputs, outputs,
+                           named_inputs, named_outputs)
+        self.parameters = parameters
+        self.name = 'regression.IsotonicRegression'
+        self.has_code = len(self.outputs) > 0
+
+        if not all([self.LABEL_PARAM in parameters,
+                    self.FEATURES_PARAM in parameters]):
+            msg = "Parameters '{}' and '{}' must be informed for task {}"
+            raise ValueError(msg.format(
+                self.FEATURES_PARAM, self.LABEL_PARAM,
+                self.__class__))
+
+        self.label = parameters.get(self.LABEL_PARAM)[0]
+        self.attributes = parameters.get(self.FEATURES_PARAM)[0]
+        # self.output = named_outputs['output result']
+        self.output = named_outputs['algorithm']
+
+        self.prediction_col = self.parameters.get(self.PREDICTION_COL_PARAM)
+        self.weight_col = parameters.get(self.WEIGHT_COL_PARAM, None)
+        self.isotonic = parameters.get(self.ISOTONIC_PARAM, True)
+
+    def get_data_out_names(self, sep=','):
+        return ''
+
+    def get_output_names(self, sep=', '):
+        # return self.named_outputs['output result']
+        # Change it when the named outputs in Tahiti change.
+        return self.named_outputs['algorithm']
+
+    def generate_code(self):
+        if self.has_code:
+            declare = dedent("""
+            {output} = IsotonicRegression(featuresCol='{features}',
+                                          labelCol='{label}',
+                                          predictionCol={prediction_col},
+                                          isotonic={isotonic}
+                                          )
+            """).format(output=self.output,
+                        features=self.attributes,
+                        label=self.label,
+                        isotonic=self.isotonic,
+                        prediction_col=self.prediction_col
                         )
             # add , weightCol={weight} if exist
             code = [declare]
