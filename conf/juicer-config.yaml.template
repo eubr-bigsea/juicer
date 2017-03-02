@@ -9,5 +9,12 @@
 #        tahiti:
 #            url: http://server/tahiti
 #            auth_token: "authorization_token"
+#        limonero:
+#            url: http://server/limonero
+#            auth_token: "authorization_token"
+#        caipirinha:
+#            url: http://server/caipirinha
+#            auth_token: "authorization_token"
+#            storage_id: "provided by a caipirinha instance"
 #    config:
 #        tmp_dir: /tmp

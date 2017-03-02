@@ -35,8 +35,9 @@ class Operation(object):
                 # self.outputs) > 0 else '{}_tmp_{}'.format(
                 # self.inputs[0], parameters['task']['order'])
                 # Used for tests, not correct.
-                self.outputs) > 0 else '{}_tmp_{}'.format(
-                self.inputs[0], self.inputs[0])
+                self.outputs) > 0 else '{}_tmp_{}_{}'.format(
+                self.inputs[0], self.inputs[0],
+                self.parameters.get('task', {}).get('order', ''))
             # Some cases this string to _tmp_ doesn't work in the spark code generation
             #  parameters['task']['order']
         elif len(self.outputs) > 0:
@@ -58,8 +59,9 @@ class Operation(object):
             result = sep.join(self.outputs)
         elif len(self.inputs) > 0:
             if self.expected_output_ports == 1:
-                result = '{}_tmp_{}'.format(self.inputs[0],
-                                            self.inputs[0])
+                result = '{}_tmp_{}_{}'.format(self.inputs[0],
+                        self.inputs[0],
+                        self.parameters.get('task', {}).get('order', ''))
                 # Some cases this string to _tmp_ doesn't work in the spark
                 # code generation
                 # parameters['task']['order']self.parameters['task']['order'])

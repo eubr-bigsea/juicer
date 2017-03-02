@@ -12,6 +12,7 @@ import juicer.spark.ml_operation
 import juicer.spark.statistic_operation
 import juicer.spark.text_operation
 import juicer.spark.ws_operation
+import juicer.spark.vis_operation
 import networkx as nx
 import os
 from juicer import operation
@@ -139,7 +140,7 @@ class SparkTranspiler:
                 zf.writepy(lib_path)
             zf.close()
 
-    def transpile(self, workflow, graph, params, out=None):
+    def transpile(self, workflow, graph, params, out=None, job_id=None):
         """ Transpile the tasks from Lemonade's workflow into Spark code """
 
         using_stdout = out is None
@@ -155,7 +156,7 @@ class SparkTranspiler:
                     flow_id = '[{}:{}]'.format(source_id, flow['source_port'], )
 
                     if flow_id not in sequential_ports:
-                        sequential_ports[flow_id] = 'df{}'.format(
+                        sequential_ports[flow_id] = 'out{}'.format(
                             len(sequential_ports))
 # /
                     if source_id not in ports:
@@ -218,6 +219,10 @@ class SparkTranspiler:
             parameters['workflow_json'] = json.dumps(workflow)
             parameters['user'] = workflow['user']
             parameters['workflow_id'] = workflow['id']
+            parameters['workflow_name'] = workflow['name']
+            parameters['operation_id'] = task['operation']['id']
+            parameters['operation_slug'] = task['operation']['slug']
+            parameters['job_id'] = job_id
             port = ports.get(task['id'], {})
 
             instance = class_name(parameters, port.get('inputs', []),
@@ -341,7 +346,15 @@ class SparkTranspiler:
             'service-output': juicer.spark.ws_operation.ServiceOutputOperation,
 
         }
+        vis_ops = {
+            'publish-as-visualization': juicer.spark.vis_operation.PublishVisOperation,
+            'bar-chart': juicer.spark.vis_operation.BarChartOperation,
+            'pie-chart': juicer.spark.vis_operation.PieChartOperation,
+            'area-chart': juicer.spark.vis_operation.AreaChartOperation,
+            'line-chart': juicer.spark.vis_operation.LineChartOperation,
+            'table-visualization': juicer.spark.vis_operation.TableVisOperation
+        }
         self.operations = {}
         for ops in [data_ops, etl_ops, geo_ops, ml_ops, other_ops, text_ops,
-                    ws_ops]:
+                    ws_ops, vis_ops]:
             self.operations.update(ops)

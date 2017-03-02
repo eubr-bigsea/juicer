@@ -9,6 +9,7 @@ import os
 from dummy_spark import SparkConf, SparkContext
 from juicer.runner.control import StateControlRedis
 from juicer.spark.spark_minion import SparkMinion
+from juicer.util import dataframe_util
 from mockredis import mock_strict_redis_client
 
 config = {
@@ -40,7 +41,7 @@ def get_records():
 
 def get_side_effect(records, task_id, index=0):
     # noinspection PyUnusedLocal
-    def side_effect0(w, g, c, out):
+    def side_effect0(w, g, c, out, j):
         print(dedent("""
             from dummy_spark import SparkConf, SparkContext
             import datetime
@@ -61,7 +62,7 @@ def get_side_effect(records, task_id, index=0):
             """.format(records=json.dumps(records), task_id=task_id)), file=out)
 
     # noinspection PyUnusedLocal
-    def side_effect1(w, g, c, out):
+    def side_effect1(w, g, c, out, j):
         print(dedent("""
             def main(spark_session, cached_data, emit_event):
                 return {
@@ -69,24 +70,24 @@ def get_side_effect(records, task_id, index=0):
                 }"""), file=out)
 
     # noinspection PyUnusedLocal
-    def side_effect2(w, g, c, out):
+    def side_effect2(w, g, c, out, j):
         print(dedent("""
             def main(spark_session, cached_data, emit_event):
                 return {'res': 'version 1.0'} """), file=out)
 
-    def side_effect3(w, g, c, out):
+    def side_effect3(w, g, c, out, j):
         print(dedent("""
             def main(spark_session, cached_data, emit_event):
                 return {'res': 'version 2.1'} """), file=out)
 
     # noinspection PyUnusedLocal
-    def side_effect4(w, g, c, out):
+    def side_effect4(w, g, c, out, j):
         print(dedent("""
             a = 4
             def main(spark_session, cached_data, emit_event):
                 return Invalid Code """), file=out)
     
-    def side_effect5(w, g, c, out):
+    def side_effect5(w, g, c, out, j):
         print(dedent("""
             def main(spark_session, cached_data, emit_event):
                 import time
@@ -343,7 +344,7 @@ def test_minion_perform_deliver_success():
         assert msg['code'] == SparkMinion.MNN002[0], 'Invalid code'
 
         # CSV data
-        csv_records = '\n'.join(map(minion._convert_to_csv, get_records()))
+        csv_records = '\n'.join(map(dataframe_util.convert_to_csv, get_records()))
 
         result = state_control.pop_queue(out_queue, False)
         assert result == csv_records, 'Wrong CSV generated'
@@ -396,7 +397,7 @@ def test_minion_perform_deliver_missing_state_process_app_with_success():
             assert msg['code'] == SparkMinion.MNN003[0], 'Invalid code'
 
             # CSV data
-            csv_records = '\n'.join(map(minion._convert_to_csv, get_records()))
+            csv_records = '\n'.join(map(dataframe_util.convert_to_csv, get_records()))
 
             result = state_control.pop_queue(out_queue, False)
             assert result == csv_records, 'Wrong CSV generated'
@@ -743,4 +744,20 @@ def test_minion_terminate():
 
             minion.terminate()
             assert not minion.is_spark_session_available()
+
+def test_minion_global_configuration():
+    workflow_id = '6666'
+    app_id = '897447'
+   
+    with mock.patch('redis.StrictRedis',
+                    mock_strict_redis_client) as mocked_redis:
+
+        redis_conn = mocked_redis()
+        minion = SparkMinion(redis_conn=redis_conn,
+                workflow_id=workflow_id, app_id=app_id,
+                config=config)
+
+        # the configuration should be set by now, let's check it
+        from juicer.runner import configuration
+        assert configuration.get_config() == config
 

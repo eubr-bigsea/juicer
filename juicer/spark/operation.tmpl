@@ -67,6 +67,8 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_gen_{{instance
     {%- endif %}
 
     emit_event(name='update task', msg='Task running',
+        status='RUNNING', identifier='{{instance.parameters.task.id}}')
+
     if '{{instance.parameters.task.id}}' in cached_state:
         sparkLogging(spark_session).info ('Cache hit for operation {}'.format('{{instance.parameters.task.id}}'))
         emit_event(name='update task', msg='Task completed',
@@ -87,9 +89,7 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_gen_{{instance
     results = (
       {%- set is_leaf = instance.out_degree == 0 %}
       {%- for out in instance.get_output_names(',').split(',') %}
-      {%- if out in outputs %}
          {{out}}, {%- if is_leaf %} {{out}}.take(100) if hasattr({{out}}, 'take') else [] {%- else %} [] {%- endif %},
-      {%- endif %}
       {%- endfor %}
     )
 

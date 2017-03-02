@@ -7,12 +7,13 @@ import pdb
 
 import redis
 import requests
+from juicer.runner import configuration
 from juicer.spark.transpiler import SparkTranspiler
 from juicer.workflow.workflow import Workflow
 from six import StringIO
 
-# eventlet.monkey_patch()
 import json
+import yaml
 
 logging.config.fileConfig('logging_config.ini')
 
@@ -30,11 +31,12 @@ class Statuses:
 
 
 class JuicerSparkService:
-    def __init__(self, redis_conn, workflow_id, execute_main, params):
+    def __init__(self, redis_conn, workflow_id, execute_main, params, job_id):
         self.redis_conn = redis_conn
         self.workflow_id = workflow_id
         self.state = "LOADING"
         self.params = params
+        self.job_id = job_id
         self.execute_main = execute_main
         self.states = {
             "EMPTY": {
@@ -83,8 +85,9 @@ class JuicerSparkService:
             # spark_instance.output = generated
             try:
                 spark_instance.transpile(loader.workflow,
-                                         loader.graph,
-                                         params=self.params)
+                        loader.graph,
+                        params=self.params,
+                        job_id=self.job_id)
             except ValueError as ve:
                 log.exception("At least one parameter is missing", exc_info=ve)
                 break
@@ -97,17 +100,24 @@ class JuicerSparkService:
             break
 
 
-def main(workflow_id, execute_main, params):
+def main(workflow_id, execute_main, params, job_id):
     redis_conn = redis.StrictRedis()
-    service = JuicerSparkService(redis_conn, workflow_id, execute_main, params)
+    service = JuicerSparkService(redis_conn, workflow_id, execute_main, params,
+            job_id)
     service.run()
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    # parser.add_argument("-c", "--config", type=str, help="Configuration file")
+    
+    parser.add_argument("-c", "--config", type=str, required=False, help="Configuration file")
+
     parser.add_argument("-w", "--workflow", type=int, required=True,
                         help="Workflow identification number")
+    
+    parser.add_argument("-j", "--job_id", type=int,
+                        help="Job identification number")
+
     parser.add_argument("-e", "--execute-main", action="store_true",
                         help="Write code to run the program (it calls main()")
 
@@ -116,7 +126,15 @@ if __name__ == "__main__":
                         help="Indicates if workflow will run as a service")
     args = parser.parse_args()
 
-    main(args.workflow, args.execute_main, {"service": args.service})
+    juicer_config = {}
+    if args.config:
+        with open(args.config) as config_file:
+            juicer_config = yaml.load(config_file.read())
+
+    configuration.set_config(juicer_config)
+
+    main(args.workflow, args.execute_main, {"service": args.service},
+            args.job_id)
     '''
     if True:
         app.run(debug=True, port=8000)
