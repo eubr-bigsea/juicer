@@ -4,6 +4,7 @@ from textwrap import dedent
 from juicer.dist.metadata import MetadataGet
 from juicer.operation import Operation
 
+
 class ReadShapefile(Operation):
     """
     Reads a shapefile.
@@ -14,7 +15,8 @@ class ReadShapefile(Operation):
     """
     DATA_SOURCE_ID_PARAM = 'shapefile'
 
-    def __init__(self, parameters, inputs, outputs, named_inputs, named_outputs):
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
         Operation.__init__(self, parameters, inputs, outputs,
                            named_inputs, named_outputs)
         if self.DATA_SOURCE_ID_PARAM in parameters:
@@ -27,14 +29,15 @@ class ReadShapefile(Operation):
                     self.DATA_SOURCE_ID_PARAM, self.__class__))
 
     def generate_code(self):
-        ''' We still have to add a parameter to define whether the points are
-        expressed as (LAT,LON) or (LON,LAT). This will change the way the points are read
+        """ We still have to add a parameter to define whether the points are
+        expressed as (LAT,LON) or (LON,LAT). This will change the way the points
+        are read.
 
         LON,LAT:
             points.append([point[0], point[1]])
         LAT,LON:
             points.append([point[1], point[0]])
-        '''
+        """
 
         code = """
             import shapefile
@@ -44,8 +47,10 @@ class ReadShapefile(Operation):
             metadata = {}
             shp_file = metadata['url']
             dbf_file = re.sub('.shp$', '.dbf', shp_file)
-            shp_content = spark_session.sparkContext.binaryFiles(shp_file).collect()
-            dbf_content = spark_session.sparkContext.binaryFiles(dbf_file).collect()
+            shp_content = spark_session.sparkContext.binaryFiles(shp_file)\
+                .collect()
+            dbf_content = spark_session.sparkContext.binaryFiles(dbf_file)\
+                .collect()
             shp_io = BytesIO(shp_content[0][1])
             dbf_io = BytesIO(dbf_content[0][1])
             shp_object = shapefile.Reader(shp=shp_io, dbf=dbf_io)
@@ -65,21 +70,21 @@ class ReadShapefile(Operation):
                     points.append([point[1], point[0]])
                 attributes.append(points)
                 data.append(attributes)
-            {} = spark_session.createDataFrame(spark_session, data, header)
+            {} = spark_session.createDataFrame(data, header)
         """.format(self.metadata, self.outputs[0])
 
         return dedent(code)
 
 
 class GeoWithin(Operation):
-
     POLYGON_POINTS_COLUMN_PARAM = 'polygon'
     POLYGON_ATTRIBUTES_COLUMN_PARAM = 'polygon_attributes'
     POLYGON_ALIAS_COLUMN_PARAM = 'alias'
     TARGET_LAT_COLUMN_PARAM = 'latitude'
     TARGET_LON_COLUMN_PARAM = 'longitude'
 
-    def __init__(self, parameters, inputs, outputs, named_inputs, named_outputs):
+    def __init__(self, parameters, inputs, outputs, named_inputs,
+                 named_outputs):
         Operation.__init__(self, parameters, inputs, outputs,
                            named_inputs, named_outputs)
         self.polygon_column = parameters[self.POLYGON_POINTS_COLUMN_PARAM]
@@ -88,11 +93,11 @@ class GeoWithin(Operation):
         self.lat_column = parameters[self.TARGET_LAT_COLUMN_PARAM]
         self.lon_column = parameters[self.TARGET_LON_COLUMN_PARAM]
 
-
     def generate_code(self):
         code = """
             from matplotlib.path import Path
-            broad_shapefile_{0} = spark_session.sparkContext.broadcast({0}.collect())
+            broad_shapefile_{0} = spark_session.sparkContext.broadcast({0}\
+                .collect())
 
             def get_first_sector(lat, lng):
                 for i, row in enumerate(broad_shapefile_{0}.value):
@@ -102,8 +107,14 @@ class GeoWithin(Operation):
                 return [None]*len(broad_shapefile_{0}.value[0])
 
             shapefile_features_count_{0}= len(broad_shapefile_{0}.value[0])
-            udf_get_first_sector = udf(get_first_sector, ArrayType(StringType()))
-            within_{0} = {2}.withColumn("sector_position", udf_get_first_sector(col('{3}'), col('{4}')))
-            {5} = within_{0}.select(within_{0}.columns + [within_{0}.sector_position[i] for i in xrange(shapefile_features_count_{0})])
-        """. format(self.inputs[0], self.polygon_column[0], self.inputs[1], self.lat_column[0], self.lon_column[0], self.outputs[0])
+            udf_get_first_sector = udf(
+                get_first_sector, ArrayType(StringType()))
+            within_{0} = {2}.withColumn(
+                "sector_position", udf_get_first_sector(col('{3}'), col('{4}')))
+            {5} = within_{0}.select(within_{0}.columns +
+                [within_{0}.sector_position[i]
+                    for i in xrange(shapefile_features_count_{0})])
+        """.format(self.named_inputs['input data'], self.polygon_column[0],
+                   self.named_inputs['geo data'], self.lat_column[0],
+                   self.lon_column[0], self.outputs[0])
         return dedent(code)

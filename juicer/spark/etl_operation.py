@@ -265,7 +265,7 @@ class Join(Operation):
                  named_outputs):
         Operation.__init__(self, parameters, inputs, outputs, named_inputs,
                            named_outputs)
-        self.keep_right_keys = parameters.get(self.KEEP_RIGHT_KEYS_PARAM, True)
+        self.keep_right_keys = parameters.get(self.KEEP_RIGHT_KEYS_PARAM, False)
         self.match_case = parameters.get(self.MATCH_CASE_PARAM, False)
         self.join_type = parameters.get(self.JOIN_TYPE_PARAM, 'inner')
 
@@ -281,23 +281,23 @@ class Join(Operation):
 
     def generate_code(self):
         on_clause = zip(self.left_attributes, self.right_attributes)
-        join_condition = ', '.join([
-                                       '{}.{} == {}.{}'.format(self.inputs[0],
-                                                               pair[0],
-                                                               self.inputs[1],
-                                                               pair[1]) for pair
-                                       in on_clause])
+        join_condition = ', '.join(["{}['{}'] == {}['{}']".format(
+            self.named_inputs['input data 1'], pair[0],
+            self.named_inputs['input data 2'], pair[1]) for pair
+                                    in on_clause])
 
         code = """
             cond_{0} = [{1}]
             {0} = {2}.join({3}, on=cond_{0}, how='{4}')""".format(
-            self.output, join_condition, self.inputs[0], self.inputs[1],
+            self.output, join_condition, self.named_inputs['input data 1'],
+            self.named_inputs['input data 2'],
             self.join_type)
 
         # @TODO: This may not work
         if self.keep_right_keys in ["False", "false", False]:
             for column in self.right_attributes:
-                code += """.drop({}.{})""".format(self.inputs[1], column)
+                code += """.drop({}['{}'])""".format(
+                    self.named_inputs['input data 2'], column)
 
         return dedent(code)
 
@@ -426,7 +426,7 @@ class Aggregation(Operation):
         if not self.group_all:
             group_by = ', '.join(
                 ["functions.col('{}')".format(attr)
-                    for attr in self.attributes])
+                 for attr in self.attributes])
 
             code = '''{} = {}.groupBy({}).agg(\n        {})'''.format(
                 self.output, self.inputs[0], group_by,
@@ -464,7 +464,8 @@ class Filter(Operation):
             self.inputs[0])
 
         filters = [
-            "(functions.col('{0}') {1} '{2}')".format(f['attribute'], f['f'], f['value'])
+            "(functions.col('{0}') {1} '{2}')".format(f['attribute'], f['f'],
+                                                      f['value'])
             for f in self.filter]
 
         code = """{} = {}.filter({})""".format(

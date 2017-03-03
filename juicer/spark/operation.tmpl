@@ -70,11 +70,13 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_gen_{{instance
     emit_event(name='update task', msg='Task running',
         status='RUNNING', identifier='{{instance.parameters.task.id}}')
 
+    {%- if instance.supports_cache %}
     if '{{instance.parameters.task.id}}' in cached_state:
         sparkLogging(spark_session).info ('Cache hit for operation {}'.format('{{instance.parameters.task.id}}'))
         emit_event(name='update task', msg='Task completed',
            status='COMPLETED', identifier='{{instance.parameters.task.id}}')
         return cached_state.get('{{instance.parameters.task.id}}')
+    {%- endif %}
 
     start = timer()
     {{instance.generate_code().strip() | indent(width=4, indentfirst=False)}}
@@ -82,10 +84,16 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_gen_{{instance
     {%- if instance.parameters.get('logging', {}).get('log_level') == 'DEBUG' %}
     {%- if outputs %}
     {%- for variable in outputs %}
-    juicer_debug(spark_session, '{{instance.__class__}}', '{{variable}}', {{variable}})
+    juicer_debug(spark_session, '{{instance.__class__.__name__}}', '{{variable}}', {{variable}})
     {%- endfor %}
     {%- endif %}
     {%- endif %}
+
+    ## AQUI {{instance.get_generated_results()}}
+    {%- for gen_result in instance.get_generated_results() %}
+    emit_event(name='task result', msg='{{gen_result.type}}',
+               status='COMPLETED', identifier='{{instance.parameters.task.operation.id}}/{{instance.parameters.task.id}}')
+    {%- endfor %}
 
     results = (
       {%- set is_leaf = instance.out_degree == 0 %}

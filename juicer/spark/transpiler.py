@@ -79,6 +79,7 @@ class SparkTranspiler:
     def __init__(self):
         self.operations = {}
         self._assign_operations()
+        self.current_task_id = None
 
     """
     def pre_transpile(self, workflow, graph, out=None, params=None):
@@ -182,6 +183,7 @@ class SparkTranspiler:
 
         sorted_tasks_id = nx.topological_sort(graph)
         for i, task_id in enumerate(sorted_tasks_id):
+            self.current_task_id = task_id
             task = graph.node[task_id]
             class_name = self.operations[task['operation']['slug']]
 

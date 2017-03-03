@@ -254,7 +254,8 @@ class EvaluateModel(Operation):
                 """.format(self.output, self.named_inputs['input data'],
                            self.named_inputs['model'],
                            self.prediction_attribute, self.label_attribute,
-                           self.metric, self.evaluator, self.param_prediction_col)
+                           self.metric, self.evaluator,
+                           self.param_prediction_col)
             elif len(self.output) > 0:  # Used with cross validator
                 code = """
                 {5} = {0}({1}='{2}',
@@ -405,9 +406,11 @@ class ClassificationModel(Operation):
     def generate_code(self):
         if self.has_code:
             code = """
-            {1}.setLabelCol('{3}').setFeaturesCol('{4}')
-            {0} = {1}.fit({2})
-            """.format(self.output, self.inputs[1], self.inputs[0],
+            algorithm, param_grid = {1}
+            algorithm.setLabelCol('{3}').setFeaturesCol('{4}')
+            {0} = algorithm.fit({2})
+            """.format(self.output, self.named_inputs['algorithm'],
+                       self.named_inputs['train input data'],
                        self.label, self.features)
 
             return dedent(code)
@@ -465,7 +468,8 @@ class ClassifierOperation(Operation):
             # Output result is the classifier and its parameters. Parameters are
             # need in classification model or cross validator.
             {0} = ({1}(), param_grid)
-            """).format(self.output, self.name, json.dumps(param_grid, indent=4))
+            """).format(self.output, self.name,
+                        json.dumps(param_grid, indent=4))
 
             code = [declare]
             return "\n".join(code)
@@ -825,7 +829,6 @@ class RecommendationModel(Operation):
         self.output = self.named_outputs.get('output data')
         # self.ratingCol = parameters.get(self.RATING_COL_PARAM)
 
-
     @property
     def get_inputs_names(self):
         return ', '.join([self.named_inputs['input data'],
@@ -971,6 +974,7 @@ class AlternatingLeastSquaresOperation(Operation):
 
         return code
 
+
 '''
     Logistic Regression Classification
 '''
@@ -1083,7 +1087,8 @@ class LogisticRegressionClassifier(Operation):
         self.reg_param = parameters.get(self.REG_PARAM, 0.1)
         self.weight_col = parameters.get(self.WEIGHT_COL_PARAM, None)
 
-        self.type_family = self.parameters.get(self.FAMILY_PARAM, self.TYPE_AUTO)
+        self.type_family = self.parameters.get(self.FAMILY_PARAM,
+                                               self.TYPE_AUTO)
 
     def get_data_out_names(self, sep=','):
         return ''
@@ -1133,6 +1138,7 @@ class RegressionModel(Operation):
 
     TYPE_SOLVER_AUTO = 'auto'
     TYPE_SOLVER_NORMAL = 'normal'
+
     # RegType missing -  none (a.k.a. ordinary least squares),    L2 (ridge regression)
     #                    L1 (Lasso) and   L2 + L1 (elastic net)
 
@@ -1222,7 +1228,8 @@ class LinearRegression(Operation):
         self.reg_param = parameters.get(self.REG_PARAM, 0.1)
         self.weight_col = parameters.get(self.WEIGHT_COL_PARAM, None)
 
-        self.type_solver = self.parameters.get(self.SOLVER_PARAM, self.TYPE_SOLVER_AUTO)
+        self.type_solver = self.parameters.get(self.SOLVER_PARAM,
+                                               self.TYPE_SOLVER_AUTO)
 
     def get_data_out_names(self, sep=','):
         return ''
@@ -1277,13 +1284,13 @@ class GeneralizedLinearRegression(Operation):
 
     LINK_PARAM = 'link'
 
-    TYPE_LINK_IDENTITY = 'identity'  #gaussian-poisson-gamma
-    TYPE_LINK_LOG = 'log'   #gaussian-poisson-gama
-    TYPE_LINK_INVERSE = 'inverse' #gaussian-gamma
-    TYPE_LINK_LOGIT = 'logit'  #binomial-
-    TYPE_LINK_PROBIT = 'probit'  #binomial
-    TYPE_LINK_CLOGLOG = 'cloglog'  #binomial
-    TYPE_LINK_SQRT = 'sqrt'  #poisson
+    TYPE_LINK_IDENTITY = 'identity'  # gaussian-poisson-gamma
+    TYPE_LINK_LOG = 'log'  # gaussian-poisson-gama
+    TYPE_LINK_INVERSE = 'inverse'  # gaussian-gamma
+    TYPE_LINK_LOGIT = 'logit'  # binomial-
+    TYPE_LINK_PROBIT = 'probit'  # binomial
+    TYPE_LINK_CLOGLOG = 'cloglog'  # binomial
+    TYPE_LINK_SQRT = 'sqrt'  # poisson
 
     def __init__(self, parameters, inputs, outputs, named_inputs,
                  named_outputs):
@@ -1312,7 +1319,8 @@ class GeneralizedLinearRegression(Operation):
         self.type_family = self.parameters.get(self.FAMILY_PARAM,
                                                self.TYPE_FAMILY_BINOMIAL)
         self.type_link = self.parameters.get(self.LINK_PARAM)
-        self.link_prediction_col = self.parameters.get(self.LINK_PREDICTION_COL_PARAM)
+        self.link_prediction_col = self.parameters.get(
+            self.LINK_PREDICTION_COL_PARAM)
 
     def get_data_out_names(self, sep=','):
         return ''
@@ -1563,8 +1571,10 @@ class AFTSurvivalRegression(Operation):
         self.agg_depth = parameters.get(self.AGR_DETPTH_PARAM, 1)
 
         self.censor = self.parameters.get(self.CENSOR_COL_PARAM, 'censor')
-        self.quantile_prob = self.parameters.get(self.QUANTILES_PROBABILITIES_PARAM, [])
-        self.quantile_col = self.parameters.get(self.QUANTILES_COL_PARAM, 'variance')
+        self.quantile_prob = self.parameters.get(
+            self.QUANTILES_PROBABILITIES_PARAM, [])
+        self.quantile_col = self.parameters.get(self.QUANTILES_COL_PARAM,
+                                                'variance')
 
     def get_data_out_names(self, sep=','):
         return ''

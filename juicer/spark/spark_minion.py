@@ -269,8 +269,12 @@ class SparkMinion(Minion):
             result = False
 
         except ValueError as ve:
-            msg = 'Invalid message format: {}'.format(ve.message)
+            msg = 'Invalid or missing parameters: {}'.format(ve.message)
             log.warn(msg)
+            if self.transpiler.current_task_id is not None:
+                self._emit_event(room=job_id, namespace='/stand')(
+                    name='update task', msg=msg,
+                    status='ERROR', identifier=self.transpiler.current_task_id)
             self._emit_event(room=job_id, namespace='/stand')(
                     name='update job', msg=msg,
                     status='ERROR', identifier=job_id)
