@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import json
 from textwrap import dedent
 from juicer.operation import Operation, ResultType
 from juicer.runner import configuration
@@ -26,16 +27,22 @@ class PublishVisOperation(Operation):
         self.title = parameters.get(self.TITLE_PARAM, '')
         self.has_code = len(self.inputs) > 1
         self.supports_cache = False
+        self.icon = 'fa-question'
 
     """
     This operation represents a strategy for visualization and is used together
     with 'PublishVisOperation' to create a visualization dashboard
     """
+
     def get_generated_results(self):
-        return [
-            {'type': ResultType.VISUALIZATION,
-             'id': self.parameters['task']['id']}
-        ]
+        return []
+        # return [
+        #     {'type': ResultType.VISUALIZATION,
+        #      'id': self.parameters['task']['id'],
+        #      'icon': self.icon,
+        #      'title': self.title,
+        #      }
+        # ]
 
     def get_data_out_names(self, sep=','):
         return ''
@@ -92,30 +99,33 @@ class PublishVisOperation(Operation):
         #   visualization data.
         vis_code_tmpl = \
             """
-            # Hbase value composed by several columns, the last one refers
+            # HBase value composed by several columns, the last one refers
             # to the visualization data
             vis_value = {{
-                b'cf:user_id': json.dumps({user_id}),
-                b'cf:user': json.dumps('{user}'),
-                b'cf:workflow_id': json.dumps({workflow_id}),
-                b'cf:title': json.dumps({vis_model}.title),
-                b'cf:labels': json.dumps({vis_model}.labels),
-                b'cf:orientation': json.dumps({vis_model}.orientation),
-                b'cf:id_attribute': json.dumps({vis_model}.id_attribute),
-                b'cf:value_attribute': json.dumps({vis_model}.value_attribute),
+                b'cf:user': json.dumps({{'name': '{user}', 'id': {user_id} }}),
+                b'cf:workflow': json.dumps({{'id': {workflow_id} }}),
+                b'cf:title': {vis_model}.title,
+                b'cf:column_names': {vis_model}.column_names,
+                b'cf:orientation': {vis_model}.orientation,
+                b'cf:attributes': json.dumps({{ 'id': {vis_model}.id_attribute,
+                        'value': {vis_model}.value_attribute }}),
                 b'cf:data': json.dumps({vis_model}.get_data({dfdata})),
-                b'cf:schema': json.dumps({vis_model}.get_schema({dfdata}))
+                b'cf:schema': {dfdata}.schema.json()
             }}
-            vis_table.put(b'{job_id}-{task_id}', vis_value,
+            vis_table.put(b'{job_id}-' + {task_id}, vis_value,
                 timestamp=int(time.time()))
             visualizations.append({{
                 'job_id': '{job_id}',
-                'task_id': '{task_id}',
+                'task_id': {task_id},
                 'type': {{
                     'id': {vis_model}.type_id,
                     'name': {vis_model}.type_name
                 }}
             }})
+            emit_event('task result', status='COMPLETED',
+                identifier={task_id}, msg='Result generated',
+                type='VISUALIZATION', title={vis_model}.title,
+                operation_id={vis_model}.type_id)
             """
         for vis_model in self.inputs:
             # NOTE: For now we assume every other input but 'data' are
@@ -123,14 +133,14 @@ class PublishVisOperation(Operation):
             if vis_model != self.named_inputs['data']:
                 code_lines.append(dedent(vis_code_tmpl.format(
                     job_id=self.parameters['job_id'],
-                    task_id=self.parameters['task']['id'],
+                    task_id='{}.task_id'.format(vis_model),
                     user_id=self.parameters['user']['id'],
                     user=self.parameters['user']['login'],
                     workflow_id=self.parameters['workflow_id'],
                     dfdata=self.named_inputs['data'],
                     vis_model=vis_model,
                     vis_type_id=self.parameters['operation_id'],
-                    vis_type_name=self.parameters['operation_slug']
+                    vis_type_name=self.parameters['operation_slug'],
                 )))
 
         # Register this new dashboard with Caipirinha
@@ -150,7 +160,7 @@ class PublishVisOperation(Operation):
         ))
 
         # Make sure we close the hbase connection
-        code_lines.append("connection.close()")
+        code_lines.append('connection.close()')
 
         # No return
         code_lines.append('{} = None'.format(self.output))
@@ -169,7 +179,7 @@ class VisualizationMethodOperation(Operation):
                             "in {} subclass".format(self.__class__))
 
     TITLE_PARAM = 'title'
-    LABELS_PARAM = 'labels'
+    COLUMN_NAMES_PARAM = 'column_names'
     ORIENTATION_PARAM = 'orientation'
     ID_ATTR_PARAM = 'id_attribute'
     VALUE_ATTR_PARAM = 'value_attribute'
@@ -181,7 +191,7 @@ class VisualizationMethodOperation(Operation):
 
         # TODO: validate parameters
         self.title = parameters.get(self.TITLE_PARAM, '')
-        self.labels = parameters.get(self.LABELS_PARAM, '')
+        self.column_names = parameters.get(self.COLUMN_NAMES_PARAM, '')
         self.orientation = parameters.get(self.ORIENTATION_PARAM, '')
         self.id_attribute = parameters.get(self.ID_ATTR_PARAM, [])
         self.value_attribute = parameters.get(self.VALUE_ATTR_PARAM, [])
@@ -204,11 +214,12 @@ class BarChartOperation(VisualizationMethodOperation):
         code = \
             """
             from juicer.spark.vis_operation import BarChartModel
-            {} = BarChartModel('{}','{}','{}','{}','{}',{},{})
+            {} = BarChartModel('{}','{}', '{}','{}','{}','{}',{},{})
             """.format(self.output,
+                       self.parameters['task']['id'],
                        self.parameters['operation_id'],
                        self.parameters['operation_slug'],
-                       self.title, self.labels, self.orientation,
+                       self.title, self.column_names, self.orientation,
                        self.id_attribute, self.value_attribute)
         return dedent(code)
 
@@ -224,11 +235,12 @@ class PieChartOperation(VisualizationMethodOperation):
         code = \
             """
             from juicer.spark.vis_operation import PieChartModel
-            {} = PieChartModel('{}','{}','{}','{}','{}',{},{})
+            {} = PieChartModel('{}','{}', '{}', '{}','{}','{}','{}',{})
             """.format(self.output,
+                       self.parameters['task']['id'],
                        self.parameters['operation_id'],
                        self.parameters['operation_slug'],
-                       self.title, self.labels, self.orientation,
+                       self.title, self.column_names, self.orientation,
                        self.id_attribute, self.value_attribute)
         return dedent(code)
 
@@ -244,11 +256,12 @@ class LineChartOperation(VisualizationMethodOperation):
         code = \
             """
             from juicer.spark.vis_operation import LineChartModel
-            {} = LineChartModel('{}','{}','{}','{}','{}',{},{})
+            {} = LineChartModel('{}','{}', '{}', '{}','{}','{}','{}',{})
             """.format(self.output,
+                       self.parameters['task']['id'],
                        self.parameters['operation_id'],
                        self.parameters['operation_slug'],
-                       self.title, self.labels, self.orientation,
+                       self.title, self.column_names, self.orientation,
                        self.id_attribute, self.value_attribute)
         return dedent(code)
 
@@ -264,11 +277,12 @@ class AreaChartOperation(VisualizationMethodOperation):
         code = \
             """
             from juicer.spark.vis_operation import AreaChartModel
-            {} = AreaChartModel('{}','{}','{}','{}','{}',{},{})
+            {} = AreaChartModel('{}','{}', '{}', '{}','{}','{}','{}',{})
             """.format(self.output,
+                       self.parameters['task']['id'],
                        self.parameters['operation_id'],
                        self.parameters['operation_slug'],
-                       self.title, self.labels, self.orientation,
+                       self.title, self.column_names, self.orientation,
                        self.id_attribute, self.value_attribute)
         return dedent(code)
 
@@ -284,11 +298,12 @@ class TableVisOperation(VisualizationMethodOperation):
         code = \
             """
             from juicer.spark.vis_operation import TableVisModel
-            {} = TableVisModel('{}','{}','{}','{}','{}',{},{})
+            {} = TableVisModel('{}','{}', '{}', '{}','{}','{}','{}', {})
             """.format(self.output,
+                       self.parameters['task']['id'],
                        self.parameters['operation_id'],
                        self.parameters['operation_slug'],
-                       self.title, self.labels, self.orientation,
+                       self.title, self.column_names, self.orientation,
                        self.id_attribute, self.value_attribute)
         return dedent(code)
 
@@ -298,53 +313,90 @@ class TableVisOperation(VisualizationMethodOperation):
 #######################################################
 
 class VisualizationModel:
-    def __init__(self, type_id, type_name, title, labels, orientation,
+    def __init__(self, task_id, type_id, type_name, title, column_names,
+                 orientation,
                  id_attribute, value_attribute):
+        self.task_id = task_id
         self.type_id = type_id
         self.type_name = type_name
         self.title = title
-        self.labels = labels
+        self.column_names = column_names
         self.orientation = orientation
         self.id_attribute = id_attribute
         self.value_attribute = value_attribute
 
     def get_data(self, data):
-        return data.rdd.map(dataframe_util.convert_to_csv).collect()
+        # return data.rdd.map(dataframe_util.convert_to_csv).collect()
+        return data.rdd.map(dataframe_util.convert_to_python).collect()
 
     def get_schema(self, data):
         return dataframe_util.get_csv_schema(data)
 
+    def get_dict_schema(self, data):
+        return dataframe_util.get_dict_schema(data)
+
+    def get_icon(self):
+        return 'fa-question-o'
+
 
 class BarChartModel(VisualizationModel):
-    def __init__(self, type_id, type_name, title, labels, orientation,
+    def __init__(self, task_id, type_id, type_name, title, column_names,
+                 orientation,
                  id_attribute, value_attribute):
-        VisualizationModel.__init__(self, type_id, type_name, title, labels,
+        VisualizationModel.__init__(self, task_id, type_id, type_name, title,
+                                    column_names,
                                     orientation, id_attribute, value_attribute)
+
+    def get_icon(self):
+        return 'fa-bar-chart'
 
 
 class PieChartModel(VisualizationModel):
-    def __init__(self, type_id, type_name, title, labels, orientation,
+    def __init__(self, task_id, type_id, type_name, title, column_names,
+                 orientation,
                  id_attribute, value_attribute):
-        VisualizationModel.__init__(self, type_id, type_name, title, labels,
+        VisualizationModel.__init__(self, task_id, type_id, type_name,
+                                    title,
+                                    column_names,
                                     orientation, id_attribute, value_attribute)
+
+    def get_icon(self):
+        return 'fa-pie-chart'
 
 
 class AreaChartModel(VisualizationModel):
-    def __init__(self, type_id, type_name, title, labels, orientation,
+    def __init__(self, task_id, type_id, type_name, title, column_names,
+                 orientation,
                  id_attribute, value_attribute):
-        VisualizationModel.__init__(self, type_id, type_name, title, labels,
+        VisualizationModel.__init__(self, task_id, type_id, type_name,
+                                    title,
+                                    column_names,
                                     orientation, id_attribute, value_attribute)
+
+    def get_icon(self):
+        return 'fa-area-chart'
 
 
 class LineChartModel(VisualizationModel):
-    def __init__(self, type_id, type_name, title, labels, orientation,
+    def __init__(self, task_id, type_id, type_name, title, column_names,
+                 orientation,
                  id_attribute, value_attribute):
-        VisualizationModel.__init__(self, type_id, type_name, title, labels,
+        VisualizationModel.__init__(self, task_id, type_id, type_name, title,
+                                    column_names,
                                     orientation, id_attribute, value_attribute)
+
+    def get_icon(self):
+        return 'fa-line-chart'
 
 
 class TableVisModel(VisualizationModel):
-    def __init__(self, type_id, type_name, title, labels, orientation,
+    def __init__(self, task_id, type_id, type_name, title, column_names,
+                 orientation,
                  id_attribute, value_attribute):
-        VisualizationModel.__init__(self, type_id, type_name, title, labels,
+        VisualizationModel.__init__(self, task_id, type_id, type_name,
+                                    title,
+                                    column_names,
                                     orientation, id_attribute, value_attribute)
+
+    def get_icon(self):
+        return 'fa-table'

@@ -89,7 +89,6 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_gen_{{instance
     {%- endif %}
     {%- endif %}
 
-    ## AQUI {{instance.get_generated_results()}}
     {%- for gen_result in instance.get_generated_results() %}
     emit_event(name='task result', msg='{{gen_result.type}}',
                status='COMPLETED', identifier='{{instance.parameters.task.operation.id}}/{{instance.parameters.task.id}}')

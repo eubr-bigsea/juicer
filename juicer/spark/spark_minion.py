@@ -86,11 +86,11 @@ class SparkMinion(Minion):
         self.job_future = None
 
     def _emit_event(self, room, namespace):
-        def emit_event(name, msg, status, identifier):
+        def emit_event(name, msg, status, identifier, **kwargs):
             log.info('Emit %s %s %s %s', name, msg, status, identifier)
-            self.mgr.emit(name,
-                    data={'msg': msg, 'status': status, 'id': identifier},
-                    room=str(room), namespace=namespace)
+            data = {'msg': msg, 'status': status, 'id': identifier}
+            data.update(kwargs)
+            self.mgr.emit(name, data=data, room=str(room), namespace=namespace)
         return emit_event
 
     def _generate_output(self, msg, status=None, code=None):
