@@ -37,6 +37,7 @@ class ReadShapefile(Operation):
         '''
 
         code = """
+            import re
             import shapefile
             from io import BytesIO
             reload(sys)
