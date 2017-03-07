@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from itertools import izip_longest
 from textwrap import dedent
 
 from juicer.dist.metadata import MetadataGet
@@ -89,14 +90,29 @@ class GeoWithin(Operation):
                            named_inputs, named_outputs)
         self.polygon_column = parameters[self.POLYGON_POINTS_COLUMN_PARAM]
         self.attributes = parameters[self.POLYGON_ATTRIBUTES_COLUMN_PARAM]
-        self.alias = parameters[self.POLYGON_ALIAS_COLUMN_PARAM].split(',')
+
+        self.alias = [
+            alias.strip() for alias in
+            parameters.get(self.POLYGON_ALIAS_COLUMN_PARAM, '').split(',')]
+
+        # Adjust alias in order to have the same number of aliases as attributes
+        # by filling missing alias with the attribute name sufixed by _indexed.
+        self.alias = [x[1] or '{}_alias'.format(x[0]) for x in
+                      izip_longest(self.attributes,
+                                   self.alias[:len(self.attributes)])]
+
         self.lat_column = parameters[self.TARGET_LAT_COLUMN_PARAM]
         self.lon_column = parameters[self.TARGET_LON_COLUMN_PARAM]
+
+        if len(self.lat_column) == 0 or len(self.lon_column) == 0 or len(
+                self.polygon_column) == 0:
+            raise ValueError(
+                'Values for latitude and longitude columns must be informed')
 
     def generate_code(self):
         code = """
             from matplotlib.path import Path
-            broad_shapefile_{0} = spark_session.sparkContext.broadcast({0}\
+            broad_shapefile_{0} = spark_session.sparkContext.broadcast({0}\\
                 .collect())
 
             def get_first_sector(lat, lng):
@@ -107,14 +123,15 @@ class GeoWithin(Operation):
                 return [None]*len(broad_shapefile_{0}.value[0])
 
             shapefile_features_count_{0}= len(broad_shapefile_{0}.value[0])
-            udf_get_first_sector = udf(
-                get_first_sector, ArrayType(StringType()))
+            udf_get_first_sector = functions.udf(
+                get_first_sector, types.ArrayType(types.StringType()))
             within_{0} = {2}.withColumn(
-                "sector_position", udf_get_first_sector(col('{3}'), col('{4}')))
+                "sector_position", udf_get_first_sector(functions.col('{3}'),
+                                                        functions.col('{4}')))
             {5} = within_{0}.select(within_{0}.columns +
                 [within_{0}.sector_position[i]
                     for i in xrange(shapefile_features_count_{0})])
-        """.format(self.named_inputs['input data'], self.polygon_column[0],
-                   self.named_inputs['geo data'], self.lat_column[0],
-                   self.lon_column[0], self.outputs[0])
+        """.format(self.named_inputs['geo data'], self.polygon_column[0],
+                   self.named_inputs['input data'], self.lat_column[0],
+                   self.lon_column[0], self.output)
         return dedent(code)

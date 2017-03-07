@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
 import json
 from textwrap import dedent
+
+import datetime
+
 from juicer.operation import Operation, ResultType
 from juicer.runner import configuration
 from juicer.service import limonero_service
@@ -117,6 +120,7 @@ class PublishVisOperation(Operation):
             visualizations.append({{
                 'job_id': '{job_id}',
                 'task_id': {task_id},
+                'title': {title} ,
                 'type': {{
                     'id': {vis_model}.type_id,
                     'name': {vis_model}.type_name
@@ -125,6 +129,8 @@ class PublishVisOperation(Operation):
             emit_event('task result', status='COMPLETED',
                 identifier={task_id}, msg='Result generated',
                 type='VISUALIZATION', title={vis_model}.title,
+                task={{'id': {task_id} }},
+                operation={{'id': {vis_model}.type_id }},
                 operation_id={vis_model}.type_id)
             """
         for vis_model in self.inputs:
@@ -141,6 +147,7 @@ class PublishVisOperation(Operation):
                     vis_model=vis_model,
                     vis_type_id=self.parameters['operation_id'],
                     vis_type_name=self.parameters['operation_slug'],
+                    title='{}.title'.format(vis_model)
                 )))
 
         # Register this new dashboard with Caipirinha
@@ -150,7 +157,8 @@ class PublishVisOperation(Operation):
             {job_id}, '{task_id}', visualizations)""".format(
             base_url=caipirinha_config['url'],
             token=caipirinha_config['auth_token'],
-            title=self.title,
+            title=self.title or 'Result for job' + self.parameters.get('job_id',
+                                                                       '0'),
             user_name=self.parameters['user']['name'],
             user=self.parameters['user'],
             workflow_id=self.parameters['workflow_id'],
@@ -327,7 +335,8 @@ class VisualizationModel:
 
     def get_data(self, data):
         # return data.rdd.map(dataframe_util.convert_to_csv).collect()
-        return data.rdd.map(dataframe_util.convert_to_python).collect()
+        # return data.rdd.map(dataframe_util.convert_to_python).collect()
+        raise NotImplementedError('Should be implemented in derived classes')
 
     def get_schema(self, data):
         return dataframe_util.get_csv_schema(data)
@@ -340,63 +349,47 @@ class VisualizationModel:
 
 
 class BarChartModel(VisualizationModel):
-    def __init__(self, task_id, type_id, type_name, title, column_names,
-                 orientation,
-                 id_attribute, value_attribute):
-        VisualizationModel.__init__(self, task_id, type_id, type_name, title,
-                                    column_names,
-                                    orientation, id_attribute, value_attribute)
+    def get_data(self, data):
+        return data.rdd.map(dataframe_util.convert_to_python).collect()
 
     def get_icon(self):
         return 'fa-bar-chart'
 
 
 class PieChartModel(VisualizationModel):
-    def __init__(self, task_id, type_id, type_name, title, column_names,
-                 orientation,
-                 id_attribute, value_attribute):
-        VisualizationModel.__init__(self, task_id, type_id, type_name,
-                                    title,
-                                    column_names,
-                                    orientation, id_attribute, value_attribute)
-
     def get_icon(self):
         return 'fa-pie-chart'
 
+    def get_data(self, data):
+        """
+        Returns data as a list dictionaries in Python (JSON encoder friendly).
+        """
+        return data.rdd.map(
+            dataframe_util.format_row_for_visualization).collect()
+
 
 class AreaChartModel(VisualizationModel):
-    def __init__(self, task_id, type_id, type_name, title, column_names,
-                 orientation,
-                 id_attribute, value_attribute):
-        VisualizationModel.__init__(self, task_id, type_id, type_name,
-                                    title,
-                                    column_names,
-                                    orientation, id_attribute, value_attribute)
-
     def get_icon(self):
         return 'fa-area-chart'
 
+    def get_data(self, data):
+        return data.rdd.map(dataframe_util.convert_to_python).collect()
+
 
 class LineChartModel(VisualizationModel):
-    def __init__(self, task_id, type_id, type_name, title, column_names,
-                 orientation,
-                 id_attribute, value_attribute):
-        VisualizationModel.__init__(self, task_id, type_id, type_name, title,
-                                    column_names,
-                                    orientation, id_attribute, value_attribute)
-
     def get_icon(self):
         return 'fa-line-chart'
 
+    def get_data(self, data):
+        return data.rdd.map(dataframe_util.convert_to_python).collect()
+
 
 class TableVisModel(VisualizationModel):
-    def __init__(self, task_id, type_id, type_name, title, column_names,
-                 orientation,
-                 id_attribute, value_attribute):
-        VisualizationModel.__init__(self, task_id, type_id, type_name,
-                                    title,
-                                    column_names,
-                                    orientation, id_attribute, value_attribute)
-
     def get_icon(self):
         return 'fa-table'
+
+    def get_data(self, data):
+        """
+        Returns data as tabular (list of lists in Python).
+        """
+        return data.rdd.map(dataframe_util.convert_to_python).collect()

@@ -27,9 +27,6 @@ from pyspark.ml.feature import *
 from pyspark.ml.tuning import *
 from pyspark.ml.recommendation import *
 
-# from pyspark.sql.functions import *
-# from pyspark.sql.types import *
-
 # We need the following code in order to integrate this application log with the
 # spark standard log4j. Thus, we set *__SPARK_LOG__* at most one time per execution.
 __SPARK_LOG__ = None
@@ -70,7 +67,7 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_gen_{{instance
     emit_event(name='update task', msg='Task running',
         status='RUNNING', identifier='{{instance.parameters.task.id}}')
 
-    {%- if instance.supports_cache %}
+    {%- if instance.supports_cache and False %}
     if '{{instance.parameters.task.id}}' in cached_state:
         sparkLogging(spark_session).info ('Cache hit for operation {}'.format('{{instance.parameters.task.id}}'))
         emit_event(name='update task', msg='Task completed',
