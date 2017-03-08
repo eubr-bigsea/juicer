@@ -4,7 +4,7 @@
 # and termination
 # TODO: rotate logs
 
-usage="Usage: juicer-daemon.sh (start|stop|status)"
+usage="Usage: juicer-daemon.sh (start|startf|stop|status)"
 
 # this sript requires the command parameter
 if [ $# -le 0 ]; then
@@ -49,6 +49,13 @@ case $cmd_option in
       echo $juicer_server_pid > $pid
 
       echo "Juicer server started, logging to $log (pid=$juicer_server_pid)"
+      ;;
+
+   (startf)
+      trap "$0 stop" SIGINT SIGTERM
+      $0 start
+      sleep infinity &
+      wait
       ;;
 
    (stop)
