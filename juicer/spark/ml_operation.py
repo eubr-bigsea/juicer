@@ -227,7 +227,8 @@ class EvaluateModel(Operation):
         else:
             raise ValueError('Invalid metric value {}'.format(self.metric))
 
-        self.has_code = len(self.inputs) > 0 and len(self.output) > 0
+        self.has_code = (len(self.inputs) > 0 and len(self.output) > 0) or \
+            (self.named_outputs.get('evaluator') is not None)
 
     def get_data_out_names(self, sep=','):
         return ''
@@ -247,15 +248,33 @@ class EvaluateModel(Operation):
                 code = """
                 # Creates the evaluator according to the model
                 # (user should not change it)
-                evaluator = {6}({7}='{3}',
-                                      labelCol='{4}', metricName='{5}')
+                evaluator = {evaluator}({pred_col}='{pred_attr}',
+                                      labelCol='{label_attr}',
+                                      metricName='{metric}')
 
-                {0} = evaluator.evaluate({1})
-                """.format(self.output, self.named_inputs['input data'],
-                           self.named_inputs['model'],
-                           self.prediction_attribute, self.label_attribute,
-                           self.metric, self.evaluator,
-                           self.param_prediction_col)
+                {output} = evaluator.evaluate({input})
+
+                emit_event('task result', status='COMPLETED',
+                    identifier='{task_id}', msg='Result generated',
+                    type='HTML', title='{title}',
+                    task={{'id': '{task_id}' }},
+                    operation={{'id': {operation_id} }},
+                    operation_id={operation_id},
+                    content='<strong>' + {model}.__class__.__name__+
+                        ': metric {metric}: ' +
+                        str({output}) + '</strong>')
+
+                """.format(output=self.output,
+                           input=self.named_inputs['input data'],
+                           model=self.named_inputs['model'],
+                           pred_attr=self.prediction_attribute,
+                           label_attr=self.label_attribute,
+                           metric=self.metric,
+                           evaluator=self.evaluator,
+                           pred_col=self.param_prediction_col,
+                           task_id=self.parameters['task_id'],
+                           operation_id=self.parameters['operation_id'],
+                           title='Evaluation result')
             elif len(self.output) > 0:  # Used with cross validator
                 code = """
                 {5} = {0}({1}='{2}',
@@ -334,10 +353,12 @@ class CrossValidationOperation(Operation):
                     evaluated_data = cv_model.transform({input_data})
                     best_model_{output}  = cv_model.bestModel
                     metric_result = evaluator.evaluate(evaluated_data)
+                    {evaluation} = metric_result
                     {output} = evaluated_data
                     """.format(algorithm=self.named_inputs['algorithm'],
                                input_data=self.named_inputs['input data'],
                                evaluator=self.named_inputs['evaluator'],
+                               evaluation='eval_{}'.format(self.output),
                                output=self.output,
                                folds=self.num_folds))
 
@@ -365,7 +386,19 @@ class CrossValidationOperation(Operation):
                         }},
                         'evaluator': evaluator
                     }}
-                    """.format(output=self.output)
+
+                    emit_event('task result', status='COMPLETED',
+                        identifier='{task_id}', msg='Result generated',
+                        type='TEXT', title='{title}',
+                        task={{'id': '{task_id}' }},
+                        operation={{'id': {operation_id} }},
+                        operation_id={operation_id},
+                        content=json.dumps(eval_{output}))
+
+                    """.format(output=self.output,
+                               title='Evaluation result',
+                               task_id=self.parameters['task_id'],
+                               operation_id=self.parameters['operation_id'])
                 code = '\n'.join([code, dedent(eval_code)])
 
             return code

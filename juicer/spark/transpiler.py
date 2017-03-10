@@ -223,6 +223,7 @@ class SparkTranspiler:
             parameters['workflow_id'] = workflow['id']
             parameters['workflow_name'] = workflow['name']
             parameters['operation_id'] = task['operation']['id']
+            parameters['task_id'] = task['id']
             parameters['operation_slug'] = task['operation']['slug']
             parameters['job_id'] = job_id
             port = ports.get(task['id'], {})

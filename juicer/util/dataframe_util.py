@@ -55,3 +55,22 @@ def format_row_for_visualization(row):
                          'It should contains 2 (name, value) or '
                          '3 columns (id, name, value).')
     return dict(id=_id, name=name, value=value)
+
+
+def format_row_for_bar_chart_visualization(row):
+    date_types = [datetime.datetime, datetime.date]
+    if len(row) == 2:
+        # Use first column as id and name
+        value = row[1] if type(row[1]) not in date_types else row[1].isoformat()
+        _id = row[0]
+        name = row[0]
+    elif len(row) == 3:
+        # Use first column as id and name
+        value = row[2] if type(row[2]) not in date_types else row[2].isoformat()
+        _id = row[0]
+        name = row[0]
+    else:
+        raise ValueError('Invalid input data for visualization. '
+                         'It should contains 2 (name, value) or '
+                         '3 columns (id, name, value).')
+    return dict(id=_id, name=name, value=value)

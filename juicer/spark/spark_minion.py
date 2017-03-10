@@ -1,39 +1,35 @@
 # coding=utf-8
-import traceback
-
-import codecs
-from concurrent.futures import ThreadPoolExecutor
-from concurrent.futures import TimeoutError
 import gc
+import imp
 import importlib
 import json
-import logging
+import logging.config
 import multiprocessing
 import signal
-import socketio
 import sys
 import time
-from io import StringIO
+import traceback
 
 import datetime
-import imp
 
+import codecs
 import os
+import socketio
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError
 from juicer.runner import configuration
 from juicer.runner import juicer_protocol
-from juicer.runner.juicer_server import JuicerServer
 from juicer.runner.minion_base import Minion
 from juicer.spark.transpiler import SparkTranspiler
 from juicer.util import dataframe_util
 from juicer.util.string_importer import StringImporter
 from juicer.workflow.workflow import Workflow
 
-logging.basicConfig(
-    format=('[%(levelname)s] %(asctime)s,%(msecs)05.1f '
-            '(%(funcName)s:%(lineno)s) %(message)s'),
-    datefmt='%H:%M:%S')
+logging.config.fileConfig('logging_config.ini')
+
 log = logging.getLogger()
 log.setLevel(logging.INFO)
+
 
 class SparkMinion(Minion):
     """
@@ -79,26 +75,28 @@ class SparkMinion(Minion):
         self.spark_session = None
         signal.signal(signal.SIGTERM, self._terminate)
 
-        self.mgr = socketio.RedisManager(config['juicer']['servers']['redis_url'],
-                'job_output')
+        self.mgr = socketio.RedisManager(
+            config['juicer']['servers']['redis_url'],
+            'job_output')
 
         self.executor = ThreadPoolExecutor(max_workers=1)
         self.job_future = None
 
     def _emit_event(self, room, namespace):
-        def emit_event(name, msg, status, identifier, **kwargs):
-            log.info('Emit %s %s %s %s', name, msg, status, identifier)
-            data = {'msg': msg, 'status': status, 'id': identifier}
+        def emit_event(name, message, status, identifier, **kwargs):
+            log.info('Emit %s %s %s %s', name, message, status, identifier)
+            data = {'message': message, 'status': status, 'id': identifier}
             data.update(kwargs)
             self.mgr.emit(name, data=data, room=str(room), namespace=namespace)
+
         return emit_event
 
-    def _generate_output(self, msg, status=None, code=None):
+    def _generate_output(self, message, status=None, code=None):
         """
         Sends feedback about execution of this minion.
         """
-        obj = {'message': msg, 'workflow_id': self.workflow_id,
-                'app_id': self.app_id, 'code': code,
+        obj = {'message': message, 'workflow_id': self.workflow_id,
+               'app_id': self.app_id, 'code': code,
                'date': datetime.datetime.now().isoformat(),
                'status': status if status is not None else 'OK'}
 
@@ -117,7 +115,8 @@ class SparkMinion(Minion):
             'status': 'READY', 'pid': os.getpid(),
         }
         self.state_control.set_minion_status(self.app_id,
-                json.dumps(status), ex=30, nx=False)
+                                             json.dumps(status), ex=30,
+                                             nx=False)
 
     def execute(self):
         """
@@ -142,17 +141,17 @@ class SparkMinion(Minion):
         # Sanity check: this minion should not process messages from another
         # workflow/app
         assert str(msg_info['workflow_id']) == self.workflow_id, \
-                'Expected workflow_id=%s, got workflow_id=%s' % ( \
+            'Expected workflow_id=%s, got workflow_id=%s' % ( \
                 self.workflow_id, msg_info['workflow_id'])
 
         assert str(msg_info['app_id']) == self.app_id, \
-                'Expected app_id=%s, got app_id=%s' % ( \
+            'Expected app_id=%s, got app_id=%s' % ( \
                 self.workflow_id, msg_info['app_id'])
 
         # Extract the message type
         msg_type = msg_info['type']
         self._generate_output('Processing message %s for app %s' %
-                (msg_type, self.app_id))
+                              (msg_type, self.app_id))
 
         # Forward the message according to its purpose
         if msg_type == juicer_protocol.EXECUTE:
@@ -170,7 +169,8 @@ class SparkMinion(Minion):
             if self.job_future:
                 self.job_future.result()
 
-            self.job_future = self._execute_future(job_id, workflow, app_configs)
+            self.job_future = self._execute_future(job_id, workflow,
+                                                   app_configs)
 
         elif msg_type == juicer_protocol.DELIVER:
             log.info('Deliver message received')
@@ -185,7 +185,8 @@ class SparkMinion(Minion):
                 self.job_future.result()
 
             self.job_future = self._deliver_future(task_id,
-                    output, port, job_id, workflow, app_configs)
+                                                   output, port, job_id,
+                                                   workflow, app_configs)
 
         elif msg_type == juicer_protocol.TERMINATE:
             job_id = msg_info.get('job_id', None)
@@ -202,7 +203,7 @@ class SparkMinion(Minion):
 
     def _execute_future(self, job_id, workflow, app_configs):
         return self.executor.submit(self._perform_execute,
-                job_id, workflow, app_configs)
+                                    job_id, workflow, app_configs)
 
     def _perform_execute(self, job_id, workflow, app_configs):
 
@@ -215,13 +216,13 @@ class SparkMinion(Minion):
 
             # Mark job as running
             self._emit_event(room=job_id, namespace='/stand')(
-                    name='update job', msg='Running job',
-                    status='RUNNING', identifier=job_id)
+                name='update job', message='Running job',
+                status='RUNNING', identifier=job_id)
 
             module_name = 'juicer_app_{}_{}_{}'.format(
-                    self.workflow_id,
-                    self.app_id,
-                    job_id)
+                self.workflow_id,
+                self.app_id,
+                job_id)
 
             generated_code_path = os.path.join(
                 self.tmp_dir, module_name + '.py')
@@ -245,48 +246,48 @@ class SparkMinion(Minion):
             # to avoid re-computing the same tasks over and over again, in case
             # of several partial workflow executions.
             new_state = self.module.main(
-                    self.get_or_create_spark_session(loader, app_configs),
-                    self._state,
-                    self._emit_event(room=job_id, namespace='/stand'))
+                self.get_or_create_spark_session(loader, app_configs),
+                self._state,
+                self._emit_event(room=job_id, namespace='/stand'))
 
             # Mark job as completed
             self._emit_event(room=job_id, namespace='/stand')(
-                    name='update job', msg='Job finished',
-                    status='COMPLETED', identifier=job_id)
+                name='update job', message='Job finished',
+                status='COMPLETED', identifier=job_id)
 
             # We update the state incrementally, i.e., new task results can be
             # overwritten but never lost.
             self._state.update(new_state)
 
         except UnicodeEncodeError as ude:
-            msg = self.MNN006[1].format(ude)
-            log.warn(msg)
+            message = self.MNN006[1].format(ude)
+            log.warn(message)
             # Mark job as failed
             self._emit_event(room=job_id, namespace='/stand')(
-                    name='update job', msg=msg,
-                    status='ERROR', identifier=job_id)
+                name='update job', message=message,
+                status='ERROR', identifier=job_id)
             self._generate_output(self.MNN006[1], 'ERROR', self.MNN006[0])
             result = False
 
         except ValueError as ve:
-            msg = 'Invalid or missing parameters: {}'.format(ve.message)
-            log.warn(msg)
+            message = 'Invalid or missing parameters: {}'.format(ve.message)
+            log.warn(message)
             if self.transpiler.current_task_id is not None:
                 self._emit_event(room=job_id, namespace='/stand')(
-                    name='update task', msg=msg,
+                    name='update task', message=message,
                     status='ERROR', identifier=self.transpiler.current_task_id)
             self._emit_event(room=job_id, namespace='/stand')(
-                    name='update job', msg=msg,
-                    status='ERROR', identifier=job_id)
-            self._generate_output(msg, 'ERROR')
+                name='update job', message=message,
+                status='ERROR', identifier=job_id)
+            self._generate_output(message, 'ERROR')
             result = False
 
         except SyntaxError as se:
-            msg = self.MNN006[1].format(se)
-            log.warn(msg)
+            message = self.MNN006[1].format(se)
+            log.warn(message)
             self._emit_event(room=job_id, namespace='/stand')(
-                    name='update job', msg=msg,
-                    status='ERROR', identifier=job_id)
+                name='update job', message=message,
+                status='ERROR', identifier=job_id)
             self._generate_output(self.MNN006[1], 'ERROR', self.MNN006[0])
             result = False
 
@@ -294,8 +295,8 @@ class SparkMinion(Minion):
             tb = traceback.format_exception(*sys.exc_info())
             log.exception('Unhandled error')
             self._emit_event(room=job_id, namespace='/stand')(
-                    name='update job', msg='\n'.join(tb),
-                    status='ERROR', identifier=job_id)
+                name='update job', message='\n'.join(tb),
+                status='ERROR', identifier=job_id)
             self._generate_output(ee.message, 'ERROR', code=1000)
             result = False
         return result
@@ -306,8 +307,8 @@ class SparkMinion(Minion):
         is set and not stopped.
         """
         return self.spark_session and \
-                self.spark_session.sparkContext._jsc and \
-                not self.spark_session.sparkContext._jsc.sc().isStopped()
+               self.spark_session.sparkContext._jsc and \
+               not self.spark_session.sparkContext._jsc.sc().isStopped()
 
     # noinspection PyUnresolvedReferences
     def get_or_create_spark_session(self, loader, app_configs):
@@ -322,18 +323,19 @@ class SparkMinion(Minion):
 
             if "HADOOP_HOME" in os.environ:
                 app_configs['driver-library-path'] = \
-                        '{}/lib/native/'.format(os.environ.get('HADOOP_HOME'))
+                    '{}/lib/native/'.format(os.environ.get('HADOOP_HOME'))
 
             app_name = u'%s(workflow_id=%s,app_id=%s)' % (
-                    loader.workflow.get('name', ''),
-                    self.workflow_id, self.app_id)
+                loader.workflow.get('name', ''),
+                self.workflow_id, self.app_id)
 
             spark_builder = SparkSession.builder.appName(app_name)
             for option, value in app_configs.iteritems():
                 spark_builder = spark_builder.config(option, value)
 
             self.spark_session = spark_builder.getOrCreate()
-            self.spark_session.sparkContext.setLogLevel('INFO')
+            # @FIXME
+            self.spark_session.sparkContext.setLogLevel('WARN')
 
         return self.spark_session
 
@@ -341,11 +343,13 @@ class SparkMinion(Minion):
         self.state_control.push_app_output_queue(
             self.app_id, json.dumps(data))
 
-    def _deliver_future(self, task_id, output, port, job_id, workflow, app_configs):
+    def _deliver_future(self, task_id, output, port, job_id, workflow,
+                        app_configs):
         return self.executor.submit(self._perform_deliver, task_id, output,
-                port, job_id, workflow, app_configs)
+                                    port, job_id, workflow, app_configs)
 
-    def _perform_deliver(self, task_id, output, port, job_id, workflow, app_configs):
+    def _perform_deliver(self, task_id, output, port, job_id, workflow,
+                         app_configs):
         result = True
         # FIXME: state must expire. How to identify this in the interface?
         # FIXME: Define how to identify the request.
@@ -374,7 +378,8 @@ class SparkMinion(Minion):
         port_idx = (len(self._state[task_id]) - 1) / 2
         if port_idx >= port:
             df = self._state[task_id][port * 2]
-            partial_result = None if port == port_idx else self._state[task_id][port * 2 + 1]
+            partial_result = None if port == port_idx else self._state[task_id][
+                port * 2 + 1]
 
             # In this case we already have partial data collected for the
             # particular task
@@ -427,9 +432,9 @@ class SparkMinion(Minion):
                 except TimeoutError as te:
                     pass
 
-        msg = self.MNN007[1].format(self.app_id)
-        log.info(msg)
-        self._generate_output(msg, 'SUCCESS', self.MNN007[0])
+        message = self.MNN007[1].format(self.app_id)
+        log.info(message)
+        self._generate_output(message, 'SUCCESS', self.MNN007[0])
 
     def _terminate(self, _signal, _frame):
         self.terminate()
@@ -450,15 +455,14 @@ class SparkMinion(Minion):
         if self.ping_process:
             os.kill(self.ping_process.pid, signal.SIGKILL)
 
-        msg = self.MNN008[1].format(self.app_id)
-        log.info(msg)
-        self._generate_output(msg, 'SUCCESS', self.MNN008[0])
+        message = self.MNN008[1].format(self.app_id)
+        log.info(message)
+        self._generate_output(message, 'SUCCESS', self.MNN008[0])
         self.state_control.unset_minion_status(self.app_id)
-
 
     def process(self):
         log.info('Spark minion (workflow_id=%s,app_id=%s) started (pid=%s)',
-                self.workflow_id, self.app_id, os.getpid())
+                 self.workflow_id, self.app_id, os.getpid())
         self.execute_process = multiprocessing.Process(
             name="minion", target=self.execute)
         self.execute_process.daemon = False

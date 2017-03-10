@@ -64,13 +64,13 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_gen_{{instance
     """ Operation {{instance.parameters.task.id }} """
     {%- endif %}
 
-    emit_event(name='update task', msg='Task running',
+    emit_event(name='update task', message='Task running',
         status='RUNNING', identifier='{{instance.parameters.task.id}}')
 
     {%- if instance.supports_cache and False %}
     if '{{instance.parameters.task.id}}' in cached_state:
         sparkLogging(spark_session).info ('Cache hit for operation {}'.format('{{instance.parameters.task.id}}'))
-        emit_event(name='update task', msg='Task completed',
+        emit_event(name='update task', message='Task completed',
            status='COMPLETED', identifier='{{instance.parameters.task.id}}')
         return cached_state.get('{{instance.parameters.task.id}}')
     {%- endif %}
@@ -87,7 +87,7 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_gen_{{instance
     {%- endif %}
 
     {%- for gen_result in instance.get_generated_results() %}
-    emit_event(name='task result', msg='{{gen_result.type}}',
+    emit_event(name='task result', message='{{gen_result.type}}',
                status='COMPLETED', identifier='{{instance.parameters.task.operation.id}}/{{instance.parameters.task.id}}')
     {%- endfor %}
 
@@ -99,7 +99,7 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_gen_{{instance
     )
 
     time_elapsed = timer() - start
-    emit_event(name='update task', msg='Task completed',
+    emit_event(name='update task', message='Task completed',
        status='COMPLETED', identifier='{{instance.parameters.task.id}}')
     return {% if instance.get_output_names() %} results + {% endif %} (time_elapsed,)
 
@@ -135,7 +135,7 @@ def main(spark_session, cached_state, emit_event):
       {%- if instance.get_inputs_names %}, {{instance.get_inputs_names}}{% endif %})
     {%- endif %}
     {%- else %}
-    # Task **{{instance.parameters.task.operation.name}}** did not genarate code
+    # Task **{{instance.parameters.task.id}} {{instance.parameters.task.operation.name}}** did not genarate code
     {%- endif %}
     {%- endfor %}
 

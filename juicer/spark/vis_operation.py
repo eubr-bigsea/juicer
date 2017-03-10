@@ -127,7 +127,7 @@ class PublishVisOperation(Operation):
                 }}
             }})
             emit_event('task result', status='COMPLETED',
-                identifier={task_id}, msg='Result generated',
+                identifier={task_id}, message='Result generated',
                 type='VISUALIZATION', title={vis_model}.title,
                 task={{'id': {task_id} }},
                 operation={{'id': {vis_model}.type_id }},
@@ -157,8 +157,8 @@ class PublishVisOperation(Operation):
             {job_id}, '{task_id}', visualizations)""".format(
             base_url=caipirinha_config['url'],
             token=caipirinha_config['auth_token'],
-            title=self.title or 'Result for job' + self.parameters.get('job_id',
-                                                                       '0'),
+            title=self.title or 'Result for job ' + str(
+                self.parameters.get('job_id', '0')),
             user_name=self.parameters['user']['name'],
             user=self.parameters['user'],
             workflow_id=self.parameters['workflow_id'],
@@ -330,7 +330,10 @@ class VisualizationModel:
         self.title = title
         self.column_names = column_names
         self.orientation = orientation
-        self.id_attribute = id_attribute
+        self.id_attribute = id_attribute[0] if len(id_attribute) > 0 and \
+                                               isinstance(
+                                                   id_attribute,
+                                                   list) else id_attribute
         self.value_attribute = value_attribute
 
     def get_data(self, data):
@@ -349,11 +352,34 @@ class VisualizationModel:
 
 
 class BarChartModel(VisualizationModel):
-    def get_data(self, data):
-        return data.rdd.map(dataframe_util.convert_to_python).collect()
+    def get_data2(self, data):
+        rows = data.collect()
+        result = []
+        columns = [c.strip() for c in self.column_names.split(',')]
+        for row in rows:
+            values = []
+            for i, col in enumerate(self.value_attribute):
+                values.append(dict(
+                    id=col,
+                    name=columns[i],
+                    value=row[col]
+                ))
+            result.append(dict(
+                id=row[self.id_attribute],
+                name=row[self.id_attribute],
+                values=values
+            ))
+        return result
 
     def get_icon(self):
         return 'fa-bar-chart'
+
+    def get_data(self, data):
+        """
+        Returns data as a list dictionaries in Python (JSON encoder friendly).
+        """
+        return data.rdd.map(
+            dataframe_util.format_row_for_visualization).collect()
 
 
 class PieChartModel(VisualizationModel):
@@ -373,7 +399,23 @@ class AreaChartModel(VisualizationModel):
         return 'fa-area-chart'
 
     def get_data(self, data):
-        return data.rdd.map(dataframe_util.convert_to_python).collect()
+        rows = data.collect()
+        result = []
+        columns = [c.strip() for c in self.column_names.split(',')]
+        for row in rows:
+            values = []
+            for i, col in enumerate(self.value_attribute):
+                values.append(dict(
+                    id=col,
+                    name=columns[i],
+                    value=row[col]
+                ))
+            result.append(dict(
+                id=row[self.id_attribute],
+                name=row[self.id_attribute],
+                values=values
+            ))
+        return result
 
 
 class LineChartModel(VisualizationModel):
@@ -381,7 +423,25 @@ class LineChartModel(VisualizationModel):
         return 'fa-line-chart'
 
     def get_data(self, data):
-        return data.rdd.map(dataframe_util.convert_to_python).collect()
+        date_types = [datetime.datetime, datetime.date]
+        rows = data.collect()
+        result = []
+        columns = [c.strip() for c in self.column_names.split(',')]
+        for row in rows:
+            values = []
+            for i, col in enumerate(self.value_attribute):
+                values.append(dict(
+                    id=col,
+                    name=columns[i],
+                    value=row[col] if type(row[col]) not in date_types else row[
+                        col].isoformat()
+                ))
+            result.append(dict(
+                id=row[self.id_attribute],
+                name=row[self.id_attribute],
+                values=values
+            ))
+        return result
 
 
 class TableVisModel(VisualizationModel):

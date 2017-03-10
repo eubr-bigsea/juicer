@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 import argparse
 import fcntl
-import logging
+import logging.config
 import tempfile
 import threading
 import time
@@ -16,9 +16,9 @@ from gevent.subprocess import Popen, PIPE
 
 monkey.patch_all()
 
-logging.basicConfig(
-    format='%(asctime)s,%(msecs)05.1f (%(funcName)s) %(message)s',
-    datefmt='%H:%M:%S')
+
+logging.config.fileConfig('logging_config.ini')
+
 log = logging.getLogger()
 log.setLevel(logging.INFO)
 
