@@ -122,22 +122,42 @@ class GeoWithin(Operation):
             ymin = float('+inf')
             xmax = float('-inf')
             ymax = float('-inf')
-            for sector in shp_object:
-                for point in sector['{1}']:
+            for i, sector in enumerate(shp_object):
+                for point in sector['points']:
                     xmin = min(xmin, point[1])
                     ymin = min(ymin, point[0])
                     xmax = max(xmax, point[1])
                     ymax = max(ymax, point[0])
             #
             spindex = pyqtree.Index(bbox=[xmin, ymin, xmax, ymax])
+            for inx, sector in enumerate(shp_object):
+                points = []
+                xmin = float('+inf')
+                ymin = float('+inf')
+                xmax = float('-inf')
+                ymax = float('-inf')
+                for point in sector['points']:
+                    points.append((point[1], point[0]))
+                    xmin = min(xmin, point[1])
+                    ymin = min(ymin, point[0])
+                    xmax = max(xmax, point[1])
+                    ymax = max(ymax, point[0])
+                spindex.insert(item=inx, bbox=[xmin, ymin, xmax, ymax])
+
             broad_casted_spindex = spark_session.sparkContext.broadcast(spindex)
 
             def get_first_sector(lat, lng):
-                for row in broad_shapefile_{0}.value:
-                    polygon = Path(row['{1}'])
-                    if polygon.contains_point([float(lat), float(lng)]):
+                x = float(lat)
+                y = float(lng)
+                bindex = broad_casted_spindex.value
+                matches = bindex.intersect([y, x, y, x]) # why reversed?
+
+                for shp_inx in matches:
+                    row = broad_shapefile_out3.value[shp_inx]
+                    polygon = Path(row['points'])
+                    if polygon.contains_point([x, y]):
                         return [col for col in row]
-                return [None]*len(broad_shapefile_{0}.value[0])
+                return [None] * len(broad_shapefile_out3.value[0])
 
             shapefile_features_count_{0}= len(broad_shapefile_{0}.value[0])
             udf_get_first_sector = functions.udf(
