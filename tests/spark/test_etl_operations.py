@@ -62,8 +62,8 @@ def test_aggregation_rows_minimal_params_success():
                            named_inputs={}, named_outputs={})
     code = instance.generate_code()
 
-    expected_code = """{out} = {in0}.groupBy(col('{agg}'))\
-                        .agg(avg('income').alias('avg_income'))""".format(
+    expected_code = """{out} = {in0}.groupBy(functions.col('{agg}'))\
+                        .agg(functions.avg('income').alias('avg_income'))""".format(
         out=outputs[0], in0=inputs[0], in1=inputs[1], agg='country', )
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
@@ -82,9 +82,8 @@ def test_aggregation_rows_group_all_missing_attributes_success():
     code = instance.generate_code()
 
     expected_code = """{out} = {in0}.agg(
-                        avg('income').alias('avg_income'))""".format(
+                        functions.avg('income').alias('avg_income'))""".format(
         out=outputs[0], in0=inputs[0], in1=inputs[1], agg='country', )
-    debug_ast(code, expected_code)
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
     assert result, msg
 
@@ -261,7 +260,7 @@ def test_filter_minimum_params_success():
                       named_inputs={}, named_outputs={})
     code = instance.generate_code()
     expected_code = ("output_1 = input_1.filter("
-                     "col('{attribute}') {f} '{value}')").format(
+                     "functions.col('{attribute}') {f} '{value}')").format(
         **params[Filter.FILTER_PARAM][0])
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
     assert result, msg + format_code_comparison(code, expected_code)
@@ -295,16 +294,18 @@ def test_join_inner_join_minimal_params_success():
         'left_attributes': ['id', 'cod'],
         'right_attributes': ['id', 'cod']
     }
-    inputs = ['input_1', 'input_2']
+    named_inputs = {'input data 1': 'input_1', 'input data 2': 'input_2'}
     outputs = ['output_1']
-    instance = Join(params, inputs, outputs,
-                    named_inputs={}, named_outputs={})
+    instance = Join(params, named_inputs.values(), outputs,
+                    named_inputs=named_inputs, named_outputs={})
 
     code = instance.generate_code()
     expected_code = dedent("""
-        cond_{0} = [{1}.id == {2}.id, {1}.cod == {2}.cod]
-        {0} = {1}.join({2}, on=cond_{0}, how='{3}')""".format(
-        outputs[0], inputs[0], inputs[1], "inner"))
+        cond_{out} = [{left_in}['id'] == {right_in}['id'], {left_in}['cod'] == {right_in}['cod']]
+        {out} = {left_in}.join({right_in}, on=cond_{out}, how='{how}').drop({right_in}['id']).drop({right_in}['cod'])""".format(
+        out=outputs[0],
+        left_in=named_inputs['input data 1'],
+        right_in=named_inputs['input data 2'], how="inner"))
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
     assert result, msg
@@ -316,16 +317,19 @@ def test_join_left_join_minimal_params_success():
         'right_attributes': ['id', 'cod'],
         Join.JOIN_TYPE_PARAM: 'left'
     }
-    inputs = ['input_1', 'input_2']
+    named_inputs = {'input data 1': 'input_1', 'input data 2': 'input_2'}
     outputs = ['output_1']
-    instance = Join(params, inputs, outputs,
-                    named_inputs={}, named_outputs={})
+    instance = Join(params, named_inputs.values(), outputs,
+                    named_inputs=named_inputs, named_outputs={})
 
     code = instance.generate_code()
     expected_code = dedent("""
-        cond_{0} = [{1}.id == {2}.id, {1}.cod == {2}.cod]
-        {0} = {1}.join({2}, on=cond_{0}, how='{3}')""".format(
-        outputs[0], inputs[0], inputs[1], params[Join.JOIN_TYPE_PARAM]))
+        cond_{0} = [{1}['id'] == {2}['id'], {1}['cod'] == {2}['cod']]
+        {0} = {1}.join({2}, on=cond_{0}, how='{3}').drop({2}['id'])\
+            .drop({2}['cod'])""".format(
+        outputs[0], named_inputs['input data 1'],
+        named_inputs['input data 2'], params[Join.JOIN_TYPE_PARAM]))
+
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
     assert result, msg
@@ -337,17 +341,18 @@ def test_join_remove_right_columns_success():
         'right_attributes': ['id2', 'cod2'],
         Join.KEEP_RIGHT_KEYS_PARAM: 'False'
     }
-    inputs = ['input_1', 'input_2']
+    named_inputs = {'input data 1': 'input_1', 'input data 2': 'input_2'}
     outputs = ['output_1']
-    instance = Join(params, inputs, outputs,
-                    named_inputs={}, named_outputs={})
+    instance = Join(params, named_inputs.values(), outputs,
+                    named_inputs=named_inputs, named_outputs={})
 
     code = instance.generate_code()
     expected_code = dedent("""
-        cond_{0} = [{1}.id == {2}.id2, {1}.cod == {2}.cod2]
-        {0} = {1}.join({2}, on=cond_{0}, how='{3}').drop({2}.id2)\
-            .drop({2}.cod2)
-        """.format(outputs[0], inputs[0], inputs[1], 'inner'))
+        cond_{0} = [{1}['id'] == {2}['id2'], {1}['cod'] == {2}['cod2']]
+        {0} = {1}.join({2}, on=cond_{0}, how='{3}').drop({2}['id2'])\
+            .drop({2}['cod2'])
+        """.format(outputs[0], named_inputs['input data 1'],
+                   named_inputs['input data 2'], 'inner'))
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
     assert result, msg

@@ -312,13 +312,15 @@ def test_evaluate_model_operation_success():
         EvaluateModel.PREDICTION_ATTRIBUTE_PARAM: 'c',
         EvaluateModel.LABEL_ATTRIBUTE_PARAM: 'c',
         EvaluateModel.METRIC_PARAM: 'f1',
+        'task_id': '2323-afffa-343bdaff',
+        'operation_id': 2793
     }
     inputs = ['input_1', 'input_2']
     outputs = ['output_1']
-    named_inputs={'input data':'input_1',
-                   'model' :'df_model'}
-    named_outputs={'metric' :'df_metric',
-                   'evaluator':'df_evaluator'}
+    named_inputs = {'input data': 'input_1',
+                    'model': 'df_model'}
+    named_outputs = {'metric': 'df_metric',
+                     'evaluator': 'df_evaluator'}
 
     instance = EvaluateModel(params, inputs,
                              outputs, named_inputs=named_inputs,
@@ -327,15 +329,24 @@ def test_evaluate_model_operation_success():
     code = instance.generate_code()
 
     expected_code = dedent("""
-            # Creates the evaluator according to the model
-            # (user should not change it)
             evaluator = {evaluator}({predic_col}='{predic_atr}',
                                   labelCol='{label_atr}', metricName='{metric}')
 
             {output} = evaluator.evaluate({input_1})
+
+            emit_event('task result', status='COMPLETED',
+                identifier='{task_id}', message='Result generated',
+                type='HTML', title='Evaluation result',
+                task={{'id': '{task_id}' }},
+                operation={{'id': {operation_id} }},
+                operation_id={operation_id},
+                content='<strong>' + df_model.__class__.__name__ +
+                     ': metric f1: ' + str({output}) + '</strong>')
             """.format(output=outputs[0],
                        input_2=inputs[1],
                        input_1=inputs[0],
+                       task_id=params['task_id'],
+                       operation_id=params['operation_id'],
                        predic_atr=params[EvaluateModel.PREDICTION_ATTRIBUTE_PARAM],
                        label_atr=params[EvaluateModel.LABEL_ATTRIBUTE_PARAM],
                        metric=params[EvaluateModel.METRIC_PARAM],
@@ -345,7 +356,7 @@ def test_evaluate_model_operation_success():
                            params[EvaluateModel.METRIC_PARAM]][1]))
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
-    assert result, msg + debug_ast(code, expected_code)
+    assert result, msg + format_code_comparison(code, expected_code)
 
 
 # @!BUG - Acessing 'task''order' in parameter attribute, but doesn't exist
@@ -472,17 +483,6 @@ def test_cross_validation_partial_operation_success():
             grid_builder = tuning.ParamGridBuilder()
             estimator, param_grid = {algorithm}
 
-            # if estimator.__class__ == classification.LinearRegression:
-            #     param_grid = estimator.maxIter
-            # elif estimator.__class__  == classification.:
-            #     pass
-            # elif estimator.__class__ == classification.DecisionTreeClassifier:
-            #     # param_grid = (estimator.maxDepth, [2,3,4,5,6,7,8,9])
-            #     param_grid = (estimator.impurity, ['gini', 'entropy'])
-            # elif estimator.__class__ == classification.GBTClassifier:
-            #     pass
-            # elif estimator.__class__ == classification.RandomForestClassifier:
-            #     param_grid = estimator.maxDepth
             for param_name, values in param_grid.iteritems():
                 param = getattr(estimator, param_name)
                 grid_builder.addGrid(param, values)
@@ -496,6 +496,7 @@ def test_cross_validation_partial_operation_success():
             evaluated_data = cv_model.transform({input_data})
             best_model_{output}  = cv_model.bestModel
             metric_result = evaluator.evaluate(evaluated_data)
+            eval_{output} = metric_result
             {output} = evaluated_data
             """.format(algorithm=named_inputs['algorithm'],
                        input_data=named_inputs['input data'],
@@ -505,13 +506,15 @@ def test_cross_validation_partial_operation_success():
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
 
-    assert result, msg + debug_ast(code, expected_code)
+    assert result, msg + format_code_comparison(code, expected_code)
 
 
 def test_cross_validation_complete_operation_success():
     params = {
 
         CrossValidationOperation.NUM_FOLDS_PARAM: 3,
+        'task_id': '2323-afffa-343bdaff',
+        'operation_id': 2793
 
     }
     inputs = ['df_1', 'df_2', 'df_3']
@@ -532,17 +535,6 @@ def test_cross_validation_complete_operation_success():
             grid_builder = tuning.ParamGridBuilder()
             estimator, param_grid = {algorithm}
 
-            # if estimator.__class__ == classification.LinearRegression:
-            #     param_grid = estimator.maxIter
-            # elif estimator.__class__  == classification.:
-            #     pass
-            # elif estimator.__class__ == classification.DecisionTreeClassifier:
-            #     # param_grid = (estimator.maxDepth, [2,3,4,5,6,7,8,9])
-            #     param_grid = (estimator.impurity, ['gini', 'entropy'])
-            # elif estimator.__class__ == classification.GBTClassifier:
-            #     pass
-            # elif estimator.__class__ == classification.RandomForestClassifier:
-            #     param_grid = estimator.maxDepth
             for param_name, values in param_grid.iteritems():
                 param = getattr(estimator, param_name)
                 grid_builder.addGrid(param, values)
@@ -556,6 +548,7 @@ def test_cross_validation_complete_operation_success():
             evaluated_data = cv_model.transform({input_data})
             best_model_{output}  = cv_model.bestModel
             metric_result = evaluator.evaluate(evaluated_data)
+            eval_{output} = metric_result
             {output} = evaluated_data
             """.format(algorithm=named_inputs['algorithm'],
                        input_data=named_inputs['input data'],
@@ -583,12 +576,22 @@ def test_cross_validation_complete_operation_success():
                 }},
                 'evaluator': evaluator
             }}
-            """.format(output=outputs[0])
+            emit_event('task result', status='COMPLETED',
+                identifier='{task_id}', message='Result generated',
+                type='TEXT', title='Evaluation result',
+                task={{'id': '{task_id}' }},
+                operation={{'id': {operation_id} }},
+                operation_id={operation_id},
+                content=json.dumps(eval_{output}))
+
+            """.format(output=outputs[0],
+                       task_id=params['task_id'],
+                       operation_id=params['operation_id'])
     expected_code = '\n'.join([expected_code, dedent(eval_code)])
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
 
-    assert result, msg + debug_ast(code, expected_code)
+    assert result, msg + format_code_comparison(code, expected_code)
 
 
 def test_cross_validation_complete_operation_missing_input_failure():
@@ -623,28 +626,30 @@ def test_classification_model_operation_success():
         ClassificationModel.LABEL_ATTRIBUTE_PARAM: 'l'
 
     }
-    inputs = ['df_1', 'df_2']
+    named_inputs = {'algorithm': 'algo_param',
+                    'train input data': 'train'}
     outputs = ['output_1']
 
-    instance = ClassificationModel(params, inputs,
+    instance = ClassificationModel(params, named_inputs.values(),
                                    outputs,
-                                   named_inputs={},
+                                   named_inputs=named_inputs,
                                    named_outputs={})
 
     code = instance.generate_code()
 
     expected_code = dedent("""
-        {input_2}.setLabelCol('{label}').setFeaturesCol('{features}')
-        {output} = {input_2}.fit({input_1})
+        algorithm, param_grid = {algorithm}
+        algorithm.setLabelCol('{label}').setFeaturesCol('{features}')
+        {output} = algorithm.fit({train})
         """.format(output=outputs[0],
-                   input_1=inputs[0],
-                   input_2=inputs[1],
+                   train=named_inputs['train input data'],
+                   algorithm=named_inputs['algorithm'],
                    features=params[ClassificationModel.FEATURES_ATTRIBUTE_PARAM],
                    label=params[ClassificationModel.LABEL_ATTRIBUTE_PARAM]))
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
 
-    assert result, msg + debug_ast(code, expected_code)
+    assert result, msg + format_code_comparison(code, expected_code)
 
 
 def test_classification_model_operation_failure():
@@ -1622,4 +1627,4 @@ def test_als_operation_success():
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
 
-    assert result, msg + debug_ast(code, expected_code)
+    assert result, msg + format_code_comparison(code, expected_code)

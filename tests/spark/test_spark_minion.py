@@ -26,7 +26,7 @@ def dummy_get_or_create_spark_session(b, c):
     return None
 
 def dummy_emit_event(room, namespace):
-    def _dummy_emit_event(name, msg, status, identifier):
+    def _dummy_emit_event(name, message, status, identifier):
         return None
     return _dummy_emit_event
 

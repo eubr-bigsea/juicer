@@ -138,4 +138,4 @@ def test_transpiler_basic_flow_success():
 
     transpiler.transpile(loader.workflow, loader.graph, {}, out=out)
     out.seek(0)
-    print out.read()
+    # print out.read()
