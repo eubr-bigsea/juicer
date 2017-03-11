@@ -112,11 +112,28 @@ class GeoWithin(Operation):
     def generate_code(self):
         code = """
             from matplotlib.path import Path
-            broad_shapefile_{0} = spark_session.sparkContext.broadcast({0}\\
-                .collect())
+            import pyqtree
+
+            shp_object = {0}.collect()
+            broad_shapefile_{0} = spark_session.sparkContext.broadcast(
+                shp_object)
+
+            xmin = float('+inf')
+            ymin = float('+inf')
+            xmax = float('-inf')
+            ymax = float('-inf')
+            for sector in shp_object:
+                for point in sector['{1}']:
+                    xmin = min(xmin, point[1])
+                    ymin = min(ymin, point[0])
+                    xmax = max(xmax, point[1])
+                    ymax = max(ymax, point[0])
+            #
+            spindex = pyqtree.Index(bbox=[xmin, ymin, xmax, ymax])
+            broad_casted_spindex = spark_session.sparkContext.broadcast(spindex)
 
             def get_first_sector(lat, lng):
-                for i, row in enumerate(broad_shapefile_{0}.value):
+                for row in broad_shapefile_{0}.value:
                     polygon = Path(row['{1}'])
                     if polygon.contains_point([float(lat), float(lng)]):
                         return [col for col in row]

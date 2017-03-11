@@ -330,10 +330,11 @@ class VisualizationModel:
         self.title = title
         self.column_names = column_names
         self.orientation = orientation
-        self.id_attribute = id_attribute[0] if len(id_attribute) > 0 and \
-                                               isinstance(
-                                                   id_attribute,
-                                                   list) else id_attribute
+        if len(id_attribute) > 0 and isinstance(id_attribute, list):
+            self.id_attribute = id_attribute[0]
+        else:
+            self.id_attribute = id_attribute
+
         self.value_attribute = value_attribute
 
     def get_data(self, data):
