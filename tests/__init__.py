@@ -22,7 +22,10 @@ def compare_ast(node1, node2):
         if len(node1) != len(node2):
             out1 = node1
             out2 = node2
-            return False, 'Different lenght in nodes: {} {}'.format(out1, out2)
+            resp = ['Different lenght in nodes ({}, {})'.format(len(out1), len(out2))]
+            resp.append(', '.join([x.__class__.__name__ for x in out1]))
+            resp.append(', '.join([x.__class__.__name__ for x in out2]))
+            return False, '\n'.join(resp)
         for i in range(len(node1)):
             result, msg = compare_ast(node1[i], node2[i])
             if not result:

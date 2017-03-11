@@ -18,9 +18,11 @@ def test_unary_expression_valid_success():
     params = {}
 
     expr = Expression(json_code, params)
-    result, msg = compare_ast(ast.parse(expr.parsed_expression),
-                              ast.parse("(~ col('column'))"))
-    assert result, msg
+
+    code = expr.parsed_expression
+    expected_code = "(~ functions.col('column'))"
+    result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
+    assert result, msg + format_code_comparison(code, expected_code)
 
     json_code['operator'] = '-'
     json_code['argument']['type'] = 'Literal'
@@ -38,9 +40,10 @@ def test_unary_expression_valid_success():
     json_code['argument']['raw'] = "'some text'"
     expr = Expression(json_code, params)
 
-    result, msg = compare_ast(ast.parse(expr.parsed_expression),
-                              ast.parse("+'some text'"))
-    assert result, msg
+    code = expr.parsed_expression
+    expected_code = "+ 'some text'"
+    result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
+    assert result, msg + format_code_comparison(code, expected_code)
 
 
 def test_binary_expression_valid_success():
@@ -59,7 +62,7 @@ def test_binary_expression_valid_success():
     params = {}
     expr = Expression(json_code, params)
     result, msg = compare_ast(ast.parse(expr.parsed_expression),
-                              ast.parse("col('column1') * col('column2')"))
+                              ast.parse("functions.col('column1') * functions.col('column2')"))
     assert result, msg
 
     json_code['operator'] = '/'
@@ -69,7 +72,7 @@ def test_binary_expression_valid_success():
     expr = Expression(json_code, params)
 
     result, msg = compare_ast(ast.parse(expr.parsed_expression),
-                              ast.parse("100 / col('column2')"))
+                              ast.parse("100 / functions.col('column2')"))
     assert result, msg
 
 

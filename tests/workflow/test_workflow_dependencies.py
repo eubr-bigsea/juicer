@@ -96,7 +96,7 @@ def test_workflow_sequence_success():
 
     instance_wf = Workflow(workflow_test)
 
-    print debug_instance(instance_wf)
+    # print debug_instance(instance_wf)
     assert instance_wf
 
 

@@ -84,7 +84,6 @@ def test_aggregation_rows_group_all_missing_attributes_success():
     expected_code = """{out} = {in0}.agg(
                         functions.avg('income').alias('avg_income'))""".format(
         out=outputs[0], in0=inputs[0], in1=inputs[1], agg='country', )
-    debug_ast(code, expected_code)
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
     assert result, msg
 

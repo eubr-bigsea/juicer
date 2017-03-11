@@ -255,7 +255,7 @@ class EvaluateModel(Operation):
                 {output} = evaluator.evaluate({input})
 
                 emit_event('task result', status='COMPLETED',
-                    identifier='{task_id}', msg='Result generated',
+                    identifier='{task_id}', message='Result generated',
                     type='HTML', title='{title}',
                     task={{'id': '{task_id}' }},
                     operation={{'id': {operation_id} }},
@@ -329,17 +329,6 @@ class CrossValidationOperation(Operation):
                     grid_builder = tuning.ParamGridBuilder()
                     estimator, param_grid = {algorithm}
 
-                    # if estimator.__class__ == classification.LinearRegression:
-                    #     param_grid = estimator.maxIter
-                    # elif estimator.__class__  == classification.:
-                    #     pass
-                    # elif estimator.__class__ == classification.DecisionTreeClassifier:
-                    #     # param_grid = (estimator.maxDepth, [2,3,4,5,6,7,8,9])
-                    #     param_grid = (estimator.impurity, ['gini', 'entropy'])
-                    # elif estimator.__class__ == classification.GBTClassifier:
-                    #     pass
-                    # elif estimator.__class__ == classification.RandomForestClassifier:
-                    #     param_grid = estimator.maxDepth
                     for param_name, values in param_grid.iteritems():
                         param = getattr(estimator, param_name)
                         grid_builder.addGrid(param, values)
@@ -388,7 +377,7 @@ class CrossValidationOperation(Operation):
                     }}
 
                     emit_event('task result', status='COMPLETED',
-                        identifier='{task_id}', msg='Result generated',
+                        identifier='{task_id}', message='Result generated',
                         type='TEXT', title='{title}',
                         task={{'id': '{task_id}' }},
                         operation={{'id': {operation_id} }},
