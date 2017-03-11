@@ -58,7 +58,7 @@ class StateControlRedis:
 
     def set_minion_status(self, app_id, status, ex=30, nx=True):
         key = 'key_minion_app_{}'.format(app_id)
-        return self.redis_conn.set(name=key, value=status, ex=ex, nx=nx)
+        return self.redis_conn.set(key, value=status, ex=ex, nx=nx)
 
     def unset_minion_status(self, app_id):
         key = 'key_minion_app_{}'.format(app_id)

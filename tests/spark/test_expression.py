@@ -292,7 +292,7 @@ def test_get_windows_function_success():
     expr = Expression(json_code, params)
 
     expected_code = ("functions.window("
-                     "functions.from_unixtime(col('created_at')/1000000.0),"
+                     "functions.col('created_at'),"
                      "'10 seconds').start.cast('timestamp')")
     result, msg = compare_ast(ast.parse(expr.parsed_expression), ast.parse(
         expected_code))

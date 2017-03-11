@@ -312,13 +312,15 @@ def test_evaluate_model_operation_success():
         EvaluateModel.PREDICTION_ATTRIBUTE_PARAM: 'c',
         EvaluateModel.LABEL_ATTRIBUTE_PARAM: 'c',
         EvaluateModel.METRIC_PARAM: 'f1',
+        'task_id': '2323-afffa-343bdaff',
+        'operation_id': 2793
     }
     inputs = ['input_1', 'input_2']
     outputs = ['output_1']
-    named_inputs={'input data':'input_1',
-                   'model' :'df_model'}
-    named_outputs={'metric' :'df_metric',
-                   'evaluator':'df_evaluator'}
+    named_inputs = {'input data': 'input_1',
+                    'model': 'df_model'}
+    named_outputs = {'metric': 'df_metric',
+                     'evaluator': 'df_evaluator'}
 
     instance = EvaluateModel(params, inputs,
                              outputs, named_inputs=named_inputs,
@@ -345,7 +347,7 @@ def test_evaluate_model_operation_success():
                            params[EvaluateModel.METRIC_PARAM]][1]))
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
-    assert result, msg + debug_ast(code, expected_code)
+    assert result, msg + format_code_comparison(code, expected_code)
 
 
 # @!BUG - Acessing 'task''order' in parameter attribute, but doesn't exist
@@ -505,7 +507,7 @@ def test_cross_validation_partial_operation_success():
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
 
-    assert result, msg + debug_ast(code, expected_code)
+    assert result, msg + format_code_comparison(code, expected_code)
 
 
 def test_cross_validation_complete_operation_success():
@@ -623,28 +625,30 @@ def test_classification_model_operation_success():
         ClassificationModel.LABEL_ATTRIBUTE_PARAM: 'l'
 
     }
-    inputs = ['df_1', 'df_2']
+    named_inputs = {'algorithm': 'algo_param',
+                    'train input data': 'train'}
     outputs = ['output_1']
 
-    instance = ClassificationModel(params, inputs,
+    instance = ClassificationModel(params, named_inputs.values(),
                                    outputs,
-                                   named_inputs={},
+                                   named_inputs=named_inputs,
                                    named_outputs={})
 
     code = instance.generate_code()
 
     expected_code = dedent("""
-        {input_2}.setLabelCol('{label}').setFeaturesCol('{features}')
-        {output} = {input_2}.fit({input_1})
+        algorithm, param_grid = {algorithm}
+        algorithm.setLabelCol('{label}').setFeaturesCol('{features}')
+        {output} = algorithm.fit({train})
         """.format(output=outputs[0],
-                   input_1=inputs[0],
-                   input_2=inputs[1],
+                   train=named_inputs['train input data'],
+                   algorithm=named_inputs['algorithm'],
                    features=params[ClassificationModel.FEATURES_ATTRIBUTE_PARAM],
                    label=params[ClassificationModel.LABEL_ATTRIBUTE_PARAM]))
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
 
-    assert result, msg + debug_ast(code, expected_code)
+    assert result, msg + format_code_comparison(code, expected_code)
 
 
 def test_classification_model_operation_failure():
