@@ -22,7 +22,6 @@ from juicer.runner import juicer_protocol
 from juicer.runner.minion_base import Minion
 from juicer.spark.transpiler import SparkTranspiler
 from juicer.util import dataframe_util
-from juicer.util.string_importer import StringImporter
 from juicer.workflow.workflow import Workflow
 
 logging.config.fileConfig('logging_config.ini')
@@ -53,12 +52,10 @@ class SparkMinion(Minion):
         self.ping_process = None
         self.module = None
 
-        self.string_importer = StringImporter()
         self._state = {}
         self.transpiler = SparkTranspiler()
         self.config = config
         configuration.set_config(self.config)
-        sys.meta_path.append(self.string_importer)
 
         self.tmp_dir = self.config.get('config', {}).get('tmp_dir', '/tmp')
         sys.path.append(self.tmp_dir)
