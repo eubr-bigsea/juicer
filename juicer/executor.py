@@ -43,7 +43,7 @@ def execute_workflow(redis_conn, _id, shells):
             # log.info("Using existing shell")
         else:
             fw = tempfile.NamedTemporaryFile(delete=True)
-            cmd = '/opt/spark-2.0.0-bin-hadoop2.6/bin/pyspark'
+            cmd = '/opt/spark-2.1.0-bin-hadoop2.6/bin/pyspark'
             cmd = 'python'
             fr = open(fw.name, "r")
             sub = Popen([cmd], stdout=fw, stdin=PIPE, stderr=fw)

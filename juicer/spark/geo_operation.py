@@ -153,11 +153,11 @@ class GeoWithin(Operation):
                 matches = bindex.intersect([y, x, y, x]) # why reversed?
 
                 for shp_inx in matches:
-                    row = broad_shapefile_out3.value[shp_inx]
+                    row = broad_shapefile_{0}.value[shp_inx]
                     polygon = Path(row['points'])
                     if polygon.contains_point([x, y]):
                         return [col for col in row]
-                return [None] * len(broad_shapefile_out3.value[0])
+                return [None] * len(broad_shapefile_{0}.value[0])
 
             shapefile_features_count_{0}= len(broad_shapefile_{0}.value[0])
             udf_get_first_sector = functions.udf(
