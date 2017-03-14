@@ -28,7 +28,7 @@ class Expression:
         # Identifier parsing
         elif tree['type'] == 'Identifier':
             if 'input' in params:
-                result = "{}.{}".format(params['input'], tree['name'])
+                result = "{}['{}']".format(params['input'], tree['name'])
             else:
                 result = "functions.col('{}')".format(tree['name'])
 

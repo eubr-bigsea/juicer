@@ -5,18 +5,11 @@ from textwrap import dedent
 
 import pytest
 # Import Operations to test
-from juicer.spark.text_operation import TokenizerOperation, RemoveStopWordsOperation, \
+from juicer.spark.text_operation import TokenizerOperation, \
+    RemoveStopWordsOperation, \
     WordToVectorOperation, GenerateNGramsOperation
 
 from tests import compare_ast, format_code_comparison
-
-
-def debug_ast(code, expected_code):
-    print
-    print code
-    print '*' * 20
-    print expected_code
-    print '*' * 20
 
 
 # Test TokenizerOperation
@@ -27,11 +20,11 @@ def test_tokenizer_operation_type_simple_success():
         TokenizerOperation.ATTRIBUTES_PARAM: ['col'],
         TokenizerOperation.ALIAS_PARAM: 'c'
     }
-    inputs = ['input_1']
-    outputs = ['output_1']
+    n_in = {'input data': 'input_1'}
+    n_out = {'output data': 'output_1'}
 
-    instance = TokenizerOperation(params, inputs, outputs,
-                                  named_inputs={}, named_outputs={})
+    instance = TokenizerOperation(params, named_inputs=n_in,
+                                  named_outputs=n_out)
 
     code = instance.generate_code()
 
@@ -44,13 +37,16 @@ def test_tokenizer_operation_type_simple_success():
             pipeline = Pipeline(stages=tokenizers)
 
             {2} = pipeline.fit({1}).transform({1})
-        """.format(params[TokenizerOperation.ATTRIBUTES_PARAM], inputs[0], outputs[0],
+        """.format(params[TokenizerOperation.ATTRIBUTES_PARAM],
+                   n_in['input data'],
+                   n_out['output data'],
                    json.dumps(zip(params[TokenizerOperation.ATTRIBUTES_PARAM],
                                   params[TokenizerOperation.ALIAS_PARAM]))))
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
 
-    assert result, msg + debug_ast(code, expected_code)
+    assert result, msg + format_code_comparison(code, expected_code)
+
 
 def test_tokenizer_operation_type_regexp_success():
     params = {
@@ -60,14 +56,13 @@ def test_tokenizer_operation_type_regexp_success():
         TokenizerOperation.MINIMUM_SIZE: 3,
         TokenizerOperation.EXPRESSION_PARAM: r'\s+'
     }
-    inputs = ['input_1']
-    outputs = ['output_1']
+    n_in = {'input data': 'input_1'}
+    n_out = {'output data': 'output_1'}
 
-    instance = TokenizerOperation(params, inputs, outputs,
-                                  named_inputs={}, named_outputs={})
+    instance = TokenizerOperation(params, named_inputs=n_in,
+                                  named_outputs=n_out)
 
     code = instance.generate_code()
-
 
     expected_code = dedent("""
             col_alias = {3}
@@ -83,7 +78,8 @@ def test_tokenizer_operation_type_regexp_success():
             pipeline = Pipeline(stages=regextokenizers)
 
             {2} = pipeline.fit({1}).transform({1})
-        """.format(params[TokenizerOperation.TYPE_PARAM], inputs[0], outputs[0],
+        """.format(params[TokenizerOperation.TYPE_PARAM], n_in['input data'],
+                   n_out['output data'],
                    json.dumps(zip(params[TokenizerOperation.ATTRIBUTES_PARAM],
                                   params[TokenizerOperation.ALIAS_PARAM])),
                    params[TokenizerOperation.EXPRESSION_PARAM],
@@ -91,24 +87,25 @@ def test_tokenizer_operation_type_regexp_success():
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
 
-    assert result, msg + debug_ast(code, expected_code)
+    assert result, msg + format_code_comparison(code, expected_code)
 
 
 def test_remove_stopwords_operations_2_params_success():
+    case_sensitive = 'False'
+    n_in = {'input data': 'input_1', 'stop words': 'stops_pt'}
+    n_out = {'output data': 'output_1'}
+
     params = {
         RemoveStopWordsOperation.ATTRIBUTES_PARAM: ['text'],
         RemoveStopWordsOperation.ALIAS_PARAM: 'c',
-        RemoveStopWordsOperation.STOP_WORD_LIST_PARAM: 'df_2',
+        RemoveStopWordsOperation.STOP_WORD_LIST_PARAM: n_in['stop words'],
         RemoveStopWordsOperation.STOP_WORD_ATTRIBUTE_PARAM: 'stop_word',
-        RemoveStopWordsOperation.STOP_WORD_CASE_SENSITIVE_PARAM: 'False'
+        RemoveStopWordsOperation.STOP_WORD_CASE_SENSITIVE_PARAM: case_sensitive
     }
     # Input data, and StopWords list
-    inputs = ['df_1', 'df_2']
-    outputs = ['output_1']
 
-    instance = RemoveStopWordsOperation(params, inputs, outputs,
-                        named_inputs={'input data': 'df_1', 'stop words': 'df_2'},
-                        named_outputs={})
+    instance = RemoveStopWordsOperation(params, named_inputs=n_in,
+                                        named_outputs=n_out)
 
     code = instance.generate_code()
 
@@ -125,15 +122,17 @@ def test_remove_stopwords_operations_2_params_success():
         # Use Pipeline to process all attributes once
         pipeline = Pipeline(stages=removers)
         {2} = pipeline.fit({1}).transform({1})
-        """).format(params[RemoveStopWordsOperation.ATTRIBUTES_PARAM], inputs[0],
-                   outputs[0],
-                   json.dumps(zip(params[RemoveStopWordsOperation.ATTRIBUTES_PARAM],
-                                params[RemoveStopWordsOperation.ALIAS_PARAM])),
-                   params[RemoveStopWordsOperation.STOP_WORD_CASE_SENSITIVE_PARAM]
-                   )
+        """).format(params[RemoveStopWordsOperation.ATTRIBUTES_PARAM],
+                    n_in['input data'],
+                    n_out['output data'],
+                    json.dumps(
+                        zip(params[RemoveStopWordsOperation.ATTRIBUTES_PARAM],
+                            params[RemoveStopWordsOperation.ALIAS_PARAM])),
+                    case_sensitive
+                    )
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
-    assert result, msg + debug_ast(code, expected_code)
+    assert result, msg + format_code_comparison(code, expected_code)
 
 
 def test_remove_stopwords_operations_1_params_success():
@@ -144,16 +143,16 @@ def test_remove_stopwords_operations_1_params_success():
         RemoveStopWordsOperation.STOP_WORD_LANGUAGE_PARAM: 'english',
         RemoveStopWordsOperation.STOP_WORD_CASE_SENSITIVE_PARAM: 'False'
     }
-    inputs = ['df_1']
-    outputs = ['output_1']
+    n_in = {'input data': 'input_1'}
+    n_out = {'output data': 'output_1'}
 
-    instance = RemoveStopWordsOperation(params, inputs, outputs,
-                                        named_inputs={'input data': 'df_1'},
-                                        named_outputs={'output data': 'df_3'})
+    instance = RemoveStopWordsOperation(params, named_inputs=n_in,
+                                        named_outputs=n_out)
 
+    expected_code = ''
     code = instance.generate_code()
 
-    if len(inputs) != 2:
+    if len(n_in) != 2:
         expected_code = "sw = StopWordsRemover.loadDefaultStopWords({})".format(
             params[RemoveStopWordsOperation.STOP_WORD_LANGUAGE_PARAM])
 
@@ -167,11 +166,14 @@ def test_remove_stopwords_operations_1_params_success():
         # Use Pipeline to process all attributes once
         pipeline = Pipeline(stages=removers)
         {2} = pipeline.fit({1}).transform({1})
-        """.format(params[RemoveStopWordsOperation.ATTRIBUTES_PARAM], inputs[0],
-                   outputs[0],
-                   json.dumps(zip(params[RemoveStopWordsOperation.ATTRIBUTES_PARAM],
-                                params[RemoveStopWordsOperation.ALIAS_PARAM])),
-                   params[RemoveStopWordsOperation.STOP_WORD_CASE_SENSITIVE_PARAM]))
+        """.format(params[RemoveStopWordsOperation.ATTRIBUTES_PARAM],
+                   n_in['input data'],
+                   n_out['output data'],
+                   json.dumps(
+                       zip(params[RemoveStopWordsOperation.ATTRIBUTES_PARAM],
+                           params[RemoveStopWordsOperation.ALIAS_PARAM])),
+                   params[
+                                                   RemoveStopWordsOperation.STOP_WORD_CASE_SENSITIVE_PARAM]))
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
 
@@ -191,14 +193,11 @@ def test_word_to_vector_count_operation_success():
         WordToVectorOperation.MINIMUM_TF_PARAM: 4
     }
 
-    inputs = ['df_1']
-    outputs = ['output_1', 'df_vocab']
+    n_in = {'input data': 'input_1'}
+    n_out = {'output data': 'output_1', 'vocabulary': 'vocab_1'}
 
-
-    instance = WordToVectorOperation(params, inputs, outputs,
-                                     named_inputs={},
-                                     named_outputs={'output data' :'output_1',
-                                                    'vocabulary': 'df_vocab'})
+    instance = WordToVectorOperation(params, named_inputs=n_in,
+                                     named_outputs=n_out)
 
     code = instance.generate_code()
 
@@ -215,20 +214,21 @@ def test_word_to_vector_count_operation_success():
                 {7} = dict([(col_alias[i][1], v.vocabulary)
                         for i, v in enumerate(model.stages)])
                 """
-               .format(params[WordToVectorOperation.ATTRIBUTES_PARAM],
-                        inputs[0],
-                        outputs[0],
-                        json.dumps(zip(params[WordToVectorOperation.ATTRIBUTES_PARAM],
-                                        params[WordToVectorOperation.ALIAS_PARAM])),
-                        params[WordToVectorOperation.MINIMUM_TF_PARAM],
-                        params[WordToVectorOperation.MINIMUM_DF_PARAM],
-                        params[WordToVectorOperation.VOCAB_SIZE_PARAM],
-                        outputs[1]
+        .format(
+        params[WordToVectorOperation.ATTRIBUTES_PARAM],
+        n_in['input data'],
+        n_out['output data'],
+        json.dumps(zip(params[WordToVectorOperation.ATTRIBUTES_PARAM],
+                       params[WordToVectorOperation.ALIAS_PARAM])),
+        params[WordToVectorOperation.MINIMUM_TF_PARAM],
+        params[WordToVectorOperation.MINIMUM_DF_PARAM],
+        params[WordToVectorOperation.VOCAB_SIZE_PARAM],
+        n_out['vocabulary']
 
-                        ))
+    ))
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
-    assert result, msg + debug_ast(code, expected_code)
+    assert result, msg + format_code_comparison(code, expected_code)
 
 
 # Check requirements
@@ -241,13 +241,11 @@ def test_word_to_vector_word2vec_operation_success():
         WordToVectorOperation.MINIMUM_VECTOR_SIZE_PARAM: 0
     }
 
-    inputs = ['df_1']
-    outputs = ['output_1', 'df_vocab']
+    n_in = {'input data': 'input_1'}
+    n_out = {'output data': 'output_1', 'vocabulary': 'vocab_1'}
 
-    instance = WordToVectorOperation(params, inputs, outputs,
-                                     named_inputs={},
-                                     named_outputs={'output data' :'output_1',
-                                                     'vocabulary': 'df_vocab'})
+    instance = WordToVectorOperation(params, named_inputs=n_in,
+                                     named_outputs=n_out)
     code = instance.generate_code()
     # @FIXME Check
 
@@ -269,32 +267,32 @@ def test_word_to_vector_word2vec_operation_success():
                 {6} = dict([(col_alias[i][1], v.vocabulary)
                         for i, v in enumerate(model.stages)])
                 """.format(params[WordToVectorOperation.ATTRIBUTES_PARAM],
-                        inputs[0],
-                        outputs[0],
-                        json.dumps(zip(params[WordToVectorOperation.ATTRIBUTES_PARAM],
-                                      params[WordToVectorOperation.ALIAS_PARAM])),
-                        params[WordToVectorOperation.MINIMUM_VECTOR_SIZE_PARAM],
-                        params[WordToVectorOperation.MINIMUM_COUNT_PARAM],
-                        outputs[1]))
+                           n_in['input data'],
+                           n_out['output data'],
+                           json.dumps(zip(
+                               params[WordToVectorOperation.ATTRIBUTES_PARAM],
+                               params[WordToVectorOperation.ALIAS_PARAM])),
+                           params[
+                                                          WordToVectorOperation.MINIMUM_VECTOR_SIZE_PARAM],
+                           params[WordToVectorOperation.MINIMUM_COUNT_PARAM],
+                           n_out['vocabulary']))
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
-    assert result, msg + debug_ast(code, expected_code)
+    assert result, msg + format_code_comparison(code, expected_code)
 
 
 # Test NGramOperations
 def test_n_gram_operations_success():
-
     params = {
         GenerateNGramsOperation.ATTRIBUTES_PARAM: ['text'],
         GenerateNGramsOperation.ALIAS_PARAM: 'c',
         GenerateNGramsOperation.N_PARAM: '2'
     }
-    inputs = ['df_1']
-    outputs = ['output_1']
+    n_in = {'input data': 'input_1'}
+    n_out = {'output data': 'output_1'}
 
-    instance = GenerateNGramsOperation(params, inputs, outputs,
-                                       named_inputs={},
-                                       named_outputs={})
+    instance = GenerateNGramsOperation(params, named_inputs=n_in,
+                                       named_outputs=n_out)
 
     code = instance.generate_code()
 
@@ -308,12 +306,13 @@ def test_n_gram_operations_success():
             model = pipeline.fit({1})
             {2} = model.transform({1})
             """.format(params[GenerateNGramsOperation.N_PARAM],
-                    inputs[0], outputs[0],
-                    json.dumps(zip(params[GenerateNGramsOperation.ATTRIBUTES_PARAM],
-                                    params[GenerateNGramsOperation.ALIAS_PARAM]))))
+                       n_in['input data'], n_out['output data'],
+                       json.dumps(
+                           zip(params[GenerateNGramsOperation.ATTRIBUTES_PARAM],
+                               params[GenerateNGramsOperation.ALIAS_PARAM]))))
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
-    assert result, msg + debug_ast(code, expected_code)
+    assert result, msg + format_code_comparison(code, expected_code)
 
 
 # Test NGramOperations
@@ -322,9 +321,9 @@ def test_n_gram_missing_param_failure():
         GenerateNGramsOperation.ATTRIBUTES_PARAM: ['text'],
         GenerateNGramsOperation.ALIAS_PARAM: 'c'
     }
-    inputs = ['df_1']
-    outputs = ['output_1']
+    n_in = {'input data': 'input_1'}
+    n_out = {'output data': 'output_1'}
 
     with pytest.raises(ValueError):
-        GenerateNGramsOperation(params, inputs, outputs, named_inputs={},
-                          named_outputs={})
+        GenerateNGramsOperation(params, named_inputs=n_in,
+                                named_outputs=n_out)

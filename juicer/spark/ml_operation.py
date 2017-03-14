@@ -10,7 +10,7 @@ log = logging.getLogger()
 log.setLevel(logging.DEBUG)
 
 
-class FeatureIndexer(Operation):
+class FeatureIndexerOperation(Operation):
     """
     A label indexer that maps a string attribute of labels to an ML attribute of
     label indices (attribute type = STRING) or a feature transformer that merges
@@ -25,9 +25,8 @@ class FeatureIndexer(Operation):
     TYPE_STRING = 'string'
     TYPE_VECTOR = 'vector'
 
-    def __init__(self, parameters, inputs, outputs, named_inputs,
-                 named_outputs):
-        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs,
                            named_outputs)
         '''
         del parameters['workflow_json']
@@ -64,6 +63,10 @@ class FeatureIndexer(Operation):
                                    self.alias[:len(self.attributes)])]
 
     def generate_code(self):
+        input_data = self.named_inputs['input data']
+        output = self.named_outputs.get('output data',
+                                        'out_task_{}'.format(self.order))
+
         if self.type == self.TYPE_STRING:
             code = """
                 col_alias = dict({3})
@@ -82,7 +85,7 @@ class FeatureIndexer(Operation):
                 {1}_without_null = {1}.na.fill('NA', subset=col_alias.keys())
 
                 {2} = pipeline.fit({1}_without_null).transform({1}_without_null)
-            """.format(self.attributes, self.inputs[0], self.output,
+            """.format(self.attributes, input_data, output,
                        json.dumps(zip(self.attributes, self.alias),
                                   indent=None))
         elif self.type == self.TYPE_VECTOR:
@@ -103,7 +106,7 @@ class FeatureIndexer(Operation):
                 {1}_without_null = {1}.na.fill('NA', subset=col_alias.keys())
 
                 {2} = pipeline.fit({1}_without_null).transform({1}_without_null)
-            """.format(self.attributes, self.inputs[0], self.output,
+            """.format(self.attributes, input_data, output,
                        json.dumps(zip(self.attributes, self.alias)),
                        self.max_categories)
         else:
@@ -114,16 +117,16 @@ class FeatureIndexer(Operation):
         return dedent(code)
 
     def get_output_names(self, sep=','):
-        output = self.outputs[0] if len(self.outputs) else '{}_tmp'.format(
-            self.inputs[0])
+        output = self.named_outputs.get('output data',
+                                        'out_task_{}'.format(self.order))
         return sep.join([output, 'models'])
 
     def get_data_out_names(self, sep=','):
-        return self.outputs[0] if len(self.outputs) else '{}_tmp'.format(
-            self.inputs[0])
+        return self.named_outputs.get('output data',
+                                      'out_task_{}'.format(self.order))
 
 
-class FeatureAssembler(Operation):
+class FeatureAssemblerOperation(Operation):
     """
     A feature transformer that merges multiple attributes into a vector
     attribute.
@@ -131,10 +134,9 @@ class FeatureAssembler(Operation):
     ATTRIBUTES_PARAM = 'attributes'
     ALIAS_PARAM = 'alias'
 
-    def __init__(self, parameters, inputs, outputs, named_inputs,
+    def __init__(self, parameters, named_inputs,
                  named_outputs):
-        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
-                           named_outputs)
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
         self.parameters = parameters
         if self.ATTRIBUTES_PARAM in parameters:
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
@@ -144,40 +146,43 @@ class FeatureAssembler(Operation):
                     self.ATTRIBUTES_PARAM, self.__class__))
         self.alias = parameters.get(self.ALIAS_PARAM, 'features')
 
-        self.has_code = len(self.inputs) > 0
+        self.has_code = len(self.named_inputs) > 0
 
     def generate_code(self):
+        input_data = self.named_inputs['input data']
+        output = self.named_outputs.get('output data',
+                                        'out_task_{}'.format(self.order))
+
         code = """
             assembler = feature.VectorAssembler(inputCols={0}, outputCol="{1}")
             {3}_without_null = {3}.na.drop(subset={0})
             {2} = assembler.transform({3}_without_null)
-        """.format(json.dumps(self.attributes), self.alias, self.output,
-                   self.inputs[0])
+        """.format(json.dumps(self.attributes), self.alias, output,
+                   input_data)
 
         return dedent(code)
 
 
-class ApplyModel(Operation):
-    def __init__(self, parameters, inputs, outputs, named_inputs,
-                 named_outputs):
-        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
-                           named_outputs)
-        self.has_code = len(self.inputs) == 2
+class ApplyModelOperation(Operation):
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+        self.has_code = len(self.named_inputs) == 2
 
     def generate_code(self):
-        if self.has_code:
-            code = """
-            {0} = {2}.transform({1})
-            """.format(self.outputs[0], self.inputs[1], self.inputs[0])
-        else:
-            raise ValueError(
-                "Parameter '{}' must be informed for task {}".format(
-                    self.inputs, self.__class__))
+        input_data1 = self.named_inputs['input data']
+        output = self.named_outputs.get('output data',
+                                        'out_task_{}'.format(self.order))
+
+        model = self.named_inputs.get(
+            'model', 'model_task_{}'.format(self.order))
+
+        code = "{out} = {in2}.transform({in1})".format(
+            out=output, in1=input_data1, in2=model)
 
         return dedent(code)
 
 
-class EvaluateModel(Operation):
+class EvaluateModelOperation(Operation):
     PREDICTION_ATTRIBUTE_PARAM = 'prediction_attribute'
     LABEL_ATTRIBUTE_PARAM = 'label_attribute'
     METRIC_PARAM = 'metric'
@@ -199,12 +204,11 @@ class EvaluateModel(Operation):
         'mae': ('evaluation.RegressionEvaluator', 'predictionCol'),
     }
 
-    def __init__(self, parameters, inputs, outputs, named_inputs,
+    def __init__(self, parameters, named_inputs,
                  named_outputs):
-        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
+        Operation.__init__(self, parameters, named_inputs,
                            named_outputs)
 
-        # self.has_code = len(self.inputs) == 2
         # @FIXME: validate if metric is compatible with Model using workflow
 
         self.prediction_attribute = (parameters.get(
@@ -227,24 +231,20 @@ class EvaluateModel(Operation):
         else:
             raise ValueError('Invalid metric value {}'.format(self.metric))
 
-        self.has_code = (len(self.inputs) > 0 and len(self.output) > 0) or \
-            (self.named_outputs.get('evaluator') is not None)
+        self.has_code = (len(self.named_inputs) > 0 and
+                         len(self.named_outputs) > 0) or (
+                            (self.named_outputs.get('evaluator') is not None))
 
     def get_data_out_names(self, sep=','):
         return ''
 
-    def get_output_namesx(self, sep=", "):
-        output_evaluator = self.named_outputs['output data'] if len(
-            self.output) > 1 else '{}_tmp_{}'.format(
-            self.named_inputs['input data'], self.named_inputs['input data'])
-        # Some cases this string to _tmp_ doesn't work in the spark code generation
-        # self.parameters['task']['order'])
-        return sep.join([self.output, output_evaluator])
-
     def generate_code(self):
+        metric_out = self.named_outputs.get(
+            'metric', 'metric_task_{}'.format(self.order))
         if self.has_code:
             code = ''
-            if len(self.inputs) > 0:  # Not being used with a cross validator
+            # Not being used with a cross validator
+            if len(self.named_inputs) > 0:
                 code = """
                 # Creates the evaluator according to the model
                 # (user should not change it)
@@ -264,7 +264,7 @@ class EvaluateModel(Operation):
                         ': metric {metric}: ' +
                         str({output}) + '</strong>')
 
-                """.format(output=self.output,
+                """.format(output=metric_out,
                            input=self.named_inputs['input data'],
                            model=self.named_inputs['model'],
                            pred_attr=self.prediction_attribute,
@@ -275,13 +275,13 @@ class EvaluateModel(Operation):
                            task_id=self.parameters['task_id'],
                            operation_id=self.parameters['operation_id'],
                            title='Evaluation result')
-            elif len(self.output) > 0:  # Used with cross validator
+            elif len(self.named_outputs) > 0:  # Used with cross validator
                 code = """
                 {5} = {0}({1}='{2}',
                                 labelCol='{3}', metricName='{4}')
                 """.format(self.evaluator, self.param_prediction_col,
                            self.prediction_attribute, self.label_attribute,
-                           self.metric, self.output)
+                           self.metric, metric_out)
 
             return dedent(code)
 
@@ -293,21 +293,18 @@ class CrossValidationOperation(Operation):
     """
     NUM_FOLDS_PARAM = 'folds'
 
-    def __init__(self, parameters, inputs, outputs, named_inputs,
-                 named_outputs):
-        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
-                           named_outputs)
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-        if len(self.inputs) == 3:
-            self.has_code = True
-        else:
-            self.has_code = False
-            msg = "Parameters '{}', '{}' and '{}' must be informed for task {}"
-            raise ValueError(msg.format(
-                self.named_inputs['algorithm'], self.named_inputs['input data'],
-                self.named_inputs['evaluator'], self.__class__))
-            # raise ValueError('Invalid metric value {}'.format(self.metric))
+        self.has_code = len(self.named_inputs) == 3
         self.num_folds = parameters.get(self.NUM_FOLDS_PARAM, 3)
+
+        self.output = self.named_outputs.get(
+            'scored data', 'scored_data_task_{}'.format(self.order))
+        self.evaluation = self.named_outputs.get(
+            'evaluation', 'evaluation_task_{}'.format(self.order))
+        self.models = self.named_outputs.get(
+            'models', 'models_task_{}'.format(self.order))
 
     @property
     def get_inputs_names(self):
@@ -316,93 +313,90 @@ class CrossValidationOperation(Operation):
                           self.named_inputs['evaluator']])
 
     def get_output_names(self, sep=", "):
-        return sep.join([self.output,
-                         'eval_{}'.format(self.output),
-                         'best_model_{}'.format(self.output)])
+        return sep.join([self.output, self.evaluation, self.models])
 
     def get_data_out_names(self, sep=','):
-        return ''
+        return sep.join([self.output])
 
     def generate_code(self):
-        if self.has_code:
-            code = dedent("""
-                    grid_builder = tuning.ParamGridBuilder()
-                    estimator, param_grid = {algorithm}
+        code = dedent("""
+                grid_builder = tuning.ParamGridBuilder()
+                estimator, param_grid = {algorithm}
 
-                    for param_name, values in param_grid.iteritems():
-                        param = getattr(estimator, param_name)
-                        grid_builder.addGrid(param, values)
+                for param_name, values in param_grid.iteritems():
+                    param = getattr(estimator, param_name)
+                    grid_builder.addGrid(param, values)
 
-                    evaluator = {evaluator}
+                evaluator = {evaluator}
 
-                    cross_validator = tuning.CrossValidator(
-                        estimator=estimator, estimatorParamMaps=grid_builder.build(),
-                        evaluator=evaluator, numFolds={folds})
-                    cv_model = cross_validator.fit({input_data})
-                    evaluated_data = cv_model.transform({input_data})
-                    best_model_{output}  = cv_model.bestModel
-                    metric_result = evaluator.evaluate(evaluated_data)
-                    {evaluation} = metric_result
-                    {output} = evaluated_data
-                    """.format(algorithm=self.named_inputs['algorithm'],
-                               input_data=self.named_inputs['input data'],
-                               evaluator=self.named_inputs['evaluator'],
-                               evaluation='eval_{}'.format(self.output),
-                               output=self.output,
-                               folds=self.num_folds))
+                cross_validator = tuning.CrossValidator(
+                    estimator=estimator, estimatorParamMaps=grid_builder.build(),
+                    evaluator=evaluator, numFolds={folds})
+                cv_model = cross_validator.fit({input_data})
+                evaluated_data = cv_model.transform({input_data})
+                best_model_{output}  = cv_model.bestModel
+                metric_result = evaluator.evaluate(evaluated_data)
+                {evaluation} = metric_result
+                {output} = evaluated_data
+                """.format(algorithm=self.named_inputs['algorithm'],
+                           input_data=self.named_inputs['input data'],
+                           evaluator=self.named_inputs['evaluator'],
+                           evaluation='eval_{}'.format(self.evaluation),
+                           output=self.output,
+                           folds=self.num_folds))
 
-            # If there is an output needing the evaluation result, it must be
-            # processed here (summarization of data results)
-            needs_evaluation = 'evaluation' in self.named_outputs
-            if needs_evaluation:
-                eval_code = """
-                    grouped_result = evaluated_data.select(
-                            evaluator.getLabelCol(), evaluator.getPredictionCol())\\
-                            .groupBy(evaluator.getLabelCol(),
-                                     evaluator.getPredictionCol()).count().collect()
-                    eval_{output} = {{
-                        'metric': {{
-                            'name': evaluator.getMetricName(),
-                            'value': metric_result
-                        }},
-                        'estimator': {{
-                            'name': estimator.__class__.__name__,
-                            'predictionCol': evaluator.getPredictionCol(),
-                            'labelCol': evaluator.getLabelCol()
-                        }},
-                        'confusion_matrix': {{
-                            'data': json.dumps(grouped_result)
-                        }},
-                        'evaluator': evaluator
-                    }}
+        # If there is an output needing the evaluation result, it must be
+        # processed here (summarization of data results)
+        needs_evaluation = 'evaluation' in self.named_outputs
+        if needs_evaluation:
+            eval_code = """
+                grouped_result = evaluated_data.select(
+                        evaluator.getLabelCol(), evaluator.getPredictionCol())\\
+                        .groupBy(evaluator.getLabelCol(),
+                                 evaluator.getPredictionCol()).count().collect()
+                eval_{output} = {{
+                    'metric': {{
+                        'name': evaluator.getMetricName(),
+                        'value': metric_result
+                    }},
+                    'estimator': {{
+                        'name': estimator.__class__.__name__,
+                        'predictionCol': evaluator.getPredictionCol(),
+                        'labelCol': evaluator.getLabelCol()
+                    }},
+                    'confusion_matrix': {{
+                        'data': json.dumps(grouped_result)
+                    }},
+                    'evaluator': evaluator
+                }}
 
-                    emit_event('task result', status='COMPLETED',
-                        identifier='{task_id}', message='Result generated',
-                        type='TEXT', title='{title}',
-                        task={{'id': '{task_id}' }},
-                        operation={{'id': {operation_id} }},
-                        operation_id={operation_id},
-                        content=json.dumps(eval_{output}))
+                emit_event('task result', status='COMPLETED',
+                    identifier='{task_id}', message='Result generated',
+                    type='TEXT', title='{title}',
+                    task={{'id': '{task_id}' }},
+                    operation={{'id': {operation_id} }},
+                    operation_id={operation_id},
+                    content=json.dumps(eval_{output}))
 
-                    """.format(output=self.output,
-                               title='Evaluation result',
-                               task_id=self.parameters['task_id'],
-                               operation_id=self.parameters['operation_id'])
-                code = '\n'.join([code, dedent(eval_code)])
+                """.format(output=self.output,
+                           title='Evaluation result',
+                           task_id=self.parameters['task_id'],
+                           operation_id=self.parameters['operation_id'])
+            code = '\n'.join([code, dedent(eval_code)])
 
-            return code
+        return code
 
 
-class ClassificationModel(Operation):
+class ClassificationModelOperation(Operation):
     FEATURES_ATTRIBUTE_PARAM = 'features'
     LABEL_ATTRIBUTE_PARAM = 'label'
 
-    def __init__(self, parameters, inputs, outputs, named_inputs,
+    def __init__(self, parameters, named_inputs,
                  named_outputs):
-        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
+        Operation.__init__(self, parameters, named_inputs,
                            named_outputs)
 
-        self.has_code = len(self.outputs) > 0 and len(self.inputs) == 2
+        self.has_code = len(named_outputs) > 0 and len(named_inputs) == 2
 
         if not all([self.FEATURES_ATTRIBUTE_PARAM in parameters,
                     self.LABEL_ATTRIBUTE_PARAM in parameters]):
@@ -414,26 +408,24 @@ class ClassificationModel(Operation):
         self.label = parameters.get(self.LABEL_ATTRIBUTE_PARAM)[0]
         self.features = parameters.get(self.FEATURES_ATTRIBUTE_PARAM)[0]
 
-        # @FIXME How to change output name?
-        # self.output = output.replace('df', 'classification')
-        # if self.has_code:
-        #    self.inputs[1] = self.inputs[1].replace('df', 'classifier')
+        self.model = named_outputs.get('model',
+                                       'model_task_{}'.format(self.order))
 
     def get_data_out_names(self, sep=','):
         return ''
 
     def get_output_names(self, sep=','):
-        return self.output
+        return self.model
 
     def generate_code(self):
         if self.has_code:
             code = """
-            algorithm, param_grid = {1}
-            algorithm.setLabelCol('{3}').setFeaturesCol('{4}')
-            {0} = algorithm.fit({2})
-            """.format(self.output, self.named_inputs['algorithm'],
-                       self.named_inputs['train input data'],
-                       self.label, self.features)
+            algorithm, param_grid = {algo}
+            algorithm.setLabelCol('{label}').setFeaturesCol('{feat}')
+            {model} = algorithm.fit({train})
+            """.format(model=self.model, algo=self.named_inputs['algorithm'],
+                       train=self.named_inputs['train input data'],
+                       label=self.label, feat=self.features)
 
             return dedent(code)
         else:
@@ -451,12 +443,13 @@ class ClassifierOperation(Operation):
     FEATURES_PARAM = 'features'
     LABEL_PARAM = 'label'
 
-    def __init__(self, parameters, inputs, outputs, named_inputs,
+    def __init__(self, parameters, named_inputs,
                  named_outputs):
-        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
+        Operation.__init__(self, parameters, named_inputs,
                            named_outputs)
-        self.has_code = len(self.outputs) > 0
-        self.name = "FIXME"
+
+        self.has_code = len(named_outputs) > 0
+        self.name = "BaseClassifier"
 
         if 'paramgrid' not in parameters:
             raise ValueError(
@@ -472,6 +465,9 @@ class ClassifierOperation(Operation):
 
         self.label = parameters['paramgrid'].get(self.LABEL_PARAM)
         self.attributes = parameters['paramgrid'].get(self.FEATURES_PARAM)
+
+        self.output = self.named_outputs.get('algorithm',
+                                             'algo_task_{}'.format(self.order))
 
     def get_data_out_names(self, sep=','):
         return ''
@@ -502,80 +498,76 @@ class ClassifierOperation(Operation):
 
 
 class SvmClassifierOperation(ClassifierOperation):
-    def __init__(self, parameters, inputs, outputs, named_inputs,
+    def __init__(self, parameters, named_inputs,
                  named_outputs):
-        ClassifierOperation.__init__(self, parameters, inputs, outputs,
-                                     named_inputs, named_outputs)
+        ClassifierOperation.__init__(self, parameters, named_inputs,
+                                     named_outputs)
         self.parameters = parameters
         self.has_code = False
         self.name = 'classification.SVM'
 
 
 class LogisticRegressionClassifierOperation(ClassifierOperation):
-    def __init__(self, parameters, inputs, outputs, named_inputs,
+    def __init__(self, parameters, named_inputs,
                  named_outputs):
-        ClassifierOperation.__init__(self, parameters, inputs, outputs,
-                                     named_inputs, named_outputs)
+        ClassifierOperation.__init__(self, parameters, named_inputs,
+                                     named_outputs)
         self.parameters = parameters
         self.name = 'classification.LogisticRegression'
 
 
 class DecisionTreeClassifierOperation(ClassifierOperation):
-    def __init__(self, parameters, inputs, outputs, named_inputs,
+    def __init__(self, parameters, named_inputs,
                  named_outputs):
-        ClassifierOperation.__init__(self, parameters, inputs, outputs,
-                                     named_inputs, named_outputs)
+        ClassifierOperation.__init__(self, parameters, named_inputs,
+                                     named_outputs)
         self.name = 'classification.DecisionTreeClassifier'
 
 
 class GBTClassifierOperation(ClassifierOperation):
-    def __init__(self, parameters, inputs, outputs, named_inputs,
+    def __init__(self, parameters, named_inputs,
                  named_outputs):
-        ClassifierOperation.__init__(self, parameters, inputs, outputs,
-                                     named_inputs,
+        ClassifierOperation.__init__(self, parameters, named_inputs,
                                      named_outputs)
         self.name = 'classification.GBTClassifier'
 
 
 class NaiveBayesClassifierOperation(ClassifierOperation):
-    def __init__(self, parameters, inputs, outputs, named_inputs,
+    def __init__(self, parameters, named_inputs,
                  named_outputs):
-        ClassifierOperation.__init__(self, parameters, inputs, outputs,
-                                     named_inputs, named_outputs)
+        ClassifierOperation.__init__(self, parameters, named_inputs,
+                                     named_outputs)
         self.name = 'classification.NaiveBayes'
 
 
 class RandomForestClassifierOperation(ClassifierOperation):
-    def __init__(self, parameters, inputs, outputs, named_inputs,
+    def __init__(self, parameters, named_inputs,
                  named_outputs):
-        ClassifierOperation.__init__(self, parameters, inputs, outputs,
-                                     named_inputs, named_outputs)
+        ClassifierOperation.__init__(self, parameters, named_inputs,
+                                     named_outputs)
         self.name = 'classification.RandomForestClassifier'
 
 
 class PerceptronClassifier(ClassifierOperation):
-    def __init__(self, parameters, inputs, outputs, named_inputs,
+    def __init__(self, parameters, named_inputs,
                  named_outputs):
-        ClassifierOperation.__init__(self, parameters, inputs, outputs,
-                                     named_inputs, named_outputs)
+        ClassifierOperation.__init__(self, parameters, named_inputs,
+                                     named_outputs)
         self.name = 'classification.MultilayerPerceptronClassificationModel'
 
 
 class ClassificationReport(ReportOperation):
-    def __init__(self, parameters, inputs, outputs, named_inputs,
+    def __init__(self, parameters, named_inputs,
                  named_outputs):
-        ReportOperation.__init__(self, parameters, inputs, outputs,
-                                 named_inputs, named_outputs)
-        self.has_code = len(self.inputs) > 1
+        ReportOperation.__init__(self, parameters, named_inputs, named_outputs)
+        self.has_code = len(self.named_inputs) > 1
         self.multiple_inputs = True
 
     def get_data_out_names(self, sep=','):
         return ''
 
     def generate_code(self):
-        code = dedent("""
-            {output} = "ok"
-        """.format(output=self.output))
+        code = dedent("{output} = 'ok'".format(output='FIXME'))
         return code
 
 
@@ -587,12 +579,11 @@ Clustering part
 class ClusteringModelOperation(Operation):
     FEATURES_ATTRIBUTE_PARAM = 'features'
 
-    def __init__(self, parameters, inputs, outputs, named_inputs,
-                 named_outputs):
-        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs,
                            named_outputs)
 
-        self.has_code = len(self.outputs) > 0 and len(self.inputs) == 2
+        self.has_code = len(named_outputs) > 0 and len(named_inputs) == 2
 
         if self.FEATURES_ATTRIBUTE_PARAM not in parameters:
             msg = "Parameter '{}' must be informed for task {}"
@@ -600,25 +591,29 @@ class ClusteringModelOperation(Operation):
                 self.FEATURES_ATTRIBUTE_PARAM, self.__class__))
 
         self.features = parameters.get(self.FEATURES_ATTRIBUTE_PARAM)[0]
-        self.output = self.named_outputs['output data']
-        self.model = self.named_outputs.get('model', '{}_model'.format(
-            self.output))
+
+        self.output = self.named_outputs.get('output data',
+                                             'out_task_{}'.format(self.order))
+        self.model = self.named_outputs.get('model',
+                                            'model_task_{}'.format(self.order))
 
     @property
     def get_inputs_names(self):
-        return ', '.join([self.named_inputs['train input data'],
-                          self.named_inputs['algorithm']])
+        return ', '.join([
+            self.named_inputs.get('train input data',
+                                  'train_task_{}'.format(self.order)),
+            self.named_inputs.get('algorithm',
+                                  'algo_task_{}'.format(self.order))])
 
     def get_data_out_names(self, sep=','):
         return ''
 
     def get_output_names(self, sep=', '):
-        return sep.join([self.named_outputs['output data'], self.model])
+        return sep.join([self.output, self.model])
 
     def generate_code(self):
 
         if self.has_code:
-
             code = """
             {algorithm}.setFeaturesCol('{features}')
             {model} = {algorithm}.fit({input})
@@ -633,10 +628,6 @@ class ClusteringModelOperation(Operation):
                        features=self.features)
 
             return dedent(code)
-        else:
-            msg = "Parameter '{} or {}' must be informed for task {}"
-            raise ValueError(msg.format(
-                self.inputs, self.outputs, self.__class__))
 
 
 class ClusteringOperation(Operation):
@@ -644,13 +635,15 @@ class ClusteringOperation(Operation):
     Base class for clustering algorithms
     """
 
-    def __init__(self, parameters, inputs, outputs, named_inputs,
+    def __init__(self, parameters, named_inputs,
                  named_outputs):
-        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
+        Operation.__init__(self, parameters, named_inputs,
                            named_outputs)
-        self.has_code = len(self.outputs) > 0
-        self.name = "FIXME"
+        self.has_code = len(named_outputs) > 0
+        self.name = "BaseClustering"
         self.set_values = []
+        self.output = self.named_outputs.get('algorithm',
+                                             'algo_task_{}'.format(self.order))
 
     def get_data_out_names(self, sep=','):
         return ''
@@ -665,9 +658,6 @@ class ClusteringOperation(Operation):
             code.extend(['{0}.set{1}({2})'.format(self.output, name, v)
                          for name, v in self.set_values])
             return "\n".join(code)
-        else:
-            msg = "Parameter '{}' must be informed for task {}"
-            raise ValueError(msg.format(self.outputs, self.__class__))
 
 
 class LdaClusteringOperation(ClusteringOperation):
@@ -680,10 +670,9 @@ class LdaClusteringOperation(ClusteringOperation):
     ONLINE_OPTIMIZER = 'online'
     EM_OPTIMIZER = 'em'
 
-    def __init__(self, parameters, inputs, outputs, named_inputs,
-                 named_outputs):
-        ClusteringOperation.__init__(self, parameters, inputs, outputs,
-                                     named_inputs, named_outputs)
+    def __init__(self, parameters, named_inputs, named_outputs):
+        ClusteringOperation.__init__(self, parameters, named_inputs,
+                                     named_outputs)
         self.number_of_clusters = int(parameters.get(
             self.NUMBER_OF_TOPICS_PARAM, 10))
         self.optimizer = parameters.get(self.OPTIMIZER_PARAM,
@@ -709,7 +698,7 @@ class LdaClusteringOperation(ClusteringOperation):
             ['Optimizer', "'{}'".format(self.optimizer)],
             ['TopicConcentration', self.topic_concentration],
         ]
-        self.has_code = len(self.output) > 1
+        self.has_code = len(named_outputs) > 0
         self.name = "clustering.LDA"
 
 
@@ -726,10 +715,10 @@ class KMeansClusteringOperation(ClusteringOperation):
     INIT_MODE_KMEANS_PARALLEL = 'k-means||'
     INIT_MODE_RANDOM = 'random'
 
-    def __init__(self, parameters, inputs, outputs, named_inputs,
+    def __init__(self, parameters, named_inputs,
                  named_outputs):
-        ClusteringOperation.__init__(self, parameters, inputs, outputs,
-                                     named_inputs, named_outputs)
+        ClusteringOperation.__init__(self, parameters, named_inputs,
+                                     named_outputs)
         self.number_of_clusters = parameters.get(self.K_PARAM,
                                                  10)
 
@@ -757,7 +746,7 @@ class KMeansClusteringOperation(ClusteringOperation):
                 'Invalid type {} for class {}'.format(
                     self.type, self.__class__))
 
-        self.has_code = len(self.output) > 1
+        self.has_code = len(named_outputs) > 0
 
 
 class GaussianMixtureClusteringOperation(ClusteringOperation):
@@ -765,10 +754,10 @@ class GaussianMixtureClusteringOperation(ClusteringOperation):
     MAX_ITERATIONS_PARAM = 'max_iterations'
     TOLERANCE_PARAMETER = 'tolerance'
 
-    def __init__(self, parameters, inputs, outputs, named_inputs,
+    def __init__(self, parameters, named_inputs,
                  named_outputs):
-        ClusteringOperation.__init__(self, parameters, inputs, outputs,
-                                     named_inputs, named_outputs)
+        ClusteringOperation.__init__(self, parameters, named_inputs,
+                                     named_outputs)
         self.number_of_clusters = parameters.get(self.K_PARAM, 10)
         self.max_iterations = parameters.get(self.MAX_ITERATIONS_PARAM, 10)
         self.tolerance = float(parameters.get(self.TOLERANCE_PARAMETER, 0.001))
@@ -779,7 +768,7 @@ class GaussianMixtureClusteringOperation(ClusteringOperation):
             ['Tol', self.tolerance],
         ]
         self.name = "clustering.GaussianMixture"
-        self.has_code = len(self.output) > 1
+        self.has_code = len(named_outputs) > 0
 
 
 class TopicReportOperation(ReportOperation):
@@ -788,13 +777,12 @@ class TopicReportOperation(ReportOperation):
     """
     TERMS_PER_TOPIC_PARAM = 'terms_per_topic'
 
-    def __init__(self, parameters, inputs, outputs, named_inputs,
+    def __init__(self, parameters, named_inputs,
                  named_outputs):
-        ReportOperation.__init__(self, parameters, inputs, outputs,
-                                 named_inputs, named_outputs)
+        ReportOperation.__init__(self, parameters, named_inputs, named_outputs)
         self.terms_per_topic = parameters.get(self.TERMS_PER_TOPIC_PARAM, 20)
 
-        self.has_code = len(self.inputs) == 3
+        self.has_code = len(self.named_inputs) == 3
 
     def generate_code(self):
         code = dedent("""
@@ -816,7 +804,7 @@ class TopicReportOperation(ReportOperation):
         """.format(model=self.named_inputs['model'],
                    tpt=self.terms_per_topic,
                    vocabulary=self.named_inputs['vocabulary'],
-                   output=self.get_output_names('output data'),
+                   output=self.named_outputs.get('output data'),
                    input=self.named_inputs['input data']))
         return code
 
@@ -833,12 +821,12 @@ class RecommendationModel(Operation):
     ITEM_COL_PARAM = 'item_col'
     RATING_COL_PARAM = 'rating_col'
 
-    def __init__(self, parameters, inputs, outputs, named_inputs,
+    def __init__(self, parameters, named_inputs,
                  named_outputs):
-        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
+        Operation.__init__(self, parameters, named_inputs,
                            named_outputs)
 
-        self.has_code = len(self.outputs) > 0 and len(self.inputs) == 2
+        self.has_code = len(outputs) > 0 and len(self.inputs) == 2
 
         if not all([self.RANK_PARAM in parameters['workflow_json'],
                     self.RATING_COL_PARAM in parameters['workflow_json']]):
@@ -848,7 +836,7 @@ class RecommendationModel(Operation):
                 self.__class__.__name__))
 
         self.model = self.named_outputs.get('model')
-        self.output = self.named_outputs.get('output data')
+        output = self.named_outputs.get('output data')
         # self.ratingCol = parameters.get(self.RATING_COL_PARAM)
 
     @property
@@ -860,7 +848,7 @@ class RecommendationModel(Operation):
         return ''
 
     def get_output_names(self, sep=', '):
-        return sep.join([self.output,
+        return sep.join([output,
                          self.model])
 
     def generate_code(self):
@@ -874,7 +862,7 @@ class RecommendationModel(Operation):
             """.format(self.model, self.named_inputs['algorithm'],
                        self.named_inputs['input data'],
                        self.RANK_PARAM, self.RATING_COL_PARAM,
-                       output_data=self.output)
+                       output_data=output)
 
             return dedent(code)
         else:
@@ -889,18 +877,19 @@ class CollaborativeOperation(Operation):
     Base class for Collaborative Filtering algorithm
     """
 
-    def __init__(self, parameters, inputs, outputs, named_inputs,
+    def __init__(self, parameters, named_inputs,
                  named_outputs):
-        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
+        Operation.__init__(self, parameters, named_inputs,
                            named_outputs)
 
-        self.has_code = len(self.outputs) > 0
+        self.has_code = len(named_outputs) > 0
         self.name = "als"
         self.set_values = []
         # Define outputs and model
-        # self.output = self.named_outputs['output data']
-        self.model = self.named_outputs.get('model', '{}_model'.format(
-            self.output))
+        self.output = self.named_outputs.get('output data',
+                                             'out_task_{}'.format(self.order))
+        self.model = self.named_outputs.get('model', 'model_task_{}'.format(
+            self.order))
 
     @property
     def get_inputs_names(self):
@@ -942,10 +931,9 @@ class AlternatingLeastSquaresOperation(Operation):
     NUM_USER_BLOCKS_PARAM = 'numUserBlocks'
     NUM_ITEM_BLOCKS_PARAM = 'numItemBlocks'
 
-    def __init__(self, parameters, inputs, outputs, named_inputs,
+    def __init__(self, parameters, named_inputs,
                  named_outputs):
-        Operation.__init__(self, parameters, inputs, outputs,
-                           named_inputs, named_outputs)
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         self.rank = parameters.get(self.RANK_PARAM, 10)
         self.maxIter = parameters.get(self.MAX_ITER_PARAM, 10)
@@ -958,12 +946,12 @@ class AlternatingLeastSquaresOperation(Operation):
         self.regParam = parameters.get(self.REG_PARAM, 0.1)
         self.implicitPrefs = parameters.get(self.IMPLICIT_PREFS_PARAM, False)
 
-        self.has_code = len(self.output) > 1
+        self.has_code = len(named_outputs) > 0
         self.name = "collaborativefiltering.ALS"
 
 
         # Define input and output
-        # self.output = self.named_outputs['output data']
+        # output = self.named_outputs['output data']
         # self.input = self.named_inputs['train input data']
 
     def generate_code(self):
@@ -972,21 +960,8 @@ class AlternatingLeastSquaresOperation(Operation):
                 {algorithm} = ALS(maxIter={maxIter}, regParam={regParam},
                         userCol='{userCol}', itemCol='{itemCol}',
                         ratingCol='{ratingCol}')
-
-                #
-                ## model = als.fit({input})
-                # predictions = model.transform(test)
-
-                # Evaluate the model not support YET
-                # evaluator = RegressionEvaluator(metricName="rmse",
-                #                labelCol={ratingCol},
-                #                predictionCol="prediction")
-
-                # rmse = evaluator.evaluate(predictions)
-                # print("Root-mean-square error = " + str(rmse))
                 """.format(
             algorithm=self.named_outputs['algorithm'],
-            input=self.inputs,
             maxIter=self.maxIter,
             regParam=float(self.regParam),
             userCol='{user}'.format(user=self.userCol),
@@ -1020,12 +995,12 @@ class LogisticRegressionModel(Operation):
 
     TYPE_AUTO = 'auto'
 
-    def __init__(self, parameters, inputs, outputs, named_inputs,
+    def __init__(self, parameters, named_inputs,
                  named_outputs):
-        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
+        Operation.__init__(self, parameters, named_inputs,
                            named_outputs)
 
-        self.has_code = len(self.outputs) > 0 and len(self.inputs) == 2
+        self.has_code = len(outputs) > 0 and len(self.inputs) == 2
 
         if not all([self.FEATURES_PARAM in parameters['workflow_json'],
                     self.LABEL_PARAM in parameters['workflow_json']]):
@@ -1035,7 +1010,7 @@ class LogisticRegressionModel(Operation):
                 self.__class__.__name__))
 
         self.model = self.named_outputs.get('model')
-        self.output = self.named_outputs.get('output data')
+        output = self.named_outputs.get('output data')
 
     @property
     def get_inputs_names(self):
@@ -1046,7 +1021,7 @@ class LogisticRegressionModel(Operation):
         return ''
 
     def get_output_names(self, sep=', '):
-        return sep.join([self.output,
+        return sep.join([output,
                          self.model])
 
     def generate_code(self):
@@ -1057,7 +1032,7 @@ class LogisticRegressionModel(Operation):
             {output_data} = {0}.transform({2})
             """.format(self.model, self.named_inputs['algorithm'],
                        self.named_inputs['input data'],
-                       output_data=self.output)
+                       output_data=output)
 
             return dedent(code)
         else:
@@ -1085,13 +1060,13 @@ class LogisticRegressionClassifier(Operation):
 
     TYPE_AUTO = 'auto'
 
-    def __init__(self, parameters, inputs, outputs, named_inputs,
+    def __init__(self, parameters, named_inputs,
                  named_outputs):
         Operation.__init__(self, parameters, inputs, outputs,
                            named_inputs, named_outputs)
         self.parameters = parameters
         self.name = 'classification.LR'
-        self.has_code = len(self.outputs) > 0
+        self.has_code = len(outputs) > 0
 
         if not all([self.LABEL_PARAM in parameters,
                     self.FEATURES_PARAM in parameters]):
@@ -1102,8 +1077,8 @@ class LogisticRegressionClassifier(Operation):
 
         self.label = parameters.get(self.LABEL_PARAM)[0]
         self.attributes = parameters.get(self.FEATURES_PARAM)[0]
-        self.output = named_outputs['output result']
-        # self.output = named_outputs['algorithm']
+        output = named_outputs['output result']
+        # output = named_outputs['algorithm']
 
         self.max_iter = parameters.get(self.MAX_ITER_PARAM, 10)
         self.reg_param = parameters.get(self.REG_PARAM, 0.1)
@@ -1125,7 +1100,7 @@ class LogisticRegressionClassifier(Operation):
             declare = dedent("""
             {output} = LogisticRegression( featuresCol='{features}', labelCol='{label}',
                         maxIter={max_iter}, regParam={reg_param})
-            """).format(output=self.output,
+            """).format(output=output,
                         features=self.attributes,
                         label=self.label,
                         max_iter=self.max_iter,
@@ -1164,12 +1139,12 @@ class RegressionModel(Operation):
     # RegType missing -  none (a.k.a. ordinary least squares),    L2 (ridge regression)
     #                    L1 (Lasso) and   L2 + L1 (elastic net)
 
-    def __init__(self, parameters, inputs, outputs, named_inputs,
+    def __init__(self, parameters, named_inputs,
                  named_outputs):
-        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
+        Operation.__init__(self, parameters, named_inputs,
                            named_outputs)
 
-        self.has_code = len(self.outputs) > 0 and len(self.inputs) == 2
+        self.has_code = len(outputs) > 0 and len(self.inputs) == 2
 
         if not all([self.FEATURES_PARAM in parameters['workflow_json'],
                     self.LABEL_PARAM in parameters['workflow_json']]):
@@ -1179,7 +1154,7 @@ class RegressionModel(Operation):
                 self.__class__.__name__))
 
         self.model = self.named_outputs.get('model')
-        self.output = self.named_outputs.get('output data')
+        output = self.named_outputs.get('output data')
 
     @property
     def get_inputs_names(self):
@@ -1190,7 +1165,7 @@ class RegressionModel(Operation):
         return ''
 
     def get_output_names(self, sep=', '):
-        return sep.join([self.output,
+        return sep.join([output,
                          self.model])
 
     def generate_code(self):
@@ -1201,7 +1176,7 @@ class RegressionModel(Operation):
             {output_data} = {0}.transform({2})
             """.format(self.model, self.named_inputs['algorithm'],
                        self.named_inputs['input data'],
-                       output_data=self.output)
+                       output_data=output)
 
             return dedent(code)
         else:
@@ -1226,13 +1201,13 @@ class LinearRegression(Operation):
     TYPE_SOLVER_AUTO = 'auto'
     TYPE_SOLVER_NORMAL = 'normal'
 
-    def __init__(self, parameters, inputs, outputs, named_inputs,
+    def __init__(self, parameters, named_inputs,
                  named_outputs):
         Operation.__init__(self, parameters, inputs, outputs,
                            named_inputs, named_outputs)
         self.parameters = parameters
         self.name = 'regression.LinearRegression'
-        self.has_code = len(self.outputs) > 0
+        self.has_code = len(outputs) > 0
 
         if not all([self.LABEL_PARAM in parameters,
                     self.FEATURES_PARAM in parameters]):
@@ -1243,8 +1218,8 @@ class LinearRegression(Operation):
 
         self.label = parameters.get(self.LABEL_PARAM)[0]
         self.attributes = parameters.get(self.FEATURES_PARAM)[0]
-        # self.output = named_outputs['output result']
-        self.output = named_outputs['algorithm']
+        # output = named_outputs['output result']
+        output = named_outputs['algorithm']
 
         self.max_iter = parameters.get(self.MAX_ITER_PARAM, 10)
         self.reg_param = parameters.get(self.REG_PARAM, 0.1)
@@ -1266,7 +1241,7 @@ class LinearRegression(Operation):
             declare = dedent("""
             {output} = LinearRegression(featuresCol='{features}', labelCol='{label}',
                         maxIter={max_iter}, regParam={reg_param})
-            """).format(output=self.output,
+            """).format(output=output,
                         features=self.attributes,
                         label=self.label,
                         max_iter=self.max_iter,
@@ -1314,13 +1289,13 @@ class GeneralizedLinearRegression(Operation):
     TYPE_LINK_CLOGLOG = 'cloglog'  # binomial
     TYPE_LINK_SQRT = 'sqrt'  # poisson
 
-    def __init__(self, parameters, inputs, outputs, named_inputs,
+    def __init__(self, parameters, named_inputs,
                  named_outputs):
         Operation.__init__(self, parameters, inputs, outputs,
                            named_inputs, named_outputs)
         self.parameters = parameters
         self.name = 'regression.GeneralizedLinearRegression'
-        self.has_code = len(self.outputs) > 0
+        self.has_code = len(outputs) > 0
 
         if not all([self.LABEL_PARAM in parameters,
                     self.FEATURES_PARAM in parameters]):
@@ -1331,8 +1306,8 @@ class GeneralizedLinearRegression(Operation):
 
         self.label = parameters.get(self.LABEL_PARAM)[0]
         self.attributes = parameters.get(self.FEATURES_PARAM)[0]
-        # self.output = named_outputs['output result']
-        self.output = named_outputs['algorithm']
+        # output = named_outputs['output result']
+        output = named_outputs['algorithm']
 
         self.max_iter = parameters.get(self.MAX_ITER_PARAM, 10)
         self.reg_param = parameters.get(self.REG_PARAM, 0.1)
@@ -1363,7 +1338,7 @@ class GeneralizedLinearRegression(Operation):
                                                    link='{type_link}',
                                                    linkPredictionCol='{link_col}'
                                                    )
-            """).format(output=self.output,
+            """).format(output=output,
                         features=self.attributes,
                         label=self.label,
                         max_iter=self.max_iter,
@@ -1397,13 +1372,13 @@ class DecisionTreeRegression(Operation):
 
     TYPE_IMPURITY_VARIANCE = 'variance'
 
-    def __init__(self, parameters, inputs, outputs, named_inputs,
+    def __init__(self, parameters, named_inputs,
                  named_outputs):
         Operation.__init__(self, parameters, inputs, outputs,
                            named_inputs, named_outputs)
         self.parameters = parameters
         self.name = 'regression.DecisionTreeRegressor'
-        self.has_code = len(self.outputs) > 0
+        self.has_code = len(outputs) > 0
 
         if not all([self.LABEL_PARAM in parameters,
                     self.FEATURES_PARAM in parameters]):
@@ -1414,8 +1389,8 @@ class DecisionTreeRegression(Operation):
 
         self.label = parameters.get(self.LABEL_PARAM)[0]
         self.attributes = parameters.get(self.FEATURES_PARAM)[0]
-        # self.output = named_outputs['output result']
-        self.output = named_outputs['algorithm']
+        # output = named_outputs['output result']
+        output = named_outputs['algorithm']
 
         self.max_depth = parameters.get(self.MAX_DEPTH_PARAM, 5)
         self.min_instance = parameters.get(self.MIN_INSTANCE_PER_NODE_PARAM, 1)
@@ -1447,7 +1422,7 @@ class DecisionTreeRegression(Operation):
                                              seed={seed},
                                              varianceCol={variance_col}
                                              )
-            """).format(output=self.output,
+            """).format(output=output,
                         features=self.attributes,
                         label=self.label,
                         max_depth=self.max_depth,
@@ -1483,13 +1458,13 @@ class GradientBoostedTreeRegression(Operation):
 
     TYPE_IMPURITY_VARIANCE = 'variance'
 
-    def __init__(self, parameters, inputs, outputs, named_inputs,
+    def __init__(self, parameters, named_inputs,
                  named_outputs):
         Operation.__init__(self, parameters, inputs, outputs,
                            named_inputs, named_outputs)
         self.parameters = parameters
         self.name = 'regression.GradientBoostedTreeRegression'
-        self.has_code = len(self.outputs) > 0
+        self.has_code = len(outputs) > 0
 
         if not all([self.LABEL_PARAM in parameters,
                     self.FEATURES_PARAM in parameters]):
@@ -1500,8 +1475,8 @@ class GradientBoostedTreeRegression(Operation):
 
         self.label = parameters.get(self.LABEL_PARAM)[0]
         self.attributes = parameters.get(self.FEATURES_PARAM)[0]
-        # self.output = named_outputs['output result']
-        self.output = named_outputs['algorithm']
+        # output = named_outputs['output result']
+        output = named_outputs['algorithm']
 
         self.max_iter = parameters.get(self.MAX_ITER_PARAM, 10)
         self.max_depth = parameters.get(self.MAX_DEPTH_PARAM, 5)
@@ -1535,7 +1510,7 @@ class GradientBoostedTreeRegression(Operation):
                                              maxIter={max_iter},
                                              varianceCol={variance_col}
                                              )
-            """).format(output=self.output,
+            """).format(output=output,
                         features=self.attributes,
                         label=self.label,
                         max_depth=self.max_depth,
@@ -1568,13 +1543,13 @@ class AFTSurvivalRegression(Operation):
     QUANTILES_PROBABILITIES_PARAM = 'quantile_probabilities'
     QUANTILES_COL_PARAM = 'quantiles_col'
 
-    def __init__(self, parameters, inputs, outputs, named_inputs,
+    def __init__(self, parameters, named_inputs,
                  named_outputs):
         Operation.__init__(self, parameters, inputs, outputs,
                            named_inputs, named_outputs)
         self.parameters = parameters
         self.name = 'regression.AFTSurvivalRegression'
-        self.has_code = len(self.outputs) > 0
+        self.has_code = len(outputs) > 0
 
         if not all([self.LABEL_PARAM in parameters,
                     self.FEATURES_PARAM in parameters]):
@@ -1585,8 +1560,8 @@ class AFTSurvivalRegression(Operation):
 
         self.label = parameters.get(self.LABEL_PARAM)[0]
         self.attributes = parameters.get(self.FEATURES_PARAM)[0]
-        # self.output = named_outputs['output result']
-        self.output = named_outputs['algorithm']
+        # output = named_outputs['output result']
+        output = named_outputs['algorithm']
 
         self.prediction_col = self.parameters.get(self.PREDICTION_COL_PARAM)
         self.max_iter = parameters.get(self.MAX_ITER_PARAM, 10)
@@ -1618,7 +1593,7 @@ class AFTSurvivalRegression(Operation):
                                              predictionCol={prediction_col},
                                              aggregationDepth={agg_depth}
                                              )
-            """).format(output=self.output,
+            """).format(output=output,
                         features=self.attributes,
                         label=self.label,
                         max_iter=self.max_iter,
@@ -1649,13 +1624,13 @@ class IsotonicRegression(Operation):
     WEIGHT_COL_PARAM = 'weight'
     ISOTONIC_PARAM = 'isotonic'
 
-    def __init__(self, parameters, inputs, outputs, named_inputs,
+    def __init__(self, parameters, named_inputs,
                  named_outputs):
         Operation.__init__(self, parameters, inputs, outputs,
                            named_inputs, named_outputs)
         self.parameters = parameters
         self.name = 'regression.IsotonicRegression'
-        self.has_code = len(self.outputs) > 0
+        self.has_code = len(outputs) > 0
 
         if not all([self.LABEL_PARAM in parameters,
                     self.FEATURES_PARAM in parameters]):
@@ -1666,8 +1641,8 @@ class IsotonicRegression(Operation):
 
         self.label = parameters.get(self.LABEL_PARAM)[0]
         self.attributes = parameters.get(self.FEATURES_PARAM)[0]
-        # self.output = named_outputs['output result']
-        self.output = named_outputs['algorithm']
+        # output = named_outputs['output result']
+        output = named_outputs['algorithm']
 
         self.prediction_col = self.parameters.get(self.PREDICTION_COL_PARAM)
         self.weight_col = parameters.get(self.WEIGHT_COL_PARAM, None)
@@ -1689,7 +1664,7 @@ class IsotonicRegression(Operation):
                                           predictionCol={prediction_col},
                                           isotonic={isotonic}
                                           )
-            """).format(output=self.output,
+            """).format(output=output,
                         features=self.attributes,
                         label=self.label,
                         isotonic=self.isotonic,

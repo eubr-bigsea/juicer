@@ -53,7 +53,7 @@ class SparkMinion(Minion):
         self.module = None
 
         self._state = {}
-        self.transpiler = SparkTranspiler()
+        self.transpiler = SparkTranspiler(config)
         self.config = config
         configuration.set_config(self.config)
 

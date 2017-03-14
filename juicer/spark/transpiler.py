@@ -76,10 +76,11 @@ class SparkTranspiler:
     DIST_ZIP_FILE = '/tmp/lemonade-lib-python.zip'
     VISITORS = [RemoveTasksWhenMultiplexingVisitor]
 
-    def __init__(self):
+    def __init__(self, configuration):
         self.operations = {}
         self._assign_operations()
         self.current_task_id = None
+        self.configuration = configuration
 
     """
     def pre_transpile(self, workflow, graph, out=None, params=None):
@@ -228,9 +229,7 @@ class SparkTranspiler:
             parameters['job_id'] = job_id
             port = ports.get(task['id'], {})
 
-            instance = class_name(parameters, port.get('inputs', []),
-                                  port.get('outputs', []),
-                                  port.get('named_inputs', {}),
+            instance = class_name(parameters, port.get('named_inputs', {}),
                                   port.get('named_outputs', {}))
             instance.out_degree = graph.out_degree(task_id)
             env_setup['dependency_controller'] = DependencyController(
@@ -253,34 +252,34 @@ class SparkTranspiler:
 
     def _assign_operations(self):
         etl_ops = {
-            'add-columns': juicer.spark.etl_operation.AddColumns,
-            'add-rows': juicer.spark.etl_operation.AddRows,
-            'aggregation': juicer.spark.etl_operation.Aggregation,
-            'clean-missing': juicer.spark.etl_operation.CleanMissing,
-            'difference': juicer.spark.etl_operation.Difference,
-            'distinct': juicer.spark.etl_operation.Distinct,
-            'drop': juicer.spark.etl_operation.Drop,
-            'filter': juicer.spark.etl_operation.Filter,
+            'add-columns': juicer.spark.etl_operation.AddColumnsOperation,
+            'add-rows': juicer.spark.etl_operation.AddRowsOperation,
+            'aggregation': juicer.spark.etl_operation.AggregationOperation,
+            'clean-missing': juicer.spark.etl_operation.CleanMissingOperation,
+            'difference': juicer.spark.etl_operation.DifferenceOperation,
+            'distinct': juicer.spark.etl_operation.RemoveDuplicatedOperation,
+            'drop': juicer.spark.etl_operation.DropOperation,
+            'filter': juicer.spark.etl_operation.FilterOperation,
             # Alias for filter
-            'filter-selection': juicer.spark.etl_operation.Filter,
-            'intersection': juicer.spark.etl_operation.Intersection,
-            'join': juicer.spark.etl_operation.Join,
+            'filter-selection': juicer.spark.etl_operation.FilterOperation,
+            'intersection': juicer.spark.etl_operation.IntersectionOperation,
+            'join': juicer.spark.etl_operation.JoinOperation,
             # synonym for select
-            'projection': juicer.spark.etl_operation.Select,
+            'projection': juicer.spark.etl_operation.SelectOperation,
             # synonym for distinct
-            'remove-duplicated-rows': juicer.spark.etl_operation.Distinct,
-            'sample': juicer.spark.etl_operation.SampleOrPartition,
-            'select': juicer.spark.etl_operation.Select,
+            'remove-duplicated-rows': juicer.spark.etl_operation.RemoveDuplicatedOperation,
+            'sample': juicer.spark.etl_operation.SampleOrPartitionOperation,
+            'select': juicer.spark.etl_operation.SelectOperation,
             # synonym of intersection'
-            'set-intersection': juicer.spark.etl_operation.Intersection,
-            'sort': juicer.spark.etl_operation.Sort,
-            'split': juicer.spark.etl_operation.RandomSplit,
-            'transformation': juicer.spark.etl_operation.Transformation,
+            'set-intersection': juicer.spark.etl_operation.IntersectionOperation,
+            'sort': juicer.spark.etl_operation.SortOperation,
+            'split': juicer.spark.etl_operation.SplitOperation,
+            'transformation': juicer.spark.etl_operation.TransformationOperation,
         }
         ml_ops = {
-            'apply-model': juicer.spark.ml_operation.ApplyModel,
+            'apply-model': juicer.spark.ml_operation.ApplyModelOperation,
             'classification-model':
-                juicer.spark.ml_operation.ClassificationModel,
+                juicer.spark.ml_operation.ClassificationModelOperation,
             'classification-report':
                 juicer.spark.ml_operation.ClassificationReport,
             'clustering-model':
@@ -289,9 +288,9 @@ class SparkTranspiler:
                 juicer.spark.ml_operation.CrossValidationOperation,
             'decision-tree-classifier':
                 juicer.spark.ml_operation.DecisionTreeClassifierOperation,
-            'evaluate-model': juicer.spark.ml_operation.EvaluateModel,
-            'feature-assembler': juicer.spark.ml_operation.FeatureAssembler,
-            'feature-indexer': juicer.spark.ml_operation.FeatureIndexer,
+            'evaluate-model': juicer.spark.ml_operation.EvaluateModelOperation,
+            'feature-assembler': juicer.spark.ml_operation.FeatureAssemblerOperation,
+            'feature-indexer': juicer.spark.ml_operation.FeatureIndexerOperation,
             'gaussian-mixture-clustering':
                 juicer.spark.ml_operation.GaussianMixtureClusteringOperation,
             'gbt-classifier': juicer.spark.ml_operation.GBTClassifierOperation,

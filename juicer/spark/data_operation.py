@@ -37,11 +37,9 @@ class DataReader(Operation):
         '{tab}': '\\t'
     }
 
-    def __init__(self, parameters, inputs, outputs, named_inputs,
-                 named_outputs):
-        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
-                           named_outputs)
-        self.has_code = len(self.outputs) > 0
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+        self.has_code = len(self.named_outputs) > 0
         if self.has_code:
             if self.DATA_SOURCE_ID_PARAM in parameters:
                 self.database_id = parameters[self.DATA_SOURCE_ID_PARAM]
@@ -65,6 +63,8 @@ class DataReader(Operation):
                 raise ValueError(
                     "Parameter '{}' must be informed for task {}".format(
                         self.DATA_SOURCE_ID_PARAM, self.__class__))
+        self.output = named_outputs.get('output data',
+                                        'out_task_{}'.format(self.order))
 
     def generate_code(self):
 
@@ -75,10 +75,11 @@ class DataReader(Operation):
         code = []
         infer_from_data = self.infer_schema == self.INFER_FROM_DATA
         infer_from_limonero = self.infer_schema == self.INFER_FROM_LIMONERO
-        if len(self.outputs) == 1:
+        if len(self.named_outputs) == 1:
             if infer_from_limonero:
                 if 'attributes' in self.metadata:
-                    code.append('schema_{0} = types.StructType()'.format(self.output))
+                    code.append(
+                        'schema_{0} = types.StructType()'.format(self.output))
                     for attr in self.metadata.get('attributes', []):
                         data_type = self.LIMONERO_TO_SPARK_DATA_TYPES[
                             attr['type']]

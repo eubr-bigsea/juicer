@@ -6,9 +6,10 @@ from textwrap import dedent
 
 import pytest
 # Import Operations to test
-from juicer.spark.ml_operation import FeatureIndexer, FeatureAssembler, \
-    ApplyModel, EvaluateModel, \
-    CrossValidationOperation, ClassificationModel, \
+from juicer.spark.ml_operation import FeatureIndexerOperation, \
+    FeatureAssemblerOperation, \
+    ApplyModelOperation, EvaluateModelOperation, \
+    CrossValidationOperation, ClassificationModelOperation, \
     ClassifierOperation, SvmClassifierOperation, \
     DecisionTreeClassifierOperation, \
     GBTClassifierOperation, \
@@ -23,15 +24,6 @@ from juicer.spark.ml_operation import FeatureIndexer, FeatureAssembler, \
 
 from tests import compare_ast, format_code_comparison
 
-
-def debug_ast(code, expected_code):
-    print
-    print code
-    print '*' * 20
-    print expected_code
-    print '*' * 20
-
-
 '''
  FeatureIndexer tests
 '''
@@ -39,29 +31,30 @@ def debug_ast(code, expected_code):
 
 def test_feature_indexer_operation_success():
     params = {
-        FeatureIndexer.TYPE_PARAM: 'string',
-        FeatureIndexer.ATTRIBUTES_PARAM: ['col'],
-        FeatureIndexer.ALIAS_PARAM: 'c',
-        FeatureIndexer.MAX_CATEGORIES_PARAM: '20',
+        FeatureIndexerOperation.TYPE_PARAM: 'string',
+        FeatureIndexerOperation.ATTRIBUTES_PARAM: ['col'],
+        FeatureIndexerOperation.ALIAS_PARAM: 'c',
+        FeatureIndexerOperation.MAX_CATEGORIES_PARAM: '20',
     }
-    inputs = ['input_1']
-    outputs = ['output_1']
+    n_in = {'input data': 'input_1'}
+    n_out = {'output data': 'output_1'}
+    in1 = n_in['input data']
+    out = n_out['output data']
 
-    instance = FeatureIndexer(params, inputs,
-                              outputs, named_inputs={},
-                              named_outputs={})
+    instance = FeatureIndexerOperation(params, named_inputs=n_in,
+                                       named_outputs=n_out)
 
     code = instance.generate_code()
 
     expected_code = dedent("""
-        col_alias = dict({3})
+        col_alias = dict({alias})
         indexers = [feature.StringIndexer(inputCol=col, outputCol=alias,
                             handleInvalid='skip')
                     for col, alias in col_alias.iteritems()]
 
         # Use Pipeline to process all attributes once
         pipeline = Pipeline(stages=indexers)
-        models = dict([(col[0], indexers[i].fit({1}))
+        models = dict([(col[0], indexers[i].fit({in1}))
                   for i, col in enumerate(col_alias)])
 
         # labels = [model.labels for model in models.itervalues()]
@@ -69,14 +62,15 @@ def test_feature_indexer_operation_success():
         # See SPARK-11569
 
         # input_1_without_null = input_1.na.fill('NA', subset=col_alias.keys())
-        {1}_without_null = {1}.na.fill('NA', subset=col_alias.keys())
+        {in1}_without_null = {in1}.na.fill('NA', subset=col_alias.keys())
+        {out} = pipeline.fit({in1}_without_null).transform({in1}_without_null)
 
-        # output_1 = pipeline.fit(input_1_without_null).transform(input_1_without_null)
-        {2} = pipeline.fit({1}_without_null).transform({1}_without_null)
-
-        """.format(params[FeatureIndexer.ATTRIBUTES_PARAM], inputs[0], outputs[0],
-                   json.dumps(zip(params[FeatureIndexer.ATTRIBUTES_PARAM],
-                                  params[FeatureIndexer.ALIAS_PARAM]))))
+        """.format(attr=params[FeatureIndexerOperation.ATTRIBUTES_PARAM],
+                   in1=in1,
+                   out=out,
+                   alias=json.dumps(
+                       zip(params[FeatureIndexerOperation.ATTRIBUTES_PARAM],
+                           params[FeatureIndexerOperation.ALIAS_PARAM]))))
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
 
@@ -85,71 +79,64 @@ def test_feature_indexer_operation_success():
 
 def test_feature_indexer_string_type_param_operation_failure():
     params = {
-        FeatureIndexer.ATTRIBUTES_PARAM: ['col'],
-        FeatureIndexer.TYPE_PARAM: 'XxX',
-        FeatureIndexer.ALIAS_PARAM: 'c',
-        FeatureIndexer.MAX_CATEGORIES_PARAM: '20',
+        FeatureIndexerOperation.ATTRIBUTES_PARAM: ['col'],
+        FeatureIndexerOperation.TYPE_PARAM: 'XxX',
+        FeatureIndexerOperation.ALIAS_PARAM: 'c',
+        FeatureIndexerOperation.MAX_CATEGORIES_PARAM: '20',
     }
-    inputs = ['input_1']
-    outputs = ['output_1']
 
     with pytest.raises(ValueError):
-        indexer = FeatureIndexer(params, inputs,
-                                 outputs, named_inputs={},
-                                 named_outputs={})
+        n_in = {'input data': 'input_1'}
+        n_out = {'output data': 'output_1'}
+
+        indexer = FeatureIndexerOperation(params, named_inputs=n_in,
+                                          named_outputs=n_out)
         indexer.generate_code()
 
 
 def test_feature_indexer_string_missing_attribute_param_operation_failure():
     params = {
-        FeatureIndexer.TYPE_PARAM: 'string',
-        FeatureIndexer.ALIAS_PARAM: 'c',
-        FeatureIndexer.MAX_CATEGORIES_PARAM: '20',
+        FeatureIndexerOperation.TYPE_PARAM: 'string',
+        FeatureIndexerOperation.ALIAS_PARAM: 'c',
+        FeatureIndexerOperation.MAX_CATEGORIES_PARAM: '20',
     }
-    inputs = ['input_1']
-    outputs = ['output_1']
 
-    # instance = FeatureIndexer(params, inputs,
-    #                          outputs, named_inputs={},
-    #                          named_outputs={})
     with pytest.raises(ValueError):
-        FeatureIndexer(params, inputs,
-                       outputs, named_inputs={},
-                       named_outputs={})
+        n_in = {'input data': 'input_1'}
+        n_out = {'output data': 'output_1'}
+        FeatureIndexerOperation(params, named_inputs=n_in,
+                                named_outputs=n_out)
 
 
 def test_feature_indexer_vector_missing_attribute_param_operation_failure():
     params = {
-        FeatureIndexer.TYPE_PARAM: 'string',
-        FeatureIndexer.ALIAS_PARAM: 'c',
-        FeatureIndexer.MAX_CATEGORIES_PARAM: '20',
+        FeatureIndexerOperation.TYPE_PARAM: 'string',
+        FeatureIndexerOperation.ALIAS_PARAM: 'c',
+        FeatureIndexerOperation.MAX_CATEGORIES_PARAM: '20',
     }
-    inputs = ['input_1']
-    outputs = ['output_1']
-
-    # instance = FeatureIndexer(params, inputs,
-    #                          outputs, named_inputs={},
-    #                          named_outputs={})
     with pytest.raises(ValueError):
-        FeatureIndexer(params, inputs,
-                       outputs, named_inputs={},
-                       named_outputs={})
+        n_in = {'input data': 'input_1'}
+        n_out = {'output data': 'output_1'}
+        FeatureIndexerOperation(params, named_inputs=n_in,
+                                named_outputs=n_out)
 
 
 def test_feature_indexer_vector_operation_success():
     params = {
 
-        FeatureIndexer.TYPE_PARAM: 'vector',
-        FeatureIndexer.ATTRIBUTES_PARAM: ['col'],
-        FeatureIndexer.ALIAS_PARAM: 'c',
-        FeatureIndexer.MAX_CATEGORIES_PARAM: 20,
+        FeatureIndexerOperation.TYPE_PARAM: 'vector',
+        FeatureIndexerOperation.ATTRIBUTES_PARAM: ['col'],
+        FeatureIndexerOperation.ALIAS_PARAM: 'c',
+        FeatureIndexerOperation.MAX_CATEGORIES_PARAM: 20,
     }
-    inputs = ['input_1']
-    outputs = ['output_1']
 
-    instance = FeatureIndexer(params, inputs,
-                              outputs, named_inputs={},
-                              named_outputs={})
+    n_in = {'input data': 'input_1'}
+    n_out = {'output data': 'output_1'}
+    in1 = n_in['input data']
+    out = n_out['output data']
+
+    instance = FeatureIndexerOperation(params, named_inputs=n_in,
+                                       named_outputs=n_out)
 
     code = instance.generate_code()
 
@@ -170,42 +157,42 @@ def test_feature_indexer_vector_operation_success():
             {1}_without_null = {1}.na.fill('NA', subset=col_alias.keys())
 
             {2} = pipeline.fit({1}_without_null).transform({1}_without_null)
-            """.format(params[FeatureIndexer.ATTRIBUTES_PARAM], inputs[0],
-                       outputs[0],
-                       json.dumps(zip(params[FeatureIndexer.ATTRIBUTES_PARAM],
-                                      params[FeatureIndexer.ALIAS_PARAM])),
-                       params[FeatureIndexer.MAX_CATEGORIES_PARAM]))
+            """.format(params[FeatureIndexerOperation.ATTRIBUTES_PARAM],
+                       in1,
+                       out,
+                       json.dumps(
+                           zip(params[FeatureIndexerOperation.ATTRIBUTES_PARAM],
+                               params[FeatureIndexerOperation.ALIAS_PARAM])),
+                       params[FeatureIndexerOperation.MAX_CATEGORIES_PARAM]))
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
 
-    assert result, msg + debug_ast(code, expected_code)
+    assert result, msg + format_code_comparison(code, expected_code)
 
 
 def test_feature_indexer_vector_operation_failure():
     params = {
 
-        FeatureIndexer.TYPE_PARAM: 'vector',
-        FeatureIndexer.ATTRIBUTES_PARAM: ['col'],
-        FeatureIndexer.ALIAS_PARAM: 'c',
-        FeatureIndexer.MAX_CATEGORIES_PARAM: -1,
+        FeatureIndexerOperation.TYPE_PARAM: 'vector',
+        FeatureIndexerOperation.ATTRIBUTES_PARAM: ['col'],
+        FeatureIndexerOperation.ALIAS_PARAM: 'c',
+        FeatureIndexerOperation.MAX_CATEGORIES_PARAM: -1,
     }
-    inputs = ['input_1']
-    outputs = ['output_1']
 
     with pytest.raises(ValueError):
-        FeatureIndexer(params, inputs,
-                       outputs, named_inputs={},
-                       named_outputs={})
+        n_in = {'input data': 'input_1'}
+        n_out = {'output data': 'output_1'}
+        FeatureIndexerOperation(params, named_inputs=n_in,
+                                named_outputs=n_out)
 
 
 def test_feature_indexer_operation_failure():
     params = {}
-    inputs = ['input_1', 'input_2']
-    outputs = ['output_1']
     with pytest.raises(ValueError):
-        FeatureIndexer(params, inputs,
-                       outputs, named_inputs={},
-                       named_outputs={})
+        n_in = {'input data': 'input_1'}
+        n_out = {'output data': 'output_1'}
+        FeatureIndexerOperation(params, named_inputs=n_in,
+                                named_outputs=n_out)
 
 
 '''
@@ -215,16 +202,17 @@ def test_feature_indexer_operation_failure():
 
 def test_feature_assembler_operation_success():
     params = {
-        FeatureAssembler.ATTRIBUTES_PARAM: ['col'],
-        FeatureAssembler.ALIAS_PARAM: 'c'
+        FeatureAssemblerOperation.ATTRIBUTES_PARAM: ['col'],
+        FeatureAssemblerOperation.ALIAS_PARAM: 'c'
     }
 
-    inputs = ['input_1']
-    outputs = ['output_1']
+    n_in = {'input data': 'input_1'}
+    n_out = {'output data': 'output_1'}
+    in1 = n_in['input data']
+    out = n_out['output data']
 
-    instance = FeatureAssembler(params, inputs,
-                                outputs, named_inputs={},
-                                named_outputs={})
+    instance = FeatureAssemblerOperation(params, named_inputs=n_in,
+                                         named_outputs=n_out)
 
     code = instance.generate_code()
 
@@ -236,29 +224,26 @@ def test_feature_assembler_operation_success():
 
 
             """.format(features=json.dumps(
-        params[FeatureIndexer.ATTRIBUTES_PARAM]),
-        alias=params[FeatureAssembler.ALIAS_PARAM],
-        output_1=outputs[0],
-        input_1=inputs[0]))
+        params[FeatureIndexerOperation.ATTRIBUTES_PARAM]),
+        alias=params[FeatureAssemblerOperation.ALIAS_PARAM],
+        output_1=out,
+        input_1=in1))
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
 
-    assert result, msg + debug_ast(code, expected_code)
+    assert result, msg + format_code_comparison(code, expected_code)
 
 
 def test_feature_assembler_operation_failure():
     params = {
         # FeatureAssembler.ATTRIBUTES_PARAM: ['col'],
-        FeatureAssembler.ALIAS_PARAM: 'c'
+        FeatureAssemblerOperation.ALIAS_PARAM: 'c'
     }
-
-    inputs = ['input_1']
-    outputs = ['output_1']
-
     with pytest.raises(ValueError):
-        FeatureAssembler(params, inputs,
-                         outputs, named_inputs={},
-                         named_outputs={})
+        n_in = {'input data': 'input_1'}
+        n_out = {'output data': 'output_1'}
+        FeatureAssemblerOperation(params, named_inputs=n_in,
+                                  named_outputs=n_out)
 
 
 '''
@@ -268,37 +253,25 @@ def test_feature_assembler_operation_failure():
 
 def test_apply_model_operation_success():
     params = {}
-    inputs = ['input_1', 'input_2']
-    outputs = ['output_1']
 
-    instance = ApplyModel(params, inputs,
-                          outputs, named_inputs={},
-                          named_outputs={})
+    n_in = {'input data': 'input_1', 'model': 'model1'}
+    n_out = {'output data': 'output_1', 'model': 'model1'}
+
+    in1 = n_in['input data']
+    model = n_in['model']
+    out = n_out['output data']
+
+    instance = ApplyModelOperation(params, named_inputs=n_in,
+                                   named_outputs=n_out)
 
     code = instance.generate_code()
 
-    expected_code = dedent("""
-        {output_1} = {input_2}.transform({input_1})
-        """.format(output_1=outputs[0],
-                   input_1=inputs[1],
-                   input_2=inputs[0]))
+    expected_code = "{output_1} = {model}.transform({input_1})".format(
+        output_1=out, input_1=in1, model=model)
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
 
-    assert result, msg + debug_ast(code, expected_code)
-
-
-def test_apply_model_operation_failure():
-    params = {}
-    inputs = ['input_1']
-    # inputs = ['input_1', 'input_2']
-    outputs = ['output_1']
-
-    with pytest.raises(ValueError):
-        apply_model = ApplyModel(params, inputs,
-                                 outputs, named_inputs={},
-                                 named_outputs={})
-        apply_model.generate_code()
+    assert result, msg + format_code_comparison(code, expected_code)
 
 
 '''
@@ -309,22 +282,16 @@ def test_apply_model_operation_failure():
 def test_evaluate_model_operation_success():
     params = {
 
-        EvaluateModel.PREDICTION_ATTRIBUTE_PARAM: 'c',
-        EvaluateModel.LABEL_ATTRIBUTE_PARAM: 'c',
-        EvaluateModel.METRIC_PARAM: 'f1',
+        EvaluateModelOperation.PREDICTION_ATTRIBUTE_PARAM: 'c',
+        EvaluateModelOperation.LABEL_ATTRIBUTE_PARAM: 'c',
+        EvaluateModelOperation.METRIC_PARAM: 'f1',
         'task_id': '2323-afffa-343bdaff',
         'operation_id': 2793
     }
-    inputs = ['input_1', 'input_2']
-    outputs = ['output_1']
-    named_inputs = {'input data': 'input_1',
-                    'model': 'df_model'}
-    named_outputs = {'metric': 'df_metric',
-                     'evaluator': 'df_evaluator'}
-
-    instance = EvaluateModel(params, inputs,
-                             outputs, named_inputs=named_inputs,
-                             named_outputs=named_outputs)
+    n_in = {'input data': 'input_1', 'model': 'df_model'}
+    n_out = {'metric': 'df_metric', 'evaluator': 'df_evaluator'}
+    instance = EvaluateModelOperation(params, named_inputs=n_in,
+                                      named_outputs=n_out)
 
     code = instance.generate_code()
 
@@ -342,18 +309,20 @@ def test_evaluate_model_operation_success():
                 operation_id={operation_id},
                 content='<strong>' + df_model.__class__.__name__ +
                      ': metric f1: ' + str({output}) + '</strong>')
-            """.format(output=outputs[0],
-                       input_2=inputs[1],
-                       input_1=inputs[0],
+            """.format(output=n_out['metric'],
+                       input_2=n_in['model'],
+                       input_1=n_in['input data'],
                        task_id=params['task_id'],
                        operation_id=params['operation_id'],
-                       predic_atr=params[EvaluateModel.PREDICTION_ATTRIBUTE_PARAM],
-                       label_atr=params[EvaluateModel.LABEL_ATTRIBUTE_PARAM],
-                       metric=params[EvaluateModel.METRIC_PARAM],
-                       evaluator=EvaluateModel.METRIC_TO_EVALUATOR[
-                           params[EvaluateModel.METRIC_PARAM]][0],
-                       predic_col=EvaluateModel.METRIC_TO_EVALUATOR[
-                           params[EvaluateModel.METRIC_PARAM]][1]))
+                       predic_atr=params[
+                           EvaluateModelOperation.PREDICTION_ATTRIBUTE_PARAM],
+                       label_atr=params[
+                           EvaluateModelOperation.LABEL_ATTRIBUTE_PARAM],
+                       metric=params[EvaluateModelOperation.METRIC_PARAM],
+                       evaluator=EvaluateModelOperation.METRIC_TO_EVALUATOR[
+                           params[EvaluateModelOperation.METRIC_PARAM]][0],
+                       predic_col=EvaluateModelOperation.METRIC_TO_EVALUATOR[
+                           params[EvaluateModelOperation.METRIC_PARAM]][1]))
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
     assert result, msg + format_code_comparison(code, expected_code)
@@ -379,77 +348,54 @@ def test_evaluate_model_operation_success():
 def test_evaluate_model_operation_wrong_metric_param_failure():
     params = {
 
-        EvaluateModel.PREDICTION_ATTRIBUTE_PARAM: 'c',
-        EvaluateModel.LABEL_ATTRIBUTE_PARAM: 'c',
-        EvaluateModel.METRIC_PARAM: 'mist',
+        EvaluateModelOperation.PREDICTION_ATTRIBUTE_PARAM: 'c',
+        EvaluateModelOperation.LABEL_ATTRIBUTE_PARAM: 'c',
+        EvaluateModelOperation.METRIC_PARAM: 'mist',
     }
-    inputs = ['input_1', 'input_2']
-    outputs = ['output_1']
-    #
-    # instance = EvaluateModel(params, inputs,
-    #                          outputs, named_inputs={},
-    #                          named_outputs={})
+    n_in = {'input data': 'input_1', 'model': 'df_model'}
+    n_out = {'metric': 'df_metric', 'evaluator': 'df_evaluator'}
     with pytest.raises(ValueError):
-        EvaluateModel(params, inputs,
-                      outputs, named_inputs={},
-                      named_outputs={})
+        EvaluateModelOperation(params, named_inputs=n_in, named_outputs=n_out)
 
 
 def test_evaluate_model_operation_missing_metric_param_failure():
     params = {
 
-        EvaluateModel.PREDICTION_ATTRIBUTE_PARAM: 'c',
-        EvaluateModel.LABEL_ATTRIBUTE_PARAM: 'c',
-        EvaluateModel.METRIC_PARAM: '',
+        EvaluateModelOperation.PREDICTION_ATTRIBUTE_PARAM: 'c',
+        EvaluateModelOperation.LABEL_ATTRIBUTE_PARAM: 'c',
+        EvaluateModelOperation.METRIC_PARAM: '',
     }
-    inputs = ['input_1', 'input_2']
-    outputs = ['output_1']
-    #
-    # instance = EvaluateModel(params, inputs,
-    #                          outputs, named_inputs={},
-    #                          named_outputs={})
+    n_in = {'input data': 'input_1', 'model': 'df_model'}
+    n_out = {'metric': 'df_metric', 'evaluator': 'df_evaluator'}
     with pytest.raises(ValueError):
-        EvaluateModel(params, inputs,
-                      outputs, named_inputs={},
-                      named_outputs={})
+        EvaluateModelOperation(params, named_inputs=n_in,
+                               named_outputs=n_out)
 
 
 def test_evaluate_model_operation_missing_prediction_attribute_failure():
     params = {
 
-        EvaluateModel.PREDICTION_ATTRIBUTE_PARAM: '',
-        EvaluateModel.LABEL_ATTRIBUTE_PARAM: 'c',
-        EvaluateModel.METRIC_PARAM: 'f1',
+        EvaluateModelOperation.PREDICTION_ATTRIBUTE_PARAM: '',
+        EvaluateModelOperation.LABEL_ATTRIBUTE_PARAM: 'c',
+        EvaluateModelOperation.METRIC_PARAM: 'f1',
     }
-    inputs = ['input_1', 'input_2']
-    outputs = ['output_1']
-    #
-    # instance = EvaluateModel(params, inputs,
-    #                          outputs, named_inputs={},
-    #                          named_outputs={})
+    n_in = {'input data': 'input_1', 'model': 'df_model'}
+    n_out = {'metric': 'df_metric', 'evaluator': 'df_evaluator'}
     with pytest.raises(ValueError):
-        EvaluateModel(params, inputs,
-                      outputs, named_inputs={},
-                      named_outputs={})
+        EvaluateModelOperation(params, named_inputs=n_in, named_outputs=n_out)
 
 
 def test_evaluate_model_operation_missing_label_attribute_failure():
     params = {
 
-        EvaluateModel.PREDICTION_ATTRIBUTE_PARAM: 'c',
-        EvaluateModel.LABEL_ATTRIBUTE_PARAM: '',
-        EvaluateModel.METRIC_PARAM: 'f1',
+        EvaluateModelOperation.PREDICTION_ATTRIBUTE_PARAM: 'c',
+        EvaluateModelOperation.LABEL_ATTRIBUTE_PARAM: '',
+        EvaluateModelOperation.METRIC_PARAM: 'f1',
     }
-    inputs = ['input_1', 'input_2']
-    outputs = ['output_1']
-    #
-    # instance = EvaluateModel(params, inputs,
-    #                          outputs, named_inputs={},
-    #                          named_outputs={})
+    n_in = {'input data': 'input_1', 'model': 'df_model'}
+    n_out = {'metric': 'df_metric', 'evaluator': 'df_evaluator'}
     with pytest.raises(ValueError):
-        EvaluateModel(params, inputs,
-                      outputs, named_inputs={},
-                      named_outputs={})
+        EvaluateModelOperation(params, named_inputs=n_in, named_outputs=n_out)
 
 
 '''
@@ -459,23 +405,17 @@ def test_evaluate_model_operation_missing_label_attribute_failure():
 
 def test_cross_validation_partial_operation_success():
     params = {
-
+        'task_id': 232,
+        'operation_id': 1,
         CrossValidationOperation.NUM_FOLDS_PARAM: 3,
 
     }
-    inputs = ['df_1', 'df_2', 'df_3']
-    named_inputs = {'algorithm': 'df_1',
-                    'input data': 'df_2',
-                    'evaluator': 'df_3'}
-    named_outputs = {'output_cv': 'output_1'}
+    n_in = {'algorithm': 'df_1', 'input data': 'df_2', 'evaluator': 'xpto'}
+    n_out = {'scored data': 'output_1', 'evaluation': 'eval_1'}
     outputs = ['output_1']
 
-    instance = CrossValidationOperation(params, inputs,
-                                        outputs,
-                                        named_inputs={'algorithm': 'df_1',
-                                                      'input data': 'df_2',
-                                                      'evaluator': 'df_3'},
-                                        named_outputs={})
+    instance = CrossValidationOperation(params, named_inputs=n_in,
+                                        named_outputs=n_out)
 
     code = instance.generate_code()
 
@@ -496,11 +436,41 @@ def test_cross_validation_partial_operation_success():
             evaluated_data = cv_model.transform({input_data})
             best_model_{output}  = cv_model.bestModel
             metric_result = evaluator.evaluate(evaluated_data)
-            eval_{output} = metric_result
+            eval_{evaluation} = metric_result
             {output} = evaluated_data
-            """.format(algorithm=named_inputs['algorithm'],
-                       input_data=named_inputs['input data'],
-                       evaluator=named_inputs['evaluator'],
+
+            grouped_result = evaluated_data.select(
+                 evaluator.getLabelCol(), evaluator.getPredictionCol())\
+                 .groupBy(evaluator.getLabelCol(),
+                          evaluator.getPredictionCol()).count().collect()
+            eval_{output} = {{
+                'metric': {{
+                    'name': evaluator.getMetricName(),
+                    'value': metric_result
+                }},
+                'estimator': {{
+                    'name': estimator.__class__.__name__,
+                    'predictionCol': evaluator.getPredictionCol(),
+                    'labelCol': evaluator.getLabelCol()
+                }},
+                'confusion_matrix': {{
+                    'data': json.dumps(grouped_result)
+                }},
+                'evaluator': evaluator
+            }}
+
+            emit_event('task result', status='COMPLETED',
+                identifier='232', message='Result generated',
+                type='TEXT', title='Evaluation result',
+                task={{'id': '232' }},
+                operation={{'id': 1 }},
+                operation_id=1,
+                content=json.dumps(eval_{output}))
+
+            """.format(algorithm=n_in['algorithm'],
+                       input_data=n_in['input data'],
+                       evaluator=n_in['evaluator'],
+                       evaluation=n_out['evaluation'],
                        output=outputs[0],
                        folds=params[CrossValidationOperation.NUM_FOLDS_PARAM]))
 
@@ -517,17 +487,12 @@ def test_cross_validation_complete_operation_success():
         'operation_id': 2793
 
     }
-    inputs = ['df_1', 'df_2', 'df_3']
-    named_inputs = {'algorithm': 'df_1',
-                    'input data': 'df_2',
-                    'evaluator': 'df_3'}
-    named_outputs = {'evaluation': 'output_1'}
+    n_in = {'algorithm': 'algo1', 'input data': 'df_1', 'evaluator': 'ev_1'}
+    n_out = {'evaluation': 'output_1', 'scored data': 'output_1'}
     outputs = ['output_1']
 
-    instance = CrossValidationOperation(params, inputs,
-                                        outputs,
-                                        named_inputs=named_inputs,
-                                        named_outputs=named_outputs)
+    instance = CrossValidationOperation(params, named_inputs=n_in,
+                                        named_outputs=n_out)
 
     code = instance.generate_code()
 
@@ -550,9 +515,9 @@ def test_cross_validation_complete_operation_success():
             metric_result = evaluator.evaluate(evaluated_data)
             eval_{output} = metric_result
             {output} = evaluated_data
-            """.format(algorithm=named_inputs['algorithm'],
-                       input_data=named_inputs['input data'],
-                       evaluator=named_inputs['evaluator'],
+            """.format(algorithm=n_in['algorithm'],
+                       input_data=n_in['input data'],
+                       evaluator=n_in['evaluator'],
                        output=outputs[0],
                        folds=params[CrossValidationOperation.NUM_FOLDS_PARAM]))
 
@@ -600,19 +565,12 @@ def test_cross_validation_complete_operation_missing_input_failure():
         CrossValidationOperation.NUM_FOLDS_PARAM: 3,
 
     }
-    inputs = ['df_1', 'df_2']
-    named_inputs = {'algorithm': 'df_1',
-                    'input data': 'df_2',
-                    'evaluator': 'df_3'}
-    named_outputs = {'evaluation': 'output_1'}
-    outputs = ['output_1']
+    n_in = {'algorithm': 'algo1', 'evaluator': 'ev_1'}
+    n_out = {'evaluation': 'output_1'}
 
-    with pytest.raises(ValueError):
-        CrossValidationOperation(params,
-                                 inputs,
-                                 outputs,
-                                 named_inputs=named_inputs,
-                                 named_outputs=named_outputs)
+    instance = CrossValidationOperation(params, named_inputs=n_in,
+                                        named_outputs=n_out)
+    assert not instance.has_code
 
 
 '''
@@ -622,18 +580,14 @@ def test_cross_validation_complete_operation_missing_input_failure():
 
 def test_classification_model_operation_success():
     params = {
-        ClassificationModel.FEATURES_ATTRIBUTE_PARAM: 'f',
-        ClassificationModel.LABEL_ATTRIBUTE_PARAM: 'l'
+        ClassificationModelOperation.FEATURES_ATTRIBUTE_PARAM: 'f',
+        ClassificationModelOperation.LABEL_ATTRIBUTE_PARAM: 'l'
 
     }
-    named_inputs = {'algorithm': 'algo_param',
-                    'train input data': 'train'}
-    outputs = ['output_1']
-
-    instance = ClassificationModel(params, named_inputs.values(),
-                                   outputs,
-                                   named_inputs=named_inputs,
-                                   named_outputs={})
+    n_in = {'algorithm': 'algo_param', 'train input data': 'train'}
+    n_out = {'model': 'model_1'}
+    instance = ClassificationModelOperation(params, named_inputs=n_in,
+                                            named_outputs=n_out)
 
     code = instance.generate_code()
 
@@ -641,11 +595,13 @@ def test_classification_model_operation_success():
         algorithm, param_grid = {algorithm}
         algorithm.setLabelCol('{label}').setFeaturesCol('{features}')
         {output} = algorithm.fit({train})
-        """.format(output=outputs[0],
-                   train=named_inputs['train input data'],
-                   algorithm=named_inputs['algorithm'],
-                   features=params[ClassificationModel.FEATURES_ATTRIBUTE_PARAM],
-                   label=params[ClassificationModel.LABEL_ATTRIBUTE_PARAM]))
+        """.format(output=n_out['model'],
+                   train=n_in['train input data'],
+                   algorithm=n_in['algorithm'],
+                   features=params[
+                       ClassificationModelOperation.FEATURES_ATTRIBUTE_PARAM],
+                   label=params[
+                       ClassificationModelOperation.LABEL_ATTRIBUTE_PARAM]))
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
 
@@ -654,70 +610,50 @@ def test_classification_model_operation_success():
 
 def test_classification_model_operation_failure():
     params = {
-        ClassificationModel.FEATURES_ATTRIBUTE_PARAM: 'f',
-        ClassificationModel.LABEL_ATTRIBUTE_PARAM: 'l'
+        ClassificationModelOperation.FEATURES_ATTRIBUTE_PARAM: 'f',
+        ClassificationModelOperation.LABEL_ATTRIBUTE_PARAM: 'l'
 
     }
-    inputs = ['df_1']
-    outputs = ['output_1']
-
     with pytest.raises(ValueError):
-        instance = ClassificationModel(params, inputs,
-                                       outputs,
-                                       named_inputs={},
-                                       named_outputs={})
+        n_in = {'train input data': 'train'}
+        n_out = {'model': 'model_1'}
+        instance = ClassificationModelOperation(params, named_inputs=n_in,
+                                                named_outputs=n_out)
         instance.generate_code()
 
 
 def test_classification_model_operation_missing_features_failure():
     params = {
-        ClassificationModel.LABEL_ATTRIBUTE_PARAM: 'label'
+        ClassificationModelOperation.LABEL_ATTRIBUTE_PARAM: 'label'
     }
-    inputs = ['df_1', 'df_2']
-    named_inputs = {}
-    named_outputs = {}
-    outputs = ['output_1']
+    n_in = {}
+    n_out = {}
 
     with pytest.raises(ValueError):
-        ClassificationModel(params,
-                            inputs,
-                            outputs,
-                            named_inputs=named_inputs,
-                            named_outputs=named_outputs)
+        ClassificationModelOperation(
+            params, named_inputs=n_in, named_outputs=n_out)
 
 
 def test_classification_model_operation_missing_label_failure():
     params = {
-        ClassificationModel.FEATURES_ATTRIBUTE_PARAM: 'features',
+        ClassificationModelOperation.FEATURES_ATTRIBUTE_PARAM: 'features',
 
     }
-    inputs = ['df_1', 'df_2']
-    named_inputs = {}
-    named_outputs = {}
-    outputs = ['output_1']
-
     with pytest.raises(ValueError):
-        ClassificationModel(params,
-                            inputs,
-                            outputs,
-                            named_inputs=named_inputs,
-                            named_outputs=named_outputs)
+        n_in = {}
+        n_out = {'model': 'model_1'}
+        ClassificationModelOperation(params, named_inputs=n_in,
+                                     named_outputs=n_out)
 
 
 def test_classification_model_operation_missing_inputs_failure():
-    params = {
-    }
-    inputs = ['df_1', 'df_2']
-    named_inputs = {}
-    named_outputs = {}
-    outputs = ['output_1']
+    params = {}
+    n_in = {'algorithm': 'algo_param', 'train input data': 'train'}
+    n_out = {'model': 'model_1'}
 
     with pytest.raises(ValueError):
-        classification_model = ClassificationModel(params,
-                                                   inputs,
-                                                   outputs,
-                                                   named_inputs=named_inputs,
-                                                   named_outputs=named_outputs)
+        classification_model = ClassificationModelOperation(
+            params, named_inputs=n_in, named_outputs=n_out)
 
         classification_model.generate_code()
 
@@ -736,13 +672,9 @@ def test_classifier_operation_success():
         }
 
     }
-    inputs = ['df_1', 'df_2']
-    outputs = ['output_1']
+    n_out = {'algorithm': 'classifier_1'}
 
-    instance = ClassifierOperation(params, inputs,
-                                   outputs,
-                                   named_inputs={},
-                                   named_outputs={})
+    instance = ClassifierOperation(params, named_inputs={}, named_outputs=n_out)
 
     code = instance.generate_code()
 
@@ -759,30 +691,20 @@ def test_classifier_operation_success():
     # Output result is the classifier and its parameters. Parameters are
     # need in classification model or cross validator.
     {output} = ({name}(), param_grid)
-    """.format(output=outputs[0],
-               name='FIXME',
-               param_grid=json.dumps(param_grid)
-               )
-                           )
+    """.format(output=n_out['algorithm'], name='BaseClassifier',
+               param_grid=json.dumps(param_grid)))
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
 
-    assert result, msg + debug_ast(code, expected_code)
+    assert result, msg + format_code_comparison(code, expected_code)
 
 
-def test_classifier_operation_failure():
-    params = {
-
-    }
-    inputs = ['df_1', 'df_2']
-    outputs = ['output_1']
+def test_classifier_operation_missing_param_grid_parameter_failure():
+    params = {}
+    n_out = {'algorithm': 'classifier_1'}
 
     with pytest.raises(ValueError):
-        ClassifierOperation(params,
-                            inputs,
-                            outputs,
-                            named_inputs={},
-                            named_outputs={})
+        ClassifierOperation(params, named_inputs={}, named_outputs=n_out)
 
 
 def test_classifier_operation_missing_label_failure():
@@ -792,15 +714,10 @@ def test_classifier_operation_missing_label_failure():
         }
 
     }
-    inputs = ['df_1', 'df_2']
-    outputs = ['output_1']
+    n_out = {'algorithm': 'classifier_1'}
 
     with pytest.raises(ValueError):
-        ClassifierOperation(params,
-                            inputs,
-                            outputs,
-                            named_inputs={},
-                            named_outputs={})
+        ClassifierOperation(params, named_inputs={}, named_outputs=n_out)
 
 
 def test_classifier_operation_missing_features_failure():
@@ -809,16 +726,10 @@ def test_classifier_operation_missing_features_failure():
             ClassifierOperation.LABEL_PARAM: 'l'
         }
     }
-
-    inputs = ['df_1', 'df_2']
-    outputs = ['output_1']
+    n_out = {'algorithm': 'classifier_1'}
 
     with pytest.raises(ValueError):
-        ClassifierOperation(params,
-                            inputs,
-                            outputs,
-                            named_inputs={},
-                            named_outputs={})
+        ClassifierOperation(params, named_inputs={}, named_outputs=n_out)
 
 
 def test_classifier_operation_missing_output_failure():
@@ -829,17 +740,11 @@ def test_classifier_operation_missing_output_failure():
         }
 
     }
-
-    inputs = ['df_1', 'df_2']
-    outputs = []
+    n_out = {}
 
     with pytest.raises(ValueError):
-        classifier = ClassifierOperation(params,
-                                         inputs,
-                                         outputs,
-                                         named_inputs={},
-                                         named_outputs={})
-
+        classifier = ClassifierOperation(params, named_inputs={},
+                                         named_outputs=n_out)
         classifier.generate_code()
 
 
@@ -851,13 +756,10 @@ def test_svm_classifier_operation_success():
         }
 
     }
-    inputs = ['df_1', 'df_2']
-    outputs = ['output_1']
+    n_out = {'algorithm': 'classifier_1'}
 
-    instance_svm = SvmClassifierOperation(params, inputs,
-                                          outputs,
-                                          named_inputs={},
-                                          named_outputs={})
+    instance_svm = SvmClassifierOperation(params, named_inputs={},
+                                          named_outputs=n_out)
 
     # Is not possible to generate_code(), because has_code is False
     assert instance_svm.name == 'classification.SVM'
@@ -871,13 +773,10 @@ def test_lr_classifier_operation_success():
         }
 
     }
-    inputs = ['df_1', 'df_2']
-    outputs = ['output_1']
+    n_out = {'algorithm': 'classifier_1'}
 
-    instance_lr = LogisticRegressionClassifierOperation(params, inputs,
-                                                        outputs,
-                                                        named_inputs={},
-                                                        named_outputs={})
+    instance_lr = LogisticRegressionClassifierOperation(
+        params, named_inputs={}, named_outputs=n_out)
 
     # Is not possible to generate_code(), because has_code is False
     assert instance_lr.name == 'classification.LogisticRegression'
@@ -891,13 +790,10 @@ def test_dt_classifier_operation_success():
         }
 
     }
-    inputs = ['df_1', 'df_2']
-    outputs = ['output_1']
+    n_out = {'algorithm': 'classifier_1'}
 
-    instance_dt = DecisionTreeClassifierOperation(params, inputs,
-                                                  outputs,
-                                                  named_inputs={},
-                                                  named_outputs={})
+    instance_dt = DecisionTreeClassifierOperation(
+        params, named_inputs={}, named_outputs=n_out)
 
     # Is not possible to generate_code(), because has_code is False
     assert instance_dt.name == 'classification.DecisionTreeClassifier'
@@ -911,13 +807,10 @@ def test_gbt_classifier_operation_success():
         }
 
     }
-    inputs = ['df_1', 'df_2']
-    outputs = ['output_1']
+    n_out = {'algorithm': 'classifier_1'}
 
-    instance_dt = GBTClassifierOperation(params, inputs,
-                                         outputs,
-                                         named_inputs={},
-                                         named_outputs={})
+    instance_dt = GBTClassifierOperation(
+        params, named_inputs={}, named_outputs=n_out)
 
     # Is not possible to generate_code(), because has_code is False
     assert instance_dt.name == 'classification.GBTClassifier'
@@ -931,13 +824,10 @@ def test_nb_classifier_operation_success():
         }
 
     }
-    inputs = ['df_1', 'df_2']
-    outputs = ['output_1']
+    n_out = {'algorithm': 'classifier_1'}
 
-    instance_nb = NaiveBayesClassifierOperation(params, inputs,
-                                                outputs,
-                                                named_inputs={},
-                                                named_outputs={})
+    instance_nb = NaiveBayesClassifierOperation(
+        params, named_inputs={}, named_outputs=n_out)
 
     # Is not possible to generate_code(), because has_code is False
     assert instance_nb.name == 'classification.NaiveBayes'
@@ -951,19 +841,15 @@ def test_rf_classifier_operation_success():
         }
 
     }
-    inputs = ['df_1', 'df_2']
-    outputs = ['output_1']
-
-    instance_nb = RandomForestClassifierOperation(params, inputs,
-                                                  outputs,
-                                                  named_inputs={},
-                                                  named_outputs={})
+    n_out = {'algorithm': 'classifier_1'}
+    instance_nb = RandomForestClassifierOperation(
+        params, named_inputs={}, named_outputs=n_out)
 
     # Is not possible to generate_code(), because has_code is False
     assert instance_nb.name == 'classification.RandomForestClassifier'
 
 
-def test_percept_classifier_operation_success():
+def test_perceptron_classifier_operation_success():
     params = {
         ClassifierOperation.GRID_PARAM: {
             ClassifierOperation.FEATURES_PARAM: 'f',
@@ -971,16 +857,14 @@ def test_percept_classifier_operation_success():
         }
 
     }
-    inputs = ['df_1', 'df_2']
-    outputs = ['output_1']
+    n_out = {'algorithm': 'classifier_1'}
 
-    instance_pct = PerceptronClassifier(params, inputs,
-                                        outputs,
-                                        named_inputs={},
-                                        named_outputs={})
+    instance_pct = PerceptronClassifier(
+        params, named_inputs={}, named_outputs=n_out)
 
     # Is not possible to generate_code(), because has_code is False
-    assert instance_pct.name == 'classification.MultilayerPerceptronClassificationModel'
+    assert instance_pct.name == \
+           'classification.MultilayerPerceptronClassificationModel'
 
 
 """
@@ -994,16 +878,13 @@ def test_clustering_model_operation_success():
         ClusteringModelOperation.FEATURES_ATTRIBUTE_PARAM: 'f',
 
     }
-    inputs = ['df_1', 'df_2']
     named_inputs = {'algorithm': 'df_1',
                     'train input data': 'df_2'}
     named_outputs = {'output data': 'output_1',
                      'model': 'output_2'}
     outputs = ['output_1']
 
-    instance = ClusteringModelOperation(params, inputs,
-                                        outputs,
-                                        named_inputs=named_inputs,
+    instance = ClusteringModelOperation(params, named_inputs=named_inputs,
                                         named_outputs=named_outputs)
 
     code = instance.generate_code()
@@ -1019,99 +900,70 @@ def test_clustering_model_operation_success():
                    input=named_inputs['train input data'],
                    model=named_outputs['model'],
                    output=outputs[0],
-                   features=params[ClusteringModelOperation.FEATURES_ATTRIBUTE_PARAM]))
+                   features=params[
+                       ClusteringModelOperation.FEATURES_ATTRIBUTE_PARAM]))
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
 
-    assert result, msg + debug_ast(code, expected_code)
+    assert result, msg + format_code_comparison(code, expected_code)
 
 
 def test_clustering_model_operation_missing_features_failure():
-    params = {
-    }
-    inputs = ['df_1', 'df_2']
+    params = {}
     named_inputs = {'algorithm': 'df_1',
                     'train input data': 'df_2'}
     named_outputs = {'output data': 'output_1',
                      'model': 'output_2'}
-    outputs = ['output_1']
 
     with pytest.raises(ValueError):
         ClusteringModelOperation(params,
-                                 inputs,
-                                 outputs,
                                  named_inputs=named_inputs,
                                  named_outputs=named_outputs)
 
 
 def test_clustering_model_operation_missing_input_failure():
     params = {
-
         ClusteringModelOperation.FEATURES_ATTRIBUTE_PARAM: 'f',
-
     }
-    inputs = ['df_1']
-    named_inputs = {'algorithm': 'df_1',
-                    'train input data': 'df_2'}
-    named_outputs = {'output data': 'output_1',
-                     'model': 'output_2'}
-    outputs = ['output_1']
+    named_inputs = {'algorithm': 'df_1'}
+    named_outputs = {'output data': 'output_1', 'model': 'output_2'}
 
-    with pytest.raises(ValueError):
-        clustering = ClusteringModelOperation(params,
-                                              inputs,
-                                              outputs,
-                                              named_inputs=named_inputs,
-                                              named_outputs=named_outputs)
-        clustering.generate_code()
+    clustering = ClusteringModelOperation(params,
+                                          named_inputs=named_inputs,
+                                          named_outputs=named_outputs)
+    assert not clustering.has_code
 
 
-def test_clustering_model_operation_missing_output_failure():
+def test_clustering_model_operation_missing_output_success():
     params = {
-
         ClusteringModelOperation.FEATURES_ATTRIBUTE_PARAM: 'f',
-
     }
-    inputs = ['df_1', 'df_2']
-    named_inputs = {'algorithm': 'df_1',
-                    'train input data': 'df_2'}
-    named_outputs = {'output data': 'output_1',
-                     'model': 'output_2'}
-    outputs = []
+    named_inputs = {'algorithm': 'df_1', 'train input data': 'df_2'}
+    named_outputs = {'model': 'output_2'}
 
-    with pytest.raises(ValueError):
-        clustering = ClusteringModelOperation(params,
-                                              inputs,
-                                              outputs,
-                                              named_inputs=named_inputs,
-                                              named_outputs=named_outputs)
-        clustering.generate_code()
+    clustering = ClusteringModelOperation(params,
+                                          named_inputs=named_inputs,
+                                          named_outputs=named_outputs)
+    assert clustering.has_code
 
 
 def test_clustering_operation_success():
     # This test its not very clear, @CHECK
     params = {}
-    inputs = ['df_1', 'df_2']
-    named_inputs = {'algorithm': 'df_1',
-                    'train input data': 'df_2'}
-    named_outputs = {'output data': 'output_1',
-                     'model': 'output_2'}
-    outputs = ['output_1']
+    named_outputs = {'algorithm': 'clustering_algo_1'}
 
-    name = 'FIXME'
+    name = 'BaseClustering'
     set_values = []
-    instance = ClusteringOperation(params, inputs,
-                                   outputs,
-                                   named_inputs=named_inputs,
+    instance = ClusteringOperation(params, named_inputs={},
                                    named_outputs=named_outputs)
 
     code = instance.generate_code()
 
     expected_code = dedent("{output} = {name}()".format(
-        output=outputs[0],
+        output=named_outputs['algorithm'],
         name=name))
 
-    settings = (['{0}.set{1}({2})'.format(outputs[0], name, v)
+    settings = (['{0}.set{1}({2})'.format(named_outputs['model'], name, v)
                  for name, v in set_values])
     settings = "\n".join(settings)
 
@@ -1119,7 +971,7 @@ def test_clustering_operation_success():
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
 
-    assert result, msg + debug_ast(code, expected_code)
+    assert result, msg + format_code_comparison(code, expected_code)
 
 
 def test_lda_clustering_operation_optimizer_online_success():
@@ -1130,38 +982,33 @@ def test_lda_clustering_operation_optimizer_online_success():
         LdaClusteringOperation.DOC_CONCENTRATION_PARAM: 0.25,
         LdaClusteringOperation.TOPIC_CONCENTRATION_PARAM: 0.1
     }
-    inputs = ['df_1', 'df_2']
-    named_inputs = {'algorithm': 'df_1',
-                    'train input data': 'df_2'}
-    named_outputs = {'output data': 'output_1',
-                     'model': 'output_2'}
-    outputs = ['output_1']
+    named_outputs = {'algorithm': 'clustering_algo_1'}
 
     name = "clustering.LDA"
 
     set_values = [
-        ['DocConcentration', params[LdaClusteringOperation.NUMBER_OF_TOPICS_PARAM] *
+        ['DocConcentration',
+         params[LdaClusteringOperation.NUMBER_OF_TOPICS_PARAM] *
          [(params.get(LdaClusteringOperation.DOC_CONCENTRATION_PARAM,
-                      LdaClusteringOperation.NUMBER_OF_TOPICS_PARAM))
-          / 50.0]],
+                      LdaClusteringOperation.NUMBER_OF_TOPICS_PARAM)) / 50.0]],
         ['K', params[LdaClusteringOperation.NUMBER_OF_TOPICS_PARAM]],
         ['MaxIter', params[LdaClusteringOperation.MAX_ITERATIONS_PARAM]],
-        ['Optimizer', "'{}'".format(params[LdaClusteringOperation.OPTIMIZER_PARAM])],
-        ['TopicConcentration', params[LdaClusteringOperation.TOPIC_CONCENTRATION_PARAM]]
+        ['Optimizer',
+         "'{}'".format(params[LdaClusteringOperation.OPTIMIZER_PARAM])],
+        ['TopicConcentration',
+         params[LdaClusteringOperation.TOPIC_CONCENTRATION_PARAM]]
     ]
 
-    instance = LdaClusteringOperation(params, inputs,
-                                      outputs,
-                                      named_inputs=named_inputs,
+    instance = LdaClusteringOperation(params, named_inputs={},
                                       named_outputs=named_outputs)
 
     code = instance.generate_code()
 
     expected_code = dedent("{output} = {name}()".format(
-        output=outputs[0],
+        output=named_outputs['algorithm'],
         name=name))
 
-    settings = (['{0}.set{1}({2})'.format(outputs[0], name, v)
+    settings = (['{0}.set{1}({2})'.format(named_outputs['algorithm'], name, v)
                  for name, v in set_values])
     settings = "\n".join(settings)
 
@@ -1169,7 +1016,7 @@ def test_lda_clustering_operation_optimizer_online_success():
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
 
-    assert result, msg + debug_ast(code, expected_code)
+    assert result, msg + format_code_comparison(code, expected_code)
 
 
 # def test_lda_clustering_operation_optimizer_em_success():
@@ -1215,18 +1062,9 @@ def test_lda_clustering_operation_failure():
         LdaClusteringOperation.DOC_CONCENTRATION_PARAM: 0.25,
         LdaClusteringOperation.TOPIC_CONCENTRATION_PARAM: 0.1
     }
-    inputs = ['df_1', 'df_2']
-    named_inputs = {'algorithm': 'df_1',
-                    'train input data': 'df_2'}
-    named_outputs = {'output data': 'output_1',
-                     'model': 'output_2'}
-    outputs = ['output_1']
-    name = 'FIXME'
-
+    named_outputs = {'algorithm': 'clustering_algo_2'}
     with pytest.raises(ValueError):
-        LdaClusteringOperation(params, inputs,
-                               outputs,
-                               named_inputs=named_inputs,
+        LdaClusteringOperation(params, named_inputs={},
                                named_outputs=named_outputs)
 
 
@@ -1238,12 +1076,7 @@ def test_kmeans_clustering_operation_random_type_kmeans_success():
         KMeansClusteringOperation.INIT_MODE_PARAMETER: 'random',
         KMeansClusteringOperation.TOLERANCE_PARAMETER: 0.001
     }
-    inputs = ['df_1', 'df_2']
-    named_inputs = {'algorithm': 'df_1',
-                    'train input data': 'df_2'}
-    named_outputs = {'output data': 'output_1',
-                     'model': 'output_2'}
-    outputs = ['output_1']
+    named_outputs = {'algorithm': 'clustering_algo_1'}
 
     name = "clustering.KMeans"
 
@@ -1255,18 +1088,16 @@ def test_kmeans_clustering_operation_random_type_kmeans_success():
          '"{}"'.format(params[KMeansClusteringOperation.INIT_MODE_PARAMETER])]
     ]
 
-    instance = KMeansClusteringOperation(params, inputs,
-                                         outputs,
-                                         named_inputs=named_inputs,
+    instance = KMeansClusteringOperation(params, named_inputs={},
                                          named_outputs=named_outputs)
 
     code = instance.generate_code()
 
     expected_code = dedent("{output} = {name}()".format(
-        output=outputs[0],
+        output=named_outputs['algorithm'],
         name=name))
 
-    settings = (['{0}.set{1}({2})'.format(outputs[0], name, v)
+    settings = (['{0}.set{1}({2})'.format(named_outputs['algorithm'], name, v)
                  for name, v in set_values])
     settings = "\n".join(settings)
 
@@ -1274,7 +1105,7 @@ def test_kmeans_clustering_operation_random_type_kmeans_success():
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
 
-    assert result, msg + debug_ast(code, expected_code)
+    assert result, msg + format_code_comparison(code, expected_code)
 
 
 def test_kmeans_clustering_operation_random_type_bisecting_success():
@@ -1285,12 +1116,7 @@ def test_kmeans_clustering_operation_random_type_bisecting_success():
         KMeansClusteringOperation.INIT_MODE_PARAMETER: 'random',
         KMeansClusteringOperation.TOLERANCE_PARAMETER: 0.001
     }
-    inputs = ['df_1', 'df_2']
-    named_inputs = {'algorithm': 'df_1',
-                    'train input data': 'df_2'}
-    named_outputs = {'output data': 'output_1',
-                     'model': 'output_2'}
-    outputs = ['output_1']
+    named_outputs = {'algorithm': 'clustering_algo_1'}
 
     name = "BisectingKMeans"
 
@@ -1301,18 +1127,16 @@ def test_kmeans_clustering_operation_random_type_bisecting_success():
         # ['InitMode', params[KMeansClusteringOperation.INIT_MODE_PARAMETER]]
     ]
 
-    instance = KMeansClusteringOperation(params, inputs,
-                                         outputs,
-                                         named_inputs=named_inputs,
+    instance = KMeansClusteringOperation(params, named_inputs={},
                                          named_outputs=named_outputs)
 
     code = instance.generate_code()
 
     expected_code = dedent("{output} = {name}()".format(
-        output=outputs[0],
+        output=named_outputs['algorithm'],
         name=name))
 
-    settings = (['{0}.set{1}({2})'.format(outputs[0], name, v)
+    settings = (['{0}.set{1}({2})'.format(named_outputs['algorithm'], name, v)
                  for name, v in set_values])
     settings = "\n".join(settings)
 
@@ -1320,7 +1144,7 @@ def test_kmeans_clustering_operation_random_type_bisecting_success():
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
 
-    assert result, msg + debug_ast(code, expected_code)
+    assert result, msg + format_code_comparison(code, expected_code)
 
 
 def test_kmeans_clustering_operation_kmeansdd_type_kmeans_success():
@@ -1331,13 +1155,7 @@ def test_kmeans_clustering_operation_kmeansdd_type_kmeans_success():
         KMeansClusteringOperation.INIT_MODE_PARAMETER: 'k-means||',
         KMeansClusteringOperation.TOLERANCE_PARAMETER: 0.001
     }
-    inputs = ['df_1', 'df_2']
-    named_inputs = {'algorithm': 'df_1',
-                    'train input data': 'df_2'}
-    named_outputs = {'output data': 'output_1',
-                     'model': 'output_2'}
-    outputs = ['output_1']
-
+    named_outputs = {'algorithm': 'clustering_algo_1'}
     name = "clustering.KMeans"
 
     set_values = [
@@ -1348,26 +1166,24 @@ def test_kmeans_clustering_operation_kmeansdd_type_kmeans_success():
          '"{}"'.format(params[KMeansClusteringOperation.INIT_MODE_PARAMETER])]
     ]
 
-    instance = KMeansClusteringOperation(params, inputs,
-                                         outputs,
-                                         named_inputs=named_inputs,
+    instance = KMeansClusteringOperation(params, named_inputs={},
                                          named_outputs=named_outputs)
 
     code = instance.generate_code()
 
     expected_code = dedent("{output} = {name}()".format(
-        output=outputs[0],
-        name=name))
+        output=named_outputs['algorithm'], name=name))
 
-    settings = (['{0}.set{1}({2})'.format(outputs[0], name, v)
-                 for name, v in set_values])
+    settings = (
+        ['{0}.set{1}({2})'.format(named_outputs['algorithm'], name, v)
+         for name, v in set_values])
     settings = "\n".join(settings)
 
     expected_code += "\n" + settings
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
 
-    assert result, msg + debug_ast(code, expected_code)
+    assert result, msg + format_code_comparison(code, expected_code)
 
 
 def test_kmeans_clustering_operation_kmeansdd_type_bisecting_success():
@@ -1378,12 +1194,7 @@ def test_kmeans_clustering_operation_kmeansdd_type_bisecting_success():
         KMeansClusteringOperation.INIT_MODE_PARAMETER: 'k-means||',
         KMeansClusteringOperation.TOLERANCE_PARAMETER: 0.001
     }
-    inputs = ['df_1', 'df_2']
-    named_inputs = {'algorithm': 'df_1',
-                    'train input data': 'df_2'}
-    named_outputs = {'output data': 'output_1',
-                     'model': 'output_2'}
-    outputs = ['output_1']
+    named_outputs = {'algorithm': 'clustering_algo_1'}
 
     name = "BisectingKMeans"
 
@@ -1394,18 +1205,17 @@ def test_kmeans_clustering_operation_kmeansdd_type_bisecting_success():
         # ['InitMode', params[KMeansClusteringOperation.INIT_MODE_PARAMETER]]
     ]
 
-    instance = KMeansClusteringOperation(params, inputs,
-                                         outputs,
-                                         named_inputs=named_inputs,
+    instance = KMeansClusteringOperation(params,
+                                         named_inputs={},
                                          named_outputs=named_outputs)
 
     code = instance.generate_code()
 
     expected_code = dedent("{output} = {name}()".format(
-        output=outputs[0],
+        output=named_outputs['algorithm'],
         name=name))
 
-    settings = (['{0}.set{1}({2})'.format(outputs[0], name, v)
+    settings = (['{0}.set{1}({2})'.format(named_outputs['algorithm'], name, v)
                  for name, v in set_values])
     settings = "\n".join(settings)
 
@@ -1413,7 +1223,7 @@ def test_kmeans_clustering_operation_kmeansdd_type_bisecting_success():
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
 
-    assert result, msg + debug_ast(code, expected_code)
+    assert result, msg + format_code_comparison(code, expected_code)
 
 
 def test_kmeans_clustering_operation_random_type_failure():
@@ -1424,18 +1234,10 @@ def test_kmeans_clustering_operation_random_type_failure():
         KMeansClusteringOperation.INIT_MODE_PARAMETER: 'random',
         KMeansClusteringOperation.TOLERANCE_PARAMETER: 0.001
     }
-    inputs = ['df_1', 'df_2']
-    named_inputs = {'algorithm': 'df_1',
-                    'train input data': 'df_2'}
-    named_outputs = {'output data': 'output_1',
-                     'model': 'output_2'}
-    outputs = ['output_1']
+    named_outputs = {'algorithm': 'clustering_algo_1'}
 
     with pytest.raises(ValueError):
-        KMeansClusteringOperation(params,
-                                  inputs,
-                                  outputs,
-                                  named_inputs=named_inputs,
+        KMeansClusteringOperation(params, named_inputs={},
                                   named_outputs=named_outputs)
 
 
@@ -1445,33 +1247,26 @@ def test_gaussian_mixture_clustering_operation_success():
         GaussianMixtureClusteringOperation.MAX_ITERATIONS_PARAM: 10,
         GaussianMixtureClusteringOperation.TOLERANCE_PARAMETER: 0.001
     }
-    inputs = ['df_1', 'df_2']
-    named_inputs = {'algorithm': 'df_1',
-                    'train input data': 'df_2'}
-    named_outputs = {'output data': 'output_1',
-                     'model': 'output_2'}
-    outputs = ['output_1']
-
+    named_outputs = {'algorithm': 'clustering_algo_1'}
     name = "clustering.GaussianMixture"
 
     set_values = [
-        ['MaxIter', params[GaussianMixtureClusteringOperation.MAX_ITERATIONS_PARAM]],
+        ['MaxIter',
+         params[GaussianMixtureClusteringOperation.MAX_ITERATIONS_PARAM]],
         ['K', params[GaussianMixtureClusteringOperation.K_PARAM]],
         ['Tol', params[GaussianMixtureClusteringOperation.TOLERANCE_PARAMETER]],
     ]
 
-    instance = GaussianMixtureClusteringOperation(params, inputs,
-                                                  outputs,
-                                                  named_inputs=named_inputs,
+    instance = GaussianMixtureClusteringOperation(params, named_inputs={},
                                                   named_outputs=named_outputs)
 
     code = instance.generate_code()
 
     expected_code = dedent("{output} = {name}()".format(
-        output=outputs[0],
+        output=named_outputs['algorithm'],
         name=name))
 
-    settings = (['{0}.set{1}({2})'.format(outputs[0], name, v)
+    settings = (['{0}.set{1}({2})'.format(named_outputs['algorithm'], name, v)
                  for name, v in set_values])
     settings = "\n".join(settings)
 
@@ -1479,23 +1274,19 @@ def test_gaussian_mixture_clustering_operation_success():
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
 
-    assert result, msg + debug_ast(code, expected_code)
+    assert result, msg + format_code_comparison(code, expected_code)
 
 
 def test_topics_report_operation_success():
     params = {
         TopicReportOperation.TERMS_PER_TOPIC_PARAM: 20,
     }
-    inputs = ['df_1', 'df_2']
     named_inputs = {'model': 'df_1',
                     'input data': 'df_2',
                     'vocabulary': 'df_3'}
     named_outputs = {'output data': 'output_1'}
-    outputs = ['output_1']
 
-    instance = TopicReportOperation(params, inputs,
-                                    outputs,
-                                    named_inputs=named_inputs,
+    instance = TopicReportOperation(params, named_inputs=named_inputs,
                                     named_outputs=named_outputs)
 
     code = instance.generate_code()
@@ -1524,7 +1315,7 @@ def test_topics_report_operation_success():
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
 
-    assert result, msg + debug_ast(code, expected_code)
+    assert result, msg + format_code_comparison(code, expected_code)
 
 
 """
@@ -1535,29 +1326,23 @@ def test_topics_report_operation_success():
 def test_collaborative_filtering_operation_success():
     params = {
     }
-    inputs = ['df_1', 'df_2']
-    named_inputs = {'algorithm': 'df_1',
-                    'train input data': 'df_2',
+    named_inputs = {'algorithm': 'df_1', 'train input data': 'df_2',
                     'vocabulary': 'df_3'}
-    named_outputs = {'output data': 'output_1',
-                     'model': 'output_1_model'}
-    outputs = ['output_1']
+    named_outputs = {'output data': 'output_1', 'model': 'output_1_model'}
 
     name = "als"
     set_values = []
 
-    instance = CollaborativeOperation(params, inputs,
-                                      outputs,
-                                      named_inputs=named_inputs,
+    instance = CollaborativeOperation(params, named_inputs=named_inputs,
                                       named_outputs=named_outputs)
 
     code = instance.generate_code()
 
     expected_code = dedent("{output} = {name}()".format(
-        output=outputs[0],
+        output=named_outputs['output data'],
         name=name))
 
-    settings = (['{0}.set{1}({2})'.format(outputs[0], name, v)
+    settings = (['{0}.set{1}({2})'.format(named_outputs['output data'], name, v)
                  for name, v in set_values])
     settings = "\n".join(settings)
 
@@ -1565,7 +1350,7 @@ def test_collaborative_filtering_operation_success():
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
 
-    assert result, msg + debug_ast(code, expected_code)
+    assert result, msg + format_code_comparison(code, expected_code)
 
 
 def test_als_operation_success():
@@ -1585,16 +1370,11 @@ def test_als_operation_success():
         # AlternatingLeastSquaresOperation.NUM_ITEM_BLOCKS_PARAM:'numItemBlocks',
     }
 
-    inputs = ['df_1', 'df_2']
     named_inputs = {'algorithm': 'df_1',
                     'input data': 'df_2'}
     named_outputs = {'algorithm': 'algorithm_als'}
-    outputs = ['output_1']
 
-    name = "collaborativefiltering.ALS"
-
-    instance = AlternatingLeastSquaresOperation(params, inputs,
-                                                outputs,
+    instance = AlternatingLeastSquaresOperation(params,
                                                 named_inputs=named_inputs,
                                                 named_outputs=named_outputs)
 
@@ -1618,7 +1398,7 @@ def test_als_operation_success():
                 # print("Root-mean-square error = " + str(rmse))
                 """.format(
         output=named_outputs['algorithm'],
-        input=inputs[0],
+        input=named_inputs['input data'],
         maxIter=params[AlternatingLeastSquaresOperation.MAX_ITER_PARAM],
         regParam=params[AlternatingLeastSquaresOperation.REG_PARAM],
         userCol=params[AlternatingLeastSquaresOperation.USER_COL_PARAM],

@@ -94,7 +94,7 @@ def test_binary_expression_with_params_success():
     }
     expr = Expression(json_code, params)
     result, msg = compare_ast(ast.parse(expr.parsed_expression),
-                              ast.parse("df00.column1 * df00.column2"))
+                              ast.parse("df00['column1'] * df00['column2']"))
     assert result, msg
 
     json_code['operator'] = '/'
@@ -104,7 +104,7 @@ def test_binary_expression_with_params_success():
     expr = Expression(json_code, params)
 
     result, msg = compare_ast(ast.parse(expr.parsed_expression),
-                              ast.parse("100 / df00.column2"))
+                              ast.parse("100 / df00['column2']"))
     assert result, msg
 
 
@@ -140,7 +140,7 @@ def test_binary_call_expression_with_params_success():
     }
     expr = Expression(json_code, params)
     result, msg = compare_ast(ast.parse(expr.parsed_expression), ast.parse(
-        "functions.pow(df00.column1 * df00.column2, 20)"))
+        "functions.pow(df00['column1'] * df00['column2'], 20)"))
     assert result, msg
 
     json_code['operator'] = '/'
@@ -185,7 +185,7 @@ def test_logical_expression_success():
     }
     expr = Expression(json_code, params)
     result, msg = compare_ast(ast.parse(expr.parsed_expression), ast.parse(
-        "(df00.a | df00.b) & ~df00.c"))
+        "(df00['a'] | df00['b']) & ~df00['c']"))
     assert result, msg + expr.parsed_expression
 
     json_code['operator'] = '||'
@@ -195,7 +195,7 @@ def test_logical_expression_success():
     expr = Expression(json_code, params)
 
     result, msg = compare_ast(ast.parse(expr.parsed_expression), ast.parse(
-        "(100) | ~ (df00.c)"))
+        "(100) | ~ (df00['c'])"))
     assert result, msg + expr.parsed_expression
 
 
@@ -230,7 +230,7 @@ def test_conditional_expression_success():
         'input': 'df00'
     }
     expr = Expression(json_code, params)
-    expected_code = "when(df00.a > 1, 2).otherwise(3)"
+    expected_code = "when(df00['a'] > 1, 2).otherwise(3)"
     result, msg = compare_ast(ast.parse(expr.parsed_expression), ast.parse(
         expected_code))
     assert result, msg + format_code_comparison(expr.parsed_expression,
@@ -242,7 +242,7 @@ def test_conditional_expression_success():
     json_code['consequent']['raw'] = '"ok"'
     expr = Expression(json_code, params)
 
-    expected_code = "when(df00.a > 1, df00.ok).otherwise(3)"
+    expected_code = "when(df00['a'] > 1, df00['ok']).otherwise(3)"
     result, msg = compare_ast(ast.parse(expr.parsed_expression), ast.parse(
         expected_code))
     assert result, msg + format_code_comparison(expr.parsed_expression,

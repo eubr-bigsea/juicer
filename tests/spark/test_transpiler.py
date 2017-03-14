@@ -121,7 +121,7 @@ def test_transpiler_basic_flow_success():
 
     out = StringIO()
     loader = Workflow(workflow)
-    transpiler = SparkTranspiler()
+    transpiler = SparkTranspiler({})
 
     class FakeOp(Operation):
         name = u'# Fake'
