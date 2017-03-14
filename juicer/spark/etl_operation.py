@@ -191,17 +191,20 @@ class SampleOrPartitionOperation(Operation):
             self.value = int(parameters.get(self.VALUE_PARAM, 100))
 
         self.has_code = len(self.named_inputs) == 1
+        self.output = self.named_outputs.get(
+            'sampled data', 'sampled_data_{}'.format(self.order))
+
+    def get_output_names(self, sep=", "):
+        return self.output
 
     def generate_code(self):
         code = ''
-        output = self.named_outputs.get('output data', 'sampled_data_{}'.format(
-            self.order))
         input_data = self.named_inputs['input data']
 
         if self.type == self.TYPE_PERCENT:
             code = ("{out} = {input}.sample(withReplacement={wr}, "
                     "fraction={fr}, seed={seed})"
-                    .format(out=output, input=input_data,
+                    .format(out=self.output, input=input_data,
                             wr=self.withReplacement,
                             fr=self.fraction, seed=self.seed))
         elif self.type == self.VALUE_PARAM:
@@ -210,13 +213,13 @@ class SampleOrPartitionOperation(Operation):
             # This implementation may be innefficient!
             code = ("{out} = {input}.sample(withReplacement={wr}, "
                     "fraction={fr}, seed={seed}).limit({limit})"
-                    .format(out=output, input=input_data,
+                    .format(out=self.output, input=input_data,
                             wr=self.withReplacement, fr=1.0, seed=self.seed,
                             limit=self.value))
             pass
         elif self.type == self.TYPE_HEAD:
             code = "{out} = {input}.limit({limit})" \
-                .format(out=output, input=input_data, limit=self.value)
+                .format(out=self.output, input=input_data, limit=self.value)
 
         return dedent(code)
 
@@ -396,14 +399,16 @@ class SelectOperation(Operation):
             raise ValueError(
                 "Parameter '{}' must be informed for task {}".format(
                     self.ATTRIBUTES_PARAM, self.__class__))
+        self.output = self.named_outputs.get(
+            'output projected data', 'projection_data_{}'.format(self.order))
+
+    def get_output_names(self, sep=", "):
+        return self.output
 
     def generate_code(self):
-        output = self.named_outputs.get('output data', 'sampled_data_{}'.format(
-            self.order))
         input_data = self.named_inputs['input data']
-
         code = "{out} = {in1}.select({select})".format(
-            out=output, in1=input_data,
+            out=self.output, in1=input_data,
             select=', '.join(['"{}"'.format(x) for x in self.attributes]))
         return dedent(code)
 

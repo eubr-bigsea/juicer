@@ -21,14 +21,12 @@ class PublishVisOperation(Operation):
     """
     TITLE_PARAM = 'title'
 
-    def __init__(self, parameters, inputs, outputs, named_inputs,
-                 named_outputs):
-        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
-                           named_outputs)
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         self.config = configuration.get_config()
         self.title = parameters.get(self.TITLE_PARAM, '')
-        self.has_code = len(self.inputs) > 1
+        self.has_code = len(self.named_inputs) > 1
         self.supports_cache = False
         self.icon = 'fa-question'
 
@@ -50,8 +48,8 @@ class PublishVisOperation(Operation):
     def get_data_out_names(self, sep=','):
         return ''
 
-    def get_output_names(self, sep=','):
-        return self.output
+    def get_output_names(self, sep=", "):
+        return ''
 
     @property
     def get_inputs_names(self):
@@ -133,22 +131,21 @@ class PublishVisOperation(Operation):
                 operation={{'id': {vis_model}.type_id }},
                 operation_id={vis_model}.type_id)
             """
-        for vis_model in self.inputs:
+        for vis_model in [self.named_inputs['visualization']]:
             # NOTE: For now we assume every other input but 'data' are
             # visualizations strategies that will compose the dashboard
-            if vis_model != self.named_inputs['data']:
-                code_lines.append(dedent(vis_code_tmpl.format(
-                    job_id=self.parameters['job_id'],
-                    task_id='{}.task_id'.format(vis_model),
-                    user_id=self.parameters['user']['id'],
-                    user=self.parameters['user']['login'],
-                    workflow_id=self.parameters['workflow_id'],
-                    dfdata=self.named_inputs['data'],
-                    vis_model=vis_model,
-                    vis_type_id=self.parameters['operation_id'],
-                    vis_type_name=self.parameters['operation_slug'],
-                    title='{}.title'.format(vis_model)
-                )))
+            code_lines.append(dedent(vis_code_tmpl.format(
+                job_id=self.parameters['job_id'],
+                task_id='{}.task_id'.format(vis_model),
+                user_id=self.parameters['user']['id'],
+                user=self.parameters['user']['login'],
+                workflow_id=self.parameters['workflow_id'],
+                dfdata=self.named_inputs['data'],
+                vis_model=vis_model,
+                vis_type_id=self.parameters['operation_id'],
+                vis_type_name=self.parameters['operation_slug'],
+                title='{}.title'.format(vis_model)
+            )))
 
         # Register this new dashboard with Caipirinha
         code_lines.append("""caipirinha_service.new_dashboard('{base_url}',
@@ -170,9 +167,6 @@ class PublishVisOperation(Operation):
         # Make sure we close the hbase connection
         code_lines.append('connection.close()')
 
-        # No return
-        code_lines.append('{} = None'.format(self.output))
-
         code = '\n'.join(code_lines)
         return dedent(code)
 
@@ -192,10 +186,9 @@ class VisualizationMethodOperation(Operation):
     ID_ATTR_PARAM = 'id_attribute'
     VALUE_ATTR_PARAM = 'value_attribute'
 
-    def __init__(self, parameters, inputs, outputs, named_inputs,
+    def __init__(self, parameters, named_inputs,
                  named_outputs):
-        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
-                           named_outputs)
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         # TODO: validate parameters
         self.title = parameters.get(self.TITLE_PARAM, '')
@@ -206,16 +199,16 @@ class VisualizationMethodOperation(Operation):
 
         # Visualizations are not cached!
         self.supports_cache = False
+        self.output = self.named_outputs.get('visualization',
+                                             'viz_task_'.format(self.order))
 
     def get_output_names(self, sep=','):
         return self.output
 
 
 class BarChartOperation(VisualizationMethodOperation):
-    def __init__(self, parameters, inputs, outputs, named_inputs,
-                 named_outputs):
-        VisualizationMethodOperation.__init__(self, parameters, inputs,
-                                              outputs, named_inputs,
+    def __init__(self, parameters, named_inputs, named_outputs):
+        VisualizationMethodOperation.__init__(self, parameters, named_inputs,
                                               named_outputs)
 
     def generate_code(self):
@@ -233,10 +226,8 @@ class BarChartOperation(VisualizationMethodOperation):
 
 
 class PieChartOperation(VisualizationMethodOperation):
-    def __init__(self, parameters, inputs, outputs, named_inputs,
-                 named_outputs):
-        VisualizationMethodOperation.__init__(self, parameters, inputs,
-                                              outputs, named_inputs,
+    def __init__(self, parameters, named_inputs, named_outputs):
+        VisualizationMethodOperation.__init__(self, parameters, named_inputs,
                                               named_outputs)
 
     def generate_code(self):
@@ -254,10 +245,8 @@ class PieChartOperation(VisualizationMethodOperation):
 
 
 class LineChartOperation(VisualizationMethodOperation):
-    def __init__(self, parameters, inputs, outputs, named_inputs,
-                 named_outputs):
-        VisualizationMethodOperation.__init__(self, parameters, inputs,
-                                              outputs, named_inputs,
+    def __init__(self, parameters, named_inputs, named_outputs):
+        VisualizationMethodOperation.__init__(self, parameters, named_inputs,
                                               named_outputs)
 
     def generate_code(self):
@@ -275,10 +264,8 @@ class LineChartOperation(VisualizationMethodOperation):
 
 
 class AreaChartOperation(VisualizationMethodOperation):
-    def __init__(self, parameters, inputs, outputs, named_inputs,
-                 named_outputs):
-        VisualizationMethodOperation.__init__(self, parameters, inputs,
-                                              outputs, named_inputs,
+    def __init__(self, parameters, named_inputs, named_outputs):
+        VisualizationMethodOperation.__init__(self, parameters, named_inputs,
                                               named_outputs)
 
     def generate_code(self):
@@ -296,10 +283,8 @@ class AreaChartOperation(VisualizationMethodOperation):
 
 
 class TableVisOperation(VisualizationMethodOperation):
-    def __init__(self, parameters, inputs, outputs, named_inputs,
-                 named_outputs):
-        VisualizationMethodOperation.__init__(self, parameters, inputs,
-                                              outputs, named_inputs,
+    def __init__(self, parameters, named_inputs, named_outputs):
+        VisualizationMethodOperation.__init__(self, parameters, named_inputs,
                                               named_outputs)
 
     def generate_code(self):

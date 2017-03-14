@@ -16,10 +16,8 @@ class ReadShapefile(Operation):
     """
     DATA_SOURCE_ID_PARAM = 'shapefile'
 
-    def __init__(self, parameters, inputs, outputs, named_inputs,
-                 named_outputs):
-        Operation.__init__(self, parameters, inputs, outputs,
-                           named_inputs, named_outputs)
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
         if self.DATA_SOURCE_ID_PARAM in parameters:
             self.database_id = parameters[self.DATA_SOURCE_ID_PARAM]
             metadata_obj = MetadataGet('123456')
@@ -72,7 +70,7 @@ class ReadShapefile(Operation):
                 attributes.append(points)
                 data.append(attributes)
             {} = spark_session.createDataFrame(data, header)
-        """.format(self.metadata, self.outputs[0])
+        """.format(self.metadata, self.named_outputs['geodata'])
 
         return dedent(code)
 
@@ -84,10 +82,8 @@ class GeoWithin(Operation):
     TARGET_LAT_COLUMN_PARAM = 'latitude'
     TARGET_LON_COLUMN_PARAM = 'longitude'
 
-    def __init__(self, parameters, inputs, outputs, named_inputs,
-                 named_outputs):
-        Operation.__init__(self, parameters, inputs, outputs,
-                           named_inputs, named_outputs)
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
         self.polygon_column = parameters[self.POLYGON_POINTS_COLUMN_PARAM]
         self.attributes = parameters[self.POLYGON_ATTRIBUTES_COLUMN_PARAM]
 
@@ -170,5 +166,5 @@ class GeoWithin(Operation):
                     for i in xrange(shapefile_features_count_{0})])
         """.format(self.named_inputs['geo data'], self.polygon_column[0],
                    self.named_inputs['input data'], self.lat_column[0],
-                   self.lon_column[0], self.output)
+                   self.lon_column[0], self.named_outputs['output data'])
         return dedent(code)

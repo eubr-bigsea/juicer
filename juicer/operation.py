@@ -14,7 +14,7 @@ class ResultType:
 
 class Operation(object):
     """ Defines an operation in Lemonade """
-    __slots__ = ('parameters', 'named_inputs',
+    __slots__ = ('parameters', 'named_inputs', 'output',
                  'named_outputs', 'multiple_inputs', 'has_code',
                  'expected_output_ports', 'out_degree', 'order',
                  'supports_cache')
@@ -58,6 +58,10 @@ class Operation(object):
         # else:
         #     self.output = "NO_OUTPUT_WITHOUT_CONNECTIONS"
 
+        # Subclasses should override this
+        self.output = self.named_outputs.get(
+            'output data', 'out_task_{}'.format(self.order))
+
     def generate_code(self):
         raise NotImplementedError("Method generate_code should be implemented "
                                   "in {} subclass".format(self.__class__))
@@ -71,7 +75,7 @@ class Operation(object):
 
     @property
     def get_inputs_names(self):
-        return ', '.join(self.named_inputs.keys())
+        return ', '.join(self.named_inputs.values())
 
     def get_output_names(self, sep=", "):
         # result = ''
@@ -94,7 +98,7 @@ class Operation(object):
         #     #        self.__class__))
         #     pass
         # return result
-        return sep.join(self.named_outputs.keys())
+        return sep.join(self.named_outputs.values())
 
     def get_data_out_names(self, sep=','):
         return self.get_output_names(sep)

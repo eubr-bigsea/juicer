@@ -428,7 +428,7 @@ def test_sample_or_partition_minimal_params_success():
         'seed': '0'
     }
     n_in = {'input data': 'input_1'}
-    n_out = {'output data': 'output_1'}
+    n_out = {'sampled data': 'output_1'}
     instance = SampleOrPartitionOperation(params, named_inputs=n_in,
                                           named_outputs=n_out)
     code = instance.generate_code()
@@ -448,7 +448,7 @@ def test_sample_or_partition_type_value_success():
         'type': SampleOrPartitionOperation.TYPE_VALUE
     }
     n_in = {'input data': 'input_1'}
-    n_out = {'output data': 'output_1'}
+    n_out = {'sampled data': 'output_1'}
     instance = SampleOrPartitionOperation(params, named_inputs=n_in,
                                           named_outputs=n_out)
     code = instance.generate_code()
@@ -466,7 +466,7 @@ def test_sample_or_partition_type_head_success():
         'type': SampleOrPartitionOperation.TYPE_HEAD
     }
     n_in = {'input data': 'input_1'}
-    n_out = {'output data': 'output_1'}
+    n_out = {'sampled data': 'output_1'}
     instance = SampleOrPartitionOperation(params, named_inputs=n_in,
                                           named_outputs=n_out)
     code = instance.generate_code()
@@ -497,7 +497,7 @@ def test_sample_or_partition_fraction_percentage_success():
         'seed': '0'
     }
     n_in = {'input data': 'input_1'}
-    n_out = {'output data': 'output_1'}
+    n_out = {'sampled data': 'output_1'}
     instance = SampleOrPartitionOperation(params, named_inputs=n_in,
                                           named_outputs=n_out)
     code = instance.generate_code()
@@ -526,14 +526,15 @@ def test_select_minimal_params_success():
         SelectOperation.ATTRIBUTES_PARAM: ['name', 'class']
     }
     n_in = {'input data': 'input_1'}
-    n_out = {'output data': 'output_1'}
+    n_out = {'output projected data': 'output_1'}
     instance = SelectOperation(params, named_inputs=n_in, named_outputs=n_out)
 
     code = instance.generate_code()
     select = ', '.join(
         ['"{}"'.format(x) for x in params[SelectOperation.ATTRIBUTES_PARAM]])
     expected_code = '{out} = {in1}.select({select})'.format(
-        out=n_out['output data'], in1=n_in['input data'], select=select)
+        out=n_out['output projected data'], in1=n_in['input data'],
+        select=select)
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
     assert result, msg
