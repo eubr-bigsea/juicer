@@ -156,7 +156,7 @@ class DataReader(Operation):
         return '\n'.join(code)
 
 
-class Save(Operation):
+class SaveOperations(Operation):
     """
     Saves the content of the DataFrame at the specified path
     and generate the code to call the Limonero API.
@@ -187,10 +187,8 @@ class Save(Operation):
     USER_PARAM = 'user'
     WORKFLOW_ID_PARAM = 'workflow_id'
 
-    def __init__(self, parameters, inputs, outputs, named_inputs,
-                 named_outputs):
-        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
-                           named_outputs)
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         self.name = parameters.get(self.NAME_PARAM)
         self.format = parameters.get(self.FORMAT_PARAM)
@@ -206,7 +204,7 @@ class Save(Operation):
 
         self.user = parameters.get(self.USER_PARAM)
         self.workflow_id = parameters.get(self.WORKFLOW_ID_PARAM)
-        self.has_code = len(self.inputs) == 1
+        self.has_code = len(self.named_inputs) == 1
 
     def get_data_out_names(self, sep=','):
         return ''
@@ -228,14 +226,17 @@ class Save(Operation):
             code_save = dedent("""
             {}.write.csv('{}',
                          header={}, mode='{}')""".format(
-                self.inputs[0], final_url, self.header, self.mode))
+                self.named_inputs['input data'], final_url, self.header,
+                self.mode))
             # Need to generate an output, even though it is not used.
         elif self.format == self.FORMAT_PARQUET:
             code_save = dedent("""
-            {}.write.parquet('{}', mode='{}')""".format(self.inputs[0],
-                                                        final_url, self.mode))
+            {}.write.parquet('{}', mode='{}')""".format(
+                self.named_inputs['input data'],
+                final_url, self.mode))
             # Need to generate an output, even though it is not used.
-            code_save += '\n{0}_tmp = {0}'.format(self.inputs[0])
+            code_save += '\n{0}_tmp = {0}'.format(
+                self.named_inputs['input data'])
         elif self.format == self.FORMAT_JSON:
             pass
 
@@ -276,7 +277,8 @@ class Save(Operation):
                     'url': "{10}",
                 }}
                 instance = MetadataPost('{11}', schema, parameters)
-                """.format(self.inputs[0], self.name, self.format,
+                """.format(self.named_inputs['input data'], self.name,
+                           self.format,
                            self.storage_id,
                            self.workflow_json,
                            self.user['name'],

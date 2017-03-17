@@ -1139,12 +1139,10 @@ class RegressionModel(Operation):
     # RegType missing -  none (a.k.a. ordinary least squares),    L2 (ridge regression)
     #                    L1 (Lasso) and   L2 + L1 (elastic net)
 
-    def __init__(self, parameters, named_inputs,
-                 named_outputs):
-        Operation.__init__(self, parameters, named_inputs,
-                           named_outputs)
+    def __init__(self, parameters, named_inputs,named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-        self.has_code = len(outputs) > 0 and len(self.inputs) == 2
+        self.has_code = len(named_outputs) > 0 and len(named_inputs) == 2
 
         if not all([self.FEATURES_PARAM in parameters['workflow_json'],
                     self.LABEL_PARAM in parameters['workflow_json']]):
@@ -1154,7 +1152,7 @@ class RegressionModel(Operation):
                 self.__class__.__name__))
 
         self.model = self.named_outputs.get('model')
-        output = self.named_outputs.get('output data')
+        self.output = self.named_outputs.get('output data')
 
     @property
     def get_inputs_names(self):
@@ -1165,7 +1163,7 @@ class RegressionModel(Operation):
         return ''
 
     def get_output_names(self, sep=', '):
-        return sep.join([output,
+        return sep.join([self.output,
                          self.model])
 
     def generate_code(self):
@@ -1176,7 +1174,7 @@ class RegressionModel(Operation):
             {output_data} = {0}.transform({2})
             """.format(self.model, self.named_inputs['algorithm'],
                        self.named_inputs['input data'],
-                       output_data=output)
+                       output_data=self.output)
 
             return dedent(code)
         else:
@@ -1186,7 +1184,7 @@ class RegressionModel(Operation):
                                         self.__class__))
 
 
-class LinearRegression(Operation):
+class LinearRegressionOperation(Operation):
     FEATURES_PARAM = 'features'
     LABEL_PARAM = 'label'
 
@@ -1201,13 +1199,11 @@ class LinearRegression(Operation):
     TYPE_SOLVER_AUTO = 'auto'
     TYPE_SOLVER_NORMAL = 'normal'
 
-    def __init__(self, parameters, named_inputs,
-                 named_outputs):
-        Operation.__init__(self, parameters, inputs, outputs,
-                           named_inputs, named_outputs)
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
         self.parameters = parameters
         self.name = 'regression.LinearRegression'
-        self.has_code = len(outputs) > 0
+        self.has_code = len(named_outputs) > 0
 
         if not all([self.LABEL_PARAM in parameters,
                     self.FEATURES_PARAM in parameters]):
@@ -1218,8 +1214,6 @@ class LinearRegression(Operation):
 
         self.label = parameters.get(self.LABEL_PARAM)[0]
         self.attributes = parameters.get(self.FEATURES_PARAM)[0]
-        # output = named_outputs['output result']
-        output = named_outputs['algorithm']
 
         self.max_iter = parameters.get(self.MAX_ITER_PARAM, 10)
         self.reg_param = parameters.get(self.REG_PARAM, 0.1)
@@ -1232,16 +1226,15 @@ class LinearRegression(Operation):
         return ''
 
     def get_output_names(self, sep=', '):
-        # return self.named_outputs['output result']
-        # Change it when the named outputs in Tahiti change.
         return self.named_outputs['algorithm']
 
     def generate_code(self):
         if self.has_code:
             declare = dedent("""
-            {output} = LinearRegression(featuresCol='{features}', labelCol='{label}',
-                        maxIter={max_iter}, regParam={reg_param})
-            """).format(output=output,
+            {output} = LinearRegression(
+                featuresCol='{features}', labelCol='{label}',
+                maxIter={max_iter}, regParam={reg_param})
+            """).format(output=self.named_outputs['algorithm'],
                         features=self.attributes,
                         label=self.label,
                         max_iter=self.max_iter,

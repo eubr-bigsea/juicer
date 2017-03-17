@@ -160,7 +160,7 @@ class SparkTranspiler:
                     if flow_id not in sequential_ports:
                         sequential_ports[flow_id] = 'out{}'.format(
                             len(sequential_ports))
-# /
+                    # /
                     if source_id not in ports:
                         ports[source_id] = {'outputs': [], 'inputs': [],
                                             'named_inputs': {},
@@ -171,14 +171,31 @@ class SparkTranspiler:
                                             'named_outputs': {}}
 
                     sequence = sequential_ports[flow_id]
-                    if sequence not in ports[source_id]['outputs']:
-                        ports[source_id]['named_outputs'][
+
+                    source_port = ports[source_id]
+                    if sequence not in source_port['outputs']:
+                        source_port['named_outputs'][
                             flow['source_port_name']] = sequence
-                        ports[source_id]['outputs'].append(sequence)
-                    if sequence not in ports[target_id]['inputs']:
-                        ports[target_id]['named_inputs'][
-                            flow['target_port_name']] = sequence
-                        ports[target_id]['inputs'].append(sequence)
+                        source_port['outputs'].append(sequence)
+
+                    target_port = ports[target_id]
+                    if sequence not in target_port['inputs']:
+                        flow_name = flow['target_port_name']
+                        # Test if multiple inputs connects to a port
+                        # because it may have multiplicity MANY
+                        if flow_name in target_port['named_inputs']:
+                            if not isinstance(
+                                    target_port['named_inputs'][flow_name],
+                                    list):
+                                target_port['named_inputs'][flow_name] = [
+                                    target_port['named_inputs'][flow_name],
+                                    sequence]
+                            else:
+                                target_port['named_inputs'][flow_name].append(
+                                    sequence)
+                        else:
+                            target_port['named_inputs'][flow_name] = sequence
+                        target_port['inputs'].append(sequence)
 
         env_setup = {'instances': [], 'workflow_name': workflow['name']}
 
@@ -316,16 +333,20 @@ class SparkTranspiler:
             'logistic-model': juicer.spark.ml_operation.LogisticRegressionModel,
             'logistic-regression':
                 juicer.spark.ml_operation.LogisticRegressionClassifier,
+            'linear-regression':
+                juicer.spark.ml_operation.LinearRegressionOperation,
+            'regression-model':
+                juicer.spark.ml_operation.RegressionModel,
 
         }
         data_ops = {
             'change-attribute': juicer.spark.data_operation.ChangeAttribute,
             'data-reader': juicer.spark.data_operation.DataReader,
-            'data-writer': juicer.spark.data_operation.Save,
+            'data-writer': juicer.spark.data_operation.SaveOperations,
             'external-input':
                 juicer.spark.data_operation.ExternalInputOperation,
             'read-csv': juicer.spark.data_operation.ReadCSV,
-            'save': juicer.spark.data_operation.Save,
+            'save': juicer.spark.data_operation.SaveOperations,
 
         }
         other_ops = {
