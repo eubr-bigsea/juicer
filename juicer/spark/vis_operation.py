@@ -59,114 +59,64 @@ class PublishVisOperation(Operation):
             return ', '.join([self.named_inputs['visualizations']])
 
     def generate_code(self):
-        # Get Limonero configuration
-        limonero_config = self.config['juicer']['services']['limonero']
-
-        # Get Caipirinha configuration
-        caipirinha_config = self.config['juicer']['services']['caipirinha']
-
-        # Storage refers to the underlying environment used for storing
-        # visualizations, e.g., Hbase
-        storage = limonero_service.get_storage_info(
-            limonero_config['url'],
-            str(limonero_config['auth_token']), caipirinha_config['storage_id'])
-
-        # Get hbase hostname and port
-        parsed_url = urlparse.urlparse(storage['url'])
-        host = parsed_url.hostname
-        port = parsed_url.port
-
         # Create connection with storage, get visualization table and initialize
         # list for visualizations metadata
         code_lines = [
-            "import happybase",
             "from juicer.service import caipirinha_service",
-            "connection = happybase.Connection(host='{}', port={})".format(
-                host, port),
-            "vis_table = connection.table('visualization')",
-            "visualizations = []"]
+            "visualizations = []"
+        ]
 
-        # The following code template will, for each visualization method:
-        #
-        # [1] Transform data (and schema) according to the visualization method
-        # [2] Take task_id (uuid) and job_id (int) to identify the dashboard
-        # [3] Register a timestamp for the visualization
-        # [4] Insert this particular visualization into hbase
-        # [5] Append the visualization model for later persistency of metadata
-        #
-        # [Considerations concerning Hbase storage schema]
-        #   - We chose to encode data from all columns as json.
-        #   - That means that we assume that every data can be encoded as json,
-        #   including 'cf:data' which is supposed to contain the actual
-        #   visualization data.
-        vis_code_tmpl = \
-            """
-            # HBase value composed by several columns, the last one refers
-            # to the visualization data
-            vis_value = {{
-                b'cf:user': json.dumps({{'name': '{user}', 'id': {user_id} }}),
-                b'cf:workflow': json.dumps({{'id': {workflow_id} }}),
-                b'cf:title': {vis_model}.title,
-                b'cf:column_names': {vis_model}.column_names,
-                b'cf:orientation': {vis_model}.orientation,
-                b'cf:attributes': json.dumps({{ 'id': {vis_model}.id_attribute,
-                        'value': {vis_model}.value_attribute }}),
-                b'cf:data': json.dumps({vis_model}.get_data()),
-                b'cf:schema': {vis_model}.get_schema()
-            }}
-            vis_table.put(b'{job_id}-' + {task_id}, vis_value,
-                timestamp=int(time.time()))
+        for vis_model in self.named_inputs['visualizations']:
+            code_lines.append(dedent("""
             visualizations.append({{
                 'job_id': '{job_id}',
-                'task_id': {task_id},
-                'title': {title} ,
+                'task_id': {vis_model}.task_id,
+                'title': {vis_model}.title ,
                 'type': {{
                     'id': {vis_model}.type_id,
                     'name': {vis_model}.type_name
-                }}
+                }},
+                'model': {vis_model}
             }})
-            emit_event('task result', status='COMPLETED',
-                identifier={task_id}, message='Result generated',
-                type='VISUALIZATION', title={vis_model}.title,
-                task={{'id': {task_id} }},
-                operation={{'id': {vis_model}.type_id }},
-                operation_id={vis_model}.type_id)
-            """
-        for vis_model in self.named_inputs['visualizations']:
-            # NOTE: For now we assume every other input but 'data' are
-            # visualizations strategies that will compose the dashboard
-            code_lines.append(dedent(vis_code_tmpl.format(
-                job_id=self.parameters['job_id'],
-                task_id='{}.task_id'.format(vis_model),
-                user_id=self.parameters['user']['id'],
-                user=self.parameters['user']['login'],
-                workflow_id=self.parameters['workflow_id'],
-                # dfdata=self.named_inputs['data'],
-                vis_model=vis_model,
-                vis_type_id=self.parameters['operation_id'],
-                vis_type_name=self.parameters['operation_slug'],
-                title='{}.title'.format(vis_model)
-            )))
+            """).format(job_id=self.parameters['job_id'], vis_model=vis_model))
+
+        limonero_conf = self.config['juicer']['services']['limonero']
+        caipirinha_conf = self.config['juicer']['services']['caipirinha']
 
         # Register this new dashboard with Caipirinha
-        code_lines.append("""caipirinha_service.new_dashboard('{base_url}',
-            '{token}', '{title}', {user},
-            {workflow_id}, '{workflow_name}',
-            {job_id}, '{task_id}', visualizations)""".format(
-            base_url=caipirinha_config['url'],
-            token=caipirinha_config['auth_token'],
+        code_lines.append(dedent("""
+            # Basic information to connect to other services
+            config = {{
+                'juicer': {{
+                    'services': {{
+                        'limonero': {{
+                            'url': '{limonero_url}',
+                            'auth_token': '{limonero_token}'
+                        }},
+                        'caipirinha': {{
+                            'url': '{caipirinha_url}',
+                            'auth_token': '{caipirinha_token}',
+                            'storage_id': {storage_id}
+                        }},
+                    }}
+                }}
+            }}
+            caipirinha_service.new_dashboard(config, '{title}', {user},
+                {workflow_id}, '{workflow_name}',
+                {job_id}, '{task_id}', visualizations, emit_event)""".format(
+            limonero_url=limonero_conf['url'],
+            limonero_token=limonero_conf['auth_token'],
+            caipirinha_url=caipirinha_conf['url'],
+            caipirinha_token=caipirinha_conf['auth_token'],
+            storage_id=caipirinha_conf['storage_id'],
             title=self.title or 'Result for job ' + str(
                 self.parameters.get('job_id', '0')),
-            user_name=self.parameters['user']['name'],
             user=self.parameters['user'],
             workflow_id=self.parameters['workflow_id'],
             workflow_name=self.parameters['workflow_name'],
             job_id=self.parameters['job_id'],
             task_id=self.parameters['task']['id']
-        ))
-
-        # Make sure we close the hbase connection
-        code_lines.append('connection.close()')
+        )))
 
         code = '\n'.join(code_lines)
         return dedent(code)
