@@ -17,6 +17,7 @@ import networkx as nx
 import os
 from juicer import operation
 from juicer.util.jinja2_custom import AutoPep8Extension
+from juicer.util.spark_template_util import HandleExceptionExtension
 
 
 class DependencyController:
@@ -258,7 +259,8 @@ class SparkTranspiler:
         template_loader = jinja2.FileSystemLoader(
             searchpath=os.path.dirname(__file__))
         template_env = jinja2.Environment(loader=template_loader,
-                                          extensions=[AutoPep8Extension])
+                                          extensions=[AutoPep8Extension,
+                                                      HandleExceptionExtension])
         template = template_env.get_template("operation.tmpl")
         v = template.render(env_setup)
 

@@ -26,6 +26,8 @@ from pyspark.ml.evaluation import *
 from pyspark.ml.feature import *
 from pyspark.ml.tuning import *
 from pyspark.ml.recommendation import *
+from pyspark.ml.regression import *
+
 
 # We need the following code in order to integrate this application log with the
 # spark standard log4j. Thus, we set *__SPARK_LOG__* at most one time per execution.
@@ -52,6 +54,7 @@ def juicer_debug(spark_session, name, variable, data_frame):
         sparkLogging(spark_session).debug('{} {} {} {}'.format(attr.name, attr.dataType, attr.nullable, attr.metadata))
 {#% autopep8 %#}
 {%- for instance in instances %}
+{%-  handleinstance instance %}
 {%- if instance.has_code %}
 def {{instance.parameters.task.operation.slug.replace('-', '_')}}_gen_{{instance.get_output_names('_')}}(
         spark_session, cached_state, emit_event
@@ -106,6 +109,7 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_gen_{{instance
     return {% if instance.get_output_names() %} results + {% endif %} (time_elapsed,)
 
 {%- endif %}
+{%- endhandleinstance %}
 {% endfor %}
 
 def main(spark_session, cached_state, emit_event):
