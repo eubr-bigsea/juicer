@@ -30,11 +30,11 @@ class SplitOperation(Operation):
 
     def generate_code(self):
         output1 = self.named_outputs.get(
-            'splited data 1',
+            'splitted data 1',
             'split_1_task_{}'.format(self.order))
 
         output2 = self.named_outputs.get(
-            'splited data 2',
+            'splitted data 2',
             'split_2_task_{}'.format(self.order))
 
         code = "{out1}, {out2} = {input}.randomSplit({weights}, {seed})".format(
