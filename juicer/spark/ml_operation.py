@@ -78,9 +78,8 @@ class FeatureIndexerOperation(Operation):
 
                 # Use Pipeline to process all attributes once
                 pipeline = Pipeline(stages=indexers)
-                {models} = dict([(col[0], indexers[i].fit({input})) for i, col in
+                {models} = dict([(c, indexers[i].fit({input})) for i, c in
                                 enumerate(col_alias)])
-                # labels = [model.labels for model in models.itervalues()]
 
                 # Spark ML 2.0.1 do not deal with null in indexer.
                 # See SPARK-11569
@@ -101,7 +100,7 @@ class FeatureIndexerOperation(Operation):
 
                 # Use Pipeline to process all attributes once
                 pipeline = Pipeline(stages=indexers)
-                models = dict([(col[0], indexers[i].fit({1})) for i, col in
+                models = dict([(col, indexers[i].fit({1})) for i, col in
                                 enumerate(col_alias)])
                 labels = None
 
@@ -161,22 +160,32 @@ class IndexToStringOperation(Operation):
         self.alias = [x[1] or '{}_str'.format(x[0]) for x in
                       izip_longest(self.attributes,
                                    self.alias[:len(self.attributes)])]
-        self.has_code = len(self.named_inputs) == 2
+        self.has_code = 'input data' in self.named_inputs
 
     def generate_code(self):
         input_data = self.named_inputs['input data']
         output = self.named_outputs.get('output data',
                                         'out_task_{}'.format(self.order))
-        models = self.named_inputs['indexer models']
+        models = self.named_inputs.get('indexer models')
+        if models is not None:
+            labels = '{models}[original_names[i]].labels'.format(models=models)
+        else:
+            labels = '[]'
+
         code = """
+            original_names = {original_names}
             col_alias = dict({alias})
-            converter = [feature.IndexToString(inputCol=col, outputCol=alias)
-                                for col, alias in col_alias.iteritems()]
+            converter = [feature.IndexToString(inputCol=col,
+                                               outputCol=alias,
+                                               labels={labels})
+                        for i, (col, alias) in enumerate(col_alias.iteritems())]
 
             # Use Pipeline to process all attributes once
             pipeline = Pipeline(stages=converter)
             {out} = pipeline.fit({input}).transform({input})
-        """.format(input=input_data, out=output, models=models,
+        """.format(input=input_data, out=output, labels=labels,
+                   original_names=json.dumps(
+                       [n.strip() for n in self.original_names]),
                    alias=json.dumps(zip(self.attributes, self.alias),
                                     indent=None))
         return dedent(code)

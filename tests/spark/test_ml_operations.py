@@ -55,8 +55,8 @@ def test_feature_indexer_operation_success():
 
         # Use Pipeline to process all attributes once
         pipeline = Pipeline(stages=indexers)
-        models_task_1 = dict([(col[0], indexers[i].fit({in1}))
-                  for i, col in enumerate(col_alias)])
+        models_task_1 = dict([(c, indexers[i].fit({in1}))
+                  for i, c in enumerate(col_alias)])
 
         # labels = [model.labels for model in models.itervalues()]
         # Spark ML 2.0.1 do not deal with null in indexer.
@@ -149,7 +149,7 @@ def test_feature_indexer_vector_operation_success():
 
             # Use Pipeline to process all attributes once
             pipeline = Pipeline(stages=indexers)
-            models = dict([(col[0], indexers[i].fit({1})) for i, col in
+            models = dict([(col, indexers[i].fit({1})) for i, col in
                         enumerate(col_alias)])
             labels = None
 

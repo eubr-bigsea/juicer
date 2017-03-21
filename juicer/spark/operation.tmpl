@@ -31,8 +31,11 @@ from pyspark.ml.regression import *
 
 
 # We need the following code in order to integrate this application log with the
-# spark standard log4j. Thus, we set *__SPARK_LOG__* at most one time per execution.
+# spark standard log4j. Thus, we set *__SPARK_LOG__* at most one time per
+# execution.
 __SPARK_LOG__ = None
+
+
 def sparkLogging(spark_session):
     global __SPARK_LOG__
     if not __SPARK_LOG__:
@@ -44,6 +47,7 @@ def sparkLogging(spark_session):
 reload(sys)
 sys.setdefaultencoding('utf8')
 
+
 def juicer_debug(spark_session, name, variable, data_frame):
     """ Debug code """
     sparkLogging(spark_session).debug('#' * 20)
@@ -52,11 +56,13 @@ def juicer_debug(spark_session, name, variable, data_frame):
     data_frame.show()
     schema = data_frame.schema
     for attr in schema:
-        sparkLogging(spark_session).debug('{} {} {} {}'.format(attr.name, attr.dataType, attr.nullable, attr.metadata))
+        sparkLogging(spark_session).debug('{} {} {} {}'.format(
+            attr.name, attr.dataType, attr.nullable, attr.metadata))
 {#% autopep8 %#}
 {%- for instance in instances %}
 {%-  handleinstance instance %}
 {%- if instance.has_code %}
+
 def {{instance.parameters.task.operation.slug.replace('-', '_')}}_gen_{{instance.get_output_names('_')}}(
         spark_session, cached_state, emit_event
         {%- if instance.get_inputs_names %}, {{instance.get_inputs_names}}{% endif %}):
@@ -69,13 +75,13 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_gen_{{instance
     {%- endif %}
 
     emit_event(name='update task', message='Task running',
-        status='RUNNING', identifier='{{instance.parameters.task.id}}')
+               status='RUNNING', identifier='{{instance.parameters.task.id}}')
 
     {%- if instance.supports_cache and False %}
     if '{{instance.parameters.task.id}}' in cached_state:
         sparkLogging(spark_session).info ('Cache hit for operation {}'.format('{{instance.parameters.task.id}}'))
         emit_event(name='update task', message='Task completed',
-           status='COMPLETED', identifier='{{instance.parameters.task.id}}')
+                   status='COMPLETED', identifier='{{instance.parameters.task.id}}')
         return cached_state.get('{{instance.parameters.task.id}}')
     {%- endif %}
 
@@ -106,8 +112,8 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_gen_{{instance
 
     time_elapsed = timer() - start
     emit_event(name='update task', message='Task completed',
-       status='COMPLETED', identifier='{{instance.parameters.task.id}}')
-    return {% if instance.get_output_names() %} results + {% endif %} (time_elapsed,)
+               status='COMPLETED', identifier='{{instance.parameters.task.id}}')
+    return {%- if instance.get_output_names() %} results + {%- endif %} (time_elapsed,)
 
 {%- endif %}
 {%- endhandleinstance %}
