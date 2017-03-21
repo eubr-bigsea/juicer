@@ -43,7 +43,8 @@ class DataReader(Operation):
         if self.has_code:
             if self.DATA_SOURCE_ID_PARAM in parameters:
                 self.database_id = parameters[self.DATA_SOURCE_ID_PARAM]
-                self.header = bool(parameters.get(self.HEADER_PARAM, False))
+                self.header = parameters.get(
+                    self.HEADER_PARAM, False) not in ('0', 0, 'false', False)
                 self.sep = parameters.get(self.SEPARATOR_PARAM, ',')
                 if self.sep in self.SEPARATORS:
                     self.sep = self.SEPARATORS[self.sep]
