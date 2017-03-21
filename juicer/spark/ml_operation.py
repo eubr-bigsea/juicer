@@ -126,6 +126,61 @@ class FeatureIndexerOperation(Operation):
                                       'out_task_{}'.format(self.order))
 
 
+class OneHotEncoderOperation(Operation):
+    """
+    One hot encoding transforms categorical features to a format that works
+    better with classification and regression algorithms.
+    """
+    ATTRIBUTES_PARAM = 'attributes'
+    ALIAS_PARAM = 'alias'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+
+        if self.ATTRIBUTES_PARAM in parameters:
+            self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
+        else:
+            raise ValueError(
+                "Parameter '{}' must be informed for task {}".format(
+                    self.ATTRIBUTES_PARAM, self.__class__))
+        self.alias = [alias.strip() for alias in
+                      parameters.get(self.ALIAS_PARAM, '').split(',')]
+
+        # Adjust alias in order to have the same number of aliases as attributes
+        # by filling missing alias with the attribute name sufixed by _indexed.
+        self.alias = [x[1] or '{}_indexed'.format(x[0]) for x in
+                      izip_longest(self.attributes,
+                                   self.alias[:len(self.attributes)])]
+
+    def generate_code(self):
+        input_data = self.named_inputs['input data']
+        output = self.named_outputs.get('output data',
+                                        'out_task_{}'.format(self.order))
+
+        code = """
+            col_alias = dict({aliases})
+            encoders = [feature.OneHotEncoder(inputCol=col, outputCol=alias,
+                            dropLast=True)
+                        for col, alias in col_alias.iteritems()]
+
+            # Use Pipeline to process all attributes once
+            pipeline = Pipeline(stages=encoders)
+            {out} = pipeline.fit({input}).transform({input})
+            """.format(input=input_data, out=output,
+                       aliases=json.dumps(zip(self.attributes, self.alias),
+                                          indent=None))
+        return dedent(code)
+
+    def get_output_names(self, sep=','):
+        output = self.named_outputs.get('output data',
+                                        'out_task_{}'.format(self.order))
+        return output
+
+    def get_data_out_names(self, sep=','):
+        return self.named_outputs.get('output data',
+                                      'out_task_{}'.format(self.order))
+
+
 class FeatureAssemblerOperation(Operation):
     """
     A feature transformer that merges multiple attributes into a vector
@@ -231,9 +286,11 @@ class EvaluateModelOperation(Operation):
         else:
             raise ValueError('Invalid metric value {}'.format(self.metric))
 
-        self.has_code = (len(self.named_inputs) > 0 and
-                         len(self.named_outputs) > 0) or (
-                            (self.named_outputs.get('evaluator') is not None))
+        self.has_code = (
+            (len(self.named_inputs) > 0 and len(self.named_outputs) > 0) or
+            (self.named_outputs.get('evaluator') is not None) or
+            (len(self.named_inputs) == 2)
+        )
 
     def get_data_out_names(self, sep=','):
         return ''
@@ -242,7 +299,13 @@ class EvaluateModelOperation(Operation):
         metric_out = self.named_outputs.get(
             'metric', 'metric_task_{}'.format(self.order))
         if self.has_code:
+            limonero_conf = self.config['juicer']['services']['limonero']
+            caipirinha_conf = self.config['juicer']['services']['caipirinha']
+
             code = ''
+
+            comment = self.parameters['task']['forms']. \
+                          get('comment', {'value': ''}).get('value') or ''
             # Not being used with a cross validator
             if len(self.named_inputs) > 0:
                 code = """
@@ -254,27 +317,74 @@ class EvaluateModelOperation(Operation):
 
                 {output} = evaluator.evaluate({input})
 
-                emit_event('task result', status='COMPLETED',
-                    identifier='{task_id}', message='Result generated',
-                    type='HTML', title='{title}',
-                    task={{'id': '{task_id}' }},
-                    operation={{'id': {operation_id} }},
-                    operation_id={operation_id},
-                    content='<strong>' + {model}.__class__.__name__+
-                        ': metric {metric}: ' +
-                        str({output}) + '</strong>')
+                # HTML visualization of result
+                from juicer.spark.vis_operation import HtmlVisModel
+                from juicer.service import caipirinha_service
+
+                vis_model = '''
+                    <div>
+                        <strong>{comment}</strong>
+                        <dl>
+                            <dt>{metric}</dl>
+                            <dd>{{0}}</dd>
+                        </dl>
+                    </div>
+                '''.format({output})
+                visualizations = [
+                {{
+                    'job_id': '{job_id}',
+                    'task_id': '{task_id}',
+                    'title': '{title}',
+                    'type': {{
+                        'id': {operation_id},
+                        'name': '{operation_name}'
+                    }},
+                    'model': HtmlVisModel(vis_model, '{task_id}',
+                        {operation_id},'{operation_name}', '{title}',
+                        '[]', '', '', '')
+                }}]
+
+                # Basic information to connect to other services
+                config = {{
+                    'juicer': {{
+                        'services': {{
+                            'limonero': {{
+                                'url': '{limonero_url}',
+                                'auth_token': '{limonero_token}'
+                            }},
+                            'caipirinha': {{
+                                'url': '{caipirinha_url}',
+                                'auth_token': '{caipirinha_token}',
+                                'storage_id': {storage_id}
+                            }},
+                        }}
+                    }}
+                }}
+                caipirinha_service.new_dashboard(config, '{title}', {user},
+                    {workflow_id}, '{workflow_name}',
+                    {job_id}, '{task_id}', visualizations, emit_event)
 
                 """.format(output=metric_out,
+                           comment=comment,
                            input=self.named_inputs['input data'],
-                           model=self.named_inputs['model'],
                            pred_attr=self.prediction_attribute,
                            label_attr=self.label_attribute,
                            metric=self.metric,
                            evaluator=self.evaluator,
                            pred_col=self.param_prediction_col,
+                           workflow_id=self.parameters['workflow_id'],
+                           workflow_name=self.parameters['workflow_name'],
+                           job_id=self.parameters['job_id'],
                            task_id=self.parameters['task_id'],
                            operation_id=self.parameters['operation_id'],
-                           title='Evaluation result')
+                           operation_name=self.__class__.__name__,
+                           user=self.parameters['user'],
+                           title='Evaluation result',
+                           limonero_url=limonero_conf['url'],
+                           limonero_token=limonero_conf['auth_token'],
+                           caipirinha_url=caipirinha_conf['url'],
+                           caipirinha_token=caipirinha_conf['auth_token'],
+                           storage_id=caipirinha_conf['storage_id'], )
             elif len(self.named_outputs) > 0:  # Used with cross validator
                 code = """
                 {5} = {0}({1}='{2}',
@@ -1139,7 +1249,7 @@ class RegressionModel(Operation):
     # RegType missing -  none (a.k.a. ordinary least squares),    L2 (ridge regression)
     #                    L1 (Lasso) and   L2 + L1 (elastic net)
 
-    def __init__(self, parameters, named_inputs,named_outputs):
+    def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         self.has_code = len(named_outputs) > 0 and len(named_inputs) == 2
@@ -1152,11 +1262,12 @@ class RegressionModel(Operation):
                 self.__class__.__name__))
 
         self.model = self.named_outputs.get('model')
-        self.output = self.named_outputs.get('output data')
+        self.output = self.named_outputs.get('output data',
+                                             'out_task_{}'.format(self.order))
 
     @property
     def get_inputs_names(self):
-        return ', '.join([self.named_inputs['input data'],
+        return ', '.join([self.named_inputs['train input data'],
                           self.named_inputs['algorithm']])
 
     def get_data_out_names(self, sep=','):
@@ -1173,7 +1284,7 @@ class RegressionModel(Operation):
             {0} = {1}.fit({2})
             {output_data} = {0}.transform({2})
             """.format(self.model, self.named_inputs['algorithm'],
-                       self.named_inputs['input data'],
+                       self.named_inputs['train input data'],
                        output_data=self.output)
 
             return dedent(code)

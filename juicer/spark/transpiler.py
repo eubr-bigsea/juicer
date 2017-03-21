@@ -308,17 +308,20 @@ class SparkTranspiler:
             'decision-tree-classifier':
                 juicer.spark.ml_operation.DecisionTreeClassifierOperation,
             'evaluate-model': juicer.spark.ml_operation.EvaluateModelOperation,
-            'feature-assembler': juicer.spark.ml_operation.FeatureAssemblerOperation,
-            'feature-indexer': juicer.spark.ml_operation.FeatureIndexerOperation,
+            'feature-assembler':
+                juicer.spark.ml_operation.FeatureAssemblerOperation,
+            'feature-indexer':
+                juicer.spark.ml_operation.FeatureIndexerOperation,
             'gaussian-mixture-clustering':
                 juicer.spark.ml_operation.GaussianMixtureClusteringOperation,
             'gbt-classifier': juicer.spark.ml_operation.GBTClassifierOperation,
-
             'k-means-clustering':
                 juicer.spark.ml_operation.KMeansClusteringOperation,
             'lda-clustering': juicer.spark.ml_operation.LdaClusteringOperation,
             'naive-bayes-classifier':
                 juicer.spark.ml_operation.NaiveBayesClassifierOperation,
+            'one-hot-encoder':
+                juicer.spark.ml_operation.OneHotEncoderOperation,
             'pearson-correlation':
                 juicer.spark.statistic_operation.PearsonCorrelation,
             'perceptron-classifier':
@@ -328,7 +331,8 @@ class SparkTranspiler:
             'svm-classification':
                 juicer.spark.ml_operation.SvmClassifierOperation,
             'topic-report': juicer.spark.ml_operation.TopicReportOperation,
-            'recommendation-model': juicer.spark.ml_operation.RecommendationModel,
+            'recommendation-model':
+                juicer.spark.ml_operation.RecommendationModel,
             # 'recommendation-model': juicer.spark.ml_operation.CollaborativeOperation,
             'als-recommender':
                 juicer.spark.ml_operation.AlternatingLeastSquaresOperation,
