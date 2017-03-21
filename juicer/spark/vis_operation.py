@@ -1,16 +1,10 @@
 # -*- coding: utf-8 -*-
-import json
 from textwrap import dedent
 
 import datetime
 
-from juicer.operation import Operation, ResultType
-from juicer.runner import configuration
-from juicer.service import limonero_service
+from juicer.operation import Operation
 from juicer.util import dataframe_util
-import time
-import urlparse
-import uuid
 
 
 class PublishVisOperation(Operation):
@@ -24,7 +18,6 @@ class PublishVisOperation(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-        self.config = configuration.get_config()
         self.title = parameters.get(self.TITLE_PARAM, '')
         self.has_code = len(self.named_inputs) == 1
         self.supports_cache = False
@@ -365,3 +358,14 @@ class TableVisModel(VisualizationModel):
         Returns data as tabular (list of lists in Python).
         """
         return self.data.rdd.map(dataframe_util.convert_to_python).collect()
+
+
+class HtmlVisModel(VisualizationModel):
+    def get_icon(self):
+        return "fa-html5"
+
+    def get_data(self):
+        return self.data
+
+    def get_schema(self):
+        return ''
