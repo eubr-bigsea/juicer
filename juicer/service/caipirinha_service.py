@@ -35,7 +35,8 @@ def query_caipirinha(base_url, item_path, token, item_id, data):
 
 
 def new_dashboard(config, title, user, workflow_id, workflow_name, job_id,
-                  task_id, visualizations, emit_event_fn=None):
+                  task_id, visualizations, emit_event_fn=None,
+                  _type='VISUALIZATION'):
     data = dict(title=title, user=user, workflow_id=workflow_id,
                 workflow_name=workflow_name, job_id=job_id, task_id=task_id,
                 visualizations=visualizations)
@@ -90,7 +91,7 @@ def new_dashboard(config, title, user, workflow_id, workflow_name, job_id,
                 identifier=visualization['task_id'],
                 task={'id': visualization['task_id']},
                 message='Result generated',
-                type='VISUALIZATION',
+                type=_type,
                 title=visualization['model'].title,
                 operation={'id': visualization['model'].type_id},
                 operation_id=visualization['model'].type_id)
