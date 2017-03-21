@@ -343,6 +343,7 @@ class SparkTranspiler:
                 juicer.spark.ml_operation.LinearRegressionOperation,
             'regression-model':
                 juicer.spark.ml_operation.RegressionModel,
+            'index-to-string': juicer.spark.ml_operation.IndexToStringOperation,
 
         }
         data_ops = {
@@ -365,6 +366,7 @@ class SparkTranspiler:
         text_ops = {
             'generate-n-grams':
                 juicer.spark.text_operation.GenerateNGramsOperation,
+
             'remove-stop-words':
                 juicer.spark.text_operation.RemoveStopWordsOperation,
             'tokenizer': juicer.spark.text_operation.TokenizerOperation,

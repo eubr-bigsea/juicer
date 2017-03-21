@@ -68,26 +68,30 @@ class FeatureIndexerOperation(Operation):
                                         'out_task_{}'.format(self.order))
 
         if self.type == self.TYPE_STRING:
+            models = self.named_outputs.get('indexer models',
+                                            'models_task_{}'.format(self.order))
             code = """
-                col_alias = dict({3})
+                col_alias = dict({alias})
                 indexers = [feature.StringIndexer(inputCol=col, outputCol=alias,
                                 handleInvalid='skip')
                                     for col, alias in col_alias.iteritems()]
 
                 # Use Pipeline to process all attributes once
                 pipeline = Pipeline(stages=indexers)
-                models = dict([(col[0], indexers[i].fit({1})) for i, col in
+                {models} = dict([(col[0], indexers[i].fit({input})) for i, col in
                                 enumerate(col_alias)])
                 # labels = [model.labels for model in models.itervalues()]
 
                 # Spark ML 2.0.1 do not deal with null in indexer.
                 # See SPARK-11569
-                {1}_without_null = {1}.na.fill('NA', subset=col_alias.keys())
+                {input}_without_null = {input}.na.fill(
+                    'NA', subset=col_alias.keys())
 
-                {2} = pipeline.fit({1}_without_null).transform({1}_without_null)
-            """.format(self.attributes, input_data, output,
-                       json.dumps(zip(self.attributes, self.alias),
-                                  indent=None))
+                {out} = pipeline.fit({input}_without_null)\
+                    .transform({input}_without_null)
+            """.format(input=input_data, out=output, models=models,
+                       alias=json.dumps(zip(self.attributes, self.alias),
+                                        indent=None))
         elif self.type == self.TYPE_VECTOR:
             code = """
                 col_alias = dict({3})
@@ -119,11 +123,63 @@ class FeatureIndexerOperation(Operation):
     def get_output_names(self, sep=','):
         output = self.named_outputs.get('output data',
                                         'out_task_{}'.format(self.order))
-        return sep.join([output, 'models'])
+        models = self.named_outputs.get('indexer models',
+                                        'models_task_{}'.format(self.order))
+        return sep.join([output, models])
 
     def get_data_out_names(self, sep=','):
         return self.named_outputs.get('output data',
                                       'out_task_{}'.format(self.order))
+
+
+class IndexToStringOperation(Operation):
+    ATTRIBUTES_PARAM = 'attributes'
+    ALIAS_PARAM = 'alias'
+    ORIGINAL_NAMES_PARAM = 'original_names'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+
+        if self.ATTRIBUTES_PARAM in parameters:
+            self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
+        else:
+            raise ValueError(
+                "Parameter '{}' must be informed for task {}".format(
+                    self.ATTRIBUTES_PARAM, self.__class__))
+
+        if self.ORIGINAL_NAMES_PARAM in parameters:
+            self.original_names = parameters.get(self.ORIGINAL_NAMES_PARAM)
+        else:
+            raise ValueError(
+                "Parameter '{}' must be informed for task {}".format(
+                    self.ORIGINAL_NAMES_PARAM, self.__class__))
+        self.alias = [alias.strip() for alias in
+                      parameters.get(self.ALIAS_PARAM, '').split(',')]
+
+        # Adjust alias in order to have the same number of aliases as attributes
+        # by filling missing alias with the attribute name sufixed by _indexed.
+        self.alias = [x[1] or '{}_str'.format(x[0]) for x in
+                      izip_longest(self.attributes,
+                                   self.alias[:len(self.attributes)])]
+        self.has_code = len(self.named_inputs) == 2
+
+    def generate_code(self):
+        input_data = self.named_inputs['input data']
+        output = self.named_outputs.get('output data',
+                                        'out_task_{}'.format(self.order))
+        models = self.named_inputs['indexer models']
+        code = """
+            col_alias = dict({alias})
+            converter = [feature.IndexToString(inputCol=col, outputCol=alias)
+                                for col, alias in col_alias.iteritems()]
+
+            # Use Pipeline to process all attributes once
+            pipeline = Pipeline(stages=converter)
+            {out} = pipeline.fit({input}).transform({input})
+        """.format(input=input_data, out=output, models=models,
+                   alias=json.dumps(zip(self.attributes, self.alias),
+                                    indent=None))
+        return dedent(code)
 
 
 class OneHotEncoderOperation(Operation):
