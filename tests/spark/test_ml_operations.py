@@ -55,7 +55,7 @@ def test_feature_indexer_operation_success():
 
         # Use Pipeline to process all attributes once
         pipeline = Pipeline(stages=indexers)
-        models = dict([(col[0], indexers[i].fit({in1}))
+        models_task_1 = dict([(col[0], indexers[i].fit({in1}))
                   for i, col in enumerate(col_alias)])
 
         # labels = [model.labels for model in models.itervalues()]
