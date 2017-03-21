@@ -321,7 +321,7 @@ class EvaluateModelOperation(Operation):
                 from juicer.spark.vis_operation import HtmlVisModel
                 from juicer.service import caipirinha_service
 
-                vis_model = '''
+                vis_model = dedent('''
                     <div>
                         <strong>{comment}</strong>
                         <dl>
@@ -329,7 +329,7 @@ class EvaluateModelOperation(Operation):
                             <dd>{{0}}</dd>
                         </dl>
                     </div>
-                '''.format({output})
+                ''').format({output})
                 visualizations = [
                 {{
                     'job_id': '{job_id}',

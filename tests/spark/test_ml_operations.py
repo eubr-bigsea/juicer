@@ -6,6 +6,7 @@ from textwrap import dedent
 
 import pytest
 # Import Operations to test
+from juicer.runner import configuration
 from juicer.spark.ml_operation import FeatureIndexerOperation, \
     FeatureAssemblerOperation, \
     ApplyModelOperation, EvaluateModelOperation, \
@@ -286,8 +287,36 @@ def test_evaluate_model_operation_success():
         EvaluateModelOperation.LABEL_ATTRIBUTE_PARAM: 'c',
         EvaluateModelOperation.METRIC_PARAM: 'f1',
         'task_id': '2323-afffa-343bdaff',
-        'operation_id': 2793
+        'workflow_id': 203,
+        'workflow_name': 'test',
+        'job_id': 34,
+        'user': {
+            'id': 12,
+            'name': 'admin',
+            'login': 'admin'
+        },
+        'operation_id': 2793,
+        'task': {
+            'forms': {}
+        }
     }
+    configuration.set_config(
+        {
+            'juicer': {
+                'services': {
+                    'limonero': {
+                        'url': 'http://localhost',
+                        'auth_token': 'FAKE',
+                    },
+                    'caipirinha': {
+                        'url': 'http://localhost',
+                        'auth_token': 'FAKE',
+                        'storage_id': 343
+                    }
+                }
+            }
+        }
+    )
     n_in = {'input data': 'input_1', 'model': 'df_model'}
     n_out = {'metric': 'df_metric', 'evaluator': 'df_evaluator'}
     instance = EvaluateModelOperation(params, named_inputs=n_in,
@@ -301,14 +330,52 @@ def test_evaluate_model_operation_success():
 
             {output} = evaluator.evaluate({input_1})
 
-            emit_event('task result', status='COMPLETED',
-                identifier='{task_id}', message='Result generated',
-                type='HTML', title='Evaluation result',
-                task={{'id': '{task_id}' }},
-                operation={{'id': {operation_id} }},
-                operation_id={operation_id},
-                content='<strong>' + df_model.__class__.__name__ +
-                     ': metric f1: ' + str({output}) + '</strong>')
+            from juicer.spark.vis_operation import HtmlVisModel
+            from juicer.service import caipirinha_service
+
+            vis_model = dedent('''
+                <div>
+                    <strong></strong>
+                    <dl>
+                        <dt>f1</dl>
+                        <dd>{{0}}</dd>
+                    </dl>
+                </div>
+            ''').format(df_metric)
+            visualizations = [
+            {{
+             'job_id': '34',
+             'task_id': '2323-afffa-343bdaff',
+             'title': 'Evaluation result',
+             'type': {{
+                 'id': 2793,
+                 'name': 'EvaluateModelOperation'
+             }},
+             'model': HtmlVisModel(vis_model, '2323-afffa-343bdaff',
+                 2793,'EvaluateModelOperation', 'Evaluation result',
+                 '[]', '', '', '')
+            }}]
+
+            # Basic information to connect to other services
+            config = {{
+             'juicer': {{
+                 'services': {{
+                     'limonero': {{
+                         'url': 'http://localhost',
+                         'auth_token': 'FAKE'
+                     }},
+                     'caipirinha': {{
+                         'url': 'http://localhost',
+                         'auth_token': 'FAKE',
+                         'storage_id': 343
+                     }},
+                 }}
+             }}
+            }}
+            caipirinha_service.new_dashboard(config, 'Evaluation result',
+                {{'login': 'admin', 'id': 12, 'name': 'admin'}},
+                203, 'test',
+                34, '2323-afffa-343bdaff', visualizations, emit_event)
             """.format(output=n_out['metric'],
                        input_2=n_in['model'],
                        input_1=n_in['input data'],
@@ -328,21 +395,21 @@ def test_evaluate_model_operation_success():
     assert result, msg + format_code_comparison(code, expected_code)
 
 
-# @!BUG - Acessing 'task''order' in parameter attribute, but doesn't exist
-# def test_evaluate_model_operation_missing_output_param_failure():
-#     params = {
-#
-#         EvaluateModel.PREDICTION_ATTRIBUTE_PARAM: 'c',
-#         EvaluateModel.LABEL_ATTRIBUTE_PARAM: 'c',
-#         EvaluateModel.METRIC_PARAM: 'f1',
-#     }
-#     inputs = ['input_1', 'input_2']
-#     outputs = []
-#     with pytest.raises(ValueError):
-#         evaluator = EvaluateModel(params, inputs,
-#                                   outputs, named_inputs={},
-#                                   named_outputs={})
-#         evaluator.generate_code()
+    # @!BUG - Acessing 'task''order' in parameter attribute, but doesn't exist
+    # def test_evaluate_model_operation_missing_output_param_failure():
+    #     params = {
+    #
+    #         EvaluateModel.PREDICTION_ATTRIBUTE_PARAM: 'c',
+    #         EvaluateModel.LABEL_ATTRIBUTE_PARAM: 'c',
+    #         EvaluateModel.METRIC_PARAM: 'f1',
+    #     }
+    #     inputs = ['input_1', 'input_2']
+    #     outputs = []
+    #     with pytest.raises(ValueError):
+    #         evaluator = EvaluateModel(params, inputs,
+    #                                   outputs, named_inputs={},
+    #                                   named_outputs={})
+    #         evaluator.generate_code()
 
 
 def test_evaluate_model_operation_wrong_metric_param_failure():

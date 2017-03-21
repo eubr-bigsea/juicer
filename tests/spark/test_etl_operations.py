@@ -282,7 +282,10 @@ def test_filter_minimum_params_success():
             'attribute': 'code',
             'f': '>',
             'value': '201'
-        }]
+        }],
+        'config': {
+
+        }
     }
     n_in = {'input data': 'input_1'}
     n_out = {'output data': 'output_1'}
@@ -409,12 +412,12 @@ def test_random_split_minimal_params_success():
         'seed': '1234321'
     }
     n_in = {'input data': 'df1'}
-    n_out = {'splited data 1': 'out1', 'splited data 2': 'out2'}
+    n_out = {'splitted data 1': 'out1', 'splitted data 2': 'out2'}
 
     instance = SplitOperation(params, named_inputs=n_in, named_outputs=n_out)
     code = instance.generate_code()
     expected_code = "{out0}, {out1} = {input}.randomSplit({weights}, {seed})" \
-        .format(out0=n_out['splited data 1'], out1=n_out['splited data 2'],
+        .format(out0=n_out['splitted data 1'], out1=n_out['splitted data 2'],
                 input=n_in['input data'], weights='[40.0, 60.0]', seed=1234321)
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
