@@ -2,6 +2,8 @@
 import logging
 from textwrap import dedent
 
+from juicer.runner import configuration
+
 log = logging.getLogger()
 log.setLevel(logging.DEBUG)
 
@@ -17,7 +19,7 @@ class Operation(object):
     __slots__ = ('parameters', 'named_inputs', 'output',
                  'named_outputs', 'multiple_inputs', 'has_code',
                  'expected_output_ports', 'out_degree', 'order',
-                 'supports_cache')
+                 'supports_cache', 'config')
 
     def __init__(self, parameters, named_inputs, named_outputs):
         self.parameters = parameters
@@ -26,6 +28,7 @@ class Operation(object):
         self.multiple_inputs = False
         self.out_degree = 0
 
+        self.config = configuration.get_config()
         # Assume default as 1, useful for testing.
         self.order = parameters.get('order', 1)
 
