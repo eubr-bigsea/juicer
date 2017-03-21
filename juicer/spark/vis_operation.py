@@ -58,8 +58,12 @@ class PublishVisOperation(Operation):
             "from juicer.service import caipirinha_service",
             "visualizations = []"
         ]
+        if isinstance(self.named_inputs['visualizations'], (list, tuple)):
+            visualizations = self.named_inputs['visualizations']
+        else:
+            visualizations = [self.named_inputs['visualizations']]
 
-        for vis_model in self.named_inputs['visualizations']:
+        for vis_model in visualizations:
             code_lines.append(dedent("""
             visualizations.append({{
                 'job_id': '{job_id}',
