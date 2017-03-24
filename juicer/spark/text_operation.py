@@ -7,11 +7,11 @@ from juicer.operation import Operation
 
 
 class TokenizerOperation(Operation):
-    '''
+    """
     Tokenization is the process of taking text (such as a sentence) and
     breaking it into individual terms (usually words). A simple Tokenizer
     class provides this functionality.
-    '''
+    """
 
     TYPE_PARAM = 'type'
     ATTRIBUTES_PARAM = 'attributes'
@@ -22,10 +22,8 @@ class TokenizerOperation(Operation):
     TYPE_SIMPLE = 'simple'
     TYPE_REGEX = 'regex'
 
-    def __init__(self, parameters, inputs, outputs, named_inputs,
-                 named_outputs):
-        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
-                           named_outputs)
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         if self.ATTRIBUTES_PARAM in parameters:
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
@@ -48,9 +46,14 @@ class TokenizerOperation(Operation):
 
         self.expression_param = parameters.get(self.EXPRESSION_PARAM, r'\s+')
         self.min_token_lenght = parameters.get(self.MINIMUM_SIZE, 3)
-        self.has_code = len(self.inputs) > 0
+        self.has_code = len(self.named_inputs) > 0
 
     def generate_code(self):
+        input_data = self.named_inputs['input data']
+        output = self.named_outputs['output data']
+
+        code = ''
+
         if self.type == self.TYPE_SIMPLE:
 
             code = """
@@ -62,7 +65,7 @@ class TokenizerOperation(Operation):
                 pipeline = Pipeline(stages=tokenizers)
 
                 {2} = pipeline.fit({1}).transform({1})
-            """.format(self.attributes, self.inputs[0], self.output,
+            """.format(self.attributes, input_data, output,
                        json.dumps(zip(self.attributes, self.alias)))
 
         elif self.type == self.TYPE_REGEX:
@@ -79,7 +82,7 @@ class TokenizerOperation(Operation):
                 pipeline = Pipeline(stages=regextokenizers)
 
                 {2} = pipeline.fit({1}).transform({1})
-            """.format(self.attributes, self.inputs[0], self.output,
+            """.format(self.attributes, input_data, output,
                        json.dumps(zip(self.attributes, self.alias)),
                        self.expression_param,
                        self.min_token_lenght)
@@ -88,11 +91,11 @@ class TokenizerOperation(Operation):
 
 
 class RemoveStopWordsOperation(Operation):
-    '''
+    """
     Stop words are words which should be excluded from the input,
     typically because the words appear frequently and don’t carry
     as much meaning.
-    '''
+    """
     ATTRIBUTES_PARAM = 'attributes'
     ALIAS_PARAM = 'alias'
     STOP_WORD_LIST_PARAM = 'stop_word_list'
@@ -100,10 +103,9 @@ class RemoveStopWordsOperation(Operation):
     STOP_WORD_LANGUAGE_PARAM = 'stop_word_language'
     STOP_WORD_CASE_SENSITIVE_PARAM = 'sw_case_sensitive'
 
-    def __init__(self, parameters, inputs, outputs, named_inputs,
+    def __init__(self, parameters, named_inputs,
                  named_outputs):
-        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
-                           named_outputs)
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
         if self.ATTRIBUTES_PARAM in parameters:
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
         else:
@@ -132,10 +134,14 @@ class RemoveStopWordsOperation(Operation):
         self.sw_case_sensitive = self.parameters.get(
             self.STOP_WORD_CASE_SENSITIVE_PARAM, 'False')
 
-        self.has_code = len(self.inputs) > 0
+        self.has_code = len(self.named_inputs) > 0
 
     def generate_code(self):
-        if len(self.inputs) != 2:
+        input_data = self.named_inputs['input data']
+        output = self.named_outputs['output data']
+        code = ''
+
+        if len(self.named_inputs) != 2:
             """
             Loads the default stop words for the given language.
             Supported languages: danish, dutch, english, finnish,
@@ -157,8 +163,8 @@ class RemoveStopWordsOperation(Operation):
             # Use Pipeline to process all attributes once
             pipeline = Pipeline(stages=removers)
             {2} = pipeline.fit({1}).transform({1})
-        """.format(self.attributes, self.named_inputs['input data'],
-                   self.output, json.dumps(zip(self.attributes, self.alias)),
+        """.format(self.attributes, input_data,
+                   output, json.dumps(zip(self.attributes, self.alias)),
                    self.sw_case_sensitive))
         else:
             code = "sw = [stop[0].strip() for stop in {}.collect()]".format(
@@ -174,8 +180,8 @@ class RemoveStopWordsOperation(Operation):
                 # Use Pipeline to process all attributes once
                 pipeline = Pipeline(stages=removers)
                 {2} = pipeline.fit({1}).transform({1})
-            """.format(self.attributes, self.named_inputs['input data'],
-                       self.output,
+            """.format(self.attributes, input_data,
+                       output,
                        json.dumps(zip(self.attributes, self.alias)),
                        self.sw_case_sensitive))
         return code
@@ -204,9 +210,9 @@ class WordToVectorOperation(Operation):
     TYPE_COUNT = 'count'
     TYPE_WORD2VEC = 'word2vec'
 
-    def __init__(self, parameters, inputs, outputs, named_inputs,
+    def __init__(self, parameters, named_inputs,
                  named_outputs):
-        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
+        Operation.__init__(self, parameters, named_inputs,
                            named_outputs)
         if self.ATTRIBUTES_PARAM in parameters:
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
@@ -231,19 +237,21 @@ class WordToVectorOperation(Operation):
         self.minimum_size = parameters.get(self.MINIMUM_VECTOR_SIZE_PARAM, 3)
         self.minimum_count = parameters.get(self.MINIMUM_COUNT_PARAM, 0)
 
-        self.has_code = len(self.inputs) > 0
-        self.output = self.named_outputs['output data']
-        self.vocab_out = self.named_outputs.get(
-            'vocabulary', '{}_vocab'.format(self.inputs[0]))
+        self.has_code = len(self.named_inputs) > 0
 
     def get_data_out_names(self, sep=','):
-        return self.output
+        return self.named_outputs['output data']
 
     def get_output_names(self, sep=", "):
-        return sep.join([self.output, self.named_outputs.get(
-            'vocabulary', '{}_vocab'.format(self.inputs[0]))])
+        output = self.named_outputs['output data']
+        return sep.join([output, self.named_outputs.get(
+            'vocabulary', 'vocab_task_{}'.format(self.order))])
 
     def generate_code(self):
+        input_data = self.named_inputs['input data']
+        output = self.named_outputs['output data']
+        vocab_out = self.named_outputs['vocabulary']
+        
         if self.type == self.TYPE_COUNT:
             code = dedent("""
                 col_alias = {3}
@@ -260,9 +268,9 @@ class WordToVectorOperation(Operation):
             code += dedent("""
                 {} = dict([(col_alias[i][1], v.vocabulary)
                         for i, v in enumerate(model.stages)])""".format(
-                self.vocab_out))
+                vocab_out))
 
-            code = code.format(self.attributes, self.inputs[0],
+            code = code.format(self.attributes, input_data,
                                self.named_outputs['output data'],
                                json.dumps(zip(self.attributes, self.alias)),
                                self.minimum_tf, self.minimum_df,
@@ -290,13 +298,13 @@ class WordToVectorOperation(Operation):
 
             vocab_out = self.named_outputs.get('vocabulary',
                                                '{}_vocab'.format(
-                                                   self.inputs[0]))
+                                                   input_data))
             code += dedent("""
                 {} = dict([(col_alias[i][1], v.vocabulary)
                         for i, v in enumerate(model.stages)])""".format(
                 vocab_out))
 
-            code = code.format(self.attributes, self.inputs[0],
+            code = code.format(self.attributes, input_data,
                                self.named_outputs['output data'],
                                json.dumps(zip(self.attributes, self.alias)),
                                self.minimum_size, self.minimum_count)
@@ -318,9 +326,9 @@ class GenerateNGramsOperation(Operation):
     ALIAS_PARAM = 'alias'
     N_PARAM = 'n'
 
-    def __init__(self, parameters, inputs, outputs, named_inputs,
+    def __init__(self, parameters, named_inputs,
                  named_outputs):
-        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
+        Operation.__init__(self, parameters, named_inputs,
                            named_outputs)
         if self.N_PARAM in parameters:
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
@@ -345,9 +353,11 @@ class GenerateNGramsOperation(Operation):
                       izip_longest(self.attributes,
                                    self.alias[:len(self.attributes)])]
 
-        self.has_code = len(self.inputs) > 0
+        self.has_code = len(self.named_inputs) > 0
 
     def generate_code(self):
+        input_data = self.named_inputs['input data']
+        output = self.named_outputs['output data']
         code = dedent("""
             col_alias = {alias}
             n_gramers = [NGram(n={n}, inputCol=col,
@@ -357,6 +367,6 @@ class GenerateNGramsOperation(Operation):
             model = pipeline.fit({input})
             {output} = model.transform({input})
             """).format(alias=json.dumps(zip(self.attributes, self.alias)),
-                        n=self.n, input=self.inputs[0], output=self.output)
+                        n=self.n, input=input_data, output=output)
 
         return code

@@ -28,9 +28,9 @@ class Expression:
         # Identifier parsing
         elif tree['type'] == 'Identifier':
             if 'input' in params:
-                result = "{}.{}".format(params['input'], tree['name'])
+                result = "{}['{}']".format(params['input'], tree['name'])
             else:
-                result = "col('{}')".format(tree['name'])
+                result = "functions.col('{}')".format(tree['name'])
 
         # Unary Expression parsing
         elif tree['type'] == 'UnaryExpression':
@@ -60,7 +60,7 @@ class Expression:
 
     def get_window_function(self, spec, params):
         """
-        Window funciton is slightly different from the Spark counterpart: the
+        Window function is slightly different from the Spark counterpart: the
         last parameter indicates if it is using the start or end field in
         window object. See Spark documentation about window. And a cast to
         timestamp is needed.
@@ -70,9 +70,9 @@ class Expression:
         field_name = 'start' if arguments[-1] != 'end' else 'end'
         bins_size = '{} seconds'.format(arguments[-2])
 
-        # FIXME: add the workd 'SECONDS' after parameter 'SEGUNDOS'
+        # FIXME: add the word 'SECONDS' after parameter 'SEGUNDOS'
         result = (
-            "functions.window(functions.from_unixtime({value}/1e6), '{bin}')"
+            "functions.window({value}, '{bin}')"
             ".{start_or_end}.cast('timestamp')").format(
             value=', '.join(arguments[:-2]), bin=bins_size,
             start_or_end=field_name)

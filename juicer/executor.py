@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 import argparse
 import fcntl
-import logging
+import logging.config
 import tempfile
 import threading
 import time
@@ -16,9 +16,9 @@ from gevent.subprocess import Popen, PIPE
 
 monkey.patch_all()
 
-logging.basicConfig(
-    format='%(asctime)s,%(msecs)05.1f (%(funcName)s) %(message)s',
-    datefmt='%H:%M:%S')
+
+logging.config.fileConfig('logging_config.ini')
+
 log = logging.getLogger()
 log.setLevel(logging.INFO)
 
@@ -43,7 +43,7 @@ def execute_workflow(redis_conn, _id, shells):
             # log.info("Using existing shell")
         else:
             fw = tempfile.NamedTemporaryFile(delete=True)
-            cmd = '/opt/spark-2.0.0-bin-hadoop2.6/bin/pyspark'
+            cmd = '/opt/spark-2.1.0-bin-hadoop2.6/bin/pyspark'
             cmd = 'python'
             fr = open(fw.name, "r")
             sub = Popen([cmd], stdout=fw, stdin=PIPE, stderr=fw)
