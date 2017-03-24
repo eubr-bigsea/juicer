@@ -31,11 +31,13 @@ class HandleExceptionExtension(Extension):
         try:
             return caller()
         except KeyError:
-            msg = ('Key error parsing template for instance {instance}. '
+            msg = ('Key error parsing template for instance {instance} {id}. '
                    'Probably there is a problem with port specification')\
-                .format(instance=instance.__class__.__name__)
+                .format(instance=instance.__class__.__name__,
+                        id=instance.parameters['task']['id'])
             raise_(JuicerException(msg), None, sys.exc_info()[2])
         except TypeError:
-            msg = 'Type error parsing template for instance ' \
-                  '{instance}.'.format(instance=instance.__class__.__name__)
+            msg = 'Type error parsing template for instance {id}' \
+                  '{instance}.'.format(instance=instance.__class__.__name__,
+                                       id=instance.parameters['task']['id'])
             raise_(JuicerException(msg), None, sys.exc_info()[2])
