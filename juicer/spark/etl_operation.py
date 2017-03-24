@@ -551,7 +551,7 @@ class CleanMissingOperation(Operation):
     def generate_code(self):
 
         input_data = self.named_inputs['input data']
-        output = self.named_outputs['output data']
+        output = self.named_outputs['output result']
 
         pre_code = []
         partial = []

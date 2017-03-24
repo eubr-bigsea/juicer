@@ -126,7 +126,7 @@ def test_clean_missing_minimal_params_success():
         CleanMissingOperation.MAX_MISSING_RATIO_PARAM: "1.0",
     }
     n_in = {'input data': 'input_1'}
-    n_out = {'output data': 'output_1'}
+    n_out = {'output result': 'output_1'}
     instance = CleanMissingOperation(params, named_inputs=n_in,
                                      named_outputs=n_out)
     code = instance.generate_code()
@@ -141,7 +141,7 @@ def test_clean_missing_minimal_params_success():
     else:
         {output_1} = {input_1}
     """.format(input_1=n_in['input data'], attribute=params['attributes'][0],
-               output_1=n_out['output data']))
+               output_1=n_out['output result']))
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
     assert result, msg + format_code_comparison(code, expected_code)
 
@@ -151,7 +151,7 @@ def test_clean_missing_without_missing_rating_params_success():
         CleanMissingOperation.ATTRIBUTES_PARAM: ['name'],
     }
     n_in = {'input data': 'input_1'}
-    n_out = {'output data': 'output_1'}
+    n_out = {'output result': 'output_1'}
     instance = CleanMissingOperation(params, named_inputs=n_in,
                                      named_outputs=n_out)
     code = instance.generate_code()
@@ -162,7 +162,7 @@ def test_clean_missing_without_missing_rating_params_success():
     else:
         {output_1} = {input_1}
     """.format(input_1=n_in['input data'], attribute=params['attributes'][0],
-               output_1=n_out['output data']))
+               output_1=n_out['output result']))
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
     assert result, msg + format_code_comparison(code, expected_code)
 
@@ -176,7 +176,7 @@ def test_clean_missing_minimal_params_type_value_success():
         CleanMissingOperation.CLEANING_MODE_PARAM: CleanMissingOperation.VALUE
     }
     n_in = {'input data': 'input_1'}
-    n_out = {'output data': 'output_1'}
+    n_out = {'output result': 'output_1'}
     instance = CleanMissingOperation(params, named_inputs=n_in,
                                      named_outputs=n_out)
     code = instance.generate_code()
@@ -192,7 +192,7 @@ def test_clean_missing_minimal_params_type_value_success():
     else:
         {output_1} = {input_1}
     """.format(input_1=n_in['input data'], attribute=params['attributes'][0],
-               output_1=n_out['output data'],
+               output_1=n_out['output result'],
                value=params[CleanMissingOperation.VALUE_PARAMETER]))
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
     assert result, msg + format_code_comparison(code, expected_code)

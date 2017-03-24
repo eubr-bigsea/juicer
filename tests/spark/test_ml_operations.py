@@ -51,7 +51,7 @@ def test_feature_indexer_operation_success():
         col_alias = dict({alias})
         indexers = [feature.StringIndexer(inputCol=col, outputCol=alias,
                             handleInvalid='skip')
-                    for col, alias in col_alias.iteritems()]
+                    for col, alias in col_alias.items()]
 
         # Use Pipeline to process all attributes once
         pipeline = Pipeline(stages=indexers)
@@ -145,7 +145,7 @@ def test_feature_indexer_vector_operation_success():
             col_alias = dict({3})
             indexers = [feature.VectorIndexer(maxCategories={4},
                             inputCol=col, outputCol=alias)
-                            for col, alias in col_alias.iteritems()]
+                            for col, alias in col_alias.items()]
 
             # Use Pipeline to process all attributes once
             pipeline = Pipeline(stages=indexers)
@@ -490,7 +490,7 @@ def test_cross_validation_partial_operation_success():
             grid_builder = tuning.ParamGridBuilder()
             estimator, param_grid = {algorithm}
 
-            for param_name, values in param_grid.iteritems():
+            for param_name, values in param_grid.items():
                 param = getattr(estimator, param_name)
                 grid_builder.addGrid(param, values)
 
@@ -503,8 +503,9 @@ def test_cross_validation_partial_operation_success():
             evaluated_data = cv_model.transform({input_data})
             best_model_{output}  = cv_model.bestModel
             metric_result = evaluator.evaluate(evaluated_data)
-            eval_{evaluation} = metric_result
+            {evaluation} = metric_result
             {output} = evaluated_data
+            models_task_1 = None
 
             grouped_result = evaluated_data.select(
                  evaluator.getLabelCol(), evaluator.getPredictionCol())\
@@ -537,7 +538,7 @@ def test_cross_validation_partial_operation_success():
             """.format(algorithm=n_in['algorithm'],
                        input_data=n_in['input data'],
                        evaluator=n_in['evaluator'],
-                       evaluation=n_out['evaluation'],
+                       evaluation='eval_1',
                        output=outputs[0],
                        folds=params[CrossValidationOperation.NUM_FOLDS_PARAM]))
 
@@ -567,7 +568,7 @@ def test_cross_validation_complete_operation_success():
             grid_builder = tuning.ParamGridBuilder()
             estimator, param_grid = {algorithm}
 
-            for param_name, values in param_grid.iteritems():
+            for param_name, values in param_grid.items():
                 param = getattr(estimator, param_name)
                 grid_builder.addGrid(param, values)
 
@@ -580,8 +581,9 @@ def test_cross_validation_complete_operation_success():
             evaluated_data = cv_model.transform({input_data})
             best_model_{output}  = cv_model.bestModel
             metric_result = evaluator.evaluate(evaluated_data)
-            eval_{output} = metric_result
+            {output} = metric_result
             {output} = evaluated_data
+            models_task_1 = None
             """.format(algorithm=n_in['algorithm'],
                        input_data=n_in['input data'],
                        evaluator=n_in['evaluator'],

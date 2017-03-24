@@ -36,35 +36,44 @@ from pyspark.ml.regression import *
 __SPARK_LOG__ = None
 
 
-def sparkLogging(spark_session):
+def spark_logging(spark_session):
     global __SPARK_LOG__
     if not __SPARK_LOG__:
-       log4jLogger = spark_session.sparkContext._jvm.org.apache.log4j
-       __SPARK_LOG__ = log4jLogger.LogManager.getLogger(__name__)
+        # noinspection PyProtectedMember
+        logger = spark_session.sparkContext._jvm.org.apache.log4j
+        __SPARK_LOG__ = logger.LogManager.getLogger(__name__)
     return __SPARK_LOG__
 
 
 reload(sys)
 sys.setdefaultencoding('utf8')
 
+def take_sample(df, size=100, default=None):
+    """
+    Takes a sample from data frame.
+    """
+    result = default or []
+    if hasattr(df, 'take'):
+        result = df.take(size)
+    return result
 
 def juicer_debug(spark_session, name, variable, data_frame):
     """ Debug code """
-    sparkLogging(spark_session).debug('#' * 20)
-    sparkLogging(spark_session).debug('|| {} ||'.format(name))
-    sparkLogging(spark_session).debug('== {} =='.format(variable))
+    spark_logging(spark_session).debug('#' * 20)
+    spark_logging(spark_session).debug('|| {} ||'.format(name))
+    spark_logging(spark_session).debug('== {} =='.format(variable))
     data_frame.show()
     schema = data_frame.schema
     for attr in schema:
-        sparkLogging(spark_session).debug('{} {} {} {}'.format(
+        spark_logging(spark_session).debug('{} {} {} {}'.format(
             attr.name, attr.dataType, attr.nullable, attr.metadata))
 {#% autopep8 %#}
 {%- for instance in instances %}
 {%-  handleinstance instance %}
 {%- if instance.has_code %}
 
-def {{instance.parameters.task.operation.slug.replace('-', '_')}}_gen_{{instance.get_output_names('_')}}(
-        spark_session, cached_state, emit_event
+# noinspection PyUnusedLocal
+def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.order}}(spark_session, cached_state, emit_event
         {%- if instance.get_inputs_names %}, {{instance.get_inputs_names}}{% endif %}):
     {%- if instance.parameters.task.forms.comment and instance.parameters.task.forms.comment.value %}
     """
@@ -75,13 +84,15 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_gen_{{instance
     {%- endif %}
 
     emit_event(name='update task', message='Task running',
-               status='RUNNING', identifier='{{instance.parameters.task.id}}')
+               status='RUNNING',
+               identifier='{{instance.parameters.task.id}}')
 
     {%- if instance.supports_cache and False %}
     if '{{instance.parameters.task.id}}' in cached_state:
-        sparkLogging(spark_session).info ('Cache hit for operation {}'.format('{{instance.parameters.task.id}}'))
+        spark_logging(spark_session).info ('Cache hit for operation {}'.format('{{instance.parameters.task.id}}'))
         emit_event(name='update task', message='Task completed',
-                   status='COMPLETED', identifier='{{instance.parameters.task.id}}')
+                   status='COMPLETED',
+                   identifier='{{instance.parameters.task.id}}')
         return cached_state.get('{{instance.parameters.task.id}}')
     {%- endif %}
 
@@ -98,21 +109,23 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_gen_{{instance
 
     {%- for gen_result in instance.get_generated_results() %}
     emit_event(name='task result', message='{{gen_result.type}}',
-               status='COMPLETED', identifier='{{instance.parameters.task.operation.id}}/{{instance.parameters.task.id}}')
+               status='COMPLETED',
+               identifier='{{instance.parameters.task.operation.id}}/{{instance.parameters.task.id}}')
     {%- endfor %}
 
     results = (
       {%- set is_leaf = instance.out_degree == 0 %}
       {%- for out in instance.get_output_names(',').split(',') %}
         {%- if out %}
-         {{out}}, {%- if is_leaf %} {{out}}.take(100) if hasattr({{out}}, 'take') else [] {%- else %} [] {%- endif %},
+         {{out}}, {%- if is_leaf %} take_sample({{out}}) {%- else %} [] {%- endif %},
         {%- endif %}
       {%- endfor %}
     )
 
     time_elapsed = timer() - start
     emit_event(name='update task', message='Task completed',
-               status='COMPLETED', identifier='{{instance.parameters.task.id}}')
+               status='COMPLETED',
+               identifier='{{instance.parameters.task.id}}')
     return {%- if instance.get_output_names() %} results + {%- endif %} (time_elapsed,)
 
 {%- endif %}
@@ -144,7 +157,8 @@ def main(spark_session, cached_state, emit_event):
     {%- if instance.has_code and is_satisfied %}
     {%- set s = dependency_controller.satisfied(instance.parameters.task.id) %}
     {%- if is_satisfied %}
-    {% if instance.get_output_names(", ") %}{%- for out in instance.get_output_names(',').split(',')%}{{out}}, pr_{{out}}, {% endfor %}{% endif %}ts_{{instance.output}} = {{instance.parameters.task.operation.slug.replace('-', '_')}}_gen_{{instance.get_output_names('_')}}(spark_session, cached_state, emit_event
+    ({% if instance.get_output_names(", ") %}{%- for out in instance.get_output_names(',').split(',')%}{{out}}, pr_{{out}}, {% endfor %}{% endif %}ts_{{instance.output}}) = {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.order}}(
+        spark_session, cached_state, emit_event
       {%- if instance.get_inputs_names %}, {{instance.get_inputs_names}}{% endif %})
     {%- endif %}
     {%- else %}
@@ -154,7 +168,7 @@ def main(spark_session, cached_state, emit_event):
 
 
     end = time.time()
-    print "{}\t{}".format(end - start, end - session_start_time)
+    print("{}\t{}".format(end - start, end - session_start_time))
     return {
         'status': 'OK',
         'message': 'Execution defined',
@@ -166,8 +180,7 @@ def main(spark_session, cached_state, emit_event):
                 {%- for variable in instance.get_output_names(', ').split('|') -%}
                   {{variable}}, pr_{{variable}},
                 {%- endfor -%}
-              {% endif -%}
-              ts_{{instance.output}}),
+              {% endif %} ts_{{instance.output}}),
           {%- endif %}
         {%- endfor %}
     }

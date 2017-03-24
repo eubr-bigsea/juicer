@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 import logging
-from textwrap import dedent
 
 from juicer.runner import configuration
 

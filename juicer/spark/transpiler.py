@@ -143,6 +143,17 @@ class SparkTranspiler:
                 zf.writepy(lib_path)
             zf.close()
 
+    def _gen_port_name(self, flow, seq):
+        name = flow['source_port_name']
+        parts = name.split()
+        if len(parts) == 1:
+            name = name[:5]
+        elif name[:3] == 'out':
+            name = name[:3]
+        else:
+            name = ''.join([p[0] for p in parts])
+        return '{}_{}'.format(name, seq)
+
     def transpile(self, workflow, graph, params, out=None, job_id=None):
         """ Transpile the tasks from Lemonade's workflow into Spark code """
 
@@ -159,9 +170,8 @@ class SparkTranspiler:
                     flow_id = '[{}:{}]'.format(source_id, flow['source_port'], )
 
                     if flow_id not in sequential_ports:
-                        sequential_ports[flow_id] = 'out{}'.format(
-                            len(sequential_ports))
-                    # /
+                        sequential_ports[flow_id] = self._gen_port_name(
+                            flow, len(sequential_ports))
                     if source_id not in ports:
                         ports[source_id] = {'outputs': [], 'inputs': [],
                                             'named_inputs': {},
@@ -234,7 +244,7 @@ class SparkTranspiler:
 
             # Some temporary variables need to be identified by a sequential
             # number, so it will be stored in this field
-            task['order'] = i
+            parameters['order'] = i
 
             parameters['task'] = task
             parameters['workflow_json'] = json.dumps(workflow)
@@ -315,6 +325,8 @@ class SparkTranspiler:
             'gaussian-mixture-clustering':
                 juicer.spark.ml_operation.GaussianMixtureClusteringOperation,
             'gbt-classifier': juicer.spark.ml_operation.GBTClassifierOperation,
+            'isotonic-regression':
+                juicer.spark.ml_operation.IsotonicRegressionOperation,
             'k-means-clustering':
                 juicer.spark.ml_operation.KMeansClusteringOperation,
             'lda-clustering': juicer.spark.ml_operation.LdaClusteringOperation,
@@ -338,11 +350,11 @@ class SparkTranspiler:
                 juicer.spark.ml_operation.AlternatingLeastSquaresOperation,
             'logistic-model': juicer.spark.ml_operation.LogisticRegressionModel,
             'logistic-regression':
-                juicer.spark.ml_operation.LogisticRegressionClassifier,
+                juicer.spark.ml_operation.LogisticRegressionClassifierOperation,
             'linear-regression':
                 juicer.spark.ml_operation.LinearRegressionOperation,
             'regression-model':
-                juicer.spark.ml_operation.RegressionModel,
+                juicer.spark.ml_operation.RegressionModelOperation,
             'index-to-string': juicer.spark.ml_operation.IndexToStringOperation,
 
         }

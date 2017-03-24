@@ -74,7 +74,7 @@ class FeatureIndexerOperation(Operation):
                 col_alias = dict({alias})
                 indexers = [feature.StringIndexer(inputCol=col, outputCol=alias,
                                 handleInvalid='skip')
-                                    for col, alias in col_alias.iteritems()]
+                                    for col, alias in col_alias.items()]
 
                 # Use Pipeline to process all attributes once
                 pipeline = Pipeline(stages=indexers)
@@ -96,7 +96,7 @@ class FeatureIndexerOperation(Operation):
                 col_alias = dict({3})
                 indexers = [feature.VectorIndexer(maxCategories={4},
                                 inputCol=col, outputCol=alias)
-                                    for col, alias in col_alias.iteritems()]
+                                    for col, alias in col_alias.items()]
 
                 # Use Pipeline to process all attributes once
                 pipeline = Pipeline(stages=indexers)
@@ -178,7 +178,7 @@ class IndexToStringOperation(Operation):
             converter = [feature.IndexToString(inputCol=col,
                                                outputCol=alias,
                                                labels={labels})
-                        for i, (col, alias) in enumerate(col_alias.iteritems())]
+                        for i, (col, alias) in enumerate(col_alias.items())]
 
             # Use Pipeline to process all attributes once
             pipeline = Pipeline(stages=converter)
@@ -226,7 +226,7 @@ class OneHotEncoderOperation(Operation):
             col_alias = dict({aliases})
             encoders = [feature.OneHotEncoder(inputCol=col, outputCol=alias,
                             dropLast=True)
-                        for col, alias in col_alias.iteritems()]
+                        for col, alias in col_alias.items()]
 
             # Use Pipeline to process all attributes once
             pipeline = Pipeline(stages=encoders)
@@ -347,7 +347,7 @@ class EvaluateModelOperation(Operation):
                 self.METRIC_PARAM, self.__class__))
         if self.metric in self.METRIC_TO_EVALUATOR:
             self.evaluator = self.METRIC_TO_EVALUATOR[self.metric][0]
-            self.param_prediction_col = self.METRIC_TO_EVALUATOR[self.metric][1]
+            self.param_prediction_arg = self.METRIC_TO_EVALUATOR[self.metric][1]
         else:
             raise ValueError('Invalid metric value {}'.format(self.metric))
 
@@ -356,29 +356,38 @@ class EvaluateModelOperation(Operation):
             (self.named_outputs.get('evaluator') is not None) or
             (len(self.named_inputs) == 2)
         )
+        self.metric_out = self.named_outputs.get(
+            'metric', 'metric_task_{}'.format(self.order))
+
+        self.evaluator_out = self.named_outputs.get(
+            'evaluator', 'evaluator_task_{}'.format(self.order))
 
     def get_data_out_names(self, sep=','):
         return ''
 
+    def get_output_names(self, sep=", "):
+        return sep.join([self.metric_out, self.evaluator_out])
+
     def generate_code(self):
-        metric_out = self.named_outputs.get(
-            'metric', 'metric_task_{}'.format(self.order))
+
         if self.has_code:
             limonero_conf = self.config['juicer']['services']['limonero']
             caipirinha_conf = self.config['juicer']['services']['caipirinha']
 
             code = ''
 
-            comment = self.parameters['task']['forms']. \
-                          get('comment', {'value': ''}).get('value') or ''
+            comment = self.parameters['task']['forms'].get('comment',
+                                                           {'value': ''}).get(
+                'value') or ''
             # Not being used with a cross validator
             if len(self.named_inputs) > 0:
                 code = """
                 # Creates the evaluator according to the model
                 # (user should not change it)
-                evaluator = {evaluator}({pred_col}='{pred_attr}',
-                                      labelCol='{label_attr}',
-                                      metricName='{metric}')
+                evaluator = {evaluator}(
+                    {pred_col}='{pred_attr}',
+                    labelCol='{label_attr}',
+                    metricName='{metric}')
 
                 {output} = evaluator.evaluate({input})
 
@@ -429,14 +438,14 @@ class EvaluateModelOperation(Operation):
                     {workflow_id}, '{workflow_name}',
                     {job_id}, '{task_id}', visualizations, emit_event)
 
-                """.format(output=metric_out,
+                """.format(output=self.metric_out,
                            comment=comment,
                            input=self.named_inputs['input data'],
                            pred_attr=self.prediction_attribute,
                            label_attr=self.label_attribute,
                            metric=self.metric,
                            evaluator=self.evaluator,
-                           pred_col=self.param_prediction_col,
+                           pred_col=self.param_prediction_arg,
                            workflow_id=self.parameters['workflow_id'],
                            workflow_name=self.parameters['workflow_name'],
                            job_id=self.parameters['job_id'],
@@ -452,11 +461,18 @@ class EvaluateModelOperation(Operation):
                            storage_id=caipirinha_conf['storage_id'], )
             elif len(self.named_outputs) > 0:  # Used with cross validator
                 code = """
-                {5} = {0}({1}='{2}',
-                                labelCol='{3}', metricName='{4}')
-                """.format(self.evaluator, self.param_prediction_col,
-                           self.prediction_attribute, self.label_attribute,
-                           self.metric, metric_out)
+                {evaluator_out} = {evaluator}(
+                    {prediction_arg}='{prediction_attr}',
+                    labelCol='{label_attr}',
+                    metricName='{metric}')
+               {metric_out} = None
+
+                """.format(evaluator=self.evaluator,
+                           evaluator_out=self.evaluator_out,
+                           prediction_arg=self.param_prediction_arg,
+                           prediction_attr=self.prediction_attribute,
+                           label_attr=self.label_attribute,
+                           metric=self.metric, metric_out=self.metric_out)
 
             return dedent(code)
 
@@ -498,7 +514,7 @@ class CrossValidationOperation(Operation):
                 grid_builder = tuning.ParamGridBuilder()
                 estimator, param_grid = {algorithm}
 
-                for param_name, values in param_grid.iteritems():
+                for param_name, values in param_grid.items():
                     param = getattr(estimator, param_name)
                     grid_builder.addGrid(param, values)
 
@@ -509,15 +525,17 @@ class CrossValidationOperation(Operation):
                     evaluator=evaluator, numFolds={folds})
                 cv_model = cross_validator.fit({input_data})
                 evaluated_data = cv_model.transform({input_data})
-                best_model_{output}  = cv_model.bestModel
+                best_model_{output} = cv_model.bestModel
                 metric_result = evaluator.evaluate(evaluated_data)
                 {evaluation} = metric_result
                 {output} = evaluated_data
+                {models} = None
                 """.format(algorithm=self.named_inputs['algorithm'],
                            input_data=self.named_inputs['input data'],
                            evaluator=self.named_inputs['evaluator'],
-                           evaluation='eval_{}'.format(self.evaluation),
+                           evaluation=self.evaluation,
                            output=self.output,
+                           models=self.models,
                            folds=self.num_folds))
 
         # If there is an output needing the evaluation result, it must be
@@ -1116,8 +1134,6 @@ class AlternatingLeastSquaresOperation(Operation):
         self.itemCol = parameters.get(self.ITEM_COL_PARAM, 'movie_id')[0]
         self.ratingCol = parameters.get(self.RATING_COL_PARAM, 'rating')[0]
 
-        # import pdb
-        # pdb.set_trace()
         self.regParam = parameters.get(self.REG_PARAM, 0.1)
         self.implicitPrefs = parameters.get(self.IMPLICIT_PREFS_PARAM, False)
 
@@ -1217,78 +1233,80 @@ class LogisticRegressionModel(Operation):
                                         self.__class__))
 
 
-class LogisticRegressionClassifier(Operation):
-    FEATURES_PARAM = 'features'
-    LABEL_PARAM = 'label'
-    WEIGHT_COL_PARAM = 'weight'
-    MAX_ITER_PARAM = 'max_iter'
-    FAMILY_PARAM = 'family'
-    PREDICTION_COL_PARAM = 'prediction'
-
-    REG_PARAM = 'reg_param'
-    ELASTIC_NET_PARAM = 'elastic_net'
-
-    # Have summaries model with measure results
-    TYPE_BINOMIAL = 'binomial'
-    # Multinomial family doesn't have summaries model
-    TYPE_MULTINOMIAL = 'multinomial'
-
-    TYPE_AUTO = 'auto'
-
-    def __init__(self, parameters, named_inputs,
-                 named_outputs):
-        Operation.__init__(self, parameters, inputs, outputs,
-                           named_inputs, named_outputs)
-        self.parameters = parameters
-        self.name = 'classification.LR'
-        self.has_code = len(outputs) > 0
-
-        if not all([self.LABEL_PARAM in parameters,
-                    self.FEATURES_PARAM in parameters]):
-            msg = "Parameters '{}' and '{}' must be informed for task {}"
-            raise ValueError(msg.format(
-                self.FEATURES_PARAM, self.LABEL_PARAM,
-                self.__class__))
-
-        self.label = parameters.get(self.LABEL_PARAM)[0]
-        self.attributes = parameters.get(self.FEATURES_PARAM)[0]
-        output = named_outputs['output result']
-        # output = named_outputs['algorithm']
-
-        self.max_iter = parameters.get(self.MAX_ITER_PARAM, 10)
-        self.reg_param = parameters.get(self.REG_PARAM, 0.1)
-        self.weight_col = parameters.get(self.WEIGHT_COL_PARAM, None)
-
-        self.type_family = self.parameters.get(self.FAMILY_PARAM,
-                                               self.TYPE_AUTO)
-
-    def get_data_out_names(self, sep=','):
-        return ''
-
-    def get_output_names(self, sep=', '):
-        return self.named_outputs['output result']
-        # Change it when the named outputs in Tahiti change.
-        # return self.named_outputs['algorithm']
-
-    def generate_code(self):
-        if self.has_code:
-            declare = dedent("""
-            {output} = LogisticRegression( featuresCol='{features}', labelCol='{label}',
-                        maxIter={max_iter}, regParam={reg_param})
-            """).format(output=output,
-                        features=self.attributes,
-                        label=self.label,
-                        max_iter=self.max_iter,
-                        reg_param=self.reg_param,
-                        weight=self.weight_col)
-
-            # add , weightCol={weight} if exist
-            code = [declare]
-            return "\n".join(code)
-        else:
-            raise ValueError(
-                'Parameter output must be informed for classifier {}'.format(
-                    self.__class__))
+# class LogisticRegressionClassifier(Operation):
+#     FEATURES_PARAM = 'features'
+#     LABEL_PARAM = 'label'
+#     WEIGHT_COL_PARAM = 'weight'
+#     MAX_ITER_PARAM = 'max_iter'
+#     FAMILY_PARAM = 'family'
+#     PREDICTION_COL_PARAM = 'prediction'
+#
+#     REG_PARAM = 'reg_param'
+#     ELASTIC_NET_PARAM = 'elastic_net'
+#
+#     # Have summaries model with measure results
+#     TYPE_BINOMIAL = 'binomial'
+#     # Multinomial family doesn't have summaries model
+#     TYPE_MULTINOMIAL = 'multinomial'
+#
+#     TYPE_AUTO = 'auto'
+#
+#     def __init__(self, parameters, named_inputs,
+#                  named_outputs):
+#         Operation.__init__(self, parameters, inputs, outputs,
+#                            named_inputs, named_outputs)
+#         self.parameters = parameters
+#         self.name = 'classification.LR'
+#         self.has_code = len(outputs) > 0
+#
+#         if not all([self.LABEL_PARAM in parameters,
+#                     self.FEATURES_PARAM in parameters]):
+#             msg = "Parameters '{}' and '{}' must be informed for task {}"
+#             raise ValueError(msg.format(
+#                 self.FEATURES_PARAM, self.LABEL_PARAM,
+#                 self.__class__))
+#
+#         self.label = parameters.get(self.LABEL_PARAM)[0]
+#         self.attributes = parameters.get(self.FEATURES_PARAM)[0]
+#         self.named_outputs.get('output result',
+#                                'out_task_{}'.format(self.order))
+#         # output = named_outputs['algorithm']
+#
+#         self.max_iter = parameters.get(self.MAX_ITER_PARAM, 10)
+#         self.reg_param = parameters.get(self.REG_PARAM, 0.1)
+#         self.weight_col = parameters.get(self.WEIGHT_COL_PARAM, None)
+#
+#         self.type_family = self.parameters.get(self.FAMILY_PARAM,
+#                                                self.TYPE_AUTO)
+#
+#     def get_data_out_names(self, sep=','):
+#         return ''
+#
+#     def get_output_names(self, sep=', '):
+#         return self.named_outputs['output result']
+#         # Change it when the named outputs in Tahiti change.
+#         # return self.named_outputs['algorithm']
+#
+#     def generate_code(self):
+#         if self.has_code:
+#             declare = dedent("""
+#             {output} = LogisticRegression(
+#                 featuresCol='{features}', labelCol='{label}',
+#                 maxIter={max_iter}, regParam={reg_param})
+#             """).format(output=output,
+#                         features=self.attributes,
+#                         label=self.label,
+#                         max_iter=self.max_iter,
+#                         reg_param=self.reg_param,
+#                         weight=self.weight_col)
+#
+#             # add , weightCol={weight} if exist
+#             code = [declare]
+#             return "\n".join(code)
+#         else:
+#             raise ValueError(
+#                 'Parameter output must be informed for classifier {}'.format(
+#                     self.__class__))
 
 
 '''
@@ -1296,7 +1314,7 @@ class LogisticRegressionClassifier(Operation):
 '''
 
 
-class RegressionModel(Operation):
+class RegressionModelOperation(Operation):
     FEATURES_PARAM = 'features'
     LABEL_PARAM = 'label'
 
@@ -1458,13 +1476,11 @@ class GeneralizedLinearRegression(Operation):
     TYPE_LINK_CLOGLOG = 'cloglog'  # binomial
     TYPE_LINK_SQRT = 'sqrt'  # poisson
 
-    def __init__(self, parameters, named_inputs,
-                 named_outputs):
-        Operation.__init__(self, parameters, inputs, outputs,
-                           named_inputs, named_outputs)
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
         self.parameters = parameters
         self.name = 'regression.GeneralizedLinearRegression'
-        self.has_code = len(outputs) > 0
+        self.has_code = len(named_outputs) > 0
 
         if not all([self.LABEL_PARAM in parameters,
                     self.FEATURES_PARAM in parameters]):
@@ -1475,8 +1491,7 @@ class GeneralizedLinearRegression(Operation):
 
         self.label = parameters.get(self.LABEL_PARAM)[0]
         self.attributes = parameters.get(self.FEATURES_PARAM)[0]
-        # output = named_outputs['output result']
-        output = named_outputs['algorithm']
+        self.named_outputs.get('algorithm', 'algo_task_{}'.format(self.order))
 
         self.max_iter = parameters.get(self.MAX_ITER_PARAM, 10)
         self.reg_param = parameters.get(self.REG_PARAM, 0.1)
@@ -1486,15 +1501,13 @@ class GeneralizedLinearRegression(Operation):
                                                self.TYPE_FAMILY_BINOMIAL)
         self.type_link = self.parameters.get(self.LINK_PARAM)
         self.link_prediction_col = self.parameters.get(
-            self.LINK_PREDICTION_COL_PARAM)
+            self.LINK_PREDICTION_COL_PARAM)[0]
 
     def get_data_out_names(self, sep=','):
         return ''
 
     def get_output_names(self, sep=', '):
-        # return self.named_outputs['output result']
-        # Change it when the named outputs in Tahiti change.
-        return self.named_outputs['algorithm']
+        return self.output
 
     def generate_code(self):
         if self.has_code:
@@ -1507,7 +1520,7 @@ class GeneralizedLinearRegression(Operation):
                                                    link='{type_link}',
                                                    linkPredictionCol='{link_col}'
                                                    )
-            """).format(output=output,
+            """).format(output=self.output,
                         features=self.attributes,
                         label=self.label,
                         max_iter=self.max_iter,
@@ -1525,7 +1538,7 @@ class GeneralizedLinearRegression(Operation):
                     self.__class__))
 
 
-class DecisionTreeRegression(Operation):
+class DecisionTreeRegressionOperation(Operation):
     FEATURES_PARAM = 'features'
     LABEL_PARAM = 'label'
 
@@ -1541,13 +1554,11 @@ class DecisionTreeRegression(Operation):
 
     TYPE_IMPURITY_VARIANCE = 'variance'
 
-    def __init__(self, parameters, named_inputs,
-                 named_outputs):
-        Operation.__init__(self, parameters, inputs, outputs,
-                           named_inputs, named_outputs)
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
         self.parameters = parameters
         self.name = 'regression.DecisionTreeRegressor'
-        self.has_code = len(outputs) > 0
+        self.has_code = len(named_outputs) > 0
 
         if not all([self.LABEL_PARAM in parameters,
                     self.FEATURES_PARAM in parameters]):
@@ -1558,14 +1569,13 @@ class DecisionTreeRegression(Operation):
 
         self.label = parameters.get(self.LABEL_PARAM)[0]
         self.attributes = parameters.get(self.FEATURES_PARAM)[0]
-        # output = named_outputs['output result']
-        output = named_outputs['algorithm']
+        self.named_outputs.get('algorithm', 'algo_task_{}'.format(self.order))
 
         self.max_depth = parameters.get(self.MAX_DEPTH_PARAM, 5)
         self.min_instance = parameters.get(self.MIN_INSTANCE_PER_NODE_PARAM, 1)
         self.min_info_gain = parameters.get(self.MIN_INFO_GAIN_PARAM, 0.0)
 
-        self.prediction_col = self.parameters.get(self.PREDICTION_COL_PARAM)
+        self.prediction_col = self.parameters.get(self.PREDICTION_COL_PARAM)[0]
         self.variance_col = self.parameters.get(self.VARIANCE_COL_PARAM, None)
         self.seed = self.parameters.get(self.SEED_PARAM, None)
 
@@ -1575,9 +1585,7 @@ class DecisionTreeRegression(Operation):
         return ''
 
     def get_output_names(self, sep=', '):
-        # return self.named_outputs['output result']
-        # Change it when the named outputs in Tahiti change.
-        return self.named_outputs['algorithm']
+        return self.output
 
     def generate_code(self):
         if self.has_code:
@@ -1587,11 +1595,11 @@ class DecisionTreeRegression(Operation):
                                              maxDepth={max_iter},
                                              minInstancesPerNode={min_instance},
                                              minInfoGain={min_info},
-                                             impurity={impurity},
+                                             impurity='{impurity}',
                                              seed={seed},
                                              varianceCol={variance_col}
                                              )
-            """).format(output=output,
+            """).format(output=self.output,
                         features=self.attributes,
                         label=self.label,
                         max_depth=self.max_depth,
@@ -1610,7 +1618,7 @@ class DecisionTreeRegression(Operation):
                     self.__class__))
 
 
-class GradientBoostedTreeRegression(Operation):
+class GradientBoostedTreeRegressionOperation(Operation):
     FEATURES_PARAM = 'features'
     LABEL_PARAM = 'label'
 
@@ -1627,13 +1635,11 @@ class GradientBoostedTreeRegression(Operation):
 
     TYPE_IMPURITY_VARIANCE = 'variance'
 
-    def __init__(self, parameters, named_inputs,
-                 named_outputs):
-        Operation.__init__(self, parameters, inputs, outputs,
-                           named_inputs, named_outputs)
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
         self.parameters = parameters
         self.name = 'regression.GradientBoostedTreeRegression'
-        self.has_code = len(outputs) > 0
+        self.has_code = len(named_outputs) > 0
 
         if not all([self.LABEL_PARAM in parameters,
                     self.FEATURES_PARAM in parameters]):
@@ -1644,16 +1650,16 @@ class GradientBoostedTreeRegression(Operation):
 
         self.label = parameters.get(self.LABEL_PARAM)[0]
         self.attributes = parameters.get(self.FEATURES_PARAM)[0]
-        # output = named_outputs['output result']
-        output = named_outputs['algorithm']
+        self.named_outputs.get('algorithm', 'algo_task_{}'.format(self.order))
 
         self.max_iter = parameters.get(self.MAX_ITER_PARAM, 10)
         self.max_depth = parameters.get(self.MAX_DEPTH_PARAM, 5)
         self.min_instance = parameters.get(self.MIN_INSTANCE_PER_NODE_PARAM, 1)
         self.min_info_gain = parameters.get(self.MIN_INFO_GAIN_PARAM, 0.0)
 
-        self.prediction_col = self.parameters.get(self.PREDICTION_COL_PARAM)
-        self.variance_col = self.parameters.get(self.VARIANCE_COL_PARAM, None)
+        self.prediction_col = self.parameters.get(self.PREDICTION_COL_PARAM)[0]
+        self.variance_col = self.parameters.get(
+            self.VARIANCE_COL_PARAM, None)[0]
         self.seed = self.parameters.get(self.SEED_PARAM, None)
 
         self.impurity = self.parameters.get(self.IMPURITY_PARAM, 'variance')
@@ -1662,9 +1668,7 @@ class GradientBoostedTreeRegression(Operation):
         return ''
 
     def get_output_names(self, sep=', '):
-        # return self.named_outputs['output result']
-        # Change it when the named outputs in Tahiti change.
-        return self.named_outputs['algorithm']
+        return self.output
 
     def generate_code(self):
         if self.has_code:
@@ -1677,9 +1681,9 @@ class GradientBoostedTreeRegression(Operation):
                                              impurity={impurity},
                                              seed={seed},
                                              maxIter={max_iter},
-                                             varianceCol={variance_col}
+                                             varianceCol='{variance_col}'
                                              )
-            """).format(output=output,
+            """).format(output=self.output,
                         features=self.attributes,
                         label=self.label,
                         max_depth=self.max_depth,
@@ -1699,7 +1703,7 @@ class GradientBoostedTreeRegression(Operation):
                     self.__class__))
 
 
-class AFTSurvivalRegression(Operation):
+class AFTSurvivalRegressionOperation(Operation):
     FEATURES_PARAM = 'features'
     LABEL_PARAM = 'label'
 
@@ -1712,13 +1716,11 @@ class AFTSurvivalRegression(Operation):
     QUANTILES_PROBABILITIES_PARAM = 'quantile_probabilities'
     QUANTILES_COL_PARAM = 'quantiles_col'
 
-    def __init__(self, parameters, named_inputs,
-                 named_outputs):
-        Operation.__init__(self, parameters, inputs, outputs,
-                           named_inputs, named_outputs)
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
         self.parameters = parameters
         self.name = 'regression.AFTSurvivalRegression'
-        self.has_code = len(outputs) > 0
+        self.has_code = len(named_outputs) > 0
 
         if not all([self.LABEL_PARAM in parameters,
                     self.FEATURES_PARAM in parameters]):
@@ -1729,14 +1731,14 @@ class AFTSurvivalRegression(Operation):
 
         self.label = parameters.get(self.LABEL_PARAM)[0]
         self.attributes = parameters.get(self.FEATURES_PARAM)[0]
-        # output = named_outputs['output result']
-        output = named_outputs['algorithm']
+        self.output = named_outputs.get('algorithm',
+                                        'algo_task_{}'.format(self.order))
 
-        self.prediction_col = self.parameters.get(self.PREDICTION_COL_PARAM)
+        self.prediction_col = self.parameters.get(self.PREDICTION_COL_PARAM)[0]
         self.max_iter = parameters.get(self.MAX_ITER_PARAM, 10)
         self.agg_depth = parameters.get(self.AGR_DETPTH_PARAM, 1)
 
-        self.censor = self.parameters.get(self.CENSOR_COL_PARAM, 'censor')
+        self.censor = self.parameters.get(self.CENSOR_COL_PARAM, 'censor')[0]
         self.quantile_prob = self.parameters.get(
             self.QUANTILES_PROBABILITIES_PARAM, [])
         self.quantile_col = self.parameters.get(self.QUANTILES_COL_PARAM,
@@ -1746,23 +1748,22 @@ class AFTSurvivalRegression(Operation):
         return ''
 
     def get_output_names(self, sep=', '):
-        # return self.named_outputs['output result']
-        # Change it when the named outputs in Tahiti change.
-        return self.named_outputs['algorithm']
+        return self.output
 
     def generate_code(self):
         if self.has_code:
             declare = dedent("""
-            {output} = AFTSurvivalRegression(featuresCol='{features}',
-                                             labelCol='{label}',
-                                             maxIter={max_iter},
-                                             censorCol={censor},
-                                             quantileProbabilities={quantile_prob},
-                                             quantilesCol={quantile_col},
-                                             predictionCol={prediction_col},
-                                             aggregationDepth={agg_depth}
-                                             )
-            """).format(output=output,
+            {output} = AFTSurvivalRegression(
+                featuresCol='{features}',
+                 labelCol='{label}',
+                 maxIter={max_iter},
+                 censorCol='{censor}',
+                 quantileProbabilities={quantile_prob},
+                 quantilesCol={quantile_col},
+                 predictionCol='{prediction_col}',
+                 aggregationDepth={agg_depth}
+                 )
+            """).format(output=self.output,
                         features=self.attributes,
                         label=self.label,
                         max_iter=self.max_iter,
@@ -1781,10 +1782,10 @@ class AFTSurvivalRegression(Operation):
                     self.__class__))
 
 
-class IsotonicRegression(Operation):
-    '''
+class IsotonicRegressionOperation(Operation):
+    """
         Only univariate (single feature) algorithm supported
-    '''
+    """
     FEATURES_PARAM = 'features'
     LABEL_PARAM = 'label'
 
@@ -1793,13 +1794,11 @@ class IsotonicRegression(Operation):
     WEIGHT_COL_PARAM = 'weight'
     ISOTONIC_PARAM = 'isotonic'
 
-    def __init__(self, parameters, named_inputs,
-                 named_outputs):
-        Operation.__init__(self, parameters, inputs, outputs,
-                           named_inputs, named_outputs)
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
         self.parameters = parameters
         self.name = 'regression.IsotonicRegression'
-        self.has_code = len(outputs) > 0
+        self.has_code = len(self.named_outputs) > 0
 
         if not all([self.LABEL_PARAM in parameters,
                     self.FEATURES_PARAM in parameters]):
@@ -1810,12 +1809,12 @@ class IsotonicRegression(Operation):
 
         self.label = parameters.get(self.LABEL_PARAM)[0]
         self.attributes = parameters.get(self.FEATURES_PARAM)[0]
-        # output = named_outputs['output result']
-        output = named_outputs['algorithm']
+        self.output = named_outputs.get('algorithm')
 
-        self.prediction_col = self.parameters.get(self.PREDICTION_COL_PARAM)
+        self.prediction_col = self.parameters.get(self.PREDICTION_COL_PARAM)[0]
         self.weight_col = parameters.get(self.WEIGHT_COL_PARAM, None)
-        self.isotonic = parameters.get(self.ISOTONIC_PARAM, True)
+        self.isotonic = parameters.get(
+            self.ISOTONIC_PARAM, True) in (1, '1', 'true', True)
 
     def get_data_out_names(self, sep=','):
         return ''
@@ -1823,26 +1822,21 @@ class IsotonicRegression(Operation):
     def get_output_names(self, sep=', '):
         # return self.named_outputs['output result']
         # Change it when the named outputs in Tahiti change.
-        return self.named_outputs['algorithm']
+        return self.output
 
     def generate_code(self):
-        if self.has_code:
-            declare = dedent("""
-            {output} = IsotonicRegression(featuresCol='{features}',
-                                          labelCol='{label}',
-                                          predictionCol={prediction_col},
-                                          isotonic={isotonic}
-                                          )
-            """).format(output=output,
-                        features=self.attributes,
-                        label=self.label,
-                        isotonic=self.isotonic,
-                        prediction_col=self.prediction_col
-                        )
-            # add , weightCol={weight} if exist
-            code = [declare]
-            return "\n".join(code)
-        else:
-            raise ValueError(
-                'Parameter output must be informed for classifier {}'.format(
-                    self.__class__))
+        declare = dedent("""
+        {output} = IsotonicRegression(featuresCol='{features}',
+                                      labelCol='{label}',
+                                      predictionCol='{prediction_col}',
+                                      isotonic={isotonic}
+                                      )
+        """).format(output=self.output,
+                    features=self.attributes,
+                    label=self.label,
+                    isotonic=self.isotonic,
+                    prediction_col=self.prediction_col
+                    )
+        # add , weightCol={weight} if exist
+        code = [declare]
+        return "\n".join(code)
