@@ -212,7 +212,6 @@ class SparkMinion(Minion):
             loader = Workflow(workflow)
 
             # Mark job as running
-            import pdb
             self._emit_event(room=job_id, namespace='/stand')(
                 name='update job', message='Running job',
                 status='RUNNING', identifier=job_id)

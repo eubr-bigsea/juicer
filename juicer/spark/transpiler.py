@@ -208,7 +208,8 @@ class SparkTranspiler:
                             target_port['named_inputs'][flow_name] = sequence
                         target_port['inputs'].append(sequence)
 
-        env_setup = {'instances': [], 'workflow_name': workflow['name']}
+        env_setup = {'instances': [], 'instances_by_task_id': {},
+                'workflow_name': workflow['name']}
 
         sorted_tasks_id = nx.topological_sort(graph)
         for i, task_id in enumerate(sorted_tasks_id):
@@ -264,6 +265,7 @@ class SparkTranspiler:
                 params.get('requires_info', False))
 
             env_setup['instances'].append(instance)
+            env_setup['instances_by_task_id'][task['id']] = instance
             env_setup['execute_main'] = params.get('execute_main', False)
 
         template_loader = jinja2.FileSystemLoader(

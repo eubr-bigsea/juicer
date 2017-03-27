@@ -29,7 +29,7 @@ class Workflow:
         self.workflow = workflow_data
 
         # Construct graph
-        self.graph = self.builds_initial_workflow_graph()
+        self.builds_initial_workflow_graph()
 
         # Topological sorted tasks according to their dependencies
         self.sorted_tasks = []
@@ -88,11 +88,14 @@ class Workflow:
                     in_degree_multiplicity_required=result['M_INPUT'],
                     out_degree_required=result['N_OUTPUT'],
                     out_degree_multiplicity_required=result['M_OUTPUT'],
+                    parents=[],
                     attr_dict=task)
 
         for flow in self.workflow['flows']:
             self.graph.add_edge(flow['source_id'], flow['target_id'],
                                 attr_dict=flow)
+            self.graph.node[flow['target_id']]['parents'].\
+                    append(flow['source_id'])
 
         for nodes in self.graph.nodes():
             self.graph.node[nodes]['in_degree'] = self.graph. \
@@ -133,8 +136,6 @@ class Workflow:
 
     def builds_sorted_workflow_graph(self, tasks, flows):
 
-        workflow_graph = nx.MultiDiGraph()
-
         # Querying all operations from tahiti one time
         operations_tahiti = dict(
             [(op['id'], op) for op in self.get_all_ports_operations_tasks()])
@@ -164,7 +165,7 @@ class Workflow:
                         else:
                             result['N_OUTPUT'] = 1
                 # return result
-                workflow_graph.add_node(
+                self.graph.add_node(
                     task.get('id'),
                     in_degree_required=result['N_INPUT'],
                     in_degree_multiplicity_required=result['M_INPUT'],
@@ -173,9 +174,12 @@ class Workflow:
                     attr_dict=task)
 
         for flow in flows:
-            workflow_graph.add_edge(flow['source_id'],
+            self.graph.add_edge(flow['source_id'],
                                     flow['target_id'],
                                     attr_dict=flow)
+            parents = self.graph.node[flow['target_id']].get('parents', [])
+            parents.append(flow['source_id'])
+            self.graph.node[flow['target_id']]['parents'] = parents
 
         # updating in_degree and out_degree
         for nodes in self.graph.nodes():
@@ -183,7 +187,6 @@ class Workflow:
                 in_degree(nodes)
             self.graph.node[nodes]['out_degree'] = self.graph. \
                 out_degree(nodes)
-        return workflow_graph
 
     def plot_workflow_graph_image(self):
         """
