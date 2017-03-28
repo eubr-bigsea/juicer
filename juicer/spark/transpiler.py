@@ -356,6 +356,13 @@ class SparkTranspiler:
             'regression-model':
                 juicer.spark.ml_operation.RegressionModelOperation,
             'index-to-string': juicer.spark.ml_operation.IndexToStringOperation,
+            'random-forest-regressor':
+                juicer.spark.ml_operation.RandomForestRegressorOperation,
+            'gbt-regressor': juicer.spark.ml_operation.GBTRegressorOperation,
+            'generalized-linear-regressor':
+                juicer.spark.ml_operation.GeneralizedLinearRegression,
+            'aft-survival-regression':
+                juicer.spark.ml_operation.AFTSurvivalRegressionOperation
 
         }
         data_ops = {
