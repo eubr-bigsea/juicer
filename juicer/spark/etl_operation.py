@@ -28,17 +28,21 @@ class SplitOperation(Operation):
         self.seed = parameters.get(self.SEED_PARAM, int(random() * time.time()))
         self.has_code = len(self.named_outputs) > 0
 
-    def generate_code(self):
-        output1 = self.named_outputs.get(
+        self.output1 = self.named_outputs.get(
             'splitted data 1',
             'split_1_task_{}'.format(self.order))
 
-        output2 = self.named_outputs.get(
+        self.output2 = self.named_outputs.get(
             'splitted data 2',
             'split_2_task_{}'.format(self.order))
 
+    def get_output_names(self, sep=", "):
+        return sep.join([self.output1, self.output2])
+
+    def generate_code(self):
         code = "{out1}, {out2} = {input}.randomSplit({weights}, {seed})".format(
-            out1=output1, out2=output2, input=self.named_inputs['input data'],
+            out1=self.output1, out2=self.output2,
+            input=self.named_inputs['input data'],
             weights=json.dumps(self.weights), seed=self.seed)
         return dedent(code)
 
