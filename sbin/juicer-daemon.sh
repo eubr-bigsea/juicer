@@ -53,8 +53,15 @@ case $cmd_option in
 
    (startf)
       trap "$0 stop" SIGINT SIGTERM
-      $0 start
-      sleep infinity &
+      # set python path
+      PYTHONPATH=$JUICER_HOME:$PYTHONPATH python $JUICER_HOME/juicer/runner/juicer_server.py \
+         -c $JUICER_HOME/conf/juicer-config.yaml &
+      juicer_server_pid=$!
+
+      # persist the pid
+      echo $juicer_server_pid > $pid
+
+      echo "Juicer server started, logging to $log (pid=$juicer_server_pid)"
       wait
       ;;
 
