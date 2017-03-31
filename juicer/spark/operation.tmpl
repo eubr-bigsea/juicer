@@ -92,9 +92,8 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.ord
                status='RUNNING',
                identifier='{{instance.parameters.task.id}}')
     
-    spark_logging(spark_session).info('Lemonade task %s started' % \
-       ('{{instance.parameters.task.id}}')
-    )
+    spark_logging(spark_session).info(
+        'Lemonade task {{instance.parameters.task.id}} started')
 
     # First we verify whether this task's result is cached
     {%- if instance.supports_cache and False %}
@@ -105,7 +104,6 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.ord
                    identifier='{{instance.parameters.task.id}}')
         return cached_state.get('{{instance.parameters.task.id}}')
     {%- endif %}
-
 
     spark_logging(spark_session).info('Submitting parent tasks %s before %s' % \
        ({{instance.parameters.task.parents}}, '{{instance.parameters.task.id}}')
@@ -118,10 +116,11 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.ord
     {%- if parent_instance.has_code and is_satisfied %}
     {%- set s = dependency_controller.satisfied(parent_instance.parameters.task.id) %}
     with submission_lock:
-        if not '{{parent}}' in task_futures:
-            task_futures['{{parent}}'] = executor.submit(
-                 lambda: {{parent_instance.parameters.task.operation.slug.replace('-', '_')}}_{{parent_instance.order}}(spark_session, cached_state, emit_event)
-             )
+        if '{{parent}}' not in task_futures:
+            task_futures['{{parent}}'] = executor.\
+                submit(
+                    lambda: {{parent_instance.parameters.task.operation.slug.replace('-', '_')}}_{{parent_instance.order}}(spark_session, cached_state, emit_event)
+                )
 
     {%- endif %}
     {%- endfor %}
@@ -137,9 +136,8 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.ord
     {%- endif %}
     {%- endfor %}
     
-    spark_logging(spark_session).info('All parents completer, submitting %s' % \
-       ('{{instance.parameters.task.id}}')
-    )
+    spark_logging(spark_session).info(
+        'All parents completed, submitting {{instance.parameters.task.id}}')
 
     start = timer()
     {{instance.generate_code().strip() | indent(width=4, indentfirst=False)}}
@@ -171,7 +169,8 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.ord
     emit_event(name='update task', message='Task completed',
                status='COMPLETED',
                identifier='{{instance.parameters.task.id}}')
-    spark_logging(spark_session).info('Lemonade task {{instance.parameters.task.id}} completed')
+    spark_logging(spark_session).info(
+        'Lemonade task {{instance.parameters.task.id}} completed')
     return {%- if instance.get_output_names() %} results + {%- endif %} (time_elapsed,)
 
 {%- endif %}

@@ -209,7 +209,7 @@ class SparkTranspiler:
                         target_port['inputs'].append(sequence)
 
         env_setup = {'instances': [], 'instances_by_task_id': {},
-                'workflow_name': workflow['name']}
+                     'workflow_name': workflow['name']}
 
         sorted_tasks_id = nx.topological_sort(graph)
         for i, task_id in enumerate(sorted_tasks_id):
@@ -350,7 +350,6 @@ class SparkTranspiler:
             # 'recommendation-model': juicer.spark.ml_operation.CollaborativeOperation,
             'als-recommender':
                 juicer.spark.ml_operation.AlternatingLeastSquaresOperation,
-            'logistic-model': juicer.spark.ml_operation.LogisticRegressionModel,
             'logistic-regression':
                 juicer.spark.ml_operation.LogisticRegressionClassifierOperation,
             'linear-regression':
@@ -404,7 +403,10 @@ class SparkTranspiler:
             'pie-chart': juicer.spark.vis_operation.PieChartOperation,
             'area-chart': juicer.spark.vis_operation.AreaChartOperation,
             'line-chart': juicer.spark.vis_operation.LineChartOperation,
-            'table-visualization': juicer.spark.vis_operation.TableVisOperation
+            'table-visualization': juicer.spark.vis_operation.TableVisOperation,
+            'summary-statistics':
+                juicer.spark.vis_operation.SummaryStatisticsOperation,
+            'scatter-plot': juicer.spark.vis_operation.ScatterPlotOperation
         }
         self.operations = {}
         for ops in [data_ops, etl_ops, geo_ops, ml_ops, other_ops, text_ops,

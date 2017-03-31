@@ -641,20 +641,20 @@ class ClassifierOperation(Operation):
         self.has_code = len(named_outputs) > 0
         self.name = "BaseClassifier"
 
-        if 'paramgrid' not in parameters:
+        if self.GRID_PARAM not in parameters:
             raise ValueError(
                 'Parameter grid must be informed for classifier {}'.format(
                     self.__class__))
 
-        if not all([self.LABEL_PARAM in parameters['paramgrid'],
-                    self.FEATURES_PARAM in parameters['paramgrid']]):
+        if not all([self.LABEL_PARAM in parameters[self.GRID_PARAM],
+                    self.FEATURES_PARAM in parameters[self.GRID_PARAM]]):
             msg = "Parameters '{}' and '{}' must be informed for task {}"
             raise ValueError(msg.format(
                 self.FEATURES_PARAM, self.LABEL_PARAM,
                 self.__class__))
 
-        self.label = parameters['paramgrid'].get(self.LABEL_PARAM)
-        self.attributes = parameters['paramgrid'].get(self.FEATURES_PARAM)
+        self.label = parameters[self.GRID_PARAM].get(self.LABEL_PARAM)
+        self.attributes = parameters[self.GRID_PARAM].get(self.FEATURES_PARAM)
 
         self.output = self.named_outputs.get('algorithm',
                                              'algo_task_{}'.format(self.order))
