@@ -673,3 +673,48 @@ class AddColumnsOperation(Operation):
                 .drop(indexer1._inx).drop(indexer2._inx)
             """.format(input1=input_data1, input2=input_data2, out=output)
         return dedent(code)
+
+
+class PivotTableOperation(Operation):
+    AGGREGATION_ATTRIBUTES_PARAM = 'aggregation_attributes'
+    PIVOT_ATTRIBUTE_PARAM = 'pivot'
+    FUNCTIONS_PARAM = 'functions'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+
+        if not all([self.AGGREGATION_ATTRIBUTES_PARAM in parameters,
+                    self.PIVOT_ATTRIBUTE_PARAM in parameters,
+                    self.FUNCTIONS_PARAM in parameters]):
+            raise ValueError(
+                "Required parameters must be informed for task {}".format(
+                    self.__class__))
+
+        self.aggregation_attributes = parameters.get(
+            self.AGGREGATION_ATTRIBUTES_PARAM, [])
+        self.pivot = parameters.get(self.PIVOT_ATTRIBUTE_PARAM)
+        self.functions = parameters.get(self.FUNCTIONS_PARAM)
+
+        self.has_code = len(self.named_inputs) == 1
+
+    def generate_code(self):
+        elements = []
+        for i, function in enumerate(self.functions):
+            elements.append('''functions.{}('{}').alias('{}')'''.format(
+                function['f'].lower(), function['attribute'],
+                function['alias']))
+
+        input_data = self.named_inputs['input data']
+        output = self.named_outputs['output data']
+
+        group_by = ', '.join(
+            ["functions.col('{}')".format(attr)
+             for attr in self.aggregation_attributes])
+        pivot = "functions.col('{}')".format(self.pivot)
+
+        code = """
+            {out} = {input}.groupBy({keys}).pivot({pivot}).agg({el})
+            """.format(out=output, input=input_data, keys=group_by, pivot=pivot,
+                       el=', \n        '.join(elements))
+
+        return dedent(code)

@@ -6,13 +6,14 @@ import zipfile
 
 import jinja2
 import juicer.spark.data_operation
+import juicer.spark.dm_operation
 import juicer.spark.etl_operation
 import juicer.spark.geo_operation
 import juicer.spark.ml_operation
 import juicer.spark.statistic_operation
 import juicer.spark.text_operation
-import juicer.spark.ws_operation
 import juicer.spark.vis_operation
+import juicer.spark.ws_operation
 import networkx as nx
 import os
 from juicer import operation
@@ -307,6 +308,10 @@ class SparkTranspiler:
             'split': juicer.spark.etl_operation.SplitOperation,
             'transformation': juicer.spark.etl_operation.TransformationOperation,
         }
+        dm_ops = {
+            'frequent-item-set':
+                juicer.spark.dm_operation.FrequentItemSetOperation
+        }
         ml_ops = {
             'apply-model': juicer.spark.ml_operation.ApplyModelOperation,
             'classification-model':
@@ -398,7 +403,8 @@ class SparkTranspiler:
 
         }
         vis_ops = {
-            'publish-as-visualization': juicer.spark.vis_operation.PublishVisOperation,
+            'publish-as-visualization':
+                juicer.spark.vis_operation.PublishVisOperation,
             'bar-chart': juicer.spark.vis_operation.BarChartOperation,
             'pie-chart': juicer.spark.vis_operation.PieChartOperation,
             'area-chart': juicer.spark.vis_operation.AreaChartOperation,
@@ -410,5 +416,5 @@ class SparkTranspiler:
         }
         self.operations = {}
         for ops in [data_ops, etl_ops, geo_ops, ml_ops, other_ops, text_ops,
-                    ws_ops, vis_ops]:
+                    ws_ops, vis_ops, dm_ops]:
             self.operations.update(ops)

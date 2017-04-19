@@ -31,5 +31,6 @@ class EvaluateModelOperationReport(BaseHtmlReport):
         ''').format(title=title, metric=evaluator.getMetricName(),
                     value=metric_value, params=evaluator.explainParams())
 
-        return HtmlVisModel(vis_model, task_id, operation_id,
-                            'EvaluateModelOperation', title, '[]', '', '', '')
+        return HtmlVisModel(
+            vis_model, task_id, operation_id, 'EvaluateModelOperation', title,
+            '[]', '', '', '', {})
