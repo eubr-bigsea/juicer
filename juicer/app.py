@@ -78,8 +78,8 @@ class JuicerSparkService:
 
             loader = Workflow(json.loads(r.text))
             #----- To test workflows in COMPSs
-            with open('/home/lucasmsp/workspace/BigSea/testes_juicer/Workflow_ETLs_9005/workflow_etls_9005.json') as json_data:
-                r = json.load(json_data)
+            #with open('/home/lucasmsp/workspace/BigSea/testes_juicer/Workflow_ETLs_9005/workflow_etls_9005.json') as json_data:
+            #    r = json.load(json_data)
             #----- To test workflows in COMPSs
 
             loader = Workflow(r)
