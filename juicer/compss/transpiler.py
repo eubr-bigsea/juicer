@@ -103,27 +103,34 @@ class COMPSsTranspiler:
                     flow_id = '[{}:{}]'.format(source_id, flow['source_port'], )
 
                     if flow_id not in sequential_ports:
-                        sequential_ports[flow_id] = 'data{}'.format(
-                            len(sequential_ports))
+                        sequential_ports[flow_id] = 'data{}'.format(len(sequential_ports))
 
                     if source_id not in ports:
-                        ports[source_id] = {'outputs': [], 'inputs': [],
-                                            'named_inputs': {},
-                                            'named_outputs': {}}
+                        ports[source_id] = {'outputs': [], 'inputs': [],'named_inputs': {},'named_outputs': {}}
                     if target_id not in ports:
-                        ports[target_id] = {'outputs': [], 'inputs': [],
-                                            'named_inputs': {},
-                                            'named_outputs': {}}
+                        ports[target_id] = {'outputs': [], 'inputs': [],'named_inputs': {},'named_outputs': {}}
+
 
                     sequence = sequential_ports[flow_id]
-                    if sequence not in ports[source_id]['outputs']:
-                        ports[source_id]['named_outputs'][
-                            flow['source_port_name']] = sequence
-                        ports[source_id]['outputs'].append(sequence)
-                    if sequence not in ports[target_id]['inputs']:
-                        ports[target_id]['named_inputs'][
-                            flow['target_port_name']] = sequence
-                        ports[target_id]['inputs'].append(sequence)
+
+                    source_port = ports[source_id]
+                    if sequence not in source_port['outputs']:
+                        source_port['named_outputs'][ flow['source_port_name']] = sequence
+                        source_port['outputs'].append(sequence)
+
+                    target_port = ports[target_id]
+                    if sequence not in target_port['inputs']:
+                        flow_name = flow['target_port_name']
+                        # Test if multiple inputs connects to a port
+                        # because it may have multiplicity MANY
+                        if flow_name in target_port['named_inputs']:
+                            if not isinstance(target_port['named_inputs'][flow_name],list):
+                                target_port['named_inputs'][flow_name] = [target_port['named_inputs'][flow_name],sequence]
+                            else:
+                                target_port['named_inputs'][flow_name].append(sequence)
+                        else:
+                            target_port['named_inputs'][flow_name] = sequence
+                        target_port['inputs'].append(sequence)
 
         env_setup = {'instances': [], 'workflow_name': self.workflow_name}
 
@@ -199,19 +206,11 @@ class COMPSsTranspiler:
             'add-columns':      juicer.compss.etl_operation.AddColumns,
             'add-rows':         juicer.compss.etl_operation.AddRows,
             'difference':       juicer.compss.etl_operation.Difference,
-            'distinct':         juicer.compss.etl_operation.Distinct,
+
             'drop':             juicer.compss.etl_operation.Drop,
-            'intersection':     juicer.compss.etl_operation.Intersection,
-            'select':           juicer.compss.etl_operation.Select,
-            # synonym of intersection'
+
             'set-intersection': juicer.compss.etl_operation.Intersection,
-            #'filter': juicer.compss.etl_operation.Filter, #
-            # Alias for filter
-            #'filter-selection': juicer.spark.etl_operation.Filter,#
-            'intersection':     juicer.compss.etl_operation.Intersection,
-            # synonym for select
             'projection':       juicer.compss.etl_operation.Select,
-            # synonym for distinct
             'remove-duplicated-rows': juicer.compss.etl_operation.Distinct,
             #'sample': juicer.spark.etl_operation.SampleOrPartition,#
 
@@ -227,17 +226,24 @@ class COMPSsTranspiler:
         geo_ops = {}
 
         ml_ops = {
-            'apply-model':              juicer.compss.ml_operation.ApplyModel,
-            'k-means-clustering':       juicer.compss.ml_operation.KMeansClusteringOperation,
+            #------ Clustering      -----#
             'clustering-model':         juicer.compss.ml_operation.ClusteringModelOperation,
+            'k-means-clustering':       juicer.compss.ml_operation.KMeansClusteringOperation,
+
+            #------ Classification  -----#
+            'classification-model':     juicer.compss.ml_operation.ClassificationModelOperation,
+            'apply-model':              juicer.compss.ml_operation.ApplyModel,
+
             'svm-classification':       juicer.compss.ml_operation.SvmClassifierOperation,
-            #   'naive-bayes-classifier':   juicer.compss.ml_operation.NaiveBayesClassifierOperation,  #####################
-            'classification-model':     juicer.compss.ml_operation.ClassificationModelOperation,            #####################
+            'naive-bayes-classifier':   juicer.compss.ml_operation.NaiveBayesClassifierOperation,
+            'knn-classifier':           juicer.compss.ml_operation.KNNClassifierOperation
 
         }
 
         text_ops = {
-
+            'generate-n-grams':         juicer.compss.text_operation.GenerateNGramsOperation,
+            'remove-stop-words':        juicer.compss.text_operation.RemoveStopWordsOperation,
+            'tokenizer':                juicer.compss.text_operation.TokenizerOperation
         }
 
         other_ops = {

@@ -9,16 +9,10 @@ class ClusteringModelOperation(Operation):
 
         self.has_code = len(self.named_outputs) > 0 and len(self.named_inputs) == 2
 
-        if self.FEATURES_ATTRIBUTE_PARAM not in parameters:
-            msg = "Parameter '{}' must be informed for task {}"
-            raise ValueError(msg.format(self.FEATURES_ATTRIBUTE_PARAM, self.__class__))
 
-        self.features = parameters.get(self.FEATURES_ATTRIBUTE_PARAM)[0]
-
-
-        self.algorithm_cluster = "kmeans"
+        #self.algorithm_cluster = "kmeans"
         self.output = self.named_outputs['output data']
-        self.model = self.named_outputs.get('model', '{}'.format(self.output))
+        self.model  = self.named_outputs.get('model', '{}'.format(self.output))
         # self.named_outputs['output data']))
 
     @property
@@ -55,14 +49,15 @@ class KMeansClusteringOperation(Operation):
         self.Cluster_settings['k'] = parameters['number_of_clusters']
         self.Cluster_settings['maxIterations'] = parameters['max_iterations']
         self.Cluster_settings['epsilon'] = parameters['tolerance']
-        self.Cluster_settings['initMode'] = 'kmeans++' #parameters['init_mode']
+        self.Cluster_settings['initMode'] = 'kmeans++' #parameters['init_mode']   #CHANGE THAT
 
+        self.output = self.named_outputs['algorithm']
 
     def generate_code(self):
         code = """
             cluster_model = Kmeans()
             model         = cluster_model.fit({})
-            {} = [custer_model, model]
+            {} = [cluster_model, model]
             """.format(self.Cluster_settings,self.output)
         return dedent(code)
 
@@ -154,3 +149,24 @@ class SvmClassifierOperation(Operation):
                        coef_maxIters = self.coef_maxIters,
                        output=self.output)
         return dedent(code)
+
+
+class NaiveBayesClassifierOperation(Operation):
+    def __init__(self, parameters,  named_inputs, named_outputs):
+        Operation.__init__(self, parameters,  named_inputs,  named_outputs)
+
+
+        self.parameters = parameters
+        self.has_code = True
+        self.name = 'classification.NB'
+
+
+
+class KNNClassifierOperation(Operation):
+    def __init__(self, parameters,  named_inputs, named_outputs):
+        Operation.__init__(self, parameters,  named_inputs,  named_outputs)
+
+
+        self.parameters = parameters
+        self.has_code = True
+        self.name = 'classification.KNN'

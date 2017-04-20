@@ -33,7 +33,7 @@ class AddRows(Operation):
 
     def generate_code(self):
 
-        code = "{0} = unionAll({1},{2})".format(self.named_outputs['output data'],
+        code = "{0} = Union({1},{2})".format(self.named_outputs['output data'],
                                                 self.named_inputs['input data 1'],
                                                 self.named_inputs['input data 2'])
         return dedent(code)
@@ -55,7 +55,7 @@ class Distinct(Operation):
         self.has_code = len(self.named_inputs) == 1
 
     def generate_code(self):
-        code = "{} = dropDuplicates({})".format(self.named_outputs['output data'],
+        code = "{} = DropDuplicates({})".format(self.named_outputs['output data'],
                                                 self.named_inputs['input data'])
         return dedent(code)
 
@@ -72,7 +72,7 @@ class Difference(Operation):
 
 
     def generate_code(self):
-        code = "{} = subtract({},{})".format( self.named_outputs['output data'],
+        code = "{} = Difference({},{})".format( self.named_outputs['output data'],
                                               self.named_inputs['input data 1'],
                                               self.named_inputs['input data 2'])
         return dedent(code)
@@ -90,7 +90,7 @@ class Intersection(Operation):
 
     def generate_code(self):
 
-        code = "{} = intersect({},{})".format(self.named_outputs['output data'],
+        code = "{} = Intersect({},{})".format(self.named_outputs['output data'],
                                               self.named_inputs['input data 1'],
                                               self.named_inputs['input data 2'])
         return dedent(code)
@@ -108,7 +108,7 @@ class Drop(Operation):
         self.column = parameters['column']
 
     def generate_code(self):
-        code = """{} = drop({},'{}')""".format( self.outputs[0], self.inputs[0], self.column)
+        code = """{} = Drop({},'{}')""".format( self.outputs[0], self.inputs[0], self.column)
         return dedent(code)
 
 
