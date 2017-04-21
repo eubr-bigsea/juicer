@@ -8,8 +8,6 @@ from textwrap import dedent
 from juicer.operation import Operation
 
 
-#####from juicer.service import limonero_service
-##from juicer.include.metadata import MetadataGet
 
 class DataReader(Operation):
 
@@ -23,26 +21,30 @@ class DataReader(Operation):
         self.separator = parameters['separator']
         self.header = parameters.get(self.HEADER_PARAM, False) in (1, '1', True)
         self.schema = parameters.get(self.SCHEMA, "FROM_VALUES")
+        self.has_import = "from functions.data.data_functions              import *"
 
+        if self.separator == "":
+            self.separator = "\\n"
         self.generate_code()
 
     def generate_code(self):
 
-        code = " {} = ReadFromFile('{}','{}', {},'{}')"\
-            .format(self.output,self.name_file, self.separator,self.header,self.schema)
+        code =  """
+                    numFrag  = 4
+                    {output} = ReadFromFile('{input}','{separator}', {header},'{schema}')
+                    {output} = Partitionize({output}, numFrag)
+                """.format(output   = self.output,
+                           input    = self.name_file,
+                           separator= self.separator,
+                           header   = self.header,
+                           schema   = self.schema)
         return dedent(code)
 
 
 class Save(Operation):
     """
     Saves the content of the DataFrame at the specified path
-    and generate the code to call the Limonero API.
-    Parameters:
-        - Database name
-        - Path for storage
-        - Storage ID
-        - Database tags
-        - Workflow that generated the database
+
     """
     NAME_PARAM = 'name'
     PATH_PARAM = 'path'
@@ -71,7 +73,7 @@ class Save(Operation):
         self.path   = parameters.get(self.PATH_PARAM)
         self.mode   = parameters.get(self.OVERWRITE_MODE_PARAM, self.MODE_ERROR)
         self.header = parameters.get(self.HEADER_PARAM, False) in (1, '1', True)
-
+        self.has_import = "from functions.data.data_functions              import *"
 
 
 

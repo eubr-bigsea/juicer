@@ -10,9 +10,9 @@ class ClusteringModelOperation(Operation):
         self.has_code = len(self.named_outputs) > 0 and len(self.named_inputs) == 2
 
 
-        #self.algorithm_cluster = "kmeans"
         self.output = self.named_outputs['output data']
         self.model  = self.named_outputs.get('model', '{}'.format(self.output))
+
         # self.named_outputs['output data']))
 
     @property
@@ -50,7 +50,7 @@ class KMeansClusteringOperation(Operation):
         self.Cluster_settings['maxIterations'] = parameters['max_iterations']
         self.Cluster_settings['epsilon'] = parameters['tolerance']
         self.Cluster_settings['initMode'] = 'kmeans++' #parameters['init_mode']   #CHANGE THAT
-
+        self.has_import = "from functions.ml.clustering.Kmeans.Kmeans      import *"
         self.output = self.named_outputs['algorithm']
 
     def generate_code(self):
@@ -125,6 +125,7 @@ class SvmClassifierOperation(Operation):
 
         self.parameters = parameters
         self.has_code = True
+        self.has_import = "from functions.ml.classification.svm.svm        import *"
         self.name = 'classification.SVM'
         self.coef_lambda        = parameters['coef_lambda']
         self.coef_lr            = parameters['coef_lr']

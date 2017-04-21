@@ -11,6 +11,7 @@ class AddColumns(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs, named_outputs)
         self.has_code = len(named_inputs) == 2
+        self.has_import = "from functions.etl.etl_functions                import *"
 
     def generate_code(self):
 
@@ -30,6 +31,7 @@ class AddRows(Operation):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
         self.parameters = parameters
         self.has_code = len(self.named_inputs) == 2 and len(self.named_outputs) > 0
+        self.has_import = "from functions.etl.etl_functions                import *"
 
     def generate_code(self):
 
@@ -53,6 +55,7 @@ class Distinct(Operation):
             self.attributes = []
 
         self.has_code = len(self.named_inputs) == 1
+        self.has_import = "from functions.etl.etl_functions                import *"
 
     def generate_code(self):
         code = "{} = DropDuplicates({})".format(self.named_outputs['output data'],
@@ -69,6 +72,7 @@ class Difference(Operation):
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
         self.has_code = len(self.named_inputs) == 2
+        self.has_import = "from functions.etl.etl_functions                import *"
 
 
     def generate_code(self):
@@ -87,6 +91,7 @@ class Intersection(Operation):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
         self.parameters = parameters
         self.has_code = len(self.named_inputs) == 2
+        self.has_import = "from functions.etl.etl_functions                import *"
 
     def generate_code(self):
 
@@ -106,6 +111,7 @@ class Drop(Operation):
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
         self.column = parameters['column']
+        self.has_import = "from functions.etl.etl_functions                import *"
 
     def generate_code(self):
         code = """{} = Drop({},'{}')""".format( self.outputs[0], self.inputs[0], self.column)
@@ -154,6 +160,7 @@ class Select(Operation):
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
 
+        self.has_import = "from functions.etl.etl_functions                import *"
         if self.ATTRIBUTES_PARAM in parameters:
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
         else:

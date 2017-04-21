@@ -11,6 +11,7 @@ from   juicer import operation
 import juicer.compss.data_operation
 import juicer.compss.etl_operation
 import juicer.compss.ml_operation
+import juicer.compss.text_operation
 
 class DependencyController:
     """ Evaluates if a dependency is met when generating code. """
@@ -243,7 +244,8 @@ class COMPSsTranspiler:
         text_ops = {
             'generate-n-grams':         juicer.compss.text_operation.GenerateNGramsOperation,
             'remove-stop-words':        juicer.compss.text_operation.RemoveStopWordsOperation,
-            'tokenizer':                juicer.compss.text_operation.TokenizerOperation
+            'tokenizer':                juicer.compss.text_operation.TokenizerOperation,
+            'word-to-vector':           juicer.compss.text_operation.WordToVectorOperation
         }
 
         other_ops = {
