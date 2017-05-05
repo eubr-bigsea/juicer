@@ -23,6 +23,7 @@ from juicer.runner import juicer_protocol
 from juicer.runner.control import StateControlRedis
 import logging.config
 
+os.chdir(os.environ.get('JUICER_HOME', '.'))
 logging.config.fileConfig('logging_config.ini')
 log = logging.getLogger()
 log.setLevel(logging.DEBUG)

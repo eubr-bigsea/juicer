@@ -96,16 +96,12 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.ord
     """ Operation {{instance.parameters.task.id }} """
     {%- endif %}
 
-    emit_event(name='update task', message='Task running',
-               status='RUNNING',
-               identifier='{{instance.parameters.task.id}}')
-    
-    spark_logging(spark_session).info(
-        'Lemonade task {{instance.parameters.task.id}} started')
-
     # First we verify whether this task's result is cached
     {%- if instance.supports_cache and False %}
     if '{{instance.parameters.task.id}}' in cached_state:
+        emit_event(name='update task', message='Task running',
+                   status='RUNNING',
+                   identifier='{{instance.parameters.task.id}}')
         spark_logging(spark_session).info ('Cache hit for operation {}'.format('{{instance.parameters.task.id}}'))
         emit_event(name='update task', message='Task completed',
                    status='COMPLETED',
@@ -145,7 +141,14 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.ord
     
     spark_logging(spark_session).info(
         'All parents completed, submitting {{instance.parameters.task.id}}')
-
+ 
+    emit_event(name='update task', message='Task running',
+               status='RUNNING',
+               identifier='{{instance.parameters.task.id}}')
+  
+    spark_logging(spark_session).info(
+        'Lemonade task {{instance.parameters.task.id}} started') 
+  
     start = timer()
     {{instance.generate_code().strip() | indent(width=4, indentfirst=False)}}
     {%- set outputs = instance.get_data_out_names('|').split('|') %}
