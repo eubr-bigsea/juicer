@@ -27,7 +27,7 @@ if __name__ == '__main__':
     if args.type == 'SPARK':
         # log.info('Starting Juicer Spark Minion')
         server = SparkMinion(redis_conn,
-                args.worflow_id, args.app_id, juicer_config)
+                             args.worflow_id, args.app_id, juicer_config)
         server.process()
     else:
         raise ValueError(
