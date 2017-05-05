@@ -384,6 +384,7 @@ class EvaluateModelOperation(Operation):
                 code = """
                 # Creates the evaluator according to the model
                 # (user should not change it)
+                {evaluator_out} = None
                 evaluator = {evaluator}(
                     {pred_col}='{pred_attr}',
                     labelCol='{label_attr}',
@@ -445,6 +446,7 @@ class EvaluateModelOperation(Operation):
                            label_attr=self.label_attribute,
                            metric=self.metric,
                            evaluator=self.evaluator,
+                           evaluator_out=self.evaluator_out,
                            pred_col=self.param_prediction_arg,
                            workflow_id=self.parameters['workflow_id'],
                            workflow_name=self.parameters['workflow_name'],

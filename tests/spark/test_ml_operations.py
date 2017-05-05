@@ -325,6 +325,7 @@ def test_evaluate_model_operation_success():
     code = instance.generate_code()
 
     expected_code = dedent("""
+            df_evaluator = None
             evaluator = {evaluator}({predic_col}='{predic_atr}',
                                   labelCol='{label_atr}', metricName='{metric}')
 
