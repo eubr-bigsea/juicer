@@ -384,29 +384,24 @@ class EvaluateModelOperation(Operation):
                 code = """
                 # Creates the evaluator according to the model
                 # (user should not change it)
-                {evaluator_out} = None
-                evaluator = {evaluator}(
+                {evaluator_out} = {evaluator}(
                     {pred_col}='{pred_attr}',
                     labelCol='{label_attr}',
                     metricName='{metric}')
 
-                {output} = evaluator.evaluate({input})
+                {output} = {evaluator_out}.evaluate({input})
 
                 # HTML visualization of result
-                from juicer.spark.vis_operation import HtmlVisModel
+                from juicer.spark.reports import EvaluateModelOperationReport
                 from juicer.service import caipirinha_service
 
-                vis_model = dedent('''
-                    <div>
-                        <strong>{comment}</strong>
-                        <dl>
-                            <dt>{metric}</dl>
-                            <dd>{{0}}</dd>
-                        </dl>
-                    </div>
-                ''').format({output})
-                visualizations = [
-                {{
+                vis_model = EvaluateModelOperationReport.generate_visualization(
+                    evaluator={evaluator_out},
+                    metric_value={output},
+                    title='{title}',
+                    operation_id={operation_id},
+                    task_id='{task_id}')
+                visualizations = [{{
                     'job_id': '{job_id}',
                     'task_id': '{task_id}',
                     'title': '{title}',
@@ -414,9 +409,7 @@ class EvaluateModelOperation(Operation):
                         'id': {operation_id},
                         'name': '{operation_name}'
                     }},
-                    'model': HtmlVisModel(vis_model, '{task_id}',
-                        {operation_id},'{operation_name}', '{title}',
-                        '[]', '', '', '')
+                    'model': vis_model
                 }}]
 
                 # Basic information to connect to other services
@@ -435,7 +428,9 @@ class EvaluateModelOperation(Operation):
                         }}
                     }}
                 }}
-                caipirinha_service.new_dashboard(config, '{title}', {user},
+                caipirinha_service.new_dashboard(
+                    config, '{title}',
+                    {user},
                     {workflow_id}, '{workflow_name}',
                     {job_id}, '{task_id}', visualizations, emit_event)
 
@@ -646,20 +641,20 @@ class ClassifierOperation(Operation):
         self.has_code = len(named_outputs) > 0
         self.name = "BaseClassifier"
 
-        if 'paramgrid' not in parameters:
+        if self.GRID_PARAM not in parameters:
             raise ValueError(
                 'Parameter grid must be informed for classifier {}'.format(
                     self.__class__))
 
-        if not all([self.LABEL_PARAM in parameters['paramgrid'],
-                    self.FEATURES_PARAM in parameters['paramgrid']]):
+        if not all([self.LABEL_PARAM in parameters[self.GRID_PARAM],
+                    self.FEATURES_PARAM in parameters[self.GRID_PARAM]]):
             msg = "Parameters '{}' and '{}' must be informed for task {}"
             raise ValueError(msg.format(
                 self.FEATURES_PARAM, self.LABEL_PARAM,
                 self.__class__))
 
-        self.label = parameters['paramgrid'].get(self.LABEL_PARAM)
-        self.attributes = parameters['paramgrid'].get(self.FEATURES_PARAM)
+        self.label = parameters[self.GRID_PARAM].get(self.LABEL_PARAM)
+        self.attributes = parameters[self.GRID_PARAM].get(self.FEATURES_PARAM)
 
         self.output = self.named_outputs.get('algorithm',
                                              'algo_task_{}'.format(self.order))
@@ -1380,13 +1375,39 @@ class RegressionModelOperation(Operation):
                                         self.__class__))
 
 
-class LinearRegressionOperation(Operation):
+# noinspection PyAbstractClass
+class RegressionOperation(Operation):
     FEATURES_PARAM = 'features'
     LABEL_PARAM = 'label'
+    PREDICTION_ATTR_PARAM = 'prediction'
 
+    __slots__ = ('label', 'features', 'prediction')
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+        self.label = self.features = self.prediction = None
+
+    def read_common_params(self, parameters):
+        if not all([self.LABEL_PARAM in parameters,
+                    self.FEATURES_PARAM in parameters]):
+            msg = "Parameters '{}' and '{}' must be informed for task {}"
+            raise ValueError(msg.format(
+                self.FEATURES_PARAM, self.LABEL_PARAM,
+                self.__class__))
+        else:
+            self.label = parameters.get(self.LABEL_PARAM)[0]
+            self.features = parameters.get(self.FEATURES_PARAM)[0]
+            self.prediction = parameters.get(self.PREDICTION_ATTR_PARAM)[0]
+            self.output = self.named_outputs['algorithm']
+
+    def get_output_names(self, sep=', '):
+        return self.output
+    def get_data_out_names(self, sep=','):
+        return ''
+
+class LinearRegressionOperation(RegressionOperation):
     MAX_ITER_PARAM = 'max_iter'
     WEIGHT_COL_PARAM = 'weight'
-    PREDICTION_COL_PARAM = 'prediction'
     REG_PARAM = 'reg_param'
     ELASTIC_NET_PARAM = 'elastic_net'
 
@@ -1396,33 +1417,21 @@ class LinearRegressionOperation(Operation):
     TYPE_SOLVER_NORMAL = 'normal'
 
     def __init__(self, parameters, named_inputs, named_outputs):
-        Operation.__init__(self, parameters, named_inputs, named_outputs)
+        RegressionOperation.__init__(self, parameters, named_inputs,
+                                     named_outputs)
         self.parameters = parameters
         self.name = 'regression.LinearRegression'
         self.has_code = len(named_outputs) > 0
 
-        if not all([self.LABEL_PARAM in parameters,
-                    self.FEATURES_PARAM in parameters]):
-            msg = "Parameters '{}' and '{}' must be informed for task {}"
-            raise ValueError(msg.format(
-                self.FEATURES_PARAM, self.LABEL_PARAM,
-                self.__class__))
+        if self.has_code:
+            self.read_common_params(parameters)
 
-        self.label = parameters.get(self.LABEL_PARAM)[0]
-        self.attributes = parameters.get(self.FEATURES_PARAM)[0]
+            self.max_iter = parameters.get(self.MAX_ITER_PARAM, 10)
+            self.reg_param = parameters.get(self.REG_PARAM, 0.1)
+            self.weight_col = parameters.get(self.WEIGHT_COL_PARAM, None)
 
-        self.max_iter = parameters.get(self.MAX_ITER_PARAM, 10)
-        self.reg_param = parameters.get(self.REG_PARAM, 0.1)
-        self.weight_col = parameters.get(self.WEIGHT_COL_PARAM, None)
-
-        self.type_solver = self.parameters.get(self.SOLVER_PARAM,
-                                               self.TYPE_SOLVER_AUTO)
-
-    def get_data_out_names(self, sep=','):
-        return ''
-
-    def get_output_names(self, sep=', '):
-        return self.named_outputs['algorithm']
+            self.type_solver = self.parameters.get(self.SOLVER_PARAM,
+                                                   self.TYPE_SOLVER_AUTO)
 
     def generate_code(self):
         if self.has_code:
@@ -1430,8 +1439,8 @@ class LinearRegressionOperation(Operation):
             {output} = LinearRegression(
                 featuresCol='{features}', labelCol='{label}',
                 maxIter={max_iter}, regParam={reg_param})
-            """).format(output=self.named_outputs['algorithm'],
-                        features=self.attributes,
+            """).format(output=self.output,
+                        features=self.features,
                         label=self.label,
                         max_iter=self.max_iter,
                         reg_param=self.reg_param)
@@ -1445,11 +1454,7 @@ class LinearRegressionOperation(Operation):
                     self.__class__))
 
 
-class GeneralizedLinearRegression(Operation):
-    FEATURES_PARAM = 'features'
-    LABEL_PARAM = 'label'
-
-    PREDICTION_COL_PARAM = 'prediction'
+class GeneralizedLinearRegression(RegressionOperation):
     MAX_ITER_PARAM = 'max_iter'
     WEIGHT_COL_PARAM = 'weight'
 
@@ -1479,37 +1484,23 @@ class GeneralizedLinearRegression(Operation):
     TYPE_LINK_SQRT = 'sqrt'  # poisson
 
     def __init__(self, parameters, named_inputs, named_outputs):
-        Operation.__init__(self, parameters, named_inputs, named_outputs)
+        RegressionOperation.__init__(self, parameters, named_inputs,
+                                     named_outputs)
         self.parameters = parameters
         self.name = 'regression.GeneralizedLinearRegression'
         self.has_code = len(named_outputs) > 0
 
-        if not all([self.LABEL_PARAM in parameters,
-                    self.FEATURES_PARAM in parameters]):
-            msg = "Parameters '{}' and '{}' must be informed for task {}"
-            raise ValueError(msg.format(
-                self.FEATURES_PARAM, self.LABEL_PARAM,
-                self.__class__))
+        if self.has_code:
+            self.read_common_params(parameters)
+            self.max_iter = parameters.get(self.MAX_ITER_PARAM, 10)
+            self.reg_param = parameters.get(self.REG_PARAM, 0.1)
+            self.weight_col = parameters.get(self.WEIGHT_COL_PARAM, None)
 
-        self.label = parameters.get(self.LABEL_PARAM)[0]
-        self.attributes = parameters.get(self.FEATURES_PARAM)[0]
-        self.named_outputs.get('algorithm', 'algo_task_{}'.format(self.order))
-
-        self.max_iter = parameters.get(self.MAX_ITER_PARAM, 10)
-        self.reg_param = parameters.get(self.REG_PARAM, 0.1)
-        self.weight_col = parameters.get(self.WEIGHT_COL_PARAM, None)
-
-        self.type_family = self.parameters.get(self.FAMILY_PARAM,
-                                               self.TYPE_FAMILY_BINOMIAL)
-        self.type_link = self.parameters.get(self.LINK_PARAM)
-        self.link_prediction_col = self.parameters.get(
-            self.LINK_PREDICTION_COL_PARAM)[0]
-
-    def get_data_out_names(self, sep=','):
-        return ''
-
-    def get_output_names(self, sep=', '):
-        return self.output
+            self.type_family = self.parameters.get(self.FAMILY_PARAM,
+                                                   self.TYPE_FAMILY_BINOMIAL)
+            self.type_link = self.parameters.get(self.LINK_PARAM)
+            self.link_prediction_col = self.parameters.get(
+                self.LINK_PREDICTION_COL_PARAM)[0]
 
     def generate_code(self):
         if self.has_code:
@@ -1523,7 +1514,7 @@ class GeneralizedLinearRegression(Operation):
                                                    linkPredictionCol='{link_col}'
                                                    )
             """).format(output=self.output,
-                        features=self.attributes,
+                        features=self.features,
                         label=self.label,
                         max_iter=self.max_iter,
                         reg_param=self.reg_param,
@@ -1540,12 +1531,7 @@ class GeneralizedLinearRegression(Operation):
                     self.__class__))
 
 
-class DecisionTreeRegressionOperation(Operation):
-    FEATURES_PARAM = 'features'
-    LABEL_PARAM = 'label'
-
-    PREDICTION_COL_PARAM = 'prediction'
-
+class DecisionTreeRegressionOperation(RegressionOperation):
     MAX_DEPTH_PARAM = 'max_depth'
     MIN_INSTANCE_PER_NODE_PARAM = 'min_instance'
     MIN_INFO_GAIN_PARAM = 'min_info_gain'
@@ -1557,37 +1543,25 @@ class DecisionTreeRegressionOperation(Operation):
     TYPE_IMPURITY_VARIANCE = 'variance'
 
     def __init__(self, parameters, named_inputs, named_outputs):
-        Operation.__init__(self, parameters, named_inputs, named_outputs)
+        RegressionOperation.__init__(self, parameters, named_inputs,
+                                     named_outputs)
         self.parameters = parameters
         self.name = 'regression.DecisionTreeRegressor'
         self.has_code = len(named_outputs) > 0
 
-        if not all([self.LABEL_PARAM in parameters,
-                    self.FEATURES_PARAM in parameters]):
-            msg = "Parameters '{}' and '{}' must be informed for task {}"
-            raise ValueError(msg.format(
-                self.FEATURES_PARAM, self.LABEL_PARAM,
-                self.__class__))
+        if self.has_code:
+            self.read_common_params(parameters)
 
-        self.label = parameters.get(self.LABEL_PARAM)[0]
-        self.attributes = parameters.get(self.FEATURES_PARAM)[0]
-        self.named_outputs.get('algorithm', 'algo_task_{}'.format(self.order))
+            self.max_depth = parameters.get(self.MAX_DEPTH_PARAM, 5)
+            self.min_instance = parameters.get(self.MIN_INSTANCE_PER_NODE_PARAM,
+                                               1)
+            self.min_info_gain = parameters.get(self.MIN_INFO_GAIN_PARAM, 0.0)
 
-        self.max_depth = parameters.get(self.MAX_DEPTH_PARAM, 5)
-        self.min_instance = parameters.get(self.MIN_INSTANCE_PER_NODE_PARAM, 1)
-        self.min_info_gain = parameters.get(self.MIN_INFO_GAIN_PARAM, 0.0)
+            self.variance_col = self.parameters.get(self.VARIANCE_COL_PARAM,
+                                                    None)
+            self.seed = self.parameters.get(self.SEED_PARAM, None)
 
-        self.prediction_col = self.parameters.get(self.PREDICTION_COL_PARAM)[0]
-        self.variance_col = self.parameters.get(self.VARIANCE_COL_PARAM, None)
-        self.seed = self.parameters.get(self.SEED_PARAM, None)
-
-        self.impurity = self.parameters.get(self.IMPURITY_PARAM, 'variance')
-
-    def get_data_out_names(self, sep=','):
-        return ''
-
-    def get_output_names(self, sep=', '):
-        return self.output
+            self.impurity = self.parameters.get(self.IMPURITY_PARAM, 'variance')
 
     def generate_code(self):
         if self.has_code:
@@ -1602,7 +1576,7 @@ class DecisionTreeRegressionOperation(Operation):
                                              varianceCol={variance_col}
                                              )
             """).format(output=self.output,
-                        features=self.attributes,
+                        features=self.features,
                         label=self.label,
                         max_depth=self.max_depth,
                         min_instance=self.min_instance,
@@ -1620,12 +1594,7 @@ class DecisionTreeRegressionOperation(Operation):
                     self.__class__))
 
 
-class GradientBoostedTreeRegressionOperation(Operation):
-    FEATURES_PARAM = 'features'
-    LABEL_PARAM = 'label'
-
-    PREDICTION_COL_PARAM = 'prediction'
-
+class GBTRegressorOperation(RegressionOperation):
     MAX_ITER_PARAM = 'max_iter'
     MAX_DEPTH_PARAM = 'max_depth'
     MIN_INSTANCE_PER_NODE_PARAM = 'min_instance'
@@ -1638,39 +1607,26 @@ class GradientBoostedTreeRegressionOperation(Operation):
     TYPE_IMPURITY_VARIANCE = 'variance'
 
     def __init__(self, parameters, named_inputs, named_outputs):
-        Operation.__init__(self, parameters, named_inputs, named_outputs)
+        RegressionOperation.__init__(self, parameters, named_inputs,
+                                     named_outputs)
         self.parameters = parameters
-        self.name = 'regression.GradientBoostedTreeRegression'
+        self.name = 'regression.GBTRegressor'
         self.has_code = len(named_outputs) > 0
 
-        if not all([self.LABEL_PARAM in parameters,
-                    self.FEATURES_PARAM in parameters]):
-            msg = "Parameters '{}' and '{}' must be informed for task {}"
-            raise ValueError(msg.format(
-                self.FEATURES_PARAM, self.LABEL_PARAM,
-                self.__class__))
+        if self.has_code:
+            self.read_common_params(parameters)
 
-        self.label = parameters.get(self.LABEL_PARAM)[0]
-        self.attributes = parameters.get(self.FEATURES_PARAM)[0]
-        self.named_outputs.get('algorithm', 'algo_task_{}'.format(self.order))
+            self.max_iter = parameters.get(self.MAX_ITER_PARAM, 10)
+            self.max_depth = parameters.get(self.MAX_DEPTH_PARAM, 5)
+            self.min_instance = parameters.get(
+                self.MIN_INSTANCE_PER_NODE_PARAM, 1)
+            self.min_info_gain = parameters.get(self.MIN_INFO_GAIN_PARAM, 0.0)
 
-        self.max_iter = parameters.get(self.MAX_ITER_PARAM, 10)
-        self.max_depth = parameters.get(self.MAX_DEPTH_PARAM, 5)
-        self.min_instance = parameters.get(self.MIN_INSTANCE_PER_NODE_PARAM, 1)
-        self.min_info_gain = parameters.get(self.MIN_INFO_GAIN_PARAM, 0.0)
+            self.variance_col = self.parameters.get(
+                self.VARIANCE_COL_PARAM, None)[0]
+            self.seed = self.parameters.get(self.SEED_PARAM, None)
 
-        self.prediction_col = self.parameters.get(self.PREDICTION_COL_PARAM)[0]
-        self.variance_col = self.parameters.get(
-            self.VARIANCE_COL_PARAM, None)[0]
-        self.seed = self.parameters.get(self.SEED_PARAM, None)
-
-        self.impurity = self.parameters.get(self.IMPURITY_PARAM, 'variance')
-
-    def get_data_out_names(self, sep=','):
-        return ''
-
-    def get_output_names(self, sep=', '):
-        return self.output
+            self.impurity = self.parameters.get(self.IMPURITY_PARAM, 'variance')
 
     def generate_code(self):
         if self.has_code:
@@ -1686,7 +1642,7 @@ class GradientBoostedTreeRegressionOperation(Operation):
                                              varianceCol='{variance_col}'
                                              )
             """).format(output=self.output,
-                        features=self.attributes,
+                        features=self.features,
                         label=self.label,
                         max_depth=self.max_depth,
                         min_instance=self.min_instance,
@@ -1705,12 +1661,7 @@ class GradientBoostedTreeRegressionOperation(Operation):
                     self.__class__))
 
 
-class AFTSurvivalRegressionOperation(Operation):
-    FEATURES_PARAM = 'features'
-    LABEL_PARAM = 'label'
-
-    PREDICTION_COL_PARAM = 'prediction'
-
+class AFTSurvivalRegressionOperation(RegressionOperation):
     MAX_ITER_PARAM = 'max_iter'
     AGR_DETPTH_PARAM = 'aggregation_depth'
     SEED_PARAM = 'seed'
@@ -1719,38 +1670,24 @@ class AFTSurvivalRegressionOperation(Operation):
     QUANTILES_COL_PARAM = 'quantiles_col'
 
     def __init__(self, parameters, named_inputs, named_outputs):
-        Operation.__init__(self, parameters, named_inputs, named_outputs)
+        RegressionOperation.__init__(self, parameters, named_inputs,
+                                     named_outputs)
         self.parameters = parameters
         self.name = 'regression.AFTSurvivalRegression'
         self.has_code = len(named_outputs) > 0
 
-        if not all([self.LABEL_PARAM in parameters,
-                    self.FEATURES_PARAM in parameters]):
-            msg = "Parameters '{}' and '{}' must be informed for task {}"
-            raise ValueError(msg.format(
-                self.FEATURES_PARAM, self.LABEL_PARAM,
-                self.__class__))
+        if self.has_code:
+            self.read_common_params(parameters)
 
-        self.label = parameters.get(self.LABEL_PARAM)[0]
-        self.attributes = parameters.get(self.FEATURES_PARAM)[0]
-        self.output = named_outputs.get('algorithm',
-                                        'algo_task_{}'.format(self.order))
+            self.max_iter = parameters.get(self.MAX_ITER_PARAM, 10)
+            self.agg_depth = parameters.get(self.AGR_DETPTH_PARAM, 1)
 
-        self.prediction_col = self.parameters.get(self.PREDICTION_COL_PARAM)[0]
-        self.max_iter = parameters.get(self.MAX_ITER_PARAM, 10)
-        self.agg_depth = parameters.get(self.AGR_DETPTH_PARAM, 1)
-
-        self.censor = self.parameters.get(self.CENSOR_COL_PARAM, 'censor')[0]
-        self.quantile_prob = self.parameters.get(
-            self.QUANTILES_PROBABILITIES_PARAM, [])
-        self.quantile_col = self.parameters.get(self.QUANTILES_COL_PARAM,
-                                                'variance')
-
-    def get_data_out_names(self, sep=','):
-        return ''
-
-    def get_output_names(self, sep=', '):
-        return self.output
+            self.censor = self.parameters.get(self.CENSOR_COL_PARAM, 'censor')[
+                0]
+            self.quantile_prob = self.parameters.get(
+                self.QUANTILES_PROBABILITIES_PARAM, [])
+            self.quantile_col = self.parameters.get(self.QUANTILES_COL_PARAM,
+                                                    'variance')
 
     def generate_code(self):
         if self.has_code:
@@ -1766,14 +1703,14 @@ class AFTSurvivalRegressionOperation(Operation):
                  aggregationDepth={agg_depth}
                  )
             """).format(output=self.output,
-                        features=self.attributes,
+                        features=self.features,
                         label=self.label,
                         max_iter=self.max_iter,
                         censor=self.censor,
                         quantile_prob=self.quantile_prob,
                         quantile_col=self.quantile_col,
                         agg_depth=self.agg_depth,
-                        prediction_col=self.prediction_col
+                        prediction_col=self.prediction
                         )
             # add , weightCol={weight} if exist
             code = [declare]
@@ -1784,47 +1721,33 @@ class AFTSurvivalRegressionOperation(Operation):
                     self.__class__))
 
 
-class IsotonicRegressionOperation(Operation):
+class RandomForestRegressorOperation(RegressionOperation):
+    def __init__(self, parameters, named_inputs, named_outputs):
+        RegressionOperation.__init__(self, parameters, named_inputs,
+                                     named_outputs)
+        self.has_code = False
+
+
+class IsotonicRegressionOperation(RegressionOperation):
     """
         Only univariate (single feature) algorithm supported
     """
-    FEATURES_PARAM = 'features'
-    LABEL_PARAM = 'label'
-
-    PREDICTION_COL_PARAM = 'prediction'
-
     WEIGHT_COL_PARAM = 'weight'
     ISOTONIC_PARAM = 'isotonic'
 
     def __init__(self, parameters, named_inputs, named_outputs):
-        Operation.__init__(self, parameters, named_inputs, named_outputs)
+        RegressionOperation.__init__(self, parameters, named_inputs,
+                                     named_outputs)
         self.parameters = parameters
         self.name = 'regression.IsotonicRegression'
         self.has_code = len(self.named_outputs) > 0
 
-        if not all([self.LABEL_PARAM in parameters,
-                    self.FEATURES_PARAM in parameters]):
-            msg = "Parameters '{}' and '{}' must be informed for task {}"
-            raise ValueError(msg.format(
-                self.FEATURES_PARAM, self.LABEL_PARAM,
-                self.__class__))
+        if self.has_code:
+            self.read_common_params(parameters)
 
-        self.label = parameters.get(self.LABEL_PARAM)[0]
-        self.attributes = parameters.get(self.FEATURES_PARAM)[0]
-        self.output = named_outputs.get('algorithm')
-
-        self.prediction_col = self.parameters.get(self.PREDICTION_COL_PARAM)[0]
-        self.weight_col = parameters.get(self.WEIGHT_COL_PARAM, None)
-        self.isotonic = parameters.get(
-            self.ISOTONIC_PARAM, True) in (1, '1', 'true', True)
-
-    def get_data_out_names(self, sep=','):
-        return ''
-
-    def get_output_names(self, sep=', '):
-        # return self.named_outputs['output result']
-        # Change it when the named outputs in Tahiti change.
-        return self.output
+            self.weight_col = parameters.get(self.WEIGHT_COL_PARAM, None)
+            self.isotonic = parameters.get(
+                self.ISOTONIC_PARAM, True) in (1, '1', 'true', True)
 
     def generate_code(self):
         declare = dedent("""
@@ -1834,10 +1757,10 @@ class IsotonicRegressionOperation(Operation):
                                       isotonic={isotonic}
                                       )
         """).format(output=self.output,
-                    features=self.attributes,
+                    features=self.features,
                     label=self.label,
                     isotonic=self.isotonic,
-                    prediction_col=self.prediction_col
+                    prediction_col=self.prediction
                     )
         # add , weightCol={weight} if exist
         code = [declare]

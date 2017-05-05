@@ -69,6 +69,8 @@ def new_dashboard(config, title, user, workflow_id, workflow_name, job_id,
             message='Saving visualizations',
             type='STATUS')
 
+    # import pdb
+    # pdb.set_trace()
     for visualization in visualizations:
         # HBase value composed by several columns, the last one refers
         # to the visualization data
