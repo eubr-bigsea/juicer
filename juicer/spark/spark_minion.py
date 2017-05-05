@@ -327,7 +327,13 @@ class SparkMinion(Minion):
                 self.workflow_id, self.app_id)
 
             spark_builder = SparkSession.builder.appName(app_name)
-            for option, value in app_configs.iteritems():
+
+            # Use config file default configurations to set up Spark session
+            for option, value in self.config.get('spark', []):
+                spark_builder = spark_builder.config(option, value)
+
+            # All options passed by application are sent to Spark
+            for option, value in app_configs.items():
                 spark_builder = spark_builder.config(option, value)
 
             self.spark_session = spark_builder.getOrCreate()
