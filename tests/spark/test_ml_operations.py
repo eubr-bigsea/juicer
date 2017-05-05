@@ -325,24 +325,21 @@ def test_evaluate_model_operation_success():
     code = instance.generate_code()
 
     expected_code = dedent("""
-            df_evaluator = None
-            evaluator = {evaluator}({predic_col}='{predic_atr}',
+            {evaluator_out} = {evaluator}({predic_col}='{predic_atr}',
                                   labelCol='{label_atr}', metricName='{metric}')
 
-            {output} = evaluator.evaluate({input_1})
+            {output} = {evaluator_out}.evaluate({input_1})
 
-            from juicer.spark.vis_operation import HtmlVisModel
+            from juicer.spark.reports import EvaluateModelOperationReport
             from juicer.service import caipirinha_service
 
-            vis_model = dedent('''
-                <div>
-                    <strong></strong>
-                    <dl>
-                        <dt>f1</dl>
-                        <dd>{{0}}</dd>
-                    </dl>
-                </div>
-            ''').format(df_metric)
+            vis_model = EvaluateModelOperationReport.generate_visualization(
+                evaluator={evaluator_out},
+                metric_value={output},
+                title='Evaluation result',
+                operation_id={operation_id},
+                task_id='{task_id}')
+
             visualizations = [
             {{
              'job_id': '34',
@@ -352,9 +349,7 @@ def test_evaluate_model_operation_success():
                  'id': 2793,
                  'name': 'EvaluateModelOperation'
              }},
-             'model': HtmlVisModel(vis_model, '2323-afffa-343bdaff',
-                 2793,'EvaluateModelOperation', 'Evaluation result',
-                 '[]', '', '', '')
+             'model': vis_model
             }}]
 
             # Basic information to connect to other services
@@ -378,6 +373,7 @@ def test_evaluate_model_operation_success():
                 203, 'test',
                 34, '2323-afffa-343bdaff', visualizations, emit_event)
             """.format(output=n_out['metric'],
+                       evaluator_out=n_out['evaluator'],
                        input_2=n_in['model'],
                        input_1=n_in['input data'],
                        task_id=params['task_id'],

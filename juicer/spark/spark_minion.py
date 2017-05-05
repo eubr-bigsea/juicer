@@ -121,8 +121,8 @@ class SparkMinion(Minion):
         while True:
             try:
                 self._process_message_nb()
-            except KeyError:
-                log.error('Message does not match any convention')
+            except KeyError as ke:
+                log.exception('Message does not match any convention. %s', ke)
 
     def _process_message(self):
         self._process_message_nb()
@@ -131,8 +131,8 @@ class SparkMinion(Minion):
 
     def _process_message_nb(self):
         # Get next message
-        msg_info = json.loads(
-            self.state_control.pop_app_queue(self.app_id))
+        msg = self.state_control.pop_app_queue(self.app_id)
+        msg_info = json.loads(msg)
 
         # Sanity check: this minion should not process messages from another
         # workflow/app
@@ -169,7 +169,7 @@ class SparkMinion(Minion):
 
             self.job_future = self._execute_future(job_id, workflow,
                                                    app_configs)
-
+            log.info('Execute message finished')
         elif msg_type == juicer_protocol.DELIVER:
             log.info('Deliver message received')
             task_id = msg_info.get('task_id')
@@ -394,7 +394,7 @@ class SparkMinion(Minion):
             # particular task
             if partial_result:
                 self.state_control.push_queue(
-                    output, '\n'.join(partial_result))
+                    output, '\n'.join(partial_result), ttl=300)
                 data = {'status': 'SUCCESS', 'code': self.MNN002[0],
                         'message': self.MNN002[1], 'output': output}
                 self._send_to_output(data)
