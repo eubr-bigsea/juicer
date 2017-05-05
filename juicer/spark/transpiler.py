@@ -6,13 +6,14 @@ import zipfile
 
 import jinja2
 import juicer.spark.data_operation
+import juicer.spark.dm_operation
 import juicer.spark.etl_operation
 import juicer.spark.geo_operation
 import juicer.spark.ml_operation
 import juicer.spark.statistic_operation
 import juicer.spark.text_operation
-import juicer.spark.ws_operation
 import juicer.spark.vis_operation
+import juicer.spark.ws_operation
 import networkx as nx
 import os
 from juicer import operation
@@ -209,7 +210,7 @@ class SparkTranspiler:
                         target_port['inputs'].append(sequence)
 
         env_setup = {'instances': [], 'instances_by_task_id': {},
-                'workflow_name': workflow['name']}
+                     'workflow_name': workflow['name']}
 
         sorted_tasks_id = nx.topological_sort(graph)
         for i, task_id in enumerate(sorted_tasks_id):
@@ -307,6 +308,10 @@ class SparkTranspiler:
             'split': juicer.spark.etl_operation.SplitOperation,
             'transformation': juicer.spark.etl_operation.TransformationOperation,
         }
+        dm_ops = {
+            'frequent-item-set':
+                juicer.spark.dm_operation.FrequentItemSetOperation
+        }
         ml_ops = {
             'apply-model': juicer.spark.ml_operation.ApplyModelOperation,
             'classification-model':
@@ -350,7 +355,6 @@ class SparkTranspiler:
             # 'recommendation-model': juicer.spark.ml_operation.CollaborativeOperation,
             'als-recommender':
                 juicer.spark.ml_operation.AlternatingLeastSquaresOperation,
-            'logistic-model': juicer.spark.ml_operation.LogisticRegressionModel,
             'logistic-regression':
                 juicer.spark.ml_operation.LogisticRegressionClassifierOperation,
             'linear-regression':
@@ -358,6 +362,13 @@ class SparkTranspiler:
             'regression-model':
                 juicer.spark.ml_operation.RegressionModelOperation,
             'index-to-string': juicer.spark.ml_operation.IndexToStringOperation,
+            'random-forest-regressor':
+                juicer.spark.ml_operation.RandomForestRegressorOperation,
+            'gbt-regressor': juicer.spark.ml_operation.GBTRegressorOperation,
+            'generalized-linear-regressor':
+                juicer.spark.ml_operation.GeneralizedLinearRegression,
+            'aft-survival-regression':
+                juicer.spark.ml_operation.AFTSurvivalRegressionOperation
 
         }
         data_ops = {
@@ -392,14 +403,18 @@ class SparkTranspiler:
 
         }
         vis_ops = {
-            'publish-as-visualization': juicer.spark.vis_operation.PublishVisOperation,
+            'publish-as-visualization':
+                juicer.spark.vis_operation.PublishVisOperation,
             'bar-chart': juicer.spark.vis_operation.BarChartOperation,
             'pie-chart': juicer.spark.vis_operation.PieChartOperation,
             'area-chart': juicer.spark.vis_operation.AreaChartOperation,
             'line-chart': juicer.spark.vis_operation.LineChartOperation,
-            'table-visualization': juicer.spark.vis_operation.TableVisOperation
+            'table-visualization': juicer.spark.vis_operation.TableVisOperation,
+            'summary-statistics':
+                juicer.spark.vis_operation.SummaryStatisticsOperation,
+            'scatter-plot': juicer.spark.vis_operation.ScatterPlotOperation
         }
         self.operations = {}
         for ops in [data_ops, etl_ops, geo_ops, ml_ops, other_ops, text_ops,
-                    ws_ops, vis_ops]:
+                    ws_ops, vis_ops, dm_ops]:
             self.operations.update(ops)

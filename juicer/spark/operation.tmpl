@@ -31,6 +31,8 @@ from pyspark.ml.tuning import *
 from pyspark.ml.recommendation import *
 from pyspark.ml.regression import *
 
+from juicer.util import dataframe_util
+
 executor = ThreadPoolExecutor(max_workers={{instances|length}})
 submission_lock = threading.Lock()
 task_futures = {}
@@ -51,8 +53,9 @@ def spark_logging(spark_session):
     return __SPARK_LOG__
 
 
-reload(sys)
-sys.setdefaultencoding('utf8')
+# reload(sys)
+# sys.setdefaultencoding('utf8')
+
 
 def take_sample(df, size=100, default=None):
     """
@@ -60,8 +63,13 @@ def take_sample(df, size=100, default=None):
     """
     result = default or []
     if hasattr(df, 'take'):
-        result = df.take(size)
+        #result = df.limit(size).toJSON().collect()
+        header = ','.join([f.name for f in df.schema.fields])
+        result = [header]
+        result.extend(
+            df.limit(size).rdd.map(dataframe_util.convert_to_csv).collect())
     return result
+
 
 def juicer_debug(spark_session, name, variable, data_frame):
     """ Debug code """
@@ -101,10 +109,9 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.ord
         return cached_state.get('{{instance.parameters.task.id}}')
     {%- endif %}
 
-
-    spark_logging(spark_session).info('Submitting parent tasks %s before %s' % \
-       ({{instance.parameters.task.parents}}, '{{instance.parameters.task.id}}')
-    )
+    spark_logging(spark_session).info(
+        "Submitting parent task {{instance.parameters.task.parents}} "
+        "before {{instance.parameters.task.id}}")
 
     # If the task's result is not cached, we submit its dependencies first
     {%- for parent in instance.parameters.task.parents %}
@@ -113,14 +120,14 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.ord
     {%- if parent_instance.has_code and is_satisfied %}
     {%- set s = dependency_controller.satisfied(parent_instance.parameters.task.id) %}
     with submission_lock:
-        if not '{{parent}}' in task_futures:
-            task_futures['{{parent}}'] = executor.submit(
-                 lambda: {{parent_instance.parameters.task.operation.slug.replace('-', '_')}}_{{parent_instance.order}}(spark_session, cached_state, emit_event)
-             )
+        if '{{parent}}' not in task_futures:
+            task_futures['{{parent}}'] = executor.\
+                submit(
+                    lambda: {{parent_instance.parameters.task.operation.slug.replace('-', '_')}}_{{parent_instance.order}}(spark_session, cached_state, emit_event)
+                )
 
     {%- endif %}
     {%- endfor %}
-    
 
     # Next we wait for the dependencies to complete
     {%- for parent in instance.parameters.task.parents %}
@@ -132,18 +139,16 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.ord
     {%- endif %}
     {%- endfor %}
     
-    spark_logging(spark_session).info('All parents completer, submitting %s' % \
-       ('{{instance.parameters.task.id}}')
-    )
+    spark_logging(spark_session).info(
+        'All parents completed, submitting {{instance.parameters.task.id}}')
  
     emit_event(name='update task', message='Task running',
                status='RUNNING',
                identifier='{{instance.parameters.task.id}}')
-    
-    spark_logging(spark_session).info('Lemonade task %s started' % \
-       ('{{instance.parameters.task.id}}')
-    )   
-
+  
+    spark_logging(spark_session).info(
+        'Lemonade task {{instance.parameters.task.id}} started') 
+  
     start = timer()
     {{instance.generate_code().strip() | indent(width=4, indentfirst=False)}}
     {%- set outputs = instance.get_data_out_names('|').split('|') %}
@@ -174,7 +179,8 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.ord
     emit_event(name='update task', message='Task completed',
                status='COMPLETED',
                identifier='{{instance.parameters.task.id}}')
-    spark_logging(spark_session).info('Lemonade task {{instance.parameters.task.id}} completed')
+    spark_logging(spark_session).info(
+        'Lemonade task {{instance.parameters.task.id}} completed')
     return {%- if instance.get_output_names() %} results + {%- endif %} (time_elapsed,)
 
 {%- endif %}
@@ -200,7 +206,8 @@ def main(spark_session, cached_state, emit_event):
     {%- set is_satisfied = dependency_controller.is_satisfied(instance.parameters.task.id) %}
     {%- if instance.has_code and is_satisfied and instance.out_degree == 0 %}
     {%- set s = dependency_controller.satisfied(instance.parameters.task.id) %}
-    task_futures['{{instance.parameters.task.id}}'] = executor.submit(lambda: {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.order}}(spark_session, cached_state, emit_event))
+    task_futures['{{instance.parameters.task.id}}'] = executor.submit(
+        lambda: {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.order}}(spark_session, cached_state, emit_event))
     {%- endif %}
     {%- endfor %}
     
@@ -213,14 +220,15 @@ def main(spark_session, cached_state, emit_event):
     {%- endfor %}
 
     end = time.time()
-    print "{}\t{}".format(end - start, end - session_start_time)
+    print("{}\t{}".format(end - start, end - session_start_time))
     return {
         'status': 'OK',
         'message': 'Execution defined',
         {%- for instance in instances %}
           {%- set is_satisfied = dependency_controller.is_satisfied(instance.parameters.task.id) %}
           {%- if instance.has_code and is_satisfied %}
-            '{{instance.parameters.task.id}}': task_futures['{{instance.parameters.task.id}}'].result(),
+            '{{instance.parameters.task.id}}':
+                task_futures['{{instance.parameters.task.id}}'].result(),
           {%- endif %}
         {%- endfor %}
     }

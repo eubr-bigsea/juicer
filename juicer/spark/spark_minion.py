@@ -123,7 +123,7 @@ class SparkMinion(Minion):
             try:
                 self._process_message_nb()
             except KeyError as ke:
-                log.error('Message does not match any convention: %s', msg_type)
+                log.exception('Message does not match any convention. %s', ke)
 
     def _process_message(self):
         self._process_message_nb()
@@ -132,17 +132,17 @@ class SparkMinion(Minion):
 
     def _process_message_nb(self):
         # Get next message
-        msg_info = json.loads(
-            self.state_control.pop_app_queue(self.app_id))
+        msg = self.state_control.pop_app_queue(self.app_id)
+        msg_info = json.loads(msg)
 
         # Sanity check: this minion should not process messages from another
         # workflow/app
         assert str(msg_info['workflow_id']) == self.workflow_id, \
-            'Expected workflow_id=%s, got workflow_id=%s' % ( \
+            'Expected workflow_id=%s, got workflow_id=%s' % (
                 self.workflow_id, msg_info['workflow_id'])
 
         assert str(msg_info['app_id']) == self.app_id, \
-            'Expected app_id=%s, got app_id=%s' % ( \
+            'Expected app_id=%s, got app_id=%s' % (
                 self.workflow_id, msg_info['app_id'])
 
         # Extract the message type
@@ -382,7 +382,7 @@ class SparkMinion(Minion):
             # particular task
             if partial_result:
                 self.state_control.push_queue(
-                    output, '\n'.join(partial_result))
+                    output, '\n'.join(partial_result), ttl=300)
                 data = {'status': 'SUCCESS', 'code': self.MNN002[0],
                         'message': self.MNN002[1], 'output': output}
                 self._send_to_output(data)
