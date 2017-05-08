@@ -44,6 +44,10 @@ class SparkMinion(Minion):
     MNN006 = ('MNN006', 'Invalid Python code or incorrect encoding: {}')
     MNN007 = ('MNN007', 'Job {} was canceled')
     MNN008 = ('MNN008', 'App {} was terminated')
+    MNN009 = ('MNN009', 'Workflow specification is missing')
+
+    # default sample size used when sampling for a delivery request
+    DEFAULT_SAMPLE_SIZE = 100
 
     def __init__(self, redis_conn, workflow_id, app_id, config):
         Minion.__init__(self, redis_conn, workflow_id, app_id, config)
@@ -120,10 +124,7 @@ class SparkMinion(Minion):
         Starts consuming jobs that must be processed by this minion.
         """
         while True:
-            try:
-                self._process_message_nb()
-            except KeyError as ke:
-                log.error('Message does not match any convention: %s', msg_type)
+            self._process_message_nb()
 
     def _process_message(self):
         self._process_message_nb()
@@ -175,7 +176,7 @@ class SparkMinion(Minion):
             output = msg_info.get('output')
             port = int(msg_info.get('port'))
             job_id = msg_info['job_id']
-            workflow = msg_info['workflow']
+            workflow = msg_info.get('workflow')
             app_configs = msg_info.get('app_configs', {})
 
             if self.job_future:
@@ -331,14 +332,24 @@ class SparkMinion(Minion):
                 spark_builder = spark_builder.config(option, value)
 
             self.spark_session = spark_builder.getOrCreate()
-            # @FIXME
-            self.spark_session.sparkContext.setLogLevel('WARN')
+            try:
+                log_level = logging.getLevelName(log.getEffectiveLevel())
+                self.spark_session.sparkContext.setLogLevel(log_level)
+            except:
+                log_level = 'WARN'
+                self.spark_session.sparkContext.setLogLevel(log_level)
 
         return self.spark_session
 
     def _send_to_output(self, data):
         self.state_control.push_app_output_queue(
             self.app_id, json.dumps(data))
+    
+    def _send_delivery(self, output, status_data, csv_rows=[]):
+        msg = {}
+        msg.update(status_data)
+        msg['sample'] = '\n'.join(csv_rows)
+        self.state_control.push_queue(output, json.dumps(msg))
 
     def _deliver_future(self, task_id, output, port, job_id, workflow,
                         app_configs):
@@ -347,45 +358,58 @@ class SparkMinion(Minion):
 
     def _perform_deliver(self, task_id, output, port, job_id, workflow,
                          app_configs):
-        result = True
+        success = True
+        status_data = {}
+        data = []
         # FIXME: state must expire. How to identify this in the interface?
         # FIXME: Define how to identify the request.
         # FIXME: Define where to store generated data (Redis?)
         if task_id in self._state:
-            self._read_dataframe_data(task_id, output, port)
-        else:
-            data = {'status': 'WARNING', 'code': self.MNN003[0],
-                    'message': self.MNN003[1]}
-            self._send_to_output(data)
+            success, status_data, data = \
+                    self._read_dataframe_data(task_id, output, port)
+        elif workflow:
+            self._send_to_output({
+                'status': 'WARNING',
+                'code': self.MNN003[0],
+                'message': self.MNN003[1]
+                })
 
             # FIXME: Report missing or process workflow until this task
             if self._perform_execute(job_id, workflow, app_configs):
-                self._read_dataframe_data(task_id, output, port)
+                success, status_data, data = \
+                        self._read_dataframe_data(task_id, output, port)
             else:
-                data = {'status': 'ERROR', 'code': self.MNN005[0],
+                status_data = {'status': 'ERROR', 'code': self.MNN005[0],
                         'message': self.MNN005[1]}
-                self._send_to_output(data)
-                result = False
+                success = False
+        else:
+            status_data = {'status': 'ERROR', 'code': self.MNN009[0],
+                    'message': self.MNN009[1]}
+            success = False
 
-        return result
+        self._send_to_output(data)
+        self._send_delivery(output, status_data, data)
+
+        return success
 
     def _read_dataframe_data(self, task_id, output, port):
-        result = True
+        success = True
+        status_data = {}
+        data = []
         # Last position in state is the execution time, so it should be ignored
         port_idx = (len(self._state[task_id]) - 1) / 2
         if port_idx >= port:
             df = self._state[task_id][port * 2]
-            partial_result = None if port == port_idx else self._state[task_id][
-                port * 2 + 1]
+            partial_result = None if port == port_idx \
+                                  else self._state[task_id][port * 2 + 1]
 
             # In this case we already have partial data collected for the
             # particular task
             if partial_result:
-                self.state_control.push_queue(
-                    output, '\n'.join(partial_result))
-                data = {'status': 'SUCCESS', 'code': self.MNN002[0],
+                status_data = {'status': 'SUCCESS', 'code': self.MNN002[0],
                         'message': self.MNN002[1], 'output': output}
-                self._send_to_output(data)
+                data = [dataframe_util.convert_to_csv(r) \
+                        for r in partial_result]
 
             # In this case we do not have partial data collected for the task
             # Then we must obtain it if the 'take' operation applies
@@ -394,29 +418,24 @@ class SparkMinion(Minion):
                 # instead of testing exact pyspark.sql.dataframe.Dataframe
                 # type check.
                 # FIXME define as a parameter?:
-                result = df.take(100).rdd.map(
-                    dataframe_util.convert_to_csv).collect()
-                self.state_control.push_queue(
-                    output, '\n'.join(result))
-                data = {'status': 'SUCCESS', 'code': self.MNN002[0],
+                status_data = {'status': 'SUCCESS', 'code': self.MNN002[0],
                         'message': self.MNN002[1], 'output': output}
-                self._send_to_output(data)
+                data = df.take(DEFAULT_SAMPLE_SIZE).rdd.map(
+                    dataframe_util.convert_to_csv).collect()
 
             # In this case, do not make sense to request data for this
             # particular task output port
             else:
-                data = {'status': 'ERROR', 'code': self.MNN001[0],
+                status_data = {'status': 'ERROR', 'code': self.MNN001[0],
                         'message': self.MNN001[1]}
-                self._send_to_output(data)
-                result = False
+                success = False
 
         else:
-            data = {'status': 'ERROR', 'code': self.MNN004[0],
+            status_data = {'status': 'ERROR', 'code': self.MNN004[0],
                     'message': self.MNN004[1]}
-            self._send_to_output(data)
-            result = False
+            success = False
 
-        return result
+        return success, status_data, data
 
     def cancel_job(self, job_id):
         if self.job_future:
