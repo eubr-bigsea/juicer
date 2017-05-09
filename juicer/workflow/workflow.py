@@ -67,7 +67,6 @@ class Workflow:
                     'M_INPUT': 'None',
                     'M_OUTPUT': 'None'
                 }
-
                 for port in ports_list:
                     if port['type'] == 'INPUT':
                         result['M_INPUT'] = port['multiplicity']
@@ -94,15 +93,16 @@ class Workflow:
         for flow in self.workflow['flows']:
             self.graph.add_edge(flow['source_id'], flow['target_id'],
                                 attr_dict=flow)
-            self.graph.node[flow['target_id']]['parents'].\
-                    append(flow['source_id'])
+            self.graph.node[flow['target_id']]['parents']. \
+                append(flow['source_id'])
 
-        for nodes in self.graph.nodes():
-            self.graph.node[nodes]['in_degree'] = self.graph. \
-                in_degree(nodes)
-
-            self.graph.node[nodes]['out_degree'] = self.graph. \
-                out_degree(nodes)
+        for node in self.graph.nodes():
+            self.graph.node[node]['in_degree'] = self.graph. \
+                in_degree(node)
+            self.graph.node[node]['out_degree'] = self.graph. \
+                out_degree(node)
+            if self.graph.node[node]['in_degree'] > 0:
+                self.graph.node[node]['inputs'] = self.graph.in_edges(node)[0]
 
         return self.graph
 
