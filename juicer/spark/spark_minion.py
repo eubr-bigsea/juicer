@@ -320,10 +320,6 @@ class SparkMinion(Minion):
         if not self.is_spark_session_available():
             log.info("Creating a new Spark session")
 
-            if "HADOOP_HOME" in os.environ:
-                app_configs['driver-library-path'] = \
-                    '{}/lib/native/'.format(os.environ.get('HADOOP_HOME'))
-
             app_name = u'%s(workflow_id=%s,app_id=%s)' % (
                 loader.workflow.get('name', ''),
                 self.workflow_id, self.app_id)
@@ -340,9 +336,17 @@ class SparkMinion(Minion):
             for option, value in app_configs.items():
                 spark_builder = spark_builder.config(option, value)
 
+            if "HADOOP_HOME" in os.environ:
+                app_configs['driver-library-path'] = \
+                    '{}/lib/native/'.format(os.environ.get('HADOOP_HOME'))
+
             self.spark_session = spark_builder.getOrCreate()
             # @FIXME
             self.spark_session.sparkContext.setLogLevel('WARN')
+
+            self.transpiler.build_dist_file()
+            self.spark_session.sparkContext.addPyFile(
+                self.transpiler.DIST_ZIP_FILE)
 
         log.info("Minion is using '%s' as Spark master",
                  self.spark_session.sparkContext.master)
