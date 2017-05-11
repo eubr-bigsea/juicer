@@ -25,13 +25,14 @@ class DataReader(Operation):
     DO_NOT_INFER = 'NO'
 
     LIMONERO_TO_SPARK_DATA_TYPES = {
+        "CHARACTER": 'types.StringType',
+        "DATETIME": 'types.TimestampType',
+        "DOUBLE": 'types.DoubleType',
+        "DECIMAL": 'types.DecimalType',
+        "FLOAT": 'types.FloatType',
+        "LONG": 'types.LongType',
         "INTEGER": 'types.IntegerType',
         "TEXT": 'types.StringType',
-        "LONG": 'types.LongType',
-        "FLOAT": 'types.FloatType',
-        "DOUBLE": 'types.DoubleType',
-        "DATETIME": 'types.TimestampType',
-        "CHARACTER": 'types.StringType',
     }
     SEPARATORS = {
         '{tab}': '\\t'
