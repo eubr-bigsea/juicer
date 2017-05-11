@@ -273,6 +273,7 @@ class SparkTranspiler:
         template_env = jinja2.Environment(loader=template_loader,
                                           extensions=[AutoPep8Extension,
                                                       HandleExceptionExtension])
+        template_env.globals.update(zip=zip)
         template = template_env.get_template("operation.tmpl")
         v = template.render(env_setup)
 

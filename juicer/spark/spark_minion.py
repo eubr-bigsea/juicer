@@ -46,9 +46,6 @@ class SparkMinion(Minion):
     MNN008 = ('MNN008', 'App {} was terminated')
     MNN009 = ('MNN009', 'Workflow specification is missing')
 
-    # default sample size used when sampling for a delivery request
-    DEFAULT_SAMPLE_SIZE = 100
-
     def __init__(self, redis_conn, workflow_id, app_id, config):
         Minion.__init__(self, redis_conn, workflow_id, app_id, config)
 
@@ -174,7 +171,7 @@ class SparkMinion(Minion):
             log.info('Deliver message received')
             task_id = msg_info.get('task_id')
             output = msg_info.get('output')
-            port = int(msg_info.get('port'))
+            port = msg_info.get('port')
             job_id = msg_info['job_id']
             workflow = msg_info.get('workflow')
             app_configs = msg_info.get('app_configs', {})
@@ -397,11 +394,9 @@ class SparkMinion(Minion):
         status_data = {}
         data = []
         # Last position in state is the execution time, so it should be ignored
-        port_idx = (len(self._state[task_id]) - 1) / 2
-        if port_idx >= port:
-            df = self._state[task_id][port * 2]
-            partial_result = None if port == port_idx \
-                                  else self._state[task_id][port * 2 + 1]
+        if port in self._state[task_id]:
+            df = self._state[task_id][port]['output']
+            partial_result = self._state[task_id][port]['sample']
 
             # In this case we already have partial data collected for the
             # particular task
@@ -420,8 +415,7 @@ class SparkMinion(Minion):
                 # FIXME define as a parameter?:
                 status_data = {'status': 'SUCCESS', 'code': self.MNN002[0],
                         'message': self.MNN002[1], 'output': output}
-                data = df.take(DEFAULT_SAMPLE_SIZE).rdd.map(
-                    dataframe_util.convert_to_csv).collect()
+                data = df.rdd.map(dataframe_util.convert_to_csv).take(100)
 
             # In this case, do not make sense to request data for this
             # particular task output port

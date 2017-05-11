@@ -128,7 +128,11 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.ord
     {%- set is_satisfied = dependency_controller.is_satisfied(parent_instance.parameters.task.id) %}
     {%- if parent_instance.has_code and is_satisfied %}
     {%- set s = dependency_controller.satisfied(parent_instance.parameters.task.id) %}
-    {% if parent_instance.get_output_names(", ") %}{%- for out in parent_instance.get_output_names(',').split(',')%}{{out}}, pr_{{out}}, {% endfor %}{% endif %}ts_{{parent_instance.output}} = task_futures['{{parent}}'].result()
+    {% if parent_instance.get_output_names(", ") %}
+    parent_result = task_futures['{{parent}}'].result()
+    {%- for port_name,out in zip(parent_instance.parameters.task.port_names, parent_instance.get_output_names(',').split(','))%}
+    {{out}}, pr_{{out}} = (parent_result['{{port_name}}']['output'], parent_result['{{port_name}}']['sample']){% endfor %}{% endif %}
+    ts_{{parent_instance.output}} = parent_result['time']
     {%- endif %}
     {%- endfor %}
     
@@ -161,21 +165,22 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.ord
                identifier='{{instance.parameters.task.operation.id}}/{{instance.parameters.task.id}}')
     {%- endfor %}
 
-    results = (
+    results = {
       {%- set is_leaf = instance.out_degree == 0 %}
-      {%- for out in instance.get_output_names(',').split(',') %}
-        {%- if out %}
-         {{out}}, {%- if is_leaf %} take_sample({{out}}) {%- else %} [] {%- endif %},
+      {%- for port_name,out in zip(instance.parameters.task.port_names, instance.get_output_names(',').split(',')) %}
+        {%- if port_name and out %}
+         '{{port_name}}': {'output': {{out}}, 'sample': {%- if is_leaf %} take_sample({{out}}) {%- else %} [] {%- endif %}},
         {%- endif %}
       {%- endfor %}
-    )
+    }
 
     time_elapsed = timer() - start
     emit_event(name='update task', message='Task completed',
                status='COMPLETED',
                identifier='{{instance.parameters.task.id}}')
     spark_logging(spark_session).info('Lemonade task {{instance.parameters.task.id}} completed')
-    return {%- if instance.get_output_names() %} results + {%- endif %} (time_elapsed,)
+    results.update({'time': time_elapsed})
+    return results
 
 {%- endif %}
 {%- endhandleinstance %}

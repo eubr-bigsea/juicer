@@ -64,6 +64,7 @@ class Workflow:
                 result = {
                     'N_INPUT': 0,
                     'N_OUTPUT': 0,
+                    'PORT_NAMES': [],
                     'M_INPUT': 'None',
                     'M_OUTPUT': 'None'
                 }
@@ -81,6 +82,12 @@ class Workflow:
                             result['N_OUTPUT'] += 1
                         else:
                             result['N_OUTPUT'] = 1
+                        if 'PORT_NAMES' in result:
+                            result['PORT_NAMES'].append(
+                                    (int(port['order']), port['name']))
+                        else:
+                            result['PORT_NAMES'] = [
+                                    (int(port['order']), port['name'])]
 
                 self.graph.add_node(
                     task.get('id'),
@@ -88,6 +95,8 @@ class Workflow:
                     in_degree_multiplicity_required=result['M_INPUT'],
                     out_degree_required=result['N_OUTPUT'],
                     out_degree_multiplicity_required=result['M_OUTPUT'],
+                    port_names=[kv[1] for kv in sorted(
+                        result['PORT_NAMES'], key=lambda kv: kv[0])],
                     parents=[],
                     attr_dict=task)
 
