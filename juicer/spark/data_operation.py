@@ -87,7 +87,7 @@ class DataReader(Operation):
                     for attr in self.metadata.get('attributes', []):
                         data_type = self.LIMONERO_TO_SPARK_DATA_TYPES[
                             attr['type']]
-                        if data_type in self.DATA_TYPES_WITH_PRECISION:
+                        if attr['type'] in self.DATA_TYPES_WITH_PRECISION:
                             data_type = '{}({}, {})'.format(
                                 data_type, attr['precision'],
                                 attr['size'] - attr['precision'])
