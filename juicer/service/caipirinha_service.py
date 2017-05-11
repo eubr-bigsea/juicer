@@ -9,6 +9,7 @@ import requests
 import urlparse
 
 from juicer.service import limonero_service
+from juicer.util.dataframe_util import CustomEncoder
 
 log = logging.getLogger()
 log.setLevel(logging.DEBUG)
@@ -84,7 +85,8 @@ def new_dashboard(config, title, user, workflow_id, workflow_name, job_id,
                 'id': visualization['model'].id_attribute,
                 'value': visualization['model'].value_attribute
             }),
-            b'cf:data': json.dumps(visualization['model'].get_data()),
+            b'cf:data': json.dumps(visualization['model'].get_data(),
+                                   cls=CustomEncoder),
             b'cf:schema': visualization['model'].get_schema()
         }
         if emit_event_fn is not None:
@@ -112,7 +114,7 @@ def new_dashboard(config, title, user, workflow_id, workflow_name, job_id,
                          json.dumps(data))
     if emit_event_fn is not None:
         emit_event_fn(
-            'update task', status='FINISHED',
+            'update task', status='COMPLETED',
             identifier=task_id,
             task={'id': task_id},
             message='Visualizations saved',
