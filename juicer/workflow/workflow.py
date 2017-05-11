@@ -85,10 +85,10 @@ class Workflow:
                             result['N_OUTPUT'] = 1
                         if 'PORT_NAMES' in result:
                             result['PORT_NAMES'].append(
-                                    (int(port['order']), port['name']))
+                                (int(port['order']), port['name']))
                         else:
                             result['PORT_NAMES'] = [
-                                    (int(port['order']), port['name'])]
+                                (int(port['order']), port['name'])]
 
                 self.graph.add_node(
                     task.get('id'),
@@ -97,15 +97,15 @@ class Workflow:
                     out_degree_required=result['N_OUTPUT'],
                     out_degree_multiplicity_required=result['M_OUTPUT'],
                     port_names=[kv[1] for kv in sorted(
-                        result['PORT_NAMES'], key=lambda kv: kv[0])],
+                        result['PORT_NAMES'], key=lambda _kv: _kv[0])],
                     parents=[],
                     attr_dict=task)
 
         for flow in self.workflow['flows']:
             self.graph.add_edge(flow['source_id'], flow['target_id'],
                                 attr_dict=flow)
-            self.graph.node[flow['target_id']]['parents'].\
-                    append(flow['source_id'])
+            self.graph.node[flow['target_id']]['parents'].append(
+                flow['source_id'])
 
         for nodes in self.graph.nodes():
             self.graph.node[nodes]['in_degree'] = self.graph. \
@@ -185,8 +185,8 @@ class Workflow:
 
         for flow in flows:
             self.graph.add_edge(flow['source_id'],
-                                    flow['target_id'],
-                                    attr_dict=flow)
+                                flow['target_id'],
+                                attr_dict=flow)
             parents = self.graph.node[flow['target_id']].get('parents', [])
             parents.append(flow['source_id'])
             self.graph.node[flow['target_id']]['parents'] = parents

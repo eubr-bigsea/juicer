@@ -31,6 +31,7 @@ class DependencyController:
     def satisfied(self, _id):
         self._satisfied.add(_id)
 
+    # noinspection PyUnusedLocal
     def is_satisfied(self, _id):
         return True  # len(self.requires[_id].difference(self._satisfied)) == 0
 
@@ -47,27 +48,27 @@ class RemoveTasksWhenMultiplexingVisitor(SparkTranspilerVisitor):
     def visit(self, graph, operations, params):
 
         return graph
-        external_input_op = juicer.spark.ws_operation.MultiplexerOperation
-        for task_id in graph.node:
-            task = graph.node[task_id]
-            op = operations.get(task.get('operation').get('slug'))
-            if op == external_input_op:
-                # Found root
-                if params.get('service'):
-                    # Remove the left side of the tree
-                    # left_side_flow = [f for f in workflow['flows']]
-                    flow = graph.in_edges(task_id, data=True)
-                    # pdb.set_trace()
-                    # remove other side
-                    pass
-                else:
-                    flow = [f for f in graph['flows'] if
-                            f['target_id'] == task.id and f[
-                                'target_port_name'] == 'input data 2']
-                    if flow:
-                        pdb.set_trace()
-                    pass
-        return graph
+        # external_input_op = juicer.spark.ws_operation.MultiplexerOperation
+        # for task_id in graph.node:
+        #     task = graph.node[task_id]
+        #     op = operations.get(task.get('operation').get('slug'))
+        #     if op == external_input_op:
+        #         # Found root
+        #         if params.get('service'):
+        #             # Remove the left side of the tree
+        #             # left_side_flow = [f for f in workflow['flows']]
+        #             flow = graph.in_edges(task_id, data=True)
+        #             # pdb.set_trace()
+        #             # remove other side
+        #             pass
+        #         else:
+        #             flow = [f for f in graph['flows'] if
+        #                     f['target_id'] == task.id and f[
+        #                         'target_port_name'] == 'input data 2']
+        #             if flow:
+        #                 pdb.set_trace()
+        #             pass
+        # return graph
 
 
 class SparkTranspiler:
@@ -301,14 +302,17 @@ class SparkTranspiler:
             # synonym for select
             'projection': juicer.spark.etl_operation.SelectOperation,
             # synonym for distinct
-            'remove-duplicated-rows': juicer.spark.etl_operation.RemoveDuplicatedOperation,
+            'remove-duplicated-rows':
+                juicer.spark.etl_operation.RemoveDuplicatedOperation,
             'sample': juicer.spark.etl_operation.SampleOrPartitionOperation,
             'select': juicer.spark.etl_operation.SelectOperation,
             # synonym of intersection'
-            'set-intersection': juicer.spark.etl_operation.IntersectionOperation,
+            'set-intersection':
+                juicer.spark.etl_operation.IntersectionOperation,
             'sort': juicer.spark.etl_operation.SortOperation,
             'split': juicer.spark.etl_operation.SplitOperation,
-            'transformation': juicer.spark.etl_operation.TransformationOperation,
+            'transformation':
+                juicer.spark.etl_operation.TransformationOperation,
         }
         dm_ops = {
             'frequent-item-set':
@@ -354,7 +358,6 @@ class SparkTranspiler:
             'topic-report': juicer.spark.ml_operation.TopicReportOperation,
             'recommendation-model':
                 juicer.spark.ml_operation.RecommendationModel,
-            # 'recommendation-model': juicer.spark.ml_operation.CollaborativeOperation,
             'als-recommender':
                 juicer.spark.ml_operation.AlternatingLeastSquaresOperation,
             'logistic-regression':

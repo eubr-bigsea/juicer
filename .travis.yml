@@ -3,13 +3,13 @@ python:
   - "2.7"
 # command to install dependencies
 install: 
-   - pip install -r requirements.txt
    - wget http://d3kbcqa49mib13.cloudfront.net/spark-2.1.0-bin-hadoop2.6.tgz
    - tar xf spark-2.1.0-bin-hadoop2.6.tgz && mv spark-2.1.0-bin-hadoop2.6 spark
    - export SPARK_HOME=$(pwd)/spark
+   - pip install -r requirements.txt
 # command to run tests
 script:
-   - export PYTHONPATH=$SPARK_HOME/python:$PYTHONPATH
+   - export PYTHONPATH="$SPARK_HOME/python:$PYTHONPATH"
    - pytest
    - unset PYTHONPATH
    - pytest

@@ -10,12 +10,16 @@ import sys
 import time
 import traceback
 
+# noinspection PyUnresolvedReferences
 import datetime
 
 import codecs
 import os
 import socketio
+
+# noinspection PyCompatibility
 from concurrent.futures import ThreadPoolExecutor
+# noinspection PyCompatibility
 from concurrent.futures import TimeoutError
 from juicer.runner import configuration
 from juicer.runner import juicer_protocol
@@ -140,7 +144,7 @@ class SparkMinion(Minion):
 
         assert str(msg_info['app_id']) == self.app_id, \
             'Expected app_id=%s, got app_id=%s' % (
-            self.workflow_id, msg_info['app_id'])
+                self.workflow_id, msg_info['app_id'])
 
         # Extract the message type
         msg_type = msg_info['type']
@@ -297,14 +301,15 @@ class SparkMinion(Minion):
             result = False
         return result
 
+    # noinspection PyProtectedMember
     def is_spark_session_available(self):
         """
         Check whether the spark session is available, i.e., the spark session
         is set and not stopped.
         """
-        return self.spark_session and \
-               self.spark_session.sparkContext._jsc and \
-               not self.spark_session.sparkContext._jsc.sc().isStopped()
+        return (self.spark_session and
+                self.spark_session.sparkContext._jsc and
+                not self.spark_session.sparkContext._jsc.sc().isStopped())
 
     # noinspection PyUnresolvedReferences
     def get_or_create_spark_session(self, loader, app_configs):
@@ -339,10 +344,11 @@ class SparkMinion(Minion):
                     '{}/lib/native/'.format(os.environ.get('HADOOP_HOME'))
 
             self.spark_session = spark_builder.getOrCreate()
+            # noinspection PyBroadException
             try:
                 log_level = logging.getLevelName(log.getEffectiveLevel())
                 self.spark_session.sparkContext.setLogLevel(log_level)
-            except:
+            except Exception as _:
                 log_level = 'WARN'
                 self.spark_session.sparkContext.setLogLevel(log_level)
 
@@ -357,8 +363,10 @@ class SparkMinion(Minion):
     def _send_to_output(self, data):
         self.state_control.push_app_output_queue(
             self.app_id, json.dumps(data))
-    
-    def _send_delivery(self, output, status_data, csv_rows=[]):
+
+    def _send_delivery(self, output, status_data, csv_rows=None):
+        if csv_rows is None:
+            csv_rows = []
         msg = {}
         msg.update(status_data)
         msg['sample'] = '\n'.join(csv_rows)
@@ -371,43 +379,41 @@ class SparkMinion(Minion):
 
     def _perform_deliver(self, task_id, output, port, job_id, workflow,
                          app_configs):
-        success = True
-        status_data = {}
         data = []
+
         # FIXME: state must expire. How to identify this in the interface?
         # FIXME: Define how to identify the request.
         # FIXME: Define where to store generated data (Redis?)
         if task_id in self._state:
             success, status_data, data = \
-                    self._read_dataframe_data(task_id, output, port)
+                self._read_dataframe_data(task_id, output, port)
         elif workflow:
             self._send_to_output({
                 'status': 'WARNING',
                 'code': self.MNN003[0],
                 'message': self.MNN003[1]
-                })
+            })
 
             # FIXME: Report missing or process workflow until this task
             if self._perform_execute(job_id, workflow, app_configs):
                 success, status_data, data = \
-                        self._read_dataframe_data(task_id, output, port)
+                    self._read_dataframe_data(task_id, output, port)
             else:
                 status_data = {'status': 'ERROR', 'code': self.MNN005[0],
-                        'message': self.MNN005[1]}
+                               'message': self.MNN005[1]}
                 success = False
         else:
             status_data = {'status': 'ERROR', 'code': self.MNN009[0],
-                    'message': self.MNN009[1]}
+                           'message': self.MNN009[1]}
             success = False
 
-        self._send_to_output(data)
+        self._send_to_output(status_data)
         self._send_delivery(output, status_data, data)
 
         return success
 
     def _read_dataframe_data(self, task_id, output, port):
         success = True
-        status_data = {}
         data = []
         # Last position in state is the execution time, so it should be ignored
         if port in self._state[task_id]:
@@ -418,9 +424,9 @@ class SparkMinion(Minion):
             # particular task
             if partial_result:
                 status_data = {'status': 'SUCCESS', 'code': self.MNN002[0],
-                        'message': self.MNN002[1], 'output': output}
-                data = [dataframe_util.convert_to_csv(r) \
-                        for r in partial_result]
+                               'message': self.MNN002[1], 'output': output}
+                data = [dataframe_util.convert_to_csv(r) for r in
+                        partial_result]
 
             # In this case we do not have partial data collected for the task
             # Then we must obtain it if the 'take' operation applies
@@ -430,23 +436,24 @@ class SparkMinion(Minion):
                 # type check.
                 # FIXME define as a parameter?:
                 status_data = {'status': 'SUCCESS', 'code': self.MNN002[0],
-                        'message': self.MNN002[1], 'output': output}
+                               'message': self.MNN002[1], 'output': output}
                 data = df.rdd.map(dataframe_util.convert_to_csv).take(100)
 
             # In this case, do not make sense to request data for this
             # particular task output port
             else:
                 status_data = {'status': 'ERROR', 'code': self.MNN001[0],
-                        'message': self.MNN001[1]}
+                               'message': self.MNN001[1]}
                 success = False
 
         else:
             status_data = {'status': 'ERROR', 'code': self.MNN004[0],
-                    'message': self.MNN004[1]}
+                           'message': self.MNN004[1]}
             success = False
 
         return success, status_data, data
 
+    # noinspection PyUnusedLocal
     def cancel_job(self, job_id):
         if self.job_future:
             while True:
@@ -462,6 +469,7 @@ class SparkMinion(Minion):
         log.info(message)
         self._generate_output(message, 'SUCCESS', self.MNN007[0])
 
+    # noinspection PyUnusedLocal
     def _terminate(self, _signal, _frame):
         self.terminate()
 

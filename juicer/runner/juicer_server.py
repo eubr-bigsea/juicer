@@ -28,6 +28,7 @@ logging.config.fileConfig('logging_config.ini')
 log = logging.getLogger()
 log.setLevel(logging.DEBUG)
 
+
 class JuicerServer:
     """
     The JuicerServer is responsible for managing the lifecycle of minions.
@@ -48,6 +49,7 @@ class JuicerServer:
         self.start_process = None
         self.minion_status_process = None
         self.state_control = None
+        self.minion_watch_process = None
 
         self.active_minions = {}
 
@@ -55,8 +57,8 @@ class JuicerServer:
         configuration.set_config(config)
         self.config_file_path = config_file_path
         self.minion_executable = minion_executable
-        self.log_dir = log_dir or \
-                       self.config['juicer'].get('log', {}).get('path', '/tmp')
+        self.log_dir = log_dir or self.config['juicer'].get('log', {}).get(
+            'path', '/tmp')
 
         signal.signal(signal.SIGTERM, self._terminate)
 
@@ -74,7 +76,7 @@ class JuicerServer:
 
     # noinspection PyMethodMayBeStatic
     def read_start_queue(self, redis_conn):
-        workflow_id = app_id = None
+        app_id = None
         try:
             self.state_control = StateControlRedis(redis_conn)
             # Process next message
@@ -116,14 +118,14 @@ class JuicerServer:
         # Get minion status, if it exists
         minion_info = self.state_control.get_minion_status(app_id)
         log.info('Minion status for (workflow_id=%s,app_id=%s): %s',
-                  workflow_id, app_id, minion_info)
+                 workflow_id, app_id, minion_info)
 
         # If there is status registered for the application then we do not
         # need to launch a minion for it, because it is already running.
         # Otherwise, we launch a new minion for the application.
         if minion_info:
             log.info('Minion (workflow_id=%s,app_id=%s) is running.',
-                      workflow_id, app_id)
+                     workflow_id, app_id)
         else:
             # This is a special case when the minion timed out.
             # In this case we kill it before starting a new one
@@ -142,7 +144,7 @@ class JuicerServer:
         log.info('Message %s forwarded to minion (workflow_id=%s,app_id=%s)',
                  msg_type, workflow_id, app_id)
         log.info('Message content (workflow_id=%s,app_id=%s): %s',
-                  workflow_id, app_id, msg)
+                 workflow_id, app_id, msg)
         self.state_control.push_app_output_queue(app_id, json.dumps(
             {'code': 0,
              'message': 'Minion is processing message %s' % msg_type}))

@@ -18,11 +18,11 @@ def test_data_reader_minimal_parameters_no_attributes_success():
 
     expected_code = dedent("""
         schema_{output} = types.StructType()
-        url_output_1 = '{url}'
+        url = '{url}'
         {output} = spark_session.read\
                                .option('nullValue', '')\
                                .option('treatEmptyValuesAsNulls', 'true')\
-                               .csv(url_output_1, schema=schema_output_1,
+                               .csv(url, schema=schema_output_1,
                                     header=False, sep=',',
                                     inferSchema=False, mode='DROPMALFORMED')
         {output}.cache()
