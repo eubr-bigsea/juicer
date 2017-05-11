@@ -9,6 +9,7 @@ import redis
 import requests
 from juicer.runner import configuration
 from juicer.spark.transpiler import SparkTranspiler
+from juicer.compss.transpiler import COMPSsTranspiler
 from juicer.workflow.workflow import Workflow
 from six import StringIO
 
@@ -76,23 +77,46 @@ class JuicerSparkService:
                 "?token=123456".format(self.workflow_id))
 
             loader = Workflow(json.loads(r.text))
+            #----- To test workflows in COMPSs
+            with open('/home/lucasmsp/workspace/BigSea/testes_juicer/Workflow_TextTransformations_21848/w21848_Text.json') as json_data:
+                r = json.load(json_data)
+            #----- To test workflows in COMPSs
+
+            loader = Workflow(r)
             # FIXME: Implement validation
             # loader.verify_workflow()
-            spark_instance = SparkTranspiler(configuration)
-            self.params['execute_main'] = self.execute_main
 
-            # generated = StringIO()
-            # spark_instance.output = generated
-            try:
-                spark_instance.transpile(loader.workflow,
-                        loader.graph,
-                        params=self.params,
-                        job_id=self.job_id)
-            except ValueError as ve:
-                log.exception("At least one parameter is missing", exc_info=ve)
-                break
-            except:
-                raise
+            if loader.plataform == "spark":
+                spark_instance = SparkTranspiler(configuration)
+                self.params['execute_main'] = self.execute_main
+
+                # generated = StringIO()
+                # spark_instance.output = generated
+                try:
+                    spark_instance.transpile(loader.workflow,
+                            loader.graph,
+                            params=self.params,
+                            job_id=self.job_id)
+                except ValueError as ve:
+                    log.exception("At least one parameter is missing", exc_info=ve)
+                    break
+                except:
+                    raise
+            elif loader.plataform  == "compss":
+                compss_instance = COMPSsTranspiler(loader.workflow,
+                                                   loader.graph,
+                                                   params=self.params)
+                compss_instance.execute_main = self.execute_main
+
+                # generated = StringIO()
+                # spark_instance.output = generated
+                try:
+                    compss_instance.transpile()
+                except ValueError as ve:
+                    log.exception("At least one parameter is missing", exc_info=ve)
+                    break
+                except:
+                    raise
 
             # generated.seek(0)
             # print generated.read()
