@@ -292,9 +292,9 @@ if __name__ == '__main__':
         juicer_config = yaml.load(config_file.read())
 
     # Every minion starts with the same script.
-    minion_executable = os.path.abspath(
+    _minion_executable = os.path.abspath(
         os.path.join(os.path.dirname(__file__), 'minion.py'))
 
-    server = JuicerServer(juicer_config, minion_executable,
+    server = JuicerServer(juicer_config, _minion_executable,
                           config_file_path=args.config)
     server.process()

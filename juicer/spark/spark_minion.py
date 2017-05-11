@@ -26,8 +26,7 @@ from juicer.workflow.workflow import Workflow
 
 logging.config.fileConfig('logging_config.ini')
 
-log = logging.getLogger()
-log.setLevel(logging.INFO)
+log = logging.getLogger(__name__)
 
 
 class SparkMinion(Minion):
@@ -82,7 +81,7 @@ class SparkMinion(Minion):
 
     def _emit_event(self, room, namespace):
         def emit_event(name, message, status, identifier, **kwargs):
-            log.info('Emit %s %s %s %s', name, message, status, identifier)
+            log.debug('Emit %s %s %s %s', name, message, status, identifier)
             data = {'message': message, 'status': status, 'id': identifier}
             data.update(kwargs)
             self.mgr.emit(name, data=data, room=str(room), namespace=namespace)
@@ -130,18 +129,18 @@ class SparkMinion(Minion):
 
     def _process_message_nb(self):
         # Get next message
-        msg_info = json.loads(
-            self.state_control.pop_app_queue(self.app_id))
+        msg = self.state_control.pop_app_queue(self.app_id)
+        msg_info = json.loads(msg)
 
         # Sanity check: this minion should not process messages from another
         # workflow/app
         assert str(msg_info['workflow_id']) == self.workflow_id, \
-            'Expected workflow_id=%s, got workflow_id=%s' % ( \
+            'Expected workflow_id=%s, got workflow_id=%s' % (
                 self.workflow_id, msg_info['workflow_id'])
 
         assert str(msg_info['app_id']) == self.app_id, \
-            'Expected app_id=%s, got app_id=%s' % ( \
-                self.workflow_id, msg_info['app_id'])
+            'Expected app_id=%s, got app_id=%s' % (
+            self.workflow_id, msg_info['app_id'])
 
         # Extract the message type
         msg_type = msg_info['type']
@@ -156,8 +155,10 @@ class SparkMinion(Minion):
             # TODO: We should consider the case in which the spark session is
             # already instanciated and this new request asks for a different set
             # of configurations:
-            # - Should we rebuild the context from scratch and execute all jobs so far?
-            # - Should we ignore this part of the request and execute over the existing
+            # - Should we rebuild the context from scratch and execute all jobs
+            # so far?
+            # - Should we ignore this part of the request and execute over the
+            # existing
             # (old configs) spark session?
             app_configs = msg_info.get('app_configs', {})
 
@@ -166,7 +167,7 @@ class SparkMinion(Minion):
 
             self.job_future = self._execute_future(job_id, workflow,
                                                    app_configs)
-
+            log.info('Execute message finished')
         elif msg_type == juicer_protocol.DELIVER:
             log.info('Deliver message received')
             task_id = msg_info.get('task_id')
@@ -315,18 +316,27 @@ class SparkMinion(Minion):
 
         from pyspark.sql import SparkSession
         if not self.is_spark_session_available():
-
-            if "HADOOP_HOME" in os.environ:
-                app_configs['driver-library-path'] = \
-                    '{}/lib/native/'.format(os.environ.get('HADOOP_HOME'))
+            log.info("Creating a new Spark session")
 
             app_name = u'%s(workflow_id=%s,app_id=%s)' % (
                 loader.workflow.get('name', ''),
                 self.workflow_id, self.app_id)
 
             spark_builder = SparkSession.builder.appName(app_name)
-            for option, value in app_configs.iteritems():
+
+            # Use config file default configurations to set up Spark session
+            for option, value in self.config['juicer'].get('spark', {}).items():
+                if value is not None:
+                    log.info('Setting spark configuration %s', option)
+                    spark_builder = spark_builder.config(option, value)
+
+            # All options passed by application are sent to Spark
+            for option, value in app_configs.items():
                 spark_builder = spark_builder.config(option, value)
+
+            if "HADOOP_HOME" in os.environ:
+                app_configs['driver-library-path'] = \
+                    '{}/lib/native/'.format(os.environ.get('HADOOP_HOME'))
 
             self.spark_session = spark_builder.getOrCreate()
             try:
@@ -336,6 +346,12 @@ class SparkMinion(Minion):
                 log_level = 'WARN'
                 self.spark_session.sparkContext.setLogLevel(log_level)
 
+            self.transpiler.build_dist_file()
+            self.spark_session.sparkContext.addPyFile(
+                self.transpiler.DIST_ZIP_FILE)
+
+        log.info("Minion is using '%s' as Spark master",
+                 self.spark_session.sparkContext.master)
         return self.spark_session
 
     def _send_to_output(self, data):

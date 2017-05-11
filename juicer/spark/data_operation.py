@@ -25,21 +25,24 @@ class DataReader(Operation):
     DO_NOT_INFER = 'NO'
 
     LIMONERO_TO_SPARK_DATA_TYPES = {
+        "CHARACTER": 'types.StringType',
+        "DATETIME": 'types.TimestampType',
+        "DOUBLE": 'types.DoubleType',
+        "DECIMAL": 'types.DecimalType',
+        "FLOAT": 'types.FloatType',
+        "LONG": 'types.LongType',
         "INTEGER": 'types.IntegerType',
         "TEXT": 'types.StringType',
-        "LONG": 'types.LongType',
-        "FLOAT": 'types.FloatType',
-        "DOUBLE": 'types.DoubleType',
-        "DATETIME": 'types.TimestampType',
-        "CHARACTER": 'types.StringType',
     }
+    DATA_TYPES_WITH_PRECISION = {'DECIMAL'}
+
     SEPARATORS = {
         '{tab}': '\\t'
     }
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
-        self.has_code = len(self.named_outputs) > 0
+        self.has_code = len(self.named_outputs) > 0 or True
         if self.has_code:
             if self.DATA_SOURCE_ID_PARAM in parameters:
                 self.database_id = parameters[self.DATA_SOURCE_ID_PARAM]
@@ -76,7 +79,7 @@ class DataReader(Operation):
         code = []
         infer_from_data = self.infer_schema == self.INFER_FROM_DATA
         infer_from_limonero = self.infer_schema == self.INFER_FROM_LIMONERO
-        if len(self.named_outputs) == 1:
+        if self.has_code:
             if infer_from_limonero:
                 if 'attributes' in self.metadata:
                     code.append(
@@ -84,6 +87,12 @@ class DataReader(Operation):
                     for attr in self.metadata.get('attributes', []):
                         data_type = self.LIMONERO_TO_SPARK_DATA_TYPES[
                             attr['type']]
+                        if attr['type'] in self.DATA_TYPES_WITH_PRECISION:
+                            data_type = '{}({}, {})'.format(
+                                data_type, attr['precision'],
+                                attr['size'] - attr['precision'])
+                        else:
+                            data_type = '{}()'.format(data_type)
 
                         # Notice: According to Spark documentation, nullable
                         # option of StructField is just a hint and when loading
@@ -94,7 +103,7 @@ class DataReader(Operation):
                                     ['feature', 'label', 'nullable', 'type',
                                      'size', 'precision', 'enumeration',
                                      'missing_representation'] if attr[k]}
-                        code.append("schema_{0}.add('{1}', {2}(), {3},\n{5}{4})"
+                        code.append("schema_{0}.add('{1}', {2}, {3},\n{5}{4})"
                                     .format(self.output, attr['name'],
                                             data_type,
                                             attr['nullable'],
@@ -111,23 +120,29 @@ class DataReader(Operation):
             # import pdb
             # pdb.set_trace()
 
-            if self.metadata['format'] == 'CSV':
-                code.append(
-                    "url_{0} = '{1}'".format(self.output, self.metadata['url']))
+            if self.metadata['format'] in ['CSV', 'TEXT']:
+                code.append("url = '{url}'".format(url=self.metadata['url']))
                 null_option = ''.join(
                     [".option('nullValue', '{}')".format(n) for n in
                      self.null_values]) if self.null_values else ""
-                code_csv = """{0} = spark_session.read\\
-                       {4}\\
-                       .option('treatEmptyValuesAsNulls',
-                               'true')\\
-                       .csv(url_{0}, schema=schema_{0},
-                            header={1}, sep='{2}',
-                            inferSchema={3}, mode='DROPMALFORMED')""".format(
-                    self.output, self.header, self.sep, infer_from_data,
-                    null_option)
-                code.append(code_csv)
 
+                if self.metadata['format'] == 'CSV':
+                    code_csv = dedent("""
+                        {0} = spark_session.read{4}\\
+                            .option('treatEmptyValuesAsNulls', 'true')\\
+                            .csv(url, schema=schema_{0},
+                                header={1}, sep='{2}', inferSchema={3},
+                                mode='DROPMALFORMED')""".format(
+                        self.output, self.header, self.sep, infer_from_data,
+                        null_option))
+                    code.append(code_csv)
+                else:
+                    code_csv = """{output} = spark_session.read\\
+                           {null_option}\\
+                           .option('treatEmptyValuesAsNulls', 'true')\\
+                           .text(url)""".format(output=self.output,
+                                                null_option=null_option)
+                    code.append(code_csv)
                 # FIXME: Evaluate if it is good idea to always use cache
                 code.append('{}.cache()'.format(self.output))
 
@@ -155,6 +170,12 @@ class DataReader(Operation):
                 code.append('{}.cache()'.format(self.output))
 
         return '\n'.join(code)
+
+    def get_output_names(self, sep=", "):
+        return self.output
+
+    def get_data_out_names(self, sep=','):
+        return self.output
 
 
 class SaveOperations(Operation):

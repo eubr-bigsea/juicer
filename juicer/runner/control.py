@@ -21,8 +21,10 @@ class StateControlRedis:
             result = self.redis_conn.lpop(queue)
         return result
 
-    def push_queue(self, queue, data):
+    def push_queue(self, queue, data, ttl=0):
         self.redis_conn.rpush(queue, data)
+        if ttl > 0:
+            self.redis_conn.expire(queue, ttl)
 
     def pop_start_queue(self, block=True):
         return self.pop_queue(self.START_QUEUE_NAME, block)

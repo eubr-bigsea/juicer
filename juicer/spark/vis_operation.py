@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
+import json
 from textwrap import dedent
 
 import datetime
+import itertools
 
 from juicer.operation import Operation
 from juicer.util import dataframe_util
@@ -146,6 +148,9 @@ class VisualizationMethodOperation(Operation):
         self.output = self.named_outputs.get('visualization',
                                              'viz_task_'.format(self.order))
 
+    def get_model_parameters(self):
+        return {}
+
     def get_output_names(self, sep=','):
         return self.output
 
@@ -159,7 +164,8 @@ class VisualizationMethodOperation(Operation):
             from juicer.spark.vis_operation import {model}
             {out} = {model}(
                 {input}, '{task}','{op}', '{op_slug}', '{title}','{columns}',
-                '{orientation}',{id_attr},{value_attr})
+                '{orientation}',{id_attr},{value_attr},
+                params={params})
             """.format(out=self.output,
                        model=self.get_model_name(),
                        input=self.named_inputs['input data'],
@@ -170,7 +176,8 @@ class VisualizationMethodOperation(Operation):
                        columns=self.column_names,
                        orientation=self.orientation,
                        id_attr=self.id_attribute,
-                       value_attr=self.value_attribute)
+                       value_attr=self.value_attribute,
+                       params=json.dumps(self.get_model_parameters()))
         return dedent(code)
 
 
@@ -219,6 +226,39 @@ class TableVisOperation(VisualizationMethodOperation):
         return 'TableVisModel'
 
 
+class ScatterPlotOperation(VisualizationMethodOperation):
+    ATTRIBUTES_PARAM = 'attributes'
+    CALCULATE_PARAM = 'calculate'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        VisualizationMethodOperation.__init__(self, parameters, named_inputs,
+                                              named_outputs)
+        self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
+        self.calculate = parameters.get(self.CALCULATE_PARAM)
+
+    def get_model_parameters(self):
+        return {self.ATTRIBUTES_PARAM: self.attributes,
+                self.CALCULATE_PARAM: self.calculate}
+
+    def get_model_name(self):
+        return 'ScatterPlotModel'
+
+
+class SummaryStatisticsOperation(VisualizationMethodOperation):
+    ATTRIBUTES_PARAM = 'attributes'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        VisualizationMethodOperation.__init__(self, parameters, named_inputs,
+                                              named_outputs)
+        self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
+
+    def get_model_parameters(self):
+        return {self.ATTRIBUTES_PARAM: self.attributes}
+
+    def get_model_name(self):
+        return 'SummaryStatisticsModel'
+
+
 #######################################################
 # Visualization Models used inside the code generated #
 #######################################################
@@ -226,7 +266,7 @@ class TableVisOperation(VisualizationMethodOperation):
 class VisualizationModel:
     def __init__(self, data, task_id, type_id, type_name, title, column_names,
                  orientation,
-                 id_attribute, value_attribute):
+                 id_attribute, value_attribute, params):
         self.data = data
         self.task_id = task_id
         self.type_id = type_id
@@ -234,6 +274,7 @@ class VisualizationModel:
         self.title = title
         self.column_names = column_names
         self.orientation = orientation
+        self.params = params
 
         if len(id_attribute) > 0 and isinstance(id_attribute, list):
             self.id_attribute = id_attribute[0]
@@ -362,6 +403,106 @@ class TableVisModel(VisualizationModel):
         Returns data as tabular (list of lists in Python).
         """
         return self.data.rdd.map(dataframe_util.convert_to_python).collect()
+
+
+class SummaryStatisticsModel(VisualizationModel):
+    def __init__(self, data, task_id, type_id, type_name, title, column_names,
+                 orientation, id_attribute, value_attribute, params):
+        VisualizationModel.__init__(self, data, task_id, type_id, type_name,
+                                    title, column_names, orientation,
+                                    id_attribute, value_attribute, params)
+        self.names = ['attribute', 'max', 'min', 'stddev', 'count', 'avg',
+                      'approx. distinct', 'missing']
+        self.column_names = ', '.join(self.names)
+
+    def get_icon(self):
+        return 'fa-table'
+
+    def get_data(self):
+        """
+        Returns statistics about attributes in a data frame
+        """
+        from pyspark.sql import functions
+        if len(self.params['attributes']) == 0:
+            attrs = self.data.schema
+        else:
+            attrs = [attr for attr in self.data.schema if
+                     attr.name in self.params['attributes']]
+
+        # Cache data
+        self.data.cache()
+
+        df_count = self.data.count()
+
+        # TODO: Implement median using df.approxQuantile('col', [.5], .25)
+
+        stats = []
+        for attr in attrs:
+            name = attr.name
+            df_col = functions.col(attr.name)
+            stats.append(functions.lit(attr.name))
+            stats.append(functions.max(df_col).alias('max_{}'.format(name)))
+            stats.append(functions.min(df_col).alias('min_{}'.format(name)))
+            stats.append(
+                functions.stddev(df_col).alias('stddev_{}'.format(name)))
+            stats.append(functions.count(df_col).alias('count_{}'.format(name)))
+            stats.append(functions.avg(df_col).alias('avg_{}'.format(name)))
+            stats.append(functions.approx_count_distinct(df_col).alias(
+                'distinct_{}'.format(name)))
+            stats.append((df_count - functions.count(df_col)).alias(
+                'missing_{}'.format(name)))
+
+        aggregated = self.data.agg(*stats).take(1)[0]
+        n = len(self.names)
+        return [aggregated[i:i + n] for i in range(0, len(aggregated), n)]
+
+
+class ScatterPlotModel(VisualizationModel):
+    """
+    Scatter plot model for visualization.
+    Supports calculate covariance or correlation.
+
+    TODO: Implement support to linear regression
+    """
+    COVARIANCE = 'covariance'
+    CORRELATION = 'correlation'
+
+    def get_icon(self):
+        return 'fa-table'
+
+    def get_data(self):
+        """
+        Returns data as tabular (list of lists in Python).
+        """
+        from pyspark.sql.functions import col, corr, covar_pop
+        numerics = [attr.name for attr in self.data.schema if
+                    attr.dataType.typeName() in ['int', 'byte', 'long', 'short',
+                                                 'float', 'double', 'decimal']]
+        attributes = [name for name in self.params['attributes'] if
+                      name in numerics]
+        calculate = self.params.get('calculate')
+
+        pairs = itertools.combinations(attributes, 2)
+        result = {}
+
+        if calculate is not None:
+            f = corr if calculate == self.CORRELATION else covar_pop
+            aggrs = []
+            for pair in pairs:
+                aggr_name = '{}_{}_{}'.format(calculate[:3], pair[0], pair[1])
+                aggrs = f(col(pair[0]), col(pair[1])).alias(aggr_name)
+
+            calc = self.data.agg(*aggrs).collect()[0].asDict()
+            result[calculate] = calc
+        result['series'] = []
+        for i, pair in enumerate(pairs):
+            result['series'][i] = {'attributes': pair, 'data': []}
+
+        for row in self.data.toLocalIterator():
+            for i, pair in enumerate(pairs):
+                result['series'][i]['data'].append([row[pair[0]], row[pair[1]]])
+
+        return result
 
 
 class HtmlVisModel(VisualizationModel):

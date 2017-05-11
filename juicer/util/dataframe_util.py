@@ -1,5 +1,16 @@
 # coding=utf-8
+import decimal
+import json
+
 import datetime
+
+
+class CustomEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, decimal.Decimal):
+            return str(obj)
+        elif isinstance(obj, datetime.datetime):
+            return obj.isoformat()
 
 
 def get_csv_schema(df):

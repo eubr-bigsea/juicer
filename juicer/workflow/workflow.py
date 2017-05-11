@@ -58,6 +58,7 @@ class Workflow:
                 # Slug information is required in order to select which
                 # operation will be executed
                 task['operation']['slug'] = operation['slug']
+                task['operation']['name'] = operation['name']
 
                 ports_list = operation['ports']
                 # Get operation requirements in tahiti
