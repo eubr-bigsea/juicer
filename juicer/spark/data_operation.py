@@ -34,6 +34,8 @@ class DataReader(Operation):
         "INTEGER": 'types.IntegerType',
         "TEXT": 'types.StringType',
     }
+    DATA_TYPES_WITH_PRECISION = {'DECIMAL'}
+
     SEPARATORS = {
         '{tab}': '\\t'
     }
@@ -85,6 +87,12 @@ class DataReader(Operation):
                     for attr in self.metadata.get('attributes', []):
                         data_type = self.LIMONERO_TO_SPARK_DATA_TYPES[
                             attr['type']]
+                        if data_type in self.DATA_TYPES_WITH_PRECISION:
+                            data_type = '{}({}, {})'.format(
+                                data_type, attr['precision'],
+                                attr['size'] - attr['precision'])
+                        else:
+                            data_type = '{}()'.format(data_type)
 
                         # Notice: According to Spark documentation, nullable
                         # option of StructField is just a hint and when loading
@@ -95,7 +103,7 @@ class DataReader(Operation):
                                     ['feature', 'label', 'nullable', 'type',
                                      'size', 'precision', 'enumeration',
                                      'missing_representation'] if attr[k]}
-                        code.append("schema_{0}.add('{1}', {2}(), {3},\n{5}{4})"
+                        code.append("schema_{0}.add('{1}', {2}, {3},\n{5}{4})"
                                     .format(self.output, attr['name'],
                                             data_type,
                                             attr['nullable'],
