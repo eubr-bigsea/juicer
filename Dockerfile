@@ -7,6 +7,10 @@ ENV SPARK_HOME /usr/local/spark
 ENV JUICER_HOME /usr/local/juicer
 ENV PYTHONPATH $PYTHONPATH:$JUICER_HOME:$SPARK_HOME/python
 
+WORKDIR $JUICER_HOME
+COPY requirements.txt $JUICER_HOME
+RUN pip install -r $JUICER_HOME/requirements.txt
+
 RUN apt-get update && apt-get install -y \
       python-pip \
       python-tk \
@@ -16,8 +20,6 @@ RUN apt-get update && apt-get install -y \
   && curl -s ${SPARK_HADOOP_URL} | tar -xz -C /usr/local/  \
   && mv /usr/local/$SPARK_HADOOP_PKG $SPARK_HOME
 
-WORKDIR $JUICER_HOME
 COPY . $JUICER_HOME
-RUN pip install -r $JUICER_HOME/requirements.txt
 
 CMD ["/usr/local/juicer/sbin/juicer-daemon.sh", "startf"]
