@@ -20,8 +20,9 @@ class Workflow:
     WORKFLOW_GRAPH_SOURCE_ID_PARAM = 'source_id'
     WORKFLOW_GRAPH_TARGET_ID_PARAM = 'target_id'
 
-    def __init__(self, workflow_data):
+    def __init__(self, workflow_data, config):
 
+        self.config = config
         # Initialize
         self.graph = nx.MultiDiGraph()
 
@@ -50,7 +51,7 @@ class Workflow:
 
         # Querying all operations from tahiti one time
         operations_tahiti = dict(
-            [(op['id'], op) for op in self.get_all_ports_operations_tasks()])
+            [(op['id'], op) for op in self.get_all_ports_operations_tasks(self.config)])
 
         for task in self.workflow['tasks']:
             operation = operations_tahiti.get(task.get('operation')['id'])
@@ -247,12 +248,12 @@ class Workflow:
                 return False
         return True
 
-    @staticmethod
-    def get_all_ports_operations_tasks():
+    def get_all_ports_operations_tasks(self, config):
+        tahiti_conf = self.config['juicer']['services']['tahiti']
         params = {
-            'base_url': 'http://beta.ctweb.inweb.org.br',
-            'item_path': 'tahiti/operations',
-            'token': '123456',
+            'base_url': tahiti_conf['url'],
+            'item_path': 'operations',
+            'token': str(tahiti_conf['auth_token']),
             'item_id': ''
         }
 
@@ -263,13 +264,12 @@ class Workflow:
                                                  params['item_id'])
         return operations
 
-    @staticmethod
-    def get_ports_from_operation_tasks(id_operation):
-        # Can i put this information here?
+    def get_ports_from_operation_tasks(self, id_operation):
+        tahiti_conf = self.config['juicer']['services']['tahiti']
         params = {
-            'base_url': 'http://beta.ctweb.inweb.org.br',
-            'item_path': 'tahiti/operations',
-            'token': '123456',
+            'base_url': tahiti_conf['url'],
+            'item_path': 'operations',
+            'token': str(tahiti_conf['auth_token']),
             'item_id': id_operation
         }
 

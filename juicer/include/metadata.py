@@ -3,8 +3,8 @@ import json
 
 class MetadataGet:
 
-    def __init__(self, token):
-        self.url = "http://beta.ctweb.inweb.org.br/limonero/datasources"
+    def __init__(self, url, token):
+        self.url = '{}/datasources/'.format(url)
         self.token = token
 
     def get_metadata(self, id):
@@ -16,8 +16,8 @@ class MetadataGet:
 
 class MetadataPost:
 
-    def __init__(self, token, df_schema, parameters):
-        self.url = "http://beta.ctweb.inweb.org.br/limonero/datasources"
+    def __init__(self, url, token, df_schema, parameters):
+        self.url = '{}/datasources/'.format(url)
         self.token = token
         self.payload = None
         self.headers = None

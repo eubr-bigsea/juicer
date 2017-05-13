@@ -973,6 +973,8 @@ class TopicReportOperation(ReportOperation):
         self.terms_per_topic = parameters.get(self.TERMS_PER_TOPIC_PARAM, 20)
 
         self.has_code = len(self.named_inputs) == 3
+        self.output = self.named_outputs.get('output data',
+                                             'out_task_{}'.format(self.order))
 
     def generate_code(self):
         code = dedent("""
@@ -994,7 +996,7 @@ class TopicReportOperation(ReportOperation):
         """.format(model=self.named_inputs['model'],
                    tpt=self.terms_per_topic,
                    vocabulary=self.named_inputs['vocabulary'],
-                   output=self.named_outputs.get('output data'),
+                   output=self.output,
                    input=self.named_inputs['input data']))
         return code
 

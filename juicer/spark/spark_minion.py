@@ -212,7 +212,7 @@ class SparkMinion(Minion):
 
         result = True
         try:
-            loader = Workflow(workflow)
+            loader = Workflow(workflow, self.config)
 
             # Mark job as running
             self._emit_event(room=job_id, namespace='/stand')(

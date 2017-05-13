@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 import ast
+import json
 import pprint
 from textwrap import dedent
 
-from juicer.include.metadata import MetadataGet
 from juicer.operation import Operation
 from juicer.service import limonero_service
 
@@ -34,6 +34,7 @@ class DataReader(Operation):
         "INTEGER": 'types.IntegerType',
         "TEXT": 'types.StringType',
     }
+
     DATA_TYPES_WITH_PRECISION = {'DECIMAL'}
 
     SEPARATORS = {
@@ -55,12 +56,10 @@ class DataReader(Operation):
                                                    self.INFER_FROM_LIMONERO)
                 self.null_values = [v.strip() for v in parameters.get(
                     self.NULL_VALUES_PARAM, '').split(",")]
+                limonero_config = self.parameters['configuration']['juicer']['services']['limonero']
+                url = '{}/datasources'.format(limonero_config['url'])
+                token = str(limonero_config['auth_token'])
 
-                metadata_obj = MetadataGet('123456')
-
-                # @FIXME Parameter
-                url = 'http://beta.ctweb.inweb.org.br/limonero/datasources'
-                token = '123456'
                 self.metadata = limonero_service.get_data_source_info(
                     url, token, self.database_id)
             else:
@@ -189,6 +188,24 @@ class SaveOperations(Operation):
         - Database tags
         - Workflow that generated the database
     """
+    SPARK_TO_LIMONERO_DATA_TYPES = {
+        'types.StringType': "CHARACTER",
+        'types.TimestampType':"DATETIME",
+        'types.DoubleType':   "DOUBLE",
+        'types.DecimalType':  "DECIMAL",
+        'types.FloatType':    "FLOAT",
+        'types.LongType':     "LONG",
+        'types.IntegerType':  "INTEGER",
+
+        'StringType': "CHARACTER",
+        'TimestampType':"DATETIME",
+        'DoubleType':   "DOUBLE",
+        'DecimalType':  "DECIMAL",
+        'FloatType':    "FLOAT",
+        'LongType':     "LONG",
+        'IntegerType':  "INTEGER",
+    }
+
     NAME_PARAM = 'name'
     PATH_PARAM = 'path'
     STORAGE_ID_PARAM = 'storage'
@@ -236,10 +253,11 @@ class SaveOperations(Operation):
 
     def generate_code(self):
         # Retrieve Storage URL
-        # @FIXME Hardcoded!
-        storage = limonero_service.get_storage_info(
-            'http://beta.ctweb.inweb.org.br/limonero', '123456',
-            self.storage_id)
+
+        limonero_config = self.parameters['configuration']['juicer']['services']['limonero']
+        url = limonero_config['url']
+        token = str(limonero_config['auth_token'])
+        storage = limonero_service.get_storage_info(url, token, self.storage_id)
 
         final_url = '{}/{}/{}'.format(storage['url'], self.path,
                                       self.name.replace(' ', '_'))
@@ -267,15 +285,9 @@ class SaveOperations(Operation):
         if not self.workflow_json == '':
             code_api = """
                 # Code to update Limonero metadata information
-                from juicer.dist.metadata import MetadataPost
-                types_names = {{
-                'IntegerType': "INTEGER",
-                'types.StringType': "TEXT",
-                'LongType': "LONG",
-                'DoubleType': "DOUBLE",
-                'TimestampType': "DATETIME",
-                'FloatType': "FLOAT"
-                }}
+                from juicer.include.metadata import MetadataPost
+                types_names = {13}
+
                 schema = []
                 # nullable information is also stored in metadata
                 # because Spark ignores this information when loading CSV files
@@ -290,7 +302,7 @@ class SaveOperations(Operation):
                     'name': "{1}",
                     'format': "{2}",
                     'storage_id': {3},
-                    'provenience': '{4}',
+                    'provenience': '',
                     'description': "{5}",
                     'user_id': "{6}",
                     'user_login': "{7}",
@@ -298,7 +310,7 @@ class SaveOperations(Operation):
                     'workflow_id': "{9}",
                     'url': "{10}",
                 }}
-                instance = MetadataPost('{11}', schema, parameters)
+                instance = MetadataPost('{12}', '{11}', schema, parameters)
                 """.format(self.named_inputs['input data'], self.name,
                            self.format,
                            self.storage_id,
@@ -307,7 +319,8 @@ class SaveOperations(Operation):
                            self.user['id'],
                            self.user['login'],
                            self.user['name'],
-                           self.workflow_id, final_url, "123456"
+                           self.workflow_id, final_url, token, url, 
+                           json.dumps(self.SPARK_TO_LIMONERO_DATA_TYPES)
                            )
             code += dedent(code_api)
             # No return

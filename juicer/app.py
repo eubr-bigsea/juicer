@@ -31,8 +31,9 @@ class Statuses:
 
 
 class JuicerSparkService:
-    def __init__(self, redis_conn, workflow_id, execute_main, params, job_id):
+    def __init__(self, redis_conn, workflow_id, execute_main, params, job_id, config):
         self.redis_conn = redis_conn
+        self.config = config
         self.workflow_id = workflow_id
         self.state = "LOADING"
         self.params = params
@@ -50,16 +51,6 @@ class JuicerSparkService:
     def start(self):
         pass
 
-    @staticmethod
-    def get_operations():
-        url = 'http://beta.ctweb.inweb.org.br/tahiti/operations?token=123456'
-        r = requests.get(url)
-        ops = json.loads(r.text)
-        result = {}
-        for op in ops:
-            result[op['id']] = op
-        return result
-
     def run(self):
         _id = 'status_{}'.format(self.workflow_id)
         # status = self.redis_conn.hgetall(_id)
@@ -70,14 +61,16 @@ class JuicerSparkService:
             # msg = self.redis_conn.brpop(str(self.workflow_id))
 
             # self.redis_conn.hset(_id, 'status', Statuses.RUNNING)
+            tahiti_conf = self.config['juicer']['services']['tahiti']
 
             r = requests.get(
-                "http://beta.ctweb.inweb.org.br/tahiti/workflows/{}"
-                "?token=123456".format(self.workflow_id))
-
-            loader = Workflow(json.loads(r.text))
+                "{url}/workflows/{id}?token={token}".format(id=self.workflow_id, 
+                                        url=tahiti_conf['url'],
+                                        token=tahiti_conf['auth_token']))
+            loader = Workflow(json.loads(r.text),self.config)
             # FIXME: Implement validation
             # loader.verify_workflow()
+            configuration.set_config(self.config)
             spark_instance = SparkTranspiler(configuration)
             self.params['execute_main'] = self.execute_main
 
@@ -100,10 +93,10 @@ class JuicerSparkService:
             break
 
 
-def main(workflow_id, execute_main, params, job_id):
+def main(workflow_id, execute_main, params, job_id, config):
     redis_conn = redis.StrictRedis()
     service = JuicerSparkService(redis_conn, workflow_id, execute_main, params,
-            job_id)
+            job_id, config)
     service.run()
 
 
@@ -131,10 +124,8 @@ if __name__ == "__main__":
         with open(args.config) as config_file:
             juicer_config = yaml.load(config_file.read())
 
-    configuration.set_config(juicer_config)
-
     main(args.workflow, args.execute_main, {"service": args.service},
-            args.job_id)
+            args.job_id, juicer_config)
     '''
     if True:
         app.run(debug=True, port=8000)

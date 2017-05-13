@@ -2,7 +2,7 @@
 from itertools import izip_longest
 from textwrap import dedent
 
-from juicer.dist.metadata import MetadataGet
+from juicer.include.metadata import MetadataGet
 from juicer.operation import Operation
 
 
