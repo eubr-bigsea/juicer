@@ -20,7 +20,11 @@ class ReadShapefile(Operation):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
         if self.DATA_SOURCE_ID_PARAM in parameters:
             self.database_id = parameters[self.DATA_SOURCE_ID_PARAM]
-            metadata_obj = MetadataGet('123456')
+
+            limonero_config = self.parameters['configuration']['juicer']['services']['limonero']
+            url = limonero_config['url']
+            token = limonero_config['token']
+            metadata_obj = MetadataGet(url, token)
             self.metadata = metadata_obj.get_metadata(self.database_id)
         else:
             raise ValueError(
