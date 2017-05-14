@@ -23,7 +23,7 @@ class ReadShapefile(Operation):
 
             limonero_config = self.parameters['configuration']['juicer']['services']['limonero']
             url = limonero_config['url']
-            token = limonero_config['token']
+            token = limonero_config['auth_token']
             metadata_obj = MetadataGet(url, token)
             self.metadata = metadata_obj.get_metadata(self.database_id)
         else:
