@@ -251,7 +251,7 @@ class SparkTranspiler:
             parameters['order'] = i
 
             parameters['task'] = task
-            parameters['configuration'] = self.configuration.get_config()
+            parameters['configuration'] = self.configuration
             parameters['workflow_json'] = json.dumps(workflow)
             parameters['user'] = workflow['user']
             parameters['workflow_id'] = workflow['id']
