@@ -17,19 +17,30 @@ class EvaluateModelOperationReport(BaseHtmlReport):
         title = kwargs['title']
         operation_id = kwargs['operation_id']
         task_id = kwargs['task_id']
-
+        
+        all_params = ['<tr><th>{}</th><td><em>{}</em></td></tr>'.format(x.name, x.doc) \
+                         for x in evaluator.extractParamMap()]
+	 
         vis_model = dedent('''
-            <div>
-                <strong>{title}</strong>
-                <dl>
-                    <dt>{metric}</dl>
-                    <dd>{value}</dd>
-                </dl>
-                <strong>Execution parameters</strong>
+            <table class="table table-bordered table-striped table-condensed" style="width:100%">
+              <thead>
+                <tr>
+                  <th colspan="2">{title}</th>
+                </tr>
+              <thead>
+              <tbody>
+                <tr>
+                  <th>{metric}</th>
+                  <td>{value}</td>
+                </tr>
+                <tr>
+                  <th colspan="2">Execution parameters
+                  </th>
+                </tr>
                 {params}
-            </div>
+            </table>
         ''').format(title=title, metric=evaluator.getMetricName(),
-                    value=metric_value, params=evaluator.explainParams())
+                    value=metric_value, params=''.join(all_params))
 
         return HtmlVisModel(
             vis_model, task_id, operation_id, 'EvaluateModelOperation', title,
