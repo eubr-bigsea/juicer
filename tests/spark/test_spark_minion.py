@@ -600,7 +600,6 @@ def test_minion_perform_deliver_missing_state_unsupported_output_failure():
             minion.terminate()
             assert not minion.is_spark_session_available()
 
-@pytest.mark.skip(reason="Not working")
 def test_minion_spark_configuration():
     """
     - Start a juicer server
@@ -635,8 +634,6 @@ def test_minion_spark_configuration():
                                  config=config)
             minion._emit_event = dummy_emit_event
 
-            import pdb
-
             # Configure mocked redis
             state_control = StateControlRedis(redis_conn)
             with open(os.path.join(os.path.dirname(__file__),
@@ -651,7 +648,6 @@ def test_minion_spark_configuration():
                 'app_configs': app_configs,
                 'workflow': data
             }))
-            pdb.set_trace()
 
             minion._process_message()
 
@@ -674,14 +670,11 @@ def test_minion_spark_configuration():
             minion.terminate()
             assert not minion.is_spark_session_available()
 
+            state_control.pop_app_output_queue(app_id, False)
             msg = json.loads(state_control.pop_app_output_queue(app_id, False))
-            import pdb
-            pdb.set_trace()
             assert msg['status'] == 'SUCCESS', 'Invalid status'
             assert msg['code'] == SparkMinion.MNN008[0], 'Invalid code'
 
-
-@pytest.mark.skip(reason="Not working")
 def test_minion_terminate():
     try:
         from pyspark.sql import SparkSession
@@ -732,6 +725,8 @@ def test_minion_terminate():
                 'type': 'terminate'
             }))
             minion._process_message()
+            
+            state_control.pop_app_output_queue(app_id, False)
 
             # first the spark app will throw an exception regarding the job
             # canceling
