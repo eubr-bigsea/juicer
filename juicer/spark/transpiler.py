@@ -128,16 +128,17 @@ class SparkTranspiler:
             os.path.join(project_base, 'juicer')
         ]
         build = not os.path.exists(self.DIST_ZIP_FILE)
-        for lib_path in lib_paths:
-            dist_files = os.listdir(lib_path)
-            zip_mtime = os.path.getmtime(self.DIST_ZIP_FILE)
-            for f in dist_files:
-                if zip_mtime < os.path.getmtime(
-                        os.path.join(lib_path, f)):
-                    build = True
+        if not build:
+            for lib_path in lib_paths:
+                dist_files = os.listdir(lib_path)
+                zip_mtime = os.path.getmtime(self.DIST_ZIP_FILE)
+                for f in dist_files:
+                    if zip_mtime < os.path.getmtime(
+                            os.path.join(lib_path, f)):
+                        build = True
+                        break
+                if build:
                     break
-            if build:
-                break
 
         if build:
             zf = zipfile.PyZipFile(self.DIST_ZIP_FILE, mode='w')
