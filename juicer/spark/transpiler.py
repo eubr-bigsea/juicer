@@ -128,7 +128,7 @@ class SparkTranspiler:
             os.path.join(project_base, 'juicer')
         ]
         build = not os.path.exists(self.DIST_ZIP_FILE)
-        while not build:
+        if not build:
             for lib_path in lib_paths:
                 dist_files = os.listdir(lib_path)
                 zip_mtime = os.path.getmtime(self.DIST_ZIP_FILE)
