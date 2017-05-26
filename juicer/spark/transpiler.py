@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 import json
-import pdb
 import sys
 import zipfile
 
 import jinja2
 import juicer.spark.data_operation
+import juicer.spark.data_quality_operation
 import juicer.spark.dm_operation
 import juicer.spark.etl_operation
 import juicer.spark.geo_operation
@@ -46,7 +46,6 @@ class SparkTranspilerVisitor:
 
 class RemoveTasksWhenMultiplexingVisitor(SparkTranspilerVisitor):
     def visit(self, graph, operations, params):
-
         return graph
         # external_input_op = juicer.spark.ws_operation.MultiplexerOperation
         # for task_id in graph.node:
@@ -387,6 +386,10 @@ class SparkTranspiler:
             'save': juicer.spark.data_operation.SaveOperations,
 
         }
+        data_quality_ops = {
+            'entity-matching':
+                juicer.spark.data_quality_operation.EntityMatchingOperation,
+        }
         other_ops = {
             'comment': operation.NoOp,
         }
@@ -422,5 +425,5 @@ class SparkTranspiler:
         }
         self.operations = {}
         for ops in [data_ops, etl_ops, geo_ops, ml_ops, other_ops, text_ops,
-                    ws_ops, vis_ops, dm_ops]:
+                    ws_ops, vis_ops, dm_ops, data_quality_ops]:
             self.operations.update(ops)

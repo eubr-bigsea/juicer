@@ -71,7 +71,7 @@ class JuicerSparkService:
             # FIXME: Implement validation
             # loader.verify_workflow()
             configuration.set_config(self.config)
-            spark_instance = SparkTranspiler(configuration)
+            spark_instance = SparkTranspiler(configuration.get_config())
             self.params['execute_main'] = self.execute_main
 
             # generated = StringIO()
