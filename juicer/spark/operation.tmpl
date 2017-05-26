@@ -31,6 +31,7 @@ from pyspark.ml.tuning import *
 from pyspark.ml.recommendation import *
 from pyspark.ml.regression import *
 
+
 from juicer.util import dataframe_util
 
 executor = ThreadPoolExecutor(max_workers={{instances|length}})
@@ -63,7 +64,7 @@ def take_sample(df, size=100, default=None):
     """
     result = default or []
     if hasattr(df, 'take'):
-        #result = df.limit(size).toJSON().collect()
+        # result = df.limit(size).toJSON().collect()
         header = ','.join([f.name for f in df.schema.fields])
         result = [header]
         result.extend(
@@ -123,7 +124,8 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.ord
         if '{{parent}}' not in task_futures:
             task_futures['{{parent}}'] = executor.\
                 submit(
-                    lambda: {{parent_instance.parameters.task.operation.slug.replace('-', '_')}}_{{parent_instance.order}}(spark_session, cached_state, emit_event)
+                    lambda: {{parent_instance.parameters.task.operation.slug.replace('-', '_')}}_{{parent_instance.order}}(
+                        spark_session, cached_state, emit_event)
                 )
 
     {%- endif %}
@@ -184,7 +186,8 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.ord
                status='COMPLETED',
                identifier='{{instance.parameters.task.id}}')
 
-    spark_logging(spark_session).info('Lemonade task {{instance.parameters.task.id}} completed')
+    spark_logging(spark_session).info(
+        'Lemonade task {{instance.parameters.task.id}} completed')
     results.update({'time': time_elapsed})
     return results
 

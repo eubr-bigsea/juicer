@@ -67,11 +67,15 @@ class JuicerSparkService:
                 "{url}/workflows/{id}?token={token}".format(id=self.workflow_id, 
                                         url=tahiti_conf['url'],
                                         token=tahiti_conf['auth_token']))
-            loader = Workflow(json.loads(r.text),self.config)
+            if r.status_code == 200:
+                loader = Workflow(json.loads(r.text),self.config)
+            else:
+                print tahiti_conf['url'], r.text
+                exit(-1)
             # FIXME: Implement validation
             # loader.verify_workflow()
             configuration.set_config(self.config)
-            spark_instance = SparkTranspiler(configuration)
+            spark_instance = SparkTranspiler(configuration.get_config())
             self.params['execute_main'] = self.execute_main
 
             # generated = StringIO()

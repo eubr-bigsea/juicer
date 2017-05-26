@@ -27,7 +27,7 @@ from juicer.runner.minion_base import Minion
 from juicer.spark.transpiler import SparkTranspiler
 from juicer.util import dataframe_util
 from juicer.workflow.workflow import Workflow
-
+from juicer.util.spark_template_util import strip_accents
 logging.config.fileConfig('logging_config.ini')
 
 log = logging.getLogger(__name__)
@@ -323,11 +323,12 @@ class SparkMinion(Minion):
         if not self.is_spark_session_available():
             log.info("Creating a new Spark session")
 
-            app_name = u'%s(workflow_id=%s,app_id=%s)' % (
-                loader.workflow.get('name', ''),
+            app_name = '%s(workflow_id=%s,app_id=%s)' % (
+                strip_accents(loader.workflow.get('name', '')),
                 self.workflow_id, self.app_id)
 
-            spark_builder = SparkSession.builder.appName(app_name)
+            spark_builder = SparkSession.builder.appName(
+                app_name)
 
             # Use config file default configurations to set up Spark session
             for option, value in self.config['juicer'].get('spark', {}).items():
@@ -352,9 +353,9 @@ class SparkMinion(Minion):
                 log_level = 'WARN'
                 self.spark_session.sparkContext.setLogLevel(log_level)
 
-            #self.transpiler.build_dist_file()
-            #self.spark_session.sparkContext.addPyFile(
-            #    self.transpiler.DIST_ZIP_FILE)
+                # self.transpiler.build_dist_file()
+                # self.spark_session.sparkContext.addPyFile(
+                #    self.transpiler.DIST_ZIP_FILE)
 
         log.info("Minion is using '%s' as Spark master",
                  self.spark_session.sparkContext.master)

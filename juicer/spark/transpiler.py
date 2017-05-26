@@ -295,6 +295,7 @@ class SparkTranspiler:
             'difference': juicer.spark.etl_operation.DifferenceOperation,
             'distinct': juicer.spark.etl_operation.RemoveDuplicatedOperation,
             'drop': juicer.spark.etl_operation.DropOperation,
+            'execute-python': juicer.spark.etl_operation.ExecutePythonOperation,
             'filter': juicer.spark.etl_operation.FilterOperation,
             # Alias for filter
             'filter-selection': juicer.spark.etl_operation.FilterOperation,
