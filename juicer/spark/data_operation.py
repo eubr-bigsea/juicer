@@ -130,8 +130,8 @@ class DataReader(Operation):
                         {0} = spark_session.read{4}\\
                             .option('treatEmptyValuesAsNulls', 'true')\\
                             .csv(url, schema=schema_{0},
-                                header={1}, sep='{2}', inferSchema={3},
-                                mode='DROPMALFORMED')""".format(
+                                 header={1}, sep='{2}', inferSchema={3},
+                                 mode='DROPMALFORMED')""".format(
                         self.output, self.header, self.sep, infer_from_data,
                         null_option))
                     code.append(code_csv)
@@ -368,8 +368,7 @@ class ChangeAttribute(Operation):
 
     def __init__(self, parameters, inputs, outputs, named_inputs,
                  named_outputs):
-        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
-                           named_outputs)
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         if self.ATTRIBUTES_PARAM in parameters:
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
@@ -377,7 +376,7 @@ class ChangeAttribute(Operation):
             raise ValueError(
                 "Parameter '{}' must be informed for task {}".format(
                     self.ATTRIBUTES_PARAM, self.__class__))
-        self.has_code = len(self.inputs) == 1
+        self.has_code = len(self.named_inputs) == 1
 
     def generate_code(self):
         del self.parameters['workflow_json']
