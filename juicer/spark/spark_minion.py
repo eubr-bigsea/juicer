@@ -146,7 +146,12 @@ class SparkMinion(Minion):
         Starts consuming jobs that must be processed by this minion.
         """
         while True:
-            self._process_message_nb()
+            try:
+                self._process_message_nb()
+            except Exception as ee:
+                tb = traceback.format_exception(*sys.exc_info())
+                log.exception('Unhandled error (%s) \n>%s',
+                        ee.message, '>\n'.join(tb))
 
     def _process_message(self):
         self._process_message_nb()
@@ -366,20 +371,24 @@ class SparkMinion(Minion):
                     '{}/lib/native/'.format(os.environ.get('HADOOP_HOME'))
                    
             # Juicer listeners configuration.
-            # In order to support custom Juicer logging, the client submitting
-            # this job must configure 3 parameters:
-            # 1. Listener's classes (juicer config: listeners)
-            # 2. Spark driver extra classpath (juicer config: minion_classpath)
-            # 3. Juicer/Spark logging directory (juicer config: log_path)
             listeners = self.config['juicer'].get('listeners', [])
-            self.juicer_listener_enabled = \
-                    'lemonade.juicer.spark.LemonadeSparkListener' in listeners
-            app_configs['spark.extraListeners'] = ','.join(listeners)
-            app_configs['spark.driver.extraClassPath'] = \
-                    self.config['juicer'].get('minion_classpath', '')
-            app_configs['lemonade.juicer.eventLog.dir'] = \
-                    self.config['juicer'].get('log_path',
-                            '/tmp/juicer-spark-logs')
+
+            classes = []
+            all_jars = []
+            for listener in listeners:
+                clazz = listener['class']
+                jars = listener['jars']
+                params = listener['params']
+                classes.append(clazz)
+                all_jars.extend(jars)
+                if clazz == 'lemonade.juicer.spark.LemonadeSparkListener':
+                    self.juicer_listener_enabled = True
+                    app_configs['lemonade.juicer.eventLog.dir'] = \
+                            listener.get('params', {}).get('log_path',
+                                    '/tmp/juicer-spark-logs')
+
+            app_configs['spark.extraListeners'] = ','.join(classes)
+            app_configs['spark.driver.extraClassPath'] = ':'.join(all_jars)
             
             # All options passed by application are sent to Spark
             for option, value in app_configs.items():
