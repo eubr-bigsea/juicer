@@ -773,7 +773,7 @@ class ExecutePythonOperation(Operation):
             '_print_': PrintCollector,
             'json': json,
         }}
-        user_code = "{code}"
+        user_code = \"\"\"{code}\"\"\"
 
         ctx['__builtins__']= safe_builtins
 
