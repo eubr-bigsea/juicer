@@ -352,9 +352,9 @@ class SparkMinion(Minion):
                 log_level = 'WARN'
                 self.spark_session.sparkContext.setLogLevel(log_level)
 
-            #self.transpiler.build_dist_file()
-            #self.spark_session.sparkContext.addPyFile(
-            #    self.transpiler.DIST_ZIP_FILE)
+                # self.transpiler.build_dist_file()
+                # self.spark_session.sparkContext.addPyFile(
+                #    self.transpiler.DIST_ZIP_FILE)
 
         log.info("Minion is using '%s' as Spark master",
                  self.spark_session.sparkContext.master)

@@ -8,7 +8,17 @@ from tests import compare_ast, format_code_comparison
 
 def test_data_reader_minimal_parameters_no_attributes_success():
     parameters = {
-        'data_source': 1
+        'data_source': 1,
+        'configuration': {
+            'juicer': {
+                'services': {
+                    'limonero': {
+                        'url': 'http://limonero:12345',
+                        'auth_token': 'zzzz'
+                    }
+                }
+            }
+        }
     }
     n_out = {'output data': 'output_1'}
 
