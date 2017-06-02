@@ -25,7 +25,7 @@ from juicer.runner import configuration
 from juicer.runner import juicer_protocol
 from juicer.runner.minion_base import Minion
 from juicer.spark.transpiler import SparkTranspiler
-from juicer.util import dataframe_util
+from juicer.util import dataframe_util, listener_util
 from juicer.workflow.workflow import Workflow
 from juicer.util.spark_template_util import strip_accents
 logging.config.fileConfig('logging_config.ini')
@@ -60,6 +60,7 @@ class SparkMinion(Minion):
         self.transpiler = SparkTranspiler(config)
         self.config = config
         configuration.set_config(self.config)
+        self.juicer_listener_enabled = False
 
         self.tmp_dir = self.config.get('config', {}).get('tmp_dir', '/tmp')
         sys.path.append(self.tmp_dir)
@@ -89,6 +90,27 @@ class SparkMinion(Minion):
             data = {'message': message, 'status': status, 'id': identifier}
             data.update(kwargs)
             self.mgr.emit(name, data=data, room=str(room), namespace=namespace)
+
+            if not self.juicer_listener_enabled:
+                return
+
+            if name == 'update task':
+                if status == 'RUNNING':
+                    listener_util.post_event_to_spark(self.spark_session,
+                            listener_util.TASK_START, data)
+
+                elif status == 'COMPLETED' or status == 'ERROR':
+                    listener_util.post_event_to_spark(self.spark_session,
+                            listener_util.TASK_END, data)
+
+            elif name == 'update job':
+                if status == 'RUNNING':
+                    listener_util.post_event_to_spark(self.spark_session,
+                            listener_util.JOB_START, data)
+
+                elif status == 'COMPLETED' or status == 'ERROR':
+                    listener_util.post_event_to_spark(self.spark_session,
+                            listener_util.JOB_END, data)
 
         return emit_event
 
@@ -124,7 +146,12 @@ class SparkMinion(Minion):
         Starts consuming jobs that must be processed by this minion.
         """
         while True:
-            self._process_message_nb()
+            try:
+                self._process_message_nb()
+            except Exception as ee:
+                tb = traceback.format_exception(*sys.exc_info())
+                log.exception('Unhandled error (%s) \n>%s',
+                        ee.message, '>\n'.join(tb))
 
     def _process_message(self):
         self._process_message_nb()
@@ -213,6 +240,9 @@ class SparkMinion(Minion):
         result = True
         try:
             loader = Workflow(workflow, self.config)
+            
+            # force the spark context creation
+            self.get_or_create_spark_session(loader, app_configs)
 
             # Mark job as running
             self._emit_event(room=job_id, namespace='/stand')(
@@ -336,13 +366,34 @@ class SparkMinion(Minion):
                     log.info('Setting spark configuration %s', option)
                     spark_builder = spark_builder.config(option, value)
 
-            # All options passed by application are sent to Spark
-            for option, value in app_configs.items():
-                spark_builder = spark_builder.config(option, value)
-
+            # Set hadoop native libs, if available
             if "HADOOP_HOME" in os.environ:
                 app_configs['driver-library-path'] = \
                     '{}/lib/native/'.format(os.environ.get('HADOOP_HOME'))
+                   
+            # Juicer listeners configuration.
+            listeners = self.config['juicer'].get('listeners', [])
+
+            classes = []
+            all_jars = []
+            for listener in listeners:
+                clazz = listener['class']
+                jars = listener['jars']
+                params = listener['params']
+                classes.append(clazz)
+                all_jars.extend(jars)
+                if clazz == 'lemonade.juicer.spark.LemonadeSparkListener':
+                    self.juicer_listener_enabled = True
+                    app_configs['lemonade.juicer.eventLog.dir'] = \
+                            listener.get('params', {}).get('log_path',
+                                    '/tmp/juicer-spark-logs')
+
+            app_configs['spark.extraListeners'] = ','.join(classes)
+            app_configs['spark.driver.extraClassPath'] = ':'.join(all_jars)
+            
+            # All options passed by application are sent to Spark
+            for option, value in app_configs.items():
+                spark_builder = spark_builder.config(option, value)
 
             self.spark_session = spark_builder.getOrCreate()
             # noinspection PyBroadException

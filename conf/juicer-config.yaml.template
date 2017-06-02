@@ -38,3 +38,10 @@ juicer:
         spark.driver.extraClassPath: null
         spark.executor.extraClassPath: null
         spark.jars: null
+    # listeners:
+    #   - class: lemonade.juicer.spark.LemonadeSparkListener
+    #     jars:
+    #        - <path_to_jar_containing_the_class_above>
+    #     params:
+    #        log_path: <example_param_for_LemonadeSparkListener>
+
