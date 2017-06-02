@@ -13,12 +13,15 @@ class CustomEncoder(json.JSONEncoder):
             return obj.isoformat()
 
 
-def get_csv_schema(df):
-    return ','.join(get_schema_fmt(df))
+def get_csv_schema(df, only_name=False):
+    return ','.join(get_schema_fmt(df, only_name))
 
 
-def get_schema_fmt(df):
-    return ['{}:{}'.format(f.dataType, f.name) for f in df.schema.fields]
+def get_schema_fmt(df, only_name=False):
+    if only_name:
+        return [f.name for f in df.schema.fields]
+    else:
+        return ['{}:{}'.format(f.dataType, f.name) for f in df.schema.fields]
 
 
 def get_dict_schema(df):

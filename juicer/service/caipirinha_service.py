@@ -79,7 +79,7 @@ def new_dashboard(config, title, user, workflow_id, workflow_name, job_id,
             b'cf:user': json.dumps(user, indent=4),
             b'cf:workflow': json.dumps({'id': workflow_id}),
             b'cf:title': visualization['title'],
-            b'cf:column_names': visualization['model'].column_names,
+            b'cf:column_names': visualization['model'].get_column_names(),
             b'cf:orientation': visualization['model'].orientation,
             b'cf:attributes': json.dumps({
                 'id': visualization['model'].id_attribute,
