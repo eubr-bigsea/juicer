@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
+import itertools
 import json
 from textwrap import dedent
-
 import datetime
-import itertools
 
 from juicer.operation import Operation
+from juicer.util import chunks
 from juicer.util import dataframe_util
 from juicer.util.dataframe_util import get_csv_schema
 
@@ -440,7 +440,7 @@ class TableVisualizationModel(VisualizationModel):
             dataframe_util.convert_to_python).collect()
 
     def get_column_names(self):
-        return get_csv_schema(self.data, only_name=True)
+        return self.column_names or get_csv_schema(self.data, only_name=True)
 
 
 class SummaryStatisticsModel(TableVisualizationModel):
@@ -451,8 +451,18 @@ class SummaryStatisticsModel(TableVisualizationModel):
                                          type_name,
                                          title, column_names, orientation,
                                          id_attribute, value_attribute, params)
+        self.names = ''
+        if len(self.params['attributes']) == 0:
+            self.attrs = self.data.schema
+        else:
+            self.attrs = [attr for attr in self.data.schema if
+                          attr.name in self.params['attributes']]
         self.names = ['attribute', 'max', 'min', 'stddev', 'count', 'avg',
                       'approx. distinct', 'missing']
+
+        self.names.extend(
+            ['correlation to {}'.format(attr.name) for attr in self.attrs])
+
         self.column_names = ', '.join(self.names)
 
     def get_icon(self):
@@ -462,12 +472,14 @@ class SummaryStatisticsModel(TableVisualizationModel):
         """
         Returns statistics about attributes in a data frame
         """
+
         from pyspark.sql import functions
-        if len(self.params['attributes']) == 0:
-            attrs = self.data.schema
-        else:
-            attrs = [attr for attr in self.data.schema if
-                     attr.name in self.params['attributes']]
+
+        # Correlation pairs
+        attr_names = [attr.name for attr in self.attrs]
+        corr_pairs = list(
+            chunks(list(itertools.product(attr_names, attr_names)),
+                   len(attr_names)))
 
         # Cache data
         self.data.cache()
@@ -477,20 +489,24 @@ class SummaryStatisticsModel(TableVisualizationModel):
         # TODO: Implement median using df.approxQuantile('col', [.5], .25)
 
         stats = []
-        for attr in attrs:
-            name = attr.name
-            df_col = functions.col(attr.name)
-            stats.append(functions.lit(attr.name))
+        for i, name in enumerate(attr_names):
+            df_col = functions.col(name)
+            stats.append(functions.lit(name))
             stats.append(functions.max(df_col).alias('max_{}'.format(name)))
             stats.append(functions.min(df_col).alias('min_{}'.format(name)))
-            stats.append(
-                functions.stddev(df_col).alias('stddev_{}'.format(name)))
+            stats.append(functions.round(
+                functions.stddev(df_col), 4).alias('stddev_{}'.format(name)))
             stats.append(functions.count(df_col).alias('count_{}'.format(name)))
-            stats.append(functions.avg(df_col).alias('avg_{}'.format(name)))
+            stats.append(functions.round(
+                functions.avg(df_col), 4).alias('avg_{}'.format(name)))
             stats.append(functions.approx_count_distinct(df_col).alias(
                 'distinct_{}'.format(name)))
             stats.append((df_count - functions.count(df_col)).alias(
                 'missing_{}'.format(name)))
+            for pair in corr_pairs[i]:
+                stats.append(
+                    functions.round(functions.corr(*pair), 4).alias(
+                        'corr_{}'.format(i)))
 
         aggregated = self.data.agg(*stats).take(1)[0]
         n = len(self.names)
