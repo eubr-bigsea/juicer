@@ -3,6 +3,12 @@ from collections import defaultdict
 from itertools import takewhile, count
 
 
+def chunks(l, n):
+    """Yield successive n-sized chunks from l."""
+    for i in range(0, len(l), n):
+        yield l[i:i + n]
+
+
 def sort_topologically(graph):
     """
     Topological sorting. See http://stackoverflow.com/a/15039202/1646932.

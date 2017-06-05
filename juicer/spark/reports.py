@@ -1,6 +1,6 @@
 from textwrap import dedent
 
-from juicer.spark.vis_operation import HtmlVisModel
+from juicer.spark.vis_operation import HtmlVisualizationModel
 
 
 class BaseHtmlReport(object):
@@ -48,6 +48,6 @@ class EvaluateModelOperationReport(BaseHtmlReport):
             </table>
         ''').format(title=title, params=''.join(all_params))
 
-        return HtmlVisModel(
+        return HtmlVisualizationModel(
             vis_model, task_id, operation_id, 'EvaluateModelOperation', title,
             '[]', '', '', '', {})

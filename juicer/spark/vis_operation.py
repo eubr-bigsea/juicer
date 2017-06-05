@@ -1,12 +1,13 @@
 # -*- coding: utf-8 -*-
+import itertools
 import json
 from textwrap import dedent
-
 import datetime
-import itertools
 
 from juicer.operation import Operation
+from juicer.util import chunks
 from juicer.util import dataframe_util
+from juicer.util.dataframe_util import get_csv_schema
 
 
 class PublishVisOperation(Operation):
@@ -146,7 +147,7 @@ class VisualizationMethodOperation(Operation):
         # Visualizations are not cached!
         self.supports_cache = False
         self.output = self.named_outputs.get('visualization',
-                                             'viz_task_'.format(self.order))
+                                             'vis_task_'.format(self.order))
 
     def get_model_parameters(self):
         return {}
@@ -163,7 +164,9 @@ class VisualizationMethodOperation(Operation):
             """
             from juicer.spark.vis_operation import {model}
             {out} = {model}(
-                {input}, '{task}','{op}', '{op_slug}', '{title}','{columns}',
+                {input}, '{task}', '{op}',
+                '{op_slug}', '{title}',
+                '{columns}',
                 '{orientation}',{id_attr},{value_attr},
                 params={params})
             """.format(out=self.output,
@@ -223,7 +226,7 @@ class TableVisOperation(VisualizationMethodOperation):
                                               named_outputs)
 
     def get_model_name(self):
-        return 'TableVisModel'
+        return 'TableVisualizationModel'
 
 
 class ScatterPlotOperation(VisualizationMethodOperation):
@@ -250,10 +253,10 @@ class SummaryStatisticsOperation(VisualizationMethodOperation):
     def __init__(self, parameters, named_inputs, named_outputs):
         VisualizationMethodOperation.__init__(self, parameters, named_inputs,
                                               named_outputs)
-        self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
+        self.attributes = parameters.get(self.ATTRIBUTES_PARAM, None)
 
     def get_model_parameters(self):
-        return {self.ATTRIBUTES_PARAM: self.attributes}
+        return {self.ATTRIBUTES_PARAM: self.attributes or []}
 
     def get_model_name(self):
         return 'SummaryStatisticsModel'
@@ -299,6 +302,9 @@ class VisualizationModel:
 
     def get_icon(self):
         return 'fa-question-o'
+
+    def get_column_names(self):
+        return ""
 
 
 class BarChartModel(VisualizationModel):
@@ -394,7 +400,35 @@ class LineChartModel(VisualizationModel):
         return result
 
 
-class TableVisModel(VisualizationModel):
+class HtmlVisualizationModel(VisualizationModel):
+    # noinspection PyUnusedLocal
+    def __init__(self, data, task_id, type_id, type_name, title, column_names,
+                 orientation, id_attribute, value_attribute, params):
+        type_id = 1
+        type_name = 'html'
+        VisualizationModel.__init__(self, data, task_id, type_id, type_name,
+                                    title, column_names, orientation,
+                                    id_attribute, value_attribute, params)
+
+    def get_icon(self):
+        return "fa-html5"
+
+    def get_data(self):
+        return self.data
+
+    def get_schema(self):
+        return ''
+
+
+class TableVisualizationModel(VisualizationModel):
+    def __init__(self, data, task_id, type_id, type_name, title, column_names,
+                 orientation, id_attribute, value_attribute, params):
+        type_id = 35
+        type_name = 'table-visualization'
+        VisualizationModel.__init__(self, data, task_id, type_id, type_name,
+                                    title, column_names, orientation,
+                                    id_attribute, value_attribute, params)
+
     def get_icon(self):
         return 'fa-table'
 
@@ -402,17 +436,33 @@ class TableVisModel(VisualizationModel):
         """
         Returns data as tabular (list of lists in Python).
         """
-        return self.data.rdd.map(dataframe_util.convert_to_python).collect()
+        return self.data.limit(50).rdd.map(
+            dataframe_util.convert_to_python).collect()
+
+    def get_column_names(self):
+        return self.column_names or get_csv_schema(self.data, only_name=True)
 
 
-class SummaryStatisticsModel(VisualizationModel):
+class SummaryStatisticsModel(TableVisualizationModel):
+    # noinspection PyUnusedLocal
     def __init__(self, data, task_id, type_id, type_name, title, column_names,
                  orientation, id_attribute, value_attribute, params):
-        VisualizationModel.__init__(self, data, task_id, type_id, type_name,
-                                    title, column_names, orientation,
-                                    id_attribute, value_attribute, params)
+        TableVisualizationModel.__init__(self, data, task_id, type_id,
+                                         type_name,
+                                         title, column_names, orientation,
+                                         id_attribute, value_attribute, params)
+        self.names = ''
+        if len(self.params['attributes']) == 0:
+            self.attrs = self.data.schema
+        else:
+            self.attrs = [attr for attr in self.data.schema if
+                          attr.name in self.params['attributes']]
         self.names = ['attribute', 'max', 'min', 'stddev', 'count', 'avg',
                       'approx. distinct', 'missing']
+
+        self.names.extend(
+            ['correlation to {}'.format(attr.name) for attr in self.attrs])
+
         self.column_names = ', '.join(self.names)
 
     def get_icon(self):
@@ -422,12 +472,14 @@ class SummaryStatisticsModel(VisualizationModel):
         """
         Returns statistics about attributes in a data frame
         """
+
         from pyspark.sql import functions
-        if len(self.params['attributes']) == 0:
-            attrs = self.data.schema
-        else:
-            attrs = [attr for attr in self.data.schema if
-                     attr.name in self.params['attributes']]
+
+        # Correlation pairs
+        attr_names = [attr.name for attr in self.attrs]
+        corr_pairs = list(
+            chunks(list(itertools.product(attr_names, attr_names)),
+                   len(attr_names)))
 
         # Cache data
         self.data.cache()
@@ -437,20 +489,24 @@ class SummaryStatisticsModel(VisualizationModel):
         # TODO: Implement median using df.approxQuantile('col', [.5], .25)
 
         stats = []
-        for attr in attrs:
-            name = attr.name
-            df_col = functions.col(attr.name)
-            stats.append(functions.lit(attr.name))
+        for i, name in enumerate(attr_names):
+            df_col = functions.col(name)
+            stats.append(functions.lit(name))
             stats.append(functions.max(df_col).alias('max_{}'.format(name)))
             stats.append(functions.min(df_col).alias('min_{}'.format(name)))
-            stats.append(
-                functions.stddev(df_col).alias('stddev_{}'.format(name)))
+            stats.append(functions.round(
+                functions.stddev(df_col), 4).alias('stddev_{}'.format(name)))
             stats.append(functions.count(df_col).alias('count_{}'.format(name)))
-            stats.append(functions.avg(df_col).alias('avg_{}'.format(name)))
+            stats.append(functions.round(
+                functions.avg(df_col), 4).alias('avg_{}'.format(name)))
             stats.append(functions.approx_count_distinct(df_col).alias(
                 'distinct_{}'.format(name)))
             stats.append((df_count - functions.count(df_col)).alias(
                 'missing_{}'.format(name)))
+            for pair in corr_pairs[i]:
+                stats.append(
+                    functions.round(functions.corr(*pair), 4).alias(
+                        'corr_{}'.format(i)))
 
         aggregated = self.data.agg(*stats).take(1)[0]
         n = len(self.names)
@@ -503,14 +559,3 @@ class ScatterPlotModel(VisualizationModel):
                 result['series'][i]['data'].append([row[pair[0]], row[pair[1]]])
 
         return result
-
-
-class HtmlVisModel(VisualizationModel):
-    def get_icon(self):
-        return "fa-html5"
-
-    def get_data(self):
-        return self.data
-
-    def get_schema(self):
-        return ''
