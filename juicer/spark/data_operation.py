@@ -288,17 +288,16 @@ class SaveOperations(Operation):
                             message='File not written (already exists)',
                             status='COMPLETED',
                             identifier='{task_id}')
-                        store_meta = False
-                else:
-                    try:
-                        {df}.coalesce(1).write.csv(
-                            file_path,
-                            header={header}, mode=mode)
-                    except utils.AnalysisException as ae:
-                        if 'already exists' in str(ae):
-                            raise ValueError("File already exists")
-                        else:
-                            raise
+                try:
+                    {df}.coalesce(1).write.csv(
+                        file_path,
+                        header={header},
+                        mode=mode)
+                except utils.AnalysisException as ae:
+                    if 'already exists' in str(ae):
+                        raise ValueError("File already exists")
+                    else:
+                        raise
                 """.format(
                 task_id=self.parameters['task_id'],
                 df=self.named_inputs['input data'], path=final_url,
