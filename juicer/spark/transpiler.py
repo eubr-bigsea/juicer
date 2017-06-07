@@ -383,7 +383,6 @@ class SparkTranspiler:
             'data-writer': juicer.spark.data_operation.SaveOperations,
             'external-input':
                 juicer.spark.data_operation.ExternalInputOperation,
-            'read-csv': juicer.spark.data_operation.ReadCSV,
             'save': juicer.spark.data_operation.SaveOperations,
 
         }

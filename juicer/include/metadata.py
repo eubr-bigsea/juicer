@@ -1,5 +1,8 @@
+import logging
+
 import requests
 import json
+log = logging.getLogger(__name__)
 
 class MetadataGet:
 
@@ -17,7 +20,7 @@ class MetadataGet:
 class MetadataPost:
 
     def __init__(self, url, token, df_schema, parameters):
-        self.url = '{}/datasources/'.format(url)
+        self.url = '{}/datasources'.format(url)
         self.token = token
         self.payload = None
         self.headers = None
@@ -35,7 +38,8 @@ class MetadataPost:
             response = requests.post(self.url, data=json.dumps(self.payload),
                           headers=self.headers, params=self.querystring)
             if response.status_code != 200:
-                print "\nERROR! Status code:",response.status_code, response.text,"\n"
+                print "\nERROR! Status code:", self.url, \
+                    response.status_code, response.text,"\n"
             #print "requests.post('{0}',data=json.dumps({1}),headers={2},params={3})".format(
             #    self.url, self.payload, self.headers, self.querystring)
 
