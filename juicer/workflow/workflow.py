@@ -1,3 +1,5 @@
+import logging
+
 import matplotlib.pyplot as plt
 import networkx as nx
 from juicer.service import tahiti_service
@@ -19,6 +21,8 @@ class Workflow:
 
     WORKFLOW_GRAPH_SOURCE_ID_PARAM = 'source_id'
     WORKFLOW_GRAPH_TARGET_ID_PARAM = 'target_id'
+
+    log = logging.getLogger(__name__)
 
     def __init__(self, workflow_data, config):
 
@@ -50,11 +54,12 @@ class Workflow:
         """ Builds a graph with the tasks """
 
         # Querying all operations from tahiti one time
-        operations_tahiti = dict(
-            [(op['id'], op) for op in self.get_all_ports_operations_tasks(self.config)])
+        operations_tahiti = {op['id']: op for op in self.get_operations()}
+        task_map = {}
 
         for task in self.workflow['tasks']:
-            operation = operations_tahiti.get(task.get('operation')['id'])
+            operation = operations_tahiti.get(task['operation']['id'])
+            task_map[task['id']] = {'task': task, 'operation': operation}
             if operation:
                 # Slug information is required in order to select which
                 # operation will be executed
@@ -101,12 +106,44 @@ class Workflow:
                         result['PORT_NAMES'], key=lambda _kv: _kv[0])],
                     parents=[],
                     attr_dict=task)
+            else:
+                msg = "Task {task} uses an invalid or disabled operation ({op})"
+                raise ValueError(
+                    msg.format(task=task['id'], op=task['operation']['id']))
 
         for flow in self.workflow['flows']:
-            self.graph.add_edge(flow['source_id'], flow['target_id'],
-                                attr_dict=flow)
-            self.graph.node[flow['target_id']]['parents'].append(
-                flow['source_id'])
+
+            # Updates the source_port_name and target_port_name. They are
+            # used in the transpiler part instead of the id of the port.
+            source_port = filter(
+                lambda p: int(p['id']) == int(flow['source_port']),
+                task_map[flow['source_id']]['operation']['ports'])
+
+            target_port = filter(
+                lambda p: int(p['id']) == int(flow['target_port']),
+                task_map[flow['target_id']]['operation']['ports'])
+
+            if all([source_port, target_port]):
+                # Compatibility assertion, may be removed in future
+                assert 'target_port_name' not in flow or \
+                       flow['target_port_name'] == target_port[0]['slug']
+                assert 'source_port_name' not in flow \
+                       or flow['source_port_name'] == source_port[0]['slug']
+
+                flow['target_port_name'] = target_port[0]['slug']
+                flow['source_port_name'] = source_port[0]['slug']
+
+                self.graph.add_edge(flow['source_id'], flow['target_id'],
+                                    attr_dict=flow)
+                self.graph.node[flow['target_id']]['parents'].append(
+                    flow['source_id'])
+            else:
+                self.log.warn("Incorrect configuration for ports: %s, %s",
+                              source_port, target_port)
+                raise ValueError(
+                    "Invalid or inexisting port in '{op}' {s} {t}".format(
+                        op=task_map[flow['source_id']]['operation']['name'],
+                        s=flow['source_port'], t=flow['target_port']))
 
         for nodes in self.graph.nodes():
             self.graph.node[nodes]['in_degree'] = self.graph. \
@@ -149,7 +186,7 @@ class Workflow:
 
         # Querying all operations from tahiti one time
         operations_tahiti = dict(
-            [(op['id'], op) for op in self.get_all_ports_operations_tasks()])
+            [(op['id'], op) for op in self.get_operations()])
         for task in tasks:
             operation = operations_tahiti.get(task.get('operation')['id'])
             if operation is not None:
@@ -248,7 +285,8 @@ class Workflow:
                 return False
         return True
 
-    def get_all_ports_operations_tasks(self, config):
+    def get_operations(self):
+        """ Returns operations available in Tahiti """
         tahiti_conf = self.config['juicer']['services']['tahiti']
         params = {
             'base_url': tahiti_conf['url'],
@@ -258,11 +296,10 @@ class Workflow:
         }
 
         # Querying tahiti operations to get number of inputs and outputs
-        operations = tahiti_service.query_tahiti(params['base_url'],
-                                                 params['item_path'],
-                                                 params['token'],
-                                                 params['item_id'])
-        return operations
+        return tahiti_service.query_tahiti(params['base_url'],
+                                           params['item_path'],
+                                           params['token'],
+                                           params['item_id'])
 
     def get_ports_from_operation_tasks(self, id_operation):
         tahiti_conf = self.config['juicer']['services']['tahiti']
