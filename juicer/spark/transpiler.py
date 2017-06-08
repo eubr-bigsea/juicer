@@ -146,7 +146,7 @@ class SparkTranspiler:
             zf.close()
 
     def _gen_port_name(self, flow, seq):
-        name = flow['source_port_name']
+        name = flow.get('source_port_name', 'data')
         parts = name.split()
         if len(parts) == 1:
             name = name[:5]

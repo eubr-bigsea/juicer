@@ -38,7 +38,7 @@ def debug_instance(instance_wf):
     print instance_wf.graph.out_degree()
     print instance_wf.check_out_degree_edges()
     print '*' * 28
-    x = instance_wf.get_all_ports_operations_tasks()[0]
+    x = instance_wf.get_operations()[0]
     print x['ports']
 
     # print instance_wf.get_ports_from_operation_tasks('')
@@ -139,7 +139,7 @@ def test_workflow_parcial_execution_success():
         # open("./tests/workflow/fixtures/workflow_parcial_execution_missing_1_input.txt"),
         encoding='utf-8')
 
-    Workflow.get_all_ports_operations_tasks = lambda s, conf: {}
+    Workflow.get_operations = lambda s, conf: {}
     instance_wf = Workflow(workflow_test, fake_conf)
     assert instance_wf
 
