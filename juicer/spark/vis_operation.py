@@ -404,8 +404,8 @@ class HtmlVisualizationModel(VisualizationModel):
     # noinspection PyUnusedLocal
     def __init__(self, data, task_id, type_id, type_name, title, column_names,
                  orientation, id_attribute, value_attribute, params):
-        type_id = 1
-        type_name = 'html'
+        # type_id = 1
+        # type_name = 'html'
         VisualizationModel.__init__(self, data, task_id, type_id, type_name,
                                     title, column_names, orientation,
                                     id_attribute, value_attribute, params)

@@ -17,6 +17,7 @@ class EvaluateModelOperationReport(BaseHtmlReport):
         title = kwargs['title']
         operation_id = kwargs['operation_id']
         task_id = kwargs['task_id']
+        metric_value = kwargs['metric_value']
 
         all_params = [
             ('<tr>'
@@ -30,7 +31,7 @@ class EvaluateModelOperationReport(BaseHtmlReport):
 
         vis_model = dedent('''
             <p>
-               <h5>Evaluation result</h5>
+               <h5>Evaluation result: {metric_value}</h5>
             </p>
             <table class="table table-bordered table-striped table-sm"
                 style="width:100%">
@@ -46,7 +47,8 @@ class EvaluateModelOperationReport(BaseHtmlReport):
                 {params}
               </tbody>
             </table>
-        ''').format(title=title, params=''.join(all_params))
+        ''').format(title=title, params=''.join(all_params),
+                    metric_value=metric_value)
 
         return HtmlVisualizationModel(
             vis_model, task_id, operation_id, 'EvaluateModelOperation', title,
