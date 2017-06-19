@@ -398,7 +398,7 @@ class EvaluateModelOperation(Operation):
                 vis_model = EvaluateModelOperationReport.generate_visualization(
                     evaluator={evaluator_out},
                     metric_value={output},
-                    metric_name={metric},
+                    metric_name='{metric}',
                     title='{title}',
                     operation_id={operation_id},
                     task_id='{task_id}')
