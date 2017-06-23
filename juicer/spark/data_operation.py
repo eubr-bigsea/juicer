@@ -56,7 +56,9 @@ class DataReader(Operation):
                                                    self.INFER_FROM_LIMONERO)
                 self.null_values = [v.strip() for v in parameters.get(
                     self.NULL_VALUES_PARAM, '').split(",")]
-                limonero_config = self.parameters['configuration']['juicer']['services']['limonero']
+                limonero_config = \
+                    self.parameters['configuration']['juicer']['services'][
+                        'limonero']
                 url = '{}/datasources'.format(limonero_config['url'])
                 token = str(limonero_config['auth_token'])
 
@@ -190,20 +192,20 @@ class SaveOperations(Operation):
     """
     SPARK_TO_LIMONERO_DATA_TYPES = {
         'types.StringType': "CHARACTER",
-        'types.TimestampType':"DATETIME",
-        'types.DoubleType':   "DOUBLE",
-        'types.DecimalType':  "DECIMAL",
-        'types.FloatType':    "FLOAT",
-        'types.LongType':     "LONG",
-        'types.IntegerType':  "INTEGER",
+        'types.TimestampType': "DATETIME",
+        'types.DoubleType': "DOUBLE",
+        'types.DecimalType': "DECIMAL",
+        'types.FloatType': "FLOAT",
+        'types.LongType': "LONG",
+        'types.IntegerType': "INTEGER",
 
         'StringType': "CHARACTER",
-        'TimestampType':"DATETIME",
-        'DoubleType':   "DOUBLE",
-        'DecimalType':  "DECIMAL",
-        'FloatType':    "FLOAT",
-        'LongType':     "LONG",
-        'IntegerType':  "INTEGER",
+        'TimestampType': "DATETIME",
+        'DoubleType': "DOUBLE",
+        'DecimalType': "DECIMAL",
+        'FloatType': "FLOAT",
+        'LongType': "LONG",
+        'IntegerType': "INTEGER",
     }
 
     NAME_PARAM = 'name'
@@ -254,7 +256,8 @@ class SaveOperations(Operation):
     def generate_code(self):
         # Retrieve Storage URL
 
-        limonero_config = self.parameters['configuration']['juicer']['services']['limonero']
+        limonero_config = \
+            self.parameters['configuration']['juicer']['services']['limonero']
         url = limonero_config['url']
         token = str(limonero_config['auth_token'])
         storage = limonero_service.get_storage_info(url, token, self.storage_id)
@@ -264,10 +267,42 @@ class SaveOperations(Operation):
         code_save = ''
         if self.format == self.FORMAT_CSV:
             code_save = dedent("""
-            {}.write.csv('{}',
-                         header={}, mode='{}')""".format(
-                self.named_inputs['input data'], final_url, self.header,
-                self.mode))
+                store_meta = True
+                from py4j.java_gateway import java_import
+                # noinspection PyProtectedMember
+                java_import(spark_session._jvm, 'org.apache.hadoop.fs.Path')
+                # noinspection PyProtectedMember
+                fs = spark_session._jvm.org.apache.hadoop.fs.FileSystem.get(
+                    spark_session._jsc.hadoopConfiguration())
+
+                file_path = '{path}'
+                # noinspection PyProtectedMember
+                path = spark_session._jvm.Path(file_path)
+                mode = '{mode}'
+
+                if fs.exists(path):
+                    if mode == 'error':
+                        raise ValueError('File already exists')
+                    elif mode == 'ignore':
+                        emit_event(name='update task',
+                            message='File not written (already exists)',
+                            status='COMPLETED',
+                            identifier='{task_id}')
+                try:
+                    {df}.coalesce(1).write.csv(
+                        file_path,
+                        header={header},
+                        mode=mode)
+                except utils.AnalysisException as ae:
+                    if 'already exists' in str(ae):
+                        raise ValueError("File already exists")
+                    else:
+                        raise
+                """.format(
+                task_id=self.parameters['task_id'],
+                df=self.named_inputs['input data'], path=final_url,
+                header=self.header,
+                mode=self.mode))
             # Need to generate an output, even though it is not used.
         elif self.format == self.FORMAT_PARQUET:
             code_save = dedent("""
@@ -284,77 +319,58 @@ class SaveOperations(Operation):
 
         if not self.workflow_json == '':
             code_api = """
-                # Code to update Limonero metadata information
-                from juicer.include.metadata import MetadataPost
-                types_names = {13}
+                if store_meta:
+                    # Code to update Limonero metadata information
+                    from juicer.include.metadata import MetadataPost
+                    types_names = {types}
 
-                schema = []
-                # nullable information is also stored in metadata
-                # because Spark ignores this information when loading CSV files
-                for att in {0}.schema:
-                    schema.append({{
-                      'name': att.name,
-                      'dataType': types_names[str(att.dataType)],
-                      'nullable': att.nullable or attr.metadata.get('nullable'),
-                      'metadata': att.metadata,
-                    }})
-                parameters = {{
-                    'name': "{1}",
-                    'format': "{2}",
-                    'storage_id': {3},
-                    'provenience': '',
-                    'description': "{5}",
-                    'user_id': "{6}",
-                    'user_login': "{7}",
-                    'user_name': "{8}",
-                    'workflow_id': "{9}",
-                    'url': "{10}",
-                }}
-                instance = MetadataPost('{12}', '{11}', schema, parameters)
-                """.format(self.named_inputs['input data'], self.name,
-                           self.format,
-                           self.storage_id,
-                           self.workflow_json,
-                           self.user['name'],
-                           self.user['id'],
-                           self.user['login'],
-                           self.user['name'],
-                           self.workflow_id, final_url, token, url, 
-                           json.dumps(self.SPARK_TO_LIMONERO_DATA_TYPES)
+                    schema = []
+                    # nullable information is also stored in metadata because
+                    # Spark ignores this information when loading CSV files
+                    type_expr = re.compile(r'(\w+)(?:\((\d+),(\d+)\))?')
+                    for att in {out}.schema:
+                        type_spec = type_expr.findall(str(att.dataType))[0]
+                        schema.append({{
+                          'name': att.name,
+                          'dataType': types_names[type_spec[0]],
+                          'nullable':
+                            att.nullable or att.metadata.get('nullable'),
+                          'metadata': att.metadata,
+                          'precision': type_spec[1]
+                        }})
+                    parameters = {{
+                        'name': "{name}",
+                        'format': "{format}",
+                        'storage_id': {storage_id},
+                        'provenience': '',
+                        'description': "{description}",
+                        'user_id': "{user_id}",
+                        'user_login': "{user_login}",
+                        'user_name': "{user_name}",
+                        'workflow_id': "{workflow_id}",
+                        'url': "{final_url}",
+                    }}
+                    instance = MetadataPost('{url}', '{token}', schema,
+                        parameters)
+                """.format(out=self.named_inputs['input data'],
+                           name=self.name,
+                           format=self.format,
+                           storage_id=self.storage_id,
+                           description=self.user['name'],
+                           user_id=self.user['id'],
+                           user_login=self.user['login'],
+                           user_name=self.user['name'],
+                           workflow_id=self.workflow_id,
+                           final_url=final_url,
+                           token=token,
+                           url=url,
+                           types=json.dumps(self.SPARK_TO_LIMONERO_DATA_TYPES)
                            )
             code += dedent(code_api)
             # No return
             code += '{} = None'.format(self.output)
 
         return code
-
-
-class ReadCSV(Operation):
-    """
-    Reads a CSV file without HDFS.
-    The purpose of this operation is to read files in
-    HDFS without using the Limonero API.
-    """
-
-    def __init__(self, parameters, inputs, outputs, named_inputs,
-                 named_outputs):
-        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
-                           named_outputs)
-        self.url = parameters['url']
-        try:
-            self.header = parameters['header']
-        except KeyError:
-            self.header = "True"
-        try:
-            self.separator = parameters['separator']
-        except KeyError:
-            self.separator = ";"
-
-    def generate_code(self):
-        code = """{} = spark_session.read.csv('{}',
-            header={}, sep='{}',inferSchema=True)""".format(
-            self.outputs[0], self.url, self.header, self.separator)
-        return dedent(code)
 
 
 class ChangeAttribute(Operation):
@@ -366,8 +382,7 @@ class ChangeAttribute(Operation):
     NEW_DATA_TYPE_PARAM = 'new_data_type'
     KEEP_VALUE = 'keep'
 
-    def __init__(self, parameters, inputs, outputs, named_inputs,
-                 named_outputs):
+    def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         if self.ATTRIBUTES_PARAM in parameters:
@@ -443,8 +458,7 @@ class ChangeAttribute(Operation):
 class ExternalInputOperation(Operation):
     def __init__(self, parameters, inputs, outputs, named_inputs,
                  named_outputs):
-        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
-                           named_outputs)
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         self.has_code = len(self.output) > 0
 
