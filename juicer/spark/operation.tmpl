@@ -7,6 +7,7 @@ Auto-generated Spark code from Lemonade Workflow
 More information about Lemonade to be provided
 """
 from concurrent.futures import ThreadPoolExecutor
+import itertools
 import json
 import os
 import re
@@ -146,7 +147,7 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.ord
     {%- endfor %}
     
     spark_logging(spark_session).info(
-        'All parents completed, submitting {{instance.parameters.task.id}}')
+        'Parents completed, submitting {{instance.parameters.task.id}}')
  
     emit_event(name='update task', message='Task running',
                status='RUNNING',
@@ -181,14 +182,14 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.ord
       {%- endfor %}
     }
 
-    time_elapsed = timer() - start
     emit_event(name='update task', message='Task completed',
                status='COMPLETED',
                identifier='{{instance.parameters.task.id}}')
 
     spark_logging(spark_session).info(
         'Lemonade task {{instance.parameters.task.id}} completed')
-    results.update({'time': time_elapsed})
+    time_elapsed = timer() - start
+    results['time'] = time_elapsed
     return results
 
 {%- endif %}

@@ -305,6 +305,8 @@ class SparkTranspiler:
             # synonym for distinct
             'remove-duplicated-rows':
                 juicer.spark.etl_operation.RemoveDuplicatedOperation,
+            'replace-value':
+                juicer.spark.etl_operation.ReplaceValueOperation,
             'sample': juicer.spark.etl_operation.SampleOrPartitionOperation,
             'select': juicer.spark.etl_operation.SelectOperation,
             # synonym of intersection'
@@ -374,18 +376,19 @@ class SparkTranspiler:
             'generalized-linear-regressor':
                 juicer.spark.ml_operation.GeneralizedLinearRegression,
             'aft-survival-regression':
-                juicer.spark.ml_operation.AFTSurvivalRegressionOperation
+                juicer.spark.ml_operation.AFTSurvivalRegressionOperation,
+
+            'save-model': juicer.spark.ml_operation.SaveModel,
 
         }
         data_ops = {
-            'change-attribute': juicer.spark.data_operation.ChangeAttribute,
+            'change-attribute': juicer.spark.data_operation.ChangeAttributeOperation,
             'data-reader': juicer.spark.data_operation.DataReader,
-            'data-writer': juicer.spark.data_operation.SaveOperations,
+            'data-writer': juicer.spark.data_operation.SaveOperation,
             'external-input':
                 juicer.spark.data_operation.ExternalInputOperation,
-            'read-csv': juicer.spark.data_operation.ReadCSV,
-            'save': juicer.spark.data_operation.SaveOperations,
-
+            'read-csv': juicer.spark.data_operation.ReadCSVOperation,
+            'save': juicer.spark.data_operation.SaveOperation,
         }
         data_quality_ops = {
             'entity-matching':
