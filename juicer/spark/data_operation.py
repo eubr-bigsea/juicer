@@ -56,7 +56,9 @@ class DataReader(Operation):
                                                    self.INFER_FROM_LIMONERO)
                 self.null_values = [v.strip() for v in parameters.get(
                     self.NULL_VALUES_PARAM, '').split(",")]
-                limonero_config = self.parameters['configuration']['juicer']['services']['limonero']
+                limonero_config = \
+                    self.parameters['configuration']['juicer']['services'][
+                        'limonero']
                 url = '{}/datasources'.format(limonero_config['url'])
                 token = str(limonero_config['auth_token'])
 
@@ -177,7 +179,7 @@ class DataReader(Operation):
         return self.output
 
 
-class SaveOperations(Operation):
+class SaveOperation(Operation):
     """
     Saves the content of the DataFrame at the specified path
     and generate the code to call the Limonero API.
@@ -190,20 +192,20 @@ class SaveOperations(Operation):
     """
     SPARK_TO_LIMONERO_DATA_TYPES = {
         'types.StringType': "CHARACTER",
-        'types.TimestampType':"DATETIME",
-        'types.DoubleType':   "DOUBLE",
-        'types.DecimalType':  "DECIMAL",
-        'types.FloatType':    "FLOAT",
-        'types.LongType':     "LONG",
-        'types.IntegerType':  "INTEGER",
+        'types.TimestampType': "DATETIME",
+        'types.DoubleType': "DOUBLE",
+        'types.DecimalType': "DECIMAL",
+        'types.FloatType': "FLOAT",
+        'types.LongType': "LONG",
+        'types.IntegerType': "INTEGER",
 
         'StringType': "CHARACTER",
-        'TimestampType':"DATETIME",
-        'DoubleType':   "DOUBLE",
-        'DecimalType':  "DECIMAL",
-        'FloatType':    "FLOAT",
-        'LongType':     "LONG",
-        'IntegerType':  "INTEGER",
+        'TimestampType': "DATETIME",
+        'DoubleType': "DOUBLE",
+        'DecimalType': "DECIMAL",
+        'FloatType': "FLOAT",
+        'LongType': "LONG",
+        'IntegerType': "INTEGER",
     }
 
     NAME_PARAM = 'name'
@@ -254,7 +256,8 @@ class SaveOperations(Operation):
     def generate_code(self):
         # Retrieve Storage URL
 
-        limonero_config = self.parameters['configuration']['juicer']['services']['limonero']
+        limonero_config = \
+            self.parameters['configuration']['juicer']['services']['limonero']
         url = limonero_config['url']
         token = str(limonero_config['auth_token'])
         storage = limonero_service.get_storage_info(url, token, self.storage_id)
@@ -319,7 +322,7 @@ class SaveOperations(Operation):
                            self.user['id'],
                            self.user['login'],
                            self.user['name'],
-                           self.workflow_id, final_url, token, url, 
+                           self.workflow_id, final_url, token, url,
                            json.dumps(self.SPARK_TO_LIMONERO_DATA_TYPES)
                            )
             code += dedent(code_api)
@@ -329,17 +332,15 @@ class SaveOperations(Operation):
         return code
 
 
-class ReadCSV(Operation):
+class ReadCSVOperation(Operation):
     """
     Reads a CSV file without HDFS.
     The purpose of this operation is to read files in
     HDFS without using the Limonero API.
     """
 
-    def __init__(self, parameters, inputs, outputs, named_inputs,
-                 named_outputs):
-        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
-                           named_outputs)
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
         self.url = parameters['url']
         try:
             self.header = parameters['header']
@@ -353,11 +354,12 @@ class ReadCSV(Operation):
     def generate_code(self):
         code = """{} = spark_session.read.csv('{}',
             header={}, sep='{}',inferSchema=True)""".format(
-            self.outputs[0], self.url, self.header, self.separator)
+            self.named_outputs['output data'], self.url, self.header,
+            self.separator)
         return dedent(code)
 
 
-class ChangeAttribute(Operation):
+class ChangeAttributeOperation(Operation):
     ATTRIBUTES_PARAM = 'attributes'
     IS_FEATURE_PARAM = 'is_feature'
     IS_LABEL_PARAM = 'is_label'
@@ -366,8 +368,7 @@ class ChangeAttribute(Operation):
     NEW_DATA_TYPE_PARAM = 'new_data_type'
     KEEP_VALUE = 'keep'
 
-    def __init__(self, parameters, inputs, outputs, named_inputs,
-                 named_outputs):
+    def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         if self.ATTRIBUTES_PARAM in parameters:
@@ -384,7 +385,8 @@ class ChangeAttribute(Operation):
         if self.parameters.get(self.NEW_DATA_TYPE_PARAM,
                                'keep') == self.KEEP_VALUE:
             # Do not require processing data frame, change only meta data
-            code.append('{0} = {1}'.format(self.output, self.inputs[0]))
+            code.append('{0} = {1}'.format(self.output,
+                                           self.named_inputs['input data']))
 
             for attr in self.attributes:
                 code.append(
@@ -396,28 +398,30 @@ class ChangeAttribute(Operation):
                                                self.KEEP_VALUE)
                 if nullable != self.KEEP_VALUE:
                     code.append(
-                        ChangeAttribute.change_meta(
+                        ChangeAttributeOperation.change_meta(
                             self.output, attr, 'nullable', nullable == 'true'))
 
                 feature = self.parameters.get(self.IS_FEATURE_PARAM,
                                               self.KEEP_VALUE)
                 if feature != self.KEEP_VALUE:
                     code.append(
-                        ChangeAttribute.change_meta(
+                        ChangeAttributeOperation.change_meta(
                             self.output, attr, 'feature', feature == 'true'))
 
                 label = self.parameters.get(self.IS_LABEL_PARAM,
                                             self.KEEP_VALUE)
                 if label != self.KEEP_VALUE:
                     code.append(
-                        ChangeAttribute.change_meta(
+                        ChangeAttributeOperation.change_meta(
                             self.output, attr, 'label', label == 'true'))
 
             format_name = self.parameters[self.NEW_NAME_PARAM]
             if format_name:
                 rename = [
                     "withColumnRenamed('{}', '{}')".format(
-                        attr, ChangeAttribute.new_name(format_name, attr)) for
+                        attr,
+                        ChangeAttributeOperation.new_name(format_name, attr))
+                    for
                     attr in self.attributes]
 
                 code.append('{0} = {0}.{1}'.format(
@@ -441,10 +445,8 @@ class ChangeAttribute(Operation):
 
 
 class ExternalInputOperation(Operation):
-    def __init__(self, parameters, inputs, outputs, named_inputs,
-                 named_outputs):
-        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
-                           named_outputs)
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         self.has_code = len(self.output) > 0
 
