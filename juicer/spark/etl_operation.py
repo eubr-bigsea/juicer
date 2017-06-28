@@ -417,6 +417,78 @@ class SelectOperation(Operation):
         return dedent(code)
 
 
+class ReplaceValueOperation(Operation):
+    """
+    Replace values in one or more attributes from a dataframe.
+    Parameters:
+    - The list of columns selected.
+    """
+    ATTRIBUTES_PARAM = 'attributes'
+    REPLACEMENT_PARAM = 'replacement'
+    ORIGINAL_PARAM = 'original'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+
+        self.attributes = parameters.get(self.ATTRIBUTES_PARAM, [])
+        self.output = self.named_outputs.get(
+            'output data', 'replaced_data_{}'.format(self.order))
+
+        if self.REPLACEMENT_PARAM in parameters:
+            self.replacement = parameters.get(self.REPLACEMENT_PARAM)
+        else:
+            raise ValueError(
+                "Parameter '{}' must be informed for task {}".format(
+                    self.REPLACEMENT_PARAM, self.__class__))
+
+        if self.ORIGINAL_PARAM in parameters:
+            self.original = parameters.get(self.ORIGINAL_PARAM)
+        else:
+            raise ValueError(
+                "Parameter '{}' must be informed for task {}".format(
+                    self.ORIGINAL_PARAM, self.__class__))
+
+        def check(v):
+            result = False
+            try:
+                float(v)
+                result = True
+            except ValueError:
+                pass
+            result = (result or v.isdigit() or
+                      (v[0] in ['\'', '"'] and v[-1] in ['\'', '"']))
+            return result
+
+        if not check(self.original):
+            raise ValueError(
+                "Parameter '{}' for task '{}' must be a number "
+                "or enclosed in quotes.".format(
+                    self.ORIGINAL_PARAM, self.__class__))
+
+        if not check(self.replacement):
+            raise ValueError(
+                "Parameter '{}' for task '{}' must be a number "
+                "or enclosed in quotes.".format(
+                    self.REPLACEMENT_PARAM, self.__class__))
+
+        self.has_code = len(self.named_inputs) == 1
+
+    def get_output_names(self, sep=", "):
+        return self.output
+
+    def generate_code(self):
+        input_data = self.named_inputs['input data']
+
+        code = dedent("""
+            {out} = {in1}.replace({original},
+                {replacement}, subset={subset})""".format(
+            out=self.output, in1=input_data,
+            original=self.original,
+            replacement=self.replacement,
+            subset=json.dumps(self.attributes)))
+        return code
+
+
 class AggregationOperation(Operation):
     """
     Computes aggregates and returns the result as a DataFrame.
