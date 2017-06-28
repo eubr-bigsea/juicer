@@ -209,7 +209,7 @@ class OneHotEncoderOperation(Operation):
 
         # Adjust alias in order to have the same number of aliases as attributes
         # by filling missing alias with the attribute name sufixed by _indexed.
-        self.alias = [x[1] or '{}_indexed'.format(x[0]) for x in
+        self.alias = [x[1] or '{}_onehotenc'.format(x[0]) for x in
                       izip_longest(self.attributes,
                                    self.alias[:len(self.attributes)])]
 
