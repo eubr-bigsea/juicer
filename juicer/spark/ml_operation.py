@@ -5,6 +5,7 @@ from itertools import izip_longest
 from textwrap import dedent
 
 from juicer.operation import Operation, ReportOperation
+from juicer.service import limonero_service
 
 log = logging.getLogger()
 log.setLevel(logging.DEBUG)
@@ -44,17 +45,12 @@ class FeatureIndexerOperation(Operation):
         self.alias = [alias.strip() for alias in
                       parameters.get(self.ALIAS_PARAM, '').split(',')]
 
-        if self.MAX_CATEGORIES_PARAM in parameters:
-            self.max_categories = int(parameters.get(self.MAX_CATEGORIES_PARAM))
-            if not (self.max_categories >= 0):
-                msg = "Parameter '{}' must be in " \
-                      "range [x>=0] for task {}" \
-                    .format(self.MAX_CATEGORIES_PARAM, __name__)
-                raise ValueError(msg)
-        else:
-            raise ValueError(
-                "Parameter '{}' must be informed for task {}".format(
-                    self.MAX_CATEGORIES_PARAM, self.__class__))
+        self.max_categories = int(parameters.get(self.MAX_CATEGORIES_PARAM, 0))
+        if not (self.max_categories >= 0):
+            msg = "Parameter '{}' must be in " \
+                  "range [x>=0] for task {}" \
+                .format(self.MAX_CATEGORIES_PARAM, __name__)
+            raise ValueError(msg)
 
         # Adjust alias in order to have the same number of aliases as attributes
         # by filling missing alias with the attribute name sufixed by _indexed.
@@ -72,21 +68,21 @@ class FeatureIndexerOperation(Operation):
                                             'models_task_{}'.format(self.order))
             code = """
                 col_alias = dict({alias})
-                indexers = [feature.StringIndexer(inputCol=col, outputCol=alias,
-                                handleInvalid='skip')
-                                    for col, alias in col_alias.items()]
+                indexers = [feature.StringIndexer(
+                    inputCol=col, outputCol=alias, handleInvalid='skip')
+                             for col, alias in col_alias.items()]
 
                 # Use Pipeline to process all attributes once
                 pipeline = Pipeline(stages=indexers)
                 {models} = dict([(c, indexers[i].fit({input})) for i, c in
-                                enumerate(col_alias)])
+                                 enumerate(col_alias)])
 
                 # Spark ML 2.0.1 do not deal with null in indexer.
                 # See SPARK-11569
                 {input}_without_null = {input}.na.fill(
                     'NA', subset=col_alias.keys())
 
-                {out} = pipeline.fit({input}_without_null)\
+                {out} = pipeline.fit({input}_without_null)\\
                     .transform({input}_without_null)
             """.format(input=input_data, out=output, models=models,
                        alias=json.dumps(zip(self.attributes, self.alias),
@@ -288,6 +284,10 @@ class ApplyModelOperation(Operation):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
         self.has_code = len(self.named_inputs) == 2
 
+        if not self.has_code and len(self.named_outputs) > 0:
+            raise ValueError(
+                'Model is being used, but at least one input is missing')
+
     def generate_code(self):
         input_data1 = self.named_inputs['input data']
         output = self.named_outputs.get('output data',
@@ -356,17 +356,23 @@ class EvaluateModelOperation(Operation):
             (self.named_outputs.get('evaluator') is not None) or
             (len(self.named_inputs) == 2)
         )
-        self.metric_out = self.named_outputs.get(
-            'metric', 'metric_task_{}'.format(self.order))
+
+        self.model = self.named_inputs.get('model')
+        self.model_out = self.named_outputs.get(
+            'evaluated model', 'model_task_{}'.format(self.order))
 
         self.evaluator_out = self.named_outputs.get(
             'evaluator', 'evaluator_task_{}'.format(self.order))
+        if not self.has_code and self.named_outputs.get(
+                'evaluated model') is not None:
+            raise ValueError(
+                'Model is being used, but at least one input is missing')
 
     def get_data_out_names(self, sep=','):
         return ''
 
     def get_output_names(self, sep=", "):
-        return sep.join([self.metric_out, self.evaluator_out])
+        return sep.join([self.model_out, self.evaluator_out])
 
     def generate_code(self):
 
@@ -374,22 +380,24 @@ class EvaluateModelOperation(Operation):
             limonero_conf = self.config['juicer']['services']['limonero']
             caipirinha_conf = self.config['juicer']['services']['caipirinha']
 
-            code = ''
-
-            comment = self.parameters['task']['forms'].get('comment',
-                                                           {'value': ''}).get(
-                'value') or ''
-            # Not being used with a cross validator
-            if len(self.named_inputs) > 0:
-                code = """
+            code = dedent("""
                 # Creates the evaluator according to the model
                 # (user should not change it)
                 {evaluator_out} = {evaluator}(
-                    {pred_col}='{pred_attr}',
+                    {prediction_arg}='{prediction_attr}',
                     labelCol='{label_attr}',
                     metricName='{metric}')
+            """.format(evaluator=self.evaluator,
+                       evaluator_out=self.evaluator_out,
+                       prediction_arg=self.param_prediction_arg,
+                       prediction_attr=self.prediction_attribute,
+                       label_attr=self.label_attribute,
+                       metric=self.metric))
 
-                {output} = {evaluator_out}.evaluate({input})
+            # Not being used with a cross validator
+            if len(self.named_inputs) == 2:
+                code += dedent("""
+                metric_value = {evaluator_out}.evaluate({input})
 
                 # HTML visualization of result
                 from juicer.spark.reports import EvaluateModelOperationReport
@@ -397,7 +405,7 @@ class EvaluateModelOperation(Operation):
 
                 vis_model = EvaluateModelOperationReport.generate_visualization(
                     evaluator={evaluator_out},
-                    metric_value={output},
+                    metric_value=metric_value,
                     metric_name='{metric}',
                     title='{title}',
                     operation_id={operation_id},
@@ -435,15 +443,14 @@ class EvaluateModelOperation(Operation):
                     {workflow_id}, '{workflow_name}',
                     {job_id}, '{task_id}', visualizations, emit_event)
 
-                """.format(output=self.metric_out,
-                           comment=comment,
+                from juicer.spark.ml_operation import ModelsEvaluationResultList
+                {model_output} = ModelsEvaluationResultList(
+                    [{model}], {model}, '{metric}', metric_value)
+                """.format(model_output=self.model_out,
+                           model=self.model,
                            input=self.named_inputs['input data'],
-                           pred_attr=self.prediction_attribute,
-                           label_attr=self.label_attribute,
                            metric=self.metric,
-                           evaluator=self.evaluator,
                            evaluator_out=self.evaluator_out,
-                           pred_col=self.param_prediction_arg,
                            workflow_id=self.parameters['workflow_id'],
                            workflow_name=self.parameters['workflow_name'],
                            job_id=self.parameters['job_id'],
@@ -456,8 +463,10 @@ class EvaluateModelOperation(Operation):
                            limonero_token=limonero_conf['auth_token'],
                            caipirinha_url=caipirinha_conf['url'],
                            caipirinha_token=caipirinha_conf['auth_token'],
-                           storage_id=caipirinha_conf['storage_id'], )
-            elif len(self.named_outputs) > 0:  # Used with cross validator
+                           storage_id=caipirinha_conf['storage_id'], ))
+            '''
+            elif self.named_outputs.get(
+                    'evaluator'):  # Used with cross validator
                 code = """
                 {evaluator_out} = {evaluator}(
                     {prediction_arg}='{prediction_attr}',
@@ -471,8 +480,18 @@ class EvaluateModelOperation(Operation):
                            prediction_attr=self.prediction_attribute,
                            label_attr=self.label_attribute,
                            metric=self.metric, metric_out=self.metric_out)
-
+            '''
             return dedent(code)
+
+
+class ModelsEvaluationResultList:
+    """ Stores a list of ModelEvaluationResult """
+
+    def __init__(self, models, best, metric_name, metric_value):
+        self.models = models
+        self.best = best
+        self.metric_name = metric_name
+        self.metric_value = metric_value
 
 
 class CrossValidationOperation(Operation):
@@ -519,14 +538,15 @@ class CrossValidationOperation(Operation):
                 evaluator = {evaluator}
 
                 cross_validator = tuning.CrossValidator(
-                    estimator=estimator, estimatorParamMaps=grid_builder.build(),
+                    estimator=estimator,
+                    estimatorParamMaps=grid_builder.build(),
                     evaluator=evaluator, numFolds={folds})
                 cv_model = cross_validator.fit({input_data})
-                evaluated_data = cv_model.transform({input_data})
+                fit_data = cv_model.transform({input_data})
                 best_model_{output} = cv_model.bestModel
-                metric_result = evaluator.evaluate(evaluated_data)
+                metric_result = evaluator.evaluate(fit_data)
                 {evaluation} = metric_result
-                {output} = evaluated_data
+                {output} = fit_data
                 {models} = None
                 """.format(algorithm=self.named_inputs['algorithm'],
                            input_data=self.named_inputs['input data'],
@@ -541,7 +561,7 @@ class CrossValidationOperation(Operation):
         needs_evaluation = 'evaluation' in self.named_outputs
         if needs_evaluation:
             eval_code = """
-                grouped_result = evaluated_data.select(
+                grouped_result = fit_data.select(
                         evaluator.getLabelCol(), evaluator.getPredictionCol())\\
                         .groupBy(evaluator.getLabelCol(),
                                  evaluator.getPredictionCol()).count().collect()
@@ -581,6 +601,7 @@ class CrossValidationOperation(Operation):
 class ClassificationModelOperation(Operation):
     FEATURES_ATTRIBUTE_PARAM = 'features'
     LABEL_ATTRIBUTE_PARAM = 'label'
+    PREDICTION_ATTRIBUTE_PARAM = 'prediction'
 
     def __init__(self, parameters, named_inputs,
                  named_outputs):
@@ -598,9 +619,14 @@ class ClassificationModelOperation(Operation):
 
         self.label = parameters.get(self.LABEL_ATTRIBUTE_PARAM)[0]
         self.features = parameters.get(self.FEATURES_ATTRIBUTE_PARAM)[0]
+        self.prediction = parameters.get(self.PREDICTION_ATTRIBUTE_PARAM,
+                                         'prediction')
 
         self.model = named_outputs.get('model',
                                        'model_task_{}'.format(self.order))
+        if not self.has_code and len(self.named_outputs) > 0:
+            raise ValueError(
+                'Model is being used, but at least one input is missing')
 
     def get_data_out_names(self, sep=','):
         return ''
@@ -612,11 +638,14 @@ class ClassificationModelOperation(Operation):
         if self.has_code:
             code = """
             algorithm, param_grid = {algo}
-            algorithm.setLabelCol('{label}').setFeaturesCol('{feat}')
+            algorithm.setPredictionCol('{prediction}')
+            algorithm.setLabelCol('{label}')
+            algorithm.setFeaturesCol('{feat}')
             {model} = algorithm.fit({train})
             """.format(model=self.model, algo=self.named_inputs['algorithm'],
                        train=self.named_inputs['train input data'],
-                       label=self.label, feat=self.features)
+                       label=self.label, feat=self.features,
+                       prediction=self.prediction)
 
             return dedent(code)
         else:
@@ -1016,10 +1045,10 @@ class RecommendationModel(Operation):
 
     def __init__(self, parameters, named_inputs,
                  named_outputs):
-        Operation.__init__(self, parameters, named_inputs,
-                           named_outputs)
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-        self.has_code = len(outputs) > 0 and len(self.inputs) == 2
+        self.inputs = None
+        self.has_code = len(named_outputs) > 0 and len(self.inputs) == 2
 
         if not all([self.RANK_PARAM in parameters['workflow_json'],
                     self.RATING_COL_PARAM in parameters['workflow_json']]):
@@ -1029,7 +1058,7 @@ class RecommendationModel(Operation):
                 self.__class__.__name__))
 
         self.model = self.named_outputs.get('model')
-        output = self.named_outputs.get('output data')
+        self.output = self.named_outputs.get('output data')
         # self.ratingCol = parameters.get(self.RATING_COL_PARAM)
 
     @property
@@ -1041,8 +1070,7 @@ class RecommendationModel(Operation):
         return ''
 
     def get_output_names(self, sep=', '):
-        return sep.join([output,
-                         self.model])
+        return sep.join([self.output, self.model])
 
     def generate_code(self):
         if self.has_code:
@@ -1055,7 +1083,7 @@ class RecommendationModel(Operation):
             """.format(self.model, self.named_inputs['algorithm'],
                        self.named_inputs['input data'],
                        self.RANK_PARAM, self.RATING_COL_PARAM,
-                       output_data=output)
+                       output_data=self.output)
 
             return dedent(code)
         else:
@@ -1140,7 +1168,6 @@ class AlternatingLeastSquaresOperation(Operation):
         self.has_code = len(named_outputs) > 0
         self.name = "collaborativefiltering.ALS"
 
-
         # Define input and output
         # output = self.named_outputs['output data']
         # self.input = self.named_inputs['train input data']
@@ -1191,7 +1218,8 @@ class LogisticRegressionModel(Operation):
         Operation.__init__(self, parameters, named_inputs,
                            named_outputs)
 
-        self.has_code = len(outputs) > 0 and len(self.inputs) == 2
+        self.inputs = None
+        self.has_code = len(named_outputs) > 0 and len(self.inputs) == 2
 
         if not all([self.FEATURES_PARAM in parameters['workflow_json'],
                     self.LABEL_PARAM in parameters['workflow_json']]):
@@ -1201,7 +1229,7 @@ class LogisticRegressionModel(Operation):
                 self.__class__.__name__))
 
         self.model = self.named_outputs.get('model')
-        output = self.named_outputs.get('output data')
+        self.output = self.named_outputs.get('output data')
 
     @property
     def get_inputs_names(self):
@@ -1212,8 +1240,7 @@ class LogisticRegressionModel(Operation):
         return ''
 
     def get_output_names(self, sep=', '):
-        return sep.join([output,
-                         self.model])
+        return sep.join([self.output, self.model])
 
     def generate_code(self):
         if self.has_code:
@@ -1222,8 +1249,7 @@ class LogisticRegressionModel(Operation):
             {0} = {1}.fit({2})
             {output_data} = {0}.transform({2})
             """.format(self.model, self.named_inputs['algorithm'],
-                       self.named_inputs['input data'],
-                       output_data=output)
+                       self.named_inputs['input data'], output_data=self.output)
 
             return dedent(code)
         else:
@@ -1329,7 +1355,8 @@ class RegressionModelOperation(Operation):
     TYPE_SOLVER_AUTO = 'auto'
     TYPE_SOLVER_NORMAL = 'normal'
 
-    # RegType missing -  none (a.k.a. ordinary least squares),    L2 (ridge regression)
+    # RegType missing -  none (a.k.a. ordinary least squares),
+    # L2 (ridge regression)
     #                    L1 (Lasso) and   L2 + L1 (elastic net)
 
     def __init__(self, parameters, named_inputs, named_outputs):
@@ -1405,8 +1432,10 @@ class RegressionOperation(Operation):
 
     def get_output_names(self, sep=', '):
         return self.output
+
     def get_data_out_names(self, sep=','):
         return ''
+
 
 class LinearRegressionOperation(RegressionOperation):
     MAX_ITER_PARAM = 'max_iter'
@@ -1725,6 +1754,9 @@ class AFTSurvivalRegressionOperation(RegressionOperation):
 
 
 class RandomForestRegressorOperation(RegressionOperation):
+    def generate_code(self):
+        pass
+
     def __init__(self, parameters, named_inputs, named_outputs):
         RegressionOperation.__init__(self, parameters, named_inputs,
                                      named_outputs)
@@ -1768,3 +1800,103 @@ class IsotonicRegressionOperation(RegressionOperation):
         # add , weightCol={weight} if exist
         code = [declare]
         return "\n".join(code)
+
+
+class SaveModel(Operation):
+    NAME_PARAM = 'name'
+    PATH_PARAM = 'path'
+    STORAGE_PARAM = 'storage'
+    SAVE_CRITERIA_PARAM = 'save_criteria'
+    WRITE_MODE_PARAM = 'write_mode'
+
+    CRITERIA_BEST = 'BEST'
+    CRITERIA_ALL = 'ALL'
+    CRITERIA_OPTIONS = [CRITERIA_BEST, CRITERIA_ALL]
+
+    WRITE_MODE_ERROR = 'ERROR'
+    WRITE_MODE_OVERWRITE = 'OVERWRITE'
+    WRITE_MODE_OPTIONS = [WRITE_MODE_ERROR,
+                          WRITE_MODE_OVERWRITE]
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+
+        self.parameters = parameters
+
+        self.name = parameters.get(self.NAME_PARAM)
+        self.storage_id = parameters.get(self.STORAGE_PARAM)
+
+        if self.name is None or self.storage_id is None:
+            msg = 'Missing parameters. Check if values for parameters {} ' \
+                  'were informed'
+            raise ValueError(
+                msg.format(', '.join([self.NAME_PARAM, self.STORAGE_PARAM])))
+
+        self.path = parameters.get(self.PATH_PARAM, '/limonero/models').rstrip(
+            '/')
+
+        self.write_mode = parameters.get(self.WRITE_MODE_PARAM,
+                                         self.WRITE_MODE_ERROR)
+        if self.write_mode not in self.WRITE_MODE_OPTIONS:
+            raise ValueError(
+                'Invalid value for parameter {param}: {value}'.format(
+                    param=self.WRITE_MODE_PARAM, value=self.write_mode))
+
+        self.criteria = parameters.get(self.SAVE_CRITERIA_PARAM,
+                                       self.CRITERIA_ALL)
+
+        if self.criteria not in self.CRITERIA_OPTIONS:
+            raise ValueError(
+                'Invalid value for parameter {param}: {value}'.format(
+                    param=self.SAVE_CRITERIA_PARAM, value=self.criteria))
+
+        self.has_code = len(named_inputs) > 0
+
+    def generate_code(self):
+        limonero_config = self.parameters.get('configuration') \
+            .get('juicer').get('services').get('limonero')
+
+        url = limonero_config['url']
+        token = str(limonero_config['auth_token'])
+        storage = limonero_service.get_storage_info(url, token, self.storage_id)
+
+        final_url = '{}/{}'.format(storage['url'], self.path)
+
+        models = self.named_inputs['models']
+        if not isinstance(models, list):
+            models = [models]
+
+        code = dedent("""
+            from juicer.spark.ml_operation import ModelsEvaluationResultList
+            all_models = [{models}]
+            with_evaluation = [m for m in all_models if isinstance(
+                m, ModelsEvaluationResultList)]
+            criteria = '{criteria}'
+
+            if criteria != 'ALL' and len(with_evaluation) != len(all_models):
+                raise ValueError('You cannot mix models with and witout '
+                    'evaluation when saving models and criteria is '
+                    'different from ALL')
+
+            if criteria == 'ALL':
+                models_to_save = list(itertools.chain.from_iterable(
+                    map(lambda m: m.models if isinstance(m,
+                        ModelsEvaluationResultList) else [m], all_models)))
+            elif criteria == 'BEST':
+                metrics_used = set([m.metric_name for m in all_models])
+                if len(metrics_used) > 1:
+                    msg = ('You cannot mix models built using with '
+                            'different metrics ({{}}).')
+                    raise ValueError(msg.format(', '.join(metrics_used)))
+
+                models_to_save = [m.best for m in all_models]
+
+            for i, model in enumerate(models_to_save):
+                name = '{path}/{name}.{{0:04d}}'.format(i)
+                model.write.{overwrite}save(name)
+        """.format(models=', '.join(models), overwrite='',
+                   path=final_url,
+                   name=self.name.replace(' ', '_'),
+                   criteria=self.criteria))
+
+        return code
