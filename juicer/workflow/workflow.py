@@ -53,12 +53,17 @@ class Workflow:
     def builds_initial_workflow_graph(self):
         """ Builds a graph with the tasks """
 
-        # Querying all operations from tahiti one time
         operations_tahiti = {op['id']: op for op in self.get_operations()}
+        # Querying all operations from tahiti one time
         task_map = {}
 
         for task in self.workflow['tasks']:
             operation = operations_tahiti.get(task['operation']['id'])
+            form_fields = {}
+            for form in operation['forms']:
+                for field in form['fields']:
+                    form_fields[field['name']] = form['category']
+
             task_map[task['id']] = {'task': task, 'operation': operation}
             if operation:
                 # Slug information is required in order to select which
@@ -75,6 +80,12 @@ class Workflow:
                     'M_INPUT': 'None',
                     'M_OUTPUT': 'None'
                 }
+
+                # Correct form field types if the interface (Citron) does not
+                # send this information
+                for k, v in task['forms'].items():
+                    if 'category' not in v:
+                        v['category'] = form_fields.get(k, 'EXECUTION')
 
                 for port in ports_list:
                     if port['type'] == 'INPUT':
