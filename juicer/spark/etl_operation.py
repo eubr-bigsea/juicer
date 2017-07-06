@@ -522,7 +522,7 @@ class AggregationOperation(Operation):
         for i, function in enumerate(self.functions):
             elements.append('''functions.{}('{}').alias('{}')'''.format(
                 function['f'].lower(), function['attribute'],
-                function['alias']))
+                function.get('alias', function.get('value'))))
 
         input_data = self.named_inputs['input data']
         output = self.named_outputs['output data']
