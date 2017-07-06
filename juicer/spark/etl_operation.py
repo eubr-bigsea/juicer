@@ -566,8 +566,8 @@ class FilterOperation(Operation):
         output = self.named_outputs['output data']
 
         filters = [
-            "(functions.col('{0}') {1} '{2}')".format(f['attribute'], f['f'],
-                                                      f['value'])
+            "(functions.col('{0}') {1} '{2}')".format(
+                f['attribute'], f['f'], f.get('value', f.get('alias')))
             for f in self.filter]
 
         code = "{out} = {in1}.filter({f})".format(
