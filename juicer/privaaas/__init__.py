@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""PRIVAaaS - Privacity as a Service
+"""PRIVAaaS - Privacy as a Service
 EUBra-BIGSEA project.
 
 This module implements methods to guarantee data privacy during the execution
@@ -8,6 +8,14 @@ of Lemonade's workflows.
 """
 import hashlib
 import sys
+
+ANONYMIZATION_TECHNIQUES = {
+    'NO_TECHNIQUE': 0,
+    'GENERALIZATION': 1,
+    'MASK': 2,
+    'ENCRYPTION': 3,
+    'SUPPRESSION': 4
+}
 
 
 def _truncate_number(value, len_truncation):
@@ -25,7 +33,7 @@ def _truncate_string(value, len_truncation):
 
 
 def _number_range_to_string(value, detail):
-    detail_value = detail[1:-1].replace(' ', '')
+    detail_value = detail[1:-1]
     parts = detail_value.split(';')
     list_of_parts = list(parts)
 

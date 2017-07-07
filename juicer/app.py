@@ -6,13 +6,11 @@ from __future__ import print_function
 import argparse
 import json
 import logging.config
-from collections import defaultdict
 
 import redis
 import requests
 import yaml
 from juicer.runner import configuration
-from juicer.service import limonero_service
 from juicer.spark.transpiler import SparkTranspiler
 from juicer.workflow.workflow import Workflow
 
@@ -78,7 +76,6 @@ class JuicerSparkService:
 
         # generated = StringIO()
         # spark_instance.output = generated
-        '''
         try:
             spark_instance.transpile(loader.workflow,
                                      loader.graph,
@@ -88,66 +85,6 @@ class JuicerSparkService:
             log.exception("At least one parameter is missing", exc_info=ve)
         except:
             raise
-        '''
-
-        limonero_config = self.config['juicer']['services']['limonero']
-        data_sources = []
-        for t in loader.workflow['tasks']:
-            if t['operation']['slug'] == 'data-reader':
-                data_sources.append(limonero_service.query_limonero(
-                    limonero_config['url'], '/datasources/',
-                    str(limonero_config['auth_token']),
-                    t['forms']['data_source']['value']))
-
-        privacy_info = {}
-        attribute_group_set = defaultdict(list)
-        for ds in data_sources:
-            attrs = []
-            privacy_info[ds['id']] = {'attributes': attrs}
-            for attr in ds['attributes']:
-                privacy = attr.get('attribute_privacy', {}) or {}
-                attribute_privacy_group_id = privacy.get(
-                    'attribute_privacy_group_id')
-                privacy_config = {
-                    'id': attr['id'],
-                    'name': attr['name'],
-                    'type': attr['type'],
-                    'privacy_type': privacy.get('privacy_type'),
-                    'anonymization_technique': privacy.get(
-                        'anonymization_technique'),
-                    'attribute_privacy_group_id': attribute_privacy_group_id
-                }
-                attrs.append(privacy_config)
-                if attribute_privacy_group_id:
-                    attribute_group_set[attribute_privacy_group_id].append(
-                        privacy_config)
-                    # print('#' * 40)
-                    # print(attr.get('name'), attr.get('type'))
-                    # print(privacy.get('privacy_type'),
-                    #       privacy.get('anonymization_technique'),
-                    #       privacy.get('attribute_privacy_group_id'))
-
-        anonymization_techniques = {
-            'NO_TECHNIQUE': 0,
-            'GENERALIZATION': 1,
-            'MASK': 2,
-            'ENCRYPTION': 3,
-            'SUPPRESSION': 4
-        }
-
-        def sort_attr_privacy(a):
-            return anonymization_techniques[a.get(
-                'anonymization_technique', 'NO_TECHNIQUE')]
-
-        for attributes in attribute_group_set.values():
-            more_restritive = sorted(
-                attributes, key=sort_attr_privacy, reverse=True)[0]
-            # print(json.dumps(more_restritive[0], indent=4))
-            # Copy all privacy config from more restrictive one
-            for attribute in attributes:
-                attribute.update(more_restritive)
-
-        print(json.dumps(privacy_info, indent=2))
 
 
 def main(workflow_id, execute_main, params, job_id, config):

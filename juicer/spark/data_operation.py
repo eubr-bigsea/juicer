@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import ast
+import itertools
 import json
 import pprint
 from textwrap import dedent
@@ -170,7 +171,37 @@ class DataReaderOperation(Operation):
                 # # FIXME: Evaluate if it is good idea to always use cache
                 code.append('{}.cache()'.format(self.output))
 
+        if self.metadata['privacy_aware']:
+            code.append(self._apply_privacy_constraints())
         return '\n'.join(code)
+
+    def _apply_privacy_constraints(self):
+        result = ''
+        ds_id = int(self.parameters['data_source'])
+        restrictions = self.parameters['workflow'].get(
+            'privacy_restrictions', {}).get(ds_id)
+        try:
+            if restrictions.get('attributes'):
+                attrs = restrictions['attributes']
+                import pdb
+                pdb.set_trace()
+                grouped_by_type = itertools.groupby(
+                    attrs, key=lambda x: x['anonymization_technique'])
+                for k, group in grouped_by_type:
+                    if k == 'SUPPRESSION':
+                        pass
+                    elif k == 'ENCRYPTION':
+                        pass
+                    elif k == 'GENERALIZATION':
+                        pass
+                    else:
+                        raise ValueError(
+                            'Invalid anonymization type ({})'.format(k))
+        except Exception as e:
+            print e
+            pass
+
+        return result
 
     def get_output_names(self, sep=", "):
         return self.output
