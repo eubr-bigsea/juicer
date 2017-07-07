@@ -383,7 +383,7 @@ class SparkTranspiler:
         }
         data_ops = {
             'change-attribute': juicer.spark.data_operation.ChangeAttributeOperation,
-            'data-reader': juicer.spark.data_operation.DataReader,
+            'data-reader': juicer.spark.data_operation.DataReaderOperation,
             'data-writer': juicer.spark.data_operation.SaveOperation,
             'external-input':
                 juicer.spark.data_operation.ExternalInputOperation,

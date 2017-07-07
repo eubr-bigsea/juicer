@@ -8,7 +8,7 @@ from juicer.operation import Operation
 from juicer.service import limonero_service
 
 
-class DataReader(Operation):
+class DataReaderOperation(Operation):
     """
     Reads a database.
     Parameters:
@@ -59,7 +59,7 @@ class DataReader(Operation):
                 limonero_config = \
                     self.parameters['configuration']['juicer']['services'][
                         'limonero']
-                url = '{}/datasources'.format(limonero_config['url'])
+                url = limonero_config['url']
                 token = str(limonero_config['auth_token'])
 
                 self.metadata = limonero_service.get_data_source_info(
@@ -90,8 +90,8 @@ class DataReader(Operation):
                             attr['type']]
                         if attr['type'] in self.DATA_TYPES_WITH_PRECISION:
                             data_type = '{}({}, {})'.format(
-                                data_type, attr['precision'],
-                                attr['size'] - attr['precision'])
+                                data_type, attr.get('precision', 10),
+                                attr.get('scale', 2))
                         else:
                             data_type = '{}()'.format(data_type)
 
