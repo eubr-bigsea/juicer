@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-import json
 import sys
 import zipfile
 
@@ -40,13 +39,18 @@ class SparkTranspilerVisitor:
     def __init__(self):
         pass
 
-    def visit(self, workflow, operations, params):
+    def visit(self, workflow, sorted_tasks, operations, params):
         raise NotImplementedError()
 
 
+class ValidateAttributeReferencesVisitor(SparkTranspilerVisitor):
+    def visit(self, workflow, sorted_tasks, operations, params):
+        pass
+
+
 class RemoveTasksWhenMultiplexingVisitor(SparkTranspilerVisitor):
-    def visit(self, graph, operations, params):
-        return graph
+    def visit(self, workflow, sorted_tasks, operations, params):
+        return None
         # external_input_op = juicer.spark.ws_operation.MultiplexerOperation
         # for task_id in graph.node:
         #     task = graph.node[task_id]
@@ -84,33 +88,11 @@ class SparkTranspiler:
         self.current_task_id = None
         self.configuration = configuration
 
-    """
-    def pre_transpile(self, workflow, graph, out=None, params=None):
-        self.graph = graph
-        self.params = params if params is not None else {}
-
-        self.using_stdout = out is None
-        if self.using_stdout:
-            self.out = sys.stdout
-        else:
-            self.out = out
-
-        self.workflow_json = json.dumps(workflow)
-        self.workflow_name = workflow['name']
-        self.workflow_id = workflow['id']
-        self.workflow_user = workflow.get('user', {})
-
-        self.requires_info = {}
-
-        # dependency = sort_topologically(graph)
-        # self.tasks = [all_tasks[item] for sublist in dependency for item in
-        #               sublist]
-
-        self.execute_main = False
+    def pre_transpile(self, workflow, graph, params=None):
+        params = params or {}
         for visitor in self.VISITORS:
-            self.workflow = visitor().visit(
-                self.graph, self.operations, params)
-    """
+            visitor().visit(workflow, nx.topological_sort(graph),
+                            self.operations, params)
 
     def build_dist_file(self):
         """
@@ -145,7 +127,8 @@ class SparkTranspiler:
                 zf.writepy(lib_path)
             zf.close()
 
-    def _gen_port_name(self, flow, seq):
+    @staticmethod
+    def _gen_port_name(flow, seq):
         name = flow.get('source_port_name', 'data')
         parts = name.split()
         if len(parts) == 1:

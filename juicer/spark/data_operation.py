@@ -169,31 +169,65 @@ class DataReaderOperation(Operation):
 
                 code.append(code_csv)
                 # # FIXME: Evaluate if it is good idea to always use cache
-                code.append('{}.cache()'.format(self.output))
 
         if self.metadata['privacy_aware']:
-            code.append(self._apply_privacy_constraints())
+            code.extend(self._apply_privacy_constraints())
+
+        code.append('{}.cache()'.format(self.output))
         return '\n'.join(code)
 
     def _apply_privacy_constraints(self):
-        result = ''
+        result = []
         ds_id = int(self.parameters['data_source'])
         restrictions = self.parameters['workflow'].get(
             'privacy_restrictions', {}).get(ds_id)
         try:
             if restrictions.get('attributes'):
                 attrs = restrictions['attributes']
-                import pdb
-                pdb.set_trace()
                 grouped_by_type = itertools.groupby(
                     attrs, key=lambda x: x['anonymization_technique'])
                 for k, group in grouped_by_type:
                     if k == 'SUPPRESSION':
-                        pass
+                        result.append(
+                            '\n# Privacy policy: attribute suppression')
+                        result.append('{out} = {out}.drop(cols={cols})'.format(
+                            out=self.output,
+                            cols=json.dumps([g['name'] for g in group])))
                     elif k == 'ENCRYPTION':
-                        pass
+                        code = dedent("""
+                            # Privacy policy: attribute encryption
+                            {out} = {out}.withColumn(colName='{name}',
+                                privaaas.encrypt({out}.{name},
+                                                 '{details}'))""")
+                        for g in group:
+                            result.append(code.format(
+                                out=self.output, name=g['name'],
+                                details=g['details']))
                     elif k == 'GENERALIZATION':
-                        pass
+                        # @FIXME
+                        code = dedent("""
+                            # Privacy policy: attribute generalize
+                            details = {details}
+                            {out} = {out}.withColumn(colName='{name}',
+                                privaaas.encrypt({out}.{name}, details))""")
+                        for g in group:
+                            result.append(code.format(
+                                out=self.output, name=g['name'],
+                                details=g['details']))
+                    elif k == 'MASK':
+                        code = dedent("""
+                            # Privacy policy: attribute mask
+                            details = {details}
+                            from faker import Factory
+                            faker_obj = Factory.create(details['lang'])
+                            faker_ctx[details['label_type']] = collections.defaultdict(
+                                getattr(faker_obj, details['label_type']))
+                            {out} = {out}.withColumn(colName='{name}',
+                                privaaas.encrypt(faker_obj, {out}.{name}, details))""")
+                        for g in group:
+                            result.append(code.format(
+                                out=self.output, name=g['name'],
+                                details=g['details']))
                     else:
                         raise ValueError(
                             'Invalid anonymization type ({})'.format(k))

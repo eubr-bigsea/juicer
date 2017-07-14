@@ -1350,11 +1350,6 @@ class RegressionModelOperation(Operation):
     REG_PARAM = 'reg_param'
     ELASTIC_NET_PARAM = 'elastic_net'
 
-    SOLVER_PARAM = 'solver'
-
-    TYPE_SOLVER_AUTO = 'auto'
-    TYPE_SOLVER_NORMAL = 'normal'
-
     # RegType missing -  none (a.k.a. ordinary least squares),
     # L2 (ridge regression)
     #                    L1 (Lasso) and   L2 + L1 (elastic net)
@@ -1695,7 +1690,7 @@ class GBTRegressorOperation(RegressionOperation):
 
 class AFTSurvivalRegressionOperation(RegressionOperation):
     MAX_ITER_PARAM = 'max_iter'
-    AGR_DETPTH_PARAM = 'aggregation_depth'
+    AGR_DEPTH_PARAM = 'aggregation_depth'
     SEED_PARAM = 'seed'
     CENSOR_COL_PARAM = 'censor'
     QUANTILES_PROBABILITIES_PARAM = 'quantile_probabilities'
@@ -1712,7 +1707,7 @@ class AFTSurvivalRegressionOperation(RegressionOperation):
             self.read_common_params(parameters)
 
             self.max_iter = parameters.get(self.MAX_ITER_PARAM, 10)
-            self.agg_depth = parameters.get(self.AGR_DETPTH_PARAM, 1)
+            self.agg_depth = parameters.get(self.AGR_DEPTH_PARAM, 1)
 
             self.censor = self.parameters.get(self.CENSOR_COL_PARAM, 'censor')[
                 0]

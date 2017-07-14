@@ -76,6 +76,7 @@ class Workflow:
                     'id': attr['id'],
                     'name': attr['name'],
                     'type': attr['type'],
+                    'details': privacy.get('hierarchy'),
                     'privacy_type': privacy.get('privacy_type'),
                     'anonymization_technique': privacy.get(
                         'anonymization_technique'),
