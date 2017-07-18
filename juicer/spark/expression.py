@@ -12,7 +12,7 @@ class Expression:
 
     def parse(self, tree, params):
         if tree['type'] == 'BinaryExpression':
-            result = "{} {} {}".format(
+            result = "({} {} {})".format(
                 self.parse(tree['left'], params), tree['operator'],
                 self.parse(tree['right'], params))
 
