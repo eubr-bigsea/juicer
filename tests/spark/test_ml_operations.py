@@ -5,6 +5,7 @@ from itertools import izip_longest
 from textwrap import dedent
 
 import pytest
+import difflib
 # Import Operations to test
 from juicer.runner import configuration
 from juicer.spark.ml_operation import FeatureIndexerOperation, \
@@ -318,7 +319,7 @@ def test_evaluate_model_operation_success():
         }
     )
     n_in = {'input data': 'input_1', 'model': 'df_model'}
-    n_out = {'metric': 'df_metric', 'evaluator': 'df_evaluator'}
+    n_out = {'metric': 'metric_value', 'evaluator': 'df_evaluator'}
     instance = EvaluateModelOperation(params, named_inputs=n_in,
                                       named_outputs=n_out)
 
@@ -336,6 +337,7 @@ def test_evaluate_model_operation_success():
             vis_model = EvaluateModelOperationReport.generate_visualization(
                 evaluator={evaluator_out},
                 metric_value={output},
+                metric_name='{metric}',
                 title='Evaluation result',
                 operation_id={operation_id},
                 task_id='{task_id}')
@@ -372,6 +374,9 @@ def test_evaluate_model_operation_success():
                 {{'login': 'admin', 'id': 12, 'name': 'admin'}},
                 203, 'test',
                 34, '2323-afffa-343bdaff', visualizations, emit_event)
+            from juicer.spark.ml_operation import ModelsEvaluationResultList
+            model_task_1 = ModelsEvaluationResultList(
+                [df_model], df_model, 'f1', metric_value)
             """.format(output=n_out['metric'],
                        evaluator_out=n_out['evaluator'],
                        input_2=n_in['model'],
@@ -389,7 +394,7 @@ def test_evaluate_model_operation_success():
                            params[EvaluateModelOperation.METRIC_PARAM]][1]))
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
-    assert result, msg + format_code_comparison(code, expected_code)
+    assert result, msg + format_code_comparison(code, expected_code) #+ '\n' + '\n'.join(difflib.unified_diff(code.split('\n'), expected_code.split('\n')))
 
 
     # @!BUG - Acessing 'task''order' in parameter attribute, but doesn't exist
@@ -497,14 +502,14 @@ def test_cross_validation_partial_operation_success():
                 estimator=estimator, estimatorParamMaps=grid_builder.build(),
                 evaluator=evaluator, numFolds={folds})
             cv_model = cross_validator.fit({input_data})
-            evaluated_data = cv_model.transform({input_data})
+            fit_data = cv_model.transform({input_data})
             best_model_{output}  = cv_model.bestModel
-            metric_result = evaluator.evaluate(evaluated_data)
+            metric_result = evaluator.evaluate(fit_data)
             {evaluation} = metric_result
-            {output} = evaluated_data
+            {output} = fit_data
             models_task_1 = None
 
-            grouped_result = evaluated_data.select(
+            grouped_result = fit_data.select(
                  evaluator.getLabelCol(), evaluator.getPredictionCol())\
                  .groupBy(evaluator.getLabelCol(),
                           evaluator.getPredictionCol()).count().collect()
@@ -575,11 +580,11 @@ def test_cross_validation_complete_operation_success():
                 estimator=estimator, estimatorParamMaps=grid_builder.build(),
                 evaluator=evaluator, numFolds={folds})
             cv_model = cross_validator.fit({input_data})
-            evaluated_data = cv_model.transform({input_data})
+            fit_data = cv_model.transform({input_data})
             best_model_{output}  = cv_model.bestModel
-            metric_result = evaluator.evaluate(evaluated_data)
+            metric_result = evaluator.evaluate(fit_data)
             {output} = metric_result
-            {output} = evaluated_data
+            {output} = fit_data
             models_task_1 = None
             """.format(algorithm=n_in['algorithm'],
                        input_data=n_in['input data'],
@@ -588,7 +593,7 @@ def test_cross_validation_complete_operation_success():
                        folds=params[CrossValidationOperation.NUM_FOLDS_PARAM]))
 
     eval_code = """
-            grouped_result = evaluated_data.select(
+            grouped_result = fit_data.select(
                     evaluator.getLabelCol(), evaluator.getPredictionCol())\\
                     .groupBy(evaluator.getLabelCol(),
                              evaluator.getPredictionCol()).count().collect()
@@ -647,7 +652,8 @@ def test_cross_validation_complete_operation_missing_input_failure():
 def test_classification_model_operation_success():
     params = {
         ClassificationModelOperation.FEATURES_ATTRIBUTE_PARAM: 'f',
-        ClassificationModelOperation.LABEL_ATTRIBUTE_PARAM: 'l'
+        ClassificationModelOperation.LABEL_ATTRIBUTE_PARAM: 'l',
+        ClassificationModelOperation.PREDICTION_ATTRIBUTE_PARAM: 'prediction1'
 
     }
     n_in = {'algorithm': 'algo_param', 'train input data': 'train'}
@@ -659,11 +665,15 @@ def test_classification_model_operation_success():
 
     expected_code = dedent("""
         algorithm, param_grid = {algorithm}
-        algorithm.setLabelCol('{label}').setFeaturesCol('{features}')
+        algorithm.setPredictionCol('{prediction}')
+        algorithm.setLabelCol('{label}')
+        algorithm.setFeaturesCol('{features}')
         {output} = algorithm.fit({train})
         """.format(output=n_out['model'],
                    train=n_in['train input data'],
                    algorithm=n_in['algorithm'],
+                   prediction=params[
+                       ClassificationModelOperation.PREDICTION_ATTRIBUTE_PARAM],
                    features=params[
                        ClassificationModelOperation.FEATURES_ATTRIBUTE_PARAM],
                    label=params[
