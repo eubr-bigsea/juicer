@@ -270,6 +270,7 @@ class SparkTranspiler:
             env_setup['instances'].append(instance)
             env_setup['instances_by_task_id'][task['id']] = instance
             env_setup['execute_main'] = params.get('execute_main', False)
+            env_setup['plain'] = params.get('plain', False)
 
         template_loader = jinja2.FileSystemLoader(
             searchpath=os.path.dirname(__file__))
@@ -374,7 +375,7 @@ class SparkTranspiler:
                 juicer.spark.ml_operation.RandomForestRegressorOperation,
             'gbt-regressor': juicer.spark.ml_operation.GBTRegressorOperation,
             'generalized-linear-regressor':
-                juicer.spark.ml_operation.GeneralizedLinearRegression,
+                juicer.spark.ml_operation.GeneralizedLinearRegressionOperation,
             'aft-survival-regression':
                 juicer.spark.ml_operation.AFTSurvivalRegressionOperation,
 

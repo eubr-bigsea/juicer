@@ -396,7 +396,7 @@ class EvaluateModelOperation(Operation):
 
             # Not being used with a cross validator
             if len(self.named_inputs) == 2:
-                code += dedent("""
+                code += dedent(u"""
                 metric_value = {evaluator_out}.evaluate({input})
 
                 # HTML visualization of result
@@ -1364,16 +1364,25 @@ class RegressionModelOperation(Operation):
 
         self.has_code = len(named_outputs) > 0 and len(named_inputs) == 2
 
-        if not all([self.FEATURES_PARAM in parameters['workflow_json'],
-                    self.LABEL_PARAM in parameters['workflow_json']]):
-            msg = "Parameters '{}' and '{}' must be informed for task {}"
-            raise ValueError(msg.format(
-                self.FEATURES_PARAM, self.LABEL_PARAM,
-                self.__class__.__name__))
+        if self.has_code:
+            self.algorithm = self.named_inputs['algorithm']
+            self.input = self.named_inputs['train input data']
 
-        self.model = self.named_outputs.get('model')
-        self.output = self.named_outputs.get('output data',
-                                             'out_task_{}'.format(self.order))
+            if not all([self.FEATURES_PARAM in parameters,
+                        self.LABEL_PARAM in parameters]):
+                msg = "Parameters '{}' and '{}' must be informed for task {}"
+                raise ValueError(msg.format(
+                    self.FEATURES_PARAM, self.LABEL_PARAM,
+                    self.__class__.__name__))
+
+            self.features = parameters[self.FEATURES_PARAM]
+            self.label = parameters[self.LABEL_PARAM]
+            self.prediction = parameters.get(self.PREDICTION_COL_PARAM,
+                                             'prediction')
+            self.model = self.named_outputs.get(
+                'model', 'model_{}'.format(self.order))
+            self.output = self.named_outputs.get(
+                'output data', 'out_task_{}'.format(self.order))
 
     @property
     def get_inputs_names(self):
@@ -1384,25 +1393,33 @@ class RegressionModelOperation(Operation):
         return ''
 
     def get_output_names(self, sep=', '):
-        return sep.join([self.output,
-                         self.model])
+        return sep.join([self.output, self.model])
 
     def generate_code(self):
         if self.has_code:
-
             code = """
-            {0} = {1}.fit({2})
-            {output_data} = {0}.transform({2})
-            """.format(self.model, self.named_inputs['algorithm'],
+            from pyspark.ml.linalg import Vectors
+
+            algorithm = {1}
+            algorithm.setPredictionCol('{prediction}')
+            algorithm.setLabelCol('{label}')
+            algorithm.setFeaturesCol('{features}')
+            try:
+                {0} = algorithm.fit({2})
+                {output_data} = {0}.transform({2})
+            except IllegalArgumentException as iae:
+                if 'org.apache.spark.ml.linalg.Vector' in iae:
+                    msg = ('Assemble features in a vector before using a '
+                        'regression model')
+                    raise ValueError(msg)
+                else:
+                    raise
+            """.format(self.model, self.algorithm,
                        self.named_inputs['train input data'],
-                       output_data=self.output)
+                       output_data=self.output, prediction=self.prediction,
+                       label=self.label[0], features=self.features[0])
 
             return dedent(code)
-        else:
-            msg = "Parameters '{}' and '{}' must be informed for task {}"
-            raise ValueError(msg.format('[]inputs',
-                                        '[]outputs',
-                                        self.__class__))
 
 
 # noinspection PyAbstractClass
@@ -1416,6 +1433,8 @@ class RegressionOperation(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
         self.label = self.features = self.prediction = None
+        self.output = named_outputs.get(
+            'algorithm', 'regression_algorithm_{}'.format(self.order))
 
     def read_common_params(self, parameters):
         if not all([self.LABEL_PARAM in parameters,
@@ -1428,7 +1447,8 @@ class RegressionOperation(Operation):
             self.label = parameters.get(self.LABEL_PARAM)[0]
             self.features = parameters.get(self.FEATURES_PARAM)[0]
             self.prediction = parameters.get(self.PREDICTION_ATTR_PARAM)[0]
-            self.output = self.named_outputs['algorithm']
+            self.output = self.named_outputs.get(
+                'algorithm', 'regression_algorithm_{}'.format(self.order))
 
     def get_output_names(self, sep=', '):
         return self.output
@@ -1456,56 +1476,52 @@ class LinearRegressionOperation(RegressionOperation):
         self.has_code = len(named_outputs) > 0
 
         if self.has_code:
-            self.read_common_params(parameters)
+            # self.read_common_params(parameters)
 
             self.max_iter = parameters.get(self.MAX_ITER_PARAM, 10)
             self.reg_param = parameters.get(self.REG_PARAM, 0.1)
             self.weight_col = parameters.get(self.WEIGHT_COL_PARAM, None)
 
-            self.type_solver = self.parameters.get(self.SOLVER_PARAM,
-                                                   self.TYPE_SOLVER_AUTO)
+            self.solver = self.parameters.get(self.SOLVER_PARAM,
+                                              self.TYPE_SOLVER_AUTO)
+            self.elastic = self.parameters.get(self.ELASTIC_NET_PARAM, 0.0)
 
     def generate_code(self):
         if self.has_code:
-            declare = dedent("""
+            code = dedent("""
             {output} = LinearRegression(
-                featuresCol='{features}', labelCol='{label}',
-                maxIter={max_iter}, regParam={reg_param})
-            """).format(output=self.output,
-                        features=self.features,
-                        label=self.label,
-                        max_iter=self.max_iter,
-                        reg_param=self.reg_param)
-
-            # add , weightCol={weight} if exist
-            code = [declare]
-            return "\n".join(code)
+                maxIter={max_iter}, regParam={reg_param},
+                solver='{solver}',
+                elasticNetParam={elastic})""").format(
+                output=self.output,
+                max_iter=self.max_iter,
+                reg_param=self.reg_param,
+                solver=self.solver,
+                elastic=self.elastic,
+            )
+            return code
         else:
             raise ValueError(
                 'Parameter output must be informed for classifier {}'.format(
                     self.__class__))
 
 
-class GeneralizedLinearRegression(RegressionOperation):
+class GeneralizedLinearRegressionOperation(RegressionOperation):
+    FAMILY_PARAM = 'family'
+    LINK_PARAM = 'link'
     MAX_ITER_PARAM = 'max_iter'
-    WEIGHT_COL_PARAM = 'weight'
-
     REG_PARAM = 'reg_param'
-    LINK_PREDICTION_COL_PARAM = 'link_prediction_col'
-
+    WEIGHT_COL_PARAM = 'weight'
     SOLVER_PARAM = 'solver'
+    LINK_PREDICTION_COL_PARAM = 'link_prediction'
 
     TYPE_SOLVER_IRLS = 'irls'
     TYPE_SOLVER_NORMAL = 'normal'
-
-    FAMILY_PARAM = 'family'
 
     TYPE_FAMILY_GAUSSIAN = 'gaussian'
     TYPE_FAMILY_BINOMIAL = 'binomial'
     TYPE_FAMILY_POISSON = 'poisson'
     TYPE_FAMILY_GAMMA = 'gamma'
-
-    LINK_PARAM = 'link'
 
     TYPE_LINK_IDENTITY = 'identity'  # gaussian-poisson-gamma
     TYPE_LINK_LOG = 'log'  # gaussian-poisson-gama
@@ -1523,35 +1539,40 @@ class GeneralizedLinearRegression(RegressionOperation):
         self.has_code = len(named_outputs) > 0
 
         if self.has_code:
-            self.read_common_params(parameters)
             self.max_iter = parameters.get(self.MAX_ITER_PARAM, 10)
             self.reg_param = parameters.get(self.REG_PARAM, 0.1)
             self.weight_col = parameters.get(self.WEIGHT_COL_PARAM, None)
 
-            self.type_family = self.parameters.get(self.FAMILY_PARAM,
-                                                   self.TYPE_FAMILY_BINOMIAL)
-            self.type_link = self.parameters.get(self.LINK_PARAM)
+            self.family = self.parameters.get(self.FAMILY_PARAM,
+                                              self.TYPE_FAMILY_BINOMIAL)
+            self.link = self.parameters.get(self.LINK_PARAM)
+
+            if self.link is not None:
+                self.link = "'{}'".format(self.link)
+
+            # @FIXME: Need to understand the purpose of this parameter
             self.link_prediction_col = self.parameters.get(
-                self.LINK_PREDICTION_COL_PARAM)[0]
+                self.LINK_PREDICTION_COL_PARAM, [None])[0]
+
+            if self.link_prediction_col is not None:
+                self.link_prediction_col = "'{}'".format(
+                    self.link_prediction_col)
 
     def generate_code(self):
         if self.has_code:
             declare = dedent("""
-            {output} = GeneralizedLinearRegression(featuresCol='{features}',
-                                                   labelCol='{label}',
-                                                   maxIter={max_iter},
-                                                   regParam={reg_param},
-                                                   family='{type_family}',
-                                                   link='{type_link}',
-                                                   linkPredictionCol='{link_col}'
-                                                   )
+            {output} = GeneralizedLinearRegression(
+                maxIter={max_iter},
+                regParam={reg_param},
+                family='{type_family}',
+                link={link})
             """).format(output=self.output,
                         features=self.features,
                         label=self.label,
                         max_iter=self.max_iter,
                         reg_param=self.reg_param,
-                        type_family=self.type_family,
-                        type_link=self.type_link,
+                        type_family=self.family,
+                        link=self.link,
                         link_col=self.link_prediction_col
                         )
             # add , weightCol={weight} if exist
@@ -1633,7 +1654,6 @@ class GBTRegressorOperation(RegressionOperation):
     MIN_INFO_GAIN_PARAM = 'min_info_gain'
     SEED_PARAM = 'seed'
 
-    VARIANCE_COL_PARAM = 'variance_col'
     IMPURITY_PARAM = 'impurity'
 
     TYPE_IMPURITY_VARIANCE = 'variance'
@@ -1646,33 +1666,28 @@ class GBTRegressorOperation(RegressionOperation):
         self.has_code = len(named_outputs) > 0
 
         if self.has_code:
-            self.read_common_params(parameters)
-
-            self.max_iter = parameters.get(self.MAX_ITER_PARAM, 10)
-            self.max_depth = parameters.get(self.MAX_DEPTH_PARAM, 5)
+            self.max_iter = parameters.get(self.MAX_ITER_PARAM, 10) or 10
+            self.max_depth = parameters.get(self.MAX_DEPTH_PARAM, 5) or 5
             self.min_instance = parameters.get(
-                self.MIN_INSTANCE_PER_NODE_PARAM, 1)
-            self.min_info_gain = parameters.get(self.MIN_INFO_GAIN_PARAM, 0.0)
+                self.MIN_INSTANCE_PER_NODE_PARAM, 1) or 1
+            self.min_info_gain = parameters.get(
+                self.MIN_INFO_GAIN_PARAM, 0.0) or 0.0
 
-            self.variance_col = self.parameters.get(
-                self.VARIANCE_COL_PARAM, None)[0]
-            self.seed = self.parameters.get(self.SEED_PARAM, None)
+            self.seed = self.parameters.get(self.SEED_PARAM)
 
             self.impurity = self.parameters.get(self.IMPURITY_PARAM, 'variance')
 
     def generate_code(self):
         if self.has_code:
             declare = dedent("""
-            {output} = GBTRegressor(featuresCol='{features}',
-                                             labelCol='{label}',
-                                             maxDepth={max_depth},
-                                             minInstancesPerNode={min_instance},
-                                             minInfoGain={min_info},
-                                             impurity={impurity},
-                                             seed={seed},
-                                             maxIter={max_iter},
-                                             varianceCol='{variance_col}'
-                                             )
+            {output} = GBTRegressor(maxDepth={max_depth},
+                                   minInstancesPerNode={min_instance},
+                                   minInfoGain={min_info},
+                                   seed={seed},
+                                   maxIter={max_iter})
+            # Only variance is valid, there is a bug, does not work in
+            # constructor
+            {output}.setImpurity('{impurity}')
             """).format(output=self.output,
                         features=self.features,
                         label=self.label,
@@ -1680,10 +1695,8 @@ class GBTRegressorOperation(RegressionOperation):
                         min_instance=self.min_instance,
                         min_info=self.min_info_gain,
                         impurity=self.impurity,
-                        seed=self.seed,
-                        max_iter=self.max_iter,
-                        variance_col=self.variance_col
-                        )
+                        seed=self.seed if self.seed else None,
+                        max_iter=self.max_iter)
             # add , weightCol={weight} if exist
             code = [declare]
             return "\n".join(code)
@@ -1696,7 +1709,6 @@ class GBTRegressorOperation(RegressionOperation):
 class AFTSurvivalRegressionOperation(RegressionOperation):
     MAX_ITER_PARAM = 'max_iter'
     AGR_DETPTH_PARAM = 'aggregation_depth'
-    SEED_PARAM = 'seed'
     CENSOR_COL_PARAM = 'censor'
     QUANTILES_PROBABILITIES_PARAM = 'quantile_probabilities'
     QUANTILES_COL_PARAM = 'quantiles_col'
@@ -1709,41 +1721,37 @@ class AFTSurvivalRegressionOperation(RegressionOperation):
         self.has_code = len(named_outputs) > 0
 
         if self.has_code:
-            self.read_common_params(parameters)
+            self.max_iter = parameters.get(self.MAX_ITER_PARAM, 100)
+            self.agg_depth = parameters.get(self.AGR_DETPTH_PARAM, 2)
 
-            self.max_iter = parameters.get(self.MAX_ITER_PARAM, 10)
-            self.agg_depth = parameters.get(self.AGR_DETPTH_PARAM, 1)
+            self.censor = self.parameters.get(
+                self.CENSOR_COL_PARAM, ['censor'])[0]
 
-            self.censor = self.parameters.get(self.CENSOR_COL_PARAM, 'censor')[
-                0]
             self.quantile_prob = self.parameters.get(
-                self.QUANTILES_PROBABILITIES_PARAM, [])
+                self.QUANTILES_PROBABILITIES_PARAM,
+                '0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99')
+            if self.quantile_prob[0] != '[':
+                self.quantile_prob = '[{}]'.format(self.quantile_prob)
+
             self.quantile_col = self.parameters.get(self.QUANTILES_COL_PARAM,
-                                                    'variance')
+                                                    'None')
 
     def generate_code(self):
         if self.has_code:
             declare = dedent("""
             {output} = AFTSurvivalRegression(
-                featuresCol='{features}',
-                 labelCol='{label}',
                  maxIter={max_iter},
                  censorCol='{censor}',
                  quantileProbabilities={quantile_prob},
                  quantilesCol={quantile_col},
-                 predictionCol='{prediction_col}',
                  aggregationDepth={agg_depth}
                  )
             """).format(output=self.output,
-                        features=self.features,
-                        label=self.label,
                         max_iter=self.max_iter,
                         censor=self.censor,
                         quantile_prob=self.quantile_prob,
                         quantile_col=self.quantile_col,
-                        agg_depth=self.agg_depth,
-                        prediction_col=self.prediction
-                        )
+                        agg_depth=self.agg_depth, )
             # add , weightCol={weight} if exist
             code = [declare]
             return "\n".join(code)
@@ -1754,13 +1762,44 @@ class AFTSurvivalRegressionOperation(RegressionOperation):
 
 
 class RandomForestRegressorOperation(RegressionOperation):
-    def generate_code(self):
-        pass
+    MAX_DEPTH_PARAM = 'max_depth'
+    MAX_BINS_PARAM = 'max_bins'
+    MIN_INFO_GAIN_PARAM = 'min_info_gain'
+    NUM_TREES_PARAM = 'num_trees'
+    FEATURE_SUBSET_STRATEGY_PARAM = 'feature_subset_strategy'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         RegressionOperation.__init__(self, parameters, named_inputs,
                                      named_outputs)
-        self.has_code = False
+        self.parameters = parameters
+        self.name = 'regression.RandomForestRegressor'
+        self.has_code = len(self.named_outputs) > 0
+
+        if self.has_code:
+            self.max_depth = parameters.get(self.MAX_DEPTH_PARAM, 5) or 5
+            self.max_bins = parameters.get(self.MAX_BINS_PARAM, 32) or 32
+            self.min_info_gain = parameters.get(self.MIN_INFO_GAIN_PARAM,
+                                                0.0) or 0.0
+            self.num_trees = parameters.get(self.NUM_TREES_PARAM, 20) or 20
+            self.feature_subset_strategy = parameters.get(
+                self.FEATURE_SUBSET_STRATEGY_PARAM, 'auto')
+
+    def generate_code(self):
+        code = dedent("""
+            {output} = RandomForestRegressor(
+                maxDepth={max_depth},
+                maxBins={max_bins},
+                minInfoGain={min_info_gain},
+                impurity="variance",
+                numTrees={num_trees},
+                featureSubsetStrategy='{feature_subset_strategy}')
+            """).format(output=self.output,
+                        max_depth=self.max_depth,
+                        max_bins=self.max_bins,
+                        min_info_gain=self.min_info_gain,
+                        num_trees=self.num_trees,
+                        feature_subset_strategy=self.feature_subset_strategy)
+        return code
 
 
 class IsotonicRegressionOperation(RegressionOperation):
@@ -1778,28 +1817,16 @@ class IsotonicRegressionOperation(RegressionOperation):
         self.has_code = len(self.named_outputs) > 0
 
         if self.has_code:
-            self.read_common_params(parameters)
-
             self.weight_col = parameters.get(self.WEIGHT_COL_PARAM, None)
             self.isotonic = parameters.get(
                 self.ISOTONIC_PARAM, True) in (1, '1', 'true', True)
 
     def generate_code(self):
-        declare = dedent("""
-        {output} = IsotonicRegression(featuresCol='{features}',
-                                      labelCol='{label}',
-                                      predictionCol='{prediction_col}',
-                                      isotonic={isotonic}
-                                      )
+        code = dedent("""
+        {output} = IsotonicRegression(isotonic={isotonic})
         """).format(output=self.output,
-                    features=self.features,
-                    label=self.label,
-                    isotonic=self.isotonic,
-                    prediction_col=self.prediction
-                    )
-        # add , weightCol={weight} if exist
-        code = [declare]
-        return "\n".join(code)
+                    isotonic=self.isotonic, )
+        return code
 
 
 class SaveModel(Operation):

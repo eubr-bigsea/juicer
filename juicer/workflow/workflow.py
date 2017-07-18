@@ -135,10 +135,10 @@ class Workflow:
 
             if all([source_port, target_port]):
                 # Compatibility assertion, may be removed in future
-                assert 'target_port_name' not in flow or \
-                       flow['target_port_name'] == target_port[0]['slug']
-                assert 'source_port_name' not in flow \
-                       or flow['source_port_name'] == source_port[0]['slug']
+                # assert 'target_port_name' not in flow or \
+                #        flow['target_port_name'] == target_port[0]['slug']
+                # assert 'source_port_name' not in flow \
+                #        or flow['source_port_name'] == source_port[0]['slug']
 
                 flow['target_port_name'] = target_port[0]['slug']
                 flow['source_port_name'] = source_port[0]['slug']
