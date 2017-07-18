@@ -91,7 +91,7 @@ class DataReader(Operation):
                         if attr['type'] in self.DATA_TYPES_WITH_PRECISION:
                             data_type = '{}({}, {})'.format(
                                 data_type, attr['precision'],
-                                attr.get('scale', 0))
+                                attr.get('scale', 0) or 0)
                         else:
                             data_type = '{}()'.format(data_type)
 
