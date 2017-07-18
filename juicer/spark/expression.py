@@ -84,7 +84,7 @@ class Expression:
         """
         arguments = [self.parse(x, params) for x in spec['arguments']]
         # print >> sys.stderr, group(arguments[:-1], 2)
-        code = ["when({}, {})".format(cond, value) for cond, value in
+        code = ["functions.when({}, {})".format(cond, value) for cond, value in
                 group(arguments[:-1], 2)]
         if arguments[-1] is not None:
             code.append("otherwise({})".format(arguments[-1]))
