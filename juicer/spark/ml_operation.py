@@ -1378,7 +1378,7 @@ class RegressionModelOperation(Operation):
             self.features = parameters[self.FEATURES_PARAM]
             self.label = parameters[self.LABEL_PARAM]
             self.prediction = parameters.get(self.PREDICTION_COL_PARAM,
-                                             'prediction')
+                                             'prediction') or 'prediction'
             self.model = self.named_outputs.get(
                 'model', 'model_{}'.format(self.order))
             self.output = self.named_outputs.get(
