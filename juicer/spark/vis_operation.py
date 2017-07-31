@@ -2,6 +2,7 @@
 import itertools
 import json
 from textwrap import dedent
+
 import datetime
 
 from juicer.operation import Operation
@@ -84,7 +85,7 @@ class PublishVisOperation(Operation):
         caipirinha_conf = self.config['juicer']['services']['caipirinha']
 
         # Register this new dashboard with Caipirinha
-        code_lines.append(dedent("""
+        code_lines.append(dedent(u"""
             # Basic information to connect to other services
             config = {{
                 'juicer': {{
@@ -425,6 +426,8 @@ class TableVisualizationModel(VisualizationModel):
                  orientation, id_attribute, value_attribute, params):
         type_id = 35
         type_name = 'table-visualization'
+        if not title:
+            title = 'Results'
         VisualizationModel.__init__(self, data, task_id, type_id, type_name,
                                     title, column_names, orientation,
                                     id_attribute, value_attribute, params)
@@ -452,16 +455,22 @@ class SummaryStatisticsModel(TableVisualizationModel):
                                          title, column_names, orientation,
                                          id_attribute, value_attribute, params)
         self.names = ''
+        self.numeric_attrs = [
+            t[0] for t in self.data.dtypes
+            if t[1] in ['int', 'double', 'tinyint',
+                        'bigint', 'smallint'] or t[1][:7] == 'decimal']
+
+        all_attr = [t[0] for t in self.data.dtypes]
         if len(self.params['attributes']) == 0:
-            self.attrs = self.data.schema
+            self.attrs = all_attr
         else:
-            self.attrs = [attr for attr in self.data.schema if
-                          attr.name in self.params['attributes']]
+            self.attrs = [attr for attr in all_attr if
+                          attr in self.params['attributes']]
         self.names = ['attribute', 'max', 'min', 'stddev', 'count', 'avg',
                       'approx. distinct', 'missing']
 
         self.names.extend(
-            ['correlation to {}'.format(attr.name) for attr in self.attrs])
+            ['correlation to {}'.format(attr) for attr in self.attrs])
 
         self.column_names = ', '.join(self.names)
 
@@ -476,10 +485,10 @@ class SummaryStatisticsModel(TableVisualizationModel):
         from pyspark.sql import functions
 
         # Correlation pairs
-        attr_names = [attr.name for attr in self.attrs]
         corr_pairs = list(
-            chunks(list(itertools.product(attr_names, attr_names)),
-                   len(attr_names)))
+            chunks(
+                list(itertools.product(self.attrs, self.attrs)),
+                len(self.attrs)))
 
         # Cache data
         self.data.cache()
@@ -489,24 +498,36 @@ class SummaryStatisticsModel(TableVisualizationModel):
         # TODO: Implement median using df.approxQuantile('col', [.5], .25)
 
         stats = []
-        for i, name in enumerate(attr_names):
+        for i, name in enumerate(self.attrs):
             df_col = functions.col(name)
             stats.append(functions.lit(name))
             stats.append(functions.max(df_col).alias('max_{}'.format(name)))
             stats.append(functions.min(df_col).alias('min_{}'.format(name)))
-            stats.append(functions.round(
-                functions.stddev(df_col), 4).alias('stddev_{}'.format(name)))
+            if name in self.numeric_attrs:
+                stats.append(functions.round(
+                    functions.stddev(df_col), 4).alias(
+                    'stddev_{}'.format(name)))
+            else:
+                stats.append(functions.lit('-'))
             stats.append(functions.count(df_col).alias('count_{}'.format(name)))
-            stats.append(functions.round(
-                functions.avg(df_col), 4).alias('avg_{}'.format(name)))
+            if name in self.numeric_attrs:
+                stats.append(functions.round(
+                    functions.avg(df_col), 4).alias('avg_{}'.format(name)))
+            else:
+                stats.append(functions.lit('-'))
+
             stats.append(functions.approx_count_distinct(df_col).alias(
                 'distinct_{}'.format(name)))
             stats.append((df_count - functions.count(df_col)).alias(
                 'missing_{}'.format(name)))
             for pair in corr_pairs[i]:
-                stats.append(
-                    functions.round(functions.corr(*pair), 4).alias(
-                        'corr_{}'.format(i)))
+                if all([pair[0] in self.numeric_attrs,
+                        pair[1] in self.numeric_attrs]):
+                    stats.append(
+                        functions.round(functions.corr(*pair), 4).alias(
+                            'corr_{}'.format(i)))
+                else:
+                    stats.append(functions.lit('-'))
 
         aggregated = self.data.agg(*stats).take(1)[0]
         n = len(self.names)

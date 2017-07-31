@@ -22,6 +22,7 @@ from timeit import default_timer as timer
 
 from pyspark.ml import classification, evaluation, feature, tuning, clustering
 from pyspark.sql import functions, types
+from pyspark.sql.utils import IllegalArgumentException
 
 from pyspark.ml import Pipeline
 from pyspark.ml.classification import *
@@ -31,7 +32,6 @@ from pyspark.ml.feature import *
 from pyspark.ml.tuning import *
 from pyspark.ml.recommendation import *
 from pyspark.ml.regression import *
-
 
 from juicer.util import dataframe_util
 
@@ -54,9 +54,6 @@ def spark_logging(spark_session):
         __SPARK_LOG__ = logger.LogManager.getLogger(__name__)
     return __SPARK_LOG__
 
-
-# reload(sys)
-# sys.setdefaultencoding('utf8')
 
 
 def take_sample(df, size=100, default=None):
@@ -98,8 +95,8 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.ord
     """ Operation {{instance.parameters.task.id }} """
     {%- endif %}
 
-    # First we verify whether this task's result is cached
     {%- if instance.supports_cache and False %}
+    # First we verify whether this task's result is cached
     if '{{instance.parameters.task.id}}' in cached_state:
         emit_event(name='update task', message='Task running',
                    status='RUNNING',
@@ -148,11 +145,12 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.ord
     
     spark_logging(spark_session).info(
         'Parents completed, submitting {{instance.parameters.task.id}}')
- 
+
+    {%- if not plain %}
     emit_event(name='update task', message='Task running',
                status='RUNNING',
                identifier='{{instance.parameters.task.id}}')
-  
+    {%- endif %}
     spark_logging(spark_session).info(
         'Lemonade task {{instance.parameters.task.id}} started') 
   
@@ -167,11 +165,13 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.ord
     {%- endif %}
     {%- endif %}
 
+    {%- if not plain %}
     {%- for gen_result in instance.get_generated_results() %}
     emit_event(name='task result', message='{{gen_result.type}}',
                status='COMPLETED',
                identifier='{{instance.parameters.task.operation.id}}/{{instance.parameters.task.id}}')
     {%- endfor %}
+    {%- endif %}
 
     results = {
       {%- set is_leaf = instance.out_degree == 0 %}
@@ -181,10 +181,11 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.ord
         {%- endif %}
       {%- endfor %}
     }
-
+    {%- if not plain %}
     emit_event(name='update task', message='Task completed',
                status='COMPLETED',
                identifier='{{instance.parameters.task.id}}')
+    {%- endif %}
 
     spark_logging(spark_session).info(
         'Lemonade task {{instance.parameters.task.id}} completed')

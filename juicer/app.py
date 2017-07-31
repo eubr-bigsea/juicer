@@ -1,19 +1,15 @@
 # !/usr/bin/env python
 # -*- coding: utf-8 -*-
 import argparse
-import logging
+import json
 import logging.config;
-import pdb
 
 import redis
 import requests
+import yaml
 from juicer.runner import configuration
 from juicer.spark.transpiler import SparkTranspiler
 from juicer.workflow.workflow import Workflow
-from six import StringIO
-
-import json
-import yaml
 
 logging.config.fileConfig('logging_config.ini')
 
@@ -31,7 +27,8 @@ class Statuses:
 
 
 class JuicerSparkService:
-    def __init__(self, redis_conn, workflow_id, execute_main, params, job_id, config):
+    def __init__(self, redis_conn, workflow_id, execute_main, params, job_id,
+                 config):
         self.redis_conn = redis_conn
         self.config = config
         self.workflow_id = workflow_id
@@ -64,11 +61,13 @@ class JuicerSparkService:
             tahiti_conf = self.config['juicer']['services']['tahiti']
 
             r = requests.get(
-                "{url}/workflows/{id}?token={token}".format(id=self.workflow_id, 
-                                        url=tahiti_conf['url'],
-                                        token=tahiti_conf['auth_token']))
+                "{url}/workflows/{id}?token={token}".format(id=self.workflow_id,
+                                                            url=tahiti_conf[
+                                                                'url'],
+                                                            token=tahiti_conf[
+                                                                'auth_token']))
             if r.status_code == 200:
-                loader = Workflow(json.loads(r.text),self.config)
+                loader = Workflow(json.loads(r.text), self.config)
             else:
                 print tahiti_conf['url'], r.text
                 exit(-1)
@@ -82,9 +81,9 @@ class JuicerSparkService:
             # spark_instance.output = generated
             try:
                 spark_instance.transpile(loader.workflow,
-                        loader.graph,
-                        params=self.params,
-                        job_id=self.job_id)
+                                         loader.graph,
+                                         params=self.params,
+                                         job_id=self.job_id)
             except ValueError as ve:
                 log.exception("At least one parameter is missing", exc_info=ve)
                 break
@@ -100,18 +99,19 @@ class JuicerSparkService:
 def main(workflow_id, execute_main, params, job_id, config):
     redis_conn = redis.StrictRedis()
     service = JuicerSparkService(redis_conn, workflow_id, execute_main, params,
-            job_id, config)
+                                 job_id, config)
     service.run()
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    
-    parser.add_argument("-c", "--config", type=str, required=False, help="Configuration file")
+
+    parser.add_argument("-c", "--config", type=str, required=False,
+                        help="Configuration file")
 
     parser.add_argument("-w", "--workflow", type=int, required=True,
                         help="Workflow identification number")
-    
+
     parser.add_argument("-j", "--job_id", type=int,
                         help="Job identification number")
 
@@ -121,6 +121,10 @@ if __name__ == "__main__":
     parser.add_argument("-s", "--service", required=False,
                         action="store_true",
                         help="Indicates if workflow will run as a service")
+    parser.add_argument(
+        "-p", "--plain", required=False, action="store_true",
+        help="Indicates if workflow should be plain PySpark, "
+             "without Lemonade extra code")
     args = parser.parse_args()
 
     juicer_config = {}
@@ -128,8 +132,9 @@ if __name__ == "__main__":
         with open(args.config) as config_file:
             juicer_config = yaml.load(config_file.read())
 
-    main(args.workflow, args.execute_main, {"service": args.service},
-            args.job_id, juicer_config)
+    main(args.workflow, args.execute_main,
+         {"service": args.service, "plain": args.plain},
+         args.job_id, juicer_config)
     '''
     if True:
         app.run(debug=True, port=8000)

@@ -21,9 +21,9 @@ def query_limonero(base_url, item_path, token, item_id):
         return json.loads(r.text)
     else:
         raise RuntimeError(
-            u"Error loading storage id {}: HTTP {} - {}".format(item_id,
-                                                                r.status_code,
-                                                                r.text))
+            u"Error loading {} id {}: HTTP {} - {}".format(item_path, item_id,
+                                                           r.status_code,
+                                                           r.text))
 
 
 def get_storage_info(base_url, token, storage_id):
