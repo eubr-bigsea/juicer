@@ -81,11 +81,14 @@ class DataReader(Operation):
         infer_from_data = self.infer_schema == self.INFER_FROM_DATA
         infer_from_limonero = self.infer_schema == self.INFER_FROM_LIMONERO
         if self.has_code:
+            name = None
             if infer_from_limonero:
                 if 'attributes' in self.metadata:
                     code.append(
                         'schema_{0} = types.StructType()'.format(self.output))
                     for attr in self.metadata.get('attributes', []):
+                        if name is None:
+                            name = attr['name']
                         data_type = self.LIMONERO_TO_SPARK_DATA_TYPES[
                             attr['type']]
                         if attr['type'] in self.DATA_TYPES_WITH_PRECISION:
@@ -138,11 +141,17 @@ class DataReader(Operation):
                         null_option))
                     code.append(code_csv)
                 else:
-                    code_csv = """{output} = spark_session.read\\
+                    code_csv = dedent("""
+                    {output} = spark_session.read\\
                            {null_option}\\
                            .option('treatEmptyValuesAsNulls', 'true')\\
-                           .text(url)""".format(output=self.output,
-                                                null_option=null_option)
+                           .text(url)
+                    name = '{name}'
+                    if name is not None:
+                        {output} = {output}.withColumnRenamed(
+                            {output}.schema[0].name, name)""".format(
+                        output=self.output, null_option=null_option,
+                        name=name))
                     code.append(code_csv)
                 # FIXME: Evaluate if it is good idea to always use cache
                 code.append('{}.cache()'.format(self.output))

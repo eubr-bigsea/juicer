@@ -1,4 +1,4 @@
-import sys
+from textwrap import dedent
 
 from juicer.util import group
 
@@ -100,10 +100,10 @@ class Expression:
         strip_accents = (
             "functions.udf("
             "lambda text: ''.join(c for c in unicodedata.normalize('NFD', text) "
-                "if unicodedata.category(c) != 'Mn'), "
+            "if unicodedata.category(c) != 'Mn'), "
             "types.StringType())"
-            )
-        
+        )
+
         result = '{}({})'.format(strip_accents, arguments)
 
         return result
@@ -117,10 +117,10 @@ class Expression:
         strip_punctuation = (
             "functions.udf("
             "lambda text: text.translate("
-                "dict((ord(char), None) for char in string.punctuation)), "
+            "dict((ord(char), None) for char in string.punctuation)), "
             "types.StringType())"
-            )
-        
+        )
+
         result = '{}({})'.format(strip_punctuation, arguments)
 
         return result
@@ -136,6 +136,33 @@ class Expression:
 
         result = 'functions.{}({})'.format(spec['callee']['name'],
                                            arguments)
+        return result
+
+    def get_multi_split_function(self, spec, params):
+        """
+        For each delimiter, splits the input in a loop.
+        For example:
+            Given this text as input:
+                "4 5 22 98 1 | 37 34 81 | 91 | 27 13" and delimiters ["|", " "],
+            Final result will be:
+                [
+                    ['4', '5', '22', '98', '1'], ['37', '34', '81'],
+                    ['91'], ['27', '13']
+                ]
+        """
+
+        callee = spec['arguments'][0].get('callee', {})
+        # Evaluates if column name is wrapped in a col() function call
+        arguments = ', '.join(
+            [self.parse(x, params) for x in spec['arguments']])
+
+        schema = ""
+        code = dedent("""
+            functions.udf(lambda v: custom_udf.splitter(v, [{args}]),
+                {schema})
+            """.format(args=arguments, schema=schema))
+
+        result = '{}({})'.format(code, arguments)
         return result
 
     def build_functions_dict(self):
@@ -217,6 +244,7 @@ class Expression:
         # custom function is necessarily defined here. Also, we
         # should not use 'get_function_call' for code generation in this case.
         custom_functions = {
+            'multi_split': self.get_multi_split_function,
             'group_datetime': self.get_window_function,
             'strip_accents': self.get_strip_accents_function,
             'strip_punctuation': self.get_strip_punctuation_function,
