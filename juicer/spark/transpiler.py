@@ -418,7 +418,7 @@ class SparkTranspiler:
         }
         vis_ops = {
             'publish-as-visualization':
-                juicer.spark.vis_operation.PublishVisOperation,
+                juicer.spark.vis_operation.PublishVisualizationOperation,
             'bar-chart': juicer.spark.vis_operation.BarChartOperation,
             'pie-chart': juicer.spark.vis_operation.PieChartOperation,
             'area-chart': juicer.spark.vis_operation.AreaChartOperation,

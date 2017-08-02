@@ -11,7 +11,7 @@ from juicer.util import dataframe_util
 from juicer.util.dataframe_util import get_csv_schema
 
 
-class PublishVisOperation(Operation):
+class PublishVisualizationOperation(Operation):
     """
     This operation receives one dataframe as input and one or many
     VisualizationMethodOperation and persists the transformed data
