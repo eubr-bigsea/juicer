@@ -399,26 +399,30 @@ class EvaluateModelOperation(Operation):
                 code += dedent(u"""
                 metric_value = {evaluator_out}.evaluate({input})
 
-                from juicer.spark.reports import SimpleTableReport
-                headers = ['Parameter', 'Description', 'Value', 'Default']
-                rows = [
-                        [x.name, x.doc,
-                            {evaluator_out}._paramMap.get(x, 'unset'),
-                             {evaluator_out}._defaultParamMap.get(
-                                 x, 'unset')] for x in
-                    {evaluator_out}.extractParamMap()]
+                display_text = {display_text}
+                if display_text:
+                    from juicer.spark.reports import SimpleTableReport
+                    headers = ['Parameter', 'Description', 'Value', 'Default']
+                    rows = [
+                            [x.name, x.doc,
+                                {evaluator_out}._paramMap.get(x, 'unset'),
+                                 {evaluator_out}._defaultParamMap.get(
+                                     x, 'unset')] for x in
+                        {evaluator_out}.extractParamMap()]
 
-                content = SimpleTableReport(
-                        'table table-striped table-bordered', headers, rows)
+                    content = SimpleTableReport(
+                            'table table-striped table-bordered', headers, rows)
 
-                result = '<h4>{{}}: {{}}</h4>'.format('{metric}', metric_value)
+                    result = '<h4>{{}}: {{}}</h4>'.format('{metric}',
+                        metric_value)
 
-                emit_event('update task', status='COMPLETED',
+                    emit_event(
+                        'update task', status='COMPLETED',
                         identifier='{task_id}',
                         message=result + content.generate(),
                         type='HTML', title='{title}',
-                        task={{'id': '{task_id}' }},
-                        operation={{'id': {operation_id} }},
+                        task={{'id': '{task_id}'}},
+                        operation={{'id': {operation_id}}},
                         operation_id={operation_id})
 
                 from juicer.spark.ml_operation import ModelsEvaluationResultList
@@ -431,7 +435,9 @@ class EvaluateModelOperation(Operation):
                            evaluator_out=self.evaluator_out,
                            task_id=self.parameters['task_id'],
                            operation_id=self.parameters['operation_id'],
-                           title='Evaluation result'))
+                           title='Evaluation result',
+                           display_text=self.parameters['task']['forms'].get(
+                               'display_text', {}).get('value') in (1, '1')),)
             '''
             elif self.named_outputs.get(
                     'evaluator'):  # Used with cross validator
@@ -1369,54 +1375,59 @@ class RegressionModelOperation(Operation):
             from pyspark.ml.linalg import Vectors
             from juicer.spark.reports import SimpleTableReport, HtmlImageReport
 
-            algorithm = {1}
+            algorithm = {algorithm}
             algorithm.setPredictionCol('{prediction}')
             algorithm.setLabelCol('{label}')
             algorithm.setFeaturesCol('{features}')
             try:
-                {0} = algorithm.fit({2})
-                {output_data} = {0}.transform({2})
+                {model} = algorithm.fit({input})
+                {output_data} = {model}.transform({input})
 
-                headers = []
-                row = []
-                metrics = ['coefficients', 'intercept', 'scale', ]
+                display_text = {display_text}
+                if display_text:
+                    headers = []
+                    row = []
+                    metrics = ['coefficients', 'intercept', 'scale', ]
 
-                for metric in metrics:
-                    value = getattr({0}, metric, None)
-                    if value:
-                        headers.append(metric)
-                        row.append(str(value))
+                    for metric in metrics:
+                        value = getattr({model}, metric, None)
+                        if value:
+                            headers.append(metric)
+                            row.append(str(value))
 
-                if row:
-                    content = SimpleTableReport(
-                        'table table-striped table-bordered', headers, [row])
-                    emit_event('update task', status='COMPLETED',
-                        identifier='{task_id}',
-                        message=content.generate(),
-                        type='HTML', title='{title}',
-                        task={{'id': '{task_id}' }},
-                        operation={{'id': {operation_id} }},
-                        operation_id={operation_id})
+                    if row:
+                        content = SimpleTableReport(
+                            'table table-striped table-bordered',
+                            headers, [row])
+                        emit_event('update task', status='COMPLETED',
+                            identifier='{task_id}',
+                            message=content.generate(),
+                            type='HTML', title='{title}',
+                            task={{'id': '{task_id}' }},
+                            operation={{'id': {operation_id} }},
+                            operation_id={operation_id})
 
-                summary = getattr({0}, 'summary', None)
-                if summary:
-                    summary_rows = []
-                    for p in dir(summary):
-                        if not p.startswith('_'):
-                            try:
-                                summary_rows.append([p, getattr(summary, p)])
-                            except Exception as e:
-                                summary_rows.append([p, e.message])
-                    summary_content = SimpleTableReport(
-                        'table table-striped table-bordered', [], summary_rows,
-                        title='Summary')
-                    emit_event('update task', status='COMPLETED',
-                        identifier='{task_id}',
-                        message=summary_content.generate(),
-                        type='HTML', title='{title}',
-                        task={{'id': '{task_id}' }},
-                        operation={{'id': {operation_id} }},
-                        operation_id={operation_id})
+                    summary = getattr({model}, 'summary', None)
+                    if summary:
+                        summary_rows = []
+                        for p in dir(summary):
+                            if not p.startswith('_'):
+                                try:
+                                    summary_rows.append(
+                                        [p, getattr(summary, p)])
+                                except Exception as e:
+                                    summary_rows.append([p, e.message])
+                        summary_content = SimpleTableReport(
+                            'table table-striped table-bordered', [],
+                            summary_rows,
+                            title='Summary')
+                        emit_event('update task', status='COMPLETED',
+                            identifier='{task_id}',
+                            message=summary_content.generate(),
+                            type='HTML', title='{title}',
+                            task={{'id': '{task_id}' }},
+                            operation={{'id': {operation_id} }},
+                            operation_id={operation_id})
 
             except IllegalArgumentException as iae:
                 if 'org.apache.spark.ml.linalg.Vector' in iae:
@@ -1425,13 +1436,15 @@ class RegressionModelOperation(Operation):
                     raise ValueError(msg)
                 else:
                     raise
-            """.format(self.model, self.algorithm,
-                       self.named_inputs['train input data'],
+            """.format(model=self.model, algorithm=self.algorithm,
+                       input=self.named_inputs['train input data'],
                        output_data=self.output, prediction=self.prediction,
                        label=self.label[0], features=self.features[0],
                        task_id=self.parameters['task_id'],
                        operation_id=self.parameters['operation_id'],
-                       title="Regression result")
+                       title="Regression result",
+                       display_text=self.parameters['task']['forms'].get(
+                           'display_text', {}).get('value') in (1, '1'))
 
             return dedent(code)
 

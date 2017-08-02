@@ -331,49 +331,32 @@ def test_evaluate_model_operation_success():
 
             {output} = {evaluator_out}.evaluate({input_1})
 
-            from juicer.spark.reports import EvaluateModelOperationReport
-            from juicer.service import caipirinha_service
+            display_text = False
+            if display_text:
+                from juicer.spark.reports import SimpleTableReport
+                headers = ['Parameter', 'Description', 'Value', 'Default']
+                rows = [
+                        [x.name, x.doc,
+                            df_evaluator._paramMap.get(x, 'unset'),
+                             df_evaluator._defaultParamMap.get(
+                                 x, 'unset')] for x in
+                    df_evaluator.extractParamMap()]
 
-            vis_model = EvaluateModelOperationReport.generate_visualization(
-                evaluator={evaluator_out},
-                metric_value={output},
-                metric_name='{metric}',
-                title='Evaluation result',
-                operation_id={operation_id},
-                task_id='{task_id}')
+                content = SimpleTableReport(
+                        'table table-striped table-bordered', headers, rows)
 
-            visualizations = [
-            {{
-             'job_id': '34',
-             'task_id': '2323-afffa-343bdaff',
-             'title': 'Evaluation result',
-             'type': {{
-                 'id': 2793,
-                 'name': 'EvaluateModelOperation'
-             }},
-             'model': vis_model
-            }}]
+                result = '<h4>{{}}: {{}}</h4>'.format('f1',
+                    metric_value)
 
-            # Basic information to connect to other services
-            config = {{
-             'juicer': {{
-                 'services': {{
-                     'limonero': {{
-                         'url': 'http://localhost',
-                         'auth_token': 'FAKE'
-                     }},
-                     'caipirinha': {{
-                         'url': 'http://localhost',
-                         'auth_token': 'FAKE',
-                         'storage_id': 343
-                     }},
-                 }}
-             }}
-            }}
-            caipirinha_service.new_dashboard(config, 'Evaluation result',
-                {{'login': 'admin', 'id': 12, 'name': 'admin'}},
-                203, 'test',
-                34, '2323-afffa-343bdaff', visualizations, emit_event)
+                emit_event(
+                    'update task', status='COMPLETED',
+                    identifier='{task_id}',
+                    message=result + content.generate(),
+                    type='HTML', title='Evaluation result',
+                    task={{'id': '{task_id}'}},
+                    operation={{'id': {operation_id}}},
+                    operation_id={operation_id})
+
             from juicer.spark.ml_operation import ModelsEvaluationResultList
             model_task_1 = ModelsEvaluationResultList(
                 [df_model], df_model, 'f1', metric_value)
