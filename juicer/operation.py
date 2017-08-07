@@ -6,6 +6,7 @@ from juicer.runner import configuration
 log = logging.getLogger()
 log.setLevel(logging.DEBUG)
 
+
 # noinspection PyClassHasNoInit
 class ResultType:
     VISUALIZATION = 'VISUALIZATION'

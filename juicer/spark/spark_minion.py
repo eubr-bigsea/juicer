@@ -301,6 +301,10 @@ class SparkMinion(Minion):
 
         except ValueError as ve:
             message = 'Invalid or missing parameters: {}'.format(ve.message)
+            print '#' * 30
+            import traceback
+            traceback.print_exc(file=sys.stdout)
+            print '#' * 30
             log.warn(message)
             if self.transpiler.current_task_id is not None:
                 self._emit_event(room=job_id, namespace='/stand')(

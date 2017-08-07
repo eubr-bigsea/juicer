@@ -399,49 +399,31 @@ class EvaluateModelOperation(Operation):
                 code += dedent(u"""
                 metric_value = {evaluator_out}.evaluate({input})
 
-                # HTML visualization of result
-                from juicer.spark.reports import EvaluateModelOperationReport
-                from juicer.service import caipirinha_service
+                display_text = {display_text}
+                if display_text:
+                    from juicer.spark.reports import SimpleTableReport
+                    headers = ['Parameter', 'Description', 'Value', 'Default']
+                    rows = [
+                            [x.name, x.doc,
+                                {evaluator_out}._paramMap.get(x, 'unset'),
+                                 {evaluator_out}._defaultParamMap.get(
+                                     x, 'unset')] for x in
+                        {evaluator_out}.extractParamMap()]
 
-                vis_model = EvaluateModelOperationReport.generate_visualization(
-                    evaluator={evaluator_out},
-                    metric_value=metric_value,
-                    metric_name='{metric}',
-                    title='{title}',
-                    operation_id={operation_id},
-                    task_id='{task_id}')
-                visualizations = [{{
-                    'job_id': '{job_id}',
-                    'task_id': '{task_id}',
-                    'title': '{title}',
-                    'type': {{
-                        'id': {operation_id},
-                        'name': '{operation_name}'
-                    }},
-                    'model': vis_model
-                }}]
+                    content = SimpleTableReport(
+                            'table table-striped table-bordered', headers, rows)
 
-                # Basic information to connect to other services
-                config = {{
-                    'juicer': {{
-                        'services': {{
-                            'limonero': {{
-                                'url': '{limonero_url}',
-                                'auth_token': '{limonero_token}'
-                            }},
-                            'caipirinha': {{
-                                'url': '{caipirinha_url}',
-                                'auth_token': '{caipirinha_token}',
-                                'storage_id': {storage_id}
-                            }},
-                        }}
-                    }}
-                }}
-                caipirinha_service.new_dashboard(
-                    config, '{title}',
-                    {user},
-                    {workflow_id}, '{workflow_name}',
-                    {job_id}, '{task_id}', visualizations, emit_event)
+                    result = '<h4>{{}}: {{}}</h4>'.format('{metric}',
+                        metric_value)
+
+                    emit_event(
+                        'update task', status='COMPLETED',
+                        identifier='{task_id}',
+                        message=result + content.generate(),
+                        type='HTML', title='{title}',
+                        task={{'id': '{task_id}'}},
+                        operation={{'id': {operation_id}}},
+                        operation_id={operation_id})
 
                 from juicer.spark.ml_operation import ModelsEvaluationResultList
                 {model_output} = ModelsEvaluationResultList(
@@ -451,19 +433,11 @@ class EvaluateModelOperation(Operation):
                            input=self.named_inputs['input data'],
                            metric=self.metric,
                            evaluator_out=self.evaluator_out,
-                           workflow_id=self.parameters['workflow_id'],
-                           workflow_name=self.parameters['workflow_name'],
-                           job_id=self.parameters['job_id'],
                            task_id=self.parameters['task_id'],
                            operation_id=self.parameters['operation_id'],
-                           operation_name=self.__class__.__name__,
-                           user=self.parameters['user'],
                            title='Evaluation result',
-                           limonero_url=limonero_conf['url'],
-                           limonero_token=limonero_conf['auth_token'],
-                           caipirinha_url=caipirinha_conf['url'],
-                           caipirinha_token=caipirinha_conf['auth_token'],
-                           storage_id=caipirinha_conf['storage_id'], ))
+                           display_text=self.parameters['task']['forms'].get(
+                               'display_text', {}).get('value') in (1, '1')),)
             '''
             elif self.named_outputs.get(
                     'evaluator'):  # Used with cross validator
@@ -1390,7 +1364,7 @@ class RegressionModelOperation(Operation):
                           self.named_inputs['algorithm']])
 
     def get_data_out_names(self, sep=','):
-        return ''
+        return self.output
 
     def get_output_names(self, sep=', '):
         return sep.join([self.output, self.model])
@@ -1399,14 +1373,62 @@ class RegressionModelOperation(Operation):
         if self.has_code:
             code = """
             from pyspark.ml.linalg import Vectors
+            from juicer.spark.reports import SimpleTableReport, HtmlImageReport
 
-            algorithm = {1}
+            algorithm = {algorithm}
             algorithm.setPredictionCol('{prediction}')
             algorithm.setLabelCol('{label}')
             algorithm.setFeaturesCol('{features}')
             try:
-                {0} = algorithm.fit({2})
-                {output_data} = {0}.transform({2})
+                {model} = algorithm.fit({input})
+                {output_data} = {model}.transform({input})
+
+                display_text = {display_text}
+                if display_text:
+                    headers = []
+                    row = []
+                    metrics = ['coefficients', 'intercept', 'scale', ]
+
+                    for metric in metrics:
+                        value = getattr({model}, metric, None)
+                        if value:
+                            headers.append(metric)
+                            row.append(str(value))
+
+                    if row:
+                        content = SimpleTableReport(
+                            'table table-striped table-bordered',
+                            headers, [row])
+                        emit_event('update task', status='COMPLETED',
+                            identifier='{task_id}',
+                            message=content.generate(),
+                            type='HTML', title='{title}',
+                            task={{'id': '{task_id}' }},
+                            operation={{'id': {operation_id} }},
+                            operation_id={operation_id})
+
+                    summary = getattr({model}, 'summary', None)
+                    if summary:
+                        summary_rows = []
+                        for p in dir(summary):
+                            if not p.startswith('_'):
+                                try:
+                                    summary_rows.append(
+                                        [p, getattr(summary, p)])
+                                except Exception as e:
+                                    summary_rows.append([p, e.message])
+                        summary_content = SimpleTableReport(
+                            'table table-striped table-bordered', [],
+                            summary_rows,
+                            title='Summary')
+                        emit_event('update task', status='COMPLETED',
+                            identifier='{task_id}',
+                            message=summary_content.generate(),
+                            type='HTML', title='{title}',
+                            task={{'id': '{task_id}' }},
+                            operation={{'id': {operation_id} }},
+                            operation_id={operation_id})
+
             except IllegalArgumentException as iae:
                 if 'org.apache.spark.ml.linalg.Vector' in iae:
                     msg = ('Assemble features in a vector before using a '
@@ -1414,10 +1436,15 @@ class RegressionModelOperation(Operation):
                     raise ValueError(msg)
                 else:
                     raise
-            """.format(self.model, self.algorithm,
-                       self.named_inputs['train input data'],
+            """.format(model=self.model, algorithm=self.algorithm,
+                       input=self.named_inputs['train input data'],
                        output_data=self.output, prediction=self.prediction,
-                       label=self.label[0], features=self.features[0])
+                       label=self.label[0], features=self.features[0],
+                       task_id=self.parameters['task_id'],
+                       operation_id=self.parameters['operation_id'],
+                       title="Regression result",
+                       display_text=self.parameters['task']['forms'].get(
+                           'display_text', {}).get('value') in (1, '1'))
 
             return dedent(code)
 
@@ -1478,13 +1505,14 @@ class LinearRegressionOperation(RegressionOperation):
         if self.has_code:
             # self.read_common_params(parameters)
 
-            self.max_iter = parameters.get(self.MAX_ITER_PARAM, 10)
-            self.reg_param = parameters.get(self.REG_PARAM, 0.1)
+            self.max_iter = parameters.get(self.MAX_ITER_PARAM, 10) or 10
+            self.reg_param = parameters.get(self.REG_PARAM, 0.1) or 0.0
             self.weight_col = parameters.get(self.WEIGHT_COL_PARAM, None)
 
             self.solver = self.parameters.get(self.SOLVER_PARAM,
                                               self.TYPE_SOLVER_AUTO)
-            self.elastic = self.parameters.get(self.ELASTIC_NET_PARAM, 0.0)
+            self.elastic = self.parameters.get(self.ELASTIC_NET_PARAM,
+                                               0.0) or 0.0
 
     def generate_code(self):
         if self.has_code:
@@ -1743,15 +1771,15 @@ class AFTSurvivalRegressionOperation(RegressionOperation):
                  maxIter={max_iter},
                  censorCol='{censor}',
                  quantileProbabilities={quantile_prob},
-                 quantilesCol={quantile_col},
+                 quantilesCol='{quantile_col}',
                  aggregationDepth={agg_depth}
                  )
-            """).format(output=self.output,
-                        max_iter=self.max_iter,
-                        censor=self.censor,
-                        quantile_prob=self.quantile_prob,
-                        quantile_col=self.quantile_col,
-                        agg_depth=self.agg_depth, )
+            """.format(output=self.output,
+                       max_iter=self.max_iter,
+                       censor=self.censor,
+                       quantile_prob=self.quantile_prob,
+                       quantile_col=self.quantile_col,
+                       agg_depth=self.agg_depth, ))
             # add , weightCol={weight} if exist
             code = [declare]
             return "\n".join(code)

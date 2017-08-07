@@ -173,6 +173,24 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.ord
     {%- endfor %}
     {%- endif %}
 
+    {%- if instance.parameters.task.forms.get('display_sample', {}).get('value') in (1, '1') %}
+    # Outputs' samples
+    {%- for out in instance.get_data_out_names(',').split(',') %}
+    {%- if out %}
+    dataframe_util.emit_sample('{{instance.parameters.task.id}}', {{out}}, emit_event)
+    {%- endif %}
+    {%- endfor %}
+    {%- endif %}
+
+    {%- if instance.parameters.task.forms.get('display_schema', {}).get('value') in (1, '1') %}
+    # Outputs' schemas
+    {%- for out in instance.get_data_out_names(',').split(',') %}
+    {%- if out %}
+    dataframe_util.emit_schema('{{instance.parameters.task.id}}', {{out}}, emit_event)
+    {%- endif %}
+    {%- endfor %}
+    {%- endif %}
+
     results = {
       {%- set is_leaf = instance.out_degree == 0 %}
       {%- for port_name,out in zip(instance.parameters.task.port_names, instance.get_output_names(',').split(',')) %}

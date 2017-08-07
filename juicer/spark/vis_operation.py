@@ -11,7 +11,35 @@ from juicer.util import dataframe_util
 from juicer.util.dataframe_util import get_csv_schema
 
 
-class PublishVisOperation(Operation):
+def get_caipirinha_config(config):
+    limonero_conf = config['juicer']['services']['limonero']
+    caipirinha_conf = config['juicer']['services']['caipirinha']
+    return dedent("""
+    # Basic information to connect to other services
+    config = {{
+        'juicer': {{
+            'services': {{
+                'limonero': {{
+                    'url': '{limonero_url}',
+                    'auth_token': '{limonero_token}'
+                }},
+                'caipirinha': {{
+                    'url': '{caipirinha_url}',
+                    'auth_token': '{caipirinha_token}',
+                    'storage_id': {storage_id}
+                }},
+            }}
+        }}
+    }}""".format(
+        limonero_url=limonero_conf['url'],
+        limonero_token=limonero_conf['auth_token'],
+        caipirinha_url=caipirinha_conf['url'],
+        caipirinha_token=caipirinha_conf['auth_token'],
+        storage_id=caipirinha_conf['storage_id'], )
+    )
+
+
+class PublishVisualizationOperation(Operation):
     """
     This operation receives one dataframe as input and one or many
     VisualizationMethodOperation and persists the transformed data
@@ -81,35 +109,13 @@ class PublishVisOperation(Operation):
             }})
             """).format(job_id=self.parameters['job_id'], vis_model=vis_model))
 
-        limonero_conf = self.config['juicer']['services']['limonero']
-        caipirinha_conf = self.config['juicer']['services']['caipirinha']
-
         # Register this new dashboard with Caipirinha
+        code_lines.append(get_caipirinha_config(self.config))
         code_lines.append(dedent(u"""
-            # Basic information to connect to other services
-            config = {{
-                'juicer': {{
-                    'services': {{
-                        'limonero': {{
-                            'url': '{limonero_url}',
-                            'auth_token': '{limonero_token}'
-                        }},
-                        'caipirinha': {{
-                            'url': '{caipirinha_url}',
-                            'auth_token': '{caipirinha_token}',
-                            'storage_id': {storage_id}
-                        }},
-                    }}
-                }}
-            }}
             caipirinha_service.new_dashboard(config, '{title}', {user},
                 {workflow_id}, '{workflow_name}',
-                {job_id}, '{task_id}', visualizations, emit_event)""".format(
-            limonero_url=limonero_conf['url'],
-            limonero_token=limonero_conf['auth_token'],
-            caipirinha_url=caipirinha_conf['url'],
-            caipirinha_token=caipirinha_conf['auth_token'],
-            storage_id=caipirinha_conf['storage_id'],
+                {job_id}, '{task_id}', visualizations, emit_event)
+            """.format(
             title=self.title or 'Result for job ' + str(
                 self.parameters.get('job_id', '0')),
             user=self.parameters['user'],
@@ -139,8 +145,10 @@ class VisualizationMethodOperation(Operation):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         # TODO: validate parameters
-        self.title = parameters.get(self.TITLE_PARAM, '')
-        self.column_names = parameters.get(self.COLUMN_NAMES_PARAM, '')
+        self.title = parameters.get(
+            self.TITLE_PARAM, 'Result for job ' + str(
+                self.parameters.get('job_id', '0')))
+        self.column_names = parameters.get(self.COLUMN_NAMES_PARAM, [])
         self.orientation = parameters.get(self.ORIENTATION_PARAM, '')
         self.id_attribute = parameters.get(self.ID_ATTR_PARAM, [])
         self.value_attribute = parameters.get(self.VALUE_ATTR_PARAM, [])
@@ -148,7 +156,7 @@ class VisualizationMethodOperation(Operation):
         # Visualizations are not cached!
         self.supports_cache = False
         self.output = self.named_outputs.get('visualization',
-                                             'vis_task_'.format(self.order))
+                                             'vis_task_{}'.format(self.order))
 
     def get_model_parameters(self):
         return {}
@@ -161,14 +169,14 @@ class VisualizationMethodOperation(Operation):
                             "in {} subclass".format(self.__class__))
 
     def generate_code(self):
-        code = \
+        code_lines = [dedent(
             """
             from juicer.spark.vis_operation import {model}
             {out} = {model}(
                 {input}, '{task}', '{op}',
                 '{op_slug}', '{title}',
-                '{columns}',
-                '{orientation}',{id_attr},{value_attr},
+                {columns},
+                '{orientation}', {id_attr}, {value_attr},
                 params={params})
             """.format(out=self.output,
                        model=self.get_model_name(),
@@ -177,12 +185,41 @@ class VisualizationMethodOperation(Operation):
                        op=self.parameters['operation_id'],
                        op_slug=self.parameters['operation_slug'],
                        title=self.title,
-                       columns=self.column_names,
+                       columns=json.dumps(self.column_names),
                        orientation=self.orientation,
                        id_attr=self.id_attribute,
                        value_attr=self.value_attribute,
-                       params=json.dumps(self.get_model_parameters()))
-        return dedent(code)
+                       params=json.dumps(self.get_model_parameters())))]
+        if len(self.named_outputs) == 0:
+            # Standalone visualization, without a dashboard
+            code_lines.append("from juicer.service import caipirinha_service")
+            code_lines.append(get_caipirinha_config(self.config))
+            code_lines.append(dedent("""
+            visualization = {{
+                'job_id': '{job_id}',
+                'task_id': {out}.task_id,
+                'title': {out}.title ,
+                'type': {{
+                    'id': {out}.type_id,
+                    'name': {out}.type_name
+                }},
+                'model': {out}
+            }}""").format(job_id=self.parameters['job_id'],
+                          out=self.output))
+
+            code_lines.append(dedent(u"""
+            caipirinha_service.new_visualization(
+                config,
+                {user},
+                {workflow_id}, {job_id}, '{task_id}',
+                visualization, emit_event)
+            """.format(
+                user=self.parameters['user'],
+                workflow_id=self.parameters['workflow_id'],
+                job_id=self.parameters['job_id'],
+                task_id=self.parameters['task']['id']
+            )))
+        return '\n'.join(code_lines)
 
 
 class BarChartOperation(VisualizationMethodOperation):
@@ -252,6 +289,8 @@ class SummaryStatisticsOperation(VisualizationMethodOperation):
     ATTRIBUTES_PARAM = 'attributes'
 
     def __init__(self, parameters, named_inputs, named_outputs):
+        if not parameters.get(self.TITLE_PARAM):
+            parameters[self.TITLE_PARAM] = 'Summary'
         VisualizationMethodOperation.__init__(self, parameters, named_inputs,
                                               named_outputs)
         self.attributes = parameters.get(self.ATTRIBUTES_PARAM, None)
@@ -312,7 +351,7 @@ class BarChartModel(VisualizationModel):
     def get_data2(self, data):
         rows = data.collect()
         result = []
-        columns = [c.strip() for c in self.column_names.split(',')]
+        columns = [c.strip() for c in self.column_names]
         for row in rows:
             values = []
             for i, col in enumerate(self.value_attribute):
@@ -358,7 +397,7 @@ class AreaChartModel(VisualizationModel):
     def get_data(self):
         rows = self.data.collect()
         result = []
-        columns = [c.strip() for c in self.column_names.split(',')]
+        columns = [c.strip() for c in self.column_names]
         for row in rows:
             values = []
             for i, col in enumerate(self.value_attribute):
@@ -383,7 +422,7 @@ class LineChartModel(VisualizationModel):
         date_types = [datetime.datetime, datetime.date]
         rows = self.data.collect()
         result = []
-        columns = [c.strip() for c in self.column_names.split(',')]
+        columns = [c.strip() for c in self.column_names]
         for row in rows:
             values = []
             for i, col in enumerate(self.value_attribute):
@@ -439,11 +478,18 @@ class TableVisualizationModel(VisualizationModel):
         """
         Returns data as tabular (list of lists in Python).
         """
-        return self.data.limit(50).rdd.map(
-            dataframe_util.convert_to_python).collect()
+        if self.column_names:
+            return self.data.limit(50).select(*self.column_names).rdd.map(
+                dataframe_util.convert_to_python).collect()
+        else:
+            return self.data.limit(50).rdd.map(
+                dataframe_util.convert_to_python).collect()
 
     def get_column_names(self):
-        return self.column_names or get_csv_schema(self.data, only_name=True)
+        if self.column_names:
+            return ','.join(self.column_names)
+        else:
+            return get_csv_schema(self.data, only_name=True)
 
 
 class SummaryStatisticsModel(TableVisualizationModel):
@@ -472,7 +518,7 @@ class SummaryStatisticsModel(TableVisualizationModel):
         self.names.extend(
             ['correlation to {}'.format(attr) for attr in self.attrs])
 
-        self.column_names = ', '.join(self.names)
+        self.column_names = self.names
 
     def get_icon(self):
         return 'fa-table'
