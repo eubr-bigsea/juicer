@@ -331,7 +331,7 @@ def test_evaluate_model_operation_success():
 
             {output} = {evaluator_out}.evaluate({input_1})
 
-            display_text = False
+            display_text = True
             if display_text:
                 from juicer.spark.reports import SimpleTableReport
                 headers = ['Parameter', 'Description', 'Value', 'Default']
