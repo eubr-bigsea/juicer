@@ -396,9 +396,11 @@ class EvaluateModelOperation(Operation):
 
             # Not being used with a cross validator
             if len(self.named_inputs) == 2:
+                display_text = self.parameters['task']['forms'].get(
+                    'display_text', {'value': 1}).get('value', 1) in (1, '1')
                 code += dedent(u"""
-                metric_value = {evaluator_out}.evaluate({input})
 
+                metric_value = {evaluator_out}.evaluate({input})
                 display_text = {display_text}
                 if display_text:
                     from juicer.spark.reports import SimpleTableReport
@@ -436,8 +438,7 @@ class EvaluateModelOperation(Operation):
                            task_id=self.parameters['task_id'],
                            operation_id=self.parameters['operation_id'],
                            title='Evaluation result',
-                           display_text=self.parameters['task']['forms'].get(
-                               'display_text', {}).get('value') in (1, '1')),)
+                           display_text=display_text,))
             '''
             elif self.named_outputs.get(
                     'evaluator'):  # Used with cross validator

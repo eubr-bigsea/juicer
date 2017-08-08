@@ -326,6 +326,7 @@ class SparkMinion(Minion):
             result = False
 
         except Exception as ee:
+            import traceback
             tb = traceback.format_exception(*sys.exc_info())
             log.exception('Unhandled error')
             self._emit_event(room=job_id, namespace='/stand')(
