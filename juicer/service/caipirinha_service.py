@@ -28,8 +28,8 @@ def _update_caipirinha(base_url, item_path, token, item_id, data):
         return json.loads(r.text)
     else:
         raise RuntimeError(
-            u"Error loading storage id {}: HTTP {} - {}".format(
-                item_id, r.status_code, r.text))
+            u"Error in URL {}: HTTP {} - {}".format(
+                item_id, url, r.status_code, r.text))
 
 
 def _emit_saving_visualization(emit_event_fn, task_id):
@@ -66,21 +66,22 @@ def _emit_completed(emit_event_fn, task_id):
 
 
 def _get_hbsase_visualization_format(user, visualization, workflow_id):
-    vis_value = {
-        b'cf:user': json.dumps(user, indent=4),
-        b'cf:workflow': json.dumps({'id': workflow_id}),
-        b'cf:title': visualization['title'],
-        b'cf:column_names': visualization['model'].get_column_names(),
-        b'cf:orientation': visualization['model'].orientation,
-        b'cf:attributes': json.dumps({
-            'id': visualization['model'].id_attribute,
-            'value': visualization['model'].value_attribute
-        }),
-        b'cf:data': json.dumps(visualization['model'].get_data(),
-                               cls=CustomEncoder),
-        b'cf:schema': visualization['model'].get_schema()
-    }
-    return vis_value
+    return
+    # vis_value = {
+    #     b'cf:user': json.dumps(user, indent=4),
+    #     b'cf:workflow': json.dumps({'id': workflow_id}),
+    #     b'cf:title': visualization['title'],
+    #     b'cf:column_names': visualization['model'].get_column_names(),
+    #     b'cf:orientation': visualization['model'].orientation,
+    #     b'cf:attributes': json.dumps({
+    #         'id': visualization['model'].id_attribute,
+    #         'value': visualization['model'].value_attribute
+    #     }),
+    #     b'cf:data': json.dumps(visualization['model'].get_data(),
+    #                            cls=CustomEncoder),
+    #     b'cf:schema': visualization['model'].get_schema()
+    # }
+    # return vis_value
 
 
 def _get_params(config):
@@ -115,17 +116,16 @@ def new_dashboard(config, title, user, workflow_id, workflow_name, job_id,
     for visualization in visualizations:
         # HBase value composed by several columns, the last one refers
         # to the visualization data
-        _get_hbsase_visualization_format(user, visualization,
-                                         workflow_id)
-        vis_value = _get_hbsase_visualization_format(
-            user, visualization, workflow_id)
+        # _get_hbsase_visualization_format(user, visualization,
+        #                                  workflow_id)
+        # vis_value = _get_hbsase_visualization_format(
+        #     user, visualization, workflow_id)
         _emit_saved_visualization(_type, emit_event_fn, visualization)
 
         del visualization['model']
-        batch.put(b'{job_id}-{task_id}'.format(task_id=visualization['task_id'],
-                                               job_id=job_id),
-                  vis_value)
-    batch.send()
+    #     batch.put(b'{job_id}-{task_id}'.format(task_id=visualization['task_id'],
+    #                                            job_id=job_id), vis_value)
+    # batch.send()
 
     # Ensure HBase connection is closed
     connection.close()
@@ -143,14 +143,14 @@ def new_visualization(config, user, workflow_id, job_id,
     batch, caipirinha_config, connection = _get_params(config)
 
     _emit_saving_visualization(emit_event_fn, task_id)
-    vis_value = _get_hbsase_visualization_format(
-        user, visualization, workflow_id)
+    # vis_value = _get_hbsase_visualization_format(
+    #     user, visualization, workflow_id)
     _emit_saved_visualization(_type, emit_event_fn, visualization)
 
     del visualization['model']
-    batch.put(b'{job_id}-{task_id}'.format(
-        task_id=visualization['task_id'], job_id=job_id), vis_value)
-    batch.send()
+    # batch.put(b'{job_id}-{task_id}'.format(
+    #     task_id=visualization['task_id'], job_id=job_id), vis_value)
+    # batch.send()
 
     # Ensure HBase connection is closed
     connection.close()

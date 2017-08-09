@@ -278,7 +278,7 @@ class SparkTranspiler:
                                           extensions=[AutoPep8Extension,
                                                       HandleExceptionExtension])
         template_env.globals.update(zip=zip)
-        template = template_env.get_template("operation.tmpl")
+        template = template_env.get_template("templates/operation.tmpl")
         v = template.render(env_setup)
 
         if using_stdout:
