@@ -10,6 +10,7 @@ import yaml
 from juicer.runner import configuration
 from juicer.spark.transpiler import SparkTranspiler
 from juicer.workflow.workflow import Workflow
+from juicer.workflow.workflow_webservice import WorkflowWebService
 
 logging.config.fileConfig('logging_config.ini')
 
@@ -89,6 +90,56 @@ class JuicerSparkService:
                 break
             except:
                 raise
+
+            # WebService
+            workflow_as_web_service = True
+
+            if workflow_as_web_service:
+
+                ###########
+                # Get Params for Juicer WebServices - Generate from Workflow
+                params_ws = {
+                    'inputs': [
+                        {'id': 18,
+                         'operation_id': "603d19e6-c420-4116-85cc-2490cba18133"}
+                    ],
+                    'outputs': [
+                        {'id': 42,
+                         'operation_id': "082d2558-58eb-47c9-baeb-15b051bc256a"}
+                    ],
+                    'models': [
+                        {'id': 1,
+                         'operation_id': "ad0ed19f-b939-4074-8d97-c06643114a24"}
+                    ]
+                }
+
+                # Lookup table - pre defined
+                dict_lkt = {
+                    1: 'Read Model',
+                    18: 'WS Input',
+                    42: 'WS Output',
+                    26: 'WS Visualization'
+                }
+                try:
+                    webservice_workflow_instance = WorkflowWebService(loader.workflow,
+                                                                      loader.graph,
+                                                                      params_ws,
+                                                                      dict_lkt,
+                                                                      configuration.get_config())
+
+                    configuration.set_config(self.config)
+                    spark_instance_2 = SparkTranspiler(configuration.get_config())
+                    self.params['execute_main'] = self.execute_main
+
+                    spark_instance_2.transpile(webservice_workflow_instance.workflow_ws,
+                                               webservice_workflow_instance.graph_ws,
+                                               params=self.params,
+                                               job_id=self.job_id)
+                except ValueError as ve:
+                    log.exception("At least one parameter is missing", exc_info=ve)
+                    break
+                except:
+                    raise
 
             # generated.seek(0)
             # print generated.read()

@@ -259,10 +259,12 @@ class SparkTranspiler:
             parameters['task_id'] = task['id']
             parameters['operation_slug'] = task['operation']['slug']
             parameters['job_id'] = job_id
+
             port = ports.get(task['id'], {})
 
             instance = class_name(parameters, port.get('named_inputs', {}),
                                   port.get('named_outputs', {}))
+            print instance
             instance.out_degree = graph.out_degree(task_id)
             env_setup['dependency_controller'] = DependencyController(
                 params.get('requires_info', False))
