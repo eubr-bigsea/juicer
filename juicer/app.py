@@ -131,6 +131,7 @@ class JuicerSparkService:
                     spark_instance_2 = SparkTranspiler(configuration.get_config())
                     self.params['execute_main'] = self.execute_main
 
+                    print webservice_workflow_instance.graph_ws.edges()
                     spark_instance_2.transpile(webservice_workflow_instance.workflow_ws,
                                                webservice_workflow_instance.graph_ws,
                                                params=self.params,

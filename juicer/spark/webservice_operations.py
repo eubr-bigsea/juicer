@@ -17,6 +17,12 @@ class WebServiceInput(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
+        self.has_code = True
+
+        if not self.has_code:
+            raise ValueError(
+                'input is missing')
+
     def generate_code(self):
         code = dedent("{output} = 'ws input'".format(output='FIXME'))
         return code
@@ -25,7 +31,8 @@ class WebServiceInput(Operation):
 class WebServiceOutput(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
-        self.has_code = len(self.named_inputs) == 2
+
+        self.has_code = True
 
         if not self.has_code:
             raise ValueError(
@@ -44,6 +51,12 @@ class WebServiceReadModel(Operation):
                  named_outputs):
         Operation.__init__(self, parameters, named_inputs,
                            named_outputs)
+
+        self.has_code = True
+
+        if not self.has_code:
+            raise ValueError(
+                'input is missing')
 
     def generate_code(self):
         code = dedent("{output} = 'read model'".format(output='FIXME'))

@@ -263,6 +263,7 @@ class FeatureAssemblerOperation(Operation):
         self.alias = parameters.get(self.ALIAS_PARAM, 'features')
 
         self.has_code = len(self.named_inputs) > 0
+        # self.has_code = True
 
     def generate_code(self):
         input_data = self.named_inputs['input data']
@@ -582,7 +583,6 @@ class ClassificationModelOperation(Operation):
                  named_outputs):
         Operation.__init__(self, parameters, named_inputs,
                            named_outputs)
-
         self.has_code = len(named_outputs) > 0 and len(named_inputs) == 2
 
         if not all([self.FEATURES_ATTRIBUTE_PARAM in parameters,

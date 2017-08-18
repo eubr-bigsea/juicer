@@ -14,6 +14,8 @@ import juicer.spark.statistic_operation
 import juicer.spark.text_operation
 import juicer.spark.vis_operation
 import juicer.spark.ws_operation
+import juicer.spark.webservice_operations
+
 import networkx as nx
 import os
 from juicer import operation
@@ -214,7 +216,9 @@ class SparkTranspiler:
                      'workflow_name': workflow['name']}
 
         sorted_tasks_id = nx.topological_sort(graph)
+
         for i, task_id in enumerate(sorted_tasks_id):
+            # print task_id
             self.current_task_id = task_id
             task = graph.node[task_id]
             class_name = self.operations[task['operation']['slug']]
@@ -264,7 +268,7 @@ class SparkTranspiler:
 
             instance = class_name(parameters, port.get('named_inputs', {}),
                                   port.get('named_outputs', {}))
-            print instance
+            # print instance
             instance.out_degree = graph.out_degree(task_id)
             env_setup['dependency_controller'] = DependencyController(
                 params.get('requires_info', False))
@@ -430,7 +434,13 @@ class SparkTranspiler:
                 juicer.spark.vis_operation.SummaryStatisticsOperation,
             'scatter-plot': juicer.spark.vis_operation.ScatterPlotOperation
         }
+        webservice_ops = {
+            # juicer.spark.webservice.operations.
+            'ws-input': juicer.spark.webservice_operations.WebServiceInput,
+            'ws-output': juicer.spark.webservice_operations.WebServiceOutput,
+            'read-model': juicer.spark.webservice_operations.WebServiceReadModel
+        }
         self.operations = {}
         for ops in [data_ops, etl_ops, geo_ops, ml_ops, other_ops, text_ops,
-                    ws_ops, vis_ops, dm_ops, data_quality_ops]:
+                    ws_ops, vis_ops, dm_ops, data_quality_ops, webservice_ops]:
             self.operations.update(ops)
