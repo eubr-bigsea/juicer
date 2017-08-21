@@ -278,7 +278,7 @@ class SparkTranspiler:
                                           extensions=[AutoPep8Extension,
                                                       HandleExceptionExtension])
         template_env.globals.update(zip=zip)
-        template = template_env.get_template("operation.tmpl")
+        template = template_env.get_template("templates/operation.tmpl")
         v = template.render(env_setup)
 
         if using_stdout:
@@ -426,7 +426,8 @@ class SparkTranspiler:
             'table-visualization': juicer.spark.vis_operation.TableVisOperation,
             'summary-statistics':
                 juicer.spark.vis_operation.SummaryStatisticsOperation,
-            'scatter-plot': juicer.spark.vis_operation.ScatterPlotOperation
+            'plot-chart': juicer.spark.vis_operation.ScatterPlotOperation,
+            'map': juicer.spark.vis_operation.MapOperation
         }
         self.operations = {}
         for ops in [data_ops, etl_ops, geo_ops, ml_ops, other_ops, text_ops,
