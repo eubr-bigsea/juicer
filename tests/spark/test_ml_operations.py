@@ -343,7 +343,8 @@ def test_evaluate_model_operation_success():
                     df_evaluator.extractParamMap()]
 
                 content = SimpleTableReport(
-                        'table table-striped table-bordered', headers, rows)
+                        'table table-striped table-bordered table-sm', headers,
+                        rows)
 
                 result = '<h4>{{}}: {{}}</h4>'.format('f1',
                     metric_value)
