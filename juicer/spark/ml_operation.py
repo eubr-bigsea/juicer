@@ -413,7 +413,8 @@ class EvaluateModelOperation(Operation):
                         {evaluator_out}.extractParamMap()]
 
                     content = SimpleTableReport(
-                            'table table-striped table-bordered', headers, rows)
+                            'table table-striped table-bordered table-sm',
+                            headers, rows)
 
                     result = '<h4>{{}}: {{}}</h4>'.format('{metric}',
                         metric_value)

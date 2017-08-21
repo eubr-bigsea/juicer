@@ -426,7 +426,8 @@ class SparkTranspiler:
             'table-visualization': juicer.spark.vis_operation.TableVisOperation,
             'summary-statistics':
                 juicer.spark.vis_operation.SummaryStatisticsOperation,
-            'scatter-plot': juicer.spark.vis_operation.ScatterPlotOperation
+            'plot-chart': juicer.spark.vis_operation.ScatterPlotOperation,
+            'map': juicer.spark.vis_operation.MapOperation
         }
         self.operations = {}
         for ops in [data_ops, etl_ops, geo_ops, ml_ops, other_ops, text_ops,

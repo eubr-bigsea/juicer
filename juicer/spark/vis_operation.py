@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import decimal
 import itertools
 import json
 from textwrap import dedent
@@ -97,6 +98,7 @@ class PublishVisualizationOperation(Operation):
         # list for visualizations metadata
         code_lines = [
             "from juicer.service import caipirinha_service",
+            "from juicer.util.dataframe_util import CustomEncoder",
             "visualizations = []"
         ]
         if isinstance(self.named_inputs['visualizations'], (list, tuple)):
@@ -170,8 +172,18 @@ class VisualizationMethodOperation(Operation):
                                              'vis_task_{}'.format(self.order))
 
     def get_model_parameters(self):
-        NotImplementedError("Method get_model_parameters should be implemented "
-                            "in {} subclass".format(self.__class__))
+        result = {}
+        valid = ['x_axis_attribute', "y_title", "y_prefix", 'legend',
+                 "y_suffix", "y_format", "x_title", "x_prefix", "x_suffix",
+                 "x_format", "x_format", 'type',
+                 'z_axis_attribute', 'z_title', 'z_prefix', 'z_suffix',
+                 'z_format',
+                 't_axis_attribute', 't_title', 't_prefix', 't_suffix',
+                 't_format', ]
+        for k, v in self.parameters.items():
+            if k in valid:
+                result[k] = v
+        return result
 
     def get_output_names(self, sep=','):
         return self.output
@@ -182,7 +194,7 @@ class VisualizationMethodOperation(Operation):
 
     def generate_code(self):
         code_lines = [dedent(
-            """
+            u"""
             from juicer.spark.vis_operation import {model}
             from juicer.util.dataframe_util import CustomEncoder
 
@@ -203,7 +215,7 @@ class VisualizationMethodOperation(Operation):
                        orientation=self.orientation,
                        id_attr=self.id_attribute,
                        value_attr=self.value_attribute,
-                       params=json.dumps(self.get_model_parameters()),
+                       params=json.dumps(self.get_model_parameters() or {}),
                        ))]
         if len(self.named_outputs) == 0:
             # Standalone visualization, without a dashboard
@@ -265,16 +277,6 @@ class LineChartOperation(VisualizationMethodOperation):
     def get_model_name(self):
         return 'LineChartModel'
 
-    def get_model_parameters(self):
-        result = {}
-        valid = ['x_axis_attribute', "y_title", "y_prefix",
-                 "y_suffix", "y_format", "x_title", "x_prefix", "x_suffix",
-                 "x_format", "x_format"]
-        for k, v in self.parameters.items():
-            if k in valid:
-                result[k] = v
-        return result
-
 
 class AreaChartOperation(VisualizationMethodOperation):
     def __init__(self, parameters, named_inputs, named_outputs):
@@ -295,21 +297,21 @@ class TableVisOperation(VisualizationMethodOperation):
 
 
 class ScatterPlotOperation(VisualizationMethodOperation):
-    ATTRIBUTES_PARAM = 'attributes'
-    CALCULATE_PARAM = 'calculate'
-
     def __init__(self, parameters, named_inputs, named_outputs):
         VisualizationMethodOperation.__init__(self, parameters, named_inputs,
                                               named_outputs)
-        self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
-        self.calculate = parameters.get(self.CALCULATE_PARAM)
-
-    def get_model_parameters(self):
-        return {self.ATTRIBUTES_PARAM: self.attributes,
-                self.CALCULATE_PARAM: self.calculate}
 
     def get_model_name(self):
         return 'ScatterPlotModel'
+
+
+class MapOperation(VisualizationMethodOperation):
+    def __init__(self, parameters, named_inputs, named_outputs):
+        VisualizationMethodOperation.__init__(self, parameters, named_inputs,
+                                              named_outputs)
+
+    def get_model_name(self):
+        return 'MapModel'
 
 
 class SummaryStatisticsOperation(VisualizationMethodOperation):
@@ -366,129 +368,13 @@ class VisualizationModel:
         return ""
 
 
-class BarChartModel(VisualizationModel):
-    def get_data2(self, data):
-        rows = data.collect()
-        result = []
-        columns = [c.strip() for c in self.column_names]
-        for row in rows:
-            values = []
-            for i, col in enumerate(self.value_attribute):
-                values.append(dict(
-                    id=col,
-                    name=columns[i],
-                    value=row[col]
-                ))
-            result.append(dict(
-                id=row[self.id_attribute],
-                name=row[self.id_attribute],
-                values=values
-            ))
-        return result
-
-    def get_icon(self):
-        return 'fa-bar-chart'
-
+class ChartVisualization(VisualizationModel):
     def get_data(self):
-        """
-        Returns data as a list dictionaries in Python (JSON encoder friendly).
-        """
-        return self.data.rdd.map(
-            dataframe_util.format_row_for_visualization).collect()
+        raise NotImplementedError('Should be implemented in derived classes')
 
-
-class PieChartModel(VisualizationModel):
-    def get_icon(self):
-        return 'fa-pie-chart'
-
-    def get_data(self):
-        """
-        Returns data as a list dictionaries in Python (JSON encoder friendly).
-        """
-        return self.data.rdd.map(
-            dataframe_util.format_row_for_visualization).collect()
-
-
-class AreaChartModel(VisualizationModel):
-    def get_icon(self):
-        return 'fa-area-chart'
-
-    def get_data(self):
-        rows = self.data.collect()
-        result = []
-        columns = [c.strip() for c in self.column_names]
-        for row in rows:
-            values = []
-            for i, col in enumerate(self.value_attribute):
-                values.append(dict(
-                    id=col,
-                    name=columns[i],
-                    value=row[col]
-                ))
-            result.append(dict(
-                id=row[self.id_attribute],
-                name=row[self.id_attribute],
-                values=values
-            ))
-        return result
-
-
-class LineChartModel(VisualizationModel):
-    def get_icon(self):
-        return 'fa-line-chart'
-
-    @staticmethod
-    def _format(value):
-        if any([isinstance(value, datetime.datetime),
-                isinstance(value, datetime.date)]):
-            return value.isoformat()
-        else:
-            return value
-
-    def get_data(self):
-        schema = self.data.schema
-        x_attr = self.params.get('x_axis_attribute')[0]
-        x_axis = [c for c in schema if c.name == x_attr]
-        y_attrs = [c for c in schema if c.name in self.column_names]
-        if len(x_axis):
-            x_axis = x_axis[0]
-        else:
-            raise ValueError(
-                'Attribute {} for X-axis does not exist in ({})'.format(
-                    x_attr, ', '.join([c.name for c in schema])))
-
-        if len(y_attrs) == 0:
-            raise ValueError(
-                'At least one attribute for Y-axis does not exist: {}'.format(
-                    ', '.join(self.params.get('column_names'))))
-
-        rows = self.data.collect()
-
-        # @FIXME: Improve this code with other data types
-        if x_axis.dataType.jsonValue() == 'date':
-            x_type = 'date'
-        elif x_axis.dataType.jsonValue() == 'boolean':
-            x_type = 'bool'
-        elif x_axis.dataType.jsonValue() == 'timestamp':
-            x_type = 'timestamp'
-        elif x_axis.dataType.jsonValue() == 'string':
-            x_type = 'string'
-        else:
-            x_type = 'number'
-
-        data = []
-        for i, attr in enumerate(y_attrs):
-            data.append({
-                "id": attr.name,
-                "name": attr.name,
-                "color": COLORS_PALETTE[(i % 6) * 5 + (i / 6)],
-                "pointColor": COLORS_PALETTE[(i % 6) * 5 + (i / 6)],
-                "pointShape": SHAPES[i % len(SHAPES)],
-                "pointSize": 8,
-                "values": []
-            })
-
-        result = {
+    def _get_title_legend_tootip(self):
+        """ Common title and legend """
+        return {
             "title": self.title,
             "legend": {
                 "isVisible": True,
@@ -503,6 +389,207 @@ class LineChartModel(VisualizationModel):
                     "<span class='number'>{{name}}</span>"
                 ]
             },
+        }
+
+    def _get_axis_info(self):
+        schema = self.data.schema
+        x = self.params.get('x_axis_attribute')[0]
+        x_attr = [c for c in schema if c.name == x]
+        y_attrs = [c for c in schema if c.name in self.column_names]
+        if len(x_attr):
+            x_attr = x_attr[0]
+        else:
+            raise ValueError(
+                'Attribute {} for X-axis does not exist in ({})'.format(
+                    x, ', '.join([c.name for c in schema])))
+        if len(y_attrs) == 0:
+            raise ValueError(
+                'At least one attribute for Y-axis does not exist: {}'.format(
+                    ', '.join(self.params.get('column_names'))))
+
+        # @FIXME: Improve this code with other data types
+        if x_attr.dataType.jsonValue() == 'date':
+            x_type = 'date'
+        elif x_attr.dataType.jsonValue() == 'boolean':
+            x_type = 'bool'
+        elif x_attr.dataType.jsonValue() == 'timestamp':
+            x_type = 'timestamp'
+        elif x_attr.dataType.jsonValue() == 'string':
+            x_type = 'string'
+        else:
+            x_type = 'number'
+        return x_attr, x_type, y_attrs
+
+    @staticmethod
+    def _format(value):
+        if any([isinstance(value, datetime.datetime),
+                isinstance(value, datetime.date)]):
+            return value.isoformat()
+        elif isinstance(value, decimal.Decimal):
+            return float(value)
+        else:
+            return value
+
+
+class BarChartModel(ChartVisualization):
+    """ Bar chart model for visualization of data """
+
+    def get_icon(self):
+        return 'fa-bar-chart'
+
+    def get_data(self):
+        x_attr, x_type, y_attrs = self._get_axis_info()
+
+        rows = self.data.collect()
+
+        colors = {}
+        for i, attr in enumerate(y_attrs):
+            color = COLORS_PALETTE[(i % 6) * 5 + ((i / 6) % 5)]
+            colors[attr.name] = {
+                'fill': color,
+                'gradient': color,
+                'stroke': color,
+            }
+        result = {}
+        result.update(self._get_title_legend_tootip())
+
+        result.update({
+            "x": {
+                "title": self.params.get("x_title"),
+                "type": x_type,
+                "prefix": self.params.get("x_prefix"),
+                "suffix": self.params.get("x_suffix"),
+                "outFormat": self.params.get("x_format", {}).get('key'),
+                "inFormat": self.params.get("x_format", {}).get('key'),
+            },
+            "y": {
+                "equal": True,
+                "title": self.params.get("y_title"),
+                "prefix": self.params.get("y_prefix"),
+                "suffix": self.params.get("y_suffix"),
+                "format": self.params.get("y_format", {}).get('key'),
+            },
+            "data": []
+
+        })
+        for inx_row, row in enumerate(rows):
+            data = {
+                'x': LineChartModel._format(row[x_attr.name]),
+                'name': row[x_attr.name],
+                'key': row[x_attr.name],
+                'color': COLORS_PALETTE[
+                    (inx_row % 6) * 5 + ((inx_row / 6) % 5)],
+                'values': []
+            }
+            result['data'].append(data)
+            for i, attr in enumerate(y_attrs):
+                data['values'].append(
+                    {
+                        'x': attr.name,
+                        'name': attr.name,
+                        'y': LineChartModel._format(row[attr.name]),
+                    }
+                )
+                if i >= 100:
+                    raise ValueError(
+                        'The maximum number of values for x-axis is 100.')
+        return result
+
+
+class PieChartModel(ChartVisualization):
+    """
+    In PieChartModel, x_attr contains the label and y_attrs[0] contém os valores
+    """
+
+    def get_icon(self):
+        return 'fa-pie-chart'
+
+    def _get_axis_info(self):
+        schema = self.data.schema
+
+        if self.id_attribute:
+            label = self.id_attribute[0]
+        else:
+            label = self.value_attribute[0]
+
+        value_attr = [c for c in schema if c.name in self.value_attribute[0]]
+        if len(value_attr):
+            value_attr = value_attr[0]
+        else:
+            raise ValueError(
+                'Attribute {} does not exist in ({})'.format(label, ', '.join(
+                    [c.name for c in schema])))
+
+        label_attr = [c for c in schema if c.name == label]
+        if len(label_attr):
+            label_attr = label_attr[0]
+        else:
+            raise ValueError(
+                'Attribute {} for label does not exist in ({})'.format(
+                    label, ', '.join([c.name for c in schema])))
+
+        return label_attr, None, value_attr
+
+    def get_data(self):
+        label_attr, _, value_attr = self._get_axis_info()
+
+        rows = self.data.collect()
+        result = self._get_title_legend_tootip()
+        result['legend']['isVisible'] = self.params.get('legend') in ('1', 1)
+
+        result.update({
+            "x": {
+                "title": self.params.get("x_title"),
+                "value": "sum",
+                "color": "#222",
+                "prefix": self.params.get("x_prefix"),
+                "suffix": self.params.get("x_suffix"),
+                "format": self.params.get("x_format", {}).get('key'),
+            },
+            "data": []
+
+        })
+        for i, row in enumerate(rows):
+            data = {
+                'x': float(row[label_attr.name]),
+                'value': float(row[label_attr.name]),
+                'id': label_attr.name,
+                'name': label_attr.name,
+                'label': label_attr.name,
+                'color': COLORS_PALETTE[(i % 6) * 5 + ((i / 6) % 5)],
+            }
+            result['data'].append(data)
+            if i >= 100:
+                raise ValueError(
+                    'The maximum number of values for this chart is 100.')
+        return result
+
+
+class LineChartModel(ChartVisualization):
+    def get_icon(self):
+        return 'fa-line-chart'
+
+    def get_data(self):
+        x_attr, x_type, y_attrs = self._get_axis_info()
+
+        rows = self.data.collect()
+
+        data = []
+        for i, attr in enumerate(y_attrs):
+            data.append({
+                "id": attr.name,
+                "name": attr.name,
+                "color": COLORS_PALETTE[(i % 6) * 5 + ((i / 6) % 5)],
+                "pointColor": COLORS_PALETTE[(i % 6) * 5 + ((i / 6) % 5)],
+                "pointShape": SHAPES[i % len(SHAPES)],
+                "pointSize": 8,
+                "values": []
+            })
+
+        result = {}
+        result.update(self._get_title_legend_tootip())
+
+        result.update({
             "y": {
                 "title": self.params.get("y_title"),
                 "prefix": self.params.get("y_prefix"),
@@ -519,207 +606,249 @@ class LineChartModel(VisualizationModel):
             },
             "data": data
 
-        }
+        })
         for row in rows:
             for i, attr in enumerate(y_attrs):
                 data[i]['values'].append(
                     {
-                        "x": LineChartModel._format(row[x_axis.name]),
+                        "x": LineChartModel._format(row[x_attr.name]),
                         "y": LineChartModel._format(row[attr.name]),
                     }
                 )
         return result
 
-    class HtmlVisualizationModel(VisualizationModel):
-        # noinspection PyUnusedLocal
-        def __init__(self, data, task_id, type_id, type_name, title,
-                     column_names,
-                     orientation, id_attribute, value_attribute, params):
-            # type_id = 1
-            # type_name = 'html'
-            VisualizationModel.__init__(self, data, task_id, type_id, type_name,
-                                        title, column_names, orientation,
-                                        id_attribute, value_attribute, params)
 
-        def get_icon(self):
-            return "fa-html5"
+class AreaChartModel(LineChartModel):
+    def get_icon(self):
+        return 'fa-area-chart'
 
-        def get_data(self):
-            return self.data
 
-        def get_schema(self):
-            return ''
+class ScatterPlotModel(ChartVisualization):
+    """
+    Scatter plot chart model
+    """
 
-    class TableVisualizationModel(VisualizationModel):
-        def __init__(self, data, task_id, type_id, type_name, title,
-                     column_names,
-                     orientation, id_attribute, value_attribute, params):
-            type_id = 35
-            type_name = 'table-visualization'
-            if not title:
-                title = 'Results'
-            VisualizationModel.__init__(self, data, task_id, type_id, type_name,
-                                        title, column_names, orientation,
-                                        id_attribute, value_attribute, params)
+    @staticmethod
+    def _get_attr_type(attr):
+        # @FIXME: Improve this code with other data types
+        if attr.dataType.jsonValue() == 'date':
+            attr_type = 'date'
+        elif attr.dataType.jsonValue() == 'boolean':
+            attr_type = 'bool'
+        elif attr.dataType.jsonValue() == 'timestamp':
+            attr_type = 'timestamp'
+        elif attr.dataType.jsonValue() == 'string':
+            attr_type = 'string'
+        else:
+            attr_type = 'number'
 
-        def get_icon(self):
-            return 'fa-table'
+        return attr_type
 
-        def get_data(self):
-            """
-            Returns data as tabular (list of lists in Python).
-            """
-            if self.column_names:
-                return self.data.limit(50).select(*self.column_names).rdd.map(
-                    dataframe_util.convert_to_python).collect()
+    def get_data(self):
+        schema = self.data.schema
+
+        result = {}
+        attrs = {}
+        for axis in ['x', 'y', 'z', 't']:
+            name = self.params.get('x_axis_attribute', [None])[0]
+            attrs[axis] = [c for c in schema if c.name == name]
+            if attrs[axis]:
+                result[axis] = {
+                    "title": self.params.get("{}_title".format(axis)),
+                    "prefix": self.params.get("{}_prefix".format(axis)),
+                    "suffix": self.params.get("{}_suffix".format(axis)),
+                    "format": self.params.get("{}_format".format(axis)),
+                    "outFormat": self.params.get("{}_format".format(axis)),
+                    "inFormat": self.params.get("{}_format".format(axis)),
+                    "type": self._get_attr_type(attrs[axis])
+                }
+        rows = self.data.collect()
+
+        data = []
+        for i, attr in enumerate(y_attrs):
+            data.append({
+                "id": attr.name,
+                "name": attr.name,
+                "color": COLORS_PALETTE[(i % 6) * 5 + ((i / 6) % 5)],
+                "pointColor": COLORS_PALETTE[(i % 6) * 5 + ((i / 6) % 5)],
+                "pointShape": SHAPES[i % len(SHAPES)],
+                "pointSize": 8,
+                "values": []
+            })
+
+        result = {}
+        result.update(self._get_title_legend_tootip())
+
+        result.update({
+            "y": {
+                "title": self.params.get("y_title"),
+                "prefix": self.params.get("y_prefix"),
+                "suffix": self.params.get("y_suffix"),
+                "format": self.params.get("y_format", {}).get('key'),
+            },
+            "x": {
+                "title": self.params.get("x_title"),
+                "type": x_type,
+                "prefix": self.params.get("x_prefix"),
+                "suffix": self.params.get("x_suffix"),
+                "outFormat": self.params.get("x_format", {}).get('key'),
+                "inFormat": self.params.get("x_format", {}).get('key'),
+            },
+            "data": data
+
+        })
+        for row in rows:
+            for i, attr in enumerate(y_attrs):
+                data[i]['values'].append(
+                    {
+                        "x": LineChartModel._format(row[x_attr.name]),
+                        "y": LineChartModel._format(row[attr.name]),
+                    }
+                )
+        return result
+
+
+class HtmlVisualizationModel(VisualizationModel):
+    # noinspection PyUnusedLocal
+    def __init__(self, data, task_id, type_id, type_name, title,
+                 column_names,
+                 orientation, id_attribute, value_attribute, params):
+        # type_id = 1
+        # type_name = 'html'
+        VisualizationModel.__init__(self, data, task_id, type_id, type_name,
+                                    title, column_names, orientation,
+                                    id_attribute, value_attribute, params)
+
+    def get_icon(self):
+        return "fa-html5"
+
+    def get_data(self):
+        return self.data
+
+    def get_schema(self):
+        return ''
+
+
+class TableVisualizationModel(VisualizationModel):
+    def __init__(self, data, task_id, type_id, type_name, title,
+                 column_names,
+                 orientation, id_attribute, value_attribute, params):
+        type_id = 35
+        type_name = 'table-visualization'
+        if not title:
+            title = 'Results'
+        VisualizationModel.__init__(self, data, task_id, type_id, type_name,
+                                    title, column_names, orientation,
+                                    id_attribute, value_attribute, params)
+
+    def get_icon(self):
+        return 'fa-table'
+
+    def get_data(self):
+        """
+        Returns data as tabular (list of lists in Python).
+        """
+        if self.column_names:
+            return self.data.limit(50).select(*self.column_names).rdd.map(
+                dataframe_util.convert_to_python).collect()
+        else:
+            return self.data.limit(50).rdd.map(
+                dataframe_util.convert_to_python).collect()
+
+    def get_column_names(self):
+        if self.column_names:
+            return ','.join(self.column_names)
+        else:
+            return get_csv_schema(self.data, only_name=True)
+
+
+class SummaryStatisticsModel(TableVisualizationModel):
+    # noinspection PyUnusedLocal
+    def __init__(self, data, task_id, type_id, type_name, title,
+                 column_names,
+                 orientation, id_attribute, value_attribute, params):
+        TableVisualizationModel.__init__(self, data, task_id, type_id,
+                                         type_name,
+                                         title, column_names, orientation,
+                                         id_attribute, value_attribute,
+                                         params)
+        self.names = ''
+        self.numeric_attrs = [
+            t[0] for t in self.data.dtypes
+            if t[1] in ['int', 'double', 'tinyint',
+                        'bigint', 'smallint'] or t[1][:7] == 'decimal']
+
+        all_attr = [t[0] for t in self.data.dtypes]
+        if len(self.params['attributes']) == 0:
+            self.attrs = all_attr
+        else:
+            self.attrs = [attr for attr in all_attr if
+                          attr in self.params['attributes']]
+        self.names = ['attribute', 'max', 'min', 'stddev', 'count', 'avg',
+                      'approx. distinct', 'missing']
+
+        self.names.extend(
+            ['correlation to {}'.format(attr) for attr in self.attrs])
+
+        self.column_names = self.names
+
+    def get_icon(self):
+        return 'fa-table'
+
+    # noinspection PyUnresolvedReferences
+    def get_data(self):
+        """
+        Returns statistics about attributes in a data frame
+        """
+
+        from pyspark.sql import functions
+
+        # Correlation pairs
+        corr_pairs = list(
+            chunks(
+                list(itertools.product(self.attrs, self.attrs)),
+                len(self.attrs)))
+
+        # Cache data
+        self.data.cache()
+
+        df_count = self.data.count()
+
+        # TODO: Implement median using df.approxQuantile('col', [.5], .25)
+
+        stats = []
+        for i, name in enumerate(self.attrs):
+            df_col = functions.col(name)
+            stats.append(functions.lit(name))
+            stats.append(functions.max(df_col).alias('max_{}'.format(name)))
+            stats.append(functions.min(df_col).alias('min_{}'.format(name)))
+            if name in self.numeric_attrs:
+                stats.append(functions.round(
+                    functions.stddev(df_col), 4).alias(
+                    'stddev_{}'.format(name)))
             else:
-                return self.data.limit(50).rdd.map(
-                    dataframe_util.convert_to_python).collect()
-
-        def get_column_names(self):
-            if self.column_names:
-                return ','.join(self.column_names)
+                stats.append(functions.lit('-'))
+            stats.append(
+                functions.count(df_col).alias('count_{}'.format(name)))
+            if name in self.numeric_attrs:
+                stats.append(functions.round(
+                    functions.avg(df_col), 4).alias('avg_{}'.format(name)))
             else:
-                return get_csv_schema(self.data, only_name=True)
+                stats.append(functions.lit('-'))
 
-    class SummaryStatisticsModel(TableVisualizationModel):
-        # noinspection PyUnusedLocal
-        def __init__(self, data, task_id, type_id, type_name, title,
-                     column_names,
-                     orientation, id_attribute, value_attribute, params):
-            TableVisualizationModel.__init__(self, data, task_id, type_id,
-                                             type_name,
-                                             title, column_names, orientation,
-                                             id_attribute, value_attribute,
-                                             params)
-            self.names = ''
-            self.numeric_attrs = [
-                t[0] for t in self.data.dtypes
-                if t[1] in ['int', 'double', 'tinyint',
-                            'bigint', 'smallint'] or t[1][:7] == 'decimal']
-
-            all_attr = [t[0] for t in self.data.dtypes]
-            if len(self.params['attributes']) == 0:
-                self.attrs = all_attr
-            else:
-                self.attrs = [attr for attr in all_attr if
-                              attr in self.params['attributes']]
-            self.names = ['attribute', 'max', 'min', 'stddev', 'count', 'avg',
-                          'approx. distinct', 'missing']
-
-            self.names.extend(
-                ['correlation to {}'.format(attr) for attr in self.attrs])
-
-            self.column_names = self.names
-
-        def get_icon(self):
-            return 'fa-table'
-
-        # noinspection PyUnresolvedReferences
-        def get_data(self):
-            """
-            Returns statistics about attributes in a data frame
-            """
-
-            from pyspark.sql import functions
-
-            # Correlation pairs
-            corr_pairs = list(
-                chunks(
-                    list(itertools.product(self.attrs, self.attrs)),
-                    len(self.attrs)))
-
-            # Cache data
-            self.data.cache()
-
-            df_count = self.data.count()
-
-            # TODO: Implement median using df.approxQuantile('col', [.5], .25)
-
-            stats = []
-            for i, name in enumerate(self.attrs):
-                df_col = functions.col(name)
-                stats.append(functions.lit(name))
-                stats.append(functions.max(df_col).alias('max_{}'.format(name)))
-                stats.append(functions.min(df_col).alias('min_{}'.format(name)))
-                if name in self.numeric_attrs:
-                    stats.append(functions.round(
-                        functions.stddev(df_col), 4).alias(
-                        'stddev_{}'.format(name)))
+            stats.append(functions.approx_count_distinct(df_col).alias(
+                'distinct_{}'.format(name)))
+            stats.append((df_count - functions.count(df_col)).alias(
+                'missing_{}'.format(name)))
+            for pair in corr_pairs[i]:
+                if all([pair[0] in self.numeric_attrs,
+                        pair[1] in self.numeric_attrs]):
+                    stats.append(
+                        functions.round(functions.corr(*pair), 4).alias(
+                            'corr_{}'.format(i)))
                 else:
                     stats.append(functions.lit('-'))
-                stats.append(
-                    functions.count(df_col).alias('count_{}'.format(name)))
-                if name in self.numeric_attrs:
-                    stats.append(functions.round(
-                        functions.avg(df_col), 4).alias('avg_{}'.format(name)))
-                else:
-                    stats.append(functions.lit('-'))
 
-                stats.append(functions.approx_count_distinct(df_col).alias(
-                    'distinct_{}'.format(name)))
-                stats.append((df_count - functions.count(df_col)).alias(
-                    'missing_{}'.format(name)))
-                for pair in corr_pairs[i]:
-                    if all([pair[0] in self.numeric_attrs,
-                            pair[1] in self.numeric_attrs]):
-                        stats.append(
-                            functions.round(functions.corr(*pair), 4).alias(
-                                'corr_{}'.format(i)))
-                    else:
-                        stats.append(functions.lit('-'))
-
-            aggregated = self.data.agg(*stats).take(1)[0]
-            n = len(self.names)
-            return [aggregated[i:i + n] for i in range(0, len(aggregated), n)]
-
-    class ScatterPlotModel(VisualizationModel):
-        """
-        Scatter plot model for visualization.
-        Supports calculate covariance or correlation.
-
-        TODO: Implement support to linear regression
-        """
-        COVARIANCE = 'covariance'
-        CORRELATION = 'correlation'
-
-        def get_icon(self):
-            return 'fa-table'
-
-        def get_data(self):
-            """
-            Returns data as tabular (list of lists in Python).
-            """
-            from pyspark.sql.functions import col, corr, covar_pop
-            numerics = [attr.name for attr in self.data.schema if
-                        attr.dataType.typeName() in ['int', 'byte', 'long',
-                                                     'short',
-                                                     'float', 'double',
-                                                     'decimal']]
-            attributes = [name for name in self.params['attributes'] if
-                          name in numerics]
-            calculate = self.params.get('calculate')
-
-            pairs = itertools.combinations(attributes, 2)
-            result = {}
-
-            if calculate is not None:
-                f = corr if calculate == self.CORRELATION else covar_pop
-                aggrs = []
-                for pair in pairs:
-                    aggr_name = '{}_{}_{}'.format(calculate[:3], pair[0],
-                                                  pair[1])
-                    aggrs = f(col(pair[0]), col(pair[1])).alias(aggr_name)
-
-                calc = self.data.agg(*aggrs).collect()[0].asDict()
-                result[calculate] = calc
-            result['series'] = []
-            for i, pair in enumerate(pairs):
-                result['series'][i] = {'attributes': pair, 'data': []}
-
-            for row in self.data.toLocalIterator():
-                for i, pair in enumerate(pairs):
-                    result['series'][i]['data'].append(
-                        [row[pair[0]], row[pair[1]]])
-
-            return result
+        aggregated = self.data.agg(*stats).take(1)[0]
+        n = len(self.names)
+        return [aggregated[i:i + n] for i in range(0, len(aggregated), n)]
