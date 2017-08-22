@@ -8,12 +8,22 @@ log = logging.getLogger()
 log.setLevel(logging.DEBUG)
 
 
+def remove_initial_final_path_separator(path):
+    if path.endswith('/'):
+        path = path[:-1]
+    if path.startswith('/'):
+        path = path[1:]
+    return path
+
+
 def query_limonero(base_url, item_path, token, item_id):
     headers = {'X-Auth-Token': token}
-    if base_url.endswith('/'):
-        base_url = base_url[:-1]
-    path = "{}/{}".format(item_path, item_id).replace('//', '/')
-    url = '{}/{}'.format(base_url, path)
+
+    base_url = remove_initial_final_path_separator(base_url)
+    item_path = remove_initial_final_path_separator(item_path)
+    item_id = remove_initial_final_path_separator(str(item_id))
+
+    url = '{}/{}/{}'.format(base_url, item_path, item_id)
 
     log.debug('Querying Limonero URL: %s', url)
 
