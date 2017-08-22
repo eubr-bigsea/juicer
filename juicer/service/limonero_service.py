@@ -10,9 +10,10 @@ log.setLevel(logging.DEBUG)
 
 def query_limonero(base_url, item_path, token, item_id):
     headers = {'X-Auth-Token': token}
-    if item_path and item_path[-1] == '/':
-        item_path = item_path[:-1]
-    url = '{}/{}/{}'.format(base_url, item_path, item_id).replace('//', '/')
+    if base_url.endswith('/'):
+        base_url = base_url[:-1]
+    path = "{}/{}".format(item_path, item_id).replace('//', '/')
+    url = '{}/{}'.format(base_url, path)
 
     log.debug('Querying Limonero URL: %s', url)
 
