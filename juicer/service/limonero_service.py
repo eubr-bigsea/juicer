@@ -31,6 +31,8 @@ def query_limonero(base_url, item_path, token, item_id):
     if r.status_code == 200:
         return json.loads(r.text)
     else:
+        log.debug('Error querying Limonero URL: %s (%s: %s)', url,
+                  r.status_code, r.text)
         raise RuntimeError(
             u"Error loading {} id {}: HTTP {} - {}".format(item_path, item_id,
                                                            r.status_code,
