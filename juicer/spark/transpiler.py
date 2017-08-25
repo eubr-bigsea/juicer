@@ -424,7 +424,8 @@ class SparkTranspiler:
             'pie-chart': juicer.spark.vis_operation.PieChartOperation,
             'area-chart': juicer.spark.vis_operation.AreaChartOperation,
             'line-chart': juicer.spark.vis_operation.LineChartOperation,
-            'table-visualization': juicer.spark.vis_operation.TableVisualizationOperation,
+            'table-visualization':
+                juicer.spark.vis_operation.TableVisualizationOperation,
             'summary-statistics':
                 juicer.spark.vis_operation.SummaryStatisticsOperation,
             'plot-chart': juicer.spark.vis_operation.ScatterPlotOperation,

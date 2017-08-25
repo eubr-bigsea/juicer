@@ -538,9 +538,9 @@ class PieChartModel(ChartVisualization):
         schema = self.data.schema
 
         if self.id_attribute:
-            label = self.id_attribute[0]
+            label = self.id_attribute
         else:
-            label = self.value_attribute[0]
+            label = self.value_attribute
 
         value_attr = [c for c in schema if c.name in self.value_attribute[0]]
         if len(value_attr):
@@ -581,11 +581,11 @@ class PieChartModel(ChartVisualization):
         })
         for i, row in enumerate(rows):
             data = {
-                'x': float(row[label_attr.name]),
-                'value': float(row[label_attr.name]),
+                'x': float(row[value_attr.name]),
+                'value': float(row[value_attr.name]),
                 'id': '{}_{}'.format(label_attr.name, i),
-                'name': label_attr.name,
-                'label': label_attr.name,
+                'name': row[label_attr.name],
+                'label': row[label_attr.name],
                 'color': COLORS_PALETTE[(i % 6) * 5 + ((i / 6) % 5)],
             }
             result['data'].append(data)
