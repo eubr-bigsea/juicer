@@ -7,6 +7,7 @@ import logging.config
 import multiprocessing
 import signal
 import sys
+import threading
 import time
 import traceback
 
@@ -32,7 +33,6 @@ logging.config.fileConfig('logging_config.ini')
 
 log = logging.getLogger(__name__)
 
-
 class SparkMinion(Minion):
     """
     Controls the execution of Spark code in Lemonade Juicer.
@@ -48,6 +48,11 @@ class SparkMinion(Minion):
     MNN007 = ('MNN007', 'Job {} was canceled')
     MNN008 = ('MNN008', 'App {} was terminated')
     MNN009 = ('MNN009', 'Workflow specification is missing')
+
+    # max idle time allowed in seconds until this minion self termination
+    IDLENESS_TIMEOUT = 10
+    TIMEOUT = 'timeout'
+    MSG_PROCESSED = 'message_processed'
 
     def __init__(self, redis_conn, workflow_id, app_id, config):
         Minion.__init__(self, redis_conn, workflow_id, app_id, config)
@@ -73,7 +78,6 @@ class SparkMinion(Minion):
         else:
             log.warn('SPARK_HOME environment variable is not defined')
 
-        self.job_count = 0
         self.spark_session = None
         signal.signal(signal.SIGTERM, self._terminate)
 
@@ -83,6 +87,10 @@ class SparkMinion(Minion):
 
         self.executor = ThreadPoolExecutor(max_workers=1)
         self.job_future = None
+        
+        # self termination timeout
+        self.active_messages = 0
+        self.self_terminate = True
 
     def _emit_event(self, room, namespace):
         def emit_event(name, message, status, identifier, **kwargs):
@@ -160,7 +168,13 @@ class SparkMinion(Minion):
 
     def _process_message_nb(self):
         # Get next message
-        msg = self.state_control.pop_app_queue(self.app_id)
+        msg = self.state_control.pop_app_queue(self.app_id,
+                block=True, timeout=self.IDLENESS_TIMEOUT)
+
+        if msg is None and self.active_messages == 0:
+            self._timeout_termination()
+            return
+
         msg_info = json.loads(msg)
 
         # Sanity check: this minion should not process messages from another
@@ -180,6 +194,7 @@ class SparkMinion(Minion):
 
         # Forward the message according to its purpose
         if msg_type == juicer_protocol.EXECUTE:
+            self.active_messages += 1
             log.info('Execute message received')
             job_id = msg_info['job_id']
             workflow = msg_info['workflow']
@@ -200,6 +215,7 @@ class SparkMinion(Minion):
                                                    app_configs)
             log.info('Execute message finished')
         elif msg_type == juicer_protocol.DELIVER:
+            self.active_messages += 1
             log.info('Deliver message received')
             task_id = msg_info.get('task_id')
             output = msg_info.get('output')
@@ -223,6 +239,9 @@ class SparkMinion(Minion):
             else:
                 log.info('Terminate message received (app=%s)', self.app_id)
                 self.terminate()
+
+        elif msg_type == SparkMinion.MSG_PROCESSED:
+            self.active_messages -= 1
 
         else:
             log.warn('Unknown message type %s', msg_type)
@@ -334,6 +353,9 @@ class SparkMinion(Minion):
                 status='ERROR', identifier=job_id)
             self._generate_output(ee.message, 'ERROR', code=1000)
             result = False
+
+        self.message_processed('execute')
+        
         return result
 
     # noinspection PyProtectedMember
@@ -436,6 +458,7 @@ class SparkMinion(Minion):
 
     def _perform_deliver(self, task_id, output, port, job_id, workflow,
                          app_configs):
+
         data = []
 
         # FIXME: state must expire. How to identify this in the interface?
@@ -467,6 +490,8 @@ class SparkMinion(Minion):
         self._send_to_output(status_data)
         self._send_delivery(output, status_data, data)
 
+        self.message_processed('deliver')
+        
         return success
 
     def _read_dataframe_data(self, task_id, output, port):
@@ -526,6 +551,30 @@ class SparkMinion(Minion):
         log.info(message)
         self._generate_output(message, 'SUCCESS', self.MNN007[0])
 
+    def _timeout_termination(self):
+        if not self.self_terminate:
+            return
+        termination_msg = {
+                'workflow_id': self.workflow_id,
+                'app_id': self.app_id,
+                'type': 'terminate'
+                }
+        log.info('Requesting termination (workflow_id=%s,app_id=%s) %s %s',
+                self.workflow_id, self.app_id,
+                ' due idleness timeout. Msg: ', termination_msg)
+        self.state_control.push_start_queue(json.dumps(termination_msg))
+
+    def message_processed(self, msg_type):
+        msg_processed = {
+                'workflow_id': self.workflow_id,
+                'app_id': self.app_id,
+                'type': SparkMinion.MSG_PROCESSED,
+                'msg_type': msg_type
+                }
+        self.state_control.push_app_queue(self.app_id,
+                json.dumps(msg_processed))
+        log.info('Sending message processed message: %s' % msg_processed)
+
     # noinspection PyUnusedLocal
     def _terminate(self, _signal, _frame):
         self.terminate()
@@ -550,6 +599,8 @@ class SparkMinion(Minion):
         log.info(message)
         self._generate_output(message, 'SUCCESS', self.MNN008[0])
         self.state_control.unset_minion_status(self.app_id)
+
+        self.self_terminate = False
 
     def process(self):
         log.info('Spark minion (workflow_id=%s,app_id=%s) started (pid=%s)',
