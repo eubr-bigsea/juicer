@@ -23,7 +23,10 @@ def query_limonero(base_url, item_path, token, item_id):
     item_path = remove_initial_final_path_separator(item_path)
     item_id = remove_initial_final_path_separator(str(item_id))
 
-    url = '{}/{}/{}'.format(base_url, item_path, item_id)
+    if item_path:
+        url = '{}/{}/{}'.format(base_url, item_path, item_id)
+    else:
+        url = '{}/{}'.format(base_url, item_id)
 
     log.debug('Querying Limonero URL: %s', url)
 
@@ -31,7 +34,7 @@ def query_limonero(base_url, item_path, token, item_id):
     if r.status_code == 200:
         return json.loads(r.text)
     else:
-        log.debug('Error querying Limonero URL: %s (%s: %s)', url,
+        log.error('Error querying Limonero URL: %s (%s: %s)', url,
                   r.status_code, r.text)
         raise RuntimeError(
             u"Error loading {} id {}: HTTP {} - {}".format(item_path, item_id,

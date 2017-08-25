@@ -420,10 +420,11 @@ class SparkTranspiler:
             'publish-as-visualization':
                 juicer.spark.vis_operation.PublishVisualizationOperation,
             'bar-chart': juicer.spark.vis_operation.BarChartOperation,
+            'donut-chart': juicer.spark.vis_operation.DonutChartOperation,
             'pie-chart': juicer.spark.vis_operation.PieChartOperation,
             'area-chart': juicer.spark.vis_operation.AreaChartOperation,
             'line-chart': juicer.spark.vis_operation.LineChartOperation,
-            'table-visualization': juicer.spark.vis_operation.TableVisOperation,
+            'table-visualization': juicer.spark.vis_operation.TableVisualizationOperation,
             'summary-statistics':
                 juicer.spark.vis_operation.SummaryStatisticsOperation,
             'plot-chart': juicer.spark.vis_operation.ScatterPlotOperation,

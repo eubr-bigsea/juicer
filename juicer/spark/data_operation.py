@@ -85,32 +85,15 @@ class DataReader(Operation):
                 if 'attributes' in self.metadata:
                     code.append(
                         'schema_{0} = types.StructType()'.format(self.output))
-                    for attr in self.metadata.get('attributes', []):
-                        data_type = self.LIMONERO_TO_SPARK_DATA_TYPES[
-                            attr['type']]
-                        if attr['type'] in self.DATA_TYPES_WITH_PRECISION:
-                            data_type = '{}({}, {})'.format(
-                                data_type, attr['precision'],
-                                attr.get('scale', 0) or 0)
-                        else:
-                            data_type = '{}()'.format(data_type)
+                    attrs = self.metadata.get('attributes', [])
+                    if attrs:
+                        for attr in attrs:
+                            self._add_attribute_to_schema(attr, code)
+                    else:
+                        code.append(
+                            "schema_{0}.add('value', "
+                            "types.StringType(), 1, None)".format(self.output))
 
-                        # Notice: According to Spark documentation, nullable
-                        # option of StructField is just a hint and when loading
-                        # CSV file, it won't work. So, we are adding this
-                        # information in metadata.
-
-                        metadata = {k: attr[k] for k in
-                                    ['feature', 'label', 'nullable', 'type',
-                                     'size', 'precision', 'enumeration',
-                                     'missing_representation'] if attr[k]}
-                        code.append("schema_{0}.add('{1}', {2}, {3},\n{5}{4})"
-                                    .format(self.output, attr['name'],
-                                            data_type,
-                                            attr['nullable'],
-                                            pprint.pformat(metadata, indent=0),
-                                            ' ' * 20
-                                            ))
                     code.append("")
                 else:
                     raise ValueError(
@@ -138,8 +121,10 @@ class DataReader(Operation):
                         null_option))
                     code.append(code_csv)
                 else:
-                    code_csv = """{output} = spark_session.read\\
+                    code_csv = """
+                    {output} = spark_session.read\\
                            {null_option}\\
+                           .schema(schema_{0})
                            .option('treatEmptyValuesAsNulls', 'true')\\
                            .text(url)""".format(output=self.output,
                                                 null_option=null_option)
@@ -171,6 +156,29 @@ class DataReader(Operation):
                 code.append('{}.cache()'.format(self.output))
 
         return '\n'.join(code)
+
+    def _add_attribute_to_schema(self, attr, code):
+        data_type = self.LIMONERO_TO_SPARK_DATA_TYPES[
+            attr['type']]
+        if attr['type'] in self.DATA_TYPES_WITH_PRECISION:
+            data_type = '{}({}, {})'.format(
+                data_type, attr['precision'],
+                attr.get('scale', 0) or 0)
+        else:
+            data_type = '{}()'.format(data_type)
+
+        # Notice: According to Spark documentation, nullable
+        # option of StructField is just a hint and when
+        # loading CSV file, it won't work. So, we are adding
+        # this information in metadata.
+        metadata = {k: attr[k] for k in
+                    ['feature', 'label', 'nullable', 'type', 'size',
+                     'precision', 'enumeration', 'missing_representation'] if
+                    attr[k]}
+        code.append("schema_{0}.add('{1}', {2}, {3},\n{5}{4})".format(
+            self.output, attr['name'], data_type, attr['nullable'],
+            pprint.pformat(metadata, indent=0), ' ' * 20
+        ))
 
     def get_output_names(self, sep=", "):
         return self.output
