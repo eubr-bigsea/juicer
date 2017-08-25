@@ -599,7 +599,6 @@ class ClassificationModelOperation(Operation):
 
         self.model = named_outputs.get('model',
                                        'model_task_{}'.format(self.order))
-        print self.named_inputs
         if not self.has_code and len(self.named_outputs) > 0:
             raise ValueError(
                 'Model is being used, but at least one input is missing')

@@ -91,35 +91,17 @@ class JuicerSparkService:
             except:
                 raise
 
-            # WebService
-            workflow_as_web_service = True
+            # WebService Generate Workflows
+            workflow_as_web_service = False
 
-            if workflow_as_web_service:
+            if workflow_as_web_service and (self.workflow_id == 16 or self.workflow_id == 19):
+                # Example of parameters for webservice
+                params_ws = dict(json.loads(open("../juicer/tests/webservice_wf/params_ws_wf_{}.txt".format(
+                    self.workflow_id)).read()))
 
-                ###########
-                # Get Params for Juicer WebServices - Generate from Workflow
-                params_ws = {
-                    'inputs': [
-                        {'id': 18,
-                         'operation_id': "603d19e6-c420-4116-85cc-2490cba18133"}
-                    ],
-                    'outputs': [
-                        {'id': 42,
-                         'operation_id': "082d2558-58eb-47c9-baeb-15b051bc256a"}
-                    ],
-                    'models': [
-                        {'id': 1,
-                         'operation_id': "ad0ed19f-b939-4074-8d97-c06643114a24"}
-                    ]
-                }
+                dict_lkt = dict(json.loads(open("../juicer/tests/webservice_wf/lookup_table_wf_{}.txt".format(
+                    self.workflow_id)).read()))
 
-                # Lookup table - pre defined
-                dict_lkt = {
-                    1: 'Read Model',
-                    18: 'WS Input',
-                    42: 'WS Output',
-                    26: 'WS Visualization'
-                }
                 try:
                     webservice_workflow_instance = WorkflowWebService(loader.workflow,
                                                                       loader.graph,
@@ -131,7 +113,6 @@ class JuicerSparkService:
                     spark_instance_2 = SparkTranspiler(configuration.get_config())
                     self.params['execute_main'] = self.execute_main
 
-                    print webservice_workflow_instance.graph_ws.edges()
                     spark_instance_2.transpile(webservice_workflow_instance.workflow_ws,
                                                webservice_workflow_instance.graph_ws,
                                                params=self.params,
