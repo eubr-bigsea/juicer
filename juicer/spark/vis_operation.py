@@ -269,6 +269,15 @@ class PieChartOperation(VisualizationMethodOperation):
         return 'PieChartModel'
 
 
+class DonutChartOperation(VisualizationMethodOperation):
+    def __init__(self, parameters, named_inputs, named_outputs):
+        VisualizationMethodOperation.__init__(self, parameters, named_inputs,
+                                              named_outputs)
+
+    def get_model_name(self):
+        return 'DonutChartModel'
+
+
 class LineChartOperation(VisualizationMethodOperation):
     def __init__(self, parameters, named_inputs, named_outputs):
         VisualizationMethodOperation.__init__(self, parameters, named_inputs,
@@ -287,7 +296,7 @@ class AreaChartOperation(VisualizationMethodOperation):
         return 'AreaChartModel'
 
 
-class TableVisOperation(VisualizationMethodOperation):
+class TableVisualizationOperation(VisualizationMethodOperation):
     def __init__(self, parameters, named_inputs, named_outputs):
         VisualizationMethodOperation.__init__(self, parameters, named_inputs,
                                               named_outputs)
@@ -501,6 +510,13 @@ class PieChartModel(ChartVisualization):
     In PieChartModel, x_attr contains the label and y_attrs[0] contém os valores
     """
 
+    def __init__(self, data, task_id, type_id, type_name, title, column_names,
+                 orientation, id_attribute, value_attribute, params):
+        ChartVisualization.__init__(self, data, task_id, type_id,
+                                    params.get('type', 'pie-chart'),
+                                    title, column_names, orientation,
+                                    id_attribute, value_attribute, params)
+
     def get_icon(self):
         return 'fa-pie-chart'
 
@@ -563,6 +579,10 @@ class PieChartModel(ChartVisualization):
                 raise ValueError(
                     'The maximum number of values for this chart is 100.')
         return result
+
+
+class DonutChartModel(PieChartModel):
+    pass
 
 
 class LineChartModel(ChartVisualization):
@@ -749,11 +769,15 @@ class TableVisualizationModel(VisualizationModel):
         Returns data as tabular (list of lists in Python).
         """
         if self.column_names:
-            return self.data.limit(50).select(*self.column_names).rdd.map(
+            rows = self.data.limit(50).select(*self.column_names).rdd.map(
                 dataframe_util.convert_to_python).collect()
         else:
-            return self.data.limit(50).rdd.map(
+            rows = self.data.limit(50).rdd.map(
                 dataframe_util.convert_to_python).collect()
+
+        return {"rows": rows,
+                "attributes": self.get_column_names().split(','),
+                "schema": self.get_schema()}
 
     def get_column_names(self):
         if self.column_names:
@@ -851,4 +875,7 @@ class SummaryStatisticsModel(TableVisualizationModel):
 
         aggregated = self.data.agg(*stats).take(1)[0]
         n = len(self.names)
-        return [aggregated[i:i + n] for i in range(0, len(aggregated), n)]
+        rows = [aggregated[i:i + n] for i in range(0, len(aggregated), n)]
+
+        return {"rows": rows, "attributes": self.get_column_names().split(','),
+                "schema": self.get_schema()}
