@@ -471,8 +471,6 @@ class BarChartModel(ChartVisualization):
                 "type": x_type,
                 "prefix": self.params.get("x_prefix"),
                 "suffix": self.params.get("x_suffix"),
-                "outFormat": self.params.get("x_format", {}).get('key'),
-                "inFormat": self.params.get("x_format", {}).get('key'),
             },
             "y": {
                 "equal": True,
@@ -484,6 +482,13 @@ class BarChartModel(ChartVisualization):
             "data": []
 
         })
+        if x_type in ['number']:
+            result['x']['format'] = self.params.get("x_format", {}).get('key')
+        elif x_type in ['timestamp', 'date']:
+            result['x']["outFormat"] = self.params.get("x_format", {}).get(
+                'key')
+            result['x']["inFormat"] = self.params.get("x_format", {}).get('key')
+
         for inx_row, row in enumerate(rows):
             x_value = row[x_attr.name]
             if x_value not in colors:
@@ -516,6 +521,8 @@ class BarChartModel(ChartVisualization):
                 if i >= 100:
                     raise ValueError(
                         'The maximum number of values for x-axis is 100.')
+
+        result['colors'] = colors
         return result
 
 
@@ -635,12 +642,16 @@ class LineChartModel(ChartVisualization):
                 "type": x_type,
                 "prefix": self.params.get("x_prefix"),
                 "suffix": self.params.get("x_suffix"),
-                "outFormat": self.params.get("x_format", {}).get('key'),
-                "inFormat": self.params.get("x_format", {}).get('key'),
             },
             "data": data
-
         })
+        if x_type in ['number']:
+            result['x']['format'] = self.params.get("x_format", {}).get('key')
+        elif x_type in ['timestamp', 'date']:
+            result['x']["outFormat"] = self.params.get("x_format", {}).get(
+                'key')
+            result['x']["inFormat"] = self.params.get("x_format", {}).get('key')
+
         for row in rows:
             for i, attr in enumerate(y_attrs):
                 data[i]['values'].append(
