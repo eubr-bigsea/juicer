@@ -443,6 +443,7 @@ class BarChartModel(ChartVisualization):
         rows = self.data.collect()
 
         colors = {}
+        color_counter = 0
         for i, attr in enumerate(y_attrs):
             color = COLORS_PALETTE[(i % 6) * 5 + ((i / 6) % 5)]
             colors[attr.name] = {
@@ -450,6 +451,8 @@ class BarChartModel(ChartVisualization):
                 'gradient': color,
                 'stroke': color,
             }
+            color_counter = i
+
         result = {}
         result.update(self._get_title_legend_tootip())
 
@@ -473,8 +476,19 @@ class BarChartModel(ChartVisualization):
 
         })
         for inx_row, row in enumerate(rows):
+            x_value = row[x_attr.name]
+            if x_value not in colors:
+                inx_row += 1
+                color = COLORS_PALETTE[(color_counter % 6) * 5 +
+                                       ((color_counter / 6) % 5)]
+                colors[x_value] = {
+                    'fill': color,
+                    'gradient': color,
+                    'stroke': color,
+                }
+
             data = {
-                'x': LineChartModel._format(row[x_attr.name]),
+                'x': LineChartModel._format(x_value),
                 'name': row[x_attr.name],
                 'key': row[x_attr.name],
                 'color': COLORS_PALETTE[
@@ -553,7 +567,7 @@ class PieChartModel(ChartVisualization):
             data = {
                 'x': float(row[label_attr.name]),
                 'value': float(row[label_attr.name]),
-                'id': label_attr.name,
+                'id': '{}_{}'.format(label_attr.name, i),
                 'name': label_attr.name,
                 'label': label_attr.name,
                 'color': COLORS_PALETTE[(i % 6) * 5 + ((i / 6) % 5)],
