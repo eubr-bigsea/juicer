@@ -344,7 +344,7 @@ class SummaryStatisticsOperation(VisualizationMethodOperation):
 # Visualization Models used inside the code generated #
 #######################################################
 
-class VisualizationModel:
+class VisualizationModel(object):
     def __init__(self, data, task_id, type_id, type_name, title, column_names,
                  orientation,
                  id_attribute, value_attribute, params):
@@ -402,6 +402,8 @@ class ChartVisualization(VisualizationModel):
 
     def _get_axis_info(self):
         schema = self.data.schema
+        if not self.params.get('x_axis_attribute'):
+            raise ValueError('X-axis attribute not specified')
         x = self.params.get('x_axis_attribute')[0]
         x_attr = [c for c in schema if c.name == x]
         y_attrs = [c for c in schema if c.name in self.column_names]
@@ -603,7 +605,9 @@ class PieChartModel(ChartVisualization):
 
 
 class DonutChartModel(PieChartModel):
-    pass
+    def get_data(self):
+        data = super(DonutChartModel, self).get_data()
+        return data
 
 
 class LineChartModel(ChartVisualization):
