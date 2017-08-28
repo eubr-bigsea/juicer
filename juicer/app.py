@@ -92,7 +92,7 @@ class JuicerSparkService:
                 raise
 
             # WebService Generate Workflows
-            workflow_as_web_service = False
+            workflow_as_web_service = True
 
             if workflow_as_web_service and (self.workflow_id == 16 or self.workflow_id == 19):
                 # Example of parameters for webservice

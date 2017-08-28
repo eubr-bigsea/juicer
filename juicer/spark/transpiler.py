@@ -219,6 +219,7 @@ class SparkTranspiler:
         for i, task_id in enumerate(sorted_tasks_id):
             self.current_task_id = task_id
             task = graph.node[task_id]
+            print task_id
             class_name = self.operations[task['operation']['slug']]
 
             parameters = {}

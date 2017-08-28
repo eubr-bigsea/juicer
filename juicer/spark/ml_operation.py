@@ -263,7 +263,6 @@ class FeatureAssemblerOperation(Operation):
         self.alias = parameters.get(self.ALIAS_PARAM, 'features')
 
         self.has_code = len(self.named_inputs) > 0
-        # self.has_code = True
 
     def generate_code(self):
         input_data = self.named_inputs['input data']
@@ -599,6 +598,7 @@ class ClassificationModelOperation(Operation):
 
         self.model = named_outputs.get('model',
                                        'model_task_{}'.format(self.order))
+
         if not self.has_code and len(self.named_outputs) > 0:
             raise ValueError(
                 'Model is being used, but at least one input is missing')

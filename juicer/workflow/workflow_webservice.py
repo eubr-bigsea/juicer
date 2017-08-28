@@ -84,11 +84,6 @@ class WorkflowWebService:
         new_graph_ws = nx.MultiDiGraph()
 
         for task_id in sorted_tasks:
-            # print task_id
-            #
-            # if task_id == '9ce2c760-33a3-4346-a4ab-e3f7fae19f6f':
-            #     import pdb
-            #     pdb.set_trace()
 
             for workflow_task in self.workflow['tasks']:
 
@@ -100,6 +95,7 @@ class WorkflowWebService:
                     list_successors = self.graph_ws.successors(workflow_task['id'])
                     edges_from_node = self.graph_ws.edges(workflow_task['id'])
 
+
                     if (self.check_task_operation(workflow_task['id'],
                                                 self.webservice_param['inputs'])
                         or self.check_task_operation(workflow_task['id'],
@@ -107,23 +103,47 @@ class WorkflowWebService:
                         or self.check_task_operation(workflow_task['id'],
                                                      self.webservice_param['models'])):
 
-                        # self.check_task_operation_update(workflow_task['id'])
+                        if self.check_task_operation(workflow_task['id'],
+                                                     self.webservice_param['outputs']):
+                            new_operation = self.create_new_operation(workflow_task)
+                            new_flow = self.create_new_flow(workflow_task, new_operation)
 
-                        # Change operation for a new operation name
-                        wf_task_aux = self.change_operations_webservice(workflow_task,
-                                                                        self.webservice_lookuptable)
+                            # print new_flow
+                            actual_operation = copy.deepcopy(workflow_task)
+                            #
+                            # import pdb
+                            # pdb.set_trace()
+
+                            new_workflow_ws.append(new_operation)
+                            new_graph_ws.add_node(new_operation.get('id'), attr_dict=new_operation)
+                            new_graph_ws.add_edge(workflow_task['id'], new_operation['id'], attr_dict=new_flow)
+
+                            new_workflow_ws.append(actual_operation)
+                            new_graph_ws.add_node(actual_operation.get('id'),
+                                                  attr_dict=actual_operation)
+
+                            # Add arestas
+                            for sucessor in list_successors:
+                                flow_operation = self.search_task_operation_on_flow(actual_operation['id'], sucessor)
+                                new_graph_ws.add_edge(actual_operation['id'], sucessor, attr_dict=flow_operation)
+
+                        else:
+                            # print self.webservice_lookuptable
+                            # Change operation for a new operation name
+                            wf_task_aux = self.change_operations_webservice(workflow_task,
+                                                                            self.webservice_lookuptable)
 
 
-                        self.update_workflow_operation(wf_task_aux)
+                            self.update_workflow_operation(wf_task_aux)
 
-                        new_workflow_ws.append(wf_task_aux)
-                        new_graph_ws.add_node(wf_task_aux.get('id'),
-                                              attr_dict=wf_task_aux)
+                            new_workflow_ws.append(wf_task_aux)
+                            new_graph_ws.add_node(wf_task_aux.get('id'),
+                                                  attr_dict=wf_task_aux)
 
-                        # Add arestas
-                        for sucessor in list_successors:
-                            flow_operation = self.search_task_operation_on_flow(workflow_task['id'], sucessor)
-                            new_graph_ws.add_edge(wf_task_aux['id'], sucessor, attr_dict=flow_operation)
+                            # Add arestas
+                            for sucessor in list_successors:
+                                flow_operation = self.search_task_operation_on_flow(workflow_task['id'], sucessor)
+                                new_graph_ws.add_edge(wf_task_aux['id'], sucessor, attr_dict=flow_operation)
 
 
                     else:
@@ -149,19 +169,12 @@ class WorkflowWebService:
                                             task_operation_sucessor['operation']['slug'] == 'recommendation-model' or \
                                             task_operation_sucessor['operation']['slug'] == 'regression-model' or \
                                             task_operation_sucessor['operation']['slug'] == 'read-model':
-                                            task_op_predecessor = self.search_task_operation_on_workflow(predecessor)
-                                            task_operation_sucessor['in_degree'] = task_operation_sucessor['in_degree'] - 1
 
+                                            task_operation_sucessor['in_degree'] = task_operation_sucessor['in_degree'] - 1
                                             if self.graph_ws.has_node(workflow_task['id']):
                                                 self.graph_ws.remove_node(workflow_task['id'])
                                                 removed_tasks.append(workflow_task['id'])
 
-                                        # elif task_operation_sucessor['operation']['slug'] == 'clustering-model':
-                                        #     print "clustering-model"
-                                        # elif task_operation_sucessor['operation']['slug'] == 'recommendation-model':
-                                        #     print "recommendation-model"
-                                        # elif task_operation_sucessor['operation']['slug'] == 'regression-model':
-                                        #     print "regression-model"
                                         elif task_operation_sucessor['operation']['slug'] == 'apply-model':
                                             self.graph.remove_edges_from([(workflow_task['id'],sucessor)])
                                             if self.graph.has_node(workflow_task['id']):
@@ -184,10 +197,10 @@ class WorkflowWebService:
                                             }
 
                                             self.workflow_ws['flows'].append(flow_update)
+                                            # Add edge
                                             new_graph_ws.add_edge(predecessor,sucessor, attr_dict=flow_update)
-
-                                            #!@ Remover parents from task['id'] e task_operation_sucessor
                                             self.remove_flow_from_edges(workflow_task['id'],sucessor)
+
                                 # Keep the operation
                                 else:
                                     print "! FIX-ME: Keep operation"
@@ -403,23 +416,27 @@ class WorkflowWebService:
 
     def check_task_operation_update(self, workflow_task_id):
 
+        ws_type_result = 0
         for ws_type in self.webservice_param:
-            print ws_type
+            # print ws_type
             if ws_type == 'inputs':
                 for webservice_operations in self.webservice_param[ws_type]:
                     if workflow_task_id == webservice_operations['operation_id']:
-                        return 1
+                        ws_type_result = 1
+                        break
 
             elif ws_type == 'outputs':
                 for webservice_operations in self.webservice_param[ws_type]:
                     if workflow_task_id == webservice_operations['operation_id']:
-                        return 2
+                        ws_type_result = 2
+                        break
 
             elif ws_type == 'models':
                 for webservice_operations in self.webservice_param[ws_type]:
                     if workflow_task_id == webservice_operations['operation_id']:
-                        return 3
-        return 0
+                        ws_type_result = 3
+                        break
+        return ws_type_result
 
     def check_task_operation(self, workflow_task_id, list_params_ws):
 
@@ -442,32 +459,52 @@ class WorkflowWebService:
                 is_web_service_successors = False
         return is_web_service_successors
 
-    def create_new_operation(self):
+    def create_new_operation(self, workflow_task):
         # make a random UUID
-        random_id = uuid.uuid4()
-
+        random_id = str(uuid.uuid4())
+        print "Random",random_id, workflow_task
+        # print self.webservice_lookuptable
+        # import pdb
+        # pdb.set_trace()
         # Check name of operation
 
         new_operation_pattern = {
             "id": random_id,
             "version": 8,
             "operation": {
-                "id": None,
-                "name": None,
-                "slug": None
-            }
+                "id": self.table_of_ws_operations[self.webservice_lookuptable[str(workflow_task['operation']['id'])]],
+                "name": self.webservice_lookuptable[str(workflow_task['operation']['id'])],
+                "slug": self.webservice_lookuptable[str(workflow_task['operation']['id'])].lower().replace(" ", "-")
+            },
+            "parents": [workflow_task['id']],
+            "in_degree_required": 0,
+            "in_degree": 1,
+            "out_degree_required": 0,
+            "out_degree": 0,
+            "port_names": ['input_data'],
+            "forms": {'display_text': {'category': 'report',  'value': '1'}}
+
         }
+
+        # self.webservice_lookuptable
+        # aux_operation['operation']['name'] = dict_lkt[str(workflow_task['operation']['id'])]
+        # aux_operation['operation']['slug'] = dict_lkt[str(workflow_task['operation']['id'])].lower().replace(" ", "-")
+        # aux_operation['operation']['id'] = self.table_of_ws_operations[dict_lkt[str(workflow_task['operation']['id'])]]
+        #
+        # old_operation = { 'old_operation' : copy.deepcopy(workflow_task)}
+        # aux_operation.update(old_operation)
 
         return new_operation_pattern
 
-    def create_new_flow(self):
+    def create_new_flow(self, workflow_task, new_operation):
+
         flow_pattern = {
-            'source_port': None,
-            'source_port_name': None,
-            'target_port': None,
-            'target_port_name': None,
-            'source_id': None,
-            'target_id':None
+            'source_port': workflow_task['operation']['id'],
+            'source_port_name': workflow_task['operation']['name'],
+            'target_port': new_operation['operation']['id'],
+            'target_port_name': new_operation['operation']['name'],
+            'source_id': workflow_task['id'],
+            'target_id':new_operation['id']
         }
 
         return flow_pattern
