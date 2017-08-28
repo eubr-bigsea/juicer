@@ -1,5 +1,3 @@
-import sys
-
 from juicer.util import group
 
 
@@ -100,10 +98,10 @@ class Expression:
         strip_accents = (
             "functions.udf("
             "lambda text: ''.join(c for c in unicodedata.normalize('NFD', text) "
-                "if unicodedata.category(c) != 'Mn'), "
+            "if unicodedata.category(c) != 'Mn'), "
             "types.StringType())"
-            )
-        
+        )
+
         result = '{}({})'.format(strip_accents, arguments)
 
         return result
@@ -117,10 +115,10 @@ class Expression:
         strip_punctuation = (
             "functions.udf("
             "lambda text: text.translate("
-                "dict((ord(char), None) for char in string.punctuation)), "
+            "dict((ord(char), None) for char in string.punctuation)), "
             "types.StringType())"
-            )
-        
+        )
+
         result = '{}({})'.format(strip_punctuation, arguments)
 
         return result
@@ -129,7 +127,7 @@ class Expression:
         """
         Wrap column name with col() function call, if such call is not present.
         """
-        callee = spec['arguments'][0].get('callee', {})
+        # callee = spec['arguments'][0].get('callee', {})
         # Evaluates if column name is wrapped in a col() function call
         arguments = ', '.join(
             [self.parse(x, params) for x in spec['arguments']])

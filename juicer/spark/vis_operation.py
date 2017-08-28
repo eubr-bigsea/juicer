@@ -179,7 +179,8 @@ class VisualizationMethodOperation(Operation):
                  'z_axis_attribute', 'z_title', 'z_prefix', 'z_suffix',
                  'z_format',
                  't_axis_attribute', 't_title', 't_prefix', 't_suffix',
-                 't_format', ]
+                 't_format',
+                 'latitude', 'longitude', 'value', 'label']
         for k, v in self.parameters.items():
             if k in valid:
                 result[k] = v
@@ -381,6 +382,22 @@ class ChartVisualization(VisualizationModel):
     def get_data(self):
         raise NotImplementedError('Should be implemented in derived classes')
 
+    @staticmethod
+    def _get_attr_type(attr):
+        # @FIXME: Improve this code with other data types
+        if attr.dataType.jsonValue() == 'date':
+            attr_type = 'date'
+        elif attr.dataType.jsonValue() == 'boolean':
+            attr_type = 'bool'
+        elif attr.dataType.jsonValue() == 'timestamp':
+            attr_type = 'timestamp'
+        elif attr.dataType.jsonValue() == 'string':
+            attr_type = 'string'
+        else:
+            attr_type = 'number'
+
+        return attr_type
+
     def _get_title_legend_tootip(self):
         """ Common title and legend """
         return {
@@ -418,17 +435,7 @@ class ChartVisualization(VisualizationModel):
                 'At least one attribute for Y-axis does not exist: {}'.format(
                     ', '.join(self.params.get('column_names'))))
 
-        # @FIXME: Improve this code with other data types
-        if x_attr.dataType.jsonValue() == 'date':
-            x_type = 'date'
-        elif x_attr.dataType.jsonValue() == 'boolean':
-            x_type = 'bool'
-        elif x_attr.dataType.jsonValue() == 'timestamp':
-            x_type = 'timestamp'
-        elif x_attr.dataType.jsonValue() == 'string':
-            x_type = 'string'
-        else:
-            x_type = 'number'
+        x_type = ChartVisualization._get_attr_type(x_attr)
         return x_attr, x_type, y_attrs
 
     @staticmethod
@@ -667,6 +674,76 @@ class LineChartModel(ChartVisualization):
         return result
 
 
+class MapModel(ChartVisualization):
+    def get_icon(self):
+        return 'fa-map-marker'
+
+    def get_data(self):
+        result = {}
+        result.update(self._get_title_legend_tootip())
+        rows = self.data.collect()
+
+        if self.params.get('value'):
+            value_type = ChartVisualization._get_attr_type(
+                self.data.schema[self.params['value'][0]])
+        else:
+            value_type = 'number'
+
+        map_type = {
+            'heatmap': 'heat',
+            'bars': 'bars',
+            'bar': 'bars',
+            'points': 'points'
+        }[self.params.get('type', 'heatmap')]
+
+        result["bars"] = {
+            "mapColor": "#8BC3D2",
+            "mapStrokeColor": "#FFF",
+            "mapOpacity": "0.7",
+            "barWidth": "2",
+            "barMaxHeight": 40,
+            "bottomBarHeight": 4,
+            "bottomBarColor": "#596A6D",
+            "barColor": "#428DA1",
+            "prefix": "$",
+            "suffix": "",
+            "format": "",
+            "type": value_type
+        }
+        result["heat"] = {
+            "colors": ["#47d8c7", "#e3c170", "#fe492b"],
+            "shapeId": "abbr",
+            "prefix": "",
+            "suffix": "",
+            "format": "locale",
+            "type": value_type
+        }
+
+        result['mode'] = {
+            map_type: True
+        }
+
+        data = []
+        result['data'] = data
+
+        for i, row in enumerate(rows):
+            if self.params.get('value'):
+                value = row[self.params.get('value')[0]]
+            else:
+                value = 0
+            data.append(
+                {
+                    "id": str(i),
+                    "name": row[self.params.get('label')[0]] if self.params.get(
+                        'label') else None,
+                    "lat": row[self.params['latitude'][0]],
+                    "lon": row[self.params['longitude'][0]],
+                    "value": value
+                }
+            )
+        return result
+
+
 class AreaChartModel(LineChartModel):
     def get_icon(self):
         return 'fa-area-chart'
@@ -676,22 +753,6 @@ class ScatterPlotModel(ChartVisualization):
     """
     Scatter plot chart model
     """
-
-    @staticmethod
-    def _get_attr_type(attr):
-        # @FIXME: Improve this code with other data types
-        if attr.dataType.jsonValue() == 'date':
-            attr_type = 'date'
-        elif attr.dataType.jsonValue() == 'boolean':
-            attr_type = 'bool'
-        elif attr.dataType.jsonValue() == 'timestamp':
-            attr_type = 'timestamp'
-        elif attr.dataType.jsonValue() == 'string':
-            attr_type = 'string'
-        else:
-            attr_type = 'number'
-
-        return attr_type
 
     def get_data(self):
         schema = self.data.schema
@@ -709,7 +770,7 @@ class ScatterPlotModel(ChartVisualization):
                     "format": self.params.get("{}_format".format(axis)),
                     "outFormat": self.params.get("{}_format".format(axis)),
                     "inFormat": self.params.get("{}_format".format(axis)),
-                    "type": self._get_attr_type(attrs[axis])
+                    "type": ChartVisualization._get_attr_type(attrs[axis])
                 }
         rows = self.data.collect()
 
