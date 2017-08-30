@@ -28,6 +28,7 @@ def test_data_reader_minimal_parameters_no_attributes_success():
 
     expected_code = dedent("""
         schema_{output} = types.StructType()
+        schema_{output}.add('value', types.StringType(), 1, None)
         url = '{url}'
         {output} = spark_session.read\
                                .option('nullValue', '')\
