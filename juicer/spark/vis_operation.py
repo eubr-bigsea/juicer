@@ -179,7 +179,9 @@ class VisualizationMethodOperation(Operation):
                  'z_axis_attribute', 'z_title', 'z_prefix', 'z_suffix',
                  'z_format',
                  't_axis_attribute', 't_title', 't_prefix', 't_suffix',
-                 't_format', ]
+                 't_format',
+                 'latitude', 'longitude', 'value', 'label',
+                 'y_axis_attribute', 'z_axis_attribute', 't_axis_attribute']
         for k, v in self.parameters.items():
             if k in valid:
                 result[k] = v
@@ -198,12 +200,13 @@ class VisualizationMethodOperation(Operation):
             from juicer.spark.vis_operation import {model}
             from juicer.util.dataframe_util import CustomEncoder
 
+            params = '{params}'
             {out} = {model}(
                 {input}, '{task}', '{op}',
                 '{op_slug}', '{title}',
                 {columns},
                 '{orientation}', {id_attr}, {value_attr},
-                params={params})
+                params=json.loads(params))
             """.format(out=self.output,
                        model=self.get_model_name(),
                        input=self.named_inputs['input data'],
@@ -344,7 +347,7 @@ class SummaryStatisticsOperation(VisualizationMethodOperation):
 # Visualization Models used inside the code generated #
 #######################################################
 
-class VisualizationModel:
+class VisualizationModel(object):
     def __init__(self, data, task_id, type_id, type_name, title, column_names,
                  orientation,
                  id_attribute, value_attribute, params):
@@ -381,6 +384,22 @@ class ChartVisualization(VisualizationModel):
     def get_data(self):
         raise NotImplementedError('Should be implemented in derived classes')
 
+    @staticmethod
+    def _get_attr_type(attr):
+        # @FIXME: Improve this code with other data types
+        if attr.dataType.jsonValue() == 'date':
+            attr_type = 'date'
+        elif attr.dataType.jsonValue() == 'boolean':
+            attr_type = 'bool'
+        elif attr.dataType.jsonValue() == 'timestamp':
+            attr_type = 'timestamp'
+        elif attr.dataType.jsonValue() == 'string':
+            attr_type = 'string'
+        else:
+            attr_type = 'number'
+
+        return attr_type
+
     def _get_title_legend_tootip(self):
         """ Common title and legend """
         return {
@@ -394,7 +413,7 @@ class ChartVisualization(VisualizationModel):
                     "{{name}}"
                 ],
                 "body": [
-                    "<span class='metric'>FIXME</span>"
+                    "<span class='metric'></span>"
                     "<span class='number'>{{name}}</span>"
                 ]
             },
@@ -402,6 +421,8 @@ class ChartVisualization(VisualizationModel):
 
     def _get_axis_info(self):
         schema = self.data.schema
+        if not self.params.get('x_axis_attribute'):
+            raise ValueError('X-axis attribute not specified')
         x = self.params.get('x_axis_attribute')[0]
         x_attr = [c for c in schema if c.name == x]
         y_attrs = [c for c in schema if c.name in self.column_names]
@@ -416,23 +437,15 @@ class ChartVisualization(VisualizationModel):
                 'At least one attribute for Y-axis does not exist: {}'.format(
                     ', '.join(self.params.get('column_names'))))
 
-        # @FIXME: Improve this code with other data types
-        if x_attr.dataType.jsonValue() == 'date':
-            x_type = 'date'
-        elif x_attr.dataType.jsonValue() == 'boolean':
-            x_type = 'bool'
-        elif x_attr.dataType.jsonValue() == 'timestamp':
-            x_type = 'timestamp'
-        elif x_attr.dataType.jsonValue() == 'string':
-            x_type = 'string'
-        else:
-            x_type = 'number'
+        x_type = ChartVisualization._get_attr_type(x_attr)
         return x_attr, x_type, y_attrs
 
     @staticmethod
     def _format(value):
-        if any([isinstance(value, datetime.datetime),
-                isinstance(value, datetime.date)]):
+        if value is None:
+            return None
+        elif any([isinstance(value, datetime.datetime),
+                  isinstance(value, datetime.date)]):
             return value.isoformat()
         elif isinstance(value, decimal.Decimal):
             return float(value)
@@ -574,6 +587,10 @@ class PieChartModel(ChartVisualization):
         result = self._get_title_legend_tootip()
         result['legend']['isVisible'] = self.params.get('legend') in ('1', 1)
 
+        x_format = self.params.get("x_format", {})
+        if not isinstance(x_format, dict):
+            x_format = {'key': x_format}
+
         result.update({
             "x": {
                 "title": self.params.get("x_title"),
@@ -581,7 +598,7 @@ class PieChartModel(ChartVisualization):
                 "color": "#222",
                 "prefix": self.params.get("x_prefix"),
                 "suffix": self.params.get("x_suffix"),
-                "format": self.params.get("x_format", {}).get('key'),
+                "format": x_format.get('key'),
             },
             "data": []
 
@@ -603,7 +620,9 @@ class PieChartModel(ChartVisualization):
 
 
 class DonutChartModel(PieChartModel):
-    pass
+    def get_data(self):
+        data = super(DonutChartModel, self).get_data()
+        return data
 
 
 class LineChartModel(ChartVisualization):
@@ -663,6 +682,76 @@ class LineChartModel(ChartVisualization):
         return result
 
 
+class MapModel(ChartVisualization):
+    def get_icon(self):
+        return 'fa-map-marker'
+
+    def get_data(self):
+        result = {}
+        result.update(self._get_title_legend_tootip())
+        rows = self.data.collect()
+
+        if self.params.get('value'):
+            value_type = ChartVisualization._get_attr_type(
+                self.data.schema[self.params['value'][0]])
+        else:
+            value_type = 'number'
+
+        map_type = {
+            'heatmap': 'heat',
+            'bars': 'bars',
+            'bar': 'bars',
+            'points': 'points'
+        }[self.params.get('type', 'heatmap')]
+
+        result["bars"] = {
+            "mapColor": "#8BC3D2",
+            "mapStrokeColor": "#FFF",
+            "mapOpacity": "0.7",
+            "barWidth": "2",
+            "barMaxHeight": 40,
+            "bottomBarHeight": 4,
+            "bottomBarColor": "#596A6D",
+            "barColor": "#428DA1",
+            "prefix": "$",
+            "suffix": "",
+            "format": "",
+            "type": value_type
+        }
+        result["heat"] = {
+            "colors": ["#47d8c7", "#e3c170", "#fe492b"],
+            "shapeId": "abbr",
+            "prefix": "",
+            "suffix": "",
+            "format": "locale",
+            "type": value_type
+        }
+
+        result['mode'] = {
+            map_type: True
+        }
+
+        data = []
+        result['data'] = data
+
+        for i, row in enumerate(rows):
+            if self.params.get('value'):
+                value = row[self.params.get('value')[0]]
+            else:
+                value = 0
+            data.append(
+                {
+                    "id": str(i),
+                    "name": row[self.params.get('label')[0]] if self.params.get(
+                        'label') else None,
+                    "lat": row[self.params['latitude'][0]],
+                    "lon": row[self.params['longitude'][0]],
+                    "value": value
+                }
+            )
+        return result
+
+
 class AreaChartModel(LineChartModel):
     def get_icon(self):
         return 'fa-area-chart'
@@ -673,84 +762,89 @@ class ScatterPlotModel(ChartVisualization):
     Scatter plot chart model
     """
 
-    @staticmethod
-    def _get_attr_type(attr):
-        # @FIXME: Improve this code with other data types
-        if attr.dataType.jsonValue() == 'date':
-            attr_type = 'date'
-        elif attr.dataType.jsonValue() == 'boolean':
-            attr_type = 'bool'
-        elif attr.dataType.jsonValue() == 'timestamp':
-            attr_type = 'timestamp'
-        elif attr.dataType.jsonValue() == 'string':
-            attr_type = 'string'
-        else:
-            attr_type = 'number'
-
-        return attr_type
-
+    # noinspection PyArgumentEqualDefault
     def get_data(self):
         schema = self.data.schema
 
         result = {}
         attrs = {}
         for axis in ['x', 'y', 'z', 't']:
-            name = self.params.get('x_axis_attribute', [None])[0]
-            attrs[axis] = [c for c in schema if c.name == name]
+            name = self.params.get('{}_axis_attribute'.format(axis), [None])
+            if isinstance(name, list) and len(name):
+                name = name[0]
+            else:
+                name = None
+            attrs[axis] = next((c for c in schema if c.name == name), None)
             if attrs[axis]:
+                axis_type = ChartVisualization._get_attr_type(attrs[axis])
                 result[axis] = {
                     "title": self.params.get("{}_title".format(axis)),
                     "prefix": self.params.get("{}_prefix".format(axis)),
                     "suffix": self.params.get("{}_suffix".format(axis)),
-                    "format": self.params.get("{}_format".format(axis)),
-                    "outFormat": self.params.get("{}_format".format(axis)),
-                    "inFormat": self.params.get("{}_format".format(axis)),
-                    "type": self._get_attr_type(attrs[axis])
+                    "type": axis_type
                 }
-        rows = self.data.collect()
+                axis_format = self.params.get('{}_format'.format(axis), {})
+                if axis_type in ['number']:
+                    result[axis]['format'] = axis_format.get(
+                        'key')
+                elif axis_type in ['timestamp', 'date']:
+                    result[axis]["outFormat"] = axis_format.get('key')
+                    result[axis]["inFormat"] = axis_format.get('key')
 
-        data = []
-        for i, attr in enumerate(y_attrs):
-            data.append({
-                "id": attr.name,
-                "name": attr.name,
-                "color": COLORS_PALETTE[(i % 6) * 5 + ((i / 6) % 5)],
-                "pointColor": COLORS_PALETTE[(i % 6) * 5 + ((i / 6) % 5)],
-                "pointShape": SHAPES[i % len(SHAPES)],
-                "pointSize": 8,
-                "values": []
-            })
-
-        result = {}
         result.update(self._get_title_legend_tootip())
 
-        result.update({
-            "y": {
-                "title": self.params.get("y_title"),
-                "prefix": self.params.get("y_prefix"),
-                "suffix": self.params.get("y_suffix"),
-                "format": self.params.get("y_format", {}).get('key'),
-            },
-            "x": {
-                "title": self.params.get("x_title"),
-                "type": x_type,
-                "prefix": self.params.get("x_prefix"),
-                "suffix": self.params.get("x_suffix"),
-                "outFormat": self.params.get("x_format", {}).get('key'),
-                "inFormat": self.params.get("x_format", {}).get('key'),
-            },
-            "data": data
+        series_attr_name = self.params.get('series_attribute', [None])[0]
+        if series_attr_name:
+            series_attr = next(
+                (c for c in schema if c.name == series_attr_name), None)
+        else:
+            series_attr = None
 
-        })
+        series = {}
+        series_key = '@_ \UNIQUE KEY/ :P_ @'
+        if not series_attr:
+            series[series_key] = {
+                "id": result['title'],
+                "name": result['title'],
+                "image": None,
+                "color": COLORS_PALETTE[0],
+                "values": []
+            }
+
+        rows = self.data.collect()
+        current_color = 0
         for row in rows:
-            for i, attr in enumerate(y_attrs):
-                data[i]['values'].append(
-                    {
-                        "x": LineChartModel._format(row[x_attr.name]),
-                        "y": LineChartModel._format(row[attr.name]),
+            if series_attr:
+                series_value = row[series_attr.name]
+                if series_value not in series:
+                    color = COLORS_PALETTE[(current_color % 6) * 5 +
+                                           ((current_color / 6) % 5)]
+                    series[series_value] = {
+                        "id": series_value,
+                        "name": series_value,
+                        "image": None,
+                        "color": color,
+                        "values": []
                     }
-                )
+                    current_color += 1
+                data = series[series_value]
+            else:
+                data = series[series_key]['values']
+
+            item = {}
+            for axis in ['x', 'y', 'z', 't']:
+                item[axis] = ScatterPlotModel._get_value(row, attrs[axis])
+            data.append(item)
+
+        result['data'] = series.values()
         return result
+
+    @staticmethod
+    def _get_value(row, attr, default_value=None):
+        if attr is not None:
+            return ChartVisualization._format(row[attr.name])
+        else:
+            return default_value
 
 
 class HtmlVisualizationModel(VisualizationModel):
