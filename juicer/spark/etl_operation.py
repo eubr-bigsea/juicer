@@ -417,6 +417,78 @@ class SelectOperation(Operation):
         return dedent(code)
 
 
+class ReplaceValueOperation(Operation):
+    """
+    Replace values in one or more attributes from a dataframe.
+    Parameters:
+    - The list of columns selected.
+    """
+    ATTRIBUTES_PARAM = 'attributes'
+    REPLACEMENT_PARAM = 'replacement'
+    ORIGINAL_PARAM = 'original'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+
+        self.attributes = parameters.get(self.ATTRIBUTES_PARAM, [])
+        self.output = self.named_outputs.get(
+            'output data', 'replaced_data_{}'.format(self.order))
+
+        if self.REPLACEMENT_PARAM in parameters:
+            self.replacement = parameters.get(self.REPLACEMENT_PARAM)
+        else:
+            raise ValueError(
+                "Parameter '{}' must be informed for task {}".format(
+                    self.REPLACEMENT_PARAM, self.__class__))
+
+        if self.ORIGINAL_PARAM in parameters:
+            self.original = parameters.get(self.ORIGINAL_PARAM)
+        else:
+            raise ValueError(
+                "Parameter '{}' must be informed for task {}".format(
+                    self.ORIGINAL_PARAM, self.__class__))
+
+        def check(v):
+            result = False
+            try:
+                float(v)
+                result = True
+            except ValueError:
+                pass
+            result = (result or v.isdigit() or
+                      (v[0] in ['\'', '"'] and v[-1] in ['\'', '"']))
+            return result
+
+        if not check(self.original):
+            raise ValueError(
+                "Parameter '{}' for task '{}' must be a number "
+                "or enclosed in quotes.".format(
+                    self.ORIGINAL_PARAM, self.__class__))
+
+        if not check(self.replacement):
+            raise ValueError(
+                "Parameter '{}' for task '{}' must be a number "
+                "or enclosed in quotes.".format(
+                    self.REPLACEMENT_PARAM, self.__class__))
+
+        self.has_code = len(self.named_inputs) == 1
+
+    def get_output_names(self, sep=", "):
+        return self.output
+
+    def generate_code(self):
+        input_data = self.named_inputs['input data']
+
+        code = dedent("""
+            {out} = {in1}.replace({original},
+                {replacement}, subset={subset})""".format(
+            out=self.output, in1=input_data,
+            original=self.original,
+            replacement=self.replacement,
+            subset=json.dumps(self.attributes)))
+        return code
+
+
 class AggregationOperation(Operation):
     """
     Computes aggregates and returns the result as a DataFrame.
@@ -450,7 +522,7 @@ class AggregationOperation(Operation):
         for i, function in enumerate(self.functions):
             elements.append('''functions.{}('{}').alias('{}')'''.format(
                 function['f'].lower(), function['attribute'],
-                function['alias']))
+                function.get('alias', function.get('value'))))
 
         input_data = self.named_inputs['input data']
         output = self.named_outputs['output data']
@@ -494,8 +566,8 @@ class FilterOperation(Operation):
         output = self.named_outputs['output data']
 
         filters = [
-            "(functions.col('{0}') {1} '{2}')".format(f['attribute'], f['f'],
-                                                      f['value'])
+            "(functions.col('{0}') {1} '{2}')".format(
+                f['attribute'], f['f'], f.get('value', f.get('alias')))
             for f in self.filter]
 
         code = "{out} = {in1}.filter({f})".format(
@@ -717,4 +789,93 @@ class PivotTableOperation(Operation):
             """.format(out=output, input=input_data, keys=group_by, pivot=pivot,
                        el=', \n        '.join(elements))
 
+        return dedent(code)
+
+
+class ExecutePythonOperation(Operation):
+    PYTHON_CODE_PARAM = 'code'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+
+        if not all([self.PYTHON_CODE_PARAM in parameters]):
+            msg = "Required parameter {} must be informed for task {}"
+            raise ValueError(msg.format(self.PYTHON_CODE_PARAM, self.__class__))
+
+        self.code = parameters.get(self.PYTHON_CODE_PARAM)
+
+        # Always execute
+        self.has_code = True
+
+    def generate_code(self):
+        in1 = self.named_inputs.get('input data 1', 'None')
+        out1 = self.named_outputs.get('output data 1',
+                                      'out_1_{}'.format(self.order))
+
+        in2 = self.named_inputs.get('input data 2', 'None')
+        out2 = self.named_outputs.get('output data 2',
+                                      'out_2_{}'.format(self.order))
+
+        code = dedent("""
+        import json
+        from RestrictedPython.Guards import safe_builtins
+        from RestrictedPython.RCompile import compile_restricted
+        from RestrictedPython.PrintCollector import PrintCollector
+
+        # Input data
+        in1 = {in1}
+        in2 = {in2}
+
+        # Output data, initialized as None
+        out1 = None
+        out2 = None
+
+        # Variables and language supported
+        ctx = {{
+            'in1': in1,
+            'in2': in2,
+            'out1': out1,
+            'out2': out2,
+
+            # Restrictions in Python language
+             '_write_': lambda v: v,
+            '_getattr_': getattr,
+            '_getitem_': lambda ob, index: ob[index],
+            '_getiter_': lambda it: it,
+            '_print_': PrintCollector,
+            'json': json,
+        }}
+        user_code = \"\"\"{code}\"\"\"
+
+        ctx['__builtins__']= safe_builtins
+
+        compiled_code = compile_restricted(user_code, 'python_execute_{order}',
+            'exec')
+        try:
+            exec(compiled_code) in ctx
+
+            # Retrieve values changed in the context
+            out1 = ctx['out1']
+            out2 = ctx['out2']
+
+            if '_print' in ctx:
+                emit_event(name='update task',
+                    message=ctx['_print'](),
+                    status='RUNNING',
+                    identifier='{id}')
+        except NameError as ne:
+            raise ValueError('Invalid name: {{}}. '
+                'Many Python commands are not available in Lemonade'.format(ne))
+        except ImportError as ie:
+            raise ValueError('Command import is not supported')
+        """.format(in1=in1, in2=in2, code=self.code.encode('unicode_escape'),
+                   name="execute_python", order=self.order,
+                   id=self.parameters['task']['id']))
+        # code += "\n# -- BEGIN user code\n{code}\n# -- END user code\n".format(
+        #    code=dedent(self.code))
+
+        code += dedent("""
+        {out1} = out1
+        {out2} = out2
+        """.format(out1=out1, out2=out2))
         return dedent(code)

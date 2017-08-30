@@ -39,7 +39,7 @@ class TokenizerOperation(Operation):
         self.alias = [alias.strip() for alias in
                       parameters.get(self.ALIAS_PARAM, '').split(',')]
         # Adjust alias in order to have the same number of aliases as attributes
-        # by filling missing alias with the attribute name sufixed by _indexed.
+        # by filling missing alias with the attribute name sufixed by _tokenized.
         self.alias = [x[1] or '{}_tokenized'.format(x[0]) for x in
                       izip_longest(self.attributes,
                                    self.alias[:len(self.attributes)])]
@@ -123,8 +123,9 @@ class RemoveStopWordsOperation(Operation):
         self.alias = [alias.strip() for alias in
                       parameters.get(self.ALIAS_PARAM, '').split(',')]
         # Adjust alias in order to have the same number of aliases as attributes
-        # by filling missing alias with the attribute name sufixed by _indexed.
-        self.alias = [x[1] or '{}_tokenized'.format(x[0]) for x in
+        # by filling missing alias with the attribute name sufixed by
+        # _no_stopwords.
+        self.alias = [x[1] or '{}_no_stopwords'.format(x[0]) for x in
                       izip_longest(self.attributes,
                                    self.alias[:len(self.attributes)])]
 
@@ -225,8 +226,8 @@ class WordToVectorOperation(Operation):
         self.alias = [alias.strip() for alias in
                       parameters.get(self.ALIAS_PARAM, '').split(',')]
         # Adjust alias in order to have the same number of aliases as attributes
-        # by filling missing alias with the attribute name sufixed by _indexed.
-        self.alias = [x[1] or '{}_tokenized'.format(x[0]) for x in
+        # by filling missing alias with the attribute name sufixed by _vect.
+        self.alias = [x[1] or '{}_vect'.format(x[0]) for x in
                       izip_longest(self.attributes,
                                    self.alias[:len(self.attributes)])]
 
@@ -348,8 +349,8 @@ class GenerateNGramsOperation(Operation):
         self.alias = [alias.strip() for alias in
                       parameters.get(self.ALIAS_PARAM, '').split(',')]
         # Adjust alias in order to have the same number of aliases as attributes
-        # by filling missing alias with the attribute name sufixed by _indexed.
-        self.alias = [x[1] or '{}_tokenized'.format(x[0]) for x in
+        # by filling missing alias with the attribute name sufixed by _ngram.
+        self.alias = [x[1] or '{}_ngram'.format(x[0]) for x in
                       izip_longest(self.attributes,
                                    self.alias[:len(self.attributes)])]
 

@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from io import StringIO
 
+import mock
 from juicer.operation import Operation
 from juicer.spark.transpiler import SparkTranspiler
 
@@ -118,24 +119,27 @@ def test_transpiler_basic_flow_success():
             "name": "admin"
         }
     }
+    with mock.patch(
+            'juicer.workflow.workflow.Workflow.builds_initial_workflow_graph') \
+            as mocked_fn:
+        mocked_fn.side_effect = lambda: ""
+        out = StringIO()
+        loader = Workflow(workflow, config={})
+        transpiler = SparkTranspiler({})
 
-    out = StringIO()
-    loader = Workflow(workflow)
-    transpiler = SparkTranspiler({})
+        class FakeOp(Operation):
+            name = u'# Fake'
 
-    class FakeOp(Operation):
-        name = u'# Fake'
+            def generate_code(self):
+                x = self.get_output_names('|').split('|')
+                return u'{} = {}'.format(self.get_output_names(),
+                                         ', '.join(['None' for _ in x]))
 
-        def generate_code(self):
-            x = self.get_output_names('|').split('|')
-            return u'{} = {}'.format(self.get_output_names(),
-                                     ', '.join(['None' for _ in x]))
+        # import pdb
+        # pdb.set_trace()
+        for op in transpiler.operations:
+            transpiler.operations[op] = FakeOp
 
-    # import pdb
-    # pdb.set_trace()
-    for op in transpiler.operations:
-        transpiler.operations[op] = FakeOp
-
-    transpiler.transpile(loader.workflow, loader.graph, {}, out=out)
-    out.seek(0)
-    # print out.read()
+        transpiler.transpile(loader.workflow, loader.graph, {}, out=out)
+        out.seek(0)
+        # print out.read()

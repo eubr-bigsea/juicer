@@ -1,13 +1,29 @@
 # coding=utf-8
+import decimal
+import json
+
 import datetime
 
 
-def get_csv_schema(df):
-    return ','.join(get_schema_fmt(df))
+class CustomEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, decimal.Decimal):
+            return str(obj)
+        elif isinstance(obj, datetime.datetime):
+            return obj.isoformat()
+        else:
+            return str(obj)
 
 
-def get_schema_fmt(df):
-    return ['{}:{}'.format(f.dataType, f.name) for f in df.schema.fields]
+def get_csv_schema(df, only_name=False):
+    return ','.join(get_schema_fmt(df, only_name))
+
+
+def get_schema_fmt(df, only_name=False):
+    if only_name:
+        return [f.name for f in df.schema.fields]
+    else:
+        return ['{}:{}'.format(f.dataType, f.name) for f in df.schema.fields]
 
 
 def get_dict_schema(df):
@@ -74,3 +90,34 @@ def format_row_for_bar_chart_visualization(row):
                          'It should contains 2 (name, value) or '
                          '3 columns (id, name, value).')
     return dict(id=_id, name=name, value=value)
+
+
+def emit_schema(task_id, df, emit_event):
+    from juicer.spark.reports import SimpleTableReport
+    headers = ['Attribute', 'Type']
+    rows = [[f.name, str(f.dataType)] for f in df.schema.fields]
+    content = SimpleTableReport(
+        'table table-striped table-bordered', headers, rows, 'Schema',
+        numbered=True)
+
+    emit_event('update task', status='COMPLETED',
+               identifier=task_id,
+               message=content.generate(),
+               type='HTML', title='Schema',
+               task=task_id)
+
+
+def emit_sample(task_id, df, emit_event, size=50):
+    from juicer.spark.reports import SimpleTableReport
+    headers = [f.name for f in df.schema.fields]
+    rows = [[str(col) for col in row] for row in df.take(size)]
+
+    content = SimpleTableReport(
+        'table table-striped table-bordered', headers, rows, 'Sample data',
+        numbered=True)
+
+    emit_event('update task', status='COMPLETED',
+               identifier=task_id,
+               message=content.generate(),
+               type='HTML', title='Sample data',
+               task=task_id)

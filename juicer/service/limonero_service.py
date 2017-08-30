@@ -8,9 +8,25 @@ log = logging.getLogger()
 log.setLevel(logging.DEBUG)
 
 
+def remove_initial_final_path_separator(path):
+    if path.endswith('/'):
+        path = path[:-1]
+    if path.startswith('/'):
+        path = path[1:]
+    return path
+
+
 def query_limonero(base_url, item_path, token, item_id):
     headers = {'X-Auth-Token': token}
-    url = '{}/{}/{}'.format(base_url, item_path, item_id)
+
+    base_url = remove_initial_final_path_separator(base_url)
+    item_path = remove_initial_final_path_separator(item_path)
+    item_id = remove_initial_final_path_separator(str(item_id))
+
+    if item_path:
+        url = '{}/{}/{}'.format(base_url, item_path, item_id)
+    else:
+        url = '{}/{}'.format(base_url, item_id)
 
     log.debug('Querying Limonero URL: %s', url)
 
@@ -18,10 +34,12 @@ def query_limonero(base_url, item_path, token, item_id):
     if r.status_code == 200:
         return json.loads(r.text)
     else:
+        log.error('Error querying Limonero URL: %s (%s: %s)', url,
+                  r.status_code, r.text)
         raise RuntimeError(
-            u"Error loading storage id {}: HTTP {} - {}".format(item_id,
-                                                                r.status_code,
-                                                                r.text))
+            u"Error loading {} id {}: HTTP {} - {}".format(item_path, item_id,
+                                                           r.status_code,
+                                                           r.text))
 
 
 def get_storage_info(base_url, token, storage_id):

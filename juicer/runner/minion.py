@@ -16,7 +16,7 @@ if __name__ == '__main__':
     parser.add_argument("-w", "--workflow_id", help="Workflow id", type=str,
                         required=True)
     parser.add_argument("-a", "--app_id", help="Job id", type=str,
-                        required=True)
+                        required=False)
     parser.add_argument("-t", "--type", help="Execution engine",
                         required=False, default="SPARK")
     args = parser.parse_args()
@@ -33,7 +33,7 @@ if __name__ == '__main__':
         if args.type == 'SPARK':
             # log.info('Starting Juicer Spark Minion')
             server = SparkMinion(redis_conn,
-                                 args.workflow_id, args.app_id, juicer_config)
+                                 args.workflow_id, args.app_id or args.workflow_id, juicer_config)
             server.process()
         else:
             raise ValueError(
