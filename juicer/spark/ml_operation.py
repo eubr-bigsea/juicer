@@ -583,7 +583,6 @@ class ClassificationModelOperation(Operation):
                  named_outputs):
         Operation.__init__(self, parameters, named_inputs,
                            named_outputs)
-
         self.has_code = len(named_outputs) > 0 and len(named_inputs) == 2
 
         if not all([self.FEATURES_ATTRIBUTE_PARAM in parameters,
@@ -600,6 +599,7 @@ class ClassificationModelOperation(Operation):
 
         self.model = named_outputs.get('model',
                                        'model_task_{}'.format(self.order))
+
         if not self.has_code and len(self.named_outputs) > 0:
             raise ValueError(
                 'Model is being used, but at least one input is missing')

@@ -10,6 +10,7 @@ import yaml
 from juicer.runner import configuration
 from juicer.spark.transpiler import SparkTranspiler
 from juicer.workflow.workflow import Workflow
+from juicer.workflow.workflow_webservice import WorkflowWebService
 
 logging.config.fileConfig('logging_config.ini')
 
@@ -89,6 +90,38 @@ class JuicerSparkService:
                 break
             except:
                 raise
+
+            # WebService Generate Workflows
+            workflow_as_web_service = True
+
+            if workflow_as_web_service and (self.workflow_id == 16 or self.workflow_id == 19):
+                # Example of parameters for webservice
+                params_ws = dict(json.loads(open("../juicer/tests/webservice_wf/params_ws_wf_{}.txt".format(
+                    self.workflow_id)).read()))
+
+                dict_lkt = dict(json.loads(open("../juicer/tests/webservice_wf/lookup_table_wf_{}.txt".format(
+                    self.workflow_id)).read()))
+
+                try:
+                    webservice_workflow_instance = WorkflowWebService(loader.workflow,
+                                                                      loader.graph,
+                                                                      params_ws,
+                                                                      dict_lkt,
+                                                                      configuration.get_config())
+
+                    configuration.set_config(self.config)
+                    spark_instance_2 = SparkTranspiler(configuration.get_config())
+                    self.params['execute_main'] = self.execute_main
+
+                    spark_instance_2.transpile(webservice_workflow_instance.workflow_ws,
+                                               webservice_workflow_instance.graph_ws,
+                                               params=self.params,
+                                               job_id=self.job_id)
+                except ValueError as ve:
+                    log.exception("At least one parameter is missing", exc_info=ve)
+                    break
+                except:
+                    raise
 
             # generated.seek(0)
             # print generated.read()

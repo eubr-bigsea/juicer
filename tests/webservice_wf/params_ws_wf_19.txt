@@ -1,0 +1,11 @@
+{
+	"inputs":[
+				{"id": 18,"operation_id": "603d19e6-c420-4116-85cc-2490cba18133"}
+	],
+	"outputs":[
+				{"id": 42,"operation_id": "082d2558-58eb-47c9-baeb-15b051bc256a"}
+	],
+	"models":[
+				{"id": 1,"operation_id": "ad0ed19f-b939-4074-8d97-c06643114a24"}
+	]
+}
