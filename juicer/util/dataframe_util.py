@@ -121,3 +121,82 @@ def emit_sample(task_id, df, emit_event, size=50):
                message=content.generate(),
                type='HTML', title='Sample data',
                task=task_id)
+
+
+class LazySparkTransformationDataframe(object):
+    """
+     Wraps a Spark Model in order to perform lazy transformation
+    """
+
+    def __init__(self, model, df):
+        self.model = model
+        self.df = df
+        self.transformed_df = None
+
+    def __getattr__(self, name):
+        if self.transformed_df is None:
+            self.transformed_df = self.model.transform(self.df)
+        return getattr(self.transformed_df, name)
+
+
+class SparkObjectProxy(object):
+    """
+     Used to wrap Spark objects's methods calls and execute custom code before
+     and/or after original method execution
+    """
+
+    def __init__(self, data_frame, **kwargs):
+        """
+        Wraps PySpark objects's methods with an implementation.
+          :param data_frame Object being wrapped
+          :param kwargs Contains method's name and a tuple with new
+                        implementation (before/after, if None, ignored).
+        """
+        self.wrapped_obj = data_frame
+        self.methods = kwargs
+
+    def __getattr__(self, name):
+        member_to_call = getattr(self.wrapped_obj, name)
+
+        def wrapper(*args, **kwargs):
+            if name in self.methods or '__any__' in self.methods:
+                target = self.wrapped_obj
+
+                # before method call
+                if all(['__any__' in self.methods,
+                        self.methods['__any__'][0] is not None]):
+                    r = self.methods['__any__'][0](self.wrapped_obj)
+                    if r is not None:  # side-effect, new target
+                        target = r
+
+                if name in self.methods and self.methods[name][0] is not None:
+                    r = self.methods[name][0](self.wrapped_obj)
+                    if r is not None:  # side-effect, new target
+                        target = r
+
+                method_to_call = getattr(target, name)
+                if callable(method_to_call):
+                    result = method_to_call(*args, **kwargs)
+                else:
+                    result = method_to_call
+
+                # after method call
+                if all(['__any__' in self.methods,
+                        self.methods['__any__'][1] is not None]):
+                    r = self.methods['__any__'][1](self.wrapped_obj)
+                    if r is not None:
+                        result = r
+
+                if name in self.methods and self.methods[name][1] is not None:
+                    r = self.methods[name][1](self.wrapped_obj)
+                    if r is not None:
+                        result = r
+                return result
+            else:
+                method_to_call = getattr(self.wrapped_obj, name)
+                if callable(method_to_call):
+                    return method_to_call(*args, **kwargs)
+                else:
+                    return method_to_call
+
+        return wrapper if callable(member_to_call) else member_to_call

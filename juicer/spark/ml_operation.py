@@ -280,13 +280,20 @@ class FeatureAssemblerOperation(Operation):
 
 
 class ApplyModelOperation(Operation):
+    PREDICTION_ATTRIBUTE_PARAM = 'prediction'
+
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
         self.has_code = len(self.named_inputs) == 2
 
+        self.prediction = parameters.get(self.PREDICTION_ATTRIBUTE_PARAM,
+                                         'prediction')
         if not self.has_code and len(self.named_outputs) > 0:
             raise ValueError(
                 'Model is being used, but at least one input is missing')
+
+    def get_data_out_names(self, sep=','):
+        return self.output
 
     def generate_code(self):
         input_data1 = self.named_inputs['input data']
@@ -296,8 +303,11 @@ class ApplyModelOperation(Operation):
         model = self.named_inputs.get(
             'model', 'model_task_{}'.format(self.order))
 
-        code = "{out} = {in2}.transform({in1})".format(
-            out=output, in1=input_data1, in2=model)
+        code = dedent("""
+            params = {{'predictionCol': '{prediction}'}}
+            {out} = {in2}.transform({in1}, params)
+            """.format(out=output, in1=input_data1, in2=model,
+                       prediction=self.prediction))
 
         return dedent(code)
 
@@ -439,7 +449,7 @@ class EvaluateModelOperation(Operation):
                            task_id=self.parameters['task_id'],
                            operation_id=self.parameters['operation_id'],
                            title='Evaluation result',
-                           display_text=display_text,))
+                           display_text=display_text, ))
             '''
             elif self.named_outputs.get(
                     'evaluator'):  # Used with cross validator
@@ -605,30 +615,38 @@ class ClassificationModelOperation(Operation):
                 'Model is being used, but at least one input is missing')
 
     def get_data_out_names(self, sep=','):
-        return ''
+        return self.output
 
     def get_output_names(self, sep=','):
-        return self.model
+        return sep.join([self.output, self.model])
 
     def generate_code(self):
         if self.has_code:
             code = """
-            algorithm, param_grid = {algo}
+            algorithm, param_grid = {algorithm}
             algorithm.setPredictionCol('{prediction}')
             algorithm.setLabelCol('{label}')
             algorithm.setFeaturesCol('{feat}')
             {model} = algorithm.fit({train})
-            """.format(model=self.model, algo=self.named_inputs['algorithm'],
+
+            # Lazy execution in case of sampling the data in UI
+            def call_transform(df):
+                return {model}.transform(df)
+            {output} = dataframe_util.LazySparkTransformationDataframe(
+                {model}, {train})
+            """.format(model=self.model,
+                       algorithm=self.named_inputs['algorithm'],
                        train=self.named_inputs['train input data'],
                        label=self.label, feat=self.features,
-                       prediction=self.prediction)
+                       prediction=self.prediction,
+                       output=self.output)
 
             return dedent(code)
-        else:
-            msg = "Parameters '{}' and '{}' must be informed for task {}"
-            raise ValueError(msg.format('[]inputs',
-                                        '[]outputs',
-                                        self.__class__))
+            # else:
+            #     msg = "Parameters '{}' and '{}' must be informed for task {}"
+            #     raise ValueError(msg.format('[]inputs',
+            #                                 '[]outputs',
+            #                                 self.__class__))
 
 
 class ClassifierOperation(Operation):
@@ -646,22 +664,6 @@ class ClassifierOperation(Operation):
 
         self.has_code = len(named_outputs) > 0
         self.name = "BaseClassifier"
-
-        if self.GRID_PARAM not in parameters:
-            raise ValueError(
-                'Parameter grid must be informed for classifier {}'.format(
-                    self.__class__))
-
-        if not all([self.LABEL_PARAM in parameters[self.GRID_PARAM],
-                    self.FEATURES_PARAM in parameters[self.GRID_PARAM]]):
-            msg = "Parameters '{}' and '{}' must be informed for task {}"
-            raise ValueError(msg.format(
-                self.FEATURES_PARAM, self.LABEL_PARAM,
-                self.__class__))
-
-        self.label = parameters[self.GRID_PARAM].get(self.LABEL_PARAM)
-        self.attributes = parameters[self.GRID_PARAM].get(self.FEATURES_PARAM)
-
         self.output = self.named_outputs.get('algorithm',
                                              'algo_task_{}'.format(self.order))
 
@@ -674,8 +676,7 @@ class ClassifierOperation(Operation):
     def generate_code(self):
         if self.has_code:
             param_grid = {
-                'featuresCol': self.attributes,
-                'labelCol': self.label
+
             }
             declare = dedent("""
             param_grid = {2}
@@ -774,6 +775,7 @@ Clustering part
 
 class ClusteringModelOperation(Operation):
     FEATURES_ATTRIBUTE_PARAM = 'features'
+    PREDICTION_ATTRIBUTE_PARAM = 'prediction'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs,
@@ -792,6 +794,8 @@ class ClusteringModelOperation(Operation):
                                              'out_task_{}'.format(self.order))
         self.model = self.named_outputs.get('model',
                                             'model_task_{}'.format(self.order))
+        self.prediction = parameters.get(self.PREDICTION_ATTRIBUTE_PARAM,
+                                         'prediction')
 
     @property
     def get_inputs_names(self):
@@ -802,7 +806,7 @@ class ClusteringModelOperation(Operation):
                                   'algo_task_{}'.format(self.order))])
 
     def get_data_out_names(self, sep=','):
-        return ''
+        return self.output
 
     def get_output_names(self, sep=', '):
         return sep.join([self.output, self.model])
@@ -811,17 +815,52 @@ class ClusteringModelOperation(Operation):
 
         if self.has_code:
             code = """
+            from juicer.spark.reports import SimpleTableReport
+
             {algorithm}.setFeaturesCol('{features}')
+            {algorithm}.setPredictionCol('{prediction}')
             {model} = {algorithm}.fit({input})
             # There is no way to pass which attribute was used in clustering, so
             # this information will be stored in uid (hack).
             {model}.uid += '|{features}'
-            {output} = {model}.transform({input})
+
+            # Lazy execution in case of sampling the data in UI
+            def call_transform(df):
+                return {model}.transform(df)
+            {output} = dataframe_util.LazySparkTransformationDataframe(
+                {model}, {input})
+
+
+            summary = getattr({model}, 'summary', None)
+            if summary:
+                summary_rows = []
+                for p in dir(summary):
+                    if not p.startswith('_') and p != "cluster":
+                        try:
+                            summary_rows.append(
+                                [p, getattr(summary, p)])
+                        except Exception as e:
+                            summary_rows.append([p, e.message])
+                summary_content = SimpleTableReport(
+                    'table table-striped table-bordered', [],
+                    summary_rows,
+                    title='Summary')
+                emit_event('update task', status='COMPLETED',
+                    identifier='{task_id}',
+                    message=summary_content.generate(),
+                    type='HTML', title='{title}',
+                    task={{'id': '{task_id}' }},
+                    operation={{'id': {operation_id} }},
+                    operation_id={operation_id})
             """.format(model=self.model,
                        algorithm=self.named_inputs['algorithm'],
                        input=self.named_inputs['train input data'],
                        output=self.output,
-                       features=self.features)
+                       features=self.features,
+                       prediction=self.prediction,
+                       task_id=self.parameters['task_id'],
+                       operation_id=self.parameters['operation_id'],
+                       title="Clustering result", )
 
             return dedent(code)
 
@@ -899,7 +938,7 @@ class LdaClusteringOperation(ClusteringOperation):
 
 
 class KMeansClusteringOperation(ClusteringOperation):
-    K_PARAM = 'number_of_topics'
+    K_PARAM = 'number_of_clusters'
     MAX_ITERATIONS_PARAM = 'max_iterations'
     TYPE_PARAMETER = 'type'
     INIT_MODE_PARAMETER = 'init_mode'
@@ -922,13 +961,12 @@ class KMeansClusteringOperation(ClusteringOperation):
         self.type = parameters.get(self.TYPE_PARAMETER)
         self.tolerance = float(parameters.get(self.TOLERANCE_PARAMETER, 0.001))
 
-        self.set_values = [
-            ['MaxIter', self.max_iterations],
-            ['K', self.number_of_clusters],
-            ['Tol', self.tolerance],
-        ]
         if self.type == self.TYPE_BISECTING:
             self.name = "BisectingKMeans"
+            self.set_values = [
+                ['MaxIter', self.max_iterations],
+                ['K', self.number_of_clusters],
+            ]
         elif self.type == self.TYPE_TRADITIONAL:
             if parameters.get(
                     self.INIT_MODE_PARAMETER) == self.INIT_MODE_RANDOM:
@@ -937,6 +975,11 @@ class KMeansClusteringOperation(ClusteringOperation):
                 self.init_mode = self.INIT_MODE_KMEANS_PARALLEL
             self.set_values.append(['InitMode', '"{}"'.format(self.init_mode)])
             self.name = "clustering.KMeans"
+            self.set_values = [
+                ['MaxIter', self.max_iterations],
+                ['K', self.number_of_clusters],
+                ['Tol', self.tolerance],
+            ]
         else:
             raise ValueError(
                 'Invalid type {} for class {}'.format(
@@ -946,7 +989,7 @@ class KMeansClusteringOperation(ClusteringOperation):
 
 
 class GaussianMixtureClusteringOperation(ClusteringOperation):
-    K_PARAM = 'number_of_topics'
+    K_PARAM = 'number_of_clusters'
     MAX_ITERATIONS_PARAM = 'max_iterations'
     TOLERANCE_PARAMETER = 'tolerance'
 
@@ -1235,82 +1278,6 @@ class LogisticRegressionModel(Operation):
                                         self.__class__))
 
 
-# class LogisticRegressionClassifier(Operation):
-#     FEATURES_PARAM = 'features'
-#     LABEL_PARAM = 'label'
-#     WEIGHT_COL_PARAM = 'weight'
-#     MAX_ITER_PARAM = 'max_iter'
-#     FAMILY_PARAM = 'family'
-#     PREDICTION_COL_PARAM = 'prediction'
-#
-#     REG_PARAM = 'reg_param'
-#     ELASTIC_NET_PARAM = 'elastic_net'
-#
-#     # Have summaries model with measure results
-#     TYPE_BINOMIAL = 'binomial'
-#     # Multinomial family doesn't have summaries model
-#     TYPE_MULTINOMIAL = 'multinomial'
-#
-#     TYPE_AUTO = 'auto'
-#
-#     def __init__(self, parameters, named_inputs,
-#                  named_outputs):
-#         Operation.__init__(self, parameters, inputs, outputs,
-#                            named_inputs, named_outputs)
-#         self.parameters = parameters
-#         self.name = 'classification.LR'
-#         self.has_code = len(outputs) > 0
-#
-#         if not all([self.LABEL_PARAM in parameters,
-#                     self.FEATURES_PARAM in parameters]):
-#             msg = "Parameters '{}' and '{}' must be informed for task {}"
-#             raise ValueError(msg.format(
-#                 self.FEATURES_PARAM, self.LABEL_PARAM,
-#                 self.__class__))
-#
-#         self.label = parameters.get(self.LABEL_PARAM)[0]
-#         self.attributes = parameters.get(self.FEATURES_PARAM)[0]
-#         self.named_outputs.get('output result',
-#                                'out_task_{}'.format(self.order))
-#         # output = named_outputs['algorithm']
-#
-#         self.max_iter = parameters.get(self.MAX_ITER_PARAM, 10)
-#         self.reg_param = parameters.get(self.REG_PARAM, 0.1)
-#         self.weight_col = parameters.get(self.WEIGHT_COL_PARAM, None)
-#
-#         self.type_family = self.parameters.get(self.FAMILY_PARAM,
-#                                                self.TYPE_AUTO)
-#
-#     def get_data_out_names(self, sep=','):
-#         return ''
-#
-#     def get_output_names(self, sep=', '):
-#         return self.named_outputs['output result']
-#         # Change it when the named outputs in Tahiti change.
-#         # return self.named_outputs['algorithm']
-#
-#     def generate_code(self):
-#         if self.has_code:
-#             declare = dedent("""
-#             {output} = LogisticRegression(
-#                 featuresCol='{features}', labelCol='{label}',
-#                 maxIter={max_iter}, regParam={reg_param})
-#             """).format(output=output,
-#                         features=self.attributes,
-#                         label=self.label,
-#                         max_iter=self.max_iter,
-#                         reg_param=self.reg_param,
-#                         weight=self.weight_col)
-#
-#             # add , weightCol={weight} if exist
-#             code = [declare]
-#             return "\n".join(code)
-#         else:
-#             raise ValueError(
-#                 'Parameter output must be informed for classifier {}'.format(
-#                     self.__class__))
-
-
 '''
     Regression Algorithms
 '''
@@ -1383,7 +1350,10 @@ class RegressionModelOperation(Operation):
             algorithm.setFeaturesCol('{features}')
             try:
                 {model} = algorithm.fit({input})
-                {output_data} = {model}.transform({input})
+                def call_transform(df):
+                    return {model}.transform(df)
+                {output_data} = dataframe_util.LazySparkTransformationDataframe(
+                    {model}, {input})
 
                 display_text = {display_text}
                 if display_text:
