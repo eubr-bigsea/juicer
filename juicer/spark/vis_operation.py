@@ -692,8 +692,9 @@ class MapModel(ChartVisualization):
         rows = self.data.collect()
 
         if self.params.get('value'):
-            value_type = ChartVisualization._get_attr_type(
-                self.data.schema[self.params['value'][0]])
+            value_attr = next((c for c in self.data.schema if
+                               c.name == self.params['value'][0]), None)
+            value_type = ChartVisualization._get_attr_type(value_attr)
         else:
             value_type = 'number'
 
