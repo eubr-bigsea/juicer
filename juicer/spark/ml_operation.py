@@ -979,6 +979,7 @@ class KMeansClusteringOperation(ClusteringOperation):
                 ['MaxIter', self.max_iterations],
                 ['K', self.number_of_clusters],
                 ['Tol', self.tolerance],
+                ['InitMode', '"{}"'.format(self.init_mode)]
             ]
         else:
             raise ValueError(
