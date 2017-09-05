@@ -8,6 +8,7 @@ import juicer.spark.data_operation
 import juicer.spark.data_quality_operation
 import juicer.spark.dm_operation
 import juicer.spark.etl_operation
+import juicer.spark.feature_operation
 import juicer.spark.geo_operation
 import juicer.spark.ml_operation
 import juicer.spark.statistic_operation
@@ -432,7 +433,16 @@ class SparkTranspiler:
             'map-chart': juicer.spark.vis_operation.MapOperation,
             'map': juicer.spark.vis_operation.MapOperation
         }
+        feature_ops = {
+            'standard-scaler':
+                juicer.spark.feature_operation.StandardScalerOperation,
+            'max-abs-scaler':
+                juicer.spark.feature_operation.MaxAbsScalerOperation,
+            'min-max-scaler':
+                juicer.spark.feature_operation.MinMaxScalerOperation,
+
+        }
         self.operations = {}
         for ops in [data_ops, etl_ops, geo_ops, ml_ops, other_ops, text_ops,
-                    ws_ops, vis_ops, dm_ops, data_quality_ops]:
+                    ws_ops, vis_ops, dm_ops, data_quality_ops, feature_ops]:
             self.operations.update(ops)

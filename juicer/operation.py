@@ -80,26 +80,6 @@ class Operation(object):
         return ', '.join(self.named_inputs.values())
 
     def get_output_names(self, sep=", "):
-        # result = ''
-        # outputs = self.named_outputs.keys()
-        # if len(outputs) > 0:
-        #     result = sep.join(outputs)
-        # elif len(self.inputs) > 0:
-        #     if self.expected_output_ports == 1:
-        #         result = '{}_tmp_{}_{}'.format(self.inputs[0],
-        #                                        self.inputs[0],
-        #                                        self.parameters.get('task',
-        #                                                            {}).get(
-        #                                            'order', ''))
-        #         # Some cases this string to _tmp_ doesn't work in the spark
-        #         # code generation
-        #         # parameters['task']['order']self.parameters['task']['order'])
-        # else:
-        #     # raise ValueError(
-        #     #    "Operation has neither input nor output: {}".format(
-        #     #        self.__class__))
-        #     pass
-        # return result
         return sep.join(self.named_outputs.values())
 
     def get_data_out_names(self, sep=','):

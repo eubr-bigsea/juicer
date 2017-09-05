@@ -500,6 +500,8 @@ class AggregationOperation(Operation):
     """
     ATTRIBUTES_PARAM = 'attributes'
     FUNCTION_PARAM = 'function'
+    PIVOT_ATTRIBUTE = 'pivot'
+    PIVOT_VALUE_ATTRIBUTE = 'pivot_values'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
@@ -516,6 +518,16 @@ class AggregationOperation(Operation):
                     self.FUNCTION_PARAM, self.__class__))
 
         self.has_code = len(self.named_inputs) == 1
+        self.pivot = parameters.get(self.PIVOT_ATTRIBUTE, [None])[0]
+        self.pivot_values = parameters.get(self.PIVOT_VALUE_ATTRIBUTE)
+        self.output = self.named_outputs.get(
+            'output data', 'data_{}'.format(self.order))
+
+    def get_data_out_names(self, sep=','):
+        return self.output
+
+    def get_output_names(self, sep=", "):
+        return self.output
 
     def generate_code(self):
         elements = []
@@ -525,21 +537,48 @@ class AggregationOperation(Operation):
                 function.get('alias', function.get('value'))))
 
         input_data = self.named_inputs['input data']
-        output = self.named_outputs['output data']
+
+        if self.pivot:
+            if self.pivot_values and self.pivot_values.strip():
+                pivot_values = ["{}".format(v.strip()) for v in
+                                self.pivot_values.strip().split(',')]
+            else:
+                pivot_values = None
+            pivot_attr = self.pivot
+        else:
+            pivot_attr = ''
+            pivot_values = None
 
         if not self.group_all:
             group_by = ', '.join(
                 ["functions.col('{}')".format(attr)
                  for attr in self.attributes])
 
-            code = '{out} = {input}.groupBy({key}).agg(\n        {el})'.format(
-                out=output, input=input_data, key=group_by,
-                el=', \n        '.join(elements))
+            code = dedent("""
+                pivot_values = {pivot_values}
+                pivot_attr = '{pivot_attr}'
+                if pivot_attr:
+                    {out} = {input}.groupBy(
+                        {key}).pivot(
+                            pivot_attr, pivot_values).agg(
+                                {el})
+                else:
+                    {out} = {input}.groupBy(
+                        {key}).agg(
+                            {el})""".format(
+                out=self.output, input=input_data, key=group_by,
+                el=', '.join(elements),
+                pivot_attr=pivot_attr,
+                pivot_values=pivot_values))
         else:
-            code = '''{output} = {input}.agg(\n        {elements})'''.format(
-                output=output, input=input_data,
-                elements=', \n        '.join(elements))
-        return dedent(code)
+            code = dedent('''
+                {output} = {input}.{pivot}agg(
+                    {elements})
+                '''.format(
+                output=self.output, input=input_data,
+                elements=', \n        '.join(elements),
+                pivot=''))
+        return code
 
 
 class FilterOperation(Operation):

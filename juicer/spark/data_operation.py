@@ -19,6 +19,7 @@ class DataReader(Operation):
     SEPARATOR_PARAM = 'separator'
     INFER_SCHEMA_PARAM = 'infer_schema'
     NULL_VALUES_PARAM = 'null_values'
+    MODE_PARAM = 'mode'
 
     INFER_FROM_LIMONERO = 'FROM_LIMONERO'
     INFER_FROM_DATA = 'FROM_VALUES'
@@ -64,6 +65,8 @@ class DataReader(Operation):
 
                 self.metadata = limonero_service.get_data_source_info(
                     url, token, self.database_id)
+
+                self.mode = parameters.get(self.MODE_PARAM, 'FAILFAST')
             else:
                 raise ValueError(
                     "Parameter '{}' must be informed for task {}".format(
@@ -101,9 +104,6 @@ class DataReader(Operation):
             else:
                 code.append('schema_{0} = None'.format(self.output))
 
-            # import pdb
-            # pdb.set_trace()
-
             if self.metadata['format'] in ['CSV', 'TEXT']:
                 code.append("url = '{url}'".format(url=self.metadata['url']))
                 null_option = ''.join(
@@ -112,13 +112,19 @@ class DataReader(Operation):
 
                 if self.metadata['format'] == 'CSV':
                     code_csv = dedent("""
-                        {0} = spark_session.read{4}\\
+                        {output} = spark_session.read{null_option}\\
                             .option('treatEmptyValuesAsNulls', 'true')\\
-                            .csv(url, schema=schema_{0},
-                                 header={1}, sep='{2}', inferSchema={3},
-                                 mode='DROPMALFORMED')""".format(
-                        self.output, self.header, self.sep, infer_from_data,
-                        null_option))
+                            .csv(url, schema=schema_{output},
+                                 header={header}, sep='{sep}',
+                                 inferSchema={infer_schema},
+                                 mode='{mode}')""".format(
+                        output=self.output,
+                        header=self.header,
+                        sep=self.sep,
+                        infer_schema=infer_from_data,
+                        null_option=null_option,
+                        mode=self.mode
+                    ))
                     code.append(code_csv)
                 else:
                     code_csv = dedent("""
@@ -162,7 +168,8 @@ class DataReader(Operation):
             attr['type']]
         if attr['type'] in self.DATA_TYPES_WITH_PRECISION:
             data_type = '{}({}, {})'.format(
-                data_type, attr['precision'],
+                data_type,
+                attr['precision'] + 3,  # extra precision to be safe
                 attr.get('scale', 0) or 0)
         else:
             data_type = '{}()'.format(data_type)
