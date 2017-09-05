@@ -430,6 +430,7 @@ class SparkTranspiler:
             'summary-statistics':
                 juicer.spark.vis_operation.SummaryStatisticsOperation,
             'plot-chart': juicer.spark.vis_operation.ScatterPlotOperation,
+            'scatter-plot': juicer.spark.vis_operation.ScatterPlotOperation,
             'map-chart': juicer.spark.vis_operation.MapOperation,
             'map': juicer.spark.vis_operation.MapOperation
         }
