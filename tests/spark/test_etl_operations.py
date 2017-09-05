@@ -80,13 +80,24 @@ def test_aggregation_rows_minimal_params_success():
                                     named_outputs=n_out)
     code = instance.generate_code()
 
-    expected_code = """{out} = {in0}.groupBy(functions.col('{agg}'))\\
-                        .agg(functions.avg('income').alias('avg_income'))""" \
-        .format(out=n_out['output data'], in0=n_in['input data'],
-                agg='country', )
+    expected_code = dedent("""
+         pivot_values = None
+         pivot_attr = ''
+         if pivot_attr:
+              {out} = {in0}.groupBy(
+                 functions.col('{agg}')).pivot(
+                     pivot_attr, pivot_values).agg(
+                         functions.avg('income').alias('avg_income'))
+         else:
+              {out} = {in0}.groupBy(
+                 functions.col('{agg}')).agg(
+                     functions.avg('income').alias('avg_income'))
+
+        """.format(out=n_out['output data'], in0=n_in['input data'],
+                   agg='country', ))
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
-    assert result, msg
+    assert result, msg + format_code_comparison(code, expected_code)
 
 
 def test_aggregation_rows_group_all_missing_attributes_success():

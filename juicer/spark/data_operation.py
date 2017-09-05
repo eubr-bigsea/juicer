@@ -112,12 +112,12 @@ class DataReader(Operation):
 
                 if self.metadata['format'] == 'CSV':
                     code_csv = dedent("""
-                        {output} = spark_session.read{null_option}\\
-                            .option('treatEmptyValuesAsNulls', 'true')\\
-                            .csv(url, schema=schema_{output},
-                                 header={header}, sep='{sep}',
-                                 inferSchema={infer_schema},
-                                 mode='{mode}')""".format(
+                        {output} = spark_session.read{null_option}.option(
+                            'treatEmptyValuesAsNulls', 'true').csv(
+                                url, schema=schema_{output},
+                                header={header}, sep='{sep}',
+                                inferSchema={infer_schema},
+                                mode='{mode}')""".format(
                         output=self.output,
                         header=self.header,
                         sep=self.sep,
@@ -128,10 +128,10 @@ class DataReader(Operation):
                     code.append(code_csv)
                 else:
                     code_csv = dedent("""
-                    {output} = spark_session.read\\
-                           {null_option}\\
-                           .schema(schema_{output})\\
-                           .option('treatEmptyValuesAsNulls', 'true')\\
+                    {output} = spark_session.read
+                           {null_option}
+                           .schema(schema_{output})
+                           .option('treatEmptyValuesAsNulls', 'true')
                            .text(url)""".format(output=self.output,
                                                 null_option=null_option))
                     code.append(code_csv)

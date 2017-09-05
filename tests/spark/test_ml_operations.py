@@ -267,7 +267,7 @@ def test_apply_model_operation_success():
     code = instance.generate_code()
 
     expected_code = dedent("""
-    params = {{'predictionCol': 'prediction'}}
+    # params = {{'predictionCol': 'prediction'}}
     {output_1} = {model}.transform({input_1}, params)
     """.format(
         output_1=out, input_1=in1, model=model))
@@ -939,10 +939,22 @@ def test_clustering_model_operation_success():
         def call_transform(df):
             return output_2.transform(df)
         output_1 = dataframe_util.LazySparkTransformationDataframe(
-             output_2, df_2)
-
+             output_2, df_2, call_transform)
 
         summary = getattr(output_2, 'summary', None)
+        # <>
+        def call_clusters(df):
+            if hasattr(output_2, 'clusterCenters'):
+                return spark_session.createDataFrame(
+                    [center.tolist()
+                        for center in output_2.clusterCenters()])
+            else:
+                return spark_session.createDataFrame([],
+                    types.StructType([]))
+
+        centroids_task_1 = dataframe_util.LazySparkTransformationDataframe(
+            output_2, df_2, call_clusters)
+
         if summary:
             summary_rows = []
             for p in dir(summary):
@@ -1192,8 +1204,6 @@ def test_kmeans_clustering_operation_random_type_bisecting_success():
     set_values = [
         ['MaxIter', params[KMeansClusteringOperation.MAX_ITERATIONS_PARAM]],
         ['K', params[KMeansClusteringOperation.K_PARAM]],
-        ['Tol', params[KMeansClusteringOperation.TOLERANCE_PARAMETER]],
-        ['InitMode', params[KMeansClusteringOperation.INIT_MODE_PARAMETER]]
     ]
 
     instance = KMeansClusteringOperation(params, named_inputs={},
@@ -1270,8 +1280,6 @@ def test_kmeans_clustering_operation_kmeansdd_type_bisecting_success():
     set_values = [
         ['MaxIter', params[KMeansClusteringOperation.MAX_ITERATIONS_PARAM]],
         ['K', params[KMeansClusteringOperation.K_PARAM]],
-        ['Tol', params[KMeansClusteringOperation.TOLERANCE_PARAMETER]],
-        ['InitMode', params[KMeansClusteringOperation.INIT_MODE_PARAMETER]]
     ]
 
     instance = KMeansClusteringOperation(params,
