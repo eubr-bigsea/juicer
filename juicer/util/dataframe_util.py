@@ -92,34 +92,36 @@ def format_row_for_bar_chart_visualization(row):
     return dict(id=_id, name=name, value=value)
 
 
-def emit_schema(task_id, df, emit_event):
+def emit_schema(task_id, df, emit_event, name):
     from juicer.spark.reports import SimpleTableReport
     headers = ['Attribute', 'Type']
     rows = [[f.name, str(f.dataType)] for f in df.schema.fields]
     content = SimpleTableReport(
-        'table table-striped table-bordered', headers, rows, 'Schema',
+        'table table-striped table-bordered', headers, rows,
+        'Schema for {}'.format(name),
         numbered=True)
 
     emit_event('update task', status='COMPLETED',
                identifier=task_id,
                message=content.generate(),
-               type='HTML', title='Schema',
+               type='HTML', title='Schema for {}'.format(name),
                task=task_id)
 
 
-def emit_sample(task_id, df, emit_event, size=50):
+def emit_sample(task_id, df, emit_event, name, size=50):
     from juicer.spark.reports import SimpleTableReport
     headers = [f.name for f in df.schema.fields]
     rows = [[str(col) for col in row] for row in df.take(size)]
 
     content = SimpleTableReport(
-        'table table-striped table-bordered', headers, rows, 'Sample data',
+        'table table-striped table-bordered', headers, rows,
+        'Sample data for {}'.format(name),
         numbered=True)
 
     emit_event('update task', status='COMPLETED',
                identifier=task_id,
                message=content.generate(),
-               type='HTML', title='Sample data',
+               type='HTML', title='Sample data for {}'.format(name),
                task=task_id)
 
 
@@ -128,14 +130,15 @@ class LazySparkTransformationDataframe(object):
      Wraps a Spark Model in order to perform lazy transformation
     """
 
-    def __init__(self, model, df):
+    def __init__(self, model, df, load_op):
         self.model = model
         self.df = df
         self.transformed_df = None
+        self.load_op = load_op
 
     def __getattr__(self, name):
         if self.transformed_df is None:
-            self.transformed_df = self.model.transform(self.df)
+            self.transformed_df = self.load_op(self.df)
         return getattr(self.transformed_df, name)
 
 

@@ -280,14 +280,14 @@ class FeatureAssemblerOperation(Operation):
 
 
 class ApplyModelOperation(Operation):
-    PREDICTION_ATTRIBUTE_PARAM = 'prediction'
+    NEW_ATTRIBUTE_PARAM = 'prediction'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
         self.has_code = len(self.named_inputs) == 2
 
-        self.prediction = parameters.get(self.PREDICTION_ATTRIBUTE_PARAM,
-                                         'prediction')
+        self.new_attribute = parameters.get(self.NEW_ATTRIBUTE_PARAM,
+                                            'new_attribute')
         if not self.has_code and len(self.named_outputs) > 0:
             raise ValueError(
                 'Model is being used, but at least one input is missing')
@@ -304,10 +304,10 @@ class ApplyModelOperation(Operation):
             'model', 'model_task_{}'.format(self.order))
 
         code = dedent("""
-            params = {{'predictionCol': '{prediction}'}}
+            # Depends on model params = {{'predictionCol': '{new_attr}'}}
             {out} = {in2}.transform({in1}, params)
             """.format(out=output, in1=input_data1, in2=model,
-                       prediction=self.prediction))
+                       new_attr=self.new_attribute))
 
         return dedent(code)
 
@@ -797,6 +797,9 @@ class ClusteringModelOperation(Operation):
         self.prediction = parameters.get(self.PREDICTION_ATTRIBUTE_PARAM,
                                          'prediction')
 
+        self.centroids = self.named_outputs.get(
+            'cluster centroids', 'centroids_task_{}'.format(self.order))
+
     @property
     def get_inputs_names(self):
         return ', '.join([
@@ -806,10 +809,10 @@ class ClusteringModelOperation(Operation):
                                   'algo_task_{}'.format(self.order))])
 
     def get_data_out_names(self, sep=','):
-        return self.output
+        return sep.join([self.output, self.centroids])
 
     def get_output_names(self, sep=', '):
-        return sep.join([self.output, self.model])
+        return sep.join([self.output, self.model, self.centroids])
 
     def generate_code(self):
 
@@ -828,10 +831,23 @@ class ClusteringModelOperation(Operation):
             def call_transform(df):
                 return {model}.transform(df)
             {output} = dataframe_util.LazySparkTransformationDataframe(
-                {model}, {input})
-
+                {model}, {input}, call_transform)
 
             summary = getattr({model}, 'summary', None)
+
+            # Lazy execution in case of sampling the data in UI
+            def call_clusters(df):
+                if hasattr({model}, 'clusterCenters'):
+                    return spark_session.createDataFrame(
+                        [center.tolist()
+                            for center in {model}.clusterCenters()])
+                else:
+                    return spark_session.createDataFrame([],
+                        types.StructType([]))
+
+            {centroids} = dataframe_util.LazySparkTransformationDataframe(
+                {model}, {input}, call_clusters)
+
             if summary:
                 summary_rows = []
                 for p in dir(summary):
@@ -860,7 +876,8 @@ class ClusteringModelOperation(Operation):
                        prediction=self.prediction,
                        task_id=self.parameters['task_id'],
                        operation_id=self.parameters['operation_id'],
-                       title="Clustering result", )
+                       title="Clustering result",
+                       centroids=self.centroids)
 
             return dedent(code)
 
@@ -979,6 +996,7 @@ class KMeansClusteringOperation(ClusteringOperation):
                 ['MaxIter', self.max_iterations],
                 ['K', self.number_of_clusters],
                 ['Tol', self.tolerance],
+                ['InitMode', '"{}"'.format(self.init_mode)]
             ]
         else:
             raise ValueError(

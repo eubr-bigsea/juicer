@@ -35,7 +35,7 @@ def test_data_reader_minimal_parameters_no_attributes_success():
                                .option('treatEmptyValuesAsNulls', 'true')\
                                .csv(url, schema=schema_output_1,
                                     header=False, sep=',',
-                                    inferSchema=False, mode='DROPMALFORMED')
+                                    inferSchema=False, mode='FAILFAST')
         {output}.cache()
         """.format(url='http://hdfs.lemonade:9000', output='output_1'))
     expected_tree = ast.parse(expected_code)

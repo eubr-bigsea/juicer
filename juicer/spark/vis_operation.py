@@ -562,7 +562,7 @@ class PieChartModel(ChartVisualization):
         else:
             label = self.value_attribute
 
-        value_attr = [c for c in schema if c.name in self.value_attribute[0]]
+        value_attr = [c for c in schema if c.name == self.value_attribute[0]]
         if len(value_attr):
             value_attr = value_attr[0]
         else:
