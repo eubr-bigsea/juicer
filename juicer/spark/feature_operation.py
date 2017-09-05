@@ -21,7 +21,7 @@ class ScalerOperation(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
         if self.ATTRIBUTE_PARAM in parameters:
-            self.attribute = parameters.get(self.ATTRIBUTE_PARAM)
+            self.attribute = parameters.get(self.ATTRIBUTE_PARAM)[0]
         else:
             raise ValueError(
                 "Parameter '{}' must be informed for task {}".format(
@@ -40,6 +40,9 @@ class ScalerOperation(Operation):
 
     def generate_code(self):
         name_and_params = self._get_scaler_algorithm_and_parameters()
+        name_and_params.parameters['inputCol'] = self.attribute
+        name_and_params.parameters['outputCol'] = self.scaled_attr
+
         input_data = self.named_inputs['input data']
 
         code = dedent("""
@@ -52,11 +55,11 @@ class ScalerOperation(Operation):
             def call_transform(df):
                 return {model}.transform(df)
             {output} = dataframe_util.LazySparkTransformationDataframe(
-                {model}, {input})
+                {model}, {input}, call_transform)
             if metrics:
                 from juicer.spark.reports import SimpleTableReport
                 headers = ['Metric', 'Value']
-                rows = [[m, {model}.getParam(m)] for m in metrics]
+                rows = [[m, getattr({model}, m)] for m in metrics]
 
                 content = SimpleTableReport(
                         'table table-striped table-bordered table-sm',
@@ -79,7 +82,7 @@ class ScalerOperation(Operation):
             metrics=name_and_params.metrics,
             task_id=self.parameters['task_id'],
             operation_id=self.parameters['operation_id'],
-            title="Metrics for task"
+            title="Metrics for task",
         ))
 
         return code
