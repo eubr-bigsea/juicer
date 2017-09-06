@@ -513,9 +513,13 @@ class AggregationOperation(Operation):
         self.group_all = len(self.attributes) == 0
 
         if not all([self.FUNCTION_PARAM in parameters, self.functions]):
-            raise ValueError(
+            raise ValueError(_(
                 "Parameter '{}' must be informed for task {}".format(
-                    self.FUNCTION_PARAM, self.__class__))
+                    self.FUNCTION_PARAM, self.__class__)))
+
+        for f in parameters[self.FUNCTION_PARAM]:
+            if not all([f.get('attribute'), f.get('f'), f.get('alias')]):
+                raise ValueError(_('Missing parameter in aggregation function'))
 
         self.has_code = len(self.named_inputs) == 1
         self.pivot = parameters.get(self.PIVOT_ATTRIBUTE, [None])[0]

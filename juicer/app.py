@@ -1,9 +1,11 @@
 # !/usr/bin/env python
 # -*- coding: utf-8 -*-
 import argparse
+import gettext
 import json
 import logging.config;
 
+import os
 import redis
 import requests
 import yaml
@@ -121,11 +123,18 @@ if __name__ == "__main__":
     parser.add_argument("-s", "--service", required=False,
                         action="store_true",
                         help="Indicates if workflow will run as a service")
+    parser.add_argument("--lang", help="Minion messages language (i18n)",
+                        required=False, default="en_US")
     parser.add_argument(
         "-p", "--plain", required=False, action="store_true",
         help="Indicates if workflow should be plain PySpark, "
              "without Lemonade extra code")
     args = parser.parse_args()
+
+    locales_path = os.path.join(os.path.dirname(__file__), 'i18n', 'locales')
+    t = gettext.translation('messages', locales_path, [args.lang],
+                            fallback=True)
+    t.install()
 
     juicer_config = {}
     if args.config:

@@ -1,13 +1,19 @@
 import argparse
+import gettext
+import locale
 import logging.config
 import urlparse
 
+import os
 import redis
 import yaml
 from juicer.spark.spark_minion import SparkMinion
 
 logging.config.fileConfig('logging_config.ini')
 log = logging.getLogger(__name__)
+
+# locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
+locales_path = os.path.join(os.path.dirname(__file__), '..', 'i18n', 'locales')
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -19,9 +25,15 @@ if __name__ == '__main__':
                         required=False)
     parser.add_argument("-t", "--type", help="Execution engine",
                         required=False, default="SPARK")
+    parser.add_argument("--lang", help="Minion messages language (i18n)",
+                        required=False, default="en_US")
     args = parser.parse_args()
 
-    log.info("Starting minion")
+    t = gettext.translation('messages', locales_path, [args.lang],
+                            fallback=True)
+    t.install()
+
+    log.info(_("Starting minion"))
     try:
         with open(args.config) as config_file:
             juicer_config = yaml.load(config_file.read())
@@ -33,10 +45,11 @@ if __name__ == '__main__':
         if args.type == 'SPARK':
             # log.info('Starting Juicer Spark Minion')
             server = SparkMinion(redis_conn,
-                                 args.workflow_id, args.app_id or args.workflow_id, juicer_config)
+                                 args.workflow_id,
+                                 args.app_id or args.workflow_id, juicer_config)
             server.process()
         else:
-            raise ValueError(
-                "{type} is not supported (yet!)".format(type=args.type))
+            raise ValueError(_(
+                "{type} is not supported (yet!)").format(type=args.type))
     except Exception as ex:
-        log.exception("Error running minion", exc_info=ex)
+        log.exception(_("Error running minion"), exc_info=ex)
