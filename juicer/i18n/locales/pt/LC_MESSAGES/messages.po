@@ -1,0 +1,40 @@
+# Portuguese (Brazil) translations for PROJECT.
+# Copyright (C) 2017 ORGANIZATION
+# This file is distributed under the same license as the PROJECT project.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2017.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: PROJECT VERSION\n"
+"Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
+"POT-Creation-Date: 2017-09-06 12:04-0300\n"
+"PO-Revision-Date: 2017-09-06 12:05-0300\n"
+"Last-Translator: \n"
+"Language-Team: pt_BR <LL@li.org>\n"
+"Language: pt_BR\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+"Generated-By: Babel 2.5.0\n"
+"X-Generator: Poedit 1.8.7.1\n"
+
+#: juicer/runner/minion.py:36
+msgid "Starting minion"
+msgstr "Iniciando o minion"
+
+#: juicer/runner/minion.py:52
+msgid "{type} is not supported (yet!)"
+msgstr "{type} não é suportado (ainda!)"
+
+#: juicer/runner/minion.py:55
+msgid "Error running minion"
+msgstr "Erro executando o minion"
+
+#: juicer/spark/etl_operation.py:517
+msgid "Parameter '{}' must be informed for task {}"
+msgstr "O parâmetro '{}' deve ser informado para a tarefa {}"
+
+#: juicer/spark/etl_operation.py:522
+msgid "Missing parameter in aggregation function"
+msgstr "Parâmetro faltante na função de agregação"
