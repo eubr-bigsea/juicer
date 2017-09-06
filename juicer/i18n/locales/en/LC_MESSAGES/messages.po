@@ -1,0 +1,32 @@
+# English (United States) translations for PROJECT.
+# Copyright (C) 2017 ORGANIZATION
+# This file is distributed under the same license as the PROJECT project.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2017.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: PROJECT VERSION\n"
+"Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
+"POT-Creation-Date: 2017-09-06 10:57-0300\n"
+"PO-Revision-Date: 2017-09-06 11:02-0300\n"
+"Language: en_US\n"
+"Language-Team: en_US <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.5.0\n"
+"Last-Translator: \n"
+"X-Generator: Poedit 1.8.7.1\n"
+
+#: juicer/runner/minion.py:30 juicer/runner/minion.py:31
+msgid "Starting minion"
+msgstr ""
+
+#: juicer/runner/minion.py:47
+msgid "{type} is not supported (yet!)"
+msgstr ""
+
+#: juicer/runner/minion.py:50
+msgid "Error running minion"
+msgstr ""
