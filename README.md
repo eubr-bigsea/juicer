@@ -60,3 +60,23 @@ You can stop the stand daemon with:
 ./sbin/juicer-daemon.sh stop
 ```
 
+## Internationalization
+Juicer uses GNU gettext format for internationalization (i18n). In order to
+generate translation files (`*.mo` files), you must run the following commands
+in the project's base dir:
+
+```
+pybabel extract -F babel.cfg -o juicer/i18n/juicer.pot .
+pybabel compile -d juicer/i18n/locales
+```
+If you need to translate Juicer to another language, consider adding the new
+message file using the following command (`es_ES` is the locale code):
+
+```
+pybabel init -i juicer/i18n/juicer.pot -d juicer/i18n/locales -l es
+```
+
+New messages can be extracted and written to the template file using this command:
+```
+pybabel extract -F babel.cfg -o juicer/i18n/juicer.pot .
+```
