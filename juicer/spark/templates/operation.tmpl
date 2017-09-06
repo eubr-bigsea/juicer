@@ -271,7 +271,7 @@ def main(spark_session, cached_state, emit_event):
                 if cause.getClass().getName() == nfe and cause.getMessage():
                     value = value_expr.findall(cause.getMessage())[0]
                     raise ValueError('Invalid numeric data in at least one '
-                        'data source (attribute: {})'.format(value))
+                        'data source (value: {})'.format(value))
                 else:
                     raise
             else:

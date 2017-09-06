@@ -128,12 +128,13 @@ class DataReader(Operation):
                     code.append(code_csv)
                 else:
                     code_csv = dedent("""
-                    {output} = spark_session.read
-                           {null_option}
-                           .schema(schema_{output})
-                           .option('treatEmptyValuesAsNulls', 'true')
-                           .text(url)""".format(output=self.output,
-                                                null_option=null_option))
+                    schema_{output} = types.StructType()
+                    schema_{output}.add('value', types.StringType(), 1, None)
+                    {output} = spark_session.read{null_option}.schema(
+                        schema_{output}).option(
+                        'treatEmptyValuesAsNulls', 'true').text(
+                            url)""".format(output=self.output,
+                                           null_option=null_option))
                     code.append(code_csv)
                 # FIXME: Evaluate if it is good idea to always use cache
                 code.append('{}.cache()'.format(self.output))
