@@ -918,3 +918,18 @@ class ExecutePythonOperation(Operation):
         {out2} = out2
         """.format(out1=out1, out2=out2))
         return dedent(code)
+
+
+class TableLookupOperation(Operation):
+    """
+    Allow lookup a value in a lookup table.
+    In the case of Apache Spark, the lookup table is a small data set that is
+    broadcast to all processing nodes
+    """
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+
+        self.has_code = False
+
+    def generate_code(self):
+        pass

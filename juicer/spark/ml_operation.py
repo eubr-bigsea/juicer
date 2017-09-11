@@ -633,7 +633,7 @@ class ClassificationModelOperation(Operation):
             def call_transform(df):
                 return {model}.transform(df)
             {output} = dataframe_util.LazySparkTransformationDataframe(
-                {model}, {train})
+                {model}, {train}, call_transform)
             """.format(model=self.model,
                        algorithm=self.named_inputs['algorithm'],
                        train=self.named_inputs['train input data'],
@@ -1371,7 +1371,7 @@ class RegressionModelOperation(Operation):
                 def call_transform(df):
                     return {model}.transform(df)
                 {output_data} = dataframe_util.LazySparkTransformationDataframe(
-                    {model}, {input})
+                    {model}, {input}, call_transform)
 
                 display_text = {display_text}
                 if display_text:
