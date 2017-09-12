@@ -518,7 +518,10 @@ class AggregationOperation(Operation):
                     self.FUNCTION_PARAM, self.__class__))
 
         self.has_code = len(self.named_inputs) == 1
-        self.pivot = parameters.get(self.PIVOT_ATTRIBUTE, [None])[0]
+        # noinspection PyArgumentEqualDefault
+        self.pivot = next(iter(parameters.get(self.PIVOT_ATTRIBUTE) or []),
+                          None)
+
         self.pivot_values = parameters.get(self.PIVOT_VALUE_ATTRIBUTE)
         self.output = self.named_outputs.get(
             'output data', 'data_{}'.format(self.order))
@@ -926,6 +929,7 @@ class TableLookupOperation(Operation):
     In the case of Apache Spark, the lookup table is a small data set that is
     broadcast to all processing nodes
     """
+
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
