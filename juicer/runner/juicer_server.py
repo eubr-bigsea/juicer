@@ -149,6 +149,7 @@ class JuicerServer:
             {'code': 0,
              'message': 'Minion is processing message %s' % msg_type}))
 
+    # noinspection PyUnusedLocal
     def _start_minion(self, workflow_id, app_id, state_control, restart=False):
 
         minion_id = 'minion_{}_{}'.format(workflow_id, app_id)
@@ -173,7 +174,7 @@ class JuicerServer:
         # execution instance (app). Thus, we are going to explicitly
         # terminate the workflow, clear any remaining metadata and return
         assert (workflow_id, app_id) in self.active_minions
-        log.info("Terminating (workflow_id=%s,app_id=%s)", \
+        log.info("Terminating (workflow_id=%s,app_id=%s)",
                  workflow_id, app_id)
         os.kill(self.active_minions[(workflow_id, app_id)].pid, signal.SIGTERM)
         del self.active_minions[(workflow_id, app_id)]
@@ -264,6 +265,7 @@ class JuicerServer:
         self.minion_support_process.join()
         self.minion_watch_process.join()
 
+    # noinspection PyUnusedLocal
     def _terminate_minions(self, _signal, _frame):
         log.info('Terminating %s active minions', len(self.active_minions))
         minions = [m for m in self.active_minions]
@@ -271,6 +273,7 @@ class JuicerServer:
             self._terminate_minion(wid, aid)
         sys.exit(0)
 
+    # noinspection PyUnusedLocal
     def _terminate(self, _signal, _frame):
         """
         This is a handler that reacts to a sigkill signal.
