@@ -45,7 +45,7 @@ class Workflow:
             self.sorted_tasks = self.get_topological_sorted_tasks()
         else:
             raise AttributeError(
-                "Port '{}/{}' must be informed for operation{}".format(
+                _("Port '{}/{}' must be informed for operation{}").format(
                     self.WORKFLOW_GRAPH_SOURCE_ID_PARAM,
                     self.WORKFLOW_GRAPH_TARGET_ID_PARAM,
                     self.__class__))
@@ -117,7 +117,7 @@ class Workflow:
                     parents=[],
                     attr_dict=task)
             else:
-                msg = "Task {task} uses an invalid or disabled operation ({op})"
+                msg = _("Task {task} uses an invalid or disabled operation ({op})")
                 raise ValueError(
                     msg.format(task=task['id'], op=task['operation']['id']))
 
@@ -148,10 +148,10 @@ class Workflow:
                 self.graph.node[flow['target_id']]['parents'].append(
                     flow['source_id'])
             else:
-                self.log.warn("Incorrect configuration for ports: %s, %s",
+                self.log.warn(_("Incorrect configuration for ports: %s, %s"),
                               source_port, target_port)
                 raise ValueError(
-                    "Invalid or inexisting port in '{op}' {s} {t}".format(
+                    _("Invalid or inexisting port in '{op}' {s} {t}").format(
                         op=task_map[flow['source_id']]['operation']['name'],
                         s=flow['source_port'], t=flow['target_port']))
 
@@ -171,7 +171,7 @@ class Workflow:
                 pass
             else:
                 raise AttributeError(
-                    ("Port '{} in node {}' missing, "
+                    _("Port '{} in node {}' missing, "
                      "must be informed for operation {}").format(
                         self.WORKFLOW_GRAPH_TARGET_ID_PARAM,
                         nodes,
@@ -186,7 +186,7 @@ class Workflow:
                 pass
             else:
                 raise AttributeError(
-                    ("Port '{}' missing, must be informed "
+                    _("Port '{}' missing, must be informed "
                      "for operation {}").format(
                         self.WORKFLOW_GRAPH_SOURCE_ID_PARAM,
                         self.__class__))
@@ -376,4 +376,4 @@ class Workflow:
                     self.graph.node[atr]['out_degree_required']
                     )
         else:
-            raise KeyError("The node informed doesn't exist")
+            raise KeyError(_("The node informed doesn't exist"))

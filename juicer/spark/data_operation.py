@@ -73,7 +73,7 @@ class DataReader(Operation):
                 self.mode = parameters.get(self.MODE_PARAM, 'FAILFAST')
             else:
                 raise ValueError(
-                    "Parameter '{}' must be informed for task {}".format(
+                    _("Parameter '{}' must be informed for task {}").format(
                         self.DATA_SOURCE_ID_PARAM, self.__class__))
         self.output = named_outputs.get('output data',
                                         'out_task_{}'.format(self.order))
@@ -104,7 +104,7 @@ class DataReader(Operation):
                     code.append("")
                 else:
                     raise ValueError(
-                        "Metadata do not include attributes information")
+                        _("Metadata do not include attributes information"))
             else:
                 code.append('schema_{0} = None'.format(self.output))
 
@@ -399,8 +399,8 @@ class ChangeAttributeOperation(Operation):
         if self.ATTRIBUTES_PARAM in parameters:
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
         else:
-            raise ValueError(
-                "Parameter '{}' must be informed for task {}".format(
+            raise ValueError(_(
+                "Parameter '{}' must be informed for task {}").format(
                     self.ATTRIBUTES_PARAM, self.__class__))
         self.has_code = len(self.named_inputs) == 1
 

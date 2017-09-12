@@ -34,6 +34,7 @@ if __name__ == '__main__':
     t.install()
 
     log.info(_("Starting minion"))
+    log.debug(_('(c) Lemonade - DCC UFMG'))
     try:
         with open(args.config) as config_file:
             juicer_config = yaml.load(config_file.read())
@@ -49,7 +50,7 @@ if __name__ == '__main__':
                                  args.app_id or args.workflow_id, juicer_config)
             server.process()
         else:
-            raise ValueError(_(
-                "{type} is not supported (yet!)").format(type=args.type))
+            raise ValueError(
+                _("{type} is not supported (yet!)").format(type=args.type))
     except Exception as ex:
         log.exception(_("Error running minion"), exc_info=ex)

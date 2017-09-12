@@ -18,8 +18,8 @@ class FrequentItemSetOperation(Operation):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         if self.MIN_SUPPORT_PARAM not in parameters:
-            raise ValueError(
-                'Support must be informed for classifier {}'.format(
+            raise ValueError(_(
+                'Support must be informed for classifier {}').format(
                     self.__class__))
 
         self.min_support = float(parameters.get(self.MIN_SUPPORT_PARAM))
@@ -191,8 +191,8 @@ class AssociationRulesOperation(Operation):
             for rule in rules[:{rules_count}]:
                print rule
 
-            emit_event(name='update task', message='Model trained',
-                       status='RUNNING', identifier='{task_id}')
+            emit_event(name='update task', message=_('Model trained'),
+                       status=_('RUNNING'), identifier='{task_id}')
 
             items = model.freqItemsets()
             if items.isEmpty():
@@ -259,8 +259,8 @@ class SequenceMiningOperation(Operation):
             for rule in rules[:{rules_count}]:
                print rule
 
-            emit_event(name='update task', message='Model trained',
-                       status='RUNNING', identifier='{task_id}')
+            emit_event(name='update task', message=_('Model trained'),
+                       status=_('RUNNING'), identifier='{task_id}')
 
             items = model.freqItemsets()
             if items.isEmpty():

@@ -29,13 +29,13 @@ class TokenizerOperation(Operation):
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
         else:
             raise ValueError(
-                "Parameter '{}' must be informed for task {}".format(
+                _("Parameter '{}' must be informed for task {}").format(
                     self.ATTRIBUTES_PARAM, self.__class__))
 
         self.type = self.parameters.get(self.TYPE_PARAM, self.TYPE_SIMPLE)
         if self.type not in [self.TYPE_REGEX, self.TYPE_SIMPLE]:
             raise ValueError(
-                'Invalid type for operation Tokenizer: {}'.format(self.type))
+                _('Invalid type for operation Tokenizer: {}').format(self.type))
         self.alias = [alias.strip() for alias in
                       parameters.get(self.ALIAS_PARAM, '').split(',')]
         # Adjust alias in order to have the same number of aliases as attributes
@@ -110,7 +110,7 @@ class RemoveStopWordsOperation(Operation):
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
         else:
             raise ValueError(
-                "Parameter '{}' must be informed for task {}".format(
+                _("Parameter '{}' must be informed for task {}").format(
                     self.ATTRIBUTES_PARAM, self.__class__))
 
         self.stop_word_attribute = self.parameters.get(
@@ -219,7 +219,7 @@ class WordToVectorOperation(Operation):
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
         else:
             raise ValueError(
-                "Parameter '{}' must be informed for task {}".format(
+                _("Parameter '{}' must be informed for task {}").format(
                     self.ATTRIBUTES_PARAM, self.__class__))
 
         self.type = self.parameters.get(self.TYPE_PARAM, self.TYPE_COUNT)
@@ -312,7 +312,7 @@ class WordToVectorOperation(Operation):
 
         else:
             raise ValueError(
-                "Invalid type '{}' for task {}".format(self.type,
+                _("Invalid type '{}' for task {}").format(self.type,
                                                        self.__class__))
         return code
 
@@ -335,14 +335,14 @@ class GenerateNGramsOperation(Operation):
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
         else:
             raise ValueError(
-                "Parameter '{}' must be informed for task {}".format(
+                _("Parameter '{}' must be informed for task {}").format(
                     self.N_PARAM, self.__class__))
 
         if self.ATTRIBUTES_PARAM in parameters:
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
         else:
             raise ValueError(
-                "Parameter '{}' must be informed for task {}".format(
+                _("Parameter '{}' must be informed for task {}").format(
                     self.ATTRIBUTES_PARAM, self.__class__))
 
         self.n = int(self.parameters.get(self.N_PARAM, 2))

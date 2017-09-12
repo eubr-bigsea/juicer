@@ -65,8 +65,9 @@ class Operation(object):
             'output data', 'out_task_{}'.format(self.order))
 
     def generate_code(self):
-        raise NotImplementedError("Method generate_code should be implemented "
-                                  "in {} subclass".format(self.__class__))
+        raise NotImplementedError(
+            _("Method generate_code should be implemented "\
+              "in {} subclass").format(self.__class__))
 
     def get_generated_results(self):
         """
