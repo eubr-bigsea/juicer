@@ -191,8 +191,8 @@ class VisualizationMethodOperation(Operation):
         return self.output
 
     def get_model_name(self):
-        NotImplementedError("Method generate_code should be implemented "
-                            "in {} subclass".format(self.__class__))
+        NotImplementedError(_("Method generate_code should be implemented "
+                            "in {} subclass").format(self.__class__))
 
     def generate_code(self):
         code_lines = [dedent(
@@ -368,7 +368,7 @@ class VisualizationModel(object):
         self.value_attribute = value_attribute
 
     def get_data(self):
-        raise NotImplementedError('Should be implemented in derived classes')
+        raise NotImplementedError(_('Should be implemented in derived classes'))
 
     def get_schema(self):
         return self.data.schema.json()
@@ -382,7 +382,7 @@ class VisualizationModel(object):
 
 class ChartVisualization(VisualizationModel):
     def get_data(self):
-        raise NotImplementedError('Should be implemented in derived classes')
+        raise NotImplementedError(_('Should be implemented in derived classes'))
 
     @staticmethod
     def _get_attr_type(attr):
@@ -422,7 +422,7 @@ class ChartVisualization(VisualizationModel):
     def _get_axis_info(self):
         schema = self.data.schema
         if not self.params.get('x_axis_attribute'):
-            raise ValueError('X-axis attribute not specified')
+            raise ValueError(_('X-axis attribute not specified'))
         x = self.params.get('x_axis_attribute')[0]
         x_attr = [c for c in schema if c.name == x]
         y_attrs = [c for c in schema if c.name in self.column_names]
@@ -430,11 +430,11 @@ class ChartVisualization(VisualizationModel):
             x_attr = x_attr[0]
         else:
             raise ValueError(
-                'Attribute {} for X-axis does not exist in ({})'.format(
+                _('Attribute {} for X-axis does not exist in ({})').format(
                     x, ', '.join([c.name for c in schema])))
         if len(y_attrs) == 0:
             raise ValueError(
-                'At least one attribute for Y-axis does not exist: {}'.format(
+                _('At least one attribute for Y-axis does not exist: {}').format(
                     ', '.join(self.params.get('column_names'))))
 
         x_type = ChartVisualization._get_attr_type(x_attr)
@@ -533,7 +533,7 @@ class BarChartModel(ChartVisualization):
                 )
                 if i >= 100:
                     raise ValueError(
-                        'The maximum number of values for x-axis is 100.')
+                        _('The maximum number of values for x-axis is 100.'))
 
         result['colors'] = colors
         return result
@@ -567,7 +567,7 @@ class PieChartModel(ChartVisualization):
             value_attr = value_attr[0]
         else:
             raise ValueError(
-                'Attribute {} does not exist in ({})'.format(label, ', '.join(
+                _('Attribute {} does not exist in ({})').format(label, ', '.join(
                     [c.name for c in schema])))
 
         label_attr = [c for c in schema if c.name == label]
@@ -575,7 +575,7 @@ class PieChartModel(ChartVisualization):
             label_attr = label_attr[0]
         else:
             raise ValueError(
-                'Attribute {} for label does not exist in ({})'.format(
+                _('Attribute {} for label does not exist in ({})').format(
                     label, ', '.join([c.name for c in schema])))
 
         return label_attr, None, value_attr
@@ -615,7 +615,7 @@ class PieChartModel(ChartVisualization):
             result['data'].append(data)
             if i >= 100:
                 raise ValueError(
-                    'The maximum number of values for this chart is 100.')
+                    _('The maximum number of values for this chart is 100.'))
         return result
 
 

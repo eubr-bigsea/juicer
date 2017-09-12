@@ -20,7 +20,7 @@ monkey.patch_all()
 logging.config.fileConfig('logging_config.ini')
 
 log = logging.getLogger()
-log.setLevel(logging.INFO)
+log.setLevel(_(logging.INFO))
 
 
 def set_non_blocking(fd):
@@ -34,7 +34,7 @@ def set_non_blocking(fd):
 
 def execute_workflow(redis_conn, _id, shells):
     while True:
-        log.info("Waiting for new commands in %s", _id)
+        log.info(_("Waiting for new commands in %s"), _id)
         _, cmd = redis_conn.brpop("list", timeout=0)
         cmds = cmd.split()
         _id = cmds[0]
@@ -94,22 +94,21 @@ def main():
     publish = gevent.spawn(publisher, redis_conn)
     # FIXME: use config
     workers = 2
-    log.info("Spawning %s greenlets connecting to Redis...", workers)
+    log.info(_("Spawning %s greenlets connecting to Redis..."), workers)
     redis_greenlets = [gevent.spawn(execute_workflow, redis_conn, _id, shells)
                        for _id in xrange(workers)]
     # Wait until all greenlets have started and connected.
     gevent.sleep(1)
 
-    log.info("# active `threading` threads: %s" % threading.active_count())
-    log.info("# Redis connections created: %s" % p._created_connections)
-    log.info("# Redis connections in use: %s" % len(p._in_use_connections))
-    log.info(
-        "# Redis connections available: %s" % len(p._available_connections))
-    log.info("Waiting for Redis connection greenlets to terminate...")
+    log.info(_("# active `threading` threads: %s") % threading.active_count())
+    log.info(_("# Redis connections created: %s") % p._created_connections)
+    log.info(_("# Redis connections in use: %s") % len(p._in_use_connections))
+    log.info(_("# Redis connections available: %s") % len(p._available_connections))
+    log.info(_("Waiting for Redis connection greenlets to terminate..."))
     gevent.joinall(redis_greenlets)
 
     d = time.time() - starttime
-    log.info("All Redis connection greenlets terminated. Duration: %.2f s." % d)
+    log.info(_("All Redis connection greenlets terminated. Duration: %.2f s.") % d)
     publish.kill()
 
 

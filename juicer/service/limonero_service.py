@@ -28,16 +28,16 @@ def query_limonero(base_url, item_path, token, item_id):
     else:
         url = '{}/{}'.format(base_url, item_id)
 
-    log.debug('Querying Limonero URL: %s', url)
+    log.debug(_('Querying Limonero URL: %s'), url)
 
     r = requests.get(url, headers=headers)
     if r.status_code == 200:
         return json.loads(r.text)
     else:
-        log.error('Error querying Limonero URL: %s (%s: %s)', url,
+        log.error(_('Error querying Limonero URL: %s (%s: %s)'), url,
                   r.status_code, r.text)
-        raise RuntimeError(
-            u"Error loading {} id {}: HTTP {} - {}".format(item_path, item_id,
+        raise RuntimeError(_(
+            u"Error loading {} id {}: HTTP {} - {}").format(item_path, item_id,
                                                            r.status_code,
                                                            r.text))
 

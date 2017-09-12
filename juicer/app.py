@@ -55,7 +55,7 @@ class JuicerSparkService:
         # status = self.redis_conn.hgetall(_id)
         # print '>>>', status
 
-        log.debug('Processing workflow queue %s', self.workflow_id)
+        log.debug(_('Processing workflow queue %s'), self.workflow_id)
         while True:
             # msg = self.redis_conn.brpop(str(self.workflow_id))
 
@@ -87,7 +87,7 @@ class JuicerSparkService:
                                          params=self.params,
                                          job_id=self.job_id)
             except ValueError as ve:
-                log.exception("At least one parameter is missing", exc_info=ve)
+                log.exception(_("At least one parameter is missing"), exc_info=ve)
                 break
             except:
                 raise

@@ -21,14 +21,14 @@ def _update_caipirinha(base_url, item_path, token, item_id, data):
     else:
         url = '{}/{}/{}'.format(base_url, item_path, item_id)
 
-    log.debug('Querying Caipirinha URL: %s', url)
+    log.debug(_('Querying Caipirinha URL: %s'), url)
 
     r = requests.post(url, headers=headers, data=data)
     if r.status_code == 200:
         return json.loads(r.text)
     else:
-        raise RuntimeError(
-            u"Error in URL {}: HTTP {} - {}".format(
+        raise RuntimeError(_(
+            u"Error in URL {}: HTTP {} - {}").format(
                 item_id, url, r.status_code, r.text))
 
 

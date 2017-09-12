@@ -67,9 +67,9 @@ def format_row_for_visualization(row):
         _id = row[0]
         name = row[0]
     else:
-        raise ValueError('Invalid input data for visualization. '
+        raise ValueError(_('Invalid input data for visualization. '
                          'It should contains 2 (name, value) or '
-                         '3 columns (id, name, value).')
+                         '3 columns (id, name, value).'))
     return dict(id=_id, name=name, value=value)
 
 
@@ -86,9 +86,9 @@ def format_row_for_bar_chart_visualization(row):
         _id = row[0]
         name = row[0]
     else:
-        raise ValueError('Invalid input data for visualization. '
+        raise ValueError(_('Invalid input data for visualization. '
                          'It should contains 2 (name, value) or '
-                         '3 columns (id, name, value).')
+                         '3 columns (id, name, value).'))
     return dict(id=_id, name=name, value=value)
 
 

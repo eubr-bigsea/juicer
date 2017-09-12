@@ -64,7 +64,7 @@ class JuicerServer:
 
     def start(self):
         signal.signal(signal.SIGTERM, self._terminate_minions)
-        log.info('Starting master process. Reading "start" queue ')
+        log.info(_('Starting master process. Reading "start" queue'))
 
         parsed_url = urlparse.urlparse(
             self.config['juicer']['servers']['redis_url'])
@@ -96,7 +96,7 @@ class JuicerServer:
                 self._terminate_minion(workflow_id, app_id)
 
             else:
-                log.warn('Unknown message type %s', msg_type)
+                log.warn(_('Unknown message type %s'), msg_type)
 
         except ConnectionError as cx:
             log.exception(cx)
@@ -117,14 +117,14 @@ class JuicerServer:
     def _forward_to_minion(self, msg_type, workflow_id, app_id, msg):
         # Get minion status, if it exists
         minion_info = self.state_control.get_minion_status(app_id)
-        log.info('Minion status for (workflow_id=%s,app_id=%s): %s',
+        log.info(_('Minion status for (workflow_id=%s,app_id=%s): %s'),
                  workflow_id, app_id, minion_info)
 
         # If there is status registered for the application then we do not
         # need to launch a minion for it, because it is already running.
         # Otherwise, we launch a new minion for the application.
         if minion_info:
-            log.info('Minion (workflow_id=%s,app_id=%s) is running.',
+            log.info(_('Minion (workflow_id=%s,app_id=%s) is running.'),
                      workflow_id, app_id)
         else:
             # This is a special case when the minion timed out.
@@ -141,9 +141,9 @@ class JuicerServer:
         self.state_control.push_app_queue(app_id, msg)
         self.state_control.set_workflow_status(workflow_id, self.STARTED)
 
-        log.info('Message %s forwarded to minion (workflow_id=%s,app_id=%s)',
+        log.info(_('Message %s forwarded to minion (workflow_id=%s,app_id=%s)'),
                  msg_type, workflow_id, app_id)
-        log.info('Message content (workflow_id=%s,app_id=%s): %s',
+        log.info(_('Message content (workflow_id=%s,app_id=%s): %s'),
                  workflow_id, app_id, msg)
         self.state_control.push_app_output_queue(app_id, json.dumps(
             {'code': 0,
@@ -154,7 +154,7 @@ class JuicerServer:
         minion_id = 'minion_{}_{}'.format(workflow_id, app_id)
         stdout_log = os.path.join(self.log_dir, minion_id + '_out.log')
         stderr_log = os.path.join(self.log_dir, minion_id + '_err.log')
-        log.debug('Forking minion %s.', minion_id)
+        log.debug(_('Forking minion %s.'), minion_id)
 
         # Expires in 30 seconds and sets only if it doesn't exist
         state_control.set_minion_status(app_id, self.STARTED, ex=30, nx=False)
@@ -173,7 +173,7 @@ class JuicerServer:
         # execution instance (app). Thus, we are going to explicitly
         # terminate the workflow, clear any remaining metadata and return
         assert (workflow_id, app_id) in self.active_minions
-        log.info("Terminating (workflow_id=%s,app_id=%s)", \
+        log.info(_("Terminating (workflow_id=%s,app_id=%s)"), \
                  workflow_id, app_id)
         os.kill(self.active_minions[(workflow_id, app_id)].pid, signal.SIGTERM)
         del self.active_minions[(workflow_id, app_id)]
@@ -193,7 +193,7 @@ class JuicerServer:
             workflow_id = ticket.get('workflow_id')
             app_id = ticket.get('app_id', ticket.get('workflow_id'))
             reason = ticket.get('reason')
-            log.info("Master received a ticket for app %s", app_id)
+            log.info(_("Master received a ticket for app %s"), app_id)
             if reason == self.HELP_UNHANDLED_EXCEPTION:
                 # Let's kill the minion and start another
                 minion_info = json.loads(
@@ -211,7 +211,7 @@ class JuicerServer:
             elif reason == self.HELP_STATE_LOST:
                 pass
             else:
-                log.warn("Unknown help reason %s", reason)
+                log.warn(_("Unknown help reason %s"), reason)
 
         except ConnectionError as cx:
             log.exception(cx)
@@ -234,16 +234,16 @@ class JuicerServer:
             pubsub = redis_conn.pubsub()
             pubsub.psubscribe('__keyevent@*__:expired')
             for msg in pubsub.listen():
-                log.info('watch subscribe: %s', msg)
+                log.info(_('watch subscribe: %s'), msg)
                 if msg.get('type') == 'pmessage' and 'minion' in msg.get(
                         'data'):
-                    log.warn('Minion {id} stopped'.format(id=msg.get('data')))
+                    log.warn(_('Minion {id} stopped').format(id=msg.get('data')))
         except ConnectionError as cx:
             log.exception(cx)
             time.sleep(1)
 
     def process(self):
-        log.info('Juicer server started (pid=%s)', os.getpid())
+        log.info(_('Juicer server started (pid=%s)'), os.getpid())
         self.start_process = multiprocessing.Process(
             name="master", target=self.start)
         self.start_process.daemon = False
@@ -265,7 +265,7 @@ class JuicerServer:
         self.minion_watch_process.join()
 
     def _terminate_minions(self, _signal, _frame):
-        log.info('Terminating %s active minions', len(self.active_minions))
+        log.info(_('Terminating %s active minions'), len(self.active_minions))
         minions = [m for m in self.active_minions]
         for (wid, aid) in minions:
             self._terminate_minion(wid, aid)
@@ -275,7 +275,7 @@ class JuicerServer:
         """
         This is a handler that reacts to a sigkill signal.
         """
-        log.info('Killing juicer server subprocesses and terminating')
+        log.info(_('Killing juicer server subprocesses and terminating'))
         if self.start_process:
             os.kill(self.start_process.pid, signal.SIGTERM)
         if self.minion_support_process:
