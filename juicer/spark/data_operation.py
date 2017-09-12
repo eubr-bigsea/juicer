@@ -105,10 +105,15 @@ class DataReader(Operation):
                 code.append('schema_{0} = None'.format(self.output))
 
             if self.metadata['format'] in ['CSV', 'TEXT']:
+                # Multiple values not supported yet! See SPARK-17878
                 code.append("url = '{url}'".format(url=self.metadata['url']))
+                null_values = self.null_values
+                if self.metadata.get('treat_as_missing'):
+                    null_values.extend([x.strip() for x in self.metadata.get(
+                        'treat_as_missing').split(',')])
                 null_option = ''.join(
                     [".option('nullValue', '{}')".format(n) for n in
-                     self.null_values]) if self.null_values else ""
+                     set(null_values)]) if null_values else ""
 
                 if self.metadata['format'] == 'CSV':
                     code_csv = dedent("""
@@ -119,8 +124,10 @@ class DataReader(Operation):
                                 inferSchema={infer_schema},
                                 mode='{mode}')""".format(
                         output=self.output,
-                        header=self.header,
-                        sep=self.sep,
+                        header=self.header or self.metadata.get(
+                            'is_first_line_header', False),
+                        sep=self.metadata.get(
+                            'attribute_delimiter') or self.sep,
                         infer_schema=infer_from_data,
                         null_option=null_option,
                         mode=self.mode
