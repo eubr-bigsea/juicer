@@ -50,7 +50,7 @@ class SparkMinion(Minion):
     MNN009 = ('MNN009', 'Workflow specification is missing')
 
     # max idle time allowed in seconds until this minion self termination
-    IDLENESS_TIMEOUT = 10
+    IDLENESS_TIMEOUT = 300
     TIMEOUT = 'timeout'
     MSG_PROCESSED = 'message_processed'
 
