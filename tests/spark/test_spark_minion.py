@@ -272,6 +272,7 @@ def test_minion_perform_execute_reload_code_success():
                 assert state_control.get_app_output_queue_size(
                     app_id) == 1, 'Wrong number of output messages'
 
+                state_control.pop_app_queue(app_id, True, 0)
                 minion.transpiler.transpile = get_side_effect(None, None, 3)
                 minion._process_message()
 

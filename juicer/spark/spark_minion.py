@@ -170,7 +170,6 @@ class SparkMinion(Minion):
         # Get next message
         msg = self.state_control.pop_app_queue(self.app_id,
                 block=True, timeout=self.IDLENESS_TIMEOUT)
-
         if msg is None and self.active_messages == 0:
             self._timeout_termination()
             return
