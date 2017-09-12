@@ -287,9 +287,9 @@ class SparkTranspiler:
             out.write(v.encode('utf8'))
         else:
             out.write(v)
-        stand_config = self.configuration['juicer']['services'].get('stand')
+        stand_config = self.configuration.get('juicer', {}).get(
+            'services', {}).get('stand')
         if stand_config and job_id:
-            # noinspection PyBroadException
             try:
                 stand_service.save_job_source_code(stand_config['url'],
                                                    stand_config['auth_token'],

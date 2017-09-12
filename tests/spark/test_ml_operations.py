@@ -268,6 +268,7 @@ def test_apply_model_operation_success():
 
     expected_code = dedent("""
     # params = {{'predictionCol': 'prediction'}}
+    params = {{}}
     {output_1} = {model}.transform({input_1}, params)
     """.format(
         output_1=out, input_1=in1, model=model))
@@ -660,7 +661,7 @@ def test_classification_model_operation_success():
         def call_transform(df):
             return model_1.transform(df)
         out_task_1 = dataframe_util.LazySparkTransformationDataframe(
-            {output}, {train})
+            {output}, {train}, call_transform)
         """.format(output=n_out['model'],
                    train=n_in['train input data'],
                    algorithm=n_in['algorithm'],

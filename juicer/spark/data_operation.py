@@ -124,8 +124,8 @@ class DataReader(Operation):
                                 inferSchema={infer_schema},
                                 mode='{mode}')""".format(
                         output=self.output,
-                        header=self.header or self.metadata[
-                            'is_first_line_header'],
+                        header=self.header or self.metadata.get(
+                            'is_first_line_header', False),
                         sep=self.metadata.get(
                             'attribute_delimiter') or self.sep,
                         infer_schema=infer_from_data,

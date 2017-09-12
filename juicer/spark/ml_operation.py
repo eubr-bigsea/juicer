@@ -305,6 +305,7 @@ class ApplyModelOperation(Operation):
 
         code = dedent("""
             # Depends on model params = {{'predictionCol': '{new_attr}'}}
+            params = {{}}
             {out} = {in2}.transform({in1}, params)
             """.format(out=output, in1=input_data1, in2=model,
                        new_attr=self.new_attribute))
