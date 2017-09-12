@@ -7,7 +7,6 @@ import logging.config
 import multiprocessing
 import signal
 import sys
-import threading
 import time
 import traceback
 
@@ -29,9 +28,11 @@ from juicer.spark.transpiler import SparkTranspiler
 from juicer.util import dataframe_util, listener_util
 from juicer.workflow.workflow import Workflow
 from juicer.util.spark_template_util import strip_accents
+
 logging.config.fileConfig('logging_config.ini')
 
 log = logging.getLogger(__name__)
+
 
 class SparkMinion(Minion):
     """
@@ -50,13 +51,14 @@ class SparkMinion(Minion):
     MNN009 = ('MNN009', 'Workflow specification is missing')
 
     # max idle time allowed in seconds until this minion self termination
-    IDLENESS_TIMEOUT = 300
+    IDLENESS_TIMEOUT = 60
     TIMEOUT = 'timeout'
     MSG_PROCESSED = 'message_processed'
 
     def __init__(self, redis_conn, workflow_id, app_id, config):
         Minion.__init__(self, redis_conn, workflow_id, app_id, config)
 
+        self.terminate_proc_queue = multiprocessing.Queue()
         self.execute_process = None
         self.ping_process = None
         self.module = None
@@ -87,7 +89,7 @@ class SparkMinion(Minion):
 
         self.executor = ThreadPoolExecutor(max_workers=1)
         self.job_future = None
-        
+
         # self termination timeout
         self.active_messages = 0
         self.self_terminate = True
@@ -105,20 +107,24 @@ class SparkMinion(Minion):
             if name == 'update task':
                 if status == 'RUNNING':
                     listener_util.post_event_to_spark(self.spark_session,
-                            listener_util.TASK_START, data)
+                                                      listener_util.TASK_START,
+                                                      data)
 
                 elif status == 'COMPLETED' or status == 'ERROR':
                     listener_util.post_event_to_spark(self.spark_session,
-                            listener_util.TASK_END, data)
+                                                      listener_util.TASK_END,
+                                                      data)
 
             elif name == 'update job':
                 if status == 'RUNNING':
                     listener_util.post_event_to_spark(self.spark_session,
-                            listener_util.JOB_START, data)
+                                                      listener_util.JOB_START,
+                                                      data)
 
                 elif status == 'COMPLETED' or status == 'ERROR':
                     listener_util.post_event_to_spark(self.spark_session,
-                            listener_util.JOB_END, data)
+                                                      listener_util.JOB_END,
+                                                      data)
 
         return emit_event
 
@@ -134,10 +140,10 @@ class SparkMinion(Minion):
         m = json.dumps(obj)
         self.state_control.push_app_output_queue(self.app_id, m)
 
-    def ping(self):
+    def ping(self, q):
         """ Pings redis to inform master this minion is online """
         log.info('Start ping')
-        while True:
+        while q.empty():
             self._perform_ping()
             time.sleep(5)
 
@@ -149,17 +155,17 @@ class SparkMinion(Minion):
                                              json.dumps(status), ex=30,
                                              nx=False)
 
-    def execute(self):
+    def execute(self, q):
         """
         Starts consuming jobs that must be processed by this minion.
         """
-        while True:
+        while q.empty():
             try:
                 self._process_message_nb()
             except Exception as ee:
                 tb = traceback.format_exception(*sys.exc_info())
                 log.exception('Unhandled error (%s) \n>%s',
-                        ee.message, '>\n'.join(tb))
+                              ee.message, '>\n'.join(tb))
 
     def _process_message(self):
         self._process_message_nb()
@@ -169,7 +175,8 @@ class SparkMinion(Minion):
     def _process_message_nb(self):
         # Get next message
         msg = self.state_control.pop_app_queue(self.app_id,
-                block=True, timeout=self.IDLENESS_TIMEOUT)
+                                               block=True,
+                                               timeout=self.IDLENESS_TIMEOUT)
         if msg is None and self.active_messages == 0:
             self._timeout_termination()
             return
@@ -258,7 +265,7 @@ class SparkMinion(Minion):
         result = True
         try:
             loader = Workflow(workflow, self.config)
-            
+
             # force the spark context creation
             self.get_or_create_spark_session(loader, app_configs)
 
@@ -319,10 +326,10 @@ class SparkMinion(Minion):
 
         except ValueError as ve:
             message = 'Invalid or missing parameters: {}'.format(ve.message)
-            print '#' * 30
+            print('#' * 30)
             import traceback
             traceback.print_exc(file=sys.stdout)
-            print '#' * 30
+            print('#' * 30)
             log.warn(message)
             if self.transpiler.current_task_id is not None:
                 self._emit_event(room=job_id, namespace='/stand')(
@@ -354,7 +361,7 @@ class SparkMinion(Minion):
             result = False
 
         self.message_processed('execute')
-        
+
         return result
 
     # noinspection PyProtectedMember
@@ -371,7 +378,7 @@ class SparkMinion(Minion):
     def get_or_create_spark_session(self, loader, app_configs):
         """
         Get an existing spark session (context) for this minion or create a new
-        one. Ideally the spark session instanciation is done only once, in order
+        one. Ideally the spark session instantiation is done only once, in order
         to support partial workflow executions within the same context.
         """
 
@@ -396,7 +403,7 @@ class SparkMinion(Minion):
             if "HADOOP_HOME" in os.environ:
                 app_configs['driver-library-path'] = \
                     '{}/lib/native/'.format(os.environ.get('HADOOP_HOME'))
-                   
+
             # Juicer listeners configuration.
             listeners = self.config['juicer'].get('listeners', [])
 
@@ -405,18 +412,17 @@ class SparkMinion(Minion):
             for listener in listeners:
                 clazz = listener['class']
                 jars = listener['jars']
-                params = listener['params']
                 classes.append(clazz)
                 all_jars.extend(jars)
                 if clazz == 'lemonade.juicer.spark.LemonadeSparkListener':
                     self.juicer_listener_enabled = True
                     app_configs['lemonade.juicer.eventLog.dir'] = \
-                            listener.get('params', {}).get('log_path',
-                                    '/tmp/juicer-spark-logs')
+                        listener.get('params', {}).get('log_path',
+                                                       '/tmp/juicer-spark-logs')
 
             app_configs['spark.extraListeners'] = ','.join(classes)
             app_configs['spark.driver.extraClassPath'] = ':'.join(all_jars)
-            
+
             # All options passed by application are sent to Spark
             for option, value in app_configs.items():
                 spark_builder = spark_builder.config(option, value)
@@ -490,7 +496,7 @@ class SparkMinion(Minion):
         self._send_delivery(output, status_data, data)
 
         self.message_processed('deliver')
-        
+
         return success
 
     def _read_dataframe_data(self, task_id, output, port):
@@ -554,24 +560,24 @@ class SparkMinion(Minion):
         if not self.self_terminate:
             return
         termination_msg = {
-                'workflow_id': self.workflow_id,
-                'app_id': self.app_id,
-                'type': 'terminate'
-                }
+            'workflow_id': self.workflow_id,
+            'app_id': self.app_id,
+            'type': 'terminate'
+        }
         log.info('Requesting termination (workflow_id=%s,app_id=%s) %s %s',
-                self.workflow_id, self.app_id,
-                ' due idleness timeout. Msg: ', termination_msg)
+                 self.workflow_id, self.app_id,
+                 ' due idleness timeout. Msg: ', termination_msg)
         self.state_control.push_start_queue(json.dumps(termination_msg))
 
     def message_processed(self, msg_type):
         msg_processed = {
-                'workflow_id': self.workflow_id,
-                'app_id': self.app_id,
-                'type': SparkMinion.MSG_PROCESSED,
-                'msg_type': msg_type
-                }
+            'workflow_id': self.workflow_id,
+            'app_id': self.app_id,
+            'type': SparkMinion.MSG_PROCESSED,
+            'msg_type': msg_type
+        }
         self.state_control.push_app_queue(self.app_id,
-                json.dumps(msg_processed))
+                                          json.dumps(msg_processed))
         log.info('Sending message processed message: %s' % msg_processed)
 
     # noinspection PyUnusedLocal
@@ -583,33 +589,42 @@ class SparkMinion(Minion):
         This is a handler that reacts to a sigkill signal. The most feasible
         scenario is when the JuicerServer is demanding the termination of this
         minion. In this case, we stop and release any allocated resource
-        (spark_session) and kill the subprocesses managed in here.
+        (spark_session) and kill the subprocess managed in here.
         """
         if self.spark_session:
             self.spark_session.stop()
             self.spark_session.sparkContext.stop()
             self.spark_session = None
-        if self.execute_process:
-            os.kill(self.execute_process.pid, signal.SIGKILL)
-        if self.ping_process:
-            os.kill(self.ping_process.pid, signal.SIGKILL)
+
+        log.info('Post terminate message in queue')
+        self.terminate_proc_queue.put({'terminate': True})
+
+        # if self.execute_process:
+        #     os.kill(self.execute_process.pid, signal.SIGKILL)
+        # if self.ping_process:
+        #     os.kill(self.ping_process.pid, signal.SIGKILL)
 
         message = self.MNN008[1].format(self.app_id)
         log.info(message)
+
         self._generate_output(message, 'SUCCESS', self.MNN008[0])
         self.state_control.unset_minion_status(self.app_id)
 
         self.self_terminate = False
+        log.info('Minion finished')
 
     def process(self):
         log.info('Spark minion (workflow_id=%s,app_id=%s) started (pid=%s)',
                  self.workflow_id, self.app_id, os.getpid())
+
         self.execute_process = multiprocessing.Process(
-            name="minion", target=self.execute)
+            name="minion", target=self.execute,
+            args=(self.terminate_proc_queue,))
         self.execute_process.daemon = False
 
         self.ping_process = multiprocessing.Process(
-            name="ping process", target=self.ping)
+            name="ping process", target=self.ping,
+            args=(self.terminate_proc_queue,))
         self.ping_process.daemon = False
 
         self.execute_process.start()
@@ -619,6 +634,10 @@ class SparkMinion(Minion):
         # explicitly receiving a SIGKILL signal.
         self.execute_process.join()
         self.ping_process.join()
+        # https://stackoverflow.com/questions/29703063/python-multhttps://stackoverflow.com/questions/29703063/python-multiprocessing-queue-is-emptyiprocessing-queue-is-empty
+        self.terminate_proc_queue.close()
+        self.terminate_proc_queue.join_thread()
+        sys.exit(0)
 
         # TODO: clean state files in the temporary directory after joining
         # (maybe pack it and persist somewhere else ?)
