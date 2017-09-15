@@ -50,11 +50,7 @@ class DataReader(Operation):
                 self.database_id = parameters[self.DATA_SOURCE_ID_PARAM]
                 self.header = parameters.get(
                     self.HEADER_PARAM, False) not in ('0', 0, 'false', False)
-                self.sep = parameters.get(self.SEPARATOR_PARAM, ',')
-                if self.sep in self.SEPARATORS:
-                    self.sep = self.SEPARATORS[self.sep]
-                self.infer_schema = parameters.get(self.INFER_SCHEMA_PARAM,
-                                                   self.INFER_FROM_LIMONERO)
+
                 self.null_values = [v.strip() for v in parameters.get(
                     self.NULL_VALUES_PARAM, '').split(",")]
                 limonero_config = \
@@ -65,6 +61,15 @@ class DataReader(Operation):
 
                 self.metadata = limonero_service.get_data_source_info(
                     url, token, self.database_id)
+
+                self.sep = parameters.get(
+                    self.SEPARATOR_PARAM, self.metadata.get(
+                        'attribute_delimiter', ','))
+
+                if self.sep in self.SEPARATORS:
+                    self.sep = self.SEPARATORS[self.sep]
+                self.infer_schema = parameters.get(self.INFER_SCHEMA_PARAM,
+                                                   self.INFER_FROM_LIMONERO)
 
                 self.mode = parameters.get(self.MODE_PARAM, 'FAILFAST')
             else:
@@ -126,8 +131,7 @@ class DataReader(Operation):
                         output=self.output,
                         header=self.header or self.metadata.get(
                             'is_first_line_header', False),
-                        sep=self.metadata.get(
-                            'attribute_delimiter') or self.sep,
+                        sep=self.sep,
                         infer_schema=infer_from_data,
                         null_option=null_option,
                         mode=self.mode
