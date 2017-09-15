@@ -111,7 +111,7 @@ def emit_schema(task_id, df, emit_event, name):
 def emit_sample(task_id, df, emit_event, name, size=50):
     from juicer.spark.reports import SimpleTableReport
     headers = [f.name for f in df.schema.fields]
-    rows = [[str(col) for col in row] for row in df.take(size)]
+    rows = [[unicode(col) for col in row] for row in df.take(size)]
 
     content = SimpleTableReport(
         'table table-striped table-bordered', headers, rows,
