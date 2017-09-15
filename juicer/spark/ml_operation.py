@@ -523,6 +523,8 @@ class CrossValidationOperation(Operation):
 
                 evaluator = {evaluator}
 
+                estimator.setLabelCol(evaluator.getLabelCol())
+
                 cross_validator = tuning.CrossValidator(
                     estimator=estimator,
                     estimatorParamMaps=grid_builder.build(),

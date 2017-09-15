@@ -37,7 +37,7 @@ def convert_to_csv(row):
         if t in [datetime.datetime]:
             result.append(v.isoformat())
         elif t in [unicode, str]:
-            result.append('"{}"'.format(v))
+            result.append(u'"{}"'.format(v))
         else:
             result.append(str(v))
     return ','.join(result)
