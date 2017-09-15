@@ -272,6 +272,9 @@ def main(spark_session, cached_state, emit_event):
                     value = value_expr.findall(cause.getMessage())[0]
                     raise ValueError('Invalid numeric data in at least one '
                         'data source (attribute: {})'.format(value))
+                elif cause.getMessage() == u'Malformed CSV record':
+                    raise ValueError('At least one input data source is not in '
+                        'the correct format')
                 else:
                     raise
             else:
