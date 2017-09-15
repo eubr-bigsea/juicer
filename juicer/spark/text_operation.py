@@ -149,7 +149,6 @@ class RemoveStopWordsOperation(Operation):
             french, german, hungarian, italian, norwegian, portuguese,
             russian, spanish, swedish, turkish
             """
-            # code = "sw = {}".format(json.dumps(self.stop_word_list))
             code = "sw = StopWordsRemover.loadDefaultStopWords({})".format(
                 self.stop_word_language)
 
@@ -168,7 +167,8 @@ class RemoveStopWordsOperation(Operation):
                    output, json.dumps(zip(self.attributes, self.alias)),
                    self.sw_case_sensitive))
         else:
-            code = "sw = [stop[0].strip() for stop in {}.collect()]".format(
+            code = ("sw = [stop[0].strip() "
+                    "for stop in {}.collect() if stop and stop[0]]").format(
                 self.named_inputs['stop words'])
 
             code += dedent("""
