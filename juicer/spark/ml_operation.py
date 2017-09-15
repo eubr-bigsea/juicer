@@ -451,7 +451,6 @@ class EvaluateModelOperation(Operation):
                            operation_id=self.parameters['operation_id'],
                            title='Evaluation result',
                            display_text=display_text, ))
-            '''
             elif self.named_outputs.get(
                     'evaluator'):  # Used with cross validator
                 code = """
@@ -460,14 +459,14 @@ class EvaluateModelOperation(Operation):
                     labelCol='{label_attr}',
                     metricName='{metric}')
                {metric_out} = None
-
+               {model_output} = None
                 """.format(evaluator=self.evaluator,
                            evaluator_out=self.evaluator_out,
                            prediction_arg=self.param_prediction_arg,
                            prediction_attr=self.prediction_attribute,
                            label_attr=self.label_attribute,
-                           metric=self.metric, metric_out=self.metric_out)
-            '''
+                           metric=self.metric, metric_out=self.metric,
+                           model_output=self.model_out)
             return dedent(code)
 
 
