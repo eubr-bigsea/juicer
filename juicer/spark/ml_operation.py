@@ -1921,8 +1921,11 @@ class SaveModelOperation(Operation):
         else:
             write_mode = ''
 
+        user = self.parameters.get('user', {})
         code = dedent("""
             from juicer.spark.ml_operation import ModelsEvaluationResultList
+            from juicer.service.limonero_service import register_model
+
             all_models = [{models}]
             with_evaluation = [m for m in all_models if isinstance(
                 m, ModelsEvaluationResultList)]
@@ -1946,12 +1949,35 @@ class SaveModelOperation(Operation):
 
                 models_to_save = [m.best for m in all_models]
 
+
             for i, model in enumerate(models_to_save):
                 name = '{path}/{name}.{{0:04d}}'.format(i)
                 model.write().{overwrite}save(name)
+                # Save model information in Limonero
+                model_type = '{{}}.{{}}'.format(model.__module__,
+                    model.__class__.__name__)
+
+                model_payload = {{
+                    "user_id": {user_id},
+                    "user_name": '{user_name}',
+                    "user_login": '{user_login}',
+                    "name": "{name}",
+                    "class_name": model_type,
+                    "storage_id": {storage_id},
+                    "path": "{path}",
+                    "type": "UNSPECIFIED"
+                }}
+                register_model('{url}', model_payload, '{token}')
+
+
         """.format(models=', '.join(models), overwrite=write_mode,
                    path=final_url,
+                   url=url,
+                   token=token,
+                   storage_id=self.storage_id,
                    name=self.name.replace(' ', '_'),
-                   criteria=self.criteria))
-
+                   criteria=self.criteria,
+                   user_id=user.get('id'),
+                   user_name=user.get('name'),
+                   user_login=user.get('login')))
         return code
