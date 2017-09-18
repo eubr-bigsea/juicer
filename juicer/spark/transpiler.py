@@ -390,7 +390,7 @@ class SparkTranspiler:
             'aft-survival-regression':
                 juicer.spark.ml_operation.AFTSurvivalRegressionOperation,
 
-            'save-model': juicer.spark.ml_operation.SaveModel,
+            'save-model': juicer.spark.ml_operation.SaveModelOperation,
 
         }
         data_ops = {

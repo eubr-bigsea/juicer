@@ -495,10 +495,12 @@ class CrossValidationOperation(Operation):
 
         self.output = self.named_outputs.get(
             'scored data', 'scored_data_task_{}'.format(self.order))
-        self.evaluation = self.named_outputs.get(
-            'evaluation', 'evaluation_task_{}'.format(self.order))
+        # self.evaluation = self.named_outputs.get(
+        #     'evaluation', 'evaluation_task_{}'.format(self.order))
         self.models = self.named_outputs.get(
             'models', 'models_task_{}'.format(self.order))
+        self.best_model = self.named_outputs.get(
+            'best model', 'best_model_{}'.format(self.order))
 
     @property
     def get_inputs_names(self):
@@ -507,7 +509,7 @@ class CrossValidationOperation(Operation):
                           self.named_inputs['evaluator']])
 
     def get_output_names(self, sep=", "):
-        return sep.join([self.output, self.evaluation, self.models])
+        return sep.join([self.output, self.best_model, self.models])
 
     def get_data_out_names(self, sep=','):
         return sep.join([self.output])
@@ -531,16 +533,17 @@ class CrossValidationOperation(Operation):
                     evaluator=evaluator, numFolds={folds})
                 cv_model = cross_validator.fit({input_data})
                 fit_data = cv_model.transform({input_data})
-                best_model_{output} = cv_model.bestModel
+                {best_model} = cv_model.bestModel
                 metric_result = evaluator.evaluate(fit_data)
-                {evaluation} = metric_result
+                # evaluation = metric_result
                 {output} = fit_data
                 {models} = None
                 """.format(algorithm=self.named_inputs['algorithm'],
                            input_data=self.named_inputs['input data'],
                            evaluator=self.named_inputs['evaluator'],
-                           evaluation=self.evaluation,
+                           # evaluation=self.evaluation,
                            output=self.output,
+                           best_model=self.best_model,
                            models=self.models,
                            folds=self.num_folds))
 
@@ -1849,7 +1852,7 @@ class IsotonicRegressionOperation(RegressionOperation):
         return code
 
 
-class SaveModel(Operation):
+class SaveModelOperation(Operation):
     NAME_PARAM = 'name'
     PATH_PARAM = 'path'
     STORAGE_PARAM = 'storage'
@@ -1913,6 +1916,11 @@ class SaveModel(Operation):
         if not isinstance(models, list):
             models = [models]
 
+        if self.write_mode == self.WRITE_MODE_OVERWRITE:
+            write_mode = 'overwrite().'
+        else:
+            write_mode = ''
+
         code = dedent("""
             from juicer.spark.ml_operation import ModelsEvaluationResultList
             all_models = [{models}]
@@ -1921,7 +1929,7 @@ class SaveModel(Operation):
             criteria = '{criteria}'
 
             if criteria != 'ALL' and len(with_evaluation) != len(all_models):
-                raise ValueError('You cannot mix models with and witout '
+                raise ValueError('You cannot mix models with and without '
                     'evaluation when saving models and criteria is '
                     'different from ALL')
 
@@ -1940,8 +1948,8 @@ class SaveModel(Operation):
 
             for i, model in enumerate(models_to_save):
                 name = '{path}/{name}.{{0:04d}}'.format(i)
-                model.write.{overwrite}save(name)
-        """.format(models=', '.join(models), overwrite='',
+                model.write().{overwrite}save(name)
+        """.format(models=', '.join(models), overwrite=write_mode,
                    path=final_url,
                    name=self.name.replace(' ', '_'),
                    criteria=self.criteria))
