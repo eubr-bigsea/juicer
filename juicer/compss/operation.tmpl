@@ -19,6 +19,7 @@ from timeit import default_timer as timer
 from pycompss.api.task          import task
 from pycompss.api.parameter     import *
 from pycompss.functions.reduce  import mergeReduce
+from pycompss.api.api import compss_wait_on
 
 {% autopep8 %}
 {% set list_imports = [] %}
@@ -28,10 +29,7 @@ from pycompss.functions.reduce  import mergeReduce
 {% endif %}
 {% endfor %}
 
-{% for imps in list_imports %}
-{{imps}}
-{% endfor %}
-
+{% for imps in list_imports %}{{imps}}{% endfor %}
 
 reload(sys)
 sys.setdefaultencoding('utf8')
