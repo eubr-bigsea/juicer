@@ -484,15 +484,16 @@ def test_cross_validation_partial_operation_success():
                 grid_builder.addGrid(param, values)
 
             evaluator = {evaluator}
+            estimator.setLabelCol(evaluator.getLabelCol())
 
             cross_validator = tuning.CrossValidator(
                 estimator=estimator, estimatorParamMaps=grid_builder.build(),
                 evaluator=evaluator, numFolds={folds})
             cv_model = cross_validator.fit({input_data})
             fit_data = cv_model.transform({input_data})
-            best_model_{output}  = cv_model.bestModel
+            best_model_1  = cv_model.bestModel
             metric_result = evaluator.evaluate(fit_data)
-            {evaluation} = metric_result
+            # {evaluation} = metric_result
             {output} = fit_data
             models_task_1 = None
 
@@ -562,15 +563,16 @@ def test_cross_validation_complete_operation_success():
                 grid_builder.addGrid(param, values)
 
             evaluator = {evaluator}
+            estimator.setLabelCol(evaluator.getLabelCol())
 
             cross_validator = tuning.CrossValidator(
                 estimator=estimator, estimatorParamMaps=grid_builder.build(),
                 evaluator=evaluator, numFolds={folds})
             cv_model = cross_validator.fit({input_data})
             fit_data = cv_model.transform({input_data})
-            best_model_{output}  = cv_model.bestModel
+            best_model_1  = cv_model.bestModel
             metric_result = evaluator.evaluate(fit_data)
-            {output} = metric_result
+            # {output} = metric_result
             {output} = fit_data
             models_task_1 = None
             """.format(algorithm=n_in['algorithm'],
