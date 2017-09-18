@@ -5,7 +5,7 @@
 import argparse
 import errno
 import json
-import logging
+import logging.config
 import multiprocessing
 import signal
 import subprocess
@@ -15,18 +15,16 @@ import urlparse
 
 import os
 import redis
-from redis.exceptions import ConnectionError
 import yaml
 from juicer.exceptions import JuicerException
 from juicer.runner import configuration
 from juicer.runner import juicer_protocol
 from juicer.runner.control import StateControlRedis
-import logging.config
+from redis.exceptions import ConnectionError
 
 os.chdir(os.environ.get('JUICER_HOME', '.'))
 logging.config.fileConfig('logging_config.ini')
-log = logging.getLogger()
-log.setLevel(logging.DEBUG)
+log = logging.getLogger('juicer.runner.juicer_server')
 
 
 class JuicerServer:
@@ -143,13 +141,12 @@ class JuicerServer:
 
         log.info('Message %s forwarded to minion (workflow_id=%s,app_id=%s)',
                  msg_type, workflow_id, app_id)
-        log.info('Message content (workflow_id=%s,app_id=%s): %s',
-                 workflow_id, app_id, msg)
+        # log.info('Message content (workflow_id=%s,app_id=%s): %s',
+        #          workflow_id, app_id, msg)
         self.state_control.push_app_output_queue(app_id, json.dumps(
             {'code': 0,
              'message': 'Minion is processing message %s' % msg_type}))
 
-    # noinspection PyUnusedLocal
     def _start_minion(self, workflow_id, app_id, state_control, restart=False):
 
         minion_id = 'minion_{}_{}'.format(workflow_id, app_id)
@@ -173,11 +170,14 @@ class JuicerServer:
         # In this case we got a request for terminating this workflow
         # execution instance (app). Thus, we are going to explicitly
         # terminate the workflow, clear any remaining metadata and return
-        assert (workflow_id, app_id) in self.active_minions
+        if not (workflow_id, app_id) in self.active_minions:
+            log.warn('(%s, %s) not in active minions ', workflow_id, app_id)
         log.info("Terminating (workflow_id=%s,app_id=%s)",
                  workflow_id, app_id)
-        os.kill(self.active_minions[(workflow_id, app_id)].pid, signal.SIGTERM)
-        del self.active_minions[(workflow_id, app_id)]
+        if (workflow_id, app_id) in self.active_minions:
+            os.kill(self.active_minions[(workflow_id, app_id)].pid,
+                    signal.SIGTERM)
+            del self.active_minions[(workflow_id, app_id)]
 
     def minion_support(self):
         parsed_url = urlparse.urlparse(
