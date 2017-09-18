@@ -243,7 +243,7 @@ class Workflow:
     @staticmethod
     def get_all_ports_operations_tasks():
         params = {
-            'base_url': 'http://beta.ctweb.inweb.org.br',
+            'base_url': 'http://localhost:23456', #'http://beta.ctweb.inweb.org.br',
             'item_path': 'tahiti/operations',
             'token': '123456',
             'item_id': ''
@@ -260,7 +260,7 @@ class Workflow:
     def get_ports_from_operation_tasks(id_operation):
         # Can i put this information here?
         params = {
-            'base_url': 'http://beta.ctweb.inweb.org.br',
+            'base_url':  'http://localhost:23456', #'http://beta.ctweb.inweb.org.br',
             'item_path': 'tahiti/operations',
             'token': '123456',
             'item_id': id_operation

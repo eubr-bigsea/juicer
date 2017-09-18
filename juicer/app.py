@@ -53,7 +53,7 @@ class JuicerSparkService:
 
     @staticmethod
     def get_operations():
-        url = 'http://beta.ctweb.inweb.org.br/tahiti/operations?token=123456'
+        url = 'http://localhost:23456/tahiti/operations?token=123456'#'http://beta.ctweb.inweb.org.br/tahiti/operations?token=123456'
         r = requests.get(url)
         ops = json.loads(r.text)
         result = {}
@@ -73,16 +73,11 @@ class JuicerSparkService:
             # self.redis_conn.hset(_id, 'status', Statuses.RUNNING)
 
             r = requests.get(
-                "http://beta.ctweb.inweb.org.br/tahiti/workflows/{}"
-                "?token=123456".format(self.workflow_id))
+                 "http://localhost:23456/tahiti/workflows/{}"
+                 "?token=123456".format(self.workflow_id))
 
             loader = Workflow(json.loads(r.text))
-            #----- To test workflows in COMPSs
-            with open('/home/lucasmsp/workspace/BigSea/testes_juicer/Workflow_TextTransformations_21848/w21848_Text.json') as json_data:
-                r = json.load(json_data)
-            #----- To test workflows in COMPSs
 
-            loader = Workflow(r)
             # FIXME: Implement validation
             # loader.verify_workflow()
 
