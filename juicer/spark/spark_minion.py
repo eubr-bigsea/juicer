@@ -246,7 +246,7 @@ class SparkMinion(Minion):
 
             # Mark job as running
             self._emit_event(room=job_id, namespace='/stand')(
-                name='update job', message='Running job',
+                name='update job', message=_('Running job'),
                 status='RUNNING', identifier=job_id)
 
             module_name = 'juicer_app_{}_{}_{}'.format(
@@ -282,7 +282,7 @@ class SparkMinion(Minion):
 
             # Mark job as completed
             self._emit_event(room=job_id, namespace='/stand')(
-                name='update job', message='Job finished',
+                name='update job', message=_('Job finished'),
                 status='COMPLETED', identifier=job_id)
 
             # We update the state incrementally, i.e., new task results can be
@@ -404,7 +404,7 @@ class SparkMinion(Minion):
             try:
                 log_level = logging.getLevelName(log.getEffectiveLevel())
                 self.spark_session.sparkContext.setLogLevel(log_level)
-            except Exception as _:
+            except Exception as e:
                 log_level = 'WARN'
                 self.spark_session.sparkContext.setLogLevel(log_level)
 

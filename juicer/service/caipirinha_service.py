@@ -38,7 +38,7 @@ def _emit_saving_visualization(emit_event_fn, task_id):
             'update task', status='RUNNING',
             identifier=task_id,
             task={'id': task_id},
-            message='Saving visualizations',
+            message=_('Saving visualizations'),
             type='STATUS')
 
 
@@ -48,7 +48,7 @@ def _emit_saved_visualization(_type, emit_event_fn, visualization):
             'task result', status='COMPLETED',
             identifier=visualization['task_id'],
             task={'id': visualization['task_id']},
-            message='Result generated',
+            message=_('Result generated'),
             type=_type,
             title=visualization['model'].title,
             operation={'id': visualization['model'].type_id},
@@ -61,7 +61,7 @@ def _emit_completed(emit_event_fn, task_id):
             'update task', status='COMPLETED',
             identifier=task_id,
             task={'id': task_id},
-            message='Visualizations saved',
+            message=_('Visualizations saved'),
             type='STATUS')
 
 

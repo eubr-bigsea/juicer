@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2017-09-12 18:02-0300\n"
-"PO-Revision-Date: 2017-09-12 18:13-0300\n"
+"POT-Creation-Date: 2017-09-19 15:10-0300\n"
+"PO-Revision-Date: 2017-09-19 15:14-0300\n"
 "Last-Translator: \n"
 "Language-Team: pt_BR <LL@li.org>\n"
 "Language: pt_BR\n"
@@ -176,6 +176,18 @@ msgstr "Consultando a URL Caipirinha: %s"
 #: juicer/service/caipirinha_service.py:30
 msgid "Error in URL {}: HTTP {} - {}"
 msgstr "Erro na URL {}: HTTP {} - {}"
+
+#: juicer/service/caipirinha_service.py:41
+msgid "Saving visualizations"
+msgstr "Salvando visualizações"
+
+#: juicer/service/caipirinha_service.py:51
+msgid "Result generated"
+msgstr "Resultado gerado"
+
+#: juicer/service/caipirinha_service.py:64
+msgid "Visualizations saved"
+msgstr "Visualização salva"
 
 #: juicer/service/limonero_service.py:31
 #, python-format
@@ -407,10 +419,18 @@ msgstr "Mensagem de término recebida (job_id=%s)"
 msgid "Terminate message received (app=%s)"
 msgstr "Mensagem de término recebida (app=%s)"
 
+#: juicer/spark/spark_minion.py:249
+msgid "Running job"
+msgstr "Executando tarefa"
+
 #: juicer/spark/spark_minion.py:270
 #, python-format
 msgid "Objects in memory after loading module: %s"
 msgstr "Objetos na memoria depois de carregar o  módulo: %s"
+
+#: juicer/spark/spark_minion.py:285
+msgid "Job finished"
+msgstr "Tarefa finalizada"
 
 #: juicer/spark/spark_minion.py:303
 msgid "Invalid or missing parameters: {}"
