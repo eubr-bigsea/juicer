@@ -20,7 +20,7 @@ monkey.patch_all()
 logging.config.fileConfig('logging_config.ini')
 
 log = logging.getLogger()
-log.setLevel(_(logging.INFO))
+log.setLevel(logging.INFO)
 
 
 def set_non_blocking(fd):
