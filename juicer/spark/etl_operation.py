@@ -283,6 +283,7 @@ class JoinOperation(Operation):
     JOIN_TYPE_PARAM = 'join_type'
     LEFT_ATTRIBUTES_PARAM = 'left_attributes'
     RIGHT_ATTRIBUTES_PARAM = 'right_attributes'
+    ALIASES_PARAM = 'aliases'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
@@ -300,29 +301,59 @@ class JoinOperation(Operation):
             self.left_attributes = parameters.get(self.LEFT_ATTRIBUTES_PARAM)
             self.right_attributes = parameters.get(self.RIGHT_ATTRIBUTES_PARAM)
 
+        self.aliases = [
+            alias.strip() for alias in
+            parameters.get(self.ALIASES_PARAM, 'ds0_, ds1_').split(',')]
+
+        if len(self.aliases) != 2:
+            raise ValueError('You must inform 2 values for alias')
+
+        self.output = self.named_outputs.get(
+            'output data', 'out_data_{}'.format(self.order))
+
+    def get_data_out_names(self, sep=','):
+        return self.output
+
     def generate_code(self):
-        output = self.named_outputs.get(
-            'output data', 'intersected_data_{}'.format(self.order))
 
         input_data1 = self.named_inputs['input data 1']
         input_data2 = self.named_inputs['input data 2']
 
         on_clause = zip(self.left_attributes, self.right_attributes)
-        join_condition = ', '.join(["{in1}['{p0}'] == {in2}['{p1}']".format(
-            in1=input_data1, p0=pair[0], in2=input_data2, p1=pair[1]) for pair
-                                    in on_clause])
+        if self.match_case:
+            join_condition = ', '.join(
+                [("functions.lower(in0_renamed['{a0}{p0}']) == "
+                  "functions.lower(in1_renamed['{a1}{p1}'])").format(
+                    in0=input_data1, p0=pair[0], in1=input_data2, p1=pair[1],
+                    a0=self.aliases[0], a1=self.aliases[1]
+                ) for pair in on_clause])
+        else:
+            join_condition = ', '.join(
+                ["in0_renamed['{a0}{p0}'] == in1_renamed['{a1}{p1}']".format(
+                    in0=input_data1, p0=pair[0], in1=input_data2, p1=pair[1],
+                    a0=self.aliases[0], a1=self.aliases[1])
+                 for pair in on_clause])
 
         code = """
+            def _rename_attributes(df, prefix):
+                result = df
+                for col in df.columns:
+                    result = result.withColumnRenamed(col, '{{}}{{}}'.format(
+                        prefix, col))
+                return result
+            in0_renamed = _rename_attributes({in0}, '{a0}')
+            in1_renamed = _rename_attributes({in1}, '{a1}')
             condition = [{cond}]
-            {out} = {in1}.join({in2}, on=condition, how='{how}')""".format(
-            out=output, cond=join_condition, in1=input_data1, in2=input_data2,
-            how=self.join_type)
+            {out} = in0_renamed.join(
+                in1_renamed, on=condition, how='{how}')""".format(
+            out=self.output, cond=join_condition, in0=input_data1,
+            in1=input_data2, how=self.join_type, a0=self.aliases[0],
+            a1=self.aliases[1])
 
-        # @TODO: This may not work
         if self.keep_right_keys in ["False", "false", False]:
             for column in self.right_attributes:
-                code += """.drop({in2}['{col}'])""".format(in2=input_data2,
-                                                           col=column)
+                code += """.drop(in1_renamed['{a1}{col}'])""".format(
+                    in1=input_data2, col=column, a1=self.aliases[1])
 
         return dedent(code)
 
@@ -767,25 +798,49 @@ class AddColumnsOperation(Operation):
     Merge two data frames, column-wise, similar to the command paste in Linux.
     Implementation based on post http://stackoverflow.com/a/40510320/1646932
     """
+    ALIASES_PARAM = 'aliases'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
         self.has_code = len(self.named_inputs) == 2
+        self.aliases = [
+            alias.strip() for alias in
+            parameters.get(self.ALIASES_PARAM, 'ds0_, ds1_').split(',')]
+
+        if len(self.aliases) != 2:
+            raise ValueError('You must inform 2 values for alias')
+
+        self.output = self.named_outputs.get(
+            'output data', 'add_col_data_{}'.format(self.order))
+
+    def get_data_out_names(self, sep=','):
+        return self.output
 
     def generate_code(self):
-        output = self.named_outputs.get('output data', 'add_col_data_{}'.format(
-            self.order))
         input_data1 = self.named_inputs['input data 1']
         input_data2 = self.named_inputs['input data 2']
 
         code = """
-            tmp_window = Window().orderBy()
-            indexer1 = {input1}.withColumn("_inx", rowNumber().over(tmp_window))
-            indexer2 = {input2}.withColumn("_inx", rowNumber().over(tmp_window))
-            {out} = indexer1.join(indexer2, indexer1._inx == indexer2._inx,
-                                         'inner')\\
-                .drop(indexer1._inx).drop(indexer2._inx)
-            """.format(input1=input_data1, input2=input_data2, out=output)
+            
+            def _add_column_index(df, prefix):
+                # Create new attribute names
+                old_attrs = ['{{}}{{}}'.format(prefix, name)
+                    for name in df.schema.names]
+                new_attrs = old_attrs + ['_inx']
+            
+                # Add attribute index
+                return df.rdd.zipWithIndex().map(
+                    lambda (row, inx): row + (inx,)).toDF(new_attrs)
+
+            input1_indexed = _add_column_index({input1}, '{a1}')
+            input2_indexed = _add_column_index({input2}, '{a2}')
+
+            {out} = input1_indexed.join(
+                input2_indexed,
+                input1_indexed._inx == input2_indexed._inx,
+                'inner').drop(input1_indexed._inx).drop(input2_indexed._inx)
+            """.format(input1=input_data1, input2=input_data2, out=self.output,
+                       a1=self.aliases[0], a2=self.aliases[1])
         return dedent(code)
 
 
