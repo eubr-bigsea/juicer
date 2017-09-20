@@ -391,10 +391,12 @@ class SparkTranspiler:
                 juicer.spark.ml_operation.AFTSurvivalRegressionOperation,
 
             'save-model': juicer.spark.ml_operation.SaveModelOperation,
+            'load-model': juicer.spark.ml_operation.LoadModelOperation,
 
         }
         data_ops = {
-            'change-attribute': juicer.spark.data_operation.ChangeAttributeOperation,
+            'change-attribute':
+                juicer.spark.data_operation.ChangeAttributeOperation,
             'data-reader': juicer.spark.data_operation.DataReader,
             'data-writer': juicer.spark.data_operation.SaveOperation,
             'external-input':
