@@ -38,16 +38,16 @@ class SparkMinion(Minion):
     Controls the execution of Spark code in Lemonade Juicer.
     """
     # Errors and messages
-    MNN000 = ('MNN000', 'Success.')
-    MNN001 = ('MNN001', 'Port output format not supported.')
-    MNN002 = ('MNN002', 'Success getting data from task.')
-    MNN003 = ('MNN003', 'State does not exists, processing app.')
-    MNN004 = ('MNN004', 'Invalid port.')
-    MNN005 = ('MNN005', 'Unable to retrieve data because a previous error.')
-    MNN006 = ('MNN006', 'Invalid Python code or incorrect encoding: {}')
-    MNN007 = ('MNN007', 'Job {} was canceled')
-    MNN008 = ('MNN008', 'App {} was terminated')
-    MNN009 = ('MNN009', 'Workflow specification is missing')
+    MNN000 = ('MNN000', _('Success.'))
+    MNN001 = ('MNN001', _('Port output format not supported.'))
+    MNN002 = ('MNN002', _('Success getting data from task.'))
+    MNN003 = ('MNN003', _('State does not exists, processing app.'))
+    MNN004 = ('MNN004', _('Invalid port.'))
+    MNN005 = ('MNN005', _('Unable to retrieve data because a previous error.'))
+    MNN006 = ('MNN006', _('Invalid Python code or incorrect encoding: {}'))
+    MNN007 = ('MNN007', _('Job {} was canceled'))
+    MNN008 = ('MNN008', _('App {} was terminated'))
+    MNN009 = ('MNN009', _('Workflow specification is missing'))
 
     # max idle time allowed in seconds until this minion self termination
     IDLENESS_TIMEOUT = 600
@@ -75,9 +75,9 @@ class SparkMinion(Minion):
         spark_home = os.environ.get('SPARK_HOME')
         if spark_home:
             sys.path.append(os.path.join(spark_home, 'python'))
-            self.log.info('SPARK_HOME set to %s', spark_home)
+            self.log.info(_('SPARK_HOME set to %s'), spark_home)
         else:
-            self.log.warn('SPARK_HOME environment variable is not defined')
+            self.log.warn(_('SPARK_HOME environment variable is not defined'))
 
         self.spark_session = None
         signal.signal(signal.SIGTERM, self._terminate)
@@ -95,7 +95,7 @@ class SparkMinion(Minion):
 
     def _emit_event(self, room, namespace):
         def emit_event(name, message, status, identifier, **kwargs):
-            self.log.debug('Emit %s %s %s %s', name, message, status,
+            self.log.debug(_('Emit %s %s %s %s'), name, message, status,
                            identifier)
             data = {'message': message, 'status': status, 'id': identifier}
             data.update(kwargs)
@@ -195,7 +195,7 @@ class SparkMinion(Minion):
 
         # Extract the message type
         msg_type = msg_info['type']
-        self._generate_output('Processing message %s for app %s' %
+        self._generate_output(_('Processing message %s for app %s') %
                               (msg_type, self.app_id))
 
         # Forward the message according to its purpose
@@ -219,7 +219,7 @@ class SparkMinion(Minion):
 
             self.job_future = self._execute_future(job_id, workflow,
                                                    app_configs)
-            self.log.info('Execute message finished')
+            self.log.info(_('Execute message finished'))
         elif msg_type == juicer_protocol.DELIVER:
             self.active_messages += 1
             log.info('Deliver message received')
@@ -240,10 +240,11 @@ class SparkMinion(Minion):
         elif msg_type == juicer_protocol.TERMINATE:
             job_id = msg_info.get('job_id', None)
             if job_id:
-                self.log.info('Terminate message received (job_id=%s)', job_id)
+                self.log.info(_('Terminate message received (job_id=%s)'),
+                                job_id)
                 self.cancel_job(job_id)
             else:
-                self.log.info('Terminate message received (app=%s)',
+                self.log.info(_('Terminate message received (app=%s)'),
                               self.app_id)
                 self.terminate()
 
@@ -251,8 +252,8 @@ class SparkMinion(Minion):
             self.active_messages -= 1
 
         else:
-            self.log.warn('Unknown message type %s', msg_type)
-            self._generate_output('Unknown message type %s' % msg_type)
+            self.log.warn(_('Unknown message type %s'), msg_type)
+            self._generate_output(_('Unknown message type %s') % msg_type)
 
     def _execute_future(self, job_id, workflow, app_configs):
         return self.executor.submit(self._perform_execute,
@@ -321,7 +322,7 @@ class SparkMinion(Minion):
 
         except UnicodeEncodeError as ude:
             message = self.MNN006[1].format(ude)
-            self.log.warn(message)
+            self.log.warn(_(message))
             # Mark job as failed
             self._emit_event(room=job_id, namespace='/stand')(
                 name='update job', message=message,
@@ -358,7 +359,7 @@ class SparkMinion(Minion):
         except Exception as ee:
             import traceback
             tb = traceback.format_exception(*sys.exc_info())
-            self.log.exception('Unhandled error')
+            self.log.exception(_('Unhandled error'))
             self._emit_event(room=job_id, namespace='/stand')(
                 name='update job', message='\n'.join(tb),
                 status='ERROR', identifier=job_id)
@@ -389,7 +390,7 @@ class SparkMinion(Minion):
 
         from pyspark.sql import SparkSession
         if not self.is_spark_session_available():
-            self.log.info("Creating a new Spark session")
+            self.log.info(_("Creating a new Spark session"))
 
             app_name = '%s(workflow_id=%s,app_id=%s)' % (
                 strip_accents(loader.workflow.get('name', '')),
@@ -401,7 +402,7 @@ class SparkMinion(Minion):
             # Use config file default configurations to set up Spark session
             for option, value in self.config['juicer'].get('spark', {}).items():
                 if value is not None:
-                    self.log.info('Setting spark configuration %s', option)
+                    self.log.info(_('Setting spark configuration %s'), option)
                     spark_builder = spark_builder.config(option, value)
 
             # Set hadoop native libs, if available
