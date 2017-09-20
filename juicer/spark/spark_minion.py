@@ -37,17 +37,6 @@ class SparkMinion(Minion):
     """
     Controls the execution of Spark code in Lemonade Juicer.
     """
-    # Errors and messages
-    MNN000 = ('MNN000', _('Success.'))
-    MNN001 = ('MNN001', _('Port output format not supported.'))
-    MNN002 = ('MNN002', _('Success getting data from task.'))
-    MNN003 = ('MNN003', _('State does not exists, processing app.'))
-    MNN004 = ('MNN004', _('Invalid port.'))
-    MNN005 = ('MNN005', _('Unable to retrieve data because a previous error.'))
-    MNN006 = ('MNN006', _('Invalid Python code or incorrect encoding: {}'))
-    MNN007 = ('MNN007', _('Job {} was canceled'))
-    MNN008 = ('MNN008', _('App {} was terminated'))
-    MNN009 = ('MNN009', _('Workflow specification is missing'))
 
     # max idle time allowed in seconds until this minion self termination
     IDLENESS_TIMEOUT = 600
@@ -92,11 +81,29 @@ class SparkMinion(Minion):
         # self termination timeout
         self.active_messages = 0
         self.self_terminate = True
+        # Errors and messages
+        self.MNN000 = ('MNN000', _('Success.'))
+        self.MNN001 = ('MNN001', _('Port output format not supported.'))
+        self.MNN002 = ('MNN002', _('Success getting data from task.'))
+        self.MNN003 = ('MNN003', _('State does not exists, processing app.'))
+        self.MNN004 = ('MNN004', _('Invalid port.'))
+        self.MNN005 = ('MNN005',
+                       _('Unable to retrieve data because a previous error.'))
+        self.MNN006 = ('MNN006',
+                       _('Invalid Python code or incorrect encoding: {}'))
+        self.MNN007 = ('MNN007', _('Job {} was canceled'))
+        self.MNN008 = ('MNN008', _('App {} was terminated'))
+        self.MNN009 = ('MNN009', _('Workflow specification is missing'))
+
+        # Used in the template file, declared here to gettext detect them
+        self.msgs = [
+            _('Task running'), _('Task completed'),
+        ]
 
     def _emit_event(self, room, namespace):
         def emit_event(name, message, status, identifier, **kwargs):
             log.debug(_('Emit %s %s %s %s'), name, message, status,
-                           identifier)
+                      identifier)
             data = {'message': message, 'status': status, 'id': identifier}
             data.update(kwargs)
             self.mgr.emit(name, data=data, room=str(room), namespace=namespace)
@@ -164,8 +171,8 @@ class SparkMinion(Minion):
                 self._process_message_nb()
             except Exception as ee:
                 tb = traceback.format_exception(*sys.exc_info())
-                log.exception('Unhandled error (%s) \n>%s',
-                              ee.message, '>\n'.join(tb))
+                self.log.exception(_('Unhandled error (%s) \n>%s'),
+                                   ee.message, '>\n'.join(tb))
 
     def _process_message(self):
         self._process_message_nb()
@@ -241,11 +248,11 @@ class SparkMinion(Minion):
             job_id = msg_info.get('job_id', None)
             if job_id:
                 log.info(_('Terminate message received (job_id=%s)'),
-                                job_id)
+                         job_id)
                 self.cancel_job(job_id)
             else:
                 log.info(_('Terminate message received (app=%s)'),
-                              self.app_id)
+                         self.app_id)
                 self.terminate()
 
         elif msg_type == SparkMinion.MSG_PROCESSED:
@@ -446,8 +453,8 @@ class SparkMinion(Minion):
                 # self.spark_session.sparkContext.addPyFile(
                 #    self.transpiler.DIST_ZIP_FILE)
 
-        log.info("Minion is using '%s' as Spark master",
-                      self.spark_session.sparkContext.master)
+        log.info(_("Minion is using '%s' as Spark master"),
+                 self.spark_session.sparkContext.master)
         return self.spark_session
 
     def _send_to_output(self, data):
