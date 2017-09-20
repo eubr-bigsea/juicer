@@ -40,7 +40,7 @@ class FeatureIndexerOperation(Operation):
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
         else:
             raise ValueError(
-                "Parameter '{}' must be informed for task {}".format(
+                _("Parameter '{}' must be informed for task {}").format(
                     self.ATTRIBUTES_PARAM, self.__class__))
         self.type = self.parameters.get(self.TYPE_PARAM, self.TYPE_STRING)
         self.alias = [alias.strip() for alias in
@@ -48,8 +48,8 @@ class FeatureIndexerOperation(Operation):
 
         self.max_categories = int(parameters.get(self.MAX_CATEGORIES_PARAM, 0))
         if not (self.max_categories >= 0):
-            msg = "Parameter '{}' must be in " \
-                  "range [x>=0] for task {}" \
+            msg = ("Parameter '{}' must be in " \
+                  "range [x>=0] for task {}") \
                 .format(self.MAX_CATEGORIES_PARAM, __name__)
             raise ValueError(msg)
 
@@ -112,7 +112,7 @@ class FeatureIndexerOperation(Operation):
         else:
             # Only if the field be open to type
             raise ValueError(
-                "Parameter type has an invalid value {}".format(self.type))
+                _("Parameter type has an invalid value {}").format(self.type))
 
         return dedent(code)
 
@@ -140,14 +140,14 @@ class IndexToStringOperation(Operation):
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
         else:
             raise ValueError(
-                "Parameter '{}' must be informed for task {}".format(
+                _("Parameter '{}' must be informed for task {}").format(
                     self.ATTRIBUTES_PARAM, self.__class__))
 
         if self.ORIGINAL_NAMES_PARAM in parameters:
             self.original_names = parameters.get(self.ORIGINAL_NAMES_PARAM)
         else:
             raise ValueError(
-                "Parameter '{}' must be informed for task {}".format(
+                _("Parameter '{}' must be informed for task {}").format(
                     self.ORIGINAL_NAMES_PARAM, self.__class__))
         self.alias = [alias.strip() for alias in
                       parameters.get(self.ALIAS_PARAM, '').split(',')]
@@ -203,7 +203,7 @@ class OneHotEncoderOperation(Operation):
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
         else:
             raise ValueError(
-                "Parameter '{}' must be informed for task {}".format(
+                _("Parameter '{}' must be informed for task {}").format(
                     self.ATTRIBUTES_PARAM, self.__class__))
         self.alias = [alias.strip() for alias in
                       parameters.get(self.ALIAS_PARAM, '').split(',')]
@@ -259,7 +259,7 @@ class FeatureAssemblerOperation(Operation):
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
         else:
             raise ValueError(
-                "Parameter '{}' must be informed for task {}".format(
+                _("Parameter '{}' must be informed for task {}").format(
                     self.ATTRIBUTES_PARAM, self.__class__))
         self.alias = parameters.get(self.ALIAS_PARAM, 'features')
 
@@ -291,7 +291,7 @@ class ApplyModelOperation(Operation):
                                             'new_attribute')
         if not self.has_code and len(self.named_outputs) > 0:
             raise ValueError(
-                'Model is being used, but at least one input is missing')
+                _('Model is being used, but at least one input is missing'))
 
     def get_data_out_names(self, sep=','):
         return self.output
@@ -353,7 +353,7 @@ class EvaluateModelOperation(Operation):
                 self.metric != '']):
             pass
         else:
-            msg = "Parameters '{}', '{}' and '{}' must be informed for task {}"
+            msg = _("Parameters '{}', '{}' and '{}' must be informed for task {}")
             raise ValueError(msg.format(
                 self.PREDICTION_ATTRIBUTE_PARAM, self.LABEL_ATTRIBUTE_PARAM,
                 self.METRIC_PARAM, self.__class__))
@@ -361,7 +361,7 @@ class EvaluateModelOperation(Operation):
             self.evaluator = self.METRIC_TO_EVALUATOR[self.metric][0]
             self.param_prediction_arg = self.METRIC_TO_EVALUATOR[self.metric][1]
         else:
-            raise ValueError('Invalid metric value {}'.format(self.metric))
+            raise ValueError(_('Invalid metric value {}').format(self.metric))
 
         self.has_code = (
             (len(self.named_inputs) > 0 and len(self.named_outputs) > 0) or
@@ -378,7 +378,7 @@ class EvaluateModelOperation(Operation):
         if not self.has_code and self.named_outputs.get(
                 'evaluated model') is not None:
             raise ValueError(
-                'Model is being used, but at least one input is missing')
+                _('Model is being used, but at least one input is missing'))
 
     def get_data_out_names(self, sep=','):
         return ''
@@ -604,7 +604,7 @@ class ClassificationModelOperation(Operation):
 
         if not all([self.FEATURES_ATTRIBUTE_PARAM in parameters,
                     self.LABEL_ATTRIBUTE_PARAM in parameters]):
-            msg = "Parameters '{}' and '{}' must be informed for task {}"
+            msg = _("Parameters '{}' and '{}' must be informed for task {}")
             raise ValueError(msg.format(
                 self.FEATURES_ATTRIBUTE_PARAM, self.LABEL_ATTRIBUTE_PARAM,
                 self.__class__.__name__))
@@ -618,7 +618,7 @@ class ClassificationModelOperation(Operation):
                                        'model_task_{}'.format(self.order))
         if not self.has_code and len(self.named_outputs) > 0:
             raise ValueError(
-                'Model is being used, but at least one input is missing')
+                _('Model is being used, but at least one input is missing'))
 
     def get_data_out_names(self, sep=','):
         return self.output
@@ -696,7 +696,7 @@ class ClassifierOperation(Operation):
             return "\n".join(code)
         else:
             raise ValueError(
-                'Parameter output must be informed for classifier {}'.format(
+                _('Parameter output must be informed for classifier {}').format(
                     self.__class__))
 
 
@@ -790,7 +790,7 @@ class ClusteringModelOperation(Operation):
         self.has_code = len(named_outputs) > 0 and len(named_inputs) == 2
 
         if self.FEATURES_ATTRIBUTE_PARAM not in parameters:
-            msg = "Parameter '{}' must be informed for task {}"
+            msg = _("Parameter '{}' must be informed for task {}")
             raise ValueError(msg.format(
                 self.FEATURES_ATTRIBUTE_PARAM, self.__class__))
 
@@ -937,7 +937,7 @@ class LdaClusteringOperation(ClusteringOperation):
                                         self.ONLINE_OPTIMIZER)
         if self.optimizer not in [self.ONLINE_OPTIMIZER, self.EM_OPTIMIZER]:
             raise ValueError(
-                'Invalid optimizer value {} for class {}'.format(
+                _('Invalid optimizer value {} for class {}').format(
                     self.optimizer, self.__class__))
 
         self.max_iterations = parameters.get(self.MAX_ITERATIONS_PARAM, 10)
@@ -1006,7 +1006,7 @@ class KMeansClusteringOperation(ClusteringOperation):
             ]
         else:
             raise ValueError(
-                'Invalid type {} for class {}'.format(
+                _('Invalid type {} for class {}').format(
                     self.type, self.__class__))
 
         self.has_code = len(named_outputs) > 0
@@ -1095,7 +1095,7 @@ class RecommendationModel(Operation):
 
         if not all([self.RANK_PARAM in parameters['workflow_json'],
                     self.RATING_COL_PARAM in parameters['workflow_json']]):
-            msg = "Parameters '{}' and '{}' must be informed for task {}"
+            msg = _("Parameters '{}' and '{}' must be informed for task {}")
             raise ValueError(msg.format(
                 self.RANK_PARAM, self.RATING_COL_PARAM,
                 self.__class__.__name__))
@@ -1130,7 +1130,7 @@ class RecommendationModel(Operation):
 
             return dedent(code)
         else:
-            msg = "Parameters '{}' and '{}' must be informed for task {}"
+            msg = _("Parameters '{}' and '{}' must be informed for task {}")
             raise ValueError(msg.format('[]inputs',
                                         '[]outputs',
                                         self.__class__))
@@ -1266,7 +1266,7 @@ class LogisticRegressionModel(Operation):
 
         if not all([self.FEATURES_PARAM in parameters['workflow_json'],
                     self.LABEL_PARAM in parameters['workflow_json']]):
-            msg = "Parameters '{}' and '{}' must be informed for task {}"
+            msg = _("Parameters '{}' and '{}' must be informed for task {}")
             raise ValueError(msg.format(
                 self.FEATURES_PARAM, self.LABEL_PARAM,
                 self.__class__.__name__))
@@ -1296,7 +1296,7 @@ class LogisticRegressionModel(Operation):
 
             return dedent(code)
         else:
-            msg = "Parameters '{}' and '{}' must be informed for task {}"
+            msg = _("Parameters '{}' and '{}' must be informed for task {}")
             raise ValueError(msg.format('[]inputs',
                                         '[]outputs',
                                         self.__class__))
@@ -1337,7 +1337,7 @@ class RegressionModelOperation(Operation):
 
             if not all([self.FEATURES_PARAM in parameters,
                         self.LABEL_PARAM in parameters]):
-                msg = "Parameters '{}' and '{}' must be informed for task {}"
+                msg = _("Parameters '{}' and '{}' must be informed for task {}")
                 raise ValueError(msg.format(
                     self.FEATURES_PARAM, self.LABEL_PARAM,
                     self.__class__.__name__))
@@ -1427,8 +1427,8 @@ class RegressionModelOperation(Operation):
 
             except IllegalArgumentException as iae:
                 if 'org.apache.spark.ml.linalg.Vector' in iae:
-                    msg = ('Assemble features in a vector before using a '
-                        'regression model')
+                    msg = (_('Assemble features in a vector before using a '
+                        'regression model'))
                     raise ValueError(msg)
                 else:
                     raise
@@ -1462,7 +1462,7 @@ class RegressionOperation(Operation):
     def read_common_params(self, parameters):
         if not all([self.LABEL_PARAM in parameters,
                     self.FEATURES_PARAM in parameters]):
-            msg = "Parameters '{}' and '{}' must be informed for task {}"
+            msg = _("Parameters '{}' and '{}' must be informed for task {}")
             raise ValueError(msg.format(
                 self.FEATURES_PARAM, self.LABEL_PARAM,
                 self.__class__))
@@ -1526,7 +1526,7 @@ class LinearRegressionOperation(RegressionOperation):
             return code
         else:
             raise ValueError(
-                'Parameter output must be informed for classifier {}'.format(
+                _('Parameter output must be informed for classifier {}').format(
                     self.__class__))
 
 
@@ -1604,7 +1604,7 @@ class GeneralizedLinearRegressionOperation(RegressionOperation):
             return "\n".join(code)
         else:
             raise ValueError(
-                'Parameter output must be informed for classifier {}'.format(
+                _('Parameter output must be informed for classifier {}').format(
                     self.__class__))
 
 
@@ -1667,7 +1667,7 @@ class DecisionTreeRegressionOperation(RegressionOperation):
             return "\n".join(code)
         else:
             raise ValueError(
-                'Parameter output must be informed for classifier {}'.format(
+                _('Parameter output must be informed for classifier {}').format(
                     self.__class__))
 
 
@@ -1726,7 +1726,7 @@ class GBTRegressorOperation(RegressionOperation):
             return "\n".join(code)
         else:
             raise ValueError(
-                'Parameter output must be informed for classifier {}'.format(
+                _('Parameter output must be informed for classifier {}').format(
                     self.__class__))
 
 
@@ -1781,7 +1781,7 @@ class AFTSurvivalRegressionOperation(RegressionOperation):
             return "\n".join(code)
         else:
             raise ValueError(
-                'Parameter output must be informed for classifier {}'.format(
+                _('Parameter output must be informed for classifier {}').format(
                     self.__class__))
 
 
@@ -1878,8 +1878,8 @@ class SaveModelOperation(Operation):
         self.storage_id = parameters.get(self.STORAGE_PARAM)
 
         if self.name is None or self.storage_id is None:
-            msg = 'Missing parameters. Check if values for parameters {} ' \
-                  'were informed'
+            msg = _('Missing parameters. Check if values for parameters {} ' \
+                  'were informed')
             raise ValueError(
                 msg.format(', '.join([self.NAME_PARAM, self.STORAGE_PARAM])))
 
@@ -1890,7 +1890,7 @@ class SaveModelOperation(Operation):
                                          self.WRITE_MODE_ERROR)
         if self.write_mode not in self.WRITE_MODE_OPTIONS:
             raise ValueError(
-                'Invalid value for parameter {param}: {value}'.format(
+                _('Invalid value for parameter {param}: {value}').format(
                     param=self.WRITE_MODE_PARAM, value=self.write_mode))
 
         self.criteria = parameters.get(self.SAVE_CRITERIA_PARAM,
@@ -1898,7 +1898,7 @@ class SaveModelOperation(Operation):
 
         if self.criteria not in self.CRITERIA_OPTIONS:
             raise ValueError(
-                'Invalid value for parameter {param}: {value}'.format(
+                _('Invalid value for parameter {param}: {value}').format(
                     param=self.SAVE_CRITERIA_PARAM, value=self.criteria))
 
         self.has_code = len(named_inputs) > 0
@@ -1933,10 +1933,9 @@ class SaveModelOperation(Operation):
             criteria = '{criteria}'
 
             if criteria != 'ALL' and len(with_evaluation) != len(all_models):
-                raise ValueError('You cannot mix models with and without '
+                raise ValueError(_('You cannot mix models with and without '
                     'evaluation (e.g. indexers) when saving models '
-                    'and criteria is different from ALL')
-
+                    'and criteria is different from ALL'))
             if criteria == 'ALL':
                 models_to_save = list(itertools.chain.from_iterable(
                     map(lambda m: m.models if isinstance(m,
@@ -1944,7 +1943,7 @@ class SaveModelOperation(Operation):
             elif criteria == 'BEST':
                 metrics_used = set([m.metric_name for m in all_models])
                 if len(metrics_used) > 1:
-                    msg = ('You cannot mix models built using with '
+                    msg = _('You cannot mix models built using with '
                             'different metrics ({{}}).')
                     raise ValueError(msg.format(', '.join(metrics_used)))
 
