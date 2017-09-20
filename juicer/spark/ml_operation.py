@@ -6,6 +6,7 @@ from textwrap import dedent
 
 from juicer.operation import Operation, ReportOperation
 from juicer.service import limonero_service
+from juicer.service.limonero_service import query_limonero
 
 log = logging.getLogger()
 log.setLevel(logging.DEBUG)
@@ -1933,8 +1934,8 @@ class SaveModelOperation(Operation):
 
             if criteria != 'ALL' and len(with_evaluation) != len(all_models):
                 raise ValueError('You cannot mix models with and without '
-                    'evaluation when saving models and criteria is '
-                    'different from ALL')
+                    'evaluation (e.g. indexers) when saving models '
+                    'and criteria is different from ALL')
 
             if criteria == 'ALL':
                 models_to_save = list(itertools.chain.from_iterable(
@@ -1949,29 +1950,39 @@ class SaveModelOperation(Operation):
 
                 models_to_save = [m.best for m in all_models]
 
-
-            for i, model in enumerate(models_to_save):
-                name = '{path}/{name}.{{0:04d}}'.format(i)
-                model.write().{overwrite}save(name)
+            def _save_model(model_to_save, model_path, model_name):
+                final_model_path = '{final_url}/{{}}'.format(model_path)
+                model_to_save.write().{overwrite}save(final_model_path)
                 # Save model information in Limonero
-                model_type = '{{}}.{{}}'.format(model.__module__,
-                    model.__class__.__name__)
+                model_type = '{{}}.{{}}'.format(model_to_save.__module__,
+                    model_to_save.__class__.__name__)
 
                 model_payload = {{
                     "user_id": {user_id},
                     "user_name": '{user_name}',
                     "user_login": '{user_login}',
-                    "name": "{name}",
+                    "name": model_name,
                     "class_name": model_type,
                     "storage_id": {storage_id},
-                    "path": "{path}",
+                    "path":  model_path,
                     "type": "UNSPECIFIED"
                 }}
+                # Save model information in Limonero
                 register_model('{url}', model_payload, '{token}')
 
-
+            for i, model in enumerate(models_to_save):
+                if isinstance(model, dict): # For instance, it's a Indexer
+                    for k, v in model.items():
+                        name = '{name} - {{}}'.format(k)
+                        path = '{path}/{name}.{{0}}.{{1:04d}}'.format(k, i)
+                        _save_model(v, path, name)
+                else:
+                    name = '{name}'
+                    path = '{path}/{name}.{{0:04d}}'.format(i)
+                    _save_model(model, path, name)
         """.format(models=', '.join(models), overwrite=write_mode,
-                   path=final_url,
+                   path=self.path,
+                   final_url=storage['url'],
                    url=url,
                    token=token,
                    storage_id=self.storage_id,
@@ -1980,4 +1991,48 @@ class SaveModelOperation(Operation):
                    user_id=user.get('id'),
                    user_name=user.get('name'),
                    user_login=user.get('login')))
+        return code
+
+
+class LoadModelOperation(Operation):
+    MODEL_PARAM = 'model'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+
+        self.parameters = parameters
+
+        self.model = parameters.get(self.MODEL_PARAM)
+        if not self.model:
+            msg = 'Missing parameter model'
+            raise ValueError(msg)
+
+        self.has_code = len(named_outputs) > 0
+        self.output_model = named_outputs.get(
+            'model', 'model_{}'.format(self.order))
+
+    def generate_code(self):
+        limonero_config = self.parameters.get('configuration') \
+            .get('juicer').get('services').get('limonero')
+
+        url = limonero_config['url']
+        token = str(limonero_config['auth_token'])
+
+        model_data = query_limonero(url, '/models', token, self.model)
+        parts = model_data['class_name'].split('.')
+        url = model_data['storage']['url']
+        if url[-1] != '/':
+            url += '/'
+
+        path = '{}{}'.format(url, model_data['path'])
+
+        code = dedent("""
+            from {pkg} import {cls}
+            {output} = {cls}.load('{path}')
+        """.format(
+            output=self.output_model,
+            path=path,
+            cls=parts[-1],
+            pkg='.'.join(parts[:-1])
+        ))
         return code
