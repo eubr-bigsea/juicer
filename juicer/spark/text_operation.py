@@ -149,7 +149,6 @@ class RemoveStopWordsOperation(Operation):
             french, german, hungarian, italian, norwegian, portuguese,
             russian, spanish, swedish, turkish
             """
-            # code = "sw = {}".format(json.dumps(self.stop_word_list))
             code = "sw = StopWordsRemover.loadDefaultStopWords({})".format(
                 self.stop_word_language)
 
@@ -168,7 +167,8 @@ class RemoveStopWordsOperation(Operation):
                    output, json.dumps(zip(self.attributes, self.alias)),
                    self.sw_case_sensitive))
         else:
-            code = "sw = [stop[0].strip() for stop in {}.collect()]".format(
+            code = ("sw = [stop[0].strip() "
+                    "for stop in {}.collect() if stop and stop[0]]").format(
                 self.named_inputs['stop words'])
 
             code += dedent("""
@@ -239,20 +239,20 @@ class WordToVectorOperation(Operation):
         self.minimum_count = parameters.get(self.MINIMUM_COUNT_PARAM, 0)
 
         self.has_code = len(self.named_inputs) > 0
+        self.output = self.named_outputs.get('output data',
+                                             'out_{}'.format(self.order))
+        self.vocab = self.named_outputs.get('vocabulary',
+                                            'vocab_task_{}'.format(self.order))
 
     def get_data_out_names(self, sep=','):
         return self.named_outputs['output data']
 
     def get_output_names(self, sep=", "):
-        output = self.named_outputs['output data']
-        return sep.join([output, self.named_outputs.get(
-            'vocabulary', 'vocab_task_{}'.format(self.order))])
+        return sep.join([self.output, self.vocab])
 
     def generate_code(self):
         input_data = self.named_inputs['input data']
-        output = self.named_outputs['output data']
-        vocab_out = self.named_outputs['vocabulary']
-        
+
         if self.type == self.TYPE_COUNT:
             code = dedent("""
                 col_alias = {3}
@@ -269,7 +269,7 @@ class WordToVectorOperation(Operation):
             code += dedent("""
                 {} = dict([(col_alias[i][1], v.vocabulary)
                         for i, v in enumerate(model.stages)])""".format(
-                vocab_out))
+                self.vocab))
 
             code = code.format(self.attributes, input_data,
                                self.named_outputs['output data'],

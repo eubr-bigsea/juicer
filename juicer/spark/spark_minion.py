@@ -16,6 +16,7 @@ import datetime
 import codecs
 import os
 import socketio
+from timeit import default_timer as timer
 
 # noinspection PyCompatibility
 from concurrent.futures import ThreadPoolExecutor
@@ -31,7 +32,7 @@ from juicer.util.spark_template_util import strip_accents
 
 logging.config.fileConfig('logging_config.ini')
 
-log = logging.getLogger(__name__)
+log = logging.getLogger('juicer.spark.spark_minion')
 
 
 class SparkMinion(Minion):
@@ -51,7 +52,7 @@ class SparkMinion(Minion):
     MNN009 = ('MNN009', 'Workflow specification is missing')
 
     # max idle time allowed in seconds until this minion self termination
-    IDLENESS_TIMEOUT = 60
+    IDLENESS_TIMEOUT = 600
     TIMEOUT = 'timeout'
     MSG_PROCESSED = 'message_processed'
 
@@ -263,6 +264,7 @@ class SparkMinion(Minion):
         time.sleep(1)
 
         result = True
+        start = timer()
         try:
             loader = Workflow(workflow, self.config)
 
@@ -292,8 +294,9 @@ class SparkMinion(Minion):
 
             self.module = importlib.import_module(module_name)
             self.module = imp.reload(self.module)
-            log.debug('Objects in memory after loading module: %s',
-                      len(gc.get_objects()))
+            if log.isEnabledFor(logging.debug):
+                log.debug('Objects in memory after loading module: %s',
+                          len(gc.get_objects()))
 
             # Starting execution. At this point, the transpiler have created a
             # module with a main function that receives a spark_session and the
@@ -305,9 +308,11 @@ class SparkMinion(Minion):
                 self._state,
                 self._emit_event(room=job_id, namespace='/stand'))
 
+            end = timer()
             # Mark job as completed
             self._emit_event(room=job_id, namespace='/stand')(
-                name='update job', message='Job finished',
+                name='update job',
+                message='Job finished in {0:.2f}s'.format(end - start),
                 status='COMPLETED', identifier=job_id)
 
             # We update the state incrementally, i.e., new task results can be
