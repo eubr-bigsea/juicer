@@ -4,6 +4,7 @@
 """
 import argparse
 import errno
+import gettext
 import json
 import logging.config
 import multiprocessing
@@ -21,6 +22,8 @@ from juicer.runner import configuration
 from juicer.runner import juicer_protocol
 from juicer.runner.control import StateControlRedis
 from redis.exceptions import ConnectionError
+
+locales_path = os.path.join(os.path.dirname(__file__), '..', 'i18n', 'locales')
 
 os.chdir(os.environ.get('JUICER_HOME', '.'))
 logging.config.fileConfig('logging_config.ini')
@@ -238,7 +241,8 @@ class JuicerServer:
                 log.info(_('watch subscribe: %s'), msg)
                 if msg.get('type') == 'pmessage' and 'minion' in msg.get(
                         'data'):
-                    log.warn(_('Minion {id} stopped').format(id=msg.get('data')))
+                    log.warn(
+                        _('Minion {id} stopped').format(id=msg.get('data')))
         except ConnectionError as cx:
             log.exception(cx)
             time.sleep(1)
@@ -291,7 +295,13 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     # parser.add_argument("-p", "--port", help="Listen port")
     parser.add_argument("-c", "--config", help="Config file", required=True)
+    parser.add_argument("--lang", help="Minion messages language (i18n)",
+                        required=False, default="en_US")
     args = parser.parse_args()
+
+    t = gettext.translation('messages', locales_path, [args.lang],
+                            fallback=True)
+    t.install(unicode=True)
 
     with open(args.config) as config_file:
         juicer_config = yaml.load(config_file.read())
