@@ -1,6 +1,5 @@
 import argparse
 import gettext
-import locale
 import logging.config
 import urlparse
 
@@ -28,10 +27,9 @@ if __name__ == '__main__':
     parser.add_argument("--lang", help="Minion messages language (i18n)",
                         required=False, default="en_US")
     args = parser.parse_args()
-
     t = gettext.translation('messages', locales_path, [args.lang],
                             fallback=True)
-    t.install()
+    t.install(unicode=True)
 
     log.info(_("Starting minion"))
     log.debug(_('(c) Lemonade - DCC UFMG'))

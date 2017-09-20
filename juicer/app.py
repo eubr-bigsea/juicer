@@ -134,7 +134,7 @@ if __name__ == "__main__":
     locales_path = os.path.join(os.path.dirname(__file__), 'i18n', 'locales')
     t = gettext.translation('messages', locales_path, [args.lang],
                             fallback=True)
-    t.install()
+    t.install(unicode=True)
 
     juicer_config = {}
     if args.config:

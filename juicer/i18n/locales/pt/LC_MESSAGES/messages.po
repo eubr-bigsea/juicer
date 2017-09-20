@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2017-09-19 15:10-0300\n"
-"PO-Revision-Date: 2017-09-19 15:14-0300\n"
+"POT-Creation-Date: 2017-09-20 18:52-0300\n"
+"PO-Revision-Date: 2017-09-20 18:53-0300\n"
 "Last-Translator: \n"
 "Language-Team: pt_BR <LL@li.org>\n"
 "Language: pt_BR\n"
@@ -79,92 +79,92 @@ msgstr ""
 "\n"
 "ERRO! Estado do código: {},{}\n"
 
-#: juicer/runner/juicer_server.py:67
+#: juicer/runner/juicer_server.py:69
 msgid "Starting master process. Reading \"start\" queue"
 msgstr "Inicializando o processo mestre. Lendo a fila de inicialização"
 
-#: juicer/runner/juicer_server.py:99 juicer/spark/spark_minion.py:228
-#: juicer/spark/spark_minion.py:229
+#: juicer/runner/juicer_server.py:101 juicer/spark/spark_minion.py:236
+#: juicer/spark/spark_minion.py:237
 #, python-format
 msgid "Unknown message type %s"
 msgstr "Tipo da mensagem desconhecido %s"
 
-#: juicer/runner/juicer_server.py:120
+#: juicer/runner/juicer_server.py:122
 #, python-format
 msgid "Minion status for (workflow_id=%s,app_id=%s): %s"
 msgstr "Estado do Minion para (workflow_id=%s, app_id=%s): %s"
 
-#: juicer/runner/juicer_server.py:127
+#: juicer/runner/juicer_server.py:129
 #, python-format
 msgid "Minion (workflow_id=%s,app_id=%s) is running."
 msgstr "Minion (workflow_id=%s, app_id=%s) está executando."
 
-#: juicer/runner/juicer_server.py:144
+#: juicer/runner/juicer_server.py:146
 #, python-format
 msgid "Message %s forwarded to minion (workflow_id=%s,app_id=%s)"
 msgstr "Mesangem %s encaminhada para o minion (workflow_id=%s, app_id=%s)"
 
-#: juicer/runner/juicer_server.py:146
+#: juicer/runner/juicer_server.py:148
 #, python-format
 msgid "Message content (workflow_id=%s,app_id=%s): %s"
 msgstr "Contéudo da mensagem (workflow_id=%s, app_id=%s): %s"
 
-#: juicer/runner/juicer_server.py:157
+#: juicer/runner/juicer_server.py:159
 #, python-format
 msgid "Forking minion %s."
 msgstr "Dividingo minion %s."
 
-#: juicer/runner/juicer_server.py:176
+#: juicer/runner/juicer_server.py:178
 #, python-format
 msgid "Terminating (workflow_id=%s,app_id=%s)"
 msgstr "Terminando (workflow_id=%s, app_id=%s)"
 
-#: juicer/runner/juicer_server.py:196
+#: juicer/runner/juicer_server.py:198
 #, python-format
 msgid "Master received a ticket for app %s"
 msgstr "Mestre recebeu um rótulo para a aplicação %s"
 
-#: juicer/runner/juicer_server.py:214
+#: juicer/runner/juicer_server.py:216
 #, python-format
 msgid "Unknown help reason %s"
 msgstr "Motivo de ajuda desconhecido %s"
 
-#: juicer/runner/juicer_server.py:237
+#: juicer/runner/juicer_server.py:239
 #, python-format
 msgid "watch subscribe: %s"
 msgstr "Assistindo o assinante: %s"
 
-#: juicer/runner/juicer_server.py:240
+#: juicer/runner/juicer_server.py:243
 msgid "Minion {id} stopped"
 msgstr "Minion {id} parou"
 
-#: juicer/runner/juicer_server.py:246
+#: juicer/runner/juicer_server.py:249
 #, python-format
 msgid "Juicer server started (pid=%s)"
 msgstr "Servidor Juicer iniciado (pid=%s)"
 
-#: juicer/runner/juicer_server.py:268
+#: juicer/runner/juicer_server.py:271
 #, python-format
 msgid "Terminating %s active minions"
 msgstr "Terminando %s minions ativos"
 
-#: juicer/runner/juicer_server.py:278
+#: juicer/runner/juicer_server.py:281
 msgid "Killing juicer server subprocesses and terminating"
 msgstr "Matando subprocessos do servidor juicer e finalizando"
 
-#: juicer/runner/minion.py:36
+#: juicer/runner/minion.py:34
 msgid "Starting minion"
 msgstr "Iniciando o minion"
 
-#: juicer/runner/minion.py:37
+#: juicer/runner/minion.py:35
 msgid "(c) Lemonade - DCC UFMG"
 msgstr "Direitos Autorais (C) - DCC UFMG"
 
-#: juicer/runner/minion.py:54
+#: juicer/runner/minion.py:52
 msgid "{type} is not supported (yet!)"
 msgstr "{type} não é suportado (ainda!)"
 
-#: juicer/runner/minion.py:56
+#: juicer/runner/minion.py:54
 msgid "Error running minion"
 msgstr "Erro executando o minion"
 
@@ -325,65 +325,73 @@ msgstr ""
 msgid "Invalid value for parameter {param}: {value}"
 msgstr "Valor inválido para o parâmetro {param}: {value}"
 
-#: juicer/spark/spark_minion.py:37
-msgid "Success."
-msgstr "Sucesso."
-
-#: juicer/spark/spark_minion.py:38
-msgid "Port output format not supported."
-msgstr "Formato da porta de saída  não suportado."
-
-#: juicer/spark/spark_minion.py:39
-msgid "Success getting data from task."
-msgstr "Sucesso ao obter dados da tarefa."
-
-#: juicer/spark/spark_minion.py:40
-msgid "State does not exists, processing app."
-msgstr "Estado não existe, processando a aplicação"
-
-#: juicer/spark/spark_minion.py:41
-msgid "Invalid port."
-msgstr "Porta inválida."
-
-#: juicer/spark/spark_minion.py:42
-msgid "Unable to retrieve data because a previous error."
-msgstr "Não é possível recuperar os dados devido a um erro anterior."
-
-#: juicer/spark/spark_minion.py:43
-msgid "Invalid Python code or incorrect encoding: {}"
-msgstr "Código Python inválido ou codificação incorreta: {}"
-
-#: juicer/spark/spark_minion.py:44
-msgid "Job {} was canceled"
-msgstr "Trabalho {} foi cancelado."
-
-#: juicer/spark/spark_minion.py:45
-msgid "App {} was terminated"
-msgstr "Aplicação {} foi finalizada."
-
-#: juicer/spark/spark_minion.py:46
-msgid "Workflow specification is missing"
-msgstr "Especificação do workflow está faltando"
-
-#: juicer/spark/spark_minion.py:69
+#: juicer/spark/spark_minion.py:58
 #, python-format
 msgid "SPARK_HOME set to %s"
 msgstr "SPARK_HOME definido como %s"
 
-#: juicer/spark/spark_minion.py:71
+#: juicer/spark/spark_minion.py:60
 msgid "SPARK_HOME environment variable is not defined"
 msgstr "Variável de ambiente SPARK_HOME não está definida"
 
-#: juicer/spark/spark_minion.py:86
+#: juicer/spark/spark_minion.py:74
+msgid "Success."
+msgstr "Sucesso."
+
+#: juicer/spark/spark_minion.py:75
+msgid "Port output format not supported."
+msgstr "Formato da porta de saída  não suportado."
+
+#: juicer/spark/spark_minion.py:76
+msgid "Success getting data from task."
+msgstr "Sucesso ao obter dados da tarefa."
+
+#: juicer/spark/spark_minion.py:77
+msgid "State does not exists, processing app."
+msgstr "Estado não existe, processando a aplicação"
+
+#: juicer/spark/spark_minion.py:78
+msgid "Invalid port."
+msgstr "Porta inválida."
+
+#: juicer/spark/spark_minion.py:80
+msgid "Unable to retrieve data because a previous error."
+msgstr "Não é possível recuperar os dados devido a um erro anterior."
+
+#: juicer/spark/spark_minion.py:82
+msgid "Invalid Python code or incorrect encoding: {}"
+msgstr "Código Python inválido ou codificação incorreta: {}"
+
+#: juicer/spark/spark_minion.py:83
+msgid "Job {} was canceled"
+msgstr "Trabalho {} foi cancelado."
+
+#: juicer/spark/spark_minion.py:84
+msgid "App {} was terminated"
+msgstr "Aplicação {} foi finalizada."
+
+#: juicer/spark/spark_minion.py:85
+msgid "Workflow specification is missing"
+msgstr "Especificação do workflow está faltando"
+
+#: juicer/spark/spark_minion.py:89
+msgid "Task running"
+msgstr "Tarefa executando"
+
+#: juicer/spark/spark_minion.py:89
+msgid "Task completed"
+msgstr "Tarefa completada"
+
+#: juicer/spark/spark_minion.py:94
 #, python-format
 msgid "Emit %s %s %s %s"
 msgstr "Emitir %s %s %s %s"
 
-#: juicer/spark/spark_minion.py:129
+#: juicer/spark/spark_minion.py:137
 msgid "Start ping"
 msgstr "Iniciar ping"
 
-#: juicer/spark/spark_minion.py:152
+#: juicer/spark/spark_minion.py:159
 #, python-format
 msgid ""
 "Unhandled error (%s) \n"
@@ -392,69 +400,69 @@ msgstr ""
 "Erro não tratado (%s) \n"
 ">%s"
 
-#: juicer/spark/spark_minion.py:176
+#: juicer/spark/spark_minion.py:184
 #, python-format
 msgid "Processing message %s for app %s"
 msgstr "Processando a mesangem %s para a aplicação %s"
 
-#: juicer/spark/spark_minion.py:181
+#: juicer/spark/spark_minion.py:189
 msgid "Execute message received"
 msgstr "Mensagem de execução recebida"
 
-#: juicer/spark/spark_minion.py:199
+#: juicer/spark/spark_minion.py:207
 msgid "Execute message finished"
 msgstr "Mensagem de execução finalizada"
 
-#: juicer/spark/spark_minion.py:201
+#: juicer/spark/spark_minion.py:209
 msgid "Deliver message received"
 msgstr "Entrega de mensagem recebida"
 
-#: juicer/spark/spark_minion.py:219
+#: juicer/spark/spark_minion.py:227
 #, python-format
 msgid "Terminate message received (job_id=%s)"
 msgstr "Mensagem de término recebida (job_id=%s)"
 
-#: juicer/spark/spark_minion.py:223
+#: juicer/spark/spark_minion.py:231
 #, python-format
 msgid "Terminate message received (app=%s)"
 msgstr "Mensagem de término recebida (app=%s)"
 
-#: juicer/spark/spark_minion.py:249
+#: juicer/spark/spark_minion.py:257
 msgid "Running job"
 msgstr "Executando tarefa"
 
-#: juicer/spark/spark_minion.py:270
+#: juicer/spark/spark_minion.py:278
 #, python-format
 msgid "Objects in memory after loading module: %s"
 msgstr "Objetos na memoria depois de carregar o  módulo: %s"
 
-#: juicer/spark/spark_minion.py:285
+#: juicer/spark/spark_minion.py:293
 msgid "Job finished"
 msgstr "Tarefa finalizada"
 
-#: juicer/spark/spark_minion.py:303
+#: juicer/spark/spark_minion.py:311
 msgid "Invalid or missing parameters: {}"
 msgstr "Parâmetro inválido ou faltante: {}"
 
-#: juicer/spark/spark_minion.py:331
+#: juicer/spark/spark_minion.py:339
 msgid "Unhandled error"
 msgstr "Erro não tratado"
 
-#: juicer/spark/spark_minion.py:359
+#: juicer/spark/spark_minion.py:367
 msgid "Creating a new Spark session"
 msgstr "Criando um nova sessão Spark"
 
-#: juicer/spark/spark_minion.py:371
+#: juicer/spark/spark_minion.py:379
 #, python-format
 msgid "Setting spark configuration %s"
 msgstr "Ajustando as configurações do spark %s"
 
-#: juicer/spark/spark_minion.py:415
+#: juicer/spark/spark_minion.py:423
 #, python-format
 msgid "Minion is using '%s' as Spark master"
 msgstr "Minion está usando '%s\" como mestre Spark"
 
-#: juicer/spark/spark_minion.py:554
+#: juicer/spark/spark_minion.py:562
 #, python-format
 msgid "Spark minion (workflow_id=%s,app_id=%s) started (pid=%s)"
 msgstr "Spark minion (workflow_id=%s, app_id=%s) iniciou (pid=%s)"
