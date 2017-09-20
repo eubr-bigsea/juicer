@@ -61,10 +61,9 @@ class DataReader(Operation):
 
                 self.metadata = limonero_service.get_data_source_info(
                     url, token, self.database_id)
-
                 self.sep = parameters.get(
                     self.SEPARATOR_PARAM, self.metadata.get(
-                        'attribute_delimiter', ','))
+                        'attribute_delimiter', ',')) or ','
 
                 if self.sep in self.SEPARATORS:
                     self.sep = self.SEPARATORS[self.sep]
