@@ -111,7 +111,7 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.ord
     spark_logging(spark_session).info(
         "Submitting parent task {{instance.parameters.task.parents}} "
         "before {{instance.parameters.task.id}}")
-
+    {%- if instance.parameters.task.parents %}
     # If the task's result is not cached, we submit its dependencies first
     {%- for parent in instance.parameters.task.parents %}
     {%- set parent_instance = instances_by_task_id[parent] %}
@@ -128,6 +128,7 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.ord
 
     {%- endif %}
     {%- endfor %}
+    {%- endif %}
 
     # Next we wait for the dependencies to complete
     {%- for parent in instance.parameters.task.parents %}
