@@ -375,7 +375,7 @@ def test_minion_perform_deliver_success():
 
         msg = json.loads(state_control.pop_app_output_queue(app_id, False))
         assert msg['status'] == 'SUCCESS', 'Invalid status'
-        assert msg['code'] == SparkMinion.MNN002[0], 'Invalid code'
+        assert msg['code'] == minion.MNN002[0], 'Invalid code'
 
         # CSV data
         csv_records = '\n'.join(
@@ -434,7 +434,7 @@ def test_minion_perform_deliver_missing_state_process_app_with_success():
                 msg = json.loads(
                     state_control.pop_app_output_queue(app_id, False))
                 assert msg['status'] == 'WARNING', 'Invalid status'
-                assert msg['code'] == SparkMinion.MNN003[0], 'Invalid code'
+                assert msg['code'] == minion.MNN003[0], 'Invalid code'
 
                 # CSV data
                 csv_records = '\n'.join(
@@ -494,19 +494,19 @@ def test_minion_perform_deliver_missing_state_process_app_with_failure():
                 msg = json.loads(
                     state_control.pop_app_output_queue(app_id, False))
                 assert msg['status'] == 'WARNING', 'Invalid status'
-                assert msg['code'] == SparkMinion.MNN003[0], 'Invalid code'
+                assert msg['code'] == minion.MNN003[0], 'Invalid code'
 
                 # Second message is about invalid Python code
                 msg = json.loads(
                     state_control.pop_app_output_queue(app_id, False))
                 assert msg['status'] == 'ERROR', 'Invalid status'
-                assert msg.get('code') == SparkMinion.MNN006[0], 'Invalid code'
+                assert msg.get('code') == minion.MNN006[0], 'Invalid code'
 
                 # Third message is about unable to read data
                 msg = json.loads(
                     state_control.pop_app_output_queue(app_id, False))
                 assert msg['status'] == 'ERROR', 'Invalid status'
-                assert msg.get('code') == SparkMinion.MNN005[0], 'Invalid code'
+                assert msg.get('code') == minion.MNN005[0], 'Invalid code'
 
                 assert state_control.get_app_output_queue_size(
                     app_id) == 0, 'There are messages in app output queue!'
@@ -563,12 +563,12 @@ def test_minion_perform_deliver_missing_state_invalid_port_failure():
                 msg = json.loads(
                     state_control.pop_app_output_queue(app_id, False))
                 assert msg['status'] == 'WARNING', 'Invalid status'
-                assert msg['code'] == SparkMinion.MNN003[0], 'Invalid code'
+                assert msg['code'] == minion.MNN003[0], 'Invalid code'
 
                 msg = json.loads(
                     state_control.pop_app_output_queue(app_id, False))
                 assert msg['status'] == 'ERROR', 'Invalid status'
-                assert msg.get('code') == SparkMinion.MNN004[0], 'Invalid code'
+                assert msg.get('code') == minion.MNN004[0], 'Invalid code'
 
                 result = json.loads(state_control.pop_queue(out_queue, False))
                 assert not result['sample'], 'Wrong CSV generated'
@@ -624,12 +624,12 @@ def test_minion_perform_deliver_missing_state_unsupported_output_failure():
                 msg = json.loads(
                     state_control.pop_app_output_queue(app_id, False))
                 assert msg['status'] == 'WARNING', 'Invalid status'
-                assert msg['code'] == SparkMinion.MNN003[0], 'Invalid code'
+                assert msg['code'] == minion.MNN003[0], 'Invalid code'
 
                 msg = json.loads(
                     state_control.pop_app_output_queue(app_id, False))
                 assert msg['status'] == 'ERROR', 'Invalid status'
-                assert msg.get('code') == SparkMinion.MNN004[0], 'Invalid code'
+                assert msg.get('code') == minion.MNN004[0], 'Invalid code'
 
                 result = json.loads(state_control.pop_queue(out_queue, False))
                 assert not result['sample'], 'Wrong CSV generated'
@@ -720,7 +720,7 @@ def test_minion_spark_configuration():
                 msg = json.loads(
                     state_control.pop_app_output_queue(app_id, False))
                 assert msg['status'] == 'SUCCESS', 'Invalid status'
-                assert msg['code'] == SparkMinion.MNN008[0], 'Invalid code'
+                assert msg['code'] == minion.MNN008[0], 'Invalid code'
 
 
 # noinspection PyUnresolvedReferences,PyProtectedMember
