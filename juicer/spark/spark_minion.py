@@ -171,8 +171,8 @@ class SparkMinion(Minion):
                 self._process_message_nb()
             except Exception as ee:
                 tb = traceback.format_exception(*sys.exc_info())
-                self.log.exception(_('Unhandled error (%s) \n>%s'),
-                                   ee.message, '>\n'.join(tb))
+                log.exception(_('Unhandled error (%s) \n>%s'),
+                              ee.message, '>\n'.join(tb))
 
     def _process_message(self):
         self._process_message_nb()
@@ -626,8 +626,9 @@ class SparkMinion(Minion):
         log.info('Minion finished')
 
     def process(self):
-        log.info('Spark minion (workflow_id=%s,app_id=%s) started (pid=%s)',
-                 self.workflow_id, self.app_id, os.getpid())
+        log.info(_(
+            'Spark minion (workflow_id=%s,app_id=%s) started (pid=%s)'),
+            self.workflow_id, self.app_id, os.getpid())
         self.execute_process = multiprocessing.Process(
             name="minion", target=self.execute,
             args=(self.terminate_proc_queue,))
