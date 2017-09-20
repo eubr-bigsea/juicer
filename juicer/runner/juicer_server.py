@@ -141,13 +141,8 @@ class JuicerServer:
 
         log.info(_('Message %s forwarded to minion (workflow_id=%s,app_id=%s)'),
                  msg_type, workflow_id, app_id)
-<<<<<<< be9a06bf29eb44f6529674b6b09553fe52704a08
-        # log.info('Message content (workflow_id=%s,app_id=%s): %s',
-        #          workflow_id, app_id, msg)
-=======
         log.info(_('Message content (workflow_id=%s,app_id=%s): %s'),
                  workflow_id, app_id, msg)
->>>>>>> Add logs, warns, messages internationalization basics
         self.state_control.push_app_output_queue(app_id, json.dumps(
             {'code': 0,
              'message': 'Minion is processing message %s' % msg_type}))
@@ -175,14 +170,9 @@ class JuicerServer:
         # In this case we got a request for terminating this workflow
         # execution instance (app). Thus, we are going to explicitly
         # terminate the workflow, clear any remaining metadata and return
-<<<<<<< be9a06bf29eb44f6529674b6b09553fe52704a08
         if not (workflow_id, app_id) in self.active_minions:
             log.warn('(%s, %s) not in active minions ', workflow_id, app_id)
-        log.info("Terminating (workflow_id=%s,app_id=%s)",
-=======
-        assert (workflow_id, app_id) in self.active_minions
         log.info(_("Terminating (workflow_id=%s,app_id=%s)"), \
->>>>>>> Add logs, warns, messages internationalization basics
                  workflow_id, app_id)
         if (workflow_id, app_id) in self.active_minions:
             os.kill(self.active_minions[(workflow_id, app_id)].pid,
