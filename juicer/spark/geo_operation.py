@@ -28,8 +28,8 @@ class ReadShapefile(Operation):
             self.metadata = metadata_obj.get_metadata(self.database_id)
         else:
             raise ValueError(
-                "Parameter '{}' must be informed for task {}".format(
-                    self.DATA_SOURCE_ID_PARAM, self.__class__))
+                _("Parameter '{}' must be informed for task {}".format(
+                    self.DATA_SOURCE_ID_PARAM, self.__class__)))
 
     def generate_code(self):
         """ We still have to add a parameter to define whether the points are
@@ -107,7 +107,7 @@ class GeoWithin(Operation):
         if len(self.lat_column) == 0 or len(self.lon_column) == 0 or len(
                 self.polygon_column) == 0:
             raise ValueError(
-                'Values for latitude and longitude columns must be informed')
+                _('Values for latitude and longitude columns must be informed'))
 
     def generate_code(self):
         code = """

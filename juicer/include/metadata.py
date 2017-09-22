@@ -35,7 +35,8 @@ class MetadataPost:
             response = requests.post(self.url, data=json.dumps(self.payload),
                           headers=self.headers, params=self.querystring)
             if response.status_code != 200:
-                print "\nERROR! Status code:",response.status_code, response.text,"\n"
+                print _("\n ERROR! Status code: {},{} \n".format(response.status_code,response.text))
+                # print _("\nERROR! Status code:", response.status_code, response.text,"\n")
             #print "requests.post('{0}',data=json.dumps({1}),headers={2},params={3})".format(
             #    self.url, self.payload, self.headers, self.querystring)
 

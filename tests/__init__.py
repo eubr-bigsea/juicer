@@ -1,5 +1,13 @@
 # -*- coding: utf-8 -*-
 import ast
+import os
+import gettext
+
+
+locales_path = os.path.join(os.path.dirname(__file__), 'i18n', 'locales')
+t = gettext.translation('messages', locales_path, ["pt"],
+	fallback=True)
+t.install()
 
 
 def format_code_comparison(node1, node2):

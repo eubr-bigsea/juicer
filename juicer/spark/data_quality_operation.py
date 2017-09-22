@@ -15,13 +15,13 @@ class EntityMatchingOperation(Operation):
         if self.ALGORITHM_PARAM in parameters:
             self.algorithm = parameters[self.ALGORITHM_PARAM]
         else:
-            raise ValueError(
-                "Parameter '{}' must be informed for task {}".format(
+            raise ValueError(_(
+                "Parameter '{}' must be informed for task {}").format(
                     self.ALGORITHM_PARAM, self.__class__))
 
         if self.algorithm not in [self.ALGORITHM_BULMA]:
-            raise ValueError(
-                "Algorithm '{}' not supported in for task {}".format(
+            raise ValueError(_(
+                "Algorithm '{}' not supported in for task {}").format(
                     self.algorithm, self.__class__))
         self.output = self.named_outputs.get('output data 1', 'em_data_{}'.format(
             self.order))

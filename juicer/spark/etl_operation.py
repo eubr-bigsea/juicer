@@ -87,7 +87,7 @@ class SortOperation(Operation):
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
         else:
             raise ValueError(
-                "Parameter '{}' must be informed for task {}".format(
+                _("Parameter '{}' must be informed for task {}").format(
                     self.ATTRIBUTES_PARAM, self.__class__))
 
         self.has_code = len(self.named_inputs) == 1
@@ -181,15 +181,14 @@ class SampleOrPartitionOperation(Operation):
             if self.FRACTION_PARAM in parameters:
                 self.fraction = float(parameters[self.FRACTION_PARAM])
                 if not (0 <= self.fraction <= 100):
-                    msg = "Parameter '{}' must be in " \
-                          "range [0, 100] for task {}" \
+                    msg = _("Parameter '{}' must be in " \
+                          "range [0, 100] for task {}") \
                         .format(self.FRACTION_PARAM, __name__)
                     raise ValueError(msg)
                 if self.fraction > 1.0:
                     self.fraction *= 0.01
             else:
-                raise ValueError(
-                    "Parameter '{}' must be informed for task {}".format(
+                raise ValueError(_("Parameter '{}' must be informed for task {}").format(
                         self.FRACTION_PARAM, self.__class__))
         elif self.type in [self.TYPE_VALUE, self.TYPE_HEAD]:
             self.value = int(parameters.get(self.VALUE_PARAM, 100))
@@ -294,7 +293,7 @@ class JoinOperation(Operation):
         if not all([self.LEFT_ATTRIBUTES_PARAM in parameters,
                     self.RIGHT_ATTRIBUTES_PARAM in parameters]):
             raise ValueError(
-                "Parameters '{}' and {} must be informed for task {}".format(
+                _("Parameters '{}' and {} must be informed for task {}").format(
                     self.LEFT_ATTRIBUTES_PARAM, self.RIGHT_ATTRIBUTES_PARAM,
                     self.__class__))
         else:
@@ -397,7 +396,7 @@ class TransformationOperation(Operation):
             self.json_expression = json.loads(parameters['expression'])['tree']
         else:
             raise ValueError(
-                "Parameters '{}' and {} must be informed for task {}".format(
+                _("Parameters '{}' and {} must be informed for task {}").format(
                     self.ALIAS_PARAM, self.EXPRESSION_PARAM, self.__class__))
         self.has_code = len(self.named_inputs) > 0
 
@@ -432,7 +431,7 @@ class SelectOperation(Operation):
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
         else:
             raise ValueError(
-                "Parameter '{}' must be informed for task {}".format(
+                _("Parameter '{}' must be informed for task {}").format(
                     self.ATTRIBUTES_PARAM, self.__class__))
         self.output = self.named_outputs.get(
             'output projected data', 'projection_data_{}'.format(self.order))
@@ -469,14 +468,14 @@ class ReplaceValueOperation(Operation):
             self.replacement = parameters.get(self.REPLACEMENT_PARAM)
         else:
             raise ValueError(
-                "Parameter '{}' must be informed for task {}".format(
+                _("Parameter '{}' must be informed for task {}").format(
                     self.REPLACEMENT_PARAM, self.__class__))
 
         if self.ORIGINAL_PARAM in parameters:
             self.original = parameters.get(self.ORIGINAL_PARAM)
         else:
             raise ValueError(
-                "Parameter '{}' must be informed for task {}".format(
+                _("Parameter '{}' must be informed for task {}").format(
                     self.ORIGINAL_PARAM, self.__class__))
 
         def check(v):
@@ -492,14 +491,14 @@ class ReplaceValueOperation(Operation):
 
         if not check(self.original):
             raise ValueError(
-                "Parameter '{}' for task '{}' must be a number "
-                "or enclosed in quotes.".format(
+                _("Parameter '{}' for task '{}' must be a number "
+                "or enclosed in quotes.").format(
                     self.ORIGINAL_PARAM, self.__class__))
 
         if not check(self.replacement):
             raise ValueError(
-                "Parameter '{}' for task '{}' must be a number "
-                "or enclosed in quotes.".format(
+                _("Parameter '{}' for task '{}' must be a number "
+                "or enclosed in quotes.").format(
                     self.REPLACEMENT_PARAM, self.__class__))
 
         self.has_code = len(self.named_inputs) == 1
@@ -545,8 +544,12 @@ class AggregationOperation(Operation):
 
         if not all([self.FUNCTION_PARAM in parameters, self.functions]):
             raise ValueError(
-                "Parameter '{}' must be informed for task {}".format(
+                _("Parameter '{}' must be informed for task {}").format(
                     self.FUNCTION_PARAM, self.__class__))
+
+        for f in parameters[self.FUNCTION_PARAM]:
+            if not all([f.get('attribute'), f.get('f'), f.get('alias')]):
+                raise ValueError(_('Missing parameter in aggregation function'))
 
         self.has_code = len(self.named_inputs) == 1
         # noinspection PyArgumentEqualDefault
@@ -627,8 +630,8 @@ class FilterOperation(Operation):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
         if self.FILTER_PARAM not in parameters:
             raise ValueError(
-                "Parameter '{}' must be informed for task {}".format(
-                    self.FILTER_PARAM, self.__class__))
+                _("Parameter '{}' must be informed for task {}".format(
+                    self.FILTER_PARAM, self.__class__)))
 
         self.filter = parameters.get(self.FILTER_PARAM)
 
@@ -681,8 +684,8 @@ class CleanMissingOperation(Operation):
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
         else:
             raise ValueError(
-                "Parameter '{}' must be informed for task {}".format(
-                    self.ATTRIBUTES_PARAM, self.__class__))
+                _("Parameter '{}' must be informed for task {}".format(
+                    self.ATTRIBUTES_PARAM, self.__class__)))
         self.cleaning_mode = parameters.get(self.CLEANING_MODE_PARAM,
                                             self.REMOVE_ROW)
 
@@ -781,7 +784,7 @@ class CleanMissingOperation(Operation):
                                                               input_data))
         else:
             raise ValueError(
-                "Parameter '{}' has an incorrect value '{}' in {}".format(
+                _("Parameter '{}' has an incorrect value '{}' in {}").format(
                     self.CLEANING_MODE_PARAM, self.cleaning_mode,
                     self.__class__))
 
@@ -856,8 +859,8 @@ class PivotTableOperation(Operation):
                     self.PIVOT_ATTRIBUTE_PARAM in parameters,
                     self.FUNCTIONS_PARAM in parameters]):
             raise ValueError(
-                "Required parameters must be informed for task {}".format(
-                    self.__class__))
+                _("Required parameters must be informed for task {}".format(
+                    self.__class__)))
 
         self.aggregation_attributes = parameters.get(
             self.AGGREGATION_ATTRIBUTES_PARAM, [])
@@ -896,7 +899,7 @@ class ExecutePythonOperation(Operation):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         if not all([self.PYTHON_CODE_PARAM in parameters]):
-            msg = "Required parameter {} must be informed for task {}"
+            msg = ("Required parameter {} must be informed for task {}")
             raise ValueError(msg.format(self.PYTHON_CODE_PARAM, self.__class__))
 
         self.code = parameters.get(self.PYTHON_CODE_PARAM)
@@ -961,10 +964,10 @@ class ExecutePythonOperation(Operation):
                     status='RUNNING',
                     identifier='{id}')
         except NameError as ne:
-            raise ValueError('Invalid name: {{}}. '
-                'Many Python commands are not available in Lemonade'.format(ne))
+            raise ValueError(_('Invalid name: {{}}. '
+                'Many Python commands are not available in Lemonade').format(ne))
         except ImportError as ie:
-            raise ValueError('Command import is not supported')
+            raise ValueError(_('Command import is not supported'))
         """.format(in1=in1, in2=in2, code=self.code.encode('unicode_escape'),
                    name="execute_python", order=self.order,
                    id=self.parameters['task']['id']))
