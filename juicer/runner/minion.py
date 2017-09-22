@@ -45,7 +45,9 @@ if __name__ == '__main__':
             # log.info('Starting Juicer Spark Minion')
             server = SparkMinion(redis_conn,
                                  args.workflow_id,
-                                 args.app_id or args.workflow_id, juicer_config)
+                                 args.app_id or args.workflow_id,
+                                 juicer_config,
+                                 args.lang)
             server.process()
         else:
             raise ValueError(

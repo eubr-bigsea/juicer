@@ -1,5 +1,6 @@
 # coding=utf-8
 import gc
+import gettext
 import imp
 import importlib
 import json
@@ -23,6 +24,7 @@ from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError
 from juicer.runner import configuration
 from juicer.runner import juicer_protocol
+
 from juicer.runner.minion_base import Minion
 from juicer.spark.transpiler import SparkTranspiler
 from juicer.util import dataframe_util, listener_util
@@ -31,6 +33,8 @@ from juicer.util.spark_template_util import strip_accents
 
 logging.config.fileConfig('logging_config.ini')
 log = logging.getLogger('juicer.spark.spark_minion')
+
+locales_path = os.path.join(os.path.dirname(__file__), '..', 'i18n', 'locales')
 
 
 class SparkMinion(Minion):
@@ -43,7 +47,7 @@ class SparkMinion(Minion):
     TIMEOUT = 'timeout'
     MSG_PROCESSED = 'message_processed'
 
-    def __init__(self, redis_conn, workflow_id, app_id, config):
+    def __init__(self, redis_conn, workflow_id, app_id, config, lang='en'):
         Minion.__init__(self, redis_conn, workflow_id, app_id, config)
 
         self.terminate_proc_queue = multiprocessing.Queue()
@@ -99,6 +103,7 @@ class SparkMinion(Minion):
         self.msgs = [
             _('Task running'), _('Task completed'),
         ]
+        self.current_lang = lang
 
     def _emit_event(self, room, namespace):
         def emit_event(name, message, status, identifier, **kwargs):
@@ -184,6 +189,7 @@ class SparkMinion(Minion):
         msg = self.state_control.pop_app_queue(self.app_id,
                                                block=True,
                                                timeout=self.IDLENESS_TIMEOUT)
+
         if msg is None and self.active_messages == 0:
             self._timeout_termination()
             return
@@ -211,8 +217,21 @@ class SparkMinion(Minion):
             log.info('Execute message received')
             job_id = msg_info['job_id']
             workflow = msg_info['workflow']
+
+            lang = workflow.get('locale', self.current_lang)
+
+            self._emit_event(room=job_id, namespace='/stand')(
+                name='update job',
+                message=_('Running job with lang {}/{}').format(
+                    lang, self.current_lang),
+                status='RUNNING', identifier=job_id)
+
+            t = gettext.translation('messages', locales_path, [lang],
+                                    fallback=True)
+            t.install(unicode=True)
+
             # TODO: We should consider the case in which the spark session is
-            # already instanciated and this new request asks for a different set
+            # already instantiated and this new request asks for a different set
             # of configurations:
             # - Should we rebuild the context from scratch and execute all jobs
             # so far?
