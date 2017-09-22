@@ -30,12 +30,6 @@ class FeatureIndexerOperation(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs,
                            named_outputs)
-        '''
-        del parameters['workflow_json']
-        print '-' * 30
-        print parameters.keys()
-        print '-' * 30
-        '''
         if self.ATTRIBUTES_PARAM in parameters:
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
         else:
@@ -48,13 +42,13 @@ class FeatureIndexerOperation(Operation):
 
         self.max_categories = int(parameters.get(self.MAX_CATEGORIES_PARAM, 0))
         if not (self.max_categories >= 0):
-            msg = ("Parameter '{}' must be in " \
-                  "range [x>=0] for task {}") \
-                .format(self.MAX_CATEGORIES_PARAM, __name__)
+            msg = _(
+                "Parameter '{}' must be in range [x>=0] for task {}").format(
+                self.MAX_CATEGORIES_PARAM, __name__)
             raise ValueError(msg)
 
         # Adjust alias in order to have the same number of aliases as attributes
-        # by filling missing alias with the attribute name sufixed by _indexed.
+        # by filling missing alias with the attribute name suffixed by _indexed.
         self.alias = [x[1] or '{}_indexed'.format(x[0]) for x in
                       izip_longest(self.attributes,
                                    self.alias[:len(self.attributes)])]
@@ -1883,7 +1877,7 @@ class SaveModelOperation(Operation):
 
         if self.name is None or self.storage_id is None:
             msg = _('Missing parameters. Check if values for parameters {} ' \
-                  'were informed')
+                    'were informed')
             raise ValueError(
                 msg.format(', '.join([self.NAME_PARAM, self.STORAGE_PARAM])))
 
