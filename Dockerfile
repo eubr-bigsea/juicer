@@ -22,6 +22,10 @@ COPY requirements.txt $JUICER_HOME
 
 RUN pip install -r $JUICER_HOME/requirements.txt
 
+COPY juicer/i18n $JUICER_HOME
+RUN pybabel extract -F babel.cfg -o juicer/i18n/juicer.pot . \
+    && pybabel compile -d juicer/i18n/locales
+
 COPY . $JUICER_HOME
 
 CMD ["/usr/local/juicer/sbin/juicer-daemon.sh", "startf"]

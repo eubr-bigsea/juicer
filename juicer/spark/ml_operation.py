@@ -353,7 +353,8 @@ class EvaluateModelOperation(Operation):
                 self.metric != '']):
             pass
         else:
-            msg = _("Parameters '{}', '{}' and '{}' must be informed for task {}")
+            msg = \
+                _("Parameters '{}', '{}' and '{}' must be informed for task {}")
             raise ValueError(msg.format(
                 self.PREDICTION_ATTRIBUTE_PARAM, self.LABEL_ATTRIBUTE_PARAM,
                 self.METRIC_PARAM, self.__class__))
@@ -416,7 +417,7 @@ class EvaluateModelOperation(Operation):
                 display_text = {display_text}
                 if display_text:
                     from juicer.spark.reports import SimpleTableReport
-                    headers = ['Parameter', 'Description', 'Value', 'Default']
+                    headers = {headers}
                     rows = [
                             [x.name, x.doc,
                                 {evaluator_out}._paramMap.get(x, 'unset'),
@@ -451,7 +452,10 @@ class EvaluateModelOperation(Operation):
                            task_id=self.parameters['task_id'],
                            operation_id=self.parameters['operation_id'],
                            title='Evaluation result',
-                           display_text=display_text, ))
+                           display_text=display_text,
+                           headers=[_('Parameter'), _('Description'),
+                                    _('Value'), _('Default')]
+                           ))
             elif self.named_outputs.get(
                     'evaluator'):  # Used with cross validator
                 code = """

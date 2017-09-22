@@ -357,7 +357,7 @@ class SparkMinion(Minion):
             result = False
 
         except ValueError as ve:
-            message = 'Invalid or missing parameters: {}'.format(ve.message)
+            message = _('Invalid or missing parameters: {}').format(ve.message)
             print('#' * 30)
             import traceback
             traceback.print_exc(file=sys.stdout)
