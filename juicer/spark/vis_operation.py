@@ -192,7 +192,7 @@ class VisualizationMethodOperation(Operation):
 
     def get_model_name(self):
         NotImplementedError(_("Method generate_code should be implemented "
-                            "in {} subclass").format(self.__class__))
+                              "in {} subclass").format(self.__class__))
 
     def generate_code(self):
         code_lines = [dedent(
@@ -434,7 +434,8 @@ class ChartVisualization(VisualizationModel):
                     x, ', '.join([c.name for c in schema])))
         if len(y_attrs) == 0:
             raise ValueError(
-                _('At least one attribute for Y-axis does not exist: {}').format(
+                _(
+                    'At least one attribute for Y-axis does not exist: {}').format(
                     ', '.join(self.params.get('column_names'))))
 
         x_type = ChartVisualization._get_attr_type(x_attr)
@@ -560,15 +561,16 @@ class PieChartModel(ChartVisualization):
         if self.id_attribute:
             label = self.id_attribute
         else:
-            label = self.value_attribute
+            # Important to use only first item!
+            label = self.value_attribute[0]
 
         value_attr = [c for c in schema if c.name == self.value_attribute[0]]
         if len(value_attr):
             value_attr = value_attr[0]
         else:
             raise ValueError(
-                _('Attribute {} does not exist in ({})').format(label, ', '.join(
-                    [c.name for c in schema])))
+                _('Attribute {} does not exist in ({})').format(
+                    label, ', '.join([c.name for c in schema])))
 
         label_attr = [c for c in schema if c.name == label]
         if len(label_attr):
