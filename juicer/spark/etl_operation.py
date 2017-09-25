@@ -699,11 +699,12 @@ class CleanMissingOperation(Operation):
         self.has_code = all([
             any([self.value is not None, self.cleaning_mode != self.VALUE]),
             len(self.named_inputs) > 0])
+        self.output = self.named_outputs.get('output result',
+                                             'out_{}'.format(self.order))
 
     def generate_code(self):
 
         input_data = self.named_inputs['input data']
-        output = self.named_outputs['output result']
 
         pre_code = []
         partial = []
@@ -734,13 +735,13 @@ class CleanMissingOperation(Operation):
         if self.cleaning_mode == self.REMOVE_ROW:
             partial.append("""
                 {0} = {1}.na.drop(how='any', subset=attributes_{1})""".format(
-                output, input_data))
+                self.output, input_data))
 
         elif self.cleaning_mode == self.VALUE:
             # value = ast.literal_eval(self.value)
             partial.append(
                 "\n    {0} = {1}.na.fill(value={2}, "
-                "subset=attributes_{1})".format(output, input_data,
+                "subset=attributes_{1})".format(self.output, input_data,
                                                 self.value))
 
         elif self.cleaning_mode == self.REMOVE_COLUMN:
@@ -748,7 +749,7 @@ class CleanMissingOperation(Operation):
             partial.append(
                 "\n{0} = {1}.select("
                 "[c for c in {1}.columns if c not in attributes_{1}])".format(
-                    output, input_data))
+                    self.output, input_data))
 
         elif self.cleaning_mode == self.MODE:
             # Based on http://stackoverflow.com/a/36695251/1646932
@@ -759,7 +760,7 @@ class CleanMissingOperation(Operation):
                         .orderBy(desc('count')).limit(1)
                     md_replace_{1}[md_attr_{1}] = md_count_{1}.collect()[0][0]
              {0} = {1}.fillna(value=md_replace_{1})""".format(
-                output, input_data)
+                self.output, input_data)
             )
 
         elif self.cleaning_mode == self.MEDIAN:
@@ -768,19 +769,19 @@ class CleanMissingOperation(Operation):
             partial.append("""
                 mdn_replace_{1} = dict()
                 for mdn_attr_{1} in attributes_{1}:
-                    # Computes median value for column with relat. error = 10%
+                    # Computes median value for column with relat. error=10%
                     mdn_{1} = {1}.na.drop(subset=[mdn_attr_{1}])\\
                         .approxQuantile(mdn_attr_{1}, [.5], .1)
                     md_replace_{1}[mdn_attr_{1}] = mdn_{1}[0]
                 {0} = {1}.fillna(value=mdn_replace_{1})""".format(
-                output, input_data))
+                self.output, input_data))
 
         elif self.cleaning_mode == self.MEAN:
             partial.append("""
                 avg_{1} = {1}.select([functions.avg(c).alias(c)
                                         for c in attributes_{1}]).collect()
                 values_{1} = dict([(c, avg_{1}[0][c]) for c in attributes_{1}])
-                {0} = {1}.na.fill(value=values_{1})""".format(output,
+                {0} = {1}.na.fill(value=values_{1})""".format(self.output,
                                                               input_data))
         else:
             raise ValueError(
@@ -793,7 +794,7 @@ class CleanMissingOperation(Operation):
                '\n    '.join([dedent(line) for line in partial]).replace(
                    '\n',
                    '\n    ') + \
-               "\nelse:\n    {0} = {1}".format(output, input_data)
+               "\nelse:\n    {0} = {1}".format(self.output, input_data)
 
 
 class AddColumnsOperation(Operation):
