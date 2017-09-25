@@ -29,17 +29,17 @@ class TokenizerOperation(Operation):
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
         else:
             raise ValueError(
-                "Parameter '{}' must be informed for task {}".format(
+                _("Parameter '{}' must be informed for task {}").format(
                     self.ATTRIBUTES_PARAM, self.__class__))
 
         self.type = self.parameters.get(self.TYPE_PARAM, self.TYPE_SIMPLE)
         if self.type not in [self.TYPE_REGEX, self.TYPE_SIMPLE]:
             raise ValueError(
-                'Invalid type for operation Tokenizer: {}'.format(self.type))
+                _('Invalid type for operation Tokenizer: {}').format(self.type))
         self.alias = [alias.strip() for alias in
                       parameters.get(self.ALIAS_PARAM, '').split(',')]
         # Adjust alias in order to have the same number of aliases as attributes
-        # by filling missing alias with the attribute name sufixed by _indexed.
+        # by filling missing alias with the attribute name sufixed by _tokenized.
         self.alias = [x[1] or '{}_tokenized'.format(x[0]) for x in
                       izip_longest(self.attributes,
                                    self.alias[:len(self.attributes)])]
@@ -110,7 +110,7 @@ class RemoveStopWordsOperation(Operation):
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
         else:
             raise ValueError(
-                "Parameter '{}' must be informed for task {}".format(
+                _("Parameter '{}' must be informed for task {}").format(
                     self.ATTRIBUTES_PARAM, self.__class__))
 
         self.stop_word_attribute = self.parameters.get(
@@ -123,8 +123,9 @@ class RemoveStopWordsOperation(Operation):
         self.alias = [alias.strip() for alias in
                       parameters.get(self.ALIAS_PARAM, '').split(',')]
         # Adjust alias in order to have the same number of aliases as attributes
-        # by filling missing alias with the attribute name sufixed by _indexed.
-        self.alias = [x[1] or '{}_tokenized'.format(x[0]) for x in
+        # by filling missing alias with the attribute name sufixed by
+        # _no_stopwords.
+        self.alias = [x[1] or '{}_no_stopwords'.format(x[0]) for x in
                       izip_longest(self.attributes,
                                    self.alias[:len(self.attributes)])]
 
@@ -148,7 +149,6 @@ class RemoveStopWordsOperation(Operation):
             french, german, hungarian, italian, norwegian, portuguese,
             russian, spanish, swedish, turkish
             """
-            # code = "sw = {}".format(json.dumps(self.stop_word_list))
             code = "sw = StopWordsRemover.loadDefaultStopWords({})".format(
                 self.stop_word_language)
 
@@ -167,7 +167,8 @@ class RemoveStopWordsOperation(Operation):
                    output, json.dumps(zip(self.attributes, self.alias)),
                    self.sw_case_sensitive))
         else:
-            code = "sw = [stop[0].strip() for stop in {}.collect()]".format(
+            code = ("sw = [stop[0].strip() "
+                    "for stop in {}.collect() if stop and stop[0]]").format(
                 self.named_inputs['stop words'])
 
             code += dedent("""
@@ -218,15 +219,15 @@ class WordToVectorOperation(Operation):
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
         else:
             raise ValueError(
-                "Parameter '{}' must be informed for task {}".format(
+                _("Parameter '{}' must be informed for task {}").format(
                     self.ATTRIBUTES_PARAM, self.__class__))
 
         self.type = self.parameters.get(self.TYPE_PARAM, self.TYPE_COUNT)
         self.alias = [alias.strip() for alias in
                       parameters.get(self.ALIAS_PARAM, '').split(',')]
         # Adjust alias in order to have the same number of aliases as attributes
-        # by filling missing alias with the attribute name sufixed by _indexed.
-        self.alias = [x[1] or '{}_tokenized'.format(x[0]) for x in
+        # by filling missing alias with the attribute name sufixed by _vect.
+        self.alias = [x[1] or '{}_vect'.format(x[0]) for x in
                       izip_longest(self.attributes,
                                    self.alias[:len(self.attributes)])]
 
@@ -238,20 +239,20 @@ class WordToVectorOperation(Operation):
         self.minimum_count = parameters.get(self.MINIMUM_COUNT_PARAM, 0)
 
         self.has_code = len(self.named_inputs) > 0
+        self.output = self.named_outputs.get('output data',
+                                             'out_{}'.format(self.order))
+        self.vocab = self.named_outputs.get('vocabulary',
+                                            'vocab_task_{}'.format(self.order))
 
     def get_data_out_names(self, sep=','):
         return self.named_outputs['output data']
 
     def get_output_names(self, sep=", "):
-        output = self.named_outputs['output data']
-        return sep.join([output, self.named_outputs.get(
-            'vocabulary', 'vocab_task_{}'.format(self.order))])
+        return sep.join([self.output, self.vocab])
 
     def generate_code(self):
         input_data = self.named_inputs['input data']
-        output = self.named_outputs['output data']
-        vocab_out = self.named_outputs['vocabulary']
-        
+
         if self.type == self.TYPE_COUNT:
             code = dedent("""
                 col_alias = {3}
@@ -268,7 +269,7 @@ class WordToVectorOperation(Operation):
             code += dedent("""
                 {} = dict([(col_alias[i][1], v.vocabulary)
                         for i, v in enumerate(model.stages)])""".format(
-                vocab_out))
+                self.vocab))
 
             code = code.format(self.attributes, input_data,
                                self.named_outputs['output data'],
@@ -311,7 +312,7 @@ class WordToVectorOperation(Operation):
 
         else:
             raise ValueError(
-                "Invalid type '{}' for task {}".format(self.type,
+                _("Invalid type '{}' for task {}").format(self.type,
                                                        self.__class__))
         return code
 
@@ -334,22 +335,22 @@ class GenerateNGramsOperation(Operation):
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
         else:
             raise ValueError(
-                "Parameter '{}' must be informed for task {}".format(
+                _("Parameter '{}' must be informed for task {}").format(
                     self.N_PARAM, self.__class__))
 
         if self.ATTRIBUTES_PARAM in parameters:
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
         else:
             raise ValueError(
-                "Parameter '{}' must be informed for task {}".format(
+                _("Parameter '{}' must be informed for task {}").format(
                     self.ATTRIBUTES_PARAM, self.__class__))
 
         self.n = int(self.parameters.get(self.N_PARAM, 2))
         self.alias = [alias.strip() for alias in
                       parameters.get(self.ALIAS_PARAM, '').split(',')]
         # Adjust alias in order to have the same number of aliases as attributes
-        # by filling missing alias with the attribute name sufixed by _indexed.
-        self.alias = [x[1] or '{}_tokenized'.format(x[0]) for x in
+        # by filling missing alias with the attribute name sufixed by _ngram.
+        self.alias = [x[1] or '{}_ngram'.format(x[0]) for x in
                       izip_longest(self.attributes,
                                    self.alias[:len(self.attributes)])]
 

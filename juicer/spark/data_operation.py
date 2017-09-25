@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 import ast
+import json
 import pprint
 from textwrap import dedent
 
-from juicer.include.metadata import MetadataGet
 from juicer.operation import Operation
 from juicer.service import limonero_service
 
@@ -19,50 +19,61 @@ class DataReader(Operation):
     SEPARATOR_PARAM = 'separator'
     INFER_SCHEMA_PARAM = 'infer_schema'
     NULL_VALUES_PARAM = 'null_values'
+    MODE_PARAM = 'mode'
 
     INFER_FROM_LIMONERO = 'FROM_LIMONERO'
     INFER_FROM_DATA = 'FROM_VALUES'
     DO_NOT_INFER = 'NO'
 
     LIMONERO_TO_SPARK_DATA_TYPES = {
+        "CHARACTER": 'types.StringType',
+        "DATETIME": 'types.TimestampType',
+        "DOUBLE": 'types.DoubleType',
+        "DECIMAL": 'types.DecimalType',
+        "FLOAT": 'types.FloatType',
+        "LONG": 'types.LongType',
         "INTEGER": 'types.IntegerType',
         "TEXT": 'types.StringType',
-        "LONG": 'types.LongType',
-        "FLOAT": 'types.FloatType',
-        "DOUBLE": 'types.DoubleType',
-        "DATETIME": 'types.TimestampType',
-        "CHARACTER": 'types.StringType',
     }
+
+    DATA_TYPES_WITH_PRECISION = {'DECIMAL'}
+
     SEPARATORS = {
         '{tab}': '\\t'
     }
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
-        self.has_code = len(self.named_outputs) > 0
+        self.has_code = len(self.named_outputs) > 0 or True
         if self.has_code:
             if self.DATA_SOURCE_ID_PARAM in parameters:
                 self.database_id = parameters[self.DATA_SOURCE_ID_PARAM]
                 self.header = parameters.get(
                     self.HEADER_PARAM, False) not in ('0', 0, 'false', False)
-                self.sep = parameters.get(self.SEPARATOR_PARAM, ',')
+
+                self.null_values = [v.strip() for v in parameters.get(
+                    self.NULL_VALUES_PARAM, '').split(",")]
+                limonero_config = \
+                    self.parameters['configuration']['juicer']['services'][
+                        'limonero']
+                url = '{}/datasources'.format(limonero_config['url'])
+                token = str(limonero_config['auth_token'])
+
+                self.metadata = limonero_service.get_data_source_info(
+                    url, token, self.database_id)
+                self.sep = parameters.get(
+                    self.SEPARATOR_PARAM, self.metadata.get(
+                        'attribute_delimiter', ',')) or ','
+
                 if self.sep in self.SEPARATORS:
                     self.sep = self.SEPARATORS[self.sep]
                 self.infer_schema = parameters.get(self.INFER_SCHEMA_PARAM,
                                                    self.INFER_FROM_LIMONERO)
-                self.null_values = [v.strip() for v in parameters.get(
-                    self.NULL_VALUES_PARAM, '').split(",")]
 
-                metadata_obj = MetadataGet('123456')
-
-                # @FIXME Parameter
-                url = 'http://beta.ctweb.inweb.org.br/limonero/datasources'
-                token = '123456'
-                self.metadata = limonero_service.get_data_source_info(
-                    url, token, self.database_id)
+                self.mode = parameters.get(self.MODE_PARAM, 'FAILFAST')
             else:
                 raise ValueError(
-                    "Parameter '{}' must be informed for task {}".format(
+                    _("Parameter '{}' must be informed for task {}").format(
                         self.DATA_SOURCE_ID_PARAM, self.__class__))
         self.output = named_outputs.get('output data',
                                         'out_task_{}'.format(self.order))
@@ -76,58 +87,64 @@ class DataReader(Operation):
         code = []
         infer_from_data = self.infer_schema == self.INFER_FROM_DATA
         infer_from_limonero = self.infer_schema == self.INFER_FROM_LIMONERO
-        if len(self.named_outputs) == 1:
+        if self.has_code:
             if infer_from_limonero:
                 if 'attributes' in self.metadata:
                     code.append(
                         'schema_{0} = types.StructType()'.format(self.output))
-                    for attr in self.metadata.get('attributes', []):
-                        data_type = self.LIMONERO_TO_SPARK_DATA_TYPES[
-                            attr['type']]
+                    attrs = self.metadata.get('attributes', [])
+                    if attrs:
+                        for attr in attrs:
+                            self._add_attribute_to_schema(attr, code)
+                    else:
+                        code.append(
+                            "schema_{0}.add('value', "
+                            "types.StringType(), 1, None)".format(self.output))
 
-                        # Notice: According to Spark documentation, nullable
-                        # option of StructField is just a hint and when loading
-                        # CSV file, it won't work. So, we are adding this
-                        # information in metadata.
-
-                        metadata = {k: attr[k] for k in
-                                    ['feature', 'label', 'nullable', 'type',
-                                     'size', 'precision', 'enumeration',
-                                     'missing_representation'] if attr[k]}
-                        code.append("schema_{0}.add('{1}', {2}(), {3},\n{5}{4})"
-                                    .format(self.output, attr['name'],
-                                            data_type,
-                                            attr['nullable'],
-                                            pprint.pformat(metadata, indent=0),
-                                            ' ' * 20
-                                            ))
                     code.append("")
                 else:
                     raise ValueError(
-                        "Metadata do not include attributes information")
+                        _("Metadata do not include attributes information"))
             else:
                 code.append('schema_{0} = None'.format(self.output))
 
-            # import pdb
-            # pdb.set_trace()
-
-            if self.metadata['format'] == 'CSV':
-                code.append(
-                    "url_{0} = '{1}'".format(self.output, self.metadata['url']))
+            if self.metadata['format'] in ['CSV', 'TEXT']:
+                # Multiple values not supported yet! See SPARK-17878
+                code.append("url = '{url}'".format(url=self.metadata['url']))
+                null_values = self.null_values
+                if self.metadata.get('treat_as_missing'):
+                    null_values.extend([x.strip() for x in self.metadata.get(
+                        'treat_as_missing').split(',')])
                 null_option = ''.join(
                     [".option('nullValue', '{}')".format(n) for n in
-                     self.null_values]) if self.null_values else ""
-                code_csv = """{0} = spark_session.read\\
-                       {4}\\
-                       .option('treatEmptyValuesAsNulls',
-                               'true')\\
-                       .csv(url_{0}, schema=schema_{0},
-                            header={1}, sep='{2}',
-                            inferSchema={3}, mode='DROPMALFORMED')""".format(
-                    self.output, self.header, self.sep, infer_from_data,
-                    null_option)
-                code.append(code_csv)
+                     set(null_values)]) if null_values else ""
 
+                if self.metadata['format'] == 'CSV':
+                    code_csv = dedent("""
+                        {output} = spark_session.read{null_option}.option(
+                            'treatEmptyValuesAsNulls', 'true').csv(
+                                url, schema=schema_{output},
+                                header={header}, sep='{sep}',
+                                inferSchema={infer_schema},
+                                mode='{mode}')""".format(
+                        output=self.output,
+                        header=self.header or self.metadata.get(
+                            'is_first_line_header', False),
+                        sep=self.sep,
+                        infer_schema=infer_from_data,
+                        null_option=null_option,
+                        mode=self.mode
+                    ))
+                    code.append(code_csv)
+                else:
+                    code_csv = dedent("""
+                    {output} = spark_session.read \\
+                           {null_option} \\
+                           .schema(schema_{output}) \\
+                           .option('treatEmptyValuesAsNulls', 'true') \\
+                           .text(url)""".format(output=self.output,
+                                                null_option=null_option))
+                    code.append(code_csv)
                 # FIXME: Evaluate if it is good idea to always use cache
                 code.append('{}.cache()'.format(self.output))
 
@@ -156,8 +173,38 @@ class DataReader(Operation):
 
         return '\n'.join(code)
 
+    def _add_attribute_to_schema(self, attr, code):
+        data_type = self.LIMONERO_TO_SPARK_DATA_TYPES[
+            attr['type']]
+        if attr['type'] in self.DATA_TYPES_WITH_PRECISION:
+            data_type = '{}({}, {})'.format(
+                data_type,
+                attr['precision'] + 3,  # extra precision to be safe
+                attr.get('scale', 0) or 0)
+        else:
+            data_type = '{}()'.format(data_type)
 
-class SaveOperations(Operation):
+        # Notice: According to Spark documentation, nullable
+        # option of StructField is just a hint and when
+        # loading CSV file, it won't work. So, we are adding
+        # this information in metadata.
+        metadata = {k: attr[k] for k in
+                    ['feature', 'label', 'nullable', 'type', 'size',
+                     'precision', 'enumeration', 'missing_representation'] if
+                    attr[k]}
+        code.append("schema_{0}.add('{1}', {2}, {3},\n{5}{4})".format(
+            self.output, attr['name'], data_type, attr['nullable'],
+            pprint.pformat(metadata, indent=0), ' ' * 20
+        ))
+
+    def get_output_names(self, sep=", "):
+        return self.output
+
+    def get_data_out_names(self, sep=','):
+        return self.output
+
+
+class SaveOperation(Operation):
     """
     Saves the content of the DataFrame at the specified path
     and generate the code to call the Limonero API.
@@ -168,6 +215,24 @@ class SaveOperations(Operation):
         - Database tags
         - Workflow that generated the database
     """
+    SPARK_TO_LIMONERO_DATA_TYPES = {
+        'types.StringType': "CHARACTER",
+        'types.TimestampType': "DATETIME",
+        'types.DoubleType': "DOUBLE",
+        'types.DecimalType': "DECIMAL",
+        'types.FloatType': "FLOAT",
+        'types.LongType': "LONG",
+        'types.IntegerType': "INTEGER",
+
+        'StringType': "CHARACTER",
+        'TimestampType': "DATETIME",
+        'DoubleType': "DOUBLE",
+        'DecimalType': "DECIMAL",
+        'FloatType': "FLOAT",
+        'LongType': "LONG",
+        'IntegerType': "INTEGER",
+    }
+
     NAME_PARAM = 'name'
     PATH_PARAM = 'path'
     STORAGE_ID_PARAM = 'storage'
@@ -215,10 +280,12 @@ class SaveOperations(Operation):
 
     def generate_code(self):
         # Retrieve Storage URL
-        # @FIXME Hardcoded!
-        storage = limonero_service.get_storage_info(
-            'http://beta.ctweb.inweb.org.br/limonero', '123456',
-            self.storage_id)
+
+        limonero_config = \
+            self.parameters['configuration']['juicer']['services']['limonero']
+        url = limonero_config['url']
+        token = str(limonero_config['auth_token'])
+        storage = limonero_service.get_storage_info(url, token, self.storage_id)
 
         final_url = '{}/{}/{}'.format(storage['url'], self.path,
                                       self.name.replace(' ', '_'))
@@ -246,15 +313,9 @@ class SaveOperations(Operation):
         if not self.workflow_json == '':
             code_api = """
                 # Code to update Limonero metadata information
-                from juicer.dist.metadata import MetadataPost
-                types_names = {{
-                'IntegerType': "INTEGER",
-                'types.StringType': "TEXT",
-                'LongType': "LONG",
-                'DoubleType': "DOUBLE",
-                'TimestampType': "DATETIME",
-                'FloatType': "FLOAT"
-                }}
+                from juicer.include.metadata import MetadataPost
+                types_names = {13}
+
                 schema = []
                 # nullable information is also stored in metadata
                 # because Spark ignores this information when loading CSV files
@@ -269,7 +330,7 @@ class SaveOperations(Operation):
                     'name': "{1}",
                     'format': "{2}",
                     'storage_id': {3},
-                    'provenience': '{4}',
+                    'provenience': '',
                     'description': "{5}",
                     'user_id': "{6}",
                     'user_login': "{7}",
@@ -277,7 +338,7 @@ class SaveOperations(Operation):
                     'workflow_id': "{9}",
                     'url': "{10}",
                 }}
-                instance = MetadataPost('{11}', schema, parameters)
+                instance = MetadataPost('{12}', '{11}', schema, parameters)
                 """.format(self.named_inputs['input data'], self.name,
                            self.format,
                            self.storage_id,
@@ -286,7 +347,8 @@ class SaveOperations(Operation):
                            self.user['id'],
                            self.user['login'],
                            self.user['name'],
-                           self.workflow_id, final_url, "123456"
+                           self.workflow_id, final_url, token, url,
+                           json.dumps(self.SPARK_TO_LIMONERO_DATA_TYPES)
                            )
             code += dedent(code_api)
             # No return
@@ -295,17 +357,15 @@ class SaveOperations(Operation):
         return code
 
 
-class ReadCSV(Operation):
+class ReadCSVOperation(Operation):
     """
     Reads a CSV file without HDFS.
     The purpose of this operation is to read files in
     HDFS without using the Limonero API.
     """
 
-    def __init__(self, parameters, inputs, outputs, named_inputs,
-                 named_outputs):
-        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
-                           named_outputs)
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
         self.url = parameters['url']
         try:
             self.header = parameters['header']
@@ -319,11 +379,12 @@ class ReadCSV(Operation):
     def generate_code(self):
         code = """{} = spark_session.read.csv('{}',
             header={}, sep='{}',inferSchema=True)""".format(
-            self.outputs[0], self.url, self.header, self.separator)
+            self.named_outputs['output data'], self.url, self.header,
+            self.separator)
         return dedent(code)
 
 
-class ChangeAttribute(Operation):
+class ChangeAttributeOperation(Operation):
     ATTRIBUTES_PARAM = 'attributes'
     IS_FEATURE_PARAM = 'is_feature'
     IS_LABEL_PARAM = 'is_label'
@@ -332,18 +393,16 @@ class ChangeAttribute(Operation):
     NEW_DATA_TYPE_PARAM = 'new_data_type'
     KEEP_VALUE = 'keep'
 
-    def __init__(self, parameters, inputs, outputs, named_inputs,
-                 named_outputs):
-        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
-                           named_outputs)
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         if self.ATTRIBUTES_PARAM in parameters:
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
         else:
-            raise ValueError(
-                "Parameter '{}' must be informed for task {}".format(
+            raise ValueError(_(
+                "Parameter '{}' must be informed for task {}").format(
                     self.ATTRIBUTES_PARAM, self.__class__))
-        self.has_code = len(self.inputs) == 1
+        self.has_code = len(self.named_inputs) == 1
 
     def generate_code(self):
         del self.parameters['workflow_json']
@@ -351,7 +410,8 @@ class ChangeAttribute(Operation):
         if self.parameters.get(self.NEW_DATA_TYPE_PARAM,
                                'keep') == self.KEEP_VALUE:
             # Do not require processing data frame, change only meta data
-            code.append('{0} = {1}'.format(self.output, self.inputs[0]))
+            code.append('{0} = {1}'.format(self.output,
+                                           self.named_inputs['input data']))
 
             for attr in self.attributes:
                 code.append(
@@ -363,28 +423,30 @@ class ChangeAttribute(Operation):
                                                self.KEEP_VALUE)
                 if nullable != self.KEEP_VALUE:
                     code.append(
-                        ChangeAttribute.change_meta(
+                        ChangeAttributeOperation.change_meta(
                             self.output, attr, 'nullable', nullable == 'true'))
 
                 feature = self.parameters.get(self.IS_FEATURE_PARAM,
                                               self.KEEP_VALUE)
                 if feature != self.KEEP_VALUE:
                     code.append(
-                        ChangeAttribute.change_meta(
+                        ChangeAttributeOperation.change_meta(
                             self.output, attr, 'feature', feature == 'true'))
 
                 label = self.parameters.get(self.IS_LABEL_PARAM,
                                             self.KEEP_VALUE)
                 if label != self.KEEP_VALUE:
                     code.append(
-                        ChangeAttribute.change_meta(
+                        ChangeAttributeOperation.change_meta(
                             self.output, attr, 'label', label == 'true'))
 
             format_name = self.parameters[self.NEW_NAME_PARAM]
             if format_name:
                 rename = [
                     "withColumnRenamed('{}', '{}')".format(
-                        attr, ChangeAttribute.new_name(format_name, attr)) for
+                        attr,
+                        ChangeAttributeOperation.new_name(format_name, attr))
+                    for
                     attr in self.attributes]
 
                 code.append('{0} = {0}.{1}'.format(
@@ -408,10 +470,8 @@ class ChangeAttribute(Operation):
 
 
 class ExternalInputOperation(Operation):
-    def __init__(self, parameters, inputs, outputs, named_inputs,
-                 named_outputs):
-        Operation.__init__(self, parameters, inputs, outputs, named_inputs,
-                           named_outputs)
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         self.has_code = len(self.output) > 0
 

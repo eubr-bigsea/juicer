@@ -14,15 +14,19 @@ class StateControlRedis:
     def __init__(self, redis_conn):
         self.redis_conn = redis_conn
 
-    def pop_queue(self, queue, block=True):
+    def pop_queue(self, queue, block=True, timeout=0):
         if block:
-            result = self.redis_conn.blpop(queue)[1]
+            result = self.redis_conn.blpop(queue, timeout=timeout)
+            if result is not None:
+                result = result[1]
         else:
             result = self.redis_conn.lpop(queue)
         return result
 
-    def push_queue(self, queue, data):
+    def push_queue(self, queue, data, ttl=0):
         self.redis_conn.rpush(queue, data)
+        if ttl > 0:
+            self.redis_conn.expire(queue, ttl)
 
     def pop_start_queue(self, block=True):
         return self.pop_queue(self.START_QUEUE_NAME, block)
@@ -30,8 +34,8 @@ class StateControlRedis:
     def push_start_queue(self, data):
         self.push_queue(self.START_QUEUE_NAME, data)
 
-    def pop_app_queue(self, app_id, block=True):
-        return self.pop_queue(self.QUEUE_APP.format(app_id), block)
+    def pop_app_queue(self, app_id, block=True, timeout=0):
+        return self.pop_queue(self.QUEUE_APP.format(app_id), block, timeout)
 
     def push_app_queue(self, app_id, data):
         self.push_queue(self.QUEUE_APP.format(app_id), data)

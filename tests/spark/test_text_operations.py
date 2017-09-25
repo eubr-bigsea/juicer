@@ -109,8 +109,9 @@ def test_remove_stopwords_operations_2_params_success():
 
     code = instance.generate_code()
 
-    expected_code = "sw = [stop[0].strip() for stop in {}.collect()]".format(
-        params[RemoveStopWordsOperation.STOP_WORD_LIST_PARAM])
+    expected_code = dedent("""
+        sw = [stop[0].strip() for stop in {}.collect() if stop and stop[0]]
+        """.format(params[RemoveStopWordsOperation.STOP_WORD_LIST_PARAM]))
 
     expected_code += dedent("""
         col_alias = {3}

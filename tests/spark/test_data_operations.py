@@ -8,7 +8,17 @@ from tests import compare_ast, format_code_comparison
 
 def test_data_reader_minimal_parameters_no_attributes_success():
     parameters = {
-        'data_source': 1
+        'data_source': 1,
+        'configuration': {
+            'juicer': {
+                'services': {
+                    'limonero': {
+                        'url': 'http://limonero:12345',
+                        'auth_token': 'zzzz'
+                    }
+                }
+            }
+        }
     }
     n_out = {'output data': 'output_1'}
 
@@ -18,13 +28,14 @@ def test_data_reader_minimal_parameters_no_attributes_success():
 
     expected_code = dedent("""
         schema_{output} = types.StructType()
-        url_output_1 = '{url}'
+        schema_{output}.add('value', types.StringType(), 1, None)
+        url = '{url}'
         {output} = spark_session.read\
                                .option('nullValue', '')\
                                .option('treatEmptyValuesAsNulls', 'true')\
-                               .csv(url_output_1, schema=schema_output_1,
+                               .csv(url, schema=schema_output_1,
                                     header=False, sep=',',
-                                    inferSchema=False, mode='DROPMALFORMED')
+                                    inferSchema=False, mode='FAILFAST')
         {output}.cache()
         """.format(url='http://hdfs.lemonade:9000', output='output_1'))
     expected_tree = ast.parse(expected_code)

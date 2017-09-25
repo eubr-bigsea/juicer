@@ -1,20 +1,47 @@
 # Juicer configuration file
+juicer:
+    debug: true
+    servers:
+        database_url: mysql+pymysql://root:passwd@mysql:3306/lemonade
+        redis_url: redis://redis:6379
+    services:
+        tahiti:
+            url: http://tahiti
+            auth_token: 123456
+        limonero:
+            url: http://limonero
+            auth_token: 123456
+        caipirinha:
+            url: http://caipirinha
+            auth_token: 123456
+            storage_id: 1
+    config:
+        tmp_dir: /tmp
+    spark:
+        # For more information, see http://spark.apache.org/docs/latest/configuration.html
+        spark.executor.memory: 4g
+        spark.executor.cores: 3
+        spark.cores.max: 3
+        spark.driver.memory: 4g
+        # Allowed URLS:
+        # local:                Run locally with 1 worker thread
+        # local[k]:             Run locally with k worker threads
+        # local[*]:             Run locally with as many worker threads as logical cores
+        # spark://host:port:    Connect to Spark standalone cluster (default port 7077)
+        # mesos://host:port:    Connect to Mesos cluster (default port 5050)
+        # yarn:                 Connect to Yarn cluster. Cluster location will be found based
+        #                       on the HADOOP_CONF_DIR or YARN_CONF_DIR variable.
+        spark.master: localhost
 
-#juicer:
-#    debug: true
-#    servers:
-#        database_url: mysql+pymysql://user:password@server:port/database
-#        redis_url: redis://redis_server:6379
-#    services:
-#        tahiti:
-#            url: http://server/tahiti
-#            auth_token: "authorization_token"
-#        limonero:
-#            url: http://server/limonero
-#            auth_token: "authorization_token"
-#        caipirinha:
-#            url: http://server/caipirinha
-#            auth_token: "authorization_token"
-#            storage_id: "provided by a caipirinha instance"
-#    config:
-#        tmp_dir: /tmp
+        spark.localdir: /tmp
+        spark.submit.deployMode: client
+        spark.driver.extraClassPath: null
+        spark.executor.extraClassPath: null
+        spark.jars: null
+    # listeners:
+    #   - class: lemonade.juicer.spark.LemonadeSparkListener
+    #     jars:
+    #        - <path_to_jar_containing_the_class_above>
+    #     params:
+    #        log_path: <example_param_for_LemonadeSparkListener>
+

@@ -39,12 +39,23 @@ def test_add_columns_minimum_params_success():
 
     code = instance.generate_code()
     expected_code = dedent("""
-    tmp_window = Window().orderBy()
-    indexer1 = {in0}.withColumn('_inx', rowNumber().over(tmp_window))
-    indexer2 = {in1}.withColumn('_inx', rowNumber().over(tmp_window))
+    def _add_column_index(df, prefix):
+        # Create new attribute names
+        old_attrs = ['{{}}{{}}'.format(prefix, name)
+            for name in df.schema.names]
+        new_attrs = old_attrs + ['_inx']
 
-    {out} = indexer1.join(indexer2, indexer1._inx == indexer2._inx,
-                'inner').drop(indexer1._inx).drop(indexer2._inx)""".format(
+        # Add attribute index
+        return df.rdd.zipWithIndex().map(
+            lambda (row, inx): row + (inx,)).toDF(new_attrs)
+
+    input1_indexed = _add_column_index({in0}, 'ds0_')
+    input2_indexed = _add_column_index({in1}, 'ds1_')
+
+    out = input1_indexed.join(input2_indexed,
+       input1_indexed._inx == input2_indexed._inx, 'inner').drop(
+            input1_indexed._inx).drop(input2_indexed._inx)
+    """.format(
         out=n_out['output data'],
         in0=n_in['input data 1'],
         in1=n_in['input data 2']))
@@ -80,13 +91,24 @@ def test_aggregation_rows_minimal_params_success():
                                     named_outputs=n_out)
     code = instance.generate_code()
 
-    expected_code = """{out} = {in0}.groupBy(functions.col('{agg}'))\\
-                        .agg(functions.avg('income').alias('avg_income'))""" \
-        .format(out=n_out['output data'], in0=n_in['input data'],
-                agg='country', )
+    expected_code = dedent("""
+         pivot_values = None
+         pivot_attr = ''
+         if pivot_attr:
+              {out} = {in0}.groupBy(
+                 functions.col('{agg}')).pivot(
+                     pivot_attr, pivot_values).agg(
+                         functions.avg('income').alias('avg_income'))
+         else:
+              {out} = {in0}.groupBy(
+                 functions.col('{agg}')).agg(
+                     functions.avg('income').alias('avg_income'))
+
+        """.format(out=n_out['output data'], in0=n_in['input data'],
+                   agg='country', ))
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
-    assert result, msg
+    assert result, msg + format_code_comparison(code, expected_code)
 
 
 def test_aggregation_rows_group_all_missing_attributes_success():
@@ -321,13 +343,14 @@ def test_intersection_minimal_params_success():
         out=n_out['output data'], in1=n_in['input data 1'],
         in2=n_in['input data 2'])
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
-    assert result, msg
+    assert result, msg + format_code_comparison(code, expected_code)
 
 
 def test_join_inner_join_minimal_params_success():
     params = {
         'left_attributes': ['id', 'cod'],
-        'right_attributes': ['id', 'cod']
+        'right_attributes': ['id', 'cod'],
+        'aliases': 'left_, right_  '
     }
     n_in = {'input data 1': 'df1', 'input data 2': 'df2'}
     n_out = {'output data': 'out'}
@@ -335,15 +358,27 @@ def test_join_inner_join_minimal_params_success():
 
     code = instance.generate_code()
     expected_code = dedent("""
-        condition = [{left_in}['id'] == {right_in}['id'],
-            {left_in}['cod'] == {right_in}['cod']]
-        {out} = {left_in}.join({right_in}, on=condition, how='{how}').drop(
-            {right_in}['id']).drop({right_in}['cod'])""".format(
-        out=n_out['output data'], left_in=n_in['input data 1'],
-        right_in=n_in['input data 2'], how="inner"))
+        def _rename_attributes(df, prefix):
+            result = df
+            for col in df.columns:
+                result = result.withColumnRenamed(col, '{{}}{{}}'.format(
+                    prefix, col))
+            return result
+
+        in0_renamed = _rename_attributes({in0}, '{a0}')
+        in1_renamed = _rename_attributes({in1}, '{a1}')
+
+        condition = [in0_renamed['{a0}id'] == in1_renamed['{a1}id'],
+            in0_renamed['{a0}cod'] == in1_renamed['{a1}cod']]
+
+        {out} = in0_renamed.join(in1_renamed, on=condition, how='{how}').drop(
+            in1_renamed['{a1}id']).drop(in1_renamed['{a1}cod'])""".format(
+        out=n_out['output data'], in0=n_in['input data 1'],
+        a0='left_', a1='right_',
+        in1=n_in['input data 2'], how="inner"))
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
-    assert result, msg
+    assert result, msg + format_code_comparison(code, expected_code)
 
 
 def test_join_left_join_keep_columns_minimal_params_success():
@@ -351,7 +386,8 @@ def test_join_left_join_keep_columns_minimal_params_success():
         'left_attributes': ['id', 'cod'],
         'right_attributes': ['id', 'cod'],
         JoinOperation.JOIN_TYPE_PARAM: 'left',
-        JoinOperation.KEEP_RIGHT_KEYS_PARAM: True
+        JoinOperation.KEEP_RIGHT_KEYS_PARAM: True,
+        'aliases': 'left_, right_  '
     }
     n_in = {'input data 1': 'df1', 'input data 2': 'df2'}
     n_out = {'output data': 'out'}
@@ -359,20 +395,34 @@ def test_join_left_join_keep_columns_minimal_params_success():
 
     code = instance.generate_code()
     expected_code = dedent("""
-        condition = [{in1}['id'] == {in2}['id'], {in1}['cod'] == {in2}['cod']]
-        {out} = {in1}.join({in2}, on=condition, how='{type}')""".format(
-        out=n_out['output data'], in1=n_in['input data 1'],
-        in2=n_in['input data 2'], type=params[JoinOperation.JOIN_TYPE_PARAM]))
+        def _rename_attributes(df, prefix):
+            result = df
+            for col in df.columns:
+                result = result.withColumnRenamed(col, '{{}}{{}}'.format(
+                    prefix, col))
+            return result
+
+        in0_renamed = _rename_attributes({in0}, '{a0}')
+        in1_renamed = _rename_attributes({in1}, '{a1}')
+
+        condition = [in0_renamed['{a0}id'] == in1_renamed['{a1}id'],
+            in0_renamed['{a0}cod'] == in1_renamed['{a1}cod']]
+        {out} = in0_renamed.join(in1_renamed, on=condition, how='left')
+        """.format(
+        out=n_out['output data'], in0=n_in['input data 1'],
+        a0='left_', a1='right_',
+        in1=n_in['input data 2'], type=params[JoinOperation.JOIN_TYPE_PARAM],))
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
-    assert result, msg
+    assert result, msg + format_code_comparison(code, expected_code)
 
 
 def test_join_remove_right_columns_success():
     params = {
         'left_attributes': ['id', 'cod'],
         'right_attributes': ['id2', 'cod2'],
-        JoinOperation.KEEP_RIGHT_KEYS_PARAM: 'False'
+        JoinOperation.KEEP_RIGHT_KEYS_PARAM: 'False',
+        'aliases': 'left_, right_  '
     }
     n_in = {'input data 1': 'df1', 'input data 2': 'df2'}
     n_out = {'output data': 'out'}
@@ -380,11 +430,21 @@ def test_join_remove_right_columns_success():
 
     code = instance.generate_code()
     expected_code = dedent("""
-        condition = [{in1}['id'] == {in2}['id2'], {in1}['cod'] == {in2}['cod2']]
-        {out} = {in1}.join({in2}, on=condition, how='inner')\\
-            .drop({in2}['id2']).drop({in2}['cod2'])""".format(
-        out=n_out['output data'], in1=n_in['input data 1'],
-        in2=n_in['input data 2']))
+        def _rename_attributes(df, prefix):
+            result = df
+            for col in df.columns:
+                result = result.withColumnRenamed(col, '{{}}{{}}'.format(
+                    prefix, col))
+            return result
+        in0_renamed = _rename_attributes({in0}, '{a0}')
+        in1_renamed = _rename_attributes({in1}, '{a1}')
+
+        condition = [in0_renamed['{a0}id'] == in1_renamed['{a1}id2'],
+            in0_renamed['{a0}cod'] == in1_renamed['{a1}cod2']]
+        {out} = in0_renamed.join(in1_renamed, on=condition, how='inner')\\
+          .drop(in1_renamed['{a1}id2']).drop(in1_renamed['{a1}cod2'])""".format(
+        out=n_out['output data'], in0=n_in['input data 1'],
+        in1=n_in['input data 2'], a0='left_', a1='right_'))
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
     assert result, msg + format_code_comparison(code, expected_code)

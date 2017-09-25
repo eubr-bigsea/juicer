@@ -1,21 +1,24 @@
 # -*- coding: utf-8 -*-
 import json
-import pdb
 import sys
 import zipfile
 
 import jinja2
 import juicer.spark.data_operation
+import juicer.spark.data_quality_operation
+import juicer.spark.dm_operation
 import juicer.spark.etl_operation
+import juicer.spark.feature_operation
 import juicer.spark.geo_operation
 import juicer.spark.ml_operation
 import juicer.spark.statistic_operation
 import juicer.spark.text_operation
-import juicer.spark.ws_operation
 import juicer.spark.vis_operation
+import juicer.spark.ws_operation
 import networkx as nx
 import os
 from juicer import operation
+from juicer.service import stand_service
 from juicer.util.jinja2_custom import AutoPep8Extension
 from juicer.util.spark_template_util import HandleExceptionExtension
 
@@ -30,6 +33,7 @@ class DependencyController:
     def satisfied(self, _id):
         self._satisfied.add(_id)
 
+    # noinspection PyUnusedLocal
     def is_satisfied(self, _id):
         return True  # len(self.requires[_id].difference(self._satisfied)) == 0
 
@@ -44,29 +48,28 @@ class SparkTranspilerVisitor:
 
 class RemoveTasksWhenMultiplexingVisitor(SparkTranspilerVisitor):
     def visit(self, graph, operations, params):
-
         return graph
-        external_input_op = juicer.spark.ws_operation.MultiplexerOperation
-        for task_id in graph.node:
-            task = graph.node[task_id]
-            op = operations.get(task.get('operation').get('slug'))
-            if op == external_input_op:
-                # Found root
-                if params.get('service'):
-                    # Remove the left side of the tree
-                    # left_side_flow = [f for f in workflow['flows']]
-                    flow = graph.in_edges(task_id, data=True)
-                    # pdb.set_trace()
-                    # remove other side
-                    pass
-                else:
-                    flow = [f for f in graph['flows'] if
-                            f['target_id'] == task.id and f[
-                                'target_port_name'] == 'input data 2']
-                    if flow:
-                        pdb.set_trace()
-                    pass
-        return graph
+        # external_input_op = juicer.spark.ws_operation.MultiplexerOperation
+        # for task_id in graph.node:
+        #     task = graph.node[task_id]
+        #     op = operations.get(task.get('operation').get('slug'))
+        #     if op == external_input_op:
+        #         # Found root
+        #         if params.get('service'):
+        #             # Remove the left side of the tree
+        #             # left_side_flow = [f for f in workflow['flows']]
+        #             flow = graph.in_edges(task_id, data=True)
+        #             # pdb.set_trace()
+        #             # remove other side
+        #             pass
+        #         else:
+        #             flow = [f for f in graph['flows'] if
+        #                     f['target_id'] == task.id and f[
+        #                         'target_port_name'] == 'input data 2']
+        #             if flow:
+        #                 pdb.set_trace()
+        #             pass
+        # return graph
 
 
 class SparkTranspiler:
@@ -118,24 +121,25 @@ class SparkTranspiler:
         distributed among all nodes.
         """
         project_base = os.path.join(
-            os.path.abspath(os.path.dirname(__file__)), '..')
+            os.path.abspath(os.path.dirname(__file__)), '..', '..')
 
         lib_paths = [
-            os.path.join(project_base, 'spark/dist'),
-            os.path.join(project_base, 'dist')
+            # os.path.join(project_base, 'spark/dist'),
+            # os.path.join(project_base, 'dist')
+            os.path.join(project_base, 'juicer')
         ]
-        build = os.path.exists(self.DIST_ZIP_FILE)
-        while not build:
+        build = not os.path.exists(self.DIST_ZIP_FILE)
+        if not build:
             for lib_path in lib_paths:
                 dist_files = os.listdir(lib_path)
                 zip_mtime = os.path.getmtime(self.DIST_ZIP_FILE)
                 for f in dist_files:
-                    if zip_mtime < os.path.getmtime(os.path.join(lib_path, f)):
+                    if zip_mtime < os.path.getmtime(
+                            os.path.join(lib_path, f)):
                         build = True
                         break
                 if build:
                     break
-            build = build or False
 
         if build:
             zf = zipfile.PyZipFile(self.DIST_ZIP_FILE, mode='w')
@@ -144,7 +148,7 @@ class SparkTranspiler:
             zf.close()
 
     def _gen_port_name(self, flow, seq):
-        name = flow['source_port_name']
+        name = flow.get('source_port_name', 'data')
         parts = name.split()
         if len(parts) == 1:
             name = name[:5]
@@ -209,7 +213,7 @@ class SparkTranspiler:
                         target_port['inputs'].append(sequence)
 
         env_setup = {'instances': [], 'instances_by_task_id': {},
-                'workflow_name': workflow['name']}
+                     'workflow_name': workflow['name']}
 
         sorted_tasks_id = nx.topological_sort(graph)
         for i, task_id in enumerate(sorted_tasks_id):
@@ -248,6 +252,7 @@ class SparkTranspiler:
             parameters['order'] = i
 
             parameters['task'] = task
+            parameters['configuration'] = self.configuration
             parameters['workflow_json'] = json.dumps(workflow)
             parameters['user'] = workflow['user']
             parameters['workflow_id'] = workflow['id']
@@ -267,19 +272,30 @@ class SparkTranspiler:
             env_setup['instances'].append(instance)
             env_setup['instances_by_task_id'][task['id']] = instance
             env_setup['execute_main'] = params.get('execute_main', False)
+            env_setup['plain'] = params.get('plain', False)
 
         template_loader = jinja2.FileSystemLoader(
             searchpath=os.path.dirname(__file__))
         template_env = jinja2.Environment(loader=template_loader,
                                           extensions=[AutoPep8Extension,
                                                       HandleExceptionExtension])
-        template = template_env.get_template("operation.tmpl")
+        template_env.globals.update(zip=zip)
+        template = template_env.get_template("templates/operation.tmpl")
         v = template.render(env_setup)
 
         if using_stdout:
             out.write(v.encode('utf8'))
         else:
             out.write(v)
+        stand_config = self.configuration.get('juicer', {}).get(
+            'services', {}).get('stand')
+        if stand_config and job_id:
+            try:
+                stand_service.save_job_source_code(stand_config['url'],
+                                                   stand_config['auth_token'],
+                                                   job_id, v.encode('utf8'))
+            except:
+                pass
 
     def _assign_operations(self):
         etl_ops = {
@@ -290,6 +306,7 @@ class SparkTranspiler:
             'difference': juicer.spark.etl_operation.DifferenceOperation,
             'distinct': juicer.spark.etl_operation.RemoveDuplicatedOperation,
             'drop': juicer.spark.etl_operation.DropOperation,
+            'execute-python': juicer.spark.etl_operation.ExecutePythonOperation,
             'filter': juicer.spark.etl_operation.FilterOperation,
             # Alias for filter
             'filter-selection': juicer.spark.etl_operation.FilterOperation,
@@ -298,14 +315,23 @@ class SparkTranspiler:
             # synonym for select
             'projection': juicer.spark.etl_operation.SelectOperation,
             # synonym for distinct
-            'remove-duplicated-rows': juicer.spark.etl_operation.RemoveDuplicatedOperation,
+            'remove-duplicated-rows':
+                juicer.spark.etl_operation.RemoveDuplicatedOperation,
+            'replace-value':
+                juicer.spark.etl_operation.ReplaceValueOperation,
             'sample': juicer.spark.etl_operation.SampleOrPartitionOperation,
             'select': juicer.spark.etl_operation.SelectOperation,
             # synonym of intersection'
-            'set-intersection': juicer.spark.etl_operation.IntersectionOperation,
+            'set-intersection':
+                juicer.spark.etl_operation.IntersectionOperation,
             'sort': juicer.spark.etl_operation.SortOperation,
             'split': juicer.spark.etl_operation.SplitOperation,
-            'transformation': juicer.spark.etl_operation.TransformationOperation,
+            'transformation':
+                juicer.spark.etl_operation.TransformationOperation,
+        }
+        dm_ops = {
+            'frequent-item-set':
+                juicer.spark.dm_operation.FrequentItemSetOperation
         }
         ml_ops = {
             'apply-model': juicer.spark.ml_operation.ApplyModelOperation,
@@ -347,10 +373,8 @@ class SparkTranspiler:
             'topic-report': juicer.spark.ml_operation.TopicReportOperation,
             'recommendation-model':
                 juicer.spark.ml_operation.RecommendationModel,
-            # 'recommendation-model': juicer.spark.ml_operation.CollaborativeOperation,
             'als-recommender':
                 juicer.spark.ml_operation.AlternatingLeastSquaresOperation,
-            'logistic-model': juicer.spark.ml_operation.LogisticRegressionModel,
             'logistic-regression':
                 juicer.spark.ml_operation.LogisticRegressionClassifierOperation,
             'linear-regression':
@@ -358,17 +382,31 @@ class SparkTranspiler:
             'regression-model':
                 juicer.spark.ml_operation.RegressionModelOperation,
             'index-to-string': juicer.spark.ml_operation.IndexToStringOperation,
+            'random-forest-regressor':
+                juicer.spark.ml_operation.RandomForestRegressorOperation,
+            'gbt-regressor': juicer.spark.ml_operation.GBTRegressorOperation,
+            'generalized-linear-regressor':
+                juicer.spark.ml_operation.GeneralizedLinearRegressionOperation,
+            'aft-survival-regression':
+                juicer.spark.ml_operation.AFTSurvivalRegressionOperation,
+
+            'save-model': juicer.spark.ml_operation.SaveModelOperation,
+            'load-model': juicer.spark.ml_operation.LoadModelOperation,
 
         }
         data_ops = {
-            'change-attribute': juicer.spark.data_operation.ChangeAttribute,
+            'change-attribute':
+                juicer.spark.data_operation.ChangeAttributeOperation,
             'data-reader': juicer.spark.data_operation.DataReader,
-            'data-writer': juicer.spark.data_operation.SaveOperations,
+            'data-writer': juicer.spark.data_operation.SaveOperation,
             'external-input':
                 juicer.spark.data_operation.ExternalInputOperation,
-            'read-csv': juicer.spark.data_operation.ReadCSV,
-            'save': juicer.spark.data_operation.SaveOperations,
-
+            'read-csv': juicer.spark.data_operation.ReadCSVOperation,
+            'save': juicer.spark.data_operation.SaveOperation,
+        }
+        data_quality_ops = {
+            'entity-matching':
+                juicer.spark.data_quality_operation.EntityMatchingOperation,
         }
         other_ops = {
             'comment': operation.NoOp,
@@ -392,14 +430,32 @@ class SparkTranspiler:
 
         }
         vis_ops = {
-            'publish-as-visualization': juicer.spark.vis_operation.PublishVisOperation,
+            'publish-as-visualization':
+                juicer.spark.vis_operation.PublishVisualizationOperation,
             'bar-chart': juicer.spark.vis_operation.BarChartOperation,
+            'donut-chart': juicer.spark.vis_operation.DonutChartOperation,
             'pie-chart': juicer.spark.vis_operation.PieChartOperation,
             'area-chart': juicer.spark.vis_operation.AreaChartOperation,
             'line-chart': juicer.spark.vis_operation.LineChartOperation,
-            'table-visualization': juicer.spark.vis_operation.TableVisOperation
+            'table-visualization':
+                juicer.spark.vis_operation.TableVisualizationOperation,
+            'summary-statistics':
+                juicer.spark.vis_operation.SummaryStatisticsOperation,
+            'plot-chart': juicer.spark.vis_operation.ScatterPlotOperation,
+            'scatter-plot': juicer.spark.vis_operation.ScatterPlotOperation,
+            'map-chart': juicer.spark.vis_operation.MapOperation,
+            'map': juicer.spark.vis_operation.MapOperation
+        }
+        feature_ops = {
+            'standard-scaler':
+                juicer.spark.feature_operation.StandardScalerOperation,
+            'max-abs-scaler':
+                juicer.spark.feature_operation.MaxAbsScalerOperation,
+            'min-max-scaler':
+                juicer.spark.feature_operation.MinMaxScalerOperation,
+
         }
         self.operations = {}
         for ops in [data_ops, etl_ops, geo_ops, ml_ops, other_ops, text_ops,
-                    ws_ops, vis_ops]:
+                    ws_ops, vis_ops, dm_ops, data_quality_ops, feature_ops]:
             self.operations.update(ops)
