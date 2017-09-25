@@ -39,6 +39,9 @@ class Workflow:
         # Topological sorted tasks according to their dependencies
         self.sorted_tasks = []
 
+        # Spark or COMPSs
+        self.plataform = workflow_data['platform']['slug']
+
         # Verify null edges to topological_sorted_tasks
         if self.is_there_null_target_id_tasks() \
                 and self.is_there_null_source_id_tasks():
