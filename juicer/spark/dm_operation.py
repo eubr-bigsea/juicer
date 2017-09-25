@@ -20,7 +20,7 @@ class FrequentItemSetOperation(Operation):
         if self.MIN_SUPPORT_PARAM not in parameters:
             raise ValueError(_(
                 'Support must be informed for classifier {}').format(
-                    self.__class__))
+                self.__class__))
 
         self.min_support = float(parameters.get(self.MIN_SUPPORT_PARAM))
         if self.min_support < .1:
@@ -49,6 +49,13 @@ class FrequentItemSetOperation(Operation):
         return self.get_output_names(sep)
 
     def generate_code(self):
+        # def lift(sup_X_u_Y, n, sup_X, sup_Y):
+        #     total = float(n)
+        #     return (sup_X_u_Y / total) / (sup_X / total * sup_Y / total)
+        # def leverage():
+        #     pass
+        # def conviction():
+        #     pass
         code = """
             from pyspark.ml.fpm import FPGrowth
             from pyspark.sql.types import StructType, StructField, \\
@@ -63,74 +70,6 @@ class FrequentItemSetOperation(Operation):
             {output} = model.freqItemsets
             {rules} = model.associationRules
 
-        """.format(input=self.named_inputs['input data'],
-                   support=self.min_support,
-                   output=self.output,
-                   attr=self.attribute,
-                   task_id=self.parameters['task']['id'],
-                   rules=self.rules,
-                   confidence=self.confidence,
-                   model_trained=_('Model trained'))
-
-        return dedent(code)
-
-    def generate_code2(self):
-        # def lift(sup_X_u_Y, n, sup_X, sup_Y):
-        #     total = float(n)
-        #     return (sup_X_u_Y / total) / (sup_X / total * sup_Y / total)
-        # def leverage():
-        #     pass
-        # def conviction():
-        #     pass
-        code = """
-            from pyspark.mllib.fpm import FPGrowth
-            from pyspark.sql.types import StructType, StructField, \\
-                StringType, FloatType, ArrayType
-
-            # Current version of Spark supports FP-Growth only in RDD.
-            # Assume that data is a line with transaction items separated by
-            # space.
-            data = {input}.rdd
-            inx = reduce(
-                lambda x, y: max(x, y),
-                [inx for inx, attr in enumerate({input}.schema)
-                    if attr.name == '{attr}'], 0)
-
-            transactions = data.map(lambda line: line[inx])
-            model = FPGrowth.train(
-                transactions, minSupport={support}, numPartitions=10)
-
-            emit_event(name='update task', message='{model_trained}',
-                       status='RUNNING', identifier='{task_id}')
-
-            items = model.freqItemsets()
-
-            rules_schema = StructType(
-                 [
-                    StructField("antecedent", StringType()),
-                    StructField("consequent", StringType()),
-                    StructField("confidence", FloatType())
-                ])
-
-            gen_rules = []
-            if items.isEmpty():
-                schema = StructType(
-                    [StructField("freq_item_sets", StringType()),
-                    StructField("support", FloatType())])
-                {output} = spark_session.createDataFrame([], schema)
-            else:
-                {output} = items.toDF(['freq_item_sets'])
-                #{output} = {output}.withColumn(
-                #    'support', {output}['freq'] / count)
-                # noinspection PyProtectedMember
-                rules = model._java_model.generateAssociationRules({confidence})
-                for rule in list(rules):
-                    gen_rules.append([
-                        list(rule.antecedent()),
-                        list(rule.consequent()),
-                        list(rule.confidence())
-                    ])
-            {rules} = spark_session.createDataFrame(gen_rules, rules_schema)
         """.format(input=self.named_inputs['input data'],
                    support=self.min_support,
                    output=self.output,
