@@ -12,7 +12,7 @@ class Expression:
         self.build_functions_dict()
 
         self.imports = ""
-        self.parsed_expression = "lambda row: " + self.parse(json_code, params)
+        self.parsed_expression = "lambda col: " + self.parse(json_code, params)
 
 
 
@@ -25,7 +25,7 @@ class Expression:
         # Literal parsing
         elif tree['type'] == 'Literal':
             v = tree['value']
-            result = "row['{}']".format(v) if type(v) in [str, unicode] else str(v)
+            result = "'{}'".format(v) if type(v) in [str, unicode] else str(v)
 
         # Expression parsing
         elif tree['type'] == 'CallExpression':
@@ -34,9 +34,9 @@ class Expression:
         # Identifier parsing
         elif tree['type'] == 'Identifier':
             if 'input' in params:
-                result = "{}['{}']".format(params['input'], tree['name'])
+                result = "{}['{}']".format('col', tree['name'])#params['input'], tree['name'])
             else:
-                result = "functions.col('{}')".format(tree['name'])
+                result = "functions.col['{}']".format(tree['name'])
 
         # Unary Expression parsing
         elif tree['type'] == 'UnaryExpression':
@@ -67,8 +67,8 @@ class Expression:
         callee = spec['arguments'][0].get('callee', {})
         # Evaluates if column name is wrapped in a col() function call
         arguments = ', '.join([self.parse(x, params) for x in spec['arguments']])
-
-        result = " np.{}({})".format(spec['callee']['name'], arguments)
+        function_name = spec['callee']['name']
+        result = " np.{}({})".format(function_name, arguments)
         return result
 
 
@@ -154,8 +154,20 @@ class Expression:
         return result
 
 
+    def convertToPandas_function(self, spec, params):
+       # callee = spec['arguments'][0].get('callee', {})
+        #function = spec['callee']['name']
+
+        # Evaluates if column name is wrapped in a col() function call
+        arguments = ', '.join([self.parse(x, params) for x in spec['arguments']])
+
+        result = '{}'.format(arguments)
+        return result
+
 
     def build_functions_dict(self):
+
+
         numpy_functions = {
             # ----- Mathematical operations -------#
             # See more at: https://docs.scipy.org/doc/numpy-1.13.0/reference/routines.math.html
@@ -212,11 +224,11 @@ class Expression:
             'float_power':	self.get_numpy_function_call, #	First array elements raised to powers from second array, element-wise.
             'fmod':	        self.get_numpy_function_call, #	Return the element-wise remainder of division.
             'mod':	        self.get_numpy_function_call, #	Return element-wise remainder of division.
-            'modf':	        self.get_numpy_function_call, #	Return the fractional and integral parts of an array, element-wise.
             'remainder':	self.get_numpy_function_call, #	Return element-wise remainder of division.
-            'divmod':	    self.get_numpy_function_call, #	Return element-wise quotient and remainder simultaneously.
+
 
             #   *   Miscellaneous
+            'clip':         self.get_numpy_function_call, # Clip (limit) the values in an array.
             'sqrt':	        self.get_numpy_function_call, #	Return the positive square-root of an array, element-wise.
             'cbrt':	        self.get_numpy_function_call, #	Return the cube-root of an array, element-wise.
             'square':	    self.get_numpy_function_call, #	Return the element-wise square of the input.
@@ -365,5 +377,6 @@ class Expression:
             'group_datetime':       self.get_window_function,
             'strip_accents':        self.get_strip_accents_function,
             'strip_punctuation':    self.get_strip_punctuation_function,
+            # 'col':                  self.convertToPandas_function,
         }
         self.functions.update(custom_functions)

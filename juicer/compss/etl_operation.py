@@ -532,16 +532,19 @@ class TransformationOperation(Operation):
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
-        if all(['alias' in parameters, 'expression' in parameters]):
-            self.alias = parameters['alias']
-            import json
-            self.json_expression = json.loads(parameters['expression'])['tree']
-        # else:
-        #     raise ValueError(
-        #         "Parameters '{}' and {} must be informed for task {}".format(
-        #             self.ALIAS_PARAM, self.EXPRESSION_PARAM, self.__class__))
+        import json
 
-        self.has_code = (len(named_inputs) == 1) and (len(self.named_outputs)>0)
+        if all(['alias' in self.parameters, 'expression' in self.parameters]):
+            self.alias = self.parameters['alias']
+            self.json_expression = json.loads(self.parameters['expression'])['tree']
+            self.has_code = (len(self.named_inputs) == 1) and (len(self.named_outputs)>0)
+        else:
+            self.has_code = False
+            raise ValueError(
+                 "Parameters '{}' and '{}' must be informed for task {}".format(
+                     self.ALIAS_PARAM, self.EXPRESSION_PARAM, self.__class__))
+
+
         if self.has_code:
             self.has_import = "from functions.etl.Transform import TransformOperation\n"
 
@@ -554,7 +557,7 @@ class TransformationOperation(Operation):
         # Builds the expression and identify the target column
         params = {'input': input_data}
         expression = Expression(self.json_expression, params)
-
+        print self.json_expression
         functions = [ self.alias, expression.parsed_expression, expression.imports ]
 
         code = """
