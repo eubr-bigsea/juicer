@@ -53,7 +53,7 @@ class Expression:
             ]}
             result = self.get_when_function(spec, params)
         else:
-            raise ValueError("Unknown type: {}".format(tree['type']))
+            raise ValueError(_("Unknown type: {}").format(tree['type']))
         return result
 
     def get_window_function(self, spec, params):

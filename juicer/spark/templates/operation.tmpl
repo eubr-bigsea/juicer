@@ -98,11 +98,11 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.ord
     {%- if instance.supports_cache and False %}
     # First we verify whether this task's result is cached
     if '{{instance.parameters.task.id}}' in cached_state:
-        emit_event(name='update task', message='Task running',
+        emit_event(name='update task', message=_('Task running'),
                    status='RUNNING',
                    identifier='{{instance.parameters.task.id}}')
         spark_logging(spark_session).info ('Cache hit for operation {}'.format('{{instance.parameters.task.id}}'))
-        emit_event(name='update task', message='Task completed',
+        emit_event(name='update task', message=_('Task completed'),
                    status='COMPLETED',
                    identifier='{{instance.parameters.task.id}}')
         return cached_state.get('{{instance.parameters.task.id}}')
@@ -111,7 +111,7 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.ord
     spark_logging(spark_session).info(
         "Submitting parent task {{instance.parameters.task.parents}} "
         "before {{instance.parameters.task.id}}")
-
+    {%- if instance.parameters.task.parents %}
     # If the task's result is not cached, we submit its dependencies first
     {%- for parent in instance.parameters.task.parents %}
     {%- set parent_instance = instances_by_task_id[parent] %}
@@ -128,6 +128,7 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.ord
 
     {%- endif %}
     {%- endfor %}
+    {%- endif %}
 
     # Next we wait for the dependencies to complete
     {%- for parent in instance.parameters.task.parents %}
@@ -147,7 +148,7 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.ord
         'Parents completed, submitting {{instance.parameters.task.id}}')
 
     {%- if not plain %}
-    emit_event(name='update task', message='Task running',
+    emit_event(name='update task', message=_('Task running'),
                status='RUNNING',
                identifier='{{instance.parameters.task.id}}')
     {%- endif %}
@@ -167,7 +168,7 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.ord
 
     {%- if not plain %}
     {%- for gen_result in instance.get_generated_results() %}
-    emit_event(name='task result', message='{{gen_result.type}}',
+    emit_event(name='task result', message=_('{{gen_result.type}}'),
                status='COMPLETED',
                identifier='{{instance.parameters.task.operation.id}}/{{instance.parameters.task.id}}')
     {%- endfor %}
@@ -200,7 +201,7 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.ord
       {%- endfor %}
     }
     {%- if not plain %}
-    emit_event(name='update task', message='Task completed',
+    emit_event(name='update task', message=_('Task completed'),
                status='COMPLETED',
                identifier='{{instance.parameters.task.id}}')
     {%- endif %}
@@ -271,7 +272,10 @@ def main(spark_session, cached_state, emit_event):
                 if cause.getClass().getName() == nfe and cause.getMessage():
                     value = value_expr.findall(cause.getMessage())[0]
                     raise ValueError('Invalid numeric data in at least one '
-                        'data source (value: {})'.format(value))
+                        'data source (attribute: {})'.format(value))
+                elif cause.getMessage() == u'Malformed CSV record':
+                    raise ValueError('At least one input data source is not in '
+                        'the correct format')
                 else:
                     raise
             else:

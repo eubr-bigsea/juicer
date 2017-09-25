@@ -24,7 +24,7 @@ class ScalerOperation(Operation):
             self.attribute = parameters.get(self.ATTRIBUTE_PARAM)[0]
         else:
             raise ValueError(
-                "Parameter '{}' must be informed for task {}".format(
+                _("Parameter '{}' must be informed for task {}").format(
                     self.ATTRIBUTE_PARAM, self.__class__))
         self.scaled_attr = parameters.get(self.ALIAS_PARAM,
                                           'scaled_{}'.format(self.order))
@@ -36,7 +36,7 @@ class ScalerOperation(Operation):
                                             'model_task_{}'.format(self.order))
 
     def _get_scaler_algorithm_and_parameters(self):
-        raise NotImplementedError('Must be implemented in children classes')
+        raise NotImplementedError(_('Must be implemented in children classes'))
 
     def generate_code(self):
         name_and_params = self._get_scaler_algorithm_and_parameters()

@@ -37,7 +37,7 @@ def convert_to_csv(row):
         if t in [datetime.datetime]:
             result.append(v.isoformat())
         elif t in [unicode, str]:
-            result.append('"{}"'.format(v))
+            result.append(u'"{}"'.format(v))
         else:
             result.append(str(v))
     return ','.join(result)
@@ -67,9 +67,9 @@ def format_row_for_visualization(row):
         _id = row[0]
         name = row[0]
     else:
-        raise ValueError('Invalid input data for visualization. '
-                         'It should contains 2 (name, value) or '
-                         '3 columns (id, name, value).')
+        raise ValueError(_('Invalid input data for visualization. '
+                           'It should contains 2 (name, value) or '
+                           '3 columns (id, name, value).'))
     return dict(id=_id, name=name, value=value)
 
 
@@ -86,9 +86,9 @@ def format_row_for_bar_chart_visualization(row):
         _id = row[0]
         name = row[0]
     else:
-        raise ValueError('Invalid input data for visualization. '
-                         'It should contains 2 (name, value) or '
-                         '3 columns (id, name, value).')
+        raise ValueError(_('Invalid input data for visualization. '
+                           'It should contains 2 (name, value) or '
+                           '3 columns (id, name, value).'))
     return dict(id=_id, name=name, value=value)
 
 
@@ -111,7 +111,8 @@ def emit_schema(task_id, df, emit_event, name):
 def emit_sample(task_id, df, emit_event, name, size=50):
     from juicer.spark.reports import SimpleTableReport
     headers = [f.name for f in df.schema.fields]
-    rows = [[str(col) for col in row] for row in df.take(size)]
+    rows = [[json.dumps(col, cls=CustomEncoder) for col in row] for row in
+            df.take(size)]
 
     content = SimpleTableReport(
         'table table-striped table-bordered', headers, rows,

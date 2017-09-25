@@ -50,11 +50,7 @@ class DataReader(Operation):
                 self.database_id = parameters[self.DATA_SOURCE_ID_PARAM]
                 self.header = parameters.get(
                     self.HEADER_PARAM, False) not in ('0', 0, 'false', False)
-                self.sep = parameters.get(self.SEPARATOR_PARAM, ',')
-                if self.sep in self.SEPARATORS:
-                    self.sep = self.SEPARATORS[self.sep]
-                self.infer_schema = parameters.get(self.INFER_SCHEMA_PARAM,
-                                                   self.INFER_FROM_LIMONERO)
+
                 self.null_values = [v.strip() for v in parameters.get(
                     self.NULL_VALUES_PARAM, '').split(",")]
                 limonero_config = \
@@ -65,11 +61,19 @@ class DataReader(Operation):
 
                 self.metadata = limonero_service.get_data_source_info(
                     url, token, self.database_id)
+                self.sep = parameters.get(
+                    self.SEPARATOR_PARAM, self.metadata.get(
+                        'attribute_delimiter', ',')) or ','
+
+                if self.sep in self.SEPARATORS:
+                    self.sep = self.SEPARATORS[self.sep]
+                self.infer_schema = parameters.get(self.INFER_SCHEMA_PARAM,
+                                                   self.INFER_FROM_LIMONERO)
 
                 self.mode = parameters.get(self.MODE_PARAM, 'FAILFAST')
             else:
                 raise ValueError(
-                    "Parameter '{}' must be informed for task {}".format(
+                    _("Parameter '{}' must be informed for task {}").format(
                         self.DATA_SOURCE_ID_PARAM, self.__class__))
         self.output = named_outputs.get('output data',
                                         'out_task_{}'.format(self.order))
@@ -100,15 +104,20 @@ class DataReader(Operation):
                     code.append("")
                 else:
                     raise ValueError(
-                        "Metadata do not include attributes information")
+                        _("Metadata do not include attributes information"))
             else:
                 code.append('schema_{0} = None'.format(self.output))
 
             if self.metadata['format'] in ['CSV', 'TEXT']:
+                # Multiple values not supported yet! See SPARK-17878
                 code.append("url = '{url}'".format(url=self.metadata['url']))
+                null_values = self.null_values
+                if self.metadata.get('treat_as_missing'):
+                    null_values.extend([x.strip() for x in self.metadata.get(
+                        'treat_as_missing').split(',')])
                 null_option = ''.join(
                     [".option('nullValue', '{}')".format(n) for n in
-                     self.null_values]) if self.null_values else ""
+                     set(null_values)]) if null_values else ""
 
                 if self.metadata['format'] == 'CSV':
                     code_csv = dedent("""
@@ -119,7 +128,8 @@ class DataReader(Operation):
                                 inferSchema={infer_schema},
                                 mode='{mode}')""".format(
                         output=self.output,
-                        header=self.header,
+                        header=self.header or self.metadata.get(
+                            'is_first_line_header', False),
                         sep=self.sep,
                         infer_schema=infer_from_data,
                         null_option=null_option,
@@ -390,8 +400,8 @@ class ChangeAttributeOperation(Operation):
         if self.ATTRIBUTES_PARAM in parameters:
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
         else:
-            raise ValueError(
-                "Parameter '{}' must be informed for task {}".format(
+            raise ValueError(_(
+                "Parameter '{}' must be informed for task {}").format(
                     self.ATTRIBUTES_PARAM, self.__class__))
         self.has_code = len(self.named_inputs) == 1
 

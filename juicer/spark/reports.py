@@ -35,8 +35,9 @@ class SimpleTableReport(BaseHtmlReport):
         code.append('<table class="{}"><thead><tr>'.format(self.table_class))
         if self.numbered:
             code.append('<th>#</th>')
+
         for col in self.headers:
-            code.append('<th>{}</th>'.format(escape(str(col))))
+            code.append(u'<th>{}</th>'.format(escape(unicode(col))))
         code.append('</tr></thead>')
 
         code.append('<tbody>')
@@ -45,7 +46,7 @@ class SimpleTableReport(BaseHtmlReport):
             if self.numbered:
                 code.append('<td>{}</td>'.format(i + 1))
             for col in row:
-                code.append('<td>{}</td>'.format(escape(str(col))))
+                code.append(u'<td>{}</td>'.format(escape(unicode(col))))
             code.append('</tr>')
 
         code.append('</tbody>')

@@ -87,7 +87,7 @@ class SortOperation(Operation):
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
         else:
             raise ValueError(
-                "Parameter '{}' must be informed for task {}".format(
+                _("Parameter '{}' must be informed for task {}").format(
                     self.ATTRIBUTES_PARAM, self.__class__))
 
         self.has_code = len(self.named_inputs) == 1
@@ -181,15 +181,14 @@ class SampleOrPartitionOperation(Operation):
             if self.FRACTION_PARAM in parameters:
                 self.fraction = float(parameters[self.FRACTION_PARAM])
                 if not (0 <= self.fraction <= 100):
-                    msg = "Parameter '{}' must be in " \
-                          "range [0, 100] for task {}" \
+                    msg = _("Parameter '{}' must be in " \
+                          "range [0, 100] for task {}") \
                         .format(self.FRACTION_PARAM, __name__)
                     raise ValueError(msg)
                 if self.fraction > 1.0:
                     self.fraction *= 0.01
             else:
-                raise ValueError(
-                    "Parameter '{}' must be informed for task {}".format(
+                raise ValueError(_("Parameter '{}' must be informed for task {}").format(
                         self.FRACTION_PARAM, self.__class__))
         elif self.type in [self.TYPE_VALUE, self.TYPE_HEAD]:
             self.value = int(parameters.get(self.VALUE_PARAM, 100))
@@ -283,6 +282,7 @@ class JoinOperation(Operation):
     JOIN_TYPE_PARAM = 'join_type'
     LEFT_ATTRIBUTES_PARAM = 'left_attributes'
     RIGHT_ATTRIBUTES_PARAM = 'right_attributes'
+    ALIASES_PARAM = 'aliases'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
@@ -293,36 +293,66 @@ class JoinOperation(Operation):
         if not all([self.LEFT_ATTRIBUTES_PARAM in parameters,
                     self.RIGHT_ATTRIBUTES_PARAM in parameters]):
             raise ValueError(
-                "Parameters '{}' and {} must be informed for task {}".format(
+                _("Parameters '{}' and {} must be informed for task {}").format(
                     self.LEFT_ATTRIBUTES_PARAM, self.RIGHT_ATTRIBUTES_PARAM,
                     self.__class__))
         else:
             self.left_attributes = parameters.get(self.LEFT_ATTRIBUTES_PARAM)
             self.right_attributes = parameters.get(self.RIGHT_ATTRIBUTES_PARAM)
 
+        self.aliases = [
+            alias.strip() for alias in
+            parameters.get(self.ALIASES_PARAM, 'ds0_, ds1_').split(',')]
+
+        if len(self.aliases) != 2:
+            raise ValueError('You must inform 2 values for alias')
+
+        self.output = self.named_outputs.get(
+            'output data', 'out_data_{}'.format(self.order))
+
+    def get_data_out_names(self, sep=','):
+        return self.output
+
     def generate_code(self):
-        output = self.named_outputs.get(
-            'output data', 'intersected_data_{}'.format(self.order))
 
         input_data1 = self.named_inputs['input data 1']
         input_data2 = self.named_inputs['input data 2']
 
         on_clause = zip(self.left_attributes, self.right_attributes)
-        join_condition = ', '.join(["{in1}['{p0}'] == {in2}['{p1}']".format(
-            in1=input_data1, p0=pair[0], in2=input_data2, p1=pair[1]) for pair
-                                    in on_clause])
+        if self.match_case:
+            join_condition = ', '.join(
+                [("functions.lower(in0_renamed['{a0}{p0}']) == "
+                  "functions.lower(in1_renamed['{a1}{p1}'])").format(
+                    in0=input_data1, p0=pair[0], in1=input_data2, p1=pair[1],
+                    a0=self.aliases[0], a1=self.aliases[1]
+                ) for pair in on_clause])
+        else:
+            join_condition = ', '.join(
+                ["in0_renamed['{a0}{p0}'] == in1_renamed['{a1}{p1}']".format(
+                    in0=input_data1, p0=pair[0], in1=input_data2, p1=pair[1],
+                    a0=self.aliases[0], a1=self.aliases[1])
+                 for pair in on_clause])
 
         code = """
+            def _rename_attributes(df, prefix):
+                result = df
+                for col in df.columns:
+                    result = result.withColumnRenamed(col, '{{}}{{}}'.format(
+                        prefix, col))
+                return result
+            in0_renamed = _rename_attributes({in0}, '{a0}')
+            in1_renamed = _rename_attributes({in1}, '{a1}')
             condition = [{cond}]
-            {out} = {in1}.join({in2}, on=condition, how='{how}')""".format(
-            out=output, cond=join_condition, in1=input_data1, in2=input_data2,
-            how=self.join_type)
+            {out} = in0_renamed.join(
+                in1_renamed, on=condition, how='{how}')""".format(
+            out=self.output, cond=join_condition, in0=input_data1,
+            in1=input_data2, how=self.join_type, a0=self.aliases[0],
+            a1=self.aliases[1])
 
-        # @TODO: This may not work
         if self.keep_right_keys in ["False", "false", False]:
             for column in self.right_attributes:
-                code += """.drop({in2}['{col}'])""".format(in2=input_data2,
-                                                           col=column)
+                code += """.drop(in1_renamed['{a1}{col}'])""".format(
+                    in1=input_data2, col=column, a1=self.aliases[1])
 
         return dedent(code)
 
@@ -366,7 +396,7 @@ class TransformationOperation(Operation):
             self.json_expression = json.loads(parameters['expression'])['tree']
         else:
             raise ValueError(
-                "Parameters '{}' and {} must be informed for task {}".format(
+                _("Parameters '{}' and {} must be informed for task {}").format(
                     self.ALIAS_PARAM, self.EXPRESSION_PARAM, self.__class__))
         self.has_code = len(self.named_inputs) > 0
 
@@ -401,7 +431,7 @@ class SelectOperation(Operation):
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
         else:
             raise ValueError(
-                "Parameter '{}' must be informed for task {}".format(
+                _("Parameter '{}' must be informed for task {}").format(
                     self.ATTRIBUTES_PARAM, self.__class__))
         self.output = self.named_outputs.get(
             'output projected data', 'projection_data_{}'.format(self.order))
@@ -438,14 +468,14 @@ class ReplaceValueOperation(Operation):
             self.replacement = parameters.get(self.REPLACEMENT_PARAM)
         else:
             raise ValueError(
-                "Parameter '{}' must be informed for task {}".format(
+                _("Parameter '{}' must be informed for task {}").format(
                     self.REPLACEMENT_PARAM, self.__class__))
 
         if self.ORIGINAL_PARAM in parameters:
             self.original = parameters.get(self.ORIGINAL_PARAM)
         else:
             raise ValueError(
-                "Parameter '{}' must be informed for task {}".format(
+                _("Parameter '{}' must be informed for task {}").format(
                     self.ORIGINAL_PARAM, self.__class__))
 
         def check(v):
@@ -461,14 +491,14 @@ class ReplaceValueOperation(Operation):
 
         if not check(self.original):
             raise ValueError(
-                "Parameter '{}' for task '{}' must be a number "
-                "or enclosed in quotes.".format(
+                _("Parameter '{}' for task '{}' must be a number "
+                "or enclosed in quotes.").format(
                     self.ORIGINAL_PARAM, self.__class__))
 
         if not check(self.replacement):
             raise ValueError(
-                "Parameter '{}' for task '{}' must be a number "
-                "or enclosed in quotes.".format(
+                _("Parameter '{}' for task '{}' must be a number "
+                "or enclosed in quotes.").format(
                     self.REPLACEMENT_PARAM, self.__class__))
 
         self.has_code = len(self.named_inputs) == 1
@@ -514,11 +544,18 @@ class AggregationOperation(Operation):
 
         if not all([self.FUNCTION_PARAM in parameters, self.functions]):
             raise ValueError(
-                "Parameter '{}' must be informed for task {}".format(
+                _("Parameter '{}' must be informed for task {}").format(
                     self.FUNCTION_PARAM, self.__class__))
 
+        for f in parameters[self.FUNCTION_PARAM]:
+            if not all([f.get('attribute'), f.get('f'), f.get('alias')]):
+                raise ValueError(_('Missing parameter in aggregation function'))
+
         self.has_code = len(self.named_inputs) == 1
-        self.pivot = parameters.get(self.PIVOT_ATTRIBUTE, [None])[0]
+        # noinspection PyArgumentEqualDefault
+        self.pivot = next(iter(parameters.get(self.PIVOT_ATTRIBUTE) or []),
+                          None)
+
         self.pivot_values = parameters.get(self.PIVOT_VALUE_ATTRIBUTE)
         self.output = self.named_outputs.get(
             'output data', 'data_{}'.format(self.order))
@@ -593,8 +630,8 @@ class FilterOperation(Operation):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
         if self.FILTER_PARAM not in parameters:
             raise ValueError(
-                "Parameter '{}' must be informed for task {}".format(
-                    self.FILTER_PARAM, self.__class__))
+                _("Parameter '{}' must be informed for task {}".format(
+                    self.FILTER_PARAM, self.__class__)))
 
         self.filter = parameters.get(self.FILTER_PARAM)
 
@@ -647,8 +684,8 @@ class CleanMissingOperation(Operation):
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
         else:
             raise ValueError(
-                "Parameter '{}' must be informed for task {}".format(
-                    self.ATTRIBUTES_PARAM, self.__class__))
+                _("Parameter '{}' must be informed for task {}".format(
+                    self.ATTRIBUTES_PARAM, self.__class__)))
         self.cleaning_mode = parameters.get(self.CLEANING_MODE_PARAM,
                                             self.REMOVE_ROW)
 
@@ -748,7 +785,7 @@ class CleanMissingOperation(Operation):
                                                               input_data))
         else:
             raise ValueError(
-                "Parameter '{}' has an incorrect value '{}' in {}".format(
+                _("Parameter '{}' has an incorrect value '{}' in {}").format(
                     self.CLEANING_MODE_PARAM, self.cleaning_mode,
                     self.__class__))
 
@@ -765,25 +802,49 @@ class AddColumnsOperation(Operation):
     Merge two data frames, column-wise, similar to the command paste in Linux.
     Implementation based on post http://stackoverflow.com/a/40510320/1646932
     """
+    ALIASES_PARAM = 'aliases'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
         self.has_code = len(self.named_inputs) == 2
+        self.aliases = [
+            alias.strip() for alias in
+            parameters.get(self.ALIASES_PARAM, 'ds0_, ds1_').split(',')]
+
+        if len(self.aliases) != 2:
+            raise ValueError('You must inform 2 values for alias')
+
+        self.output = self.named_outputs.get(
+            'output data', 'add_col_data_{}'.format(self.order))
+
+    def get_data_out_names(self, sep=','):
+        return self.output
 
     def generate_code(self):
-        output = self.named_outputs.get('output data', 'add_col_data_{}'.format(
-            self.order))
         input_data1 = self.named_inputs['input data 1']
         input_data2 = self.named_inputs['input data 2']
 
         code = """
-            tmp_window = Window().orderBy()
-            indexer1 = {input1}.withColumn("_inx", rowNumber().over(tmp_window))
-            indexer2 = {input2}.withColumn("_inx", rowNumber().over(tmp_window))
-            {out} = indexer1.join(indexer2, indexer1._inx == indexer2._inx,
-                                         'inner')\\
-                .drop(indexer1._inx).drop(indexer2._inx)
-            """.format(input1=input_data1, input2=input_data2, out=output)
+            
+            def _add_column_index(df, prefix):
+                # Create new attribute names
+                old_attrs = ['{{}}{{}}'.format(prefix, name)
+                    for name in df.schema.names]
+                new_attrs = old_attrs + ['_inx']
+            
+                # Add attribute index
+                return df.rdd.zipWithIndex().map(
+                    lambda (row, inx): row + (inx,)).toDF(new_attrs)
+
+            input1_indexed = _add_column_index({input1}, '{a1}')
+            input2_indexed = _add_column_index({input2}, '{a2}')
+
+            {out} = input1_indexed.join(
+                input2_indexed,
+                input1_indexed._inx == input2_indexed._inx,
+                'inner').drop(input1_indexed._inx).drop(input2_indexed._inx)
+            """.format(input1=input_data1, input2=input_data2, out=self.output,
+                       a1=self.aliases[0], a2=self.aliases[1])
         return dedent(code)
 
 
@@ -799,8 +860,8 @@ class PivotTableOperation(Operation):
                     self.PIVOT_ATTRIBUTE_PARAM in parameters,
                     self.FUNCTIONS_PARAM in parameters]):
             raise ValueError(
-                "Required parameters must be informed for task {}".format(
-                    self.__class__))
+                _("Required parameters must be informed for task {}".format(
+                    self.__class__)))
 
         self.aggregation_attributes = parameters.get(
             self.AGGREGATION_ATTRIBUTES_PARAM, [])
@@ -839,7 +900,7 @@ class ExecutePythonOperation(Operation):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         if not all([self.PYTHON_CODE_PARAM in parameters]):
-            msg = "Required parameter {} must be informed for task {}"
+            msg = ("Required parameter {} must be informed for task {}")
             raise ValueError(msg.format(self.PYTHON_CODE_PARAM, self.__class__))
 
         self.code = parameters.get(self.PYTHON_CODE_PARAM)
@@ -904,10 +965,10 @@ class ExecutePythonOperation(Operation):
                     status='RUNNING',
                     identifier='{id}')
         except NameError as ne:
-            raise ValueError('Invalid name: {{}}. '
-                'Many Python commands are not available in Lemonade'.format(ne))
+            raise ValueError(_('Invalid name: {{}}. '
+                'Many Python commands are not available in Lemonade').format(ne))
         except ImportError as ie:
-            raise ValueError('Command import is not supported')
+            raise ValueError(_('Command import is not supported'))
         """.format(in1=in1, in2=in2, code=self.code.encode('unicode_escape'),
                    name="execute_python", order=self.order,
                    id=self.parameters['task']['id']))
@@ -919,3 +980,19 @@ class ExecutePythonOperation(Operation):
         {out2} = out2
         """.format(out1=out1, out2=out2))
         return dedent(code)
+
+
+class TableLookupOperation(Operation):
+    """
+    Allow lookup a value in a lookup table.
+    In the case of Apache Spark, the lookup table is a small data set that is
+    broadcast to all processing nodes
+    """
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+
+        self.has_code = False
+
+    def generate_code(self):
+        pass

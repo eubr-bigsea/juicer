@@ -18,6 +18,7 @@ import juicer.spark.ws_operation
 import networkx as nx
 import os
 from juicer import operation
+from juicer.service import stand_service
 from juicer.util.jinja2_custom import AutoPep8Extension
 from juicer.util.spark_template_util import HandleExceptionExtension
 
@@ -286,6 +287,15 @@ class SparkTranspiler:
             out.write(v.encode('utf8'))
         else:
             out.write(v)
+        stand_config = self.configuration.get('juicer', {}).get(
+            'services', {}).get('stand')
+        if stand_config and job_id:
+            try:
+                stand_service.save_job_source_code(stand_config['url'],
+                                                   stand_config['auth_token'],
+                                                   job_id, v.encode('utf8'))
+            except:
+                pass
 
     def _assign_operations(self):
         etl_ops = {
@@ -380,11 +390,13 @@ class SparkTranspiler:
             'aft-survival-regression':
                 juicer.spark.ml_operation.AFTSurvivalRegressionOperation,
 
-            'save-model': juicer.spark.ml_operation.SaveModel,
+            'save-model': juicer.spark.ml_operation.SaveModelOperation,
+            'load-model': juicer.spark.ml_operation.LoadModelOperation,
 
         }
         data_ops = {
-            'change-attribute': juicer.spark.data_operation.ChangeAttributeOperation,
+            'change-attribute':
+                juicer.spark.data_operation.ChangeAttributeOperation,
             'data-reader': juicer.spark.data_operation.DataReader,
             'data-writer': juicer.spark.data_operation.SaveOperation,
             'external-input':

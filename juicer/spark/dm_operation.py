@@ -18,11 +18,13 @@ class FrequentItemSetOperation(Operation):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         if self.MIN_SUPPORT_PARAM not in parameters:
-            raise ValueError(
-                'Support must be informed for classifier {}'.format(
-                    self.__class__))
+            raise ValueError(_(
+                'Support must be informed for classifier {}').format(
+                self.__class__))
 
         self.min_support = float(parameters.get(self.MIN_SUPPORT_PARAM))
+        if self.min_support < .1:
+            raise ValueError('Support must be greater or equal to 0.1')
 
         self.output = self.named_outputs.get(
             'output data', 'freq_items_{}'.format(self.order))
@@ -31,76 +33,51 @@ class FrequentItemSetOperation(Operation):
             'rules output', 'rules_{}'.format(self.order))
 
         self.attribute = parameters.get(self.ATTRIBUTE_PARAM)
+        if not self.attribute:
+            raise ValueError(
+                'Missing parameter {}'.format(self.ATTRIBUTE_PARAM))
+        self.attribute = self.attribute[0]
 
         self.has_code = len(self.named_inputs) == 1
 
         self.confidence = float(parameters.get(self.CONFIDENCE_PARAM, 0.9))
 
     def get_output_names(self, sep=", "):
-        return self.output
+        return sep.join([self.output, self.rules])
+
+    def get_data_out_names(self, sep=','):
+        return self.get_output_names(sep)
 
     def generate_code(self):
+        # def lift(sup_X_u_Y, n, sup_X, sup_Y):
+        #     total = float(n)
+        #     return (sup_X_u_Y / total) / (sup_X / total * sup_Y / total)
+        # def leverage():
+        #     pass
+        # def conviction():
+        #     pass
         code = """
-            from pyspark.mllib.fpm import FPGrowth
-            from pyspark.sql.types import StructType, StructField, StringType, \
-                FloatType, ArrayType
+            from pyspark.ml.fpm import FPGrowth
+            from pyspark.sql.types import StructType, StructField, \\
+                StringType, FloatType, ArrayType
 
-            def lift(sup_X_u_Y, n, sup_X, sup_Y):
-                total = float(n)
-                return (sup_X_u_Y / total) / (sup_X / total * sup_Y / total)
-            def leverage():
-                pass
-            def conviction():
-                pass
+            algorithm = FPGrowth(itemsCol="{attr}",
+                minSupport={support}, minConfidence=0.6) # FIXME
+            model = algorithm.fit({input})
 
-            # Current version of Spark supports FP-Growth only in RDD.
-            # Assume that data is a line with transaction items separated by
-            # space.
-            data = {input}.rdd
-            inx = reduce(
-                lambda x, y: max(x, y),
-                [inx for inx, attr in enumerate({input}.schema)
-                    if attr.name == '{attr}'], 0)
-
-            transactions = data.map(lambda line: line[inx])
-            model = FPGrowth.train(
-                transactions, minSupport={support}, numPartitions=10)
-
-            emit_event(name='update task', message='Model trained',
+            emit_event(name='update task', message='{model_trained}',
                        status='RUNNING', identifier='{task_id}')
+            {output} = model.freqItemsets
+            {rules} = model.associationRules
 
-            items = model.freqItemsets()
-
-            rules_schema = StructType(
-                 [StructField("antecedent", StringType()),
-                 [StructField("consequent", StringType()),
-                 [StructField("confidence", FloatType())])
-
-            gen_rules = []
-            if items.isEmpty():
-                schema = StructType(
-                    [StructField("freq_item_sets", StringType()),
-                    StructField("support", FloatType())])
-                {output} = spark_session.createDataFrame([], schema)
-                {output} = {output}.withColumn(
-                    'support', {output}['freq'] / count)
-            else:
-                {output} = items.toDF(['freq_item_sets'])
-                for rule in list(model._java_model.generateAssociationRules(
-                    {confidence}):
-                    gen_rules.append([
-                        list(rule.antecedent()),
-                        list(rule.consequent())
-                        list(rule.confidence())
-                    ])
-            {rules} = spark_session.createDataFrame(gen_rules, rules_schema)
         """.format(input=self.named_inputs['input data'],
                    support=self.min_support,
                    output=self.output,
                    attr=self.attribute,
                    task_id=self.parameters['task']['id'],
                    rules=self.rules,
-                   confidence=self.confidence)
+                   confidence=self.confidence,
+                   model_trained=_('Model trained'))
 
         return dedent(code)
 
@@ -155,8 +132,8 @@ class AssociationRulesOperation(Operation):
             for rule in rules[:{rules_count}]:
                print rule
 
-            emit_event(name='update task', message='Model trained',
-                       status='RUNNING', identifier='{task_id}')
+            emit_event(name='update task', message='{model_trained}',
+                       status=_('RUNNING'), identifier='{task_id}')
 
             items = model.freqItemsets()
             if items.isEmpty():
@@ -170,7 +147,8 @@ class AssociationRulesOperation(Operation):
                    output=self.output,
                    rules_count=self.rules_count,
                    attr=self.attribute[0],
-                   task_id=self.parameters['task']['id'])
+                   task_id=self.parameters['task']['id'],
+                   model_trained=_('Model trained'))
 
         return dedent(code)
 
@@ -223,8 +201,8 @@ class SequenceMiningOperation(Operation):
             for rule in rules[:{rules_count}]:
                print rule
 
-            emit_event(name='update task', message='Model trained',
-                       status='RUNNING', identifier='{task_id}')
+            emit_event(name='update task', message=_('Model trained'),
+                       status=_('RUNNING'), identifier='{task_id}')
 
             items = model.freqItemsets()
             if items.isEmpty():

@@ -268,6 +268,7 @@ def test_apply_model_operation_success():
 
     expected_code = dedent("""
     # params = {{'predictionCol': 'prediction'}}
+    params = {{}}
     {output_1} = {model}.transform({input_1}, params)
     """.format(
         output_1=out, input_1=in1, model=model))
@@ -483,15 +484,16 @@ def test_cross_validation_partial_operation_success():
                 grid_builder.addGrid(param, values)
 
             evaluator = {evaluator}
+            estimator.setLabelCol(evaluator.getLabelCol())
 
             cross_validator = tuning.CrossValidator(
                 estimator=estimator, estimatorParamMaps=grid_builder.build(),
                 evaluator=evaluator, numFolds={folds})
             cv_model = cross_validator.fit({input_data})
             fit_data = cv_model.transform({input_data})
-            best_model_{output}  = cv_model.bestModel
+            best_model_1  = cv_model.bestModel
             metric_result = evaluator.evaluate(fit_data)
-            {evaluation} = metric_result
+            # {evaluation} = metric_result
             {output} = fit_data
             models_task_1 = None
 
@@ -561,15 +563,16 @@ def test_cross_validation_complete_operation_success():
                 grid_builder.addGrid(param, values)
 
             evaluator = {evaluator}
+            estimator.setLabelCol(evaluator.getLabelCol())
 
             cross_validator = tuning.CrossValidator(
                 estimator=estimator, estimatorParamMaps=grid_builder.build(),
                 evaluator=evaluator, numFolds={folds})
             cv_model = cross_validator.fit({input_data})
             fit_data = cv_model.transform({input_data})
-            best_model_{output}  = cv_model.bestModel
+            best_model_1  = cv_model.bestModel
             metric_result = evaluator.evaluate(fit_data)
-            {output} = metric_result
+            # {output} = metric_result
             {output} = fit_data
             models_task_1 = None
             """.format(algorithm=n_in['algorithm'],
@@ -660,7 +663,7 @@ def test_classification_model_operation_success():
         def call_transform(df):
             return model_1.transform(df)
         out_task_1 = dataframe_util.LazySparkTransformationDataframe(
-            {output}, {train})
+            {output}, {train}, call_transform)
         """.format(output=n_out['model'],
                    train=n_in['train input data'],
                    algorithm=n_in['algorithm'],
