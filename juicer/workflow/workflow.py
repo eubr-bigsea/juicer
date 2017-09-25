@@ -40,7 +40,7 @@ class Workflow:
         self.sorted_tasks = []
 
         # Spark or COMPSs
-        self.plataform = workflow_data['platform']['slug']
+        self.platform = workflow_data.get('platform', {}).get('slug', 'spark')
 
         # Verify null edges to topological_sorted_tasks
         if self.is_there_null_target_id_tasks() \
@@ -120,7 +120,8 @@ class Workflow:
                     parents=[],
                     attr_dict=task)
             else:
-                msg = _("Task {task} uses an invalid or disabled operation ({op})")
+                msg = _(
+                    "Task {task} uses an invalid or disabled operation ({op})")
                 raise ValueError(
                     msg.format(task=task['id'], op=task['operation']['id']))
 
@@ -175,7 +176,7 @@ class Workflow:
             else:
                 raise AttributeError(
                     _("Port '{} in node {}' missing, "
-                     "must be informed for operation {}").format(
+                      "must be informed for operation {}").format(
                         self.WORKFLOW_GRAPH_TARGET_ID_PARAM,
                         nodes,
                         self.__class__))
@@ -190,7 +191,7 @@ class Workflow:
             else:
                 raise AttributeError(
                     _("Port '{}' missing, must be informed "
-                     "for operation {}").format(
+                      "for operation {}").format(
                         self.WORKFLOW_GRAPH_SOURCE_ID_PARAM,
                         self.__class__))
         return 1

@@ -3,15 +3,15 @@
 import argparse
 import gettext
 import json
-import logging.config;
+import logging.config
 
 import os
 import redis
 import requests
 import yaml
+from juicer.compss.transpiler import COMPSsTranspiler
 from juicer.runner import configuration
 from juicer.spark.transpiler import SparkTranspiler
-from juicer.compss.transpiler import COMPSsTranspiler
 from juicer.workflow.workflow import Workflow
 
 logging.config.fileConfig('logging_config.ini')
@@ -29,6 +29,7 @@ class Statuses:
     RUNNING = 'RUNNING'
 
 
+# noinspection SpellCheckingInspection
 class JuicerSparkService:
     def __init__(self, redis_conn, workflow_id, execute_main, params, job_id,
                  config):
@@ -57,16 +58,17 @@ class JuicerSparkService:
         # print '>>>', status
 
         log.debug(_('Processing workflow queue %s'), self.workflow_id)
-        
+
         # msg = self.redis_conn.brpop(str(self.workflow_id))
 
         # self.redis_conn.hset(_id, 'status', Statuses.RUNNING)
         tahiti_conf = self.config['juicer']['services']['tahiti']
 
         r = requests.get("{url}/workflows/{id}?token={token}".format(
-          id=self.workflow_id, url=tahiti_conf['url'],
-          token=tahiti_conf['auth_token']))
+            id=self.workflow_id, url=tahiti_conf['url'],
+            token=tahiti_conf['auth_token']))
 
+        loader = None
         if r.status_code == 200:
             loader = Workflow(json.loads(r.text), self.config)
         else:
@@ -77,25 +79,30 @@ class JuicerSparkService:
         configuration.set_config(self.config)
 
         try:
-          if loader.plataform == "spark":
-              spark_instance = SparkTranspiler(configuration.get_config())
-              self.params['execute_main'] = self.execute_main
+            if loader.platform == "spark":
+                transpiler = SparkTranspiler(configuration.get_config())
+            elif loader.platform == "compss":
+                transpiler = COMPSsTranspiler(loader.workflow,
+                                              loader.graph,
+                                              params=self.params)
+            else:
+                raise ValueError(
+                    _('Invalid platform value: {}').format(loader.platform))
 
-              spark_instance.transpile(loader.workflow,
-                                       loader.graph,
-                                       params=self.params,
-                                       job_id=self.job_id)
-          elif loader.plataform  == "compss":
-              compss_instance = COMPSsTranspiler(loader.workflow,
-                                                 loader.graph,
-                                                 params=self.params)
-              compss_instance.execute_main = self.execute_main
-              compss_instance.transpile()
+            transpiler.transpile(loader.workflow,
+                                 loader.graph,
+                                 params=self.params,
+                                 job_id=self.job_id)
+            self.params['execute_main'] = self.execute_main
+
+            transpiler.execute_main = self.execute_main
+            transpiler.transpile()
+
         except ValueError as ve:
             log.exception(_("At least one parameter is missing"), exc_info=ve)
-            break
         except:
             raise
+
 
 def main(workflow_id, execute_main, params, job_id, config):
     redis_conn = redis.StrictRedis()
