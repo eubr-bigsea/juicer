@@ -62,6 +62,7 @@ class JuicerServer:
             'path', '/tmp')
 
         signal.signal(signal.SIGTERM, self._terminate)
+        self.platform = 'spark'
 
     def start(self):
         signal.signal(signal.SIGTERM, self._terminate_minions)
@@ -89,15 +90,15 @@ class JuicerServer:
             workflow_id = str(msg_info['workflow_id'])
             app_id = str(msg_info['app_id'])
 
-            platform = msg_info['workflow']['platform']['slug']
-
             if msg_type in (juicer_protocol.EXECUTE, juicer_protocol.DELIVER):
                 self._forward_to_minion(msg_type, workflow_id, app_id, msg,
-                                        platform)
+                                        self.platform)
+                self.platform = msg_info['workflow'].get('platform', {}).get(
+                    'slug', 'spark')
 
             elif msg_type == juicer_protocol.TERMINATE:
                 self._forward_to_minion(msg_type, workflow_id, app_id, msg,
-                                        platform)
+                                        self.platform)
                 self._terminate_minion(workflow_id, app_id)
 
             else:
@@ -168,8 +169,7 @@ class JuicerServer:
         # Setup command and launch the minion script. We return the subprocess
         # created as part of an active minion.
         open_opts = ['nohup', sys.executable, self.minion_executable,
-                     '-w', workflow_id, '-a', app_id, '-c',
-                     '-t', platform,
+                     '-w', workflow_id, '-a', app_id, '-t', platform, '-c',
                      self.config_file_path]
         log.debug(_('Minion command: %s'), json.dumps(open_opts))
         return subprocess.Popen(open_opts,
@@ -217,7 +217,8 @@ class JuicerServer:
                             break
                     time.sleep(.5)
 
-                self._start_minion(workflow_id, app_id, state_control)
+                self._start_minion(workflow_id, app_id, state_control,
+                                   self.platform)
 
             elif reason == self.HELP_STATE_LOST:
                 pass
