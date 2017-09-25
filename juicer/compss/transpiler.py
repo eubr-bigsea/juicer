@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 import json
-import pdb
 import sys
 
 import jinja2
@@ -13,7 +12,9 @@ import juicer.compss.text_operation
 import networkx as nx
 import os
 from juicer import operation
+from juicer.service import stand_service
 from juicer.util.jinja2_custom import AutoPep8Extension
+from juicer.util.template_util import HandleExceptionExtension
 
 
 class DependencyController:
@@ -26,90 +27,50 @@ class DependencyController:
     def satisfied(self, _id):
         self._satisfied.add(_id)
 
-    def is_satisfied(self, _id):
+    @staticmethod
+    def is_satisfied(_id):
         return True  # len(self.requires[_id].difference(self._satisfied)) == 0
 
 
-class COMPSsTranspilerVisitor:
-    def __init__(self):
-        pass
-
-    def visit(self, workflow, operations, params):
-        raise NotImplementedError()
-
-
-class RemoveTasksWhenMultiplexingVisitor(COMPSsTranspilerVisitor):
-    def visit(self, graph, operations, params):
-
-        return graph
-        external_input_op = juicer.spark.ws_operation.MultiplexerOperation
-        for task_id in graph.node:
-            task = graph.node[task_id]
-            op = operations.get(task.get('operation').get('slug'))
-            if op == external_input_op:
-                # Found root
-                if params.get('service'):
-                    # Remove the left side of the tree
-                    # left_side_flow = [f for f in workflow['flows']]
-                    flow = graph.in_edges(task_id, data=True)
-                    # pdb.set_trace()
-                    # remove other side
-                    pass
-                else:
-                    flow = [f for f in graph['flows'] if
-                            f['target_id'] == task.id and f[
-                                'target_port_name'] == 'input data 2']
-                    if flow:
-                        pdb.set_trace()
-                    pass
-        return graph
-
-
-class COMPSsTranspiler:
+# noinspection SpellCheckingInspection
+class COMPSsTranspiler(object):
     """
     Convert Lemonade workflow representation (JSON) into code to be run in
     COMPSs.
     """
-    # DIST_ZIP_FILE = '/tmp/lemonade-lib-python.zip'
-    VISITORS = [RemoveTasksWhenMultiplexingVisitor]
 
-    def __init__(self, workflow, graph, out=None, params=None, job_id=None):
+    def __init__(self, configuration):
+        self.configuration = configuration
         self.operations = {}
         self._assign_operations()
-        self.graph = graph
-        self.params = params if params is not None else {}
 
-        self.using_stdout = out is None
-        if self.using_stdout:
-            self.out = sys.stdout
-        else:
-            self.out = out
-
-        self.job_id = job_id
-        self.workflow_json = json.dumps(workflow)
-        self.workflow_name = workflow['name']
-        self.workflow_id = workflow['id']
-        self.workflow_user = workflow.get('user', {})
-
-        print "\nINFO:\n - Name:{}\n - User:{}\n".format(self.workflow_name,
-                                                         self.workflow_user)
-
-        self.requires_info = {}
+        # self.graph = graph
+        # self.params = params if params is not None else {}
+        #
+        # self.using_stdout = out is None
+        # if self.using_stdout:
+        #     self.out = sys.stdout
+        # else:
+        #     self.out = out
+        #
+        # self.job_id = job_id
+        # workflow_json = json.dumps(workflow)
+        # workflow_name = workflow['name']
+        # workflow_id = workflow['id']
+        # workflow_user = workflow.get('user', {})
 
         self.execute_main = False
-        for visitor in self.VISITORS:
-            self.workflow = visitor().visit(self.graph, self.operations, params)
 
-    def transpile(self):
+    def transpile(self, workflow, graph, params, out=None, job_id=None):
         """ Transpile the tasks from Lemonade's workflow into COMPSs code """
 
         ports = {}
         sequential_ports = {}
 
-        for source_id in self.graph.edge:
-            for target_id in self.graph.edge[source_id]:
+        for source_id in graph.edge:
+            for target_id in graph.edge[source_id]:
                 # Nodes accept multiple edges from same source
-                for flow in self.graph.edge[source_id][target_id].values():
+                for flow in graph.edge[source_id][target_id].values():
                     flow_id = '[{}:{}]'.format(source_id, flow['source_port'], )
 
                     if flow_id not in sequential_ports:
@@ -152,12 +113,12 @@ class COMPSsTranspiler:
                             target_port['named_inputs'][flow_name] = sequence
                         target_port['inputs'].append(sequence)
 
-        env_setup = {'instances': [], 'workflow_name': self.workflow_name}
+        env_setup = {'instances': [], 'workflow_name': workflow['name']}
 
-        sorted_tasks_id = nx.topological_sort(self.graph)
+        sorted_tasks_id = nx.topological_sort(graph)
 
         for i, task_id in enumerate(sorted_tasks_id):
-            task = self.graph.node[task_id]
+            task = graph.node[task_id]
             class_name = self.operations[task['operation']['slug']]
             parameters = {}
             for parameter, definition in task['forms'].iteritems():
@@ -183,39 +144,58 @@ class COMPSsTranspiler:
 
             # Operation SAVE requires the complete workflow
             if task['operation']['name'] == 'SAVE':
-                parameters['workflow'] = self.workflow
+                parameters['workflow'] = workflow
 
             # Some temporary variables need to be identified by a sequential
             # number, so it will be stored in this field
             task['order'] = i
 
             parameters['task'] = task
-            parameters['workflow_json'] = self.workflow_json
-            parameters['user'] = self.workflow_user
-            parameters['workflow_id'] = self.workflow_id
-            port = ports.get(task['id'], {})
+            parameters['configuration'] = self.configuration
+            parameters['workflow_json'] = json.dumps(workflow)
+            parameters['user'] = workflow['user']
+            parameters['workflow_id'] = workflow['id']
+            parameters['workflow_name'] = workflow['name']
+            parameters['operation_id'] = task['operation']['id']
+            parameters['task_id'] = task['id']
+            parameters['operation_slug'] = task['operation']['slug']
+            parameters['job_id'] = job_id
 
-            # print task
-            # print port
+            port = ports.get(task['id'], {})
 
             instance = class_name(parameters, port.get('named_inputs', {}),
                                   port.get('named_outputs', {}))
 
             env_setup['dependency_controller'] = DependencyController(
-                self.requires_info)
+                params.get('requires_info', False))
+
             env_setup['instances'].append(instance)
             env_setup['execute_main'] = self.execute_main
 
         template_loader = jinja2.FileSystemLoader(
             searchpath=os.path.dirname(__file__))
         template_env = jinja2.Environment(loader=template_loader,
-                                          extensions=[AutoPep8Extension])
+                                          extensions=[AutoPep8Extension,
+                                                      HandleExceptionExtension])
+        template_env.globals.update(zip=zip)
         template = template_env.get_template("operation.tmpl")
         v = template.render(env_setup)
-        if self.using_stdout:
-            self.out.write(v.encode('utf8'))
+
+        if out is None:
+            sys.stdout.write(v.encode('utf8'))
         else:
-            self.out.write(v)
+            out.write(v)
+
+        stand_config = self.configuration.get('juicer', {}).get(
+            'services', {}).get('stand')
+        if stand_config and job_id:
+            # noinspection PyBroadException
+            try:
+                stand_service.save_job_source_code(stand_config['url'],
+                                                   stand_config['auth_token'],
+                                                   job_id, v.encode('utf8'))
+            except:
+                pass
 
     def _assign_operations(self):
         etl_ops = {

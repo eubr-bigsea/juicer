@@ -34,87 +34,219 @@ from pycompss.api.api import compss_wait_on
 reload(sys)
 sys.setdefaultencoding('utf8')
 
-
+def compss_logging(msg):
+    print msg
 {%- for instance in instances %}
+{%-  handleinstance instance %}
 {%- if instance.has_code %}
-def {{instance.parameters.task.operation.slug.replace('-', '_')}}_gen_{{instance.get_output_names('_')}}(
-        {%- if instance.get_inputs_names %} {{instance.get_inputs_names}}{% endif %}):
-    {%- if instance.parameters.task.forms.comment %}
+
+# noinspection PyUnusedLocal
+def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.order}}(compss_session, cached_state, emit_event):
+    {%- if instance.parameters.task.forms.comment and instance.parameters.task.forms.comment.value %}
     """
-    {{instance.parameters.task.forms.comment.value.replace('"', '')}}
+    {{instance.parameters.task.forms.comment.value.strip().replace('"', '')}}
     """
+    {%- else %}
+    """ Operation {{instance.parameters.task.id }} """
     {%- endif %}
+
+    {%- if instance.supports_cache and False %}
+    # First we verify whether this task's result is cached
+    if '{{instance.parameters.task.id}}' in cached_state:
+        emit_event(name='update task', message=_('Task running'),
+                   status='RUNNING',
+                   identifier='{{instance.parameters.task.id}}')
+        compss_logging ('Cache hit for operation {}'.format('{{instance.parameters.task.id}}'))
+        emit_event(name='update task', message=_('Task completed'),
+                   status='COMPLETED',
+                   identifier='{{instance.parameters.task.id}}')
+        return cached_state.get('{{instance.parameters.task.id}}')
+    {%- endif %}
+
+    compss_logging(
+        "Submitting parent task {{instance.parameters.task.parents}} "
+        "before {{instance.parameters.task.id}}")
+    {%- if instance.parameters.task.parents %}
+    # If the task's result is not cached, we submit its dependencies first
+    {%- for parent in instance.parameters.task.parents %}
+    {%- set parent_instance = instances_by_task_id[parent] %}
+    {%- set is_satisfied = dependency_controller.is_satisfied(parent_instance.parameters.task.id) %}
+    {%- if parent_instance.has_code and is_satisfied %}
+    {%- set s = dependency_controller.satisfied(parent_instance.parameters.task.id) %}
+    with submission_lock:
+        if '{{parent}}' not in task_futures:
+            task_futures['{{parent}}'] = executor.\
+                submit(
+                    lambda: {{parent_instance.parameters.task.operation.slug.replace('-', '_')}}_{{parent_instance.order}}(
+                        compss_session, cached_state, emit_event)
+                )
+
+    {%- endif %}
+    {%- endfor %}
+    {%- endif %}
+
+    # Next we wait for the dependencies to complete
+    {%- for parent in instance.parameters.task.parents %}
+    {%- set parent_instance = instances_by_task_id[parent] %}
+    {%- set is_satisfied = dependency_controller.is_satisfied(parent_instance.parameters.task.id) %}
+    {%- if parent_instance.has_code and is_satisfied %}
+    {%- set s = dependency_controller.satisfied(parent_instance.parameters.task.id) %}
+    {% if parent_instance.get_output_names(", ") %}
+    parent_result = task_futures['{{parent}}'].result()
+    {%- for port_name,out in zip(parent_instance.parameters.task.port_names, parent_instance.get_output_names(',').split(','))%}
+    {{out}}, pr_{{out}} = (parent_result['{{port_name}}']['output'], parent_result['{{port_name}}']['sample']){% endfor %}{% endif %}
+    ts_{{parent_instance.output}} = parent_result['time']
+    {%- endif %}
+    {%- endfor %}
+    
+    compss_logging(
+        'Parents completed, submitting {{instance.parameters.task.id}}')
+
+    {%- if not plain %}
+    emit_event(name='update task', message=_('Task running'),
+               status='RUNNING',
+               identifier='{{instance.parameters.task.id}}')
+    {%- endif %}
+    compss_logging(
+        'Lemonade task {{instance.parameters.task.id}} started') 
+  
     start = timer()
-    {{instance.generate_code() | indent(width=4, indentfirst=False)}}
+    {{instance.generate_code().strip() | indent(width=4, indentfirst=False)}}
+    {%- set outputs = instance.get_data_out_names('|').split('|') %}
     {%- if instance.parameters.get('logging', {}).get('log_level') == 'DEBUG' %}
-    {%- set out = instance.get_data_out_names('|') %}
-    {%- if out %}
-    {%- for variable in out.split('|')%}
-    juicer_debug('{{instance.__class__}}', '{{variable}}', {{variable}})
+    {%- if outputs %}
+    {%- for variable in outputs %}
+    juicer_debug(compss_session, '{{instance.__class__.__name__}}', '{{variable}}', {{variable}})
     {%- endfor %}
     {%- endif %}
     {%- endif %}
 
+    {%- if not plain %}
+    {%- for gen_result in instance.get_generated_results() %}
+    emit_event(name='task result', message=_('{{gen_result.type}}'),
+               status='COMPLETED',
+               identifier='{{instance.parameters.task.operation.id}}/{{instance.parameters.task.id}}')
+    {%- endfor %}
+    {%- endif %}
+
+    {%- if instance.parameters.task.forms.get('display_sample', {}).get('value') in (1, '1') %}
+    # Outputs' samples
+    {%- for out in instance.get_data_out_names(',').split(',') %}
+    {%- if out %}
+    dataframe_util.emit_sample('{{instance.parameters.task.id}}', {{out}}, emit_event, '{{out}}')
+    {%- endif %}
+    {%- endfor %}
+    {%- endif %}
+
+    {%- if instance.parameters.task.forms.get('display_schema', {}).get('value') in (1, '1') %}
+    # Outputs' schemas
+    {%- for out in instance.get_data_out_names(',').split(',') %}
+    {%- if out %}
+    dataframe_util.emit_schema('{{instance.parameters.task.id}}', {{out}}, emit_event, '{{out}}')
+    {%- endif %}
+    {%- endfor %}
+    {%- endif %}
+
+    results = {
+      {%- set is_leaf = instance.out_degree == 0 %}
+      {%- for port_name,out in zip(instance.parameters.task.port_names, instance.get_output_names(',').split(',')) %}
+        {%- if port_name and out %}
+         '{{port_name}}': {'output': {{out}}, 'sample': {%- if is_leaf %} take_sample({{out}}) {%- else %} [] {%- endif %}},
+        {%- endif %}
+      {%- endfor %}
+    }
+    {%- if not plain %}
+    emit_event(name='update task', message=_('Task completed'),
+               status='COMPLETED',
+               identifier='{{instance.parameters.task.id}}')
+    {%- endif %}
+
+    compss_logging(
+        'Lemonade task {{instance.parameters.task.id}} completed')
     time_elapsed = timer() - start
-    return {% if instance.get_output_names() %} {{instance.get_output_names()}}, {% endif %}time_elapsed
+    results['time'] = time_elapsed
+    return results
 
 {%- endif %}
+{%- endhandleinstance %}
 {% endfor %}
 
-def main():
-    start = time.time()
-    app_name = u'## {{workflow_name}} ##'
-    print app_name
+def main(compss_session, cached_state, emit_event):
+    """ Run generated code """
 
-    # Declares and initializes variables in order to do not generate NameError.
-    # Some tasks may not generate code, but at least one of their outputs is
-    # connected to a valid input in a task generating code. This happens when
-    # task has a port with multiplicity MANY
-    {%- for instance in instances %}
-    {%- if instance.has_code %}
-    {%- if instance.multiple_inputs %}
-    {{instance.get_inputs_names.replace(',', '=') }} = None
-    {% endif %}
-    {%- endif %}
-    {%- endfor %}
+    try:
+        start = time.time()
 
-    {%- for instance in instances %}
-    {%- set is_satisfied = dependency_controller.is_satisfied(instance.parameters.task.id) %}
-    {%- if instance.has_code and is_satisfied %}
-    {%- set s = dependency_controller.satisfied(instance.parameters.task.id) %}
-    {%- if is_satisfied %}
-    {% if instance.get_output_names(", ") %}{{instance.get_output_names(", ")}}, {% endif %}ts_{{instance.output}} = {{instance.parameters.task.operation.slug.replace('-', '_')}}_gen_{{instance.get_output_names('_')}}(
-        {%- if instance.get_inputs_names %} {{instance.get_inputs_names}}{% endif %})
-    {%- endif %}
-    {%- else %}
-    # Task **{{instance.parameters.task.operation.name}}** did not genarate code
-    {%- endif %}
-    {%- endfor %}
+        session_start_time = time.time()
 
-    end = time.time()
-    print "%.2f seconds" % (end-start)
-    return {
-        'status': 'OK',
-        'message': 'Execution defined',
         {%- for instance in instances %}
-         {%- set is_satisfied = dependency_controller.is_satisfied(instance.parameters.task.id) %}
-         {%- if instance.has_code and is_satisfied %}
-        '{{instance.parameters.task.id}}': ({%- if instance.get_output_names() %}
-        {%- for variable in instance.get_output_names(', ').split('|') -%}
-        {{variable}},
-        {%- endfor -%}{% endif -%}
-        ts_{{instance.output}}),
+        {%- if instance.has_code %}
+        {%- if instance.multiple_inputs %}
+        {{instance.get_inputs_names.replace(',', '=') }} = None
+        {% endif %}
         {%- endif %}
         {%- endfor %}
-    }
+
+        {%- for instance in instances %}
+        {%- set is_satisfied = dependency_controller.is_satisfied(instance.parameters.task.id) %}
+        {%- if instance.has_code and is_satisfied and instance.out_degree == 0 %}
+        {%- set s = dependency_controller.satisfied(instance.parameters.task.id) %}
+        task_futures['{{instance.parameters.task.id}}'] = executor.submit(
+            lambda: {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.order}}(compss_session, cached_state, emit_event))
+        {%- endif %}
+        {%- endfor %}
+
+        {%- for instance in instances %}
+        {%- set is_satisfied = dependency_controller.is_satisfied(instance.parameters.task.id) %}
+        {%- if instance.has_code and is_satisfied and instance.out_degree == 0 %}
+        {%- set s = dependency_controller.satisfied(instance.parameters.task.id) %}
+        task_futures['{{instance.parameters.task.id}}'].result()
+        {%- endif %}
+        {%- endfor %}
+
+        end = time.time()
+        print("{}\t{}".format(end - start, end - session_start_time))
+        return {
+            'status': 'OK',
+            'message': 'Execution defined',
+            {%- for instance in instances %}
+              {%- set is_satisfied = dependency_controller.is_satisfied(instance.parameters.task.id) %}
+              {%- if instance.has_code and is_satisfied %}
+                '{{instance.parameters.task.id}}':
+                    task_futures['{{instance.parameters.task.id}}'].result(),
+              {%- endif %}
+            {%- endfor %}
+        }
+    except Exception, e:
+        nfe = 'java.lang.NumberFormatException'
+        # noinspection PyUnresolvedReferences
+        if hasattr(e, 'java_exception'):
+            cause = e.java_exception.getCause()
+            value_expr = re.compile(r'.+"(.+)"')
+            if cause is not None:
+                if cause.getClass().getName() == nfe and cause.getMessage():
+                    value = value_expr.findall(cause.getMessage())[0]
+                    raise ValueError('Invalid numeric data in at least one '
+                        'data source (attribute: {})'.format(value))
+                elif cause.getMessage() == u'Malformed CSV record':
+                    raise ValueError('At least one input data source is not in '
+                        'the correct format')
+                else:
+                    raise
+            else:
+                raise
+        else:
+            raise
+
 {%- if execute_main %}
-main()
+
+def dummy_emit_event(room, namespace):
+    def _dummy_emit_event(name, message, status, identifier, **kwargs):
+        return None
+    return _dummy_emit_event
+
+compss_session = "COMPSs"
+main(compss_session, {}, dummy_emit_event(room=-1, namespace='/none'))
 
 {%- endif %}
 {% endautopep8 %}
-
-if __name__ == "__main__":
-    main()
-
-#end
-

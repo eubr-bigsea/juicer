@@ -6,6 +6,7 @@ import urlparse
 import os
 import redis
 import yaml
+from juicer.compss.compss_minion import COMPSsMinion
 from juicer.spark.spark_minion import SparkMinion
 
 logging.config.fileConfig('logging_config.ini')
@@ -23,7 +24,7 @@ if __name__ == '__main__':
     parser.add_argument("-a", "--app_id", help="Job id", type=str,
                         required=False)
     parser.add_argument("-t", "--type", help="Execution engine",
-                        required=False, default="SPARK")
+                        required=False, default="spark")
     parser.add_argument("--lang", help="Minion messages language (i18n)",
                         required=False, default="en_US")
     args = parser.parse_args()
@@ -41,16 +42,22 @@ if __name__ == '__main__':
             juicer_config['juicer']['servers']['redis_url'])
         redis_conn = redis.StrictRedis(host=parsed_url.hostname,
                                        port=parsed_url.port)
-        if args.type == 'SPARK':
+        if args.type == 'spark':
             # log.info('Starting Juicer Spark Minion')
-            server = SparkMinion(redis_conn,
+            minion = SparkMinion(redis_conn,
                                  args.workflow_id,
                                  args.app_id or args.workflow_id,
                                  juicer_config,
                                  args.lang)
-            server.process()
+        elif args.type == 'compss':
+            minion = COMPSsMinion(redis_conn,
+                                  args.workflow_id,
+                                  args.app_id or args.workflow_id,
+                                  juicer_config,
+                                  args.lang)
         else:
             raise ValueError(
                 _("{type} is not supported (yet!)").format(type=args.type))
+        minion.process()
     except Exception as ex:
         log.exception(_("Error running minion"), exc_info=ex)

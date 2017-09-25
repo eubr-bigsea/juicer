@@ -82,21 +82,17 @@ class JuicerSparkService:
             if loader.platform == "spark":
                 transpiler = SparkTranspiler(configuration.get_config())
             elif loader.platform == "compss":
-                transpiler = COMPSsTranspiler(loader.workflow,
-                                              loader.graph,
-                                              params=self.params)
+                transpiler = COMPSsTranspiler(configuration.get_config())
             else:
                 raise ValueError(
                     _('Invalid platform value: {}').format(loader.platform))
 
+            self.params['execute_main'] = self.execute_main
+            transpiler.execute_main = self.execute_main
             transpiler.transpile(loader.workflow,
                                  loader.graph,
                                  params=self.params,
                                  job_id=self.job_id)
-            self.params['execute_main'] = self.execute_main
-
-            transpiler.execute_main = self.execute_main
-            transpiler.transpile()
 
         except ValueError as ve:
             log.exception(_("At least one parameter is missing"), exc_info=ve)
