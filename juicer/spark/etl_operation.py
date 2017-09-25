@@ -662,8 +662,8 @@ class CleanMissingOperation(Operation):
         self.has_code = all([
             any([self.value is not None, self.cleaning_mode != self.VALUE]),
             len(self.named_inputs) > 0])
-        self.output1 = self.named_outputs.get('output result',
-                                              'out_{}'.format(self.order))
+        self.output = self.named_outputs.get('output result',
+                                             'out_{}'.format(self.order))
 
     def generate_code(self):
 
@@ -732,7 +732,7 @@ class CleanMissingOperation(Operation):
             partial.append("""
                 mdn_replace_{1} = dict()
                 for mdn_attr_{1} in attributes_{1}:
-                    # Computes median value for column with relat. error = 10%
+                    # Computes median value for column with relat. error=10%
                     mdn_{1} = {1}.na.drop(subset=[mdn_attr_{1}])\\
                         .approxQuantile(mdn_attr_{1}, [.5], .1)
                     md_replace_{1}[mdn_attr_{1}] = mdn_{1}[0]

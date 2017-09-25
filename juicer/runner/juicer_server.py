@@ -88,7 +88,8 @@ class JuicerServer:
             workflow_id = str(msg_info['workflow_id'])
             app_id = str(msg_info['app_id'])
 
-            if msg_type in (juicer_protocol.EXECUTE, juicer_protocol.DELIVER):
+            if msg_type in (juicer_protocol
+                                    .EXECUTE, juicer_protocol.DELIVER):
                 self._forward_to_minion(msg_type, workflow_id, app_id, msg)
 
             elif msg_type == juicer_protocol.TERMINATE:
