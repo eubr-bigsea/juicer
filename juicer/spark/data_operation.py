@@ -2,6 +2,7 @@
 import ast
 import json
 import pprint
+import uuid
 from textwrap import dedent
 
 from juicer.operation import Operation
@@ -303,10 +304,27 @@ class SaveOperation(Operation):
                     cols.append({input}[attr.name])
 
             {input} = {input}.select(*cols)
-            {input}.coalesce(1).write.csv('{url}',
-                         header={header}, mode='{mode}')""".format(
+            # Write in a temporary directory
+            {input}.write.csv('{url}{uuid}',
+                         header={header}, mode='{mode}')
+            # Merge files using Hadoop HDFS API
+            conf = spark_session._jvm.org.apache.hadoop.conf.Configuration()
+            conf.set('dfs.client.use.datanode.hostname', 'true')
+
+            hdfs = spark_session._jvm.org.apache.hadoop.fs.FileSystem.get(
+                spark_session._jvm.java.net.URI('{storage_url}'), conf)
+            spark_session._jvm.org.apache.hadoop.fs.FileUtil.copyMerge(
+                    hdfs,
+                    spark_session._jvm.org.apache.hadoop.fs.Path('{url}{uuid}'),
+                    hdfs,
+                    spark_session._jvm.org.apache.hadoop.fs.Path('{url}'),
+                    True, conf, None)
+            """.format(
                 input=self.named_inputs['input data'],
-                url=final_url, header=self.header, mode=self.mode))
+                url=final_url, header=self.header, mode=self.mode,
+                uuid=uuid.uuid4().get_hex(),
+                storage_url=storage['url'],
+            ))
             # Need to generate an output, even though it is not used.
         elif self.format == self.FORMAT_PARQUET:
             code_save = dedent("""
