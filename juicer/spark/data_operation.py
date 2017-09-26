@@ -284,19 +284,29 @@ class SaveOperation(Operation):
 
         limonero_config = \
             self.parameters['configuration']['juicer']['services']['limonero']
-        url = limonero_config['url']
+        url = '{}'.format(limonero_config['url'], self.mode)
         token = str(limonero_config['auth_token'])
         storage = limonero_service.get_storage_info(url, token, self.storage_id)
 
-        final_url = '{}/{}/{}'.format(storage['url'], self.path,
-                                      self.name.replace(' ', '_'))
+        final_url = '{}/limonero/user_data/{}/{}/{}'.format(
+            storage['url'], self.user['id'], self.path,
+            self.name.replace(' ', '_'))
         code_save = ''
         if self.format == self.FORMAT_CSV:
             code_save = dedent("""
-            {}.write.csv('{}',
-                         header={}, mode='{}')""".format(
-                self.named_inputs['input data'], final_url, self.header,
-                self.mode))
+            cols = []
+            for attr in {input}.schema:
+                if attr.dataType.typeName() in ['array']:
+                    cols.append(functions.concat_ws(
+                        ', ', {input}[attr.name]).alias(attr.name))
+                else:
+                    cols.append({input}[attr.name])
+
+            {input} = {input}.select(*cols)
+            {input}.coalesce(1).write.csv('{url}',
+                         header={header}, mode='{mode}')""".format(
+                input=self.named_inputs['input data'],
+                url=final_url, header=self.header, mode=self.mode))
             # Need to generate an output, even though it is not used.
         elif self.format == self.FORMAT_PARQUET:
             code_save = dedent("""
@@ -307,50 +317,63 @@ class SaveOperation(Operation):
             code_save += '\n{0}_tmp = {0}'.format(
                 self.named_inputs['input data'])
         elif self.format == self.FORMAT_JSON:
-            pass
+            code_save = dedent("""
+            {}.write.json('{}', mode='{}')""".format(
+                self.named_inputs['input data'],
+                final_url, self.mode))
 
         code = dedent(code_save)
 
         if not self.workflow_json == '':
             code_api = """
                 # Code to update Limonero metadata information
-                from juicer.include.metadata import MetadataPost
-                types_names = {13}
+                from juicer.service.limonero_service import register_datasource
+                types_names = {data_types}
 
-                schema = []
                 # nullable information is also stored in metadata
                 # because Spark ignores this information when loading CSV files
-                for att in {0}.schema:
-                    schema.append({{
+                attributes = []
+                for att in {input}.schema:
+                    attributes.append({{
+                      'enumeration': 0,
+                      'feature': 0,
+                      'label': 0,
                       'name': att.name,
-                      'dataType': types_names[str(att.dataType)],
-                      'nullable': att.nullable or attr.metadata.get('nullable'),
+                      'type': types_names[str(att.dataType)],
+                      'nullable': att.nullable,
                       'metadata': att.metadata,
                     }})
                 parameters = {{
-                    'name': "{1}",
-                    'format': "{2}",
-                    'storage_id': {3},
-                    'provenience': '',
-                    'description': "{5}",
-                    'user_id': "{6}",
-                    'user_login': "{7}",
-                    'user_name': "{8}",
-                    'workflow_id': "{9}",
-                    'url': "{10}",
+                    'name': "{name}",
+                    'enabled': 1,
+                    'is_public': 0,
+                    'format': "{format}",
+                    'storage_id': {storage},
+                    'description': "{description}",
+                    'user_id': "{user_id}",
+                    'user_login': "{user_login}",
+                    'user_name': "{user_name}",
+                    'workflow_id': "{workflow_id}",
+                    'url': "{final_url}",
+                    'attributes': attributes
                 }}
-                instance = MetadataPost('{12}', '{11}', schema, parameters)
-                """.format(self.named_inputs['input data'], self.name,
-                           self.format,
-                           self.storage_id,
-                           self.workflow_json,
-                           self.user['name'],
-                           self.user['id'],
-                           self.user['login'],
-                           self.user['name'],
-                           self.workflow_id, final_url, token, url,
-                           json.dumps(self.SPARK_TO_LIMONERO_DATA_TYPES)
-                           )
+                register_datasource('{url}', parameters, '{token}', '{mode}')
+                """.format(
+                input=self.named_inputs['input data'],
+                name=self.name,
+                format=self.format,
+                storage=self.storage_id,
+                description=_('Data source generated by workflow {}').format(
+                    self.workflow_id),
+                user_name=self.user['name'],
+                user_id=self.user['id'],
+                user_login=self.user['login'],
+                workflow_id=self.workflow_id,
+                final_url=final_url,
+                token=token,
+                url=url,
+                mode=self.mode,
+                data_types=json.dumps(self.SPARK_TO_LIMONERO_DATA_TYPES))
             code += dedent(code_api)
             # No return
             code += '{} = None'.format(self.output)
@@ -402,7 +425,7 @@ class ChangeAttributeOperation(Operation):
         else:
             raise ValueError(_(
                 "Parameter '{}' must be informed for task {}").format(
-                    self.ATTRIBUTES_PARAM, self.__class__))
+                self.ATTRIBUTES_PARAM, self.__class__))
         self.has_code = len(self.named_inputs) == 1
 
     def generate_code(self):
