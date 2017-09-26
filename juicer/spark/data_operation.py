@@ -294,7 +294,7 @@ class SaveOperation(Operation):
             self.name.replace(' ', '_'))
         code_save = ''
         if self.format == self.FORMAT_CSV:
-            code_save = dedent("""
+            code_save = dedent(u"""
             cols = []
             for attr in {input}.schema:
                 if attr.dataType.typeName() in ['array']:
@@ -304,26 +304,44 @@ class SaveOperation(Operation):
                     cols.append({input}[attr.name])
 
             {input} = {input}.select(*cols)
+            mode = '{mode}'
             # Write in a temporary directory
             {input}.write.csv('{url}{uuid}',
-                         header={header}, mode='{mode}')
+                         header={header}, mode=mode)
             # Merge files using Hadoop HDFS API
-            conf = spark_session._jvm.org.apache.hadoop.conf.Configuration()
-            conf.set('dfs.client.use.datanode.hostname', 'true')
-
-            hdfs = spark_session._jvm.org.apache.hadoop.fs.FileSystem.get(
+            conf = spark_session._jsc.hadoopConfiguration()
+            fs = spark_session._jvm.org.apache.hadoop.fs.FileSystem.get(
                 spark_session._jvm.java.net.URI('{storage_url}'), conf)
-            spark_session._jvm.org.apache.hadoop.fs.FileUtil.copyMerge(
-                    hdfs,
-                    spark_session._jvm.org.apache.hadoop.fs.Path('{url}{uuid}'),
-                    hdfs,
-                    spark_session._jvm.org.apache.hadoop.fs.Path('{url}'),
-                    True, conf, None)
+
+            path = spark_session._jvm.org.apache.hadoop.fs.Path('{url}')
+            tmp_path = spark_session._jvm.org.apache.hadoop.fs.Path(
+                '{url}{uuid}')
+            fs_util = spark_session._jvm.org.apache.hadoop.fs.FileUtil
+            if fs.exists(path):
+                if mode == 'error':
+                    raise ValueError('{error_file_exists}')
+                elif mode == 'ignore':
+                    emit_event(name='update task',
+                        message='{warn_ignored}',
+                        status='COMPLETED',
+                        identifier='{task_id}')
+                elif mode == 'overwrite':
+                    fs.delete(path, False)
+                    fs_util.copyMerge(fs, tmp_path, fs, path, True, conf, None)
+                else:
+                    raise ValueError('{error_invalid_mode}')
+            else:
+                fs_util.copyMerge(fs, tmp_path, fs, path, True, conf, None)
+            fs_util.chmod(path.toString(), '700')
             """.format(
                 input=self.named_inputs['input data'],
                 url=final_url, header=self.header, mode=self.mode,
                 uuid=uuid.uuid4().get_hex(),
                 storage_url=storage['url'],
+                task_id=self.parameters['task_id'],
+                error_file_exists=_('File already exists'),
+                warn_ignored=_('File not written (already exists)'),
+                error_invalid_mode=_('Invalid mode {}').format(self.mode)
             ))
             # Need to generate an output, even though it is not used.
         elif self.format == self.FORMAT_PARQUET:

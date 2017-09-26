@@ -89,14 +89,12 @@ class JuicerSparkService:
                 raise ValueError(
                     _('Invalid platform value: {}').format(loader.platform))
 
+            self.params['execute_main'] = self.execute_main
+            transpiler.execute_main = self.execute_main
             transpiler.transpile(loader.workflow,
                                  loader.graph,
                                  params=self.params,
                                  job_id=self.job_id)
-            self.params['execute_main'] = self.execute_main
-
-            transpiler.execute_main = self.execute_main
-            transpiler.transpile()
 
         except ValueError as ve:
             log.exception(_("At least one parameter is missing"), exc_info=ve)
