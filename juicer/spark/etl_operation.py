@@ -182,13 +182,14 @@ class SampleOrPartitionOperation(Operation):
                 self.fraction = float(parameters[self.FRACTION_PARAM])
                 if not (0 <= self.fraction <= 100):
                     msg = _("Parameter '{}' must be in " \
-                          "range [0, 100] for task {}") \
+                            "range [0, 100] for task {}") \
                         .format(self.FRACTION_PARAM, __name__)
                     raise ValueError(msg)
                 if self.fraction > 1.0:
                     self.fraction *= 0.01
             else:
-                raise ValueError(_("Parameter '{}' must be informed for task {}").format(
+                raise ValueError(
+                    _("Parameter '{}' must be informed for task {}").format(
                         self.FRACTION_PARAM, self.__class__))
         elif self.type in [self.TYPE_VALUE, self.TYPE_HEAD]:
             self.value = int(parameters.get(self.VALUE_PARAM, 100))
@@ -492,13 +493,13 @@ class ReplaceValueOperation(Operation):
         if not check(self.original):
             raise ValueError(
                 _("Parameter '{}' for task '{}' must be a number "
-                "or enclosed in quotes.").format(
+                  "or enclosed in quotes.").format(
                     self.ORIGINAL_PARAM, self.__class__))
 
         if not check(self.replacement):
             raise ValueError(
                 _("Parameter '{}' for task '{}' must be a number "
-                "or enclosed in quotes.").format(
+                  "or enclosed in quotes.").format(
                     self.REPLACEMENT_PARAM, self.__class__))
 
         self.has_code = len(self.named_inputs) == 1
@@ -900,7 +901,7 @@ class ExecutePythonOperation(Operation):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         if not all([self.PYTHON_CODE_PARAM in parameters]):
-            msg = ("Required parameter {} must be informed for task {}")
+            msg = _("Required parameter {} must be informed for task {}")
             raise ValueError(msg.format(self.PYTHON_CODE_PARAM, self.__class__))
 
         self.code = parameters.get(self.PYTHON_CODE_PARAM)
@@ -980,6 +981,65 @@ class ExecutePythonOperation(Operation):
         {out2} = out2
         """.format(out1=out1, out2=out2))
         return dedent(code)
+
+
+class ExecuteSQLOperation(Operation):
+    QUERY_PARAM = 'query'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+
+        if not all([self.QUERY_PARAM in parameters]):
+            msg = _("Required parameter {} must be informed for task {}")
+            raise ValueError(msg.format(self.QUERY_PARAM, self.__class__))
+
+        self.query = ExecuteSQLOperation._escape_string(
+            parameters.get(self.QUERY_PARAM).strip().replace('\n', ' '))
+        if self.query[:6].upper() != 'SELECT':
+            raise ValueError(_('Invalid query. Only SELECT is allowed.'))
+
+        self.has_code = any([len(self.named_outputs) > 0,
+                             parameters.get('display_schema'),
+                             parameters.get('display_sample')])
+        self.input1 = self.named_inputs.get('input data 1')
+        self.input2 = self.named_inputs.get('input data 2')
+        self.output = self.named_outputs.get('output data',
+                                             'out_{}'.format(self.order))
+
+    def get_data_out_names(self, sep=','):
+        return self.output
+
+    @staticmethod
+    def _escape_string(value):
+        """ Escape a SQL string. Borrowed from
+        https://github.com/PyMySQL/PyMySQL/blob/master/pymysql/converters.py"""
+        return value
+        # _escape_table = [unichr(x) for x in range(128)]
+        # _escape_table[0] = u'\\0'
+        # _escape_table[ord('\\')] = u'\\\\'
+        # _escape_table[ord('\n')] = u'\\n'
+        # _escape_table[ord('\r')] = u'\\r'
+        # _escape_table[ord('\032')] = u'\\Z'
+        # _escape_table[ord('"')] = u'\\"'
+        # _escape_table[ord("'")] = u"\\'"
+        # return value.translate(_escape_table)
+
+    def generate_code(self):
+        code = dedent("""
+        from pyspark.sql import SQLContext
+
+        # Input data
+        sqlContext = SQLContext(spark_session.sparkContext)
+        if {in1} is not None:
+            sqlContext.registerDataFrameAsTable({in1}, 'ds1')
+        if {in2} is not None:
+            sqlContext.registerDataFrameAsTable({in2}, 'ds2')
+        query = {query}
+        {out} = sqlContext.sql(query)
+
+        """.format(in1=self.input1, in2=self.input2, query=repr(self.query),
+                   out=self.output))
+        return code
 
 
 class TableLookupOperation(Operation):

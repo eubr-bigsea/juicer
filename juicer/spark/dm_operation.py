@@ -49,33 +49,41 @@ class FrequentItemSetOperation(Operation):
         return self.get_output_names(sep)
 
     def generate_code(self):
-        # def lift(sup_X_u_Y, n, sup_X, sup_Y):
-        #     total = float(n)
-        #     return (sup_X_u_Y / total) / (sup_X / total * sup_Y / total)
-        # def leverage():
-        #     pass
-        # def conviction():
-        #     pass
-        code = """
-            from pyspark.ml.fpm import FPGrowth
-            from pyspark.sql.types import StructType, StructField, \\
-                StringType, FloatType, ArrayType
+        code = u"""
+            try:
+                from pyspark.ml.fpm import FPGrowth
+                algorithm = FPGrowth(itemsCol="{attr}",
+                    minSupport={support}, minConfidence=0.6) # FIXME
 
-            algorithm = FPGrowth(itemsCol="{attr}",
-                minSupport={support}, minConfidence=0.6) # FIXME
-            model = algorithm.fit({input})
+                # Evaluate if using cache is a good idea
+                {input}.cache()
+                size = float({input}.count())
+                model = algorithm.fit({input})
 
-            emit_event(name='update task', message='{model_trained}',
-                       status='RUNNING', identifier='{task_id}')
-            {output} = model.freqItemsets
-            {rules} = model.associationRules
-
+                emit_event(name='update task', message='{model_trained}',
+                           status='RUNNING', identifier='{task_id}')
+                {output} = model.freqItemsets.withColumn('relative_support',
+                    functions.col('freq') / size)
+                {rules} = model.associationRules
+            except Exception as e:
+                sparkException = 'org.apache.spark.SparkException'
+                if hasattr(e, 'java_exception') and \
+                        e.java_exception.getClass().getName() == sparkException:
+                    cause = e.java_exception.getCause()
+                    not_unique = 'Items in a transaction must be unique'
+                    if cause and cause.getMessage().find(not_unique) > -1:
+                        raise ValueError('{not_unique}')
+                    else:
+                        raise
+                else:
+                    raise
         """.format(input=self.named_inputs['input data'],
                    support=self.min_support,
                    output=self.output,
                    attr=self.attribute,
                    task_id=self.parameters['task']['id'],
                    rules=self.rules,
+                   not_unique=_('Items in a transaction must be unique'),
                    confidence=self.confidence,
                    model_trained=_('Model trained'))
 

@@ -348,7 +348,7 @@ class SparkMinion(Minion):
 
         except UnicodeEncodeError as ude:
             message = self.MNN006[1].format(ude)
-            log.warn(_(message))
+            log.exception(_(message))
             # Mark job as failed
             self._emit_event(room=job_id, namespace='/stand')(
                 name='update job', message=message,
@@ -357,12 +357,9 @@ class SparkMinion(Minion):
             result = False
 
         except ValueError as ve:
-            message = _('Invalid or missing parameters: {}').format(ve.message)
-            print('#' * 30)
-            import traceback
-            traceback.print_exc(file=sys.stdout)
-            print('#' * 30)
-            log.warn(message)
+            message = _('Invalid or missing parameters: {}').format(
+                ve.message.decode('utf8'))
+            log.exception(message)
             if self.transpiler.current_task_id is not None:
                 self._emit_event(room=job_id, namespace='/stand')(
                     name='update task', message=message,
@@ -375,7 +372,7 @@ class SparkMinion(Minion):
 
         except SyntaxError as se:
             message = self.MNN006[1].format(se)
-            log.warn(message)
+            log.exception(message)
             self._emit_event(room=job_id, namespace='/stand')(
                 name='update job', message=message,
                 status='ERROR', identifier=job_id)
