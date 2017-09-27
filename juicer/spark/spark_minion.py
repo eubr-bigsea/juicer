@@ -357,8 +357,9 @@ class SparkMinion(Minion):
             result = False
 
         except ValueError as ve:
-            message = _('Invalid or missing parameters: {}').format(
-                ve.message.decode('utf8'))
+            msg = ve.message
+            txt = msg.decode('utf8') if isinstance(msg, str) else msg
+            message = _('Invalid or missing parameters: {}').format(txt)
             log.exception(message)
             if self.transpiler.current_task_id is not None:
                 self._emit_event(room=job_id, namespace='/stand')(
