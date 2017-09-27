@@ -261,6 +261,10 @@ class SparkTranspiler:
             parameters['task_id'] = task['id']
             parameters['operation_slug'] = task['operation']['slug']
             parameters['job_id'] = job_id
+            parameters['display_sample'] = parameters['task']['forms'].get(
+                'display_sample', {}).get('value') in (1, '1', True, 'true')
+            parameters['display_schema'] = parameters['task']['forms'].get(
+                'display_schema', {}).get('value') in (1, '1', True, 'true')
             port = ports.get(task['id'], {})
 
             instance = class_name(parameters, port.get('named_inputs', {}),
@@ -307,6 +311,7 @@ class SparkTranspiler:
             'distinct': juicer.spark.etl_operation.RemoveDuplicatedOperation,
             'drop': juicer.spark.etl_operation.DropOperation,
             'execute-python': juicer.spark.etl_operation.ExecutePythonOperation,
+            'execute-sql': juicer.spark.etl_operation.ExecuteSQLOperation,
             'filter': juicer.spark.etl_operation.FilterOperation,
             # Alias for filter
             'filter-selection': juicer.spark.etl_operation.FilterOperation,

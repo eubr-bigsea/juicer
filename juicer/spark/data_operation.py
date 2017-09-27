@@ -62,6 +62,9 @@ class DataReader(Operation):
 
                 self.metadata = limonero_service.get_data_source_info(
                     url, token, self.database_id)
+                if not self.metadata.get('url'):
+                    raise ValueError(
+                        _('Incorrect data source configuration (empty url)'))
                 self.sep = parameters.get(
                     self.SEPARATOR_PARAM, self.metadata.get(
                         'attribute_delimiter', ',')) or ','
@@ -191,9 +194,8 @@ class DataReader(Operation):
         # loading CSV file, it won't work. So, we are adding
         # this information in metadata.
         metadata = {k: attr[k] for k in
-                    ['feature', 'label', 'nullable', 'type', 'size',
-                     'precision', 'enumeration', 'missing_representation'] if
-                    attr[k]}
+                    ['nullable', 'type', 'size', 'precision', 'enumeration',
+                     'missing_representation'] if attr[k]}
         code.append("schema_{0}.add('{1}', {2}, {3},\n{5}{4})".format(
             self.output, attr['name'], data_type, attr['nullable'],
             pprint.pformat(metadata, indent=0), ' ' * 20
