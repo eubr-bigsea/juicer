@@ -456,7 +456,7 @@ class ReplaceValueOperation(Operation):
     """
     ATTRIBUTES_PARAM = 'attributes'
     REPLACEMENT_PARAM = 'replacement'
-    ORIGINAL_PARAM = 'original'
+    VALUE_PARAM = 'value'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
@@ -472,12 +472,12 @@ class ReplaceValueOperation(Operation):
                 _("Parameter '{}' must be informed for task {}").format(
                     self.REPLACEMENT_PARAM, self.__class__))
 
-        if self.ORIGINAL_PARAM in parameters:
-            self.original = parameters.get(self.ORIGINAL_PARAM)
+        if self.VALUE_PARAM in parameters:
+            self.original = parameters.get(self.VALUE_PARAM)
         else:
             raise ValueError(
                 _("Parameter '{}' must be informed for task {}").format(
-                    self.ORIGINAL_PARAM, self.__class__))
+                    self.VALUE_PARAM, self.__class__))
 
         def check(v):
             result = False
@@ -494,7 +494,7 @@ class ReplaceValueOperation(Operation):
             raise ValueError(
                 _("Parameter '{}' for task '{}' must be a number "
                   "or enclosed in quotes.").format(
-                    self.ORIGINAL_PARAM, self.__class__))
+                    self.VALUE_PARAM, self.__class__))
 
         if not check(self.replacement):
             raise ValueError(
@@ -510,12 +510,20 @@ class ReplaceValueOperation(Operation):
     def generate_code(self):
         input_data = self.named_inputs['input data']
 
-        code = dedent("""
+        code = dedent(u"""
+        try:
             {out} = {in1}.replace({original},
-                {replacement}, subset={subset})""".format(
+                {replacement}, subset={subset})
+        except ValueError as ve:
+            if 'Mixed type replacements are not supported' in ve.message:
+                raise ValueError('{replacement_same_type}')
+            else:
+                raise""".format(
             out=self.output, in1=input_data,
             original=self.original,
             replacement=self.replacement,
+            replacement_same_type=_('Value and replacement must be of '
+                                    'the same type for all attributes'),
             subset=json.dumps(self.attributes)))
         return code
 

@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2017-09-28 09:50-0300\n"
-"PO-Revision-Date: 2017-09-28 09:51-0300\n"
+"POT-Creation-Date: 2017-09-28 13:55-0300\n"
+"PO-Revision-Date: 2017-09-28 13:55-0300\n"
 "Last-Translator: \n"
 "Language-Team: pt_BR <LL@li.org>\n"
 "Language: pt_BR\n"
@@ -242,8 +242,8 @@ msgstr "Configuração incorreta para fonte de dados (url vazia)"
 #: juicer/spark/data_quality_operation.py:18 juicer/spark/etl_operation.py:90
 #: juicer/spark/etl_operation.py:192 juicer/spark/etl_operation.py:435
 #: juicer/spark/etl_operation.py:472 juicer/spark/etl_operation.py:479
-#: juicer/spark/etl_operation.py:548 juicer/spark/etl_operation.py:634
-#: juicer/spark/etl_operation.py:688 juicer/spark/feature_operation.py:27
+#: juicer/spark/etl_operation.py:556 juicer/spark/etl_operation.py:642
+#: juicer/spark/etl_operation.py:696 juicer/spark/feature_operation.py:27
 #: juicer/spark/geo_operation.py:31 juicer/spark/ml_operation.py:37
 #: juicer/spark/ml_operation.py:137 juicer/spark/ml_operation.py:144
 #: juicer/spark/ml_operation.py:200 juicer/spark/ml_operation.py:256
@@ -303,23 +303,29 @@ msgid "Parameter '{}' for task '{}' must be a number or enclosed in quotes."
 msgstr ""
 "Parâmetro '{}' para a tarefa '{}' deve ser numérico ou estar entre aspas."
 
-#: juicer/spark/etl_operation.py:553
+#: juicer/spark/etl_operation.py:525
+msgid "Value and replacement must be of the same type for all attributes"
+msgstr ""
+"O valor a ser substituído e a substituição devem ser do mesmo tipo para "
+"todos os atributos"
+
+#: juicer/spark/etl_operation.py:561
 msgid "Missing parameter in aggregation function"
 msgstr "Parâmetro faltante na função de agregação"
 
-#: juicer/spark/etl_operation.py:789
+#: juicer/spark/etl_operation.py:797
 msgid "Parameter '{}' has an incorrect value '{}' in {}"
 msgstr "Parâmetro '{}' tem um valor incorreto '{}' in {}"
 
-#: juicer/spark/etl_operation.py:864
+#: juicer/spark/etl_operation.py:872
 msgid "Required parameters must be informed for task {}"
 msgstr "Parâmetro necessário deve ser informado para a tarefa {}"
 
-#: juicer/spark/etl_operation.py:904 juicer/spark/etl_operation.py:993
+#: juicer/spark/etl_operation.py:912 juicer/spark/etl_operation.py:1001
 msgid "Required parameter {} must be informed for task {}"
 msgstr "Parâmetro obrigatório {} deve ser informado para tarefa {}"
 
-#: juicer/spark/etl_operation.py:999
+#: juicer/spark/etl_operation.py:1007
 msgid "Invalid query. Only SELECT is allowed."
 msgstr "Consulta inválida. Apenas SELECT é permitido."
 
