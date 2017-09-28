@@ -216,6 +216,9 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.ord
 {%- endhandleinstance %}
 {% endfor %}
 
+def get_results(task_futures, id):
+    return task_futures[id].result() if id in task_futures else None
+
 def main(spark_session, cached_state, emit_event):
     """ Run generated code """
 
@@ -234,7 +237,7 @@ def main(spark_session, cached_state, emit_event):
 
         {%- for instance in instances %}
         {%- set is_satisfied = dependency_controller.is_satisfied(instance.parameters.task.id) %}
-        {%- if instance.has_code and is_satisfied and instance.out_degree == 0 %}
+        {%- if instance.must_be_executed(is_satisfied) %}
         {%- set s = dependency_controller.satisfied(instance.parameters.task.id) %}
         task_futures['{{instance.parameters.task.id}}'] = executor.submit(
             lambda: {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.order}}(spark_session, cached_state, emit_event))
@@ -243,7 +246,7 @@ def main(spark_session, cached_state, emit_event):
 
         {%- for instance in instances %}
         {%- set is_satisfied = dependency_controller.is_satisfied(instance.parameters.task.id) %}
-        {%- if instance.has_code and is_satisfied and instance.out_degree == 0 %}
+        {%- if instance.must_be_executed(is_satisfied) %}
         {%- set s = dependency_controller.satisfied(instance.parameters.task.id) %}
         task_futures['{{instance.parameters.task.id}}'].result()
         {%- endif %}
@@ -258,7 +261,7 @@ def main(spark_session, cached_state, emit_event):
               {%- set is_satisfied = dependency_controller.is_satisfied(instance.parameters.task.id) %}
               {%- if instance.has_code and is_satisfied %}
                 '{{instance.parameters.task.id}}':
-                    task_futures['{{instance.parameters.task.id}}'].result(),
+                    get_results(task_futures, '{{instance.parameters.task.id}}'),
               {%- endif %}
             {%- endfor %}
         }

@@ -102,6 +102,7 @@ class SparkMinion(Minion):
         # Used in the template file, declared here to gettext detect them
         self.msgs = [
             _('Task running'), _('Task completed'),
+            _('Task ignored (not used by other task or as an output)')
         ]
         self.current_lang = lang
 

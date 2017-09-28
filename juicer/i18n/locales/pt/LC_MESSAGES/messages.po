@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2017-09-27 16:14-0300\n"
-"PO-Revision-Date: 2017-09-27 16:35-0300\n"
+"POT-Creation-Date: 2017-09-28 09:50-0300\n"
+"PO-Revision-Date: 2017-09-28 09:51-0300\n"
 "Last-Translator: \n"
 "Language-Team: pt_BR <LL@li.org>\n"
 "Language: pt_BR\n"
@@ -87,8 +87,8 @@ msgstr ""
 msgid "Starting master process. Reading \"start\" queue"
 msgstr "Inicializando o processo mestre. Lendo a fila de inicialização"
 
-#: juicer/runner/juicer_server.py:101 juicer/spark/spark_minion.py:281
-#: juicer/spark/spark_minion.py:282
+#: juicer/runner/juicer_server.py:101 juicer/spark/spark_minion.py:282
+#: juicer/spark/spark_minion.py:283
 #, python-format
 msgid "Unknown message type %s"
 msgstr "Tipo da mensagem desconhecido %s"
@@ -282,11 +282,11 @@ msgstr "Algoritmo '{}' não suportado para a tarefa {}"
 msgid "Support must be informed for classifier {}"
 msgstr "Suporte deve ser informado para o classificador {}"
 
-#: juicer/spark/dm_operation.py:87
+#: juicer/spark/dm_operation.py:86
 msgid "Items in a transaction must be unique"
 msgstr "Itens em uma transação devem ser únicos"
 
-#: juicer/spark/dm_operation.py:89 juicer/spark/dm_operation.py:160
+#: juicer/spark/dm_operation.py:88 juicer/spark/dm_operation.py:159
 msgid "Model trained"
 msgstr "Modelo treinado"
 
@@ -460,12 +460,16 @@ msgstr "Tarefa executando"
 msgid "Task completed"
 msgstr "Tarefa completada"
 
-#: juicer/spark/spark_minion.py:110
+#: juicer/spark/spark_minion.py:105
+msgid "Task ignored (not used by other task or as an output)"
+msgstr "Tarefa ignorada (não é usada por outra tarefa ou como saída)"
+
+#: juicer/spark/spark_minion.py:111
 #, python-format
 msgid "Emit %s %s %s %s"
 msgstr "Emitir %s %s %s %s"
 
-#: juicer/spark/spark_minion.py:179
+#: juicer/spark/spark_minion.py:180
 #, python-format
 msgid ""
 "Unhandled error (%s) \n"
@@ -474,60 +478,60 @@ msgstr ""
 "Erro não tratado (%s) \n"
 ">%s"
 
-#: juicer/spark/spark_minion.py:211
+#: juicer/spark/spark_minion.py:212
 #, python-format
 msgid "Processing message %s for app %s"
 msgstr "Processando a mesangem %s para a aplicação %s"
 
-#: juicer/spark/spark_minion.py:225
+#: juicer/spark/spark_minion.py:226
 msgid "Running job with lang {}/{}"
 msgstr "Executando o job usando o idioma {}/{}"
 
-#: juicer/spark/spark_minion.py:248
+#: juicer/spark/spark_minion.py:249
 msgid "Execute message finished"
 msgstr "Mensagem de execução finalizada"
 
-#: juicer/spark/spark_minion.py:269
+#: juicer/spark/spark_minion.py:270
 #, python-format
 msgid "Terminate message received (job_id=%s)"
 msgstr "Mensagem de término recebida (job_id=%s)"
 
-#: juicer/spark/spark_minion.py:273
+#: juicer/spark/spark_minion.py:274
 #, python-format
 msgid "Terminate message received (app=%s)"
 msgstr "Mensagem de término recebida (app=%s)"
 
-#: juicer/spark/spark_minion.py:303
+#: juicer/spark/spark_minion.py:304
 msgid "Running job"
 msgstr "Executando tarefa"
 
-#: juicer/spark/spark_minion.py:342
+#: juicer/spark/spark_minion.py:343
 msgid "Job finished in {0:.2f}s"
 msgstr "Job executado em {0:.2f}s"
 
-#: juicer/spark/spark_minion.py:360
+#: juicer/spark/spark_minion.py:363
 msgid "Invalid or missing parameters: {}"
 msgstr "Parâmetro inválido ou faltante: {}"
 
-#: juicer/spark/spark_minion.py:388
+#: juicer/spark/spark_minion.py:387
 msgid "Unhandled error"
 msgstr "Erro não tratado"
 
-#: juicer/spark/spark_minion.py:419
+#: juicer/spark/spark_minion.py:418
 msgid "Creating a new Spark session"
 msgstr "Criando um nova sessão Spark"
 
-#: juicer/spark/spark_minion.py:431
+#: juicer/spark/spark_minion.py:430
 #, python-format
 msgid "Setting spark configuration %s"
 msgstr "Ajustando as configurações do spark %s"
 
-#: juicer/spark/spark_minion.py:475
+#: juicer/spark/spark_minion.py:474
 #, python-format
 msgid "Minion is using '%s' as Spark master"
 msgstr "Minion está usando '%s\" como mestre Spark"
 
-#: juicer/spark/spark_minion.py:648
+#: juicer/spark/spark_minion.py:647
 #, python-format
 msgid "Spark minion (workflow_id=%s,app_id=%s) started (pid=%s)"
 msgstr "Spark minion (workflow_id=%s, app_id=%s) iniciou (pid=%s)"
@@ -620,6 +624,9 @@ msgstr "Porta '{}' faltando, deve ser informado para a operação {}"
 #: juicer/workflow/workflow.py:383
 msgid "The node informed doesn't exist"
 msgstr "O nó informado não existe"
+
+#~ msgid "Task ignored (not used as output or by other task)"
+#~ msgstr "Tarefa ignorada (não é usada como saída ou usad"
 
 #~ msgid "Start ping"
 #~ msgstr "Iniciar ping"
