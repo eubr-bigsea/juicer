@@ -40,7 +40,8 @@ class DataReader(Operation):
     DATA_TYPES_WITH_PRECISION = {'DECIMAL'}
 
     SEPARATORS = {
-        '{tab}': '\\t'
+        '{tab}': '\\t',
+        '{new_line}': '\\n',
     }
 
     def __init__(self, parameters, named_inputs, named_outputs):
