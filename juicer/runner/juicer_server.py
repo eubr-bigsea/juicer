@@ -72,6 +72,13 @@ class JuicerServer:
         redis_conn = redis.StrictRedis(host=parsed_url.hostname,
                                        port=parsed_url.port)
 
+        # Start pending minions
+        apps = [q.split('_')[-1] for q in redis_conn.keys('queue_app_*')]
+        self.state_control = StateControlRedis(redis_conn)
+
+        for app in apps:
+            log.warn(_('Starting pending app {}').format(app))
+            self._start_minion(app, app, self.state_control)
         while True:
             self.read_start_queue(redis_conn)
 
@@ -231,10 +238,9 @@ class JuicerServer:
         log.info('%s', parsed_url)
         redis_conn = redis.StrictRedis(host=parsed_url.hostname,
                                        port=parsed_url.port)
-        JuicerServer.watch_minion_process(redis_conn)
+        self.watch_minion_process(redis_conn)
 
-    @staticmethod
-    def watch_minion_process(redis_conn):
+    def watch_minion_process(self, redis_conn):
         try:
             pubsub = redis_conn.pubsub()
             pubsub.psubscribe('__keyevent@*__:expired')
@@ -242,8 +248,15 @@ class JuicerServer:
                 log.info(_('watch subscribe: %s'), msg)
                 if msg.get('type') == 'pmessage' and 'minion' in msg.get(
                         'data'):
-                    log.warn(
-                        _('Minion {id} stopped').format(id=msg.get('data')))
+                    app_id = msg.get('data').split('_')[-1]
+                    log.warn(_('Minion {id} stopped').format(id=app_id))
+                    if redis_conn.lrange('queue_app_{}'.format(app_id), 0, 0):
+                        log.warn(_('There are messages to process in app {} '
+                                   'queue, starting minion.').format(app_id))
+                        if self.state_control is None:
+                            self.state_control = StateControlRedis(redis_conn)
+                        self._start_minion(app_id, app_id,
+                                           self.state_control)
         except ConnectionError as cx:
             log.exception(cx)
             time.sleep(1)

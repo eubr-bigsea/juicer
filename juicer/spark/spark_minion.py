@@ -468,8 +468,8 @@ class SparkMinion(Minion):
             app_configs['spark.driver.extraClassPath'] = os.path.pathsep.join(
                 all_jars)
 
-            log.warn('CLASSPATH: %s', app_configs['spark.driver.extraClassPath'])
-            log.warn('CONFIG %s', app_configs)
+            log.info('JAVA CLASSPATH: %s',
+                     app_configs['spark.driver.extraClassPath'])
             # All options passed by application are sent to Spark
             for option, value in app_configs.items():
                 spark_builder = spark_builder.config(option, value)
