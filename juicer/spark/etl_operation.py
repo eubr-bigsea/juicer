@@ -1040,7 +1040,7 @@ class ExecuteSQLOperation(Operation):
         # return value.translate(_escape_table)
 
     def generate_code(self):
-        code = dedent("""
+        code = dedent(u"""
         from pyspark.sql import SQLContext
 
         # Input data

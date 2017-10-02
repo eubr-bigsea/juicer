@@ -115,7 +115,7 @@ class AssociationRulesOperation(Operation):
         return self.output
 
     def generate_code(self):
-        code = """
+        code = u"""
             from pyspark.sql import DataFrame
             try:
                 ext_pkg = spark_session._jvm.br.ufmg.dcc.lemonade.ext.fpm
@@ -170,7 +170,7 @@ class SequenceMiningOperation(Operation):
         return self.output
 
     def generate_code(self):
-        code = dedent("""
+        code = dedent(u"""
             from pyspark.sql import DataFrame
             try:
                 ext_pkg = spark_session._jvm.br.ufmg.dcc.lemonade.ext.fpm
