@@ -993,6 +993,7 @@ class ExecutePythonOperation(Operation):
 
 class ExecuteSQLOperation(Operation):
     QUERY_PARAM = 'query'
+    NAMES_PARAM = 'names'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
@@ -1005,6 +1006,12 @@ class ExecuteSQLOperation(Operation):
             parameters.get(self.QUERY_PARAM).strip().replace('\n', ' '))
         if self.query[:6].upper() != 'SELECT':
             raise ValueError(_('Invalid query. Only SELECT is allowed.'))
+
+        if self.NAMES_PARAM in parameters:
+            self.names = [n.strip() for n in
+                          parameters.get(self.NAMES_PARAM).split(',')]
+        else:
+            self.names = None
 
         self.has_code = any([len(self.named_outputs) > 0,
                              parameters.get('display_schema'),
@@ -1033,7 +1040,7 @@ class ExecuteSQLOperation(Operation):
         # return value.translate(_escape_table)
 
     def generate_code(self):
-        code = dedent("""
+        code = dedent(u"""
         from pyspark.sql import SQLContext
 
         # Input data
@@ -1044,9 +1051,18 @@ class ExecuteSQLOperation(Operation):
             sqlContext.registerDataFrameAsTable({in2}, 'ds2')
         query = {query}
         {out} = sqlContext.sql(query)
-
+        names = {names}
+        if names is not None:
+            old_names = {out}.schema.names
+            if len(old_names) != len(names):
+                raise ValueError('{invalid_names}')
+            rename = [functions.col(pair[0]).alias(pair[1])
+                for pair in zip(old_names, names)]
+            {out} = {out}.select(*rename)
         """.format(in1=self.input1, in2=self.input2, query=repr(self.query),
-                   out=self.output))
+                   out=self.output, names=repr(self.names),
+                   invalid_names=_('Invalid names. Number of attributes in '
+                                   'result differs from names informed.')))
         return code
 
 

@@ -336,7 +336,11 @@ class SparkTranspiler:
         }
         dm_ops = {
             'frequent-item-set':
-                juicer.spark.dm_operation.FrequentItemSetOperation
+                juicer.spark.dm_operation.FrequentItemSetOperation,
+            'association-rules':
+                juicer.spark.dm_operation.AssociationRulesOperation,
+            'sequence-mining':
+                juicer.spark.dm_operation.SequenceMiningOperation,
         }
         ml_ops = {
             'apply-model': juicer.spark.ml_operation.ApplyModelOperation,

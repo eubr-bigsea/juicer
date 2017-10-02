@@ -47,9 +47,11 @@ class SparkMinion(Minion):
     TIMEOUT = 'timeout'
     MSG_PROCESSED = 'message_processed'
 
-    def __init__(self, redis_conn, workflow_id, app_id, config, lang='en'):
+    def __init__(self, redis_conn, workflow_id, app_id, config, lang='en',
+                 jars=None):
         Minion.__init__(self, redis_conn, workflow_id, app_id, config)
 
+        self.jars = jars
         self.terminate_proc_queue = multiprocessing.Queue()
         self.execute_process = None
         self.ping_process = None
@@ -435,6 +437,9 @@ class SparkMinion(Minion):
                 app_configs['driver-library-path'] = \
                     '{}/lib/native/'.format(os.environ.get('HADOOP_HOME'))
 
+            # Default options from configuration file
+            app_configs.update(self.config['juicer'].get('spark', {}))
+
             # Juicer listeners configuration.
             listeners = self.config['juicer'].get('listeners', [])
 
@@ -451,9 +456,20 @@ class SparkMinion(Minion):
                         listener.get('params', {}).get('log_path',
                                                        '/tmp/juicer-spark-logs')
 
-            app_configs['spark.extraListeners'] = ','.join(classes)
-            app_configs['spark.driver.extraClassPath'] = ':'.join(all_jars)
+            if self.jars:
+                all_jars.extend(self.jars.split(os.path.pathsep))
 
+            app_configs['spark.extraListeners'] = ','.join(classes)
+
+            # Must use CLASSPATH from config file also!
+            if 'spark.driver.extraClassPath' in app_configs:
+                all_jars.append(app_configs['spark.driver.extraClassPath'])
+
+            app_configs['spark.driver.extraClassPath'] = os.path.pathsep.join(
+                all_jars)
+
+            log.info('JAVA CLASSPATH: %s',
+                     app_configs['spark.driver.extraClassPath'])
             # All options passed by application are sent to Spark
             for option, value in app_configs.items():
                 spark_builder = spark_builder.config(option, value)
