@@ -138,7 +138,7 @@ class AssociationRulesOperation(Operation):
                    freq=self.freq[0],
                    task_id=self.parameters['task']['id'],
                    model_trained=_('Model trained'),
-                   required_pkg=_('Required Lemoande Spark Extensions '
+                   required_pkg=_('Required Lemonade Spark Extensions '
                                   'not found in CLASSPATH.')
                    )
 
@@ -193,7 +193,7 @@ class SequenceMiningOperation(Operation):
                    output=self.output,
                    attr=self.attribute[0],
                    freq=self.freq[0],
-                   required_pkg=_('Required Lemoande Spark Extensions '
+                   required_pkg=_('Required Lemonade Spark Extensions '
                                   'not found in CLASSPATH.')
                    ))
         return code
