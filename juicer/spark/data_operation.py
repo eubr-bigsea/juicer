@@ -144,7 +144,7 @@ class DataReader(Operation):
                 else:
                     code_csv = dedent("""
                     schema_{output} = types.StructType()
-                    schema_{output}.add('value', types.StringType(), 1, None)
+                    schema_{output}.add('value', types.StringType(), True)
                     {output} = spark_session.read{null_option}.schema(
                         schema_{output}).option(
                         'treatEmptyValuesAsNulls', 'true').text(
@@ -157,8 +157,17 @@ class DataReader(Operation):
             elif self.metadata['format'] == 'PARQUET_FILE':
                 # TO DO
                 pass
-            elif self.metadata['format'] == 'JSON_FILE':
-                # TO DO
+            elif self.metadata['format'] == 'JSON':
+                code_json = dedent("""
+                    schema_{output} = types.StructType()
+                    schema_{output}.add('value', types.StringType(), True)
+                    {output} = spark_session.read.option(
+                        'treatEmptyValuesAsNulls', 'true').json(
+                        '{url}')""".format(output=self.output,
+                                           url=self.metadata['url']))
+                code.append(code_json)
+                # FIXME: Evaluate if it is good idea to always use cache
+                code.append('{}.cache()'.format(self.output))
                 pass
             elif self.metadata['format'] == 'LIB_SVM':
                 # Test
