@@ -23,9 +23,11 @@ if __name__ == '__main__':
     parser.add_argument("-a", "--app_id", help="Job id", type=str,
                         required=False)
     parser.add_argument("-t", "--type", help="Execution engine",
-                        required=False, default="SPARK")
+                        required=False, default="spark")
     parser.add_argument("--lang", help="Minion messages language (i18n)",
                         required=False, default="en_US")
+    parser.add_argument("--jars", help="Add Java JAR files to class path.",
+                        required=False)
     args = parser.parse_args()
     t = gettext.translation('messages', locales_path, [args.lang],
                             fallback=True)
@@ -41,13 +43,13 @@ if __name__ == '__main__':
             juicer_config['juicer']['servers']['redis_url'])
         redis_conn = redis.StrictRedis(host=parsed_url.hostname,
                                        port=parsed_url.port)
-        if args.type == 'SPARK':
+        if args.type == 'spark':
             # log.info('Starting Juicer Spark Minion')
             server = SparkMinion(redis_conn,
                                  args.workflow_id,
                                  args.app_id or args.workflow_id,
                                  juicer_config,
-                                 args.lang)
+                                 args.lang, args.jars)
             server.process()
         else:
             raise ValueError(
