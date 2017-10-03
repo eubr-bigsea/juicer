@@ -1,0 +1,49 @@
+{
+  "title": "Line Graph",
+  "legend": {
+    "isVisible": true,
+    "text": "{% raw %}{{name}}{% endraw %}"
+  },
+  "tooltip": {
+    "title": [
+      "{% raw %}{{name}}{% endraw %}"
+    ],
+    "body": [
+      "<span class='metric'>FIXME</span><span class='number'>{% raw %}{{name}}{% endraw %}</span>"
+    ]
+  },
+  "y": {
+    "title": "{{y.title}}",
+    "prefix": "{{y.prefix}}",
+    "suffix": "{{y.suffix}}",
+    "format": "{{y.format}}"
+  },
+  "x": {
+    "title": "{{x.title}}",
+    "type": "{{x.type}}",
+    "prefix": "{{x.prefix}}",
+    "suffix": "{{x.suffix}}",
+    "outFormat": "{{x.format}}",
+    "inFormat": "{{x.format}}"
+  },
+  "data": [
+    {%- for s in series %},
+    {
+      "id": "{{s.id}}",
+      "name": "{{s.id}}",
+      "color": "{{ colors(loop.index0) }}",
+      "pointColor": "{{ colors(loop.index0) }}",
+      "pointShape": "{{ shapes(loop.index0) }}",
+      "pointSize": 8,
+      "values": [
+        {%- for value in s.get('values', []) %}
+        {
+          "x": {{ quote(value[0]) }},
+          "y": {{ quote(value[1]) }}
+        }{% if not loop.last %}, {% endif %}
+        {%- endfor %}
+      ]
+    }{% if not loop.last %}, {% endif %}
+    {%- endfor %}
+  ]
+}

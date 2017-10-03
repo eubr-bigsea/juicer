@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 import ast
 import json
-from itertools import izip_longest
 from textwrap import dedent
 
 import pytest
@@ -267,8 +266,12 @@ def test_apply_model_operation_success():
 
     code = instance.generate_code()
 
-    expected_code = "{output_1} = {model}.transform({input_1})".format(
-        output_1=out, input_1=in1, model=model)
+    expected_code = dedent("""
+    # params = {{'predictionCol': 'prediction'}}
+    params = {{}}
+    {output_1} = {model}.transform({input_1}, params)
+    """.format(
+        output_1=out, input_1=in1, model=model))
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
 
@@ -318,7 +321,7 @@ def test_evaluate_model_operation_success():
         }
     )
     n_in = {'input data': 'input_1', 'model': 'df_model'}
-    n_out = {'metric': 'df_metric', 'evaluator': 'df_evaluator'}
+    n_out = {'metric': 'metric_value', 'evaluator': 'df_evaluator'}
     instance = EvaluateModelOperation(params, named_inputs=n_in,
                                       named_outputs=n_out)
 
@@ -330,48 +333,36 @@ def test_evaluate_model_operation_success():
 
             {output} = {evaluator_out}.evaluate({input_1})
 
-            from juicer.spark.reports import EvaluateModelOperationReport
-            from juicer.service import caipirinha_service
+            display_text = True
+            if display_text:
+                from juicer.spark.reports import SimpleTableReport
+                headers = ['Parameter', 'Description', 'Value', 'Default']
+                rows = [
+                        [x.name, x.doc,
+                            df_evaluator._paramMap.get(x, 'unset'),
+                             df_evaluator._defaultParamMap.get(
+                                 x, 'unset')] for x in
+                    df_evaluator.extractParamMap()]
 
-            vis_model = EvaluateModelOperationReport.generate_visualization(
-                evaluator={evaluator_out},
-                metric_value={output},
-                title='Evaluation result',
-                operation_id={operation_id},
-                task_id='{task_id}')
+                content = SimpleTableReport(
+                        'table table-striped table-bordered table-sm', headers,
+                        rows)
 
-            visualizations = [
-            {{
-             'job_id': '34',
-             'task_id': '2323-afffa-343bdaff',
-             'title': 'Evaluation result',
-             'type': {{
-                 'id': 2793,
-                 'name': 'EvaluateModelOperation'
-             }},
-             'model': vis_model
-            }}]
+                result = '<h4>{{}}: {{}}</h4>'.format('f1',
+                    metric_value)
 
-            # Basic information to connect to other services
-            config = {{
-             'juicer': {{
-                 'services': {{
-                     'limonero': {{
-                         'url': 'http://localhost',
-                         'auth_token': 'FAKE'
-                     }},
-                     'caipirinha': {{
-                         'url': 'http://localhost',
-                         'auth_token': 'FAKE',
-                         'storage_id': 343
-                     }},
-                 }}
-             }}
-            }}
-            caipirinha_service.new_dashboard(config, 'Evaluation result',
-                {{'login': 'admin', 'id': 12, 'name': 'admin'}},
-                203, 'test',
-                34, '2323-afffa-343bdaff', visualizations, emit_event)
+                emit_event(
+                    'update task', status='COMPLETED',
+                    identifier='{task_id}',
+                    message=result + content.generate(),
+                    type='HTML', title='Evaluation result',
+                    task={{'id': '{task_id}'}},
+                    operation={{'id': {operation_id}}},
+                    operation_id={operation_id})
+
+            from juicer.spark.ml_operation import ModelsEvaluationResultList
+            model_task_1 = ModelsEvaluationResultList(
+                [df_model], df_model, 'f1', metric_value)
             """.format(output=n_out['metric'],
                        evaluator_out=n_out['evaluator'],
                        input_2=n_in['model'],
@@ -389,7 +380,8 @@ def test_evaluate_model_operation_success():
                            params[EvaluateModelOperation.METRIC_PARAM]][1]))
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
-    assert result, msg + format_code_comparison(code, expected_code)
+    assert result, msg + format_code_comparison(code,
+                                                expected_code)  # + '\n' + '\n'.join(difflib.unified_diff(code.split('\n'), expected_code.split('\n')))
 
 
     # @!BUG - Acessing 'task''order' in parameter attribute, but doesn't exist
@@ -492,19 +484,20 @@ def test_cross_validation_partial_operation_success():
                 grid_builder.addGrid(param, values)
 
             evaluator = {evaluator}
+            estimator.setLabelCol(evaluator.getLabelCol())
 
             cross_validator = tuning.CrossValidator(
                 estimator=estimator, estimatorParamMaps=grid_builder.build(),
                 evaluator=evaluator, numFolds={folds})
             cv_model = cross_validator.fit({input_data})
-            evaluated_data = cv_model.transform({input_data})
-            best_model_{output}  = cv_model.bestModel
-            metric_result = evaluator.evaluate(evaluated_data)
-            {evaluation} = metric_result
-            {output} = evaluated_data
+            fit_data = cv_model.transform({input_data})
+            best_model_1  = cv_model.bestModel
+            metric_result = evaluator.evaluate(fit_data)
+            # {evaluation} = metric_result
+            {output} = fit_data
             models_task_1 = None
 
-            grouped_result = evaluated_data.select(
+            grouped_result = fit_data.select(
                  evaluator.getLabelCol(), evaluator.getPredictionCol())\
                  .groupBy(evaluator.getLabelCol(),
                           evaluator.getPredictionCol()).count().collect()
@@ -570,16 +563,17 @@ def test_cross_validation_complete_operation_success():
                 grid_builder.addGrid(param, values)
 
             evaluator = {evaluator}
+            estimator.setLabelCol(evaluator.getLabelCol())
 
             cross_validator = tuning.CrossValidator(
                 estimator=estimator, estimatorParamMaps=grid_builder.build(),
                 evaluator=evaluator, numFolds={folds})
             cv_model = cross_validator.fit({input_data})
-            evaluated_data = cv_model.transform({input_data})
-            best_model_{output}  = cv_model.bestModel
-            metric_result = evaluator.evaluate(evaluated_data)
-            {output} = metric_result
-            {output} = evaluated_data
+            fit_data = cv_model.transform({input_data})
+            best_model_1  = cv_model.bestModel
+            metric_result = evaluator.evaluate(fit_data)
+            # {output} = metric_result
+            {output} = fit_data
             models_task_1 = None
             """.format(algorithm=n_in['algorithm'],
                        input_data=n_in['input data'],
@@ -588,7 +582,7 @@ def test_cross_validation_complete_operation_success():
                        folds=params[CrossValidationOperation.NUM_FOLDS_PARAM]))
 
     eval_code = """
-            grouped_result = evaluated_data.select(
+            grouped_result = fit_data.select(
                     evaluator.getLabelCol(), evaluator.getPredictionCol())\\
                     .groupBy(evaluator.getLabelCol(),
                              evaluator.getPredictionCol()).count().collect()
@@ -647,7 +641,8 @@ def test_cross_validation_complete_operation_missing_input_failure():
 def test_classification_model_operation_success():
     params = {
         ClassificationModelOperation.FEATURES_ATTRIBUTE_PARAM: 'f',
-        ClassificationModelOperation.LABEL_ATTRIBUTE_PARAM: 'l'
+        ClassificationModelOperation.LABEL_ATTRIBUTE_PARAM: 'l',
+        ClassificationModelOperation.PREDICTION_ATTRIBUTE_PARAM: 'prediction1'
 
     }
     n_in = {'algorithm': 'algo_param', 'train input data': 'train'}
@@ -659,11 +654,21 @@ def test_classification_model_operation_success():
 
     expected_code = dedent("""
         algorithm, param_grid = {algorithm}
-        algorithm.setLabelCol('{label}').setFeaturesCol('{features}')
+        algorithm.setPredictionCol('{prediction}')
+        algorithm.setLabelCol('{label}')
+        algorithm.setFeaturesCol('{features}')
         {output} = algorithm.fit({train})
+
+        # Lazy execution in case of sampling the data in UI
+        def call_transform(df):
+            return model_1.transform(df)
+        out_task_1 = dataframe_util.LazySparkTransformationDataframe(
+            {output}, {train}, call_transform)
         """.format(output=n_out['model'],
                    train=n_in['train input data'],
                    algorithm=n_in['algorithm'],
+                   prediction=params[
+                       ClassificationModelOperation.PREDICTION_ATTRIBUTE_PARAM],
                    features=params[
                        ClassificationModelOperation.FEATURES_ATTRIBUTE_PARAM],
                    label=params[
@@ -753,7 +758,7 @@ def test_classifier_operation_success():
 
     expected_code = dedent("""
 
-    param_grid = {param_grid}
+    param_grid = {{}}
     # Output result is the classifier and its parameters. Parameters are
     # need in classification model or cross validator.
     {output} = ({name}(), param_grid)
@@ -763,39 +768,6 @@ def test_classifier_operation_success():
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
 
     assert result, msg + format_code_comparison(code, expected_code)
-
-
-def test_classifier_operation_missing_param_grid_parameter_failure():
-    params = {}
-    n_out = {'algorithm': 'classifier_1'}
-
-    with pytest.raises(ValueError):
-        ClassifierOperation(params, named_inputs={}, named_outputs=n_out)
-
-
-def test_classifier_operation_missing_label_failure():
-    params = {
-        ClassifierOperation.GRID_PARAM: {
-            ClassifierOperation.FEATURES_PARAM: 'f',
-        }
-
-    }
-    n_out = {'algorithm': 'classifier_1'}
-
-    with pytest.raises(ValueError):
-        ClassifierOperation(params, named_inputs={}, named_outputs=n_out)
-
-
-def test_classifier_operation_missing_features_failure():
-    params = {
-        ClassifierOperation.GRID_PARAM: {
-            ClassifierOperation.LABEL_PARAM: 'l'
-        }
-    }
-    n_out = {'algorithm': 'classifier_1'}
-
-    with pytest.raises(ValueError):
-        ClassifierOperation(params, named_inputs={}, named_outputs=n_out)
 
 
 def test_classifier_operation_missing_output_failure():
@@ -942,6 +914,8 @@ def test_clustering_model_operation_success():
     params = {
 
         ClusteringModelOperation.FEATURES_ATTRIBUTE_PARAM: 'f',
+        'task_id': 232,
+        'operation_id': 343
 
     }
     named_inputs = {'algorithm': 'df_1',
@@ -956,16 +930,60 @@ def test_clustering_model_operation_success():
     code = instance.generate_code()
 
     expected_code = dedent("""
+        from juicer.spark.reports import SimpleTableReport
+
         {algorithm}.setFeaturesCol('{features}')
+        df_1.setPredictionCol('prediction')
         {model} = {algorithm}.fit({input})
         # There is no way to pass which attribute was used in clustering, so
         # this information will be stored in uid (hack).
         {model}.uid += '|{features}'
-        {output} = {model}.transform({input})
+        # Lazy execution in case of sampling the data in UI
+        def call_transform(df):
+            return output_2.transform(df)
+        output_1 = dataframe_util.LazySparkTransformationDataframe(
+             output_2, df_2, call_transform)
+
+        summary = getattr(output_2, 'summary', None)
+        # <>
+        def call_clusters(df):
+            if hasattr(output_2, 'clusterCenters'):
+                return spark_session.createDataFrame(
+                    [center.tolist()
+                        for center in output_2.clusterCenters()])
+            else:
+                return spark_session.createDataFrame([],
+                    types.StructType([]))
+
+        centroids_task_1 = dataframe_util.LazySparkTransformationDataframe(
+            output_2, df_2, call_clusters)
+
+        if summary:
+            summary_rows = []
+            for p in dir(summary):
+                if not p.startswith('_') and p != "cluster":
+                    try:
+                        summary_rows.append(
+                            [p, getattr(summary, p)])
+                    except Exception as e:
+                        summary_rows.append([p, e.message])
+            summary_content = SimpleTableReport(
+                'table table-striped table-bordered', [],
+                summary_rows,
+                title='Summary')
+            emit_event('update task', status='COMPLETED',
+                identifier='232',
+                message=summary_content.generate(),
+                type='HTML', title='Clustering result',
+                task={{'id': '{task_id}' }},
+                operation={{'id': {operation_id} }},
+                operation_id={operation_id})
         """.format(algorithm=named_inputs['algorithm'],
                    input=named_inputs['train input data'],
                    model=named_outputs['model'],
                    output=outputs[0],
+                   operation_id=params['operation_id'],
+                   task_id=params['task_id'],
                    features=params[
                        ClusteringModelOperation.FEATURES_ATTRIBUTE_PARAM]))
 
@@ -1189,8 +1207,6 @@ def test_kmeans_clustering_operation_random_type_bisecting_success():
     set_values = [
         ['MaxIter', params[KMeansClusteringOperation.MAX_ITERATIONS_PARAM]],
         ['K', params[KMeansClusteringOperation.K_PARAM]],
-        ['Tol', params[KMeansClusteringOperation.TOLERANCE_PARAMETER]],
-        # ['InitMode', params[KMeansClusteringOperation.INIT_MODE_PARAMETER]]
     ]
 
     instance = KMeansClusteringOperation(params, named_inputs={},
@@ -1213,7 +1229,7 @@ def test_kmeans_clustering_operation_random_type_bisecting_success():
     assert result, msg + format_code_comparison(code, expected_code)
 
 
-def test_kmeans_clustering_operation_kmeansdd_type_kmeans_success():
+def test_kmeans_clustering_operation_kmeans_type_kmeans_success():
     params = {
         KMeansClusteringOperation.K_PARAM: 10,
         KMeansClusteringOperation.MAX_ITERATIONS_PARAM: 20,
@@ -1267,8 +1283,6 @@ def test_kmeans_clustering_operation_kmeansdd_type_bisecting_success():
     set_values = [
         ['MaxIter', params[KMeansClusteringOperation.MAX_ITERATIONS_PARAM]],
         ['K', params[KMeansClusteringOperation.K_PARAM]],
-        ['Tol', params[KMeansClusteringOperation.TOLERANCE_PARAMETER]],
-        # ['InitMode', params[KMeansClusteringOperation.INIT_MODE_PARAMETER]]
     ]
 
     instance = KMeansClusteringOperation(params,

@@ -28,13 +28,14 @@ def test_data_reader_minimal_parameters_no_attributes_success():
 
     expected_code = dedent("""
         schema_{output} = types.StructType()
+        schema_{output}.add('value', types.StringType(), 1, None)
         url = '{url}'
         {output} = spark_session.read\
                                .option('nullValue', '')\
                                .option('treatEmptyValuesAsNulls', 'true')\
                                .csv(url, schema=schema_output_1,
                                     header=False, sep=',',
-                                    inferSchema=False, mode='DROPMALFORMED')
+                                    inferSchema=False, mode='FAILFAST')
         {output}.cache()
         """.format(url='http://hdfs.lemonade:9000', output='output_1'))
     expected_tree = ast.parse(expected_code)

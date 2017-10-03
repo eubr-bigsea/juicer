@@ -4,8 +4,9 @@
 """
 import argparse
 import errno
+import gettext
 import json
-import logging
+import logging.config
 import multiprocessing
 import signal
 import subprocess
@@ -15,18 +16,18 @@ import urlparse
 
 import os
 import redis
-from redis.exceptions import ConnectionError
 import yaml
 from juicer.exceptions import JuicerException
 from juicer.runner import configuration
 from juicer.runner import juicer_protocol
 from juicer.runner.control import StateControlRedis
-import logging.config
+from redis.exceptions import ConnectionError
+
+locales_path = os.path.join(os.path.dirname(__file__), '..', 'i18n', 'locales')
 
 os.chdir(os.environ.get('JUICER_HOME', '.'))
 logging.config.fileConfig('logging_config.ini')
-log = logging.getLogger()
-log.setLevel(logging.DEBUG)
+log = logging.getLogger('juicer.runner.juicer_server')
 
 
 class JuicerServer:
@@ -61,16 +62,24 @@ class JuicerServer:
             'path', '/tmp')
 
         signal.signal(signal.SIGTERM, self._terminate)
+        self.platform = 'spark'
 
     def start(self):
         signal.signal(signal.SIGTERM, self._terminate_minions)
-        log.info('Starting master process. Reading "start" queue ')
+        log.info(_('Starting master process. Reading "start" queue'))
 
         parsed_url = urlparse.urlparse(
             self.config['juicer']['servers']['redis_url'])
         redis_conn = redis.StrictRedis(host=parsed_url.hostname,
                                        port=parsed_url.port)
 
+        # Start pending minions
+        apps = [q.split('_')[-1] for q in redis_conn.keys('queue_app_*')]
+        self.state_control = StateControlRedis(redis_conn)
+
+        for app in apps:
+            log.warn(_('Starting pending app {}').format(app))
+            self._start_minion(app, app, self.state_control)
         while True:
             self.read_start_queue(redis_conn)
 
@@ -89,14 +98,18 @@ class JuicerServer:
             app_id = str(msg_info['app_id'])
 
             if msg_type in (juicer_protocol.EXECUTE, juicer_protocol.DELIVER):
-                self._forward_to_minion(msg_type, workflow_id, app_id, msg)
+                self._forward_to_minion(msg_type, workflow_id, app_id, msg,
+                                        self.platform)
+                self.platform = msg_info['workflow'].get('platform', {}).get(
+                    'slug', 'spark')
 
             elif msg_type == juicer_protocol.TERMINATE:
-                self._forward_to_minion(msg_type, workflow_id, app_id, msg)
+                self._forward_to_minion(msg_type, workflow_id, app_id, msg,
+                                        self.platform)
                 self._terminate_minion(workflow_id, app_id)
 
             else:
-                log.warn('Unknown message type %s', msg_type)
+                log.warn(_('Unknown message type %s'), msg_type)
 
         except ConnectionError as cx:
             log.exception(cx)
@@ -114,18 +127,18 @@ class JuicerServer:
                 self.state_control.push_app_output_queue(
                     app_id, json.dumps({'code': 500, 'message': ex.message}))
 
-    def _forward_to_minion(self, msg_type, workflow_id, app_id, msg):
+    def _forward_to_minion(self, msg_type, workflow_id, app_id, msg, platform):
         # Get minion status, if it exists
         minion_info = self.state_control.get_minion_status(app_id)
-        log.info('Minion status for (workflow_id=%s,app_id=%s): %s',
+        log.info(_('Minion status for (workflow_id=%s,app_id=%s): %s'),
                  workflow_id, app_id, minion_info)
 
         # If there is status registered for the application then we do not
         # need to launch a minion for it, because it is already running.
         # Otherwise, we launch a new minion for the application.
         if minion_info:
-            log.info('Minion (workflow_id=%s,app_id=%s) is running.',
-                     workflow_id, app_id)
+            log.info(_('Minion (workflow_id=%s,app_id=%s) is running on %s.'),
+                     workflow_id, app_id, platform)
         else:
             # This is a special case when the minion timed out.
             # In this case we kill it before starting a new one
@@ -133,7 +146,7 @@ class JuicerServer:
                 self._terminate_minion(workflow_id, app_id)
 
             minion_process = self._start_minion(
-                workflow_id, app_id, self.state_control)
+                workflow_id, app_id, self.state_control, platform)
             self.active_minions[(workflow_id, app_id)] = minion_process
 
         # Forward the message to the minion, which can be an execute or a
@@ -141,20 +154,21 @@ class JuicerServer:
         self.state_control.push_app_queue(app_id, msg)
         self.state_control.set_workflow_status(workflow_id, self.STARTED)
 
-        log.info('Message %s forwarded to minion (workflow_id=%s,app_id=%s)',
+        log.info(_('Message %s forwarded to minion (workflow_id=%s,app_id=%s)'),
                  msg_type, workflow_id, app_id)
-        log.info('Message content (workflow_id=%s,app_id=%s): %s',
+        log.info(_('Message content (workflow_id=%s,app_id=%s): %s'),
                  workflow_id, app_id, msg)
         self.state_control.push_app_output_queue(app_id, json.dumps(
             {'code': 0,
              'message': 'Minion is processing message %s' % msg_type}))
 
-    def _start_minion(self, workflow_id, app_id, state_control, restart=False):
+    def _start_minion(self, workflow_id, app_id, state_control, platform,
+                      restart=False):
 
         minion_id = 'minion_{}_{}'.format(workflow_id, app_id)
         stdout_log = os.path.join(self.log_dir, minion_id + '_out.log')
         stderr_log = os.path.join(self.log_dir, minion_id + '_err.log')
-        log.debug('Forking minion %s.', minion_id)
+        log.debug(_('Forking minion %s.'), minion_id)
 
         # Expires in 30 seconds and sets only if it doesn't exist
         state_control.set_minion_status(app_id, self.STARTED, ex=30, nx=False)
@@ -162,8 +176,9 @@ class JuicerServer:
         # Setup command and launch the minion script. We return the subprocess
         # created as part of an active minion.
         open_opts = ['nohup', sys.executable, self.minion_executable,
-                     '-w', workflow_id, '-a', app_id, '-c',
+                     '-w', workflow_id, '-a', app_id, '-t', platform, '-c',
                      self.config_file_path]
+        log.debug(_('Minion command: %s'), json.dumps(open_opts))
         return subprocess.Popen(open_opts,
                                 stdout=open(stdout_log, 'a'),
                                 stderr=open(stderr_log, 'a'))
@@ -172,11 +187,14 @@ class JuicerServer:
         # In this case we got a request for terminating this workflow
         # execution instance (app). Thus, we are going to explicitly
         # terminate the workflow, clear any remaining metadata and return
-        assert (workflow_id, app_id) in self.active_minions
-        log.info("Terminating (workflow_id=%s,app_id=%s)", \
+        if not (workflow_id, app_id) in self.active_minions:
+            log.warn('(%s, %s) not in active minions ', workflow_id, app_id)
+        log.info(_("Terminating (workflow_id=%s,app_id=%s)"), \
                  workflow_id, app_id)
-        os.kill(self.active_minions[(workflow_id, app_id)].pid, signal.SIGTERM)
-        del self.active_minions[(workflow_id, app_id)]
+        if (workflow_id, app_id) in self.active_minions:
+            os.kill(self.active_minions[(workflow_id, app_id)].pid,
+                    signal.SIGTERM)
+            del self.active_minions[(workflow_id, app_id)]
 
     def minion_support(self):
         parsed_url = urlparse.urlparse(
@@ -193,7 +211,7 @@ class JuicerServer:
             workflow_id = ticket.get('workflow_id')
             app_id = ticket.get('app_id', ticket.get('workflow_id'))
             reason = ticket.get('reason')
-            log.info("Master received a ticket for app %s", app_id)
+            log.info(_("Master received a ticket for app %s"), app_id)
             if reason == self.HELP_UNHANDLED_EXCEPTION:
                 # Let's kill the minion and start another
                 minion_info = json.loads(
@@ -206,12 +224,13 @@ class JuicerServer:
                             break
                     time.sleep(.5)
 
-                self._start_minion(workflow_id, app_id, state_control)
+                self._start_minion(workflow_id, app_id, state_control,
+                                   self.platform)
 
             elif reason == self.HELP_STATE_LOST:
                 pass
             else:
-                log.warn("Unknown help reason %s", reason)
+                log.warn(_("Unknown help reason %s"), reason)
 
         except ConnectionError as cx:
             log.exception(cx)
@@ -226,24 +245,31 @@ class JuicerServer:
         log.info('%s', parsed_url)
         redis_conn = redis.StrictRedis(host=parsed_url.hostname,
                                        port=parsed_url.port)
-        JuicerServer.watch_minion_process(redis_conn)
+        self.watch_minion_process(redis_conn)
 
-    @staticmethod
-    def watch_minion_process(redis_conn):
+    def watch_minion_process(self, redis_conn):
         try:
             pubsub = redis_conn.pubsub()
             pubsub.psubscribe('__keyevent@*__:expired')
             for msg in pubsub.listen():
-                log.info('watch subscribe: %s', msg)
+                log.info(_('watch subscribe: %s'), msg)
                 if msg.get('type') == 'pmessage' and 'minion' in msg.get(
                         'data'):
-                    log.warn('Minion {id} stopped'.format(id=msg.get('data')))
+                    app_id = msg.get('data').split('_')[-1]
+                    log.warn(_('Minion {id} stopped').format(id=app_id))
+                    if redis_conn.lrange('queue_app_{}'.format(app_id), 0, 0):
+                        log.warn(_('There are messages to process in app {} '
+                                   'queue, starting minion.').format(app_id))
+                        if self.state_control is None:
+                            self.state_control = StateControlRedis(redis_conn)
+                        self._start_minion(app_id, app_id,
+                                           self.state_control)
         except ConnectionError as cx:
             log.exception(cx)
             time.sleep(1)
 
     def process(self):
-        log.info('Juicer server started (pid=%s)', os.getpid())
+        log.info(_('Juicer server started (pid=%s)'), os.getpid())
         self.start_process = multiprocessing.Process(
             name="master", target=self.start)
         self.start_process.daemon = False
@@ -264,18 +290,20 @@ class JuicerServer:
         self.minion_support_process.join()
         self.minion_watch_process.join()
 
+    # noinspection PyUnusedLocal
     def _terminate_minions(self, _signal, _frame):
-        log.info('Terminating %s active minions', len(self.active_minions))
+        log.info(_('Terminating %s active minions'), len(self.active_minions))
         minions = [m for m in self.active_minions]
         for (wid, aid) in minions:
             self._terminate_minion(wid, aid)
         sys.exit(0)
 
+    # noinspection PyUnusedLocal
     def _terminate(self, _signal, _frame):
         """
         This is a handler that reacts to a sigkill signal.
         """
-        log.info('Killing juicer server subprocesses and terminating')
+        log.info(_('Killing juicer server subprocesses and terminating'))
         if self.start_process:
             os.kill(self.start_process.pid, signal.SIGTERM)
         if self.minion_support_process:
@@ -288,7 +316,13 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     # parser.add_argument("-p", "--port", help="Listen port")
     parser.add_argument("-c", "--config", help="Config file", required=True)
+    parser.add_argument("--lang", help="Minion messages language (i18n)",
+                        required=False, default="en_US")
     args = parser.parse_args()
+
+    t = gettext.translation('messages', locales_path, [args.lang],
+                            fallback=True)
+    t.install(unicode=True)
 
     with open(args.config) as config_file:
         juicer_config = yaml.load(config_file.read())

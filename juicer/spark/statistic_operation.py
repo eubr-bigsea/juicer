@@ -18,7 +18,7 @@ class PearsonCorrelation(Operation):
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
         else:
             raise ValueError(
-                "Parameter '{}' must be informed for task {}".format(
+                _("Parameter '{}' must be informed for task {}").format(
                     self.ATTRIBUTES_PARAM, self.__class__))
 
         self.has_code = len(self.inputs) == 1

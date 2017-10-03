@@ -230,7 +230,7 @@ def test_conditional_expression_success():
         'input': 'df00'
     }
     expr = Expression(json_code, params)
-    expected_code = "when(df00['a'] > 1, 2).otherwise(3)"
+    expected_code = "functions.when((df00['a'] > 1), 2).otherwise(3)"
     result, msg = compare_ast(ast.parse(expr.parsed_expression), ast.parse(
         expected_code))
     assert result, msg + format_code_comparison(expr.parsed_expression,
@@ -242,7 +242,7 @@ def test_conditional_expression_success():
     json_code['consequent']['raw'] = '"ok"'
     expr = Expression(json_code, params)
 
-    expected_code = "when(df00['a'] > 1, df00['ok']).otherwise(3)"
+    expected_code = "functions.when(df00['a'] > 1, df00['ok']).otherwise(3)"
     result, msg = compare_ast(ast.parse(expr.parsed_expression), ast.parse(
         expected_code))
     assert result, msg + format_code_comparison(expr.parsed_expression,

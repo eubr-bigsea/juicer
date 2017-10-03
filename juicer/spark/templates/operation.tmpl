@@ -23,6 +23,7 @@ from timeit import default_timer as timer
 
 from pyspark.ml import classification, evaluation, feature, tuning, clustering
 from pyspark.sql import functions, types
+from pyspark.sql.utils import IllegalArgumentException
 
 from pyspark.ml import Pipeline
 from pyspark.ml.classification import *
@@ -32,8 +33,6 @@ from pyspark.ml.feature import *
 from pyspark.ml.tuning import *
 from pyspark.ml.recommendation import *
 from pyspark.ml.regression import *
-
-
 from juicer import privaaas
 from juicer.util import dataframe_util
 
@@ -56,9 +55,6 @@ def spark_logging(spark_session):
         __SPARK_LOG__ = logger.LogManager.getLogger(__name__)
     return __SPARK_LOG__
 
-
-# reload(sys)
-# sys.setdefaultencoding('utf8')
 
 
 def take_sample(df, size=100, default=None):
@@ -100,14 +96,14 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.ord
     """ Operation {{instance.parameters.task.id }} """
     {%- endif %}
 
-    # First we verify whether this task's result is cached
     {%- if instance.supports_cache and False %}
+    # First we verify whether this task's result is cached
     if '{{instance.parameters.task.id}}' in cached_state:
-        emit_event(name='update task', message='Task running',
+        emit_event(name='update task', message=_('Task running'),
                    status='RUNNING',
                    identifier='{{instance.parameters.task.id}}')
         spark_logging(spark_session).info ('Cache hit for operation {}'.format('{{instance.parameters.task.id}}'))
-        emit_event(name='update task', message='Task completed',
+        emit_event(name='update task', message=_('Task completed'),
                    status='COMPLETED',
                    identifier='{{instance.parameters.task.id}}')
         return cached_state.get('{{instance.parameters.task.id}}')
@@ -116,7 +112,7 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.ord
     spark_logging(spark_session).info(
         "Submitting parent task {{instance.parameters.task.parents}} "
         "before {{instance.parameters.task.id}}")
-
+    {%- if instance.parameters.task.parents %}
     # If the task's result is not cached, we submit its dependencies first
     {%- for parent in instance.parameters.task.parents %}
     {%- set parent_instance = instances_by_task_id[parent] %}
@@ -133,6 +129,7 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.ord
 
     {%- endif %}
     {%- endfor %}
+    {%- endif %}
 
     # Next we wait for the dependencies to complete
     {%- for parent in instance.parameters.task.parents %}
@@ -150,11 +147,12 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.ord
     
     spark_logging(spark_session).info(
         'Parents completed, submitting {{instance.parameters.task.id}}')
- 
-    emit_event(name='update task', message='Task running',
+
+    {%- if not plain %}
+    emit_event(name='update task', message=_('Task running'),
                status='RUNNING',
                identifier='{{instance.parameters.task.id}}')
-  
+    {%- endif %}
     spark_logging(spark_session).info(
         'Lemonade task {{instance.parameters.task.id}} started') 
   
@@ -169,11 +167,31 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.ord
     {%- endif %}
     {%- endif %}
 
+    {%- if not plain %}
     {%- for gen_result in instance.get_generated_results() %}
-    emit_event(name='task result', message='{{gen_result.type}}',
+    emit_event(name='task result', message=_('{{gen_result.type}}'),
                status='COMPLETED',
                identifier='{{instance.parameters.task.operation.id}}/{{instance.parameters.task.id}}')
     {%- endfor %}
+    {%- endif %}
+
+    {%- if instance.parameters.task.forms.get('display_sample', {}).get('value') in (1, '1') %}
+    # Outputs' samples
+    {%- for out in instance.get_data_out_names(',').split(',') %}
+    {%- if out %}
+    dataframe_util.emit_sample('{{instance.parameters.task.id}}', {{out}}, emit_event, '{{out}}')
+    {%- endif %}
+    {%- endfor %}
+    {%- endif %}
+
+    {%- if instance.parameters.task.forms.get('display_schema', {}).get('value') in (1, '1') %}
+    # Outputs' schemas
+    {%- for out in instance.get_data_out_names(',').split(',') %}
+    {%- if out %}
+    dataframe_util.emit_schema('{{instance.parameters.task.id}}', {{out}}, emit_event, '{{out}}')
+    {%- endif %}
+    {%- endfor %}
+    {%- endif %}
 
     results = {
       {%- set is_leaf = instance.out_degree == 0 %}
@@ -183,10 +201,11 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.ord
         {%- endif %}
       {%- endfor %}
     }
-
-    emit_event(name='update task', message='Task completed',
+    {%- if not plain %}
+    emit_event(name='update task', message=_('Task completed'),
                status='COMPLETED',
                identifier='{{instance.parameters.task.id}}')
+    {%- endif %}
 
     spark_logging(spark_session).info(
         'Lemonade task {{instance.parameters.task.id}} completed')
@@ -198,51 +217,76 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.ord
 {%- endhandleinstance %}
 {% endfor %}
 
+def get_results(task_futures, id):
+    return task_futures[id].result() if id in task_futures else None
+
 def main(spark_session, cached_state, emit_event):
     """ Run generated code """
 
-    start = time.time()
+    try:
+        start = time.time()
 
-    session_start_time = time.time()
-    
-    {%- for instance in instances %}
-    {%- if instance.has_code %}
-    {%- if instance.multiple_inputs %}
-    {{instance.get_inputs_names.replace(',', '=') }} = None
-    {% endif %}
-    {%- endif %}
-    {%- endfor %}
+        session_start_time = time.time()
 
-    {%- for instance in instances %}
-    {%- set is_satisfied = dependency_controller.is_satisfied(instance.parameters.task.id) %}
-    {%- if instance.has_code and is_satisfied and instance.out_degree == 0 %}
-    {%- set s = dependency_controller.satisfied(instance.parameters.task.id) %}
-    task_futures['{{instance.parameters.task.id}}'] = executor.submit(
-        lambda: {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.order}}(spark_session, cached_state, emit_event))
-    {%- endif %}
-    {%- endfor %}
-    
-    {%- for instance in instances %}
-    {%- set is_satisfied = dependency_controller.is_satisfied(instance.parameters.task.id) %}
-    {%- if instance.has_code and is_satisfied and instance.out_degree == 0 %}
-    {%- set s = dependency_controller.satisfied(instance.parameters.task.id) %}
-    task_futures['{{instance.parameters.task.id}}'].result()
-    {%- endif %}
-    {%- endfor %}
-
-    end = time.time()
-    print("{}\t{}".format(end - start, end - session_start_time))
-    return {
-        'status': 'OK',
-        'message': 'Execution defined',
         {%- for instance in instances %}
-          {%- set is_satisfied = dependency_controller.is_satisfied(instance.parameters.task.id) %}
-          {%- if instance.has_code and is_satisfied %}
-            '{{instance.parameters.task.id}}':
-                task_futures['{{instance.parameters.task.id}}'].result(),
-          {%- endif %}
+        {%- if instance.has_code %}
+        {%- if instance.multiple_inputs %}
+        {{instance.get_inputs_names.replace(',', '=') }} = None
+        {% endif %}
+        {%- endif %}
         {%- endfor %}
-    }
+
+        {%- for instance in instances %}
+        {%- set is_satisfied = dependency_controller.is_satisfied(instance.parameters.task.id) %}
+        {%- if instance.must_be_executed(is_satisfied) %}
+        {%- set s = dependency_controller.satisfied(instance.parameters.task.id) %}
+        task_futures['{{instance.parameters.task.id}}'] = executor.submit(
+            lambda: {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.order}}(spark_session, cached_state, emit_event))
+        {%- endif %}
+        {%- endfor %}
+
+        {%- for instance in instances %}
+        {%- set is_satisfied = dependency_controller.is_satisfied(instance.parameters.task.id) %}
+        {%- if instance.must_be_executed(is_satisfied) %}
+        {%- set s = dependency_controller.satisfied(instance.parameters.task.id) %}
+        task_futures['{{instance.parameters.task.id}}'].result()
+        {%- endif %}
+        {%- endfor %}
+
+        end = time.time()
+        print("{}\t{}".format(end - start, end - session_start_time))
+        return {
+            'status': 'OK',
+            'message': 'Execution defined',
+            {%- for instance in instances %}
+              {%- set is_satisfied = dependency_controller.is_satisfied(instance.parameters.task.id) %}
+              {%- if instance.has_code and is_satisfied %}
+                '{{instance.parameters.task.id}}':
+                    get_results(task_futures, '{{instance.parameters.task.id}}'),
+              {%- endif %}
+            {%- endfor %}
+        }
+    except Exception, e:
+        nfe = 'java.lang.NumberFormatException'
+        # noinspection PyUnresolvedReferences
+        if hasattr(e, 'java_exception'):
+            cause = e.java_exception.getCause()
+            value_expr = re.compile(r'.+"(.+)"')
+            if cause is not None:
+                if cause.getClass().getName() == nfe and cause.getMessage():
+                    value = value_expr.findall(cause.getMessage())[0]
+                    raise ValueError('Invalid numeric data in at least one '
+                        'data source (attribute: {})'.format(value))
+                elif cause.getMessage() == u'Malformed CSV record':
+                    raise ValueError('At least one input data source is not in '
+                        'the correct format')
+                else:
+                    raise
+            else:
+                raise
+        else:
+            raise
+
 {%- if execute_main %}
 
 def dummy_emit_event(room, namespace):

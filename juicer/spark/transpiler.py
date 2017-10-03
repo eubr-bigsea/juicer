@@ -7,6 +7,7 @@ import juicer.spark.data_operation
 import juicer.spark.data_quality_operation
 import juicer.spark.dm_operation
 import juicer.spark.etl_operation
+import juicer.spark.feature_operation
 import juicer.spark.geo_operation
 import juicer.spark.ml_operation
 import juicer.spark.statistic_operation
@@ -16,8 +17,9 @@ import juicer.spark.ws_operation
 import networkx as nx
 import os
 from juicer import operation
+from juicer.service import stand_service
 from juicer.util.jinja2_custom import AutoPep8Extension
-from juicer.util.spark_template_util import HandleExceptionExtension
+from juicer.util.template_util import HandleExceptionExtension
 
 
 class DependencyController:
@@ -74,7 +76,7 @@ class RemoveTasksWhenMultiplexingVisitor(SparkTranspilerVisitor):
         # return graph
 
 
-class SparkTranspiler:
+class SparkTranspiler(object):
     """
     Convert Lemonada workflow representation (JSON) into code to be run in
     Apache Spark.
@@ -139,6 +141,7 @@ class SparkTranspiler:
             name = ''.join([p[0] for p in parts])
         return '{}_{}'.format(name, seq)
 
+    # noinspection SpellCheckingInspection
     def transpile(self, workflow, graph, params, out=None, job_id=None):
         """ Transpile the tasks from Lemonade's workflow into Spark code """
 
@@ -242,6 +245,10 @@ class SparkTranspiler:
             parameters['task_id'] = task['id']
             parameters['operation_slug'] = task['operation']['slug']
             parameters['job_id'] = job_id
+            parameters['display_sample'] = parameters['task']['forms'].get(
+                'display_sample', {}).get('value') in (1, '1', True, 'true')
+            parameters['display_schema'] = parameters['task']['forms'].get(
+                'display_schema', {}).get('value') in (1, '1', True, 'true')
             port = ports.get(task['id'], {})
 
             instance = class_name(parameters, port.get('named_inputs', {}),
@@ -253,6 +260,7 @@ class SparkTranspiler:
             env_setup['instances'].append(instance)
             env_setup['instances_by_task_id'][task['id']] = instance
             env_setup['execute_main'] = params.get('execute_main', False)
+            env_setup['plain'] = params.get('plain', False)
 
         template_loader = jinja2.FileSystemLoader(
             searchpath=os.path.dirname(__file__))
@@ -260,13 +268,23 @@ class SparkTranspiler:
                                           extensions=[AutoPep8Extension,
                                                       HandleExceptionExtension])
         template_env.globals.update(zip=zip)
-        template = template_env.get_template("operation.tmpl")
+        template = template_env.get_template("templates/operation.tmpl")
         v = template.render(env_setup)
 
         if using_stdout:
             out.write(v.encode('utf8'))
         else:
             out.write(v)
+        stand_config = self.configuration.get('juicer', {}).get(
+            'services', {}).get('stand')
+        if stand_config and job_id:
+            # noinspection PyBroadException
+            try:
+                stand_service.save_job_source_code(stand_config['url'],
+                                                   stand_config['auth_token'],
+                                                   job_id, v.encode('utf8'))
+            except:
+                pass
 
     def _assign_operations(self):
         etl_ops = {
@@ -278,6 +296,7 @@ class SparkTranspiler:
             'distinct': juicer.spark.etl_operation.RemoveDuplicatedOperation,
             'drop': juicer.spark.etl_operation.DropOperation,
             'execute-python': juicer.spark.etl_operation.ExecutePythonOperation,
+            'execute-sql': juicer.spark.etl_operation.ExecuteSQLOperation,
             'filter': juicer.spark.etl_operation.FilterOperation,
             # Alias for filter
             'filter-selection': juicer.spark.etl_operation.FilterOperation,
@@ -302,7 +321,11 @@ class SparkTranspiler:
         }
         dm_ops = {
             'frequent-item-set':
-                juicer.spark.dm_operation.FrequentItemSetOperation
+                juicer.spark.dm_operation.FrequentItemSetOperation,
+            'association-rules':
+                juicer.spark.dm_operation.AssociationRulesOperation,
+            'sequence-mining':
+                juicer.spark.dm_operation.SequenceMiningOperation,
         }
         ml_ops = {
             'apply-model': juicer.spark.ml_operation.ApplyModelOperation,
@@ -357,15 +380,17 @@ class SparkTranspiler:
                 juicer.spark.ml_operation.RandomForestRegressorOperation,
             'gbt-regressor': juicer.spark.ml_operation.GBTRegressorOperation,
             'generalized-linear-regressor':
-                juicer.spark.ml_operation.GeneralizedLinearRegression,
+                juicer.spark.ml_operation.GeneralizedLinearRegressionOperation,
             'aft-survival-regression':
                 juicer.spark.ml_operation.AFTSurvivalRegressionOperation,
 
-            'save-model': juicer.spark.ml_operation.SaveModel,
+            'save-model': juicer.spark.ml_operation.SaveModelOperation,
+            'load-model': juicer.spark.ml_operation.LoadModelOperation,
 
         }
         data_ops = {
-            'change-attribute': juicer.spark.data_operation.ChangeAttributeOperation,
+            'change-attribute':
+                juicer.spark.data_operation.ChangeAttributeOperation,
             'data-reader': juicer.spark.data_operation.DataReaderOperation,
             'data-writer': juicer.spark.data_operation.SaveOperation,
             'external-input':
@@ -400,17 +425,31 @@ class SparkTranspiler:
         }
         vis_ops = {
             'publish-as-visualization':
-                juicer.spark.vis_operation.PublishVisOperation,
+                juicer.spark.vis_operation.PublishVisualizationOperation,
             'bar-chart': juicer.spark.vis_operation.BarChartOperation,
+            'donut-chart': juicer.spark.vis_operation.DonutChartOperation,
             'pie-chart': juicer.spark.vis_operation.PieChartOperation,
             'area-chart': juicer.spark.vis_operation.AreaChartOperation,
             'line-chart': juicer.spark.vis_operation.LineChartOperation,
-            'table-visualization': juicer.spark.vis_operation.TableVisOperation,
+            'table-visualization':
+                juicer.spark.vis_operation.TableVisualizationOperation,
             'summary-statistics':
                 juicer.spark.vis_operation.SummaryStatisticsOperation,
-            'scatter-plot': juicer.spark.vis_operation.ScatterPlotOperation
+            'plot-chart': juicer.spark.vis_operation.ScatterPlotOperation,
+            'scatter-plot': juicer.spark.vis_operation.ScatterPlotOperation,
+            'map-chart': juicer.spark.vis_operation.MapOperation,
+            'map': juicer.spark.vis_operation.MapOperation
+        }
+        feature_ops = {
+            'standard-scaler':
+                juicer.spark.feature_operation.StandardScalerOperation,
+            'max-abs-scaler':
+                juicer.spark.feature_operation.MaxAbsScalerOperation,
+            'min-max-scaler':
+                juicer.spark.feature_operation.MinMaxScalerOperation,
+
         }
         self.operations = {}
         for ops in [data_ops, etl_ops, geo_ops, ml_ops, other_ops, text_ops,
-                    ws_ops, vis_ops, dm_ops, data_quality_ops]:
+                    ws_ops, vis_ops, dm_ops, data_quality_ops, feature_ops]:
             self.operations.update(ops)

@@ -19,7 +19,7 @@ cmd_option=$1
 if [ -z "${JUICER_HOME}" ]; then
   export JUICER_HOME="$(cd "`dirname "$0"`"/..; pwd)"
 fi
-echo $JUICER_HOME
+echo "JUICER_HOME=${JUICER_HOME}"
 
 # get log directory
 if [ "$JUICER_LOG_DIR" = "" ]; then

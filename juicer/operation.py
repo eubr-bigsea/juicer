@@ -65,8 +65,9 @@ class Operation(object):
             'output data', 'out_task_{}'.format(self.order))
 
     def generate_code(self):
-        raise NotImplementedError("Method generate_code should be implemented "
-                                  "in {} subclass".format(self.__class__))
+        raise NotImplementedError(
+            _("Method generate_code should be implemented " \
+              "in {} subclass").format(self.__class__))
 
     def get_generated_results(self):
         """
@@ -84,6 +85,16 @@ class Operation(object):
 
     def get_data_out_names(self, sep=','):
         return self.get_output_names(sep)
+
+    def must_be_executed(self, is_satisfied, ignore_out_degree=False,
+                         ignore_has_code=False):
+        consider_degree = self.out_degree == 0 or ignore_out_degree
+        forms = self.parameters['task']['forms']
+        info_or_data = (
+            forms.get('display_sample', {}).get('value') in (1, '1') or
+            forms.get('display_schema', {}).get('value') in (1, '1'))
+        return (((self.has_code or ignore_has_code) and is_satisfied and
+                 consider_degree) or info_or_data)
 
 
 # noinspection PyAbstractClass
