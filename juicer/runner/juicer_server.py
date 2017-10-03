@@ -62,6 +62,7 @@ class JuicerServer:
             'path', '/tmp')
 
         signal.signal(signal.SIGTERM, self._terminate)
+        self.platform = 'spark'
 
     def start(self):
         signal.signal(signal.SIGTERM, self._terminate_minions)
@@ -96,12 +97,15 @@ class JuicerServer:
             workflow_id = str(msg_info['workflow_id'])
             app_id = str(msg_info['app_id'])
 
-            if msg_type in (juicer_protocol
-                                    .EXECUTE, juicer_protocol.DELIVER):
-                self._forward_to_minion(msg_type, workflow_id, app_id, msg)
+            if msg_type in (juicer_protocol.EXECUTE, juicer_protocol.DELIVER):
+                self._forward_to_minion(msg_type, workflow_id, app_id, msg,
+                                        self.platform)
+                self.platform = msg_info['workflow'].get('platform', {}).get(
+                    'slug', 'spark')
 
             elif msg_type == juicer_protocol.TERMINATE:
-                self._forward_to_minion(msg_type, workflow_id, app_id, msg)
+                self._forward_to_minion(msg_type, workflow_id, app_id, msg,
+                                        self.platform)
                 self._terminate_minion(workflow_id, app_id)
 
             else:
@@ -123,7 +127,7 @@ class JuicerServer:
                 self.state_control.push_app_output_queue(
                     app_id, json.dumps({'code': 500, 'message': ex.message}))
 
-    def _forward_to_minion(self, msg_type, workflow_id, app_id, msg):
+    def _forward_to_minion(self, msg_type, workflow_id, app_id, msg, platform):
         # Get minion status, if it exists
         minion_info = self.state_control.get_minion_status(app_id)
         log.info(_('Minion status for (workflow_id=%s,app_id=%s): %s'),
@@ -133,8 +137,8 @@ class JuicerServer:
         # need to launch a minion for it, because it is already running.
         # Otherwise, we launch a new minion for the application.
         if minion_info:
-            log.info(_('Minion (workflow_id=%s,app_id=%s) is running.'),
-                     workflow_id, app_id)
+            log.info(_('Minion (workflow_id=%s,app_id=%s) is running on %s.'),
+                     workflow_id, app_id, platform)
         else:
             # This is a special case when the minion timed out.
             # In this case we kill it before starting a new one
@@ -142,7 +146,7 @@ class JuicerServer:
                 self._terminate_minion(workflow_id, app_id)
 
             minion_process = self._start_minion(
-                workflow_id, app_id, self.state_control)
+                workflow_id, app_id, self.state_control, platform)
             self.active_minions[(workflow_id, app_id)] = minion_process
 
         # Forward the message to the minion, which can be an execute or a
@@ -158,7 +162,8 @@ class JuicerServer:
             {'code': 0,
              'message': 'Minion is processing message %s' % msg_type}))
 
-    def _start_minion(self, workflow_id, app_id, state_control, restart=False):
+    def _start_minion(self, workflow_id, app_id, state_control, platform,
+                      restart=False):
 
         minion_id = 'minion_{}_{}'.format(workflow_id, app_id)
         stdout_log = os.path.join(self.log_dir, minion_id + '_out.log')
@@ -171,8 +176,9 @@ class JuicerServer:
         # Setup command and launch the minion script. We return the subprocess
         # created as part of an active minion.
         open_opts = ['nohup', sys.executable, self.minion_executable,
-                     '-w', workflow_id, '-a', app_id, '-c',
+                     '-w', workflow_id, '-a', app_id, '-t', platform, '-c',
                      self.config_file_path]
+        log.debug(_('Minion command: %s'), json.dumps(open_opts))
         return subprocess.Popen(open_opts,
                                 stdout=open(stdout_log, 'a'),
                                 stderr=open(stderr_log, 'a'))
@@ -218,7 +224,8 @@ class JuicerServer:
                             break
                     time.sleep(.5)
 
-                self._start_minion(workflow_id, app_id, state_control)
+                self._start_minion(workflow_id, app_id, state_control,
+                                   self.platform)
 
             elif reason == self.HELP_STATE_LOST:
                 pass

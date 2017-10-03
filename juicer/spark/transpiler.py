@@ -20,7 +20,7 @@ import os
 from juicer import operation
 from juicer.service import stand_service
 from juicer.util.jinja2_custom import AutoPep8Extension
-from juicer.util.spark_template_util import HandleExceptionExtension
+from juicer.util.template_util import HandleExceptionExtension
 
 
 class DependencyController:
@@ -72,7 +72,7 @@ class RemoveTasksWhenMultiplexingVisitor(SparkTranspilerVisitor):
         # return graph
 
 
-class SparkTranspiler:
+class SparkTranspiler(object):
     """
     Convert Lemonada workflow representation (JSON) into code to be run in
     Apache Spark.
@@ -158,6 +158,7 @@ class SparkTranspiler:
             name = ''.join([p[0] for p in parts])
         return '{}_{}'.format(name, seq)
 
+    # noinspection SpellCheckingInspection
     def transpile(self, workflow, graph, params, out=None, job_id=None):
         """ Transpile the tasks from Lemonade's workflow into Spark code """
 
@@ -294,6 +295,7 @@ class SparkTranspiler:
         stand_config = self.configuration.get('juicer', {}).get(
             'services', {}).get('stand')
         if stand_config and job_id:
+            # noinspection PyBroadException
             try:
                 stand_service.save_job_source_code(stand_config['url'],
                                                    stand_config['auth_token'],

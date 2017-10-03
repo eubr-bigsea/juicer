@@ -82,9 +82,7 @@ class JuicerSparkService:
             if loader.platform == "spark":
                 transpiler = SparkTranspiler(configuration.get_config())
             elif loader.platform == "compss":
-                transpiler = COMPSsTranspiler(loader.workflow,
-                                              loader.graph,
-                                              params=self.params)
+                transpiler = COMPSsTranspiler(configuration.get_config())
             else:
                 raise ValueError(
                     _('Invalid platform value: {}').format(loader.platform))
