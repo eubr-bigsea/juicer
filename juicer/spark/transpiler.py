@@ -262,6 +262,10 @@ class SparkTranspiler(object):
             parameters['task_id'] = task['id']
             parameters['operation_slug'] = task['operation']['slug']
             parameters['job_id'] = job_id
+            parameters['display_sample'] = parameters['task']['forms'].get(
+                'display_sample', {}).get('value') in (1, '1', True, 'true')
+            parameters['display_schema'] = parameters['task']['forms'].get(
+                'display_schema', {}).get('value') in (1, '1', True, 'true')
             port = ports.get(task['id'], {})
 
             instance = class_name(parameters, port.get('named_inputs', {}),
@@ -309,6 +313,7 @@ class SparkTranspiler(object):
             'distinct': juicer.spark.etl_operation.RemoveDuplicatedOperation,
             'drop': juicer.spark.etl_operation.DropOperation,
             'execute-python': juicer.spark.etl_operation.ExecutePythonOperation,
+            'execute-sql': juicer.spark.etl_operation.ExecuteSQLOperation,
             'filter': juicer.spark.etl_operation.FilterOperation,
             # Alias for filter
             'filter-selection': juicer.spark.etl_operation.FilterOperation,
@@ -333,7 +338,11 @@ class SparkTranspiler(object):
         }
         dm_ops = {
             'frequent-item-set':
-                juicer.spark.dm_operation.FrequentItemSetOperation
+                juicer.spark.dm_operation.FrequentItemSetOperation,
+            'association-rules':
+                juicer.spark.dm_operation.AssociationRulesOperation,
+            'sequence-mining':
+                juicer.spark.dm_operation.SequenceMiningOperation,
         }
         ml_ops = {
             'apply-model': juicer.spark.ml_operation.ApplyModelOperation,

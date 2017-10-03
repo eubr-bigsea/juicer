@@ -2,6 +2,7 @@
 import ast
 import json
 import pprint
+import uuid
 from textwrap import dedent
 
 from juicer.operation import Operation
@@ -39,7 +40,8 @@ class DataReader(Operation):
     DATA_TYPES_WITH_PRECISION = {'DECIMAL'}
 
     SEPARATORS = {
-        '{tab}': '\\t'
+        '{tab}': '\\t',
+        '{new_line}': '\\n',
     }
 
     def __init__(self, parameters, named_inputs, named_outputs):
@@ -61,6 +63,9 @@ class DataReader(Operation):
 
                 self.metadata = limonero_service.get_data_source_info(
                     url, token, self.database_id)
+                if not self.metadata.get('url'):
+                    raise ValueError(
+                        _('Incorrect data source configuration (empty url)'))
                 self.sep = parameters.get(
                     self.SEPARATOR_PARAM, self.metadata.get(
                         'attribute_delimiter', ',')) or ','
@@ -138,12 +143,13 @@ class DataReader(Operation):
                     code.append(code_csv)
                 else:
                     code_csv = dedent("""
-                    {output} = spark_session.read \\
-                           {null_option} \\
-                           .schema(schema_{output}) \\
-                           .option('treatEmptyValuesAsNulls', 'true') \\
-                           .text(url)""".format(output=self.output,
-                                                null_option=null_option))
+                    schema_{output} = types.StructType()
+                    schema_{output}.add('value', types.StringType(), True)
+                    {output} = spark_session.read{null_option}.schema(
+                        schema_{output}).option(
+                        'treatEmptyValuesAsNulls', 'true').text(
+                            url)""".format(output=self.output,
+                                           null_option=null_option))
                     code.append(code_csv)
                 # FIXME: Evaluate if it is good idea to always use cache
                 code.append('{}.cache()'.format(self.output))
@@ -151,8 +157,17 @@ class DataReader(Operation):
             elif self.metadata['format'] == 'PARQUET_FILE':
                 # TO DO
                 pass
-            elif self.metadata['format'] == 'JSON_FILE':
-                # TO DO
+            elif self.metadata['format'] == 'JSON':
+                code_json = dedent("""
+                    schema_{output} = types.StructType()
+                    schema_{output}.add('value', types.StringType(), True)
+                    {output} = spark_session.read.option(
+                        'treatEmptyValuesAsNulls', 'true').json(
+                        '{url}')""".format(output=self.output,
+                                           url=self.metadata['url']))
+                code.append(code_json)
+                # FIXME: Evaluate if it is good idea to always use cache
+                code.append('{}.cache()'.format(self.output))
                 pass
             elif self.metadata['format'] == 'LIB_SVM':
                 # Test
@@ -189,9 +204,8 @@ class DataReader(Operation):
         # loading CSV file, it won't work. So, we are adding
         # this information in metadata.
         metadata = {k: attr[k] for k in
-                    ['feature', 'label', 'nullable', 'type', 'size',
-                     'precision', 'enumeration', 'missing_representation'] if
-                    attr[k]}
+                    ['nullable', 'type', 'size', 'precision', 'enumeration',
+                     'missing_representation'] if attr[k]}
         code.append("schema_{0}.add('{1}', {2}, {3},\n{5}{4})".format(
             self.output, attr['name'], data_type, attr['nullable'],
             pprint.pformat(metadata, indent=0), ' ' * 20
@@ -283,19 +297,64 @@ class SaveOperation(Operation):
 
         limonero_config = \
             self.parameters['configuration']['juicer']['services']['limonero']
-        url = limonero_config['url']
+        url = '{}'.format(limonero_config['url'], self.mode)
         token = str(limonero_config['auth_token'])
         storage = limonero_service.get_storage_info(url, token, self.storage_id)
 
-        final_url = '{}/{}/{}'.format(storage['url'], self.path,
-                                      self.name.replace(' ', '_'))
+        final_url = '{}/limonero/user_data/{}/{}/{}'.format(
+            storage['url'], self.user['id'], self.path,
+            self.name.replace(' ', '_'))
         code_save = ''
         if self.format == self.FORMAT_CSV:
-            code_save = dedent("""
-            {}.write.csv('{}',
-                         header={}, mode='{}')""".format(
-                self.named_inputs['input data'], final_url, self.header,
-                self.mode))
+            code_save = dedent(u"""
+            cols = []
+            for attr in {input}.schema:
+                if attr.dataType.typeName() in ['array']:
+                    cols.append(functions.concat_ws(
+                        ', ', {input}[attr.name]).alias(attr.name))
+                else:
+                    cols.append({input}[attr.name])
+
+            {input} = {input}.select(*cols)
+            mode = '{mode}'
+            # Write in a temporary directory
+            {input}.write.csv('{url}{uuid}',
+                         header={header}, mode=mode)
+            # Merge files using Hadoop HDFS API
+            conf = spark_session._jsc.hadoopConfiguration()
+            fs = spark_session._jvm.org.apache.hadoop.fs.FileSystem.get(
+                spark_session._jvm.java.net.URI('{storage_url}'), conf)
+
+            path = spark_session._jvm.org.apache.hadoop.fs.Path('{url}')
+            tmp_path = spark_session._jvm.org.apache.hadoop.fs.Path(
+                '{url}{uuid}')
+            fs_util = spark_session._jvm.org.apache.hadoop.fs.FileUtil
+            if fs.exists(path):
+                if mode == 'error':
+                    raise ValueError('{error_file_exists}')
+                elif mode == 'ignore':
+                    emit_event(name='update task',
+                        message='{warn_ignored}',
+                        status='COMPLETED',
+                        identifier='{task_id}')
+                elif mode == 'overwrite':
+                    fs.delete(path, False)
+                    fs_util.copyMerge(fs, tmp_path, fs, path, True, conf, None)
+                else:
+                    raise ValueError('{error_invalid_mode}')
+            else:
+                fs_util.copyMerge(fs, tmp_path, fs, path, True, conf, None)
+            fs_util.chmod(path.toString(), '700')
+            """.format(
+                input=self.named_inputs['input data'],
+                url=final_url, header=self.header, mode=self.mode,
+                uuid=uuid.uuid4().get_hex(),
+                storage_url=storage['url'],
+                task_id=self.parameters['task_id'],
+                error_file_exists=_('File already exists'),
+                warn_ignored=_('File not written (already exists)'),
+                error_invalid_mode=_('Invalid mode {}').format(self.mode)
+            ))
             # Need to generate an output, even though it is not used.
         elif self.format == self.FORMAT_PARQUET:
             code_save = dedent("""
@@ -306,50 +365,63 @@ class SaveOperation(Operation):
             code_save += '\n{0}_tmp = {0}'.format(
                 self.named_inputs['input data'])
         elif self.format == self.FORMAT_JSON:
-            pass
+            code_save = dedent("""
+            {}.write.json('{}', mode='{}')""".format(
+                self.named_inputs['input data'],
+                final_url, self.mode))
 
         code = dedent(code_save)
 
         if not self.workflow_json == '':
             code_api = """
                 # Code to update Limonero metadata information
-                from juicer.include.metadata import MetadataPost
-                types_names = {13}
+                from juicer.service.limonero_service import register_datasource
+                types_names = {data_types}
 
-                schema = []
                 # nullable information is also stored in metadata
                 # because Spark ignores this information when loading CSV files
-                for att in {0}.schema:
-                    schema.append({{
+                attributes = []
+                for att in {input}.schema:
+                    attributes.append({{
+                      'enumeration': 0,
+                      'feature': 0,
+                      'label': 0,
                       'name': att.name,
-                      'dataType': types_names[str(att.dataType)],
-                      'nullable': att.nullable or attr.metadata.get('nullable'),
+                      'type': types_names[str(att.dataType)],
+                      'nullable': att.nullable,
                       'metadata': att.metadata,
                     }})
                 parameters = {{
-                    'name': "{1}",
-                    'format': "{2}",
-                    'storage_id': {3},
-                    'provenience': '',
-                    'description': "{5}",
-                    'user_id': "{6}",
-                    'user_login': "{7}",
-                    'user_name': "{8}",
-                    'workflow_id': "{9}",
-                    'url': "{10}",
+                    'name': "{name}",
+                    'enabled': 1,
+                    'is_public': 0,
+                    'format': "{format}",
+                    'storage_id': {storage},
+                    'description': "{description}",
+                    'user_id': "{user_id}",
+                    'user_login': "{user_login}",
+                    'user_name': "{user_name}",
+                    'workflow_id': "{workflow_id}",
+                    'url': "{final_url}",
+                    'attributes': attributes
                 }}
-                instance = MetadataPost('{12}', '{11}', schema, parameters)
-                """.format(self.named_inputs['input data'], self.name,
-                           self.format,
-                           self.storage_id,
-                           self.workflow_json,
-                           self.user['name'],
-                           self.user['id'],
-                           self.user['login'],
-                           self.user['name'],
-                           self.workflow_id, final_url, token, url,
-                           json.dumps(self.SPARK_TO_LIMONERO_DATA_TYPES)
-                           )
+                register_datasource('{url}', parameters, '{token}', '{mode}')
+                """.format(
+                input=self.named_inputs['input data'],
+                name=self.name,
+                format=self.format,
+                storage=self.storage_id,
+                description=_('Data source generated by workflow {}').format(
+                    self.workflow_id),
+                user_name=self.user['name'],
+                user_id=self.user['id'],
+                user_login=self.user['login'],
+                workflow_id=self.workflow_id,
+                final_url=final_url,
+                token=token,
+                url=url,
+                mode=self.mode,
+                data_types=json.dumps(self.SPARK_TO_LIMONERO_DATA_TYPES))
             code += dedent(code_api)
             # No return
             code += '{} = None'.format(self.output)
@@ -401,7 +473,7 @@ class ChangeAttributeOperation(Operation):
         else:
             raise ValueError(_(
                 "Parameter '{}' must be informed for task {}").format(
-                    self.ATTRIBUTES_PARAM, self.__class__))
+                self.ATTRIBUTES_PARAM, self.__class__))
         self.has_code = len(self.named_inputs) == 1
 
     def generate_code(self):

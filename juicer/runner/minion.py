@@ -27,6 +27,8 @@ if __name__ == '__main__':
                         required=False, default="spark")
     parser.add_argument("--lang", help="Minion messages language (i18n)",
                         required=False, default="en_US")
+    parser.add_argument("--jars", help="Add Java JAR files to class path.",
+                        required=False)
     args = parser.parse_args()
     t = gettext.translation('messages', locales_path, [args.lang],
                             fallback=True)
@@ -48,7 +50,7 @@ if __name__ == '__main__':
                                  args.workflow_id,
                                  args.app_id or args.workflow_id,
                                  juicer_config,
-                                 args.lang)
+                                 args.lang, args.jars)
         elif args.type == 'compss':
             minion = COMPSsMinion(redis_conn,
                                   args.workflow_id,

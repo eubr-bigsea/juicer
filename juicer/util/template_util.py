@@ -29,7 +29,8 @@ class HandleExceptionExtension(Extension):
                                  [], [], body).set_lineno(lineno)
         return result
 
-    def _handle(self, instance, caller):
+    @staticmethod
+    def _handle(instance, caller):
         try:
             return caller()
         except KeyError:
@@ -39,7 +40,7 @@ class HandleExceptionExtension(Extension):
                         id=instance.parameters['task']['id'])
             raise_(JuicerException(msg), None, sys.exc_info()[2])
         except TypeError:
-            msg = _('Type error parsing template for instance {id}' \
+            msg = _('Type error parsing template for instance {id}'
                     '{instance}.').format(instance=instance.__class__.__name__,
                                           id=instance.parameters['task']['id'])
             raise_(JuicerException(msg), None, sys.exc_info()[2])

@@ -46,9 +46,11 @@ class SparkMinion(Minion):
     IDLENESS_TIMEOUT = 600
     TIMEOUT = 'timeout'
 
-    def __init__(self, redis_conn, workflow_id, app_id, config, lang='en'):
+    def __init__(self, redis_conn, workflow_id, app_id, config, lang='en',
+                 jars=None):
         Minion.__init__(self, redis_conn, workflow_id, app_id, config)
 
+        self.jars = jars
         self.terminate_proc_queue = multiprocessing.Queue()
         self.execute_process = None
         self.ping_process = None
@@ -84,7 +86,25 @@ class SparkMinion(Minion):
         # self termination timeout
         self.active_messages = 0
         self.self_terminate = True
+        # Errors and messages
+        self.MNN000 = ('MNN000', _('Success.'))
+        self.MNN001 = ('MNN001', _('Port output format not supported.'))
+        self.MNN002 = ('MNN002', _('Success getting data from task.'))
+        self.MNN003 = ('MNN003', _('State does not exists, processing app.'))
+        self.MNN004 = ('MNN004', _('Invalid port.'))
+        self.MNN005 = ('MNN005',
+                       _('Unable to retrieve data because a previous error.'))
+        self.MNN006 = ('MNN006',
+                       _('Invalid Python code or incorrect encoding: {}'))
+        self.MNN007 = ('MNN007', _('Job {} was canceled'))
+        self.MNN008 = ('MNN008', _('App {} was terminated'))
+        self.MNN009 = ('MNN009', _('Workflow specification is missing'))
 
+        # Used in the template file, declared here to gettext detect them
+        self.msgs = [
+            _('Task running'), _('Task completed'),
+            _('Task ignored (not used by other task or as an output)')
+        ]
         self.current_lang = lang
 
     def _emit_event(self, room, namespace):
@@ -303,7 +323,7 @@ class SparkMinion(Minion):
 
         except UnicodeEncodeError as ude:
             message = self.MNN006[1].format(ude)
-            log.warn(_(message))
+            log.exception(_(message))
             # Mark job as failed
             self._emit_event(room=job_id, namespace='/stand')(
                 name='update job', message=message,
@@ -312,12 +332,10 @@ class SparkMinion(Minion):
             result = False
 
         except ValueError as ve:
-            message = _('Invalid or missing parameters: {}').format(ve.message)
-            print('#' * 30)
-            import traceback
-            traceback.print_exc(file=sys.stdout)
-            print('#' * 30)
-            log.warn(message)
+            msg = ve.message
+            txt = msg.decode('utf8') if isinstance(msg, str) else msg
+            message = _('Invalid or missing parameters: {}').format(txt)
+            log.exception(message)
             if self.transpiler.current_task_id is not None:
                 self._emit_event(room=job_id, namespace='/stand')(
                     name='update task', message=message,
@@ -330,7 +348,7 @@ class SparkMinion(Minion):
 
         except SyntaxError as se:
             message = self.MNN006[1].format(se)
-            log.warn(message)
+            log.exception(message)
             self._emit_event(room=job_id, namespace='/stand')(
                 name='update job', message=message,
                 status='ERROR', identifier=job_id)
@@ -391,6 +409,9 @@ class SparkMinion(Minion):
                 app_configs['driver-library-path'] = \
                     '{}/lib/native/'.format(os.environ.get('HADOOP_HOME'))
 
+            # Default options from configuration file
+            app_configs.update(self.config['juicer'].get('spark', {}))
+
             # Juicer listeners configuration.
             listeners = self.config['juicer'].get('listeners', [])
 
@@ -407,9 +428,20 @@ class SparkMinion(Minion):
                         listener.get('params', {}).get('log_path',
                                                        '/tmp/juicer-spark-logs')
 
-            app_configs['spark.extraListeners'] = ','.join(classes)
-            app_configs['spark.driver.extraClassPath'] = ':'.join(all_jars)
+            if self.jars:
+                all_jars.extend(self.jars.split(os.path.pathsep))
 
+            app_configs['spark.extraListeners'] = ','.join(classes)
+
+            # Must use CLASSPATH from config file also!
+            if 'spark.driver.extraClassPath' in app_configs:
+                all_jars.append(app_configs['spark.driver.extraClassPath'])
+
+            app_configs['spark.driver.extraClassPath'] = os.path.pathsep.join(
+                all_jars)
+
+            log.info('JAVA CLASSPATH: %s',
+                     app_configs['spark.driver.extraClassPath'])
             # All options passed by application are sent to Spark
             for option, value in app_configs.items():
                 spark_builder = spark_builder.config(option, value)
