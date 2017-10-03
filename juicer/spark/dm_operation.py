@@ -11,7 +11,7 @@ class FrequentItemSetOperation(Operation):
     """
     MIN_SUPPORT_PARAM = 'min_support'
     ATTRIBUTE_PARAM = 'attribute'
-    CONFIDENCE_PARAM = 'confidence'
+    CONFIDENCE_PARAM = 'min_confidence'
 
     def __init__(self, parameters, named_inputs,
                  named_outputs):
@@ -53,7 +53,7 @@ class FrequentItemSetOperation(Operation):
             try:
                 from pyspark.ml.fpm import FPGrowth
                 algorithm = FPGrowth(itemsCol="{attr}",
-                    minSupport={support}, minConfidence=0.6) # FIXME
+                    minSupport={support}, minConfidence={confidence})
 
                 # Evaluate if using cache is a good idea
                 {input}.cache()
