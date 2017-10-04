@@ -7,61 +7,8 @@ import uuid
 from textwrap import dedent
 
 from juicer.operation import Operation
+from juicer.privaaas import PrivacyPreservingDecorator
 from juicer.service import limonero_service
-
-
-class PrivacyPreservingDecorator(object):
-    def __init__(self, output):
-        self.output = output
-
-    def suppression(self, group):
-        return dedent("""
-            # Privacy policy: attribute suppression')
-            result.append('{out} = {out}.drop(cols={cols})""".format(
-            out=self.output,
-            cols=json.dumps([g['name'] for g in group])))
-
-    def encryption(self, group):
-        code = ["# Privacy policy: attribute encryption"]
-
-        template = dedent("""
-            {out} = {out}.withColumn(colName='{name}',
-                privaaas.{f}({out}.{name}, '{details}'))""")
-
-        for g in group:
-            code.append(template.format(out=self.output, name=g['name'],
-                                        details=repr(g['details']),
-                                        f="encryption"))
-        return '\n'.join(code)
-
-    def generalization(self, group):
-        code = ["# Privacy policy: attribute generalization"]
-
-        template = dedent("""
-            {out} = {out}.withColumn(colName='{name}',
-                privaaas.{f}({out}.{name}, '{details}'))""")
-
-        for g in group:
-            code.append(template.format(out=self.output, name=g['name'],
-                                        details=repr(g['details']),
-                                        f="generalization"))
-        return '\n'.join(code)
-
-    def mask(self, group):
-        code = ['# Privacy policy: attribute mask']
-        template = dedent("""
-            details = {details}
-            from faker import Factory
-            faker_obj = Factory.create(details['lang'])
-            faker_ctx[details['label_type']] = collections.defaultdict(
-                getattr(faker_obj, details['label_type']))
-            {out} = {out}.withColumn(colName='{name}',
-                privaaas.{f}(faker_obj, {out}.{name}, details))""")
-        for g in group:
-            code.append(template.format(
-                out=self.output, name=g['name'], f="masking",
-                details=repr(g['details'])))
-        return '\n'.join(code)
 
 
 class DataReaderOperation(Operation):
@@ -104,7 +51,7 @@ class DataReaderOperation(Operation):
         self.has_code = len(self.named_outputs) > 0 or True
         if self.has_code:
             if self.DATA_SOURCE_ID_PARAM in parameters:
-                self.database_id = parameters[self.DATA_SOURCE_ID_PARAM]
+                self.data_source_id = int(parameters[self.DATA_SOURCE_ID_PARAM])
                 self.header = parameters.get(
                     self.HEADER_PARAM, False) not in ('0', 0, 'false', False)
 
@@ -116,8 +63,15 @@ class DataReaderOperation(Operation):
                 url = limonero_config['url']
                 token = str(limonero_config['auth_token'])
 
-                self.metadata = limonero_service.get_data_source_info(
-                    url, token, self.database_id)
+                # Is data source information cached?
+                self.metadata = self.parameters['workflow'].get(
+                    'data_source_cache').get(self.data_source_id)
+                if self.metadata is None:
+                    self.metadata = limonero_service.get_data_source_info(
+                        url, token, self.data_source_id)
+                    self.parameters['workflow']['data_source_cache'][
+                        self.data_source_id] = self.metadata
+
                 if not self.metadata.get('url'):
                     raise ValueError(
                         _('Incorrect data source configuration (empty url)'))
@@ -241,16 +195,15 @@ class DataReaderOperation(Operation):
                 # # FIXME: Evaluate if it is good idea to always use cache
 
         if self.metadata['privacy_aware']:
-            code.extend(self._apply_privacy_constraints())
+            restrictions = self.parameters['workflow'].get(
+                'privacy_restrictions', {}).get(self.data_source_id)
+            code.extend(self._apply_privacy_constraints(restrictions))
 
         code.append('{}.cache()'.format(self.output))
         return '\n'.join(code)
 
-    def _apply_privacy_constraints(self):
+    def _apply_privacy_constraints(self, restrictions):
         result = []
-        ds_id = int(self.parameters['data_source'])
-        restrictions = self.parameters['workflow'].get(
-            'privacy_restrictions', {}).get(ds_id)
         try:
             if restrictions.get('attributes'):
                 attrs = restrictions['attributes']
@@ -258,15 +211,16 @@ class DataReaderOperation(Operation):
                     attrs, key=lambda x: x['anonymization_technique'])
                 privacy_decorator = PrivacyPreservingDecorator(self.output)
                 for k, group in grouped_by_type:
-                    if hasattr(privacy_decorator, k.lower()):
-                        action = getattr(privacy_decorator, k.lower())
-                        action(group)
-                    else:
-                        raise ValueError(
-                            _('Invalid anonymization type ({})').format(k))
+                    if k != 'NO_TECHNIQUE':
+                        if hasattr(privacy_decorator, k.lower()):
+                            action = getattr(privacy_decorator, k.lower())
+                            result.append(action(group))
+                        else:
+                            raise ValueError(
+                                _('Invalid anonymization type ({})').format(k))
         except Exception as e:
             print e
-            pass
+            raise
 
         return result
 

@@ -7,7 +7,7 @@ from juicer import privaaas
 from juicer.service import tahiti_service, limonero_service
 
 
-class Workflow:
+class Workflow(object):
     """
         - Set and get Create a graph
         - Identify tasks and flows
@@ -61,14 +61,15 @@ class Workflow:
         data_sources = []
         for t in self.workflow['tasks']:
             if t['operation']['slug'] == 'data-reader':
-                data_sources.append(limonero_service.query_limonero(
-                    limonero_config['url'], '/datasources/',
-                    str(limonero_config['auth_token']),
+                data_sources.append(limonero_service.get_data_source_info(
+                    limonero_config['url'], str(limonero_config['auth_token']),
                     t['forms']['data_source']['value']))
 
         privacy_info = {}
         attribute_group_set = collections.defaultdict(list)
+        data_source_cache = {}
         for ds in data_sources:
+            data_source_cache[ds['id']] = ds
             attrs = []
             privacy_info[ds['id']] = {'attributes': attrs}
             for attr in ds['attributes']:
@@ -107,6 +108,7 @@ class Workflow:
             for attribute in attributes:
                 attribute.update(more_restrictive)
 
+        self.workflow['data_source_cache'] = data_source_cache
         self.workflow['privacy_restrictions'] = privacy_info
 
     def _build_initial_workflow_graph(self):
