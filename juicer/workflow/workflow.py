@@ -57,6 +57,9 @@ class Workflow(object):
                     self.__class__))
 
     def _build_privacy_restrictions(self):
+        if 'juicer' not in self.config or 'services' not in self.config[
+            'juicer']:
+            return
         limonero_config = self.config['juicer']['services']['limonero']
         data_sources = []
         for t in self.workflow['tasks']:

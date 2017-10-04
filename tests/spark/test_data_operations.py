@@ -18,7 +18,8 @@ def test_data_reader_minimal_parameters_no_attributes_success():
                     }
                 }
             }
-        }
+        },
+        'workflow': {'data_source_cache': {}}
     }
     n_out = {'output data': 'output_1'}
 

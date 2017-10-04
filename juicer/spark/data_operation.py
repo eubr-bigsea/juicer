@@ -64,8 +64,8 @@ class DataReaderOperation(Operation):
                 token = str(limonero_config['auth_token'])
 
                 # Is data source information cached?
-                self.metadata = self.parameters['workflow'].get(
-                    'data_source_cache').get(self.data_source_id)
+                self.metadata = self.parameters.get('workflow', {}).get(
+                    'data_source_cache', {}).get(self.data_source_id)
                 if self.metadata is None:
                     self.metadata = limonero_service.get_data_source_info(
                         url, token, self.data_source_id)
@@ -160,9 +160,6 @@ class DataReaderOperation(Operation):
                             url)""".format(output=self.output,
                                            null_option=null_option))
                     code.append(code_csv)
-                # FIXME: Evaluate if it is good idea to always use cache
-                code.append('{}.cache()'.format(self.output))
-
             elif self.metadata['format'] == 'PARQUET_FILE':
                 # TO DO
                 pass
@@ -194,7 +191,7 @@ class DataReaderOperation(Operation):
                 code.append(code_csv)
                 # # FIXME: Evaluate if it is good idea to always use cache
 
-        if self.metadata['privacy_aware']:
+        if self.metadata.get('privacy_aware', False):
             restrictions = self.parameters['workflow'].get(
                 'privacy_restrictions', {}).get(self.data_source_id)
             code.extend(self._apply_privacy_constraints(restrictions))

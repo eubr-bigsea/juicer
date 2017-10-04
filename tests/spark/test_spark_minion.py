@@ -243,7 +243,7 @@ def test_minion_perform_execute_reload_code_success():
                     mock_strict_redis_client) as mocked_redis:
         with mock.patch(function_name) as mocked_transpile:
             with mock.patch('juicer.workflow.workflow.Workflow'
-                            '.builds_initial_workflow_graph') as mocked_fn:
+                            '._build_initial_workflow_graph') as mocked_fn:
                 mocked_fn.side_effect = lambda: ""
                 # Setup for mocked_transpile
                 mocked_transpile.side_effect = get_side_effect(None, None, 2)
@@ -301,7 +301,7 @@ def test_minion_generate_invalid_code_failure():
                     mock_strict_redis_client) as mocked_redis:
         with mock.patch(function_name) as mocked_transpile:
             with mock.patch('juicer.workflow.workflow.Workflow'
-                            '.builds_initial_workflow_graph') as mocked_fn:
+                            '._build_initial_workflow_graph') as mocked_fn:
                 mocked_fn.side_effect = lambda: ""
                 # Setup for mocked_transpile
                 mocked_transpile.side_effect = get_side_effect(None, None, 4)
@@ -398,7 +398,7 @@ def test_minion_perform_deliver_missing_state_process_app_with_success():
                     mock_strict_redis_client) as mocked_redis:
         with mock.patch(function_name) as mocked_transpile:
             with mock.patch('juicer.workflow.workflow.Workflow'
-                            '.builds_initial_workflow_graph') as mocked_fn:
+                            '._build_initial_workflow_graph') as mocked_fn:
                 mocked_fn.side_effect = lambda: ""
                 # Setup for mocked_transpile
                 mocked_transpile.side_effect = get_side_effect(get_records(),
@@ -458,7 +458,7 @@ def test_minion_perform_deliver_missing_state_process_app_with_failure():
                     mock_strict_redis_client) as mocked_redis:
         with mock.patch(function_name) as mocked_transpile:
             with mock.patch('juicer.workflow.workflow.Workflow'
-                            '.builds_initial_workflow_graph') as mocked_fn:
+                            '._build_initial_workflow_graph') as mocked_fn:
                 mocked_fn.side_effect = lambda: ""
                 # Setup for mocked_transpile
                 # Invalid code
@@ -528,7 +528,7 @@ def test_minion_perform_deliver_missing_state_invalid_port_failure():
                     mock_strict_redis_client) as mocked_redis:
         with mock.patch(function_name) as mocked_transpile:
             with mock.patch('juicer.workflow.workflow.Workflow'
-                            '.builds_initial_workflow_graph') as mocked_fn:
+                            '._build_initial_workflow_graph') as mocked_fn:
                 mocked_fn.side_effect = lambda: ""
                 # Setup for mocked_transpile
                 mocked_transpile.side_effect = get_side_effect(get_records(),
@@ -587,7 +587,7 @@ def test_minion_perform_deliver_missing_state_unsupported_output_failure():
                     mock_strict_redis_client) as mocked_redis:
         with mock.patch(function_name) as mocked_transpile:
             with mock.patch('juicer.workflow.workflow.Workflow'
-                            '.builds_initial_workflow_graph') as mocked_fn:
+                            '._build_initial_workflow_graph') as mocked_fn:
                 mocked_fn.side_effect = lambda: ""
                 # Setup for mocked_transpile
                 mocked_transpile.side_effect = get_side_effect(get_records(),
@@ -668,7 +668,7 @@ def test_minion_spark_configuration():
                     mock_strict_redis_client) as mocked_redis:
         with mock.patch(function_name) as mocked_transpile:
             with mock.patch('juicer.workflow.workflow.Workflow'
-                            '.builds_initial_workflow_graph') as mocked_fn:
+                            '._build_initial_workflow_graph') as mocked_fn:
                 mocked_fn.side_effect = lambda: ""
                 # Setup for mocked_transpile
                 mocked_transpile.side_effect = get_side_effect(None, 0, 1)
