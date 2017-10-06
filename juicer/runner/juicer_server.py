@@ -79,7 +79,7 @@ class JuicerServer:
 
         for app in apps:
             log.warn(_('Starting pending app {}').format(app))
-            self._start_minion(app, app, self.state_control)
+            self._start_minion(app, app, self.state_control, self.platform)
         while True:
             self.read_start_queue(redis_conn)
 
@@ -189,7 +189,7 @@ class JuicerServer:
         # terminate the workflow, clear any remaining metadata and return
         if not (workflow_id, app_id) in self.active_minions:
             log.warn('(%s, %s) not in active minions ', workflow_id, app_id)
-        log.info(_("Terminating (workflow_id=%s,app_id=%s)"), \
+        log.info(_("Terminating (workflow_id=%s,app_id=%s)"),
                  workflow_id, app_id)
         if (workflow_id, app_id) in self.active_minions:
             os.kill(self.active_minions[(workflow_id, app_id)].pid,
@@ -263,7 +263,7 @@ class JuicerServer:
                         if self.state_control is None:
                             self.state_control = StateControlRedis(redis_conn)
                         self._start_minion(app_id, app_id,
-                                           self.state_control)
+                                           self.state_control, self.platform)
         except ConnectionError as cx:
             log.exception(cx)
             time.sleep(1)
