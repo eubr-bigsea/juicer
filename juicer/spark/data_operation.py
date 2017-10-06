@@ -373,7 +373,7 @@ class SaveOperation(Operation):
         code = dedent(code_save)
 
         if not self.workflow_json == '':
-            code_api = """
+            code_api = u"""
                 # Code to update Limonero metadata information
                 from juicer.service.limonero_service import register_datasource
                 types_names = {data_types}
