@@ -211,7 +211,9 @@ class DataReaderOperation(Operation):
                     if k != 'NO_TECHNIQUE':
                         if hasattr(privacy_decorator, k.lower()):
                             action = getattr(privacy_decorator, k.lower())
-                            result.append(action(group))
+                            action_result = action(group)
+                            if action_result:
+                                result.append(action_result)
                         else:
                             raise ValueError(
                                 _('Invalid anonymization type ({})').format(k))

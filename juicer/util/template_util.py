@@ -1,5 +1,6 @@
 from __future__ import print_function
 
+import logging
 import sys
 import unicodedata
 
@@ -8,6 +9,7 @@ from jinja2.ext import Extension
 from juicer.exceptions import JuicerException
 from six import reraise as raise_
 
+log = logging.getLogger(__name__)
 
 class HandleExceptionExtension(Extension):
     # a set of names that trigger the extension.
@@ -40,7 +42,8 @@ class HandleExceptionExtension(Extension):
                         id=instance.parameters['task']['id'])
             raise_(JuicerException(msg), None, sys.exc_info()[2])
         except TypeError:
-            msg = _('Type error parsing template for instance {id}'
+            logging.exception(_('Type error in template'))
+            msg = _('Type error parsing template for instance {id} '
                     '{instance}.').format(instance=instance.__class__.__name__,
                                           id=instance.parameters['task']['id'])
             raise_(JuicerException(msg), None, sys.exc_info()[2])
