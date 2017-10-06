@@ -1008,8 +1008,9 @@ class ExecuteSQLOperation(Operation):
             raise ValueError(_('Invalid query. Only SELECT is allowed.'))
 
         if self.NAMES_PARAM in parameters:
-            self.names = [n.strip() for n in
-                          parameters.get(self.NAMES_PARAM).split(',')]
+            self.names = [
+                n.strip() for n in parameters.get(self.NAMES_PARAM).split(',')
+                if n.strip()]
         else:
             self.names = None
 
@@ -1044,15 +1045,15 @@ class ExecuteSQLOperation(Operation):
         from pyspark.sql import SQLContext
 
         # Input data
-        sqlContext = SQLContext(spark_session.sparkContext)
+        sql_context = SQLContext(spark_session.sparkContext)
         if {in1} is not None:
-            sqlContext.registerDataFrameAsTable({in1}, 'ds1')
+            sql_context.registerDataFrameAsTable({in1}, 'ds1')
         if {in2} is not None:
-            sqlContext.registerDataFrameAsTable({in2}, 'ds2')
+            sql_context.registerDataFrameAsTable({in2}, 'ds2')
         query = {query}
-        {out} = sqlContext.sql(query)
+        {out} = sql_context.sql(query)
         names = {names}
-        if names is not None:
+        if names is not None and len(names) > 0:
             old_names = {out}.schema.names
             if len(old_names) != len(names):
                 raise ValueError('{invalid_names}')
