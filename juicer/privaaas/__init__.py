@@ -8,9 +8,13 @@ of Lemonade's workflows.
 """
 import hashlib
 import json
+import math
+import numbers
+import random
 import sys
 from textwrap import dedent
 
+import datetime
 from pyspark.sql.functions import udf
 from pyspark.sql.types import StringType
 
@@ -21,6 +25,35 @@ ANONYMIZATION_TECHNIQUES = {
     'ENCRYPTION': 3,
     'SUPPRESSION': 4
 }
+
+
+def generate_group_by_key_function(df, col_name):
+    from pyspark.sql import types
+    col_type = df.schema[col_name].dataType
+
+    # Spark 2.2 has problems with functools.partial:
+    # AttributeError: 'functools.partial' object has no attribute '__module__'
+    # See https://issues.apache.org/jira/browse/SPARK-21432
+    def key_gen_str(row):
+        return row[col_name][0] if row[col_name] else ""
+
+    def key_gen_int(row):
+        return row[col_name] % 1 if row[col_name] else 0
+
+    def key_gen_float(row):
+        return row[col_name] % 1 if row[col_name] else 0
+
+    if isinstance(col_type, types.StringType):
+        key_gen = key_gen_str
+    elif isinstance(col_type, types.IntegralType):
+        key_gen = key_gen_int
+    elif isinstance(col_type, types.FractionalType):
+        key_gen = key_gen_float
+    # elif isinstance(col_type, types.DateType):
+    else:
+        raise ValueError(
+            'Data type is not supported for masking: {}'.format(col_type))
+    return key_gen
 
 
 def _truncate_number(value, len_truncation):
@@ -72,27 +105,92 @@ def _string_range_to_string(value, details):
                 return range_value[1]
 
 
-def generalization(details):
-    details = json.loads(details)
+def _number_to_bucket(value, bucket_size):
+    result = None
+    if isinstance(value, numbers.Integral):
+        start = int(math.floor(value / bucket_size) * bucket_size)
+        end = int(math.ceil(value / bucket_size) * bucket_size - 1)
+        result = [start, end]
+    elif isinstance(value, numbers.Real):
+        start = float(math.floor(value / bucket_size) * bucket_size)
+        end = float(math.ceil(value / bucket_size) * bucket_size - 1)
+        result = [start, end]
+    elif isinstance(value, basestring):
+        # @FIXME Implement
+        result = ''
+    elif isinstance(value, (datetime.datetime, datetime.date)):
+        pass
+    return result
 
-    def _apply(value):
-        if type(value) is int and details.startswith('('):
-            len_truncation = int(details[1:-1])
-            result = _truncate_number(len_truncation, value)
-        elif type(value) in [unicode, str] and details.startswith('('):
-            len_truncation = int(details[1:-1])
-            result = _truncate_number(len_truncation, value)
-        elif (type(value) is int or type(
-                value) is float) and details.startswith(
-                '['):
-            result = _number_range_to_string(value, details)
-        elif type(value) in [unicode, str] and details.startswith('{'):
-            result = _string_range_to_string(value, details)
+
+def _substring(value, _from, to, size, replacement):
+    if value is None:
+        result = replacement * size
+    else:
+        if size == -1:
+            size = len(value)
+        if isinstance(value, unicode):
+            replacement = unicode(replacement)
         else:
-            raise ValueError(_('Invalid hierarchy for generalization'))
-        return result
+            replacement = str(replacement)
+        result = value[_from:to].ljust(size, replacement)
+    return result
 
-    return udf(_apply)  # FIXME: How handle correct type?
+
+def _hierarchy(value, values, default):
+    return values.get(value, default)
+
+
+def generalization(details):
+    gen_type = details.get('type')
+
+    # Spark 2.2 has problems with functools.partial:
+    # AttributeError: 'functools.partial' object has no attribute '__module__'
+    # See https://issues.apache.org/jira/browse/SPARK-21432
+
+    result = None
+    if gen_type == 'range':
+
+        bucket_size = details.get('range_args', {}).get('bucket_size') or 5
+
+        def _inner_number_to_bucket(v):
+            return _number_to_bucket(v, bucket_size=bucket_size)
+
+        result = _inner_number_to_bucket
+        # result = functools.partial(_number_to_bucket,
+        #                            bucket_size=bucket_size)
+    elif gen_type == 'substring':
+        args = details.get('substring_args', {})
+        _from = args.get('from') or 0
+        to = args.get('to') or 1
+        size = args.get('final_size') or 10
+        replacement = args.get('replacement') or '*'
+
+        def _inner_substring(value):
+            return _substring(value, _from, to, size, replacement)
+
+        result = _inner_substring
+        # result = functools.partial(_substring, _from=_from, to=to,
+        #                            size=size, replacement=replacement)
+    elif gen_type == 'hierarchy':
+        args = details.get('hierarchy_args', {})
+        values = args.get('values', {})
+        default = args.get('default')
+
+        def _inner_hierarchy(value):
+            return _hierarchy(value, values, default)
+
+        result = _inner_hierarchy
+        # result = functools.partial(_hierarchy, values=values,
+        #                            default=default)
+
+    return result
+
+
+def serializable_md5(v):
+    h = hashlib.md5()
+    h.update(v)
+    return h
 
 
 def encryption(details):
@@ -102,11 +200,10 @@ def encryption(details):
      :param details Parameters for encryption, basically, the name of algorithm
      to be used;
     """
-    details = json.loads(details)
     algorithm = details.get('algorithm', 'sha1')
 
     if algorithm == 'md5':
-        h = hashlib.md5().update
+        h = serializable_md5
     elif algorithm == 'sha1':
         h = hashlib.sha1
     elif algorithm == 'sha224':
@@ -121,9 +218,9 @@ def encryption(details):
         raise ValueError(_('Invalid encryption function {}').format(algorithm))
 
     def _apply(value):
-        return h(value).hexdigest()
+        return h(unicode(value)).hexdigest()
 
-    return udf(_apply, StringType())
+    return _apply
 
 
 def masking_gen(attribute_name, details):
@@ -134,14 +231,10 @@ def masking_gen(attribute_name, details):
     @FIXME: Define a good size for partitions / groups (for instance use part
     of string or range of numbers, but it depends on the data type).
     """
-    print '-' * 20
-    print details
-    print '-' * 20
-    details = json.loads(details)
-
     def masking(group):
         from faker import Factory
         faker_obj = Factory.create(details.get('lang', 'en_GB'))
+        faker_obj.seed(random.randint(0, 100000))
 
         if not hasattr(faker_obj, details.get('label_type', 'name')):
             raise ValueError(_('Invalid masking type: {}').format(
@@ -173,54 +266,52 @@ class PrivacyPreservingDecorator(object):
 
     def suppression(self, group):
         return dedent("""
-            # Privacy policy: attribute suppression')
+            # PRIVAaS Privacy policy: attribute suppression
             {out} = {out}.drop(*{cols})""".format(
             out=self.output, cols=json.dumps([g['name'] for g in group])))
 
     def _exec_as_udf(self, group, action):
-        code = ["# Privacy policy: attribute ".format(action)]
-
+        code = ["# PRIVAaS Privacy policy: attribute {}".format(action)]
         template = dedent("""
-            privaas_udf = privaaas.{f}({details})
+            details = {details}
+            anonymization = '{f}'
+            if details.get('type') == 'range' and \\
+                anonymization == 'generalization':
+                attr = next(x for x in out_task_0.schema if x.name == '{name}')
+                return_type = types.ArrayType(attr.dataType)
+            else:
+                return_type = types.StringType()
+
+            privaaas_udf = functions.udf(privaaas.{f}(details),
+                return_type)
             {out} = {out}.withColumn(colName='{name}',
-                col=privaas_udf('{name}'))""").strip()
+                col=privaaas_udf('{name}'))""").strip()
 
         for g in group:
             code.append(template.format(out=self.output, name=g['name'],
-                                        details=repr(g['details']),
-                                        f="encryption"))
+                                        details=g['details'],
+                                        f=action))
         return '\n'.join(code)
 
     def encryption(self, group):
-        self._exec_as_udf(group, 'encryption')
+        return self._exec_as_udf(group, 'encryption')
 
     def generalization(self, group):
-        self._exec_as_udf(group, 'generalization')
+        return self._exec_as_udf(group, 'generalization')
 
     def mask(self, group):
         code = ['', '# PRIVAaS Privacy policy: attribute mask']
 
         template = dedent("""
             details = {details}
-            col_names = [s.name for s in {out}.schema]
-            col_type = {out}.schema['{name}'].dataType
-            if isinstance(col_type, types.StringType):
-                key_gen = lambda x: x['{name}'][0] if x['{name}'] else ""
-            elif isinstance(col_type, types.IntegralType):
-                key_gen = lambda x: x['{name}'] if x['{name}'] % 1 else 0
-            elif isinstance(col_type, types.FractionalType):
-                key_gen = lambda x: x['{name}'] % 1 if x['{name}'] else 0
-            # elif isinstance(col_type, types.DateType):
-            else:
-                raise ValueError('{not_supported}'.format(col_type))
-
+            key_gen = privaaas.generate_group_by_key_function({out}, '{name}')
             {out} = {out}.rdd.keyBy(key_gen).groupByKey().flatMap(
                     privaaas.{f}('{name}', details)).map(
-                        lambda l: Row(**dict(l))).toDF()""").strip()
+                        lambda l: Row(**dict(l))).toDF({out}.schema)""").strip()
         for g in group:
             code.append(template.format(
                 out=self.output, name=g['name'], f="masking_gen",
                 not_supported=_('Data type is not supported for masking: {}'),
-                details=repr(g['details'])))
+                details=g['details']))
         code.append('')
         return '\n'.join(code)

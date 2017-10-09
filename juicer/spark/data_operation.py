@@ -200,10 +200,11 @@ class DataReaderOperation(Operation):
         return '\n'.join(code)
 
     def _apply_privacy_constraints(self, restrictions):
-        result = []
+        result = ['import juicer.privaaas']
         try:
             if restrictions.get('attributes'):
-                attrs = restrictions['attributes']
+                attrs = sorted(restrictions['attributes'],
+                               key=lambda x: x['anonymization_technique'])
                 grouped_by_type = itertools.groupby(
                     attrs, key=lambda x: x['anonymization_technique'])
                 privacy_decorator = PrivacyPreservingDecorator(self.output)
