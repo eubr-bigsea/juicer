@@ -195,6 +195,7 @@ class SparkTranspiler(object):
                         source_port['outputs'].append(sequence)
 
                     target_port = ports[target_id]
+                    target_port['edges'] = source_id
                     if sequence not in target_port['inputs']:
                         flow_name = flow['target_port_name']
                         # Test if multiple inputs connects to a port
@@ -218,6 +219,7 @@ class SparkTranspiler(object):
 
         sorted_tasks_id = nx.topological_sort(graph)
         for i, task_id in enumerate(sorted_tasks_id):
+
             self.current_task_id = task_id
             task = graph.node[task_id]
             class_name = self.operations[task['operation']['slug']]
@@ -247,6 +249,7 @@ class SparkTranspiler(object):
             # Operation SAVE requires the complete workflow
             if task['operation']['slug'] == 'data-writer':
                 parameters['workflow'] = workflow
+                parameters['workflow_json'] = json.dumps(workflow)
 
             # Some temporary variables need to be identified by a sequential
             # number, so it will be stored in this field
@@ -270,6 +273,7 @@ class SparkTranspiler(object):
 
             instance = class_name(parameters, port.get('named_inputs', {}),
                                   port.get('named_outputs', {}))
+
             instance.out_degree = graph.out_degree(task_id)
             env_setup['dependency_controller'] = DependencyController(
                 params.get('requires_info', False))

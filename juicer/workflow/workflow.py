@@ -83,7 +83,6 @@ class Workflow:
                     'M_INPUT': 'None',
                     'M_OUTPUT': 'None'
                 }
-
                 # Correct form field types if the interface (Citron) does not
                 # send this information
                 for k, v in task['forms'].items():
@@ -126,7 +125,6 @@ class Workflow:
                     msg.format(task=task['id'], op=task['operation']['id']))
 
         for flow in self.workflow['flows']:
-
             # Updates the source_port_name and target_port_name. They are
             # used in the transpiler part instead of the id of the port.
             source_port = filter(

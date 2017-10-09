@@ -21,7 +21,6 @@ def test_data_reader_minimal_parameters_no_attributes_success():
         }
     }
     n_out = {'output data': 'output_1'}
-
     instance = DataReader(parameters, named_inputs={}, named_outputs=n_out)
     code = instance.generate_code()
     generated_tree = ast.parse(code)

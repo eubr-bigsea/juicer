@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import logging
+import md5
 
 from juicer.runner import configuration
 
@@ -18,7 +19,7 @@ class Operation(object):
     __slots__ = ('parameters', 'named_inputs', 'output',
                  'named_outputs', 'multiple_inputs', 'has_code',
                  'expected_output_ports', 'out_degree', 'order',
-                 'supports_cache', 'config')
+                 'supports_cache', 'config', 'signature')
 
     def __init__(self, parameters, named_inputs, named_outputs):
         self.parameters = parameters
@@ -59,10 +60,24 @@ class Operation(object):
         #     self.output = self.outputs[0]
         # else:
         #     self.output = "NO_OUTPUT_WITHOUT_CONNECTIONS"
-
+        self.signature = None
+        self.calculate_signature()
         # Subclasses should override this
         self.output = self.named_outputs.get(
             'output data', 'out_task_{}'.format(self.order))
+
+    def calculate_signature(self):
+        m = md5.new()
+        task = self.parameters.get('task', {})
+        forms = task.get('forms', {})
+        for k in sorted(forms):
+            m.update(k)
+            m.update(str(forms[k]['value']))
+
+        for input_flow in task.get('inputs', []):
+            m.update(input_flow)
+
+        self.signature = m.hexdigest()
 
     def generate_code(self):
         raise NotImplementedError(
