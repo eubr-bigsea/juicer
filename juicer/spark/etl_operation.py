@@ -399,11 +399,11 @@ class TransformationOperation(Operation):
             raise ValueError(
                 _("Parameters '{}' and {} must be informed for task {}").format(
                     self.ALIAS_PARAM, self.EXPRESSION_PARAM, self.__class__))
-        self.has_code = len(self.named_inputs) > 0
+        self.has_code = len(self.named_inputs) > 0 or self.contains_results()
+        self.output = self.named_outputs.get(
+            'output data', 'sampled_data_{}'.format(self.order))
 
     def generate_code(self):
-        output = self.named_outputs.get('output data', 'sampled_data_{}'.format(
-            self.order))
         input_data = self.named_inputs['input data']
         params = {'input': input_data}
 
@@ -411,9 +411,10 @@ class TransformationOperation(Operation):
         expression = Expression(self.json_expression, params)
         built_expression = expression.parsed_expression
 
-        code = "{out} = {in1}.withColumn('{alias}', {expr})".format(
-            out=output, in1=input_data, alias=self.alias,
-            expr=built_expression)
+        code = dedent("""
+        {out} = {in1}.withColumn('{alias}',
+            {expr})""".format(out=self.output, in1=input_data, alias=self.alias,
+                              expr=built_expression))
         return dedent(code)
 
 
