@@ -277,7 +277,7 @@ class PrivacyPreservingDecorator(object):
             anonymization = '{f}'
             if details.get('type') == 'range' and \\
                 anonymization == 'generalization':
-                attr = next(x for x in out_task_0.schema if x.name == '{name}')
+                attr = next(x for x in {out}.schema if x.name == '{name}')
                 return_type = types.ArrayType(attr.dataType)
             else:
                 return_type = types.StringType()

@@ -94,8 +94,9 @@ def format_row_for_bar_chart_visualization(row):
 
 def emit_schema(task_id, df, emit_event, name):
     from juicer.spark.reports import SimpleTableReport
-    headers = ['Attribute', 'Type']
-    rows = [[f.name, str(f.dataType)] for f in df.schema.fields]
+    headers = [_('Attribute'), _('Type'), _('Metadata')]
+    rows = [[f.name, str(f.dataType), json.dumps(f.metadata) if f else ''] for f
+            in df.schema.fields]
     content = SimpleTableReport(
         'table table-striped table-bordered', headers, rows,
         'Schema for {}'.format(name),
@@ -104,7 +105,7 @@ def emit_schema(task_id, df, emit_event, name):
     emit_event('update task', status='COMPLETED',
                identifier=task_id,
                message=content.generate(),
-               type='HTML', title='Schema for {}'.format(name),
+               type='HTML', title=_('Schema for {}').format(name),
                task=task_id)
 
 
@@ -122,7 +123,7 @@ def emit_sample(task_id, df, emit_event, name, size=50):
     emit_event('update task', status='COMPLETED',
                identifier=task_id,
                message=content.generate(),
-               type='HTML', title='Sample data for {}'.format(name),
+               type='HTML', title=_('Sample data for {}').format(name),
                task=task_id)
 
 

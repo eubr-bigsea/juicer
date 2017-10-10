@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import logging
 
+from juicer import traceability
 from juicer.runner import configuration
 
 log = logging.getLogger()
@@ -95,6 +96,13 @@ class Operation(object):
             forms.get('display_schema', {}).get('value') in (1, '1'))
         return (((self.has_code or ignore_has_code) and is_satisfied and
                  consider_degree) or info_or_data)
+
+    def attribute_traceability(self):
+        """
+        Handle attribute traceability. This is the default implementation (copy)
+        from input to output(s).
+        """
+        return traceability.copy_from_input(self)
 
 
 # noinspection PyAbstractClass

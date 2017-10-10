@@ -90,7 +90,7 @@ class SortOperation(Operation):
                 _("Parameter '{}' must be informed for task {}").format(
                     self.ATTRIBUTES_PARAM, self.__class__))
 
-        self.has_code = len(self.named_inputs) == 1
+        self.has_code = len(self.named_inputs) == 1 or self.must_be_executed()
 
     def generate_code(self):
         ascending = []

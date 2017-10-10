@@ -225,8 +225,7 @@ class DataReaderOperation(Operation):
         return result
 
     def _add_attribute_to_schema(self, attr, code):
-        data_type = self.LIMONERO_TO_SPARK_DATA_TYPES[
-            attr['type']]
+        data_type = self.LIMONERO_TO_SPARK_DATA_TYPES[attr['type']]
         if attr['type'] in self.DATA_TYPES_WITH_PRECISION:
             data_type = '{}({}, {})'.format(
                 data_type,
@@ -239,9 +238,13 @@ class DataReaderOperation(Operation):
         # option of StructField is just a hint and when
         # loading CSV file, it won't work. So, we are adding
         # this information in metadata.
-        metadata = {k: attr[k] for k in
-                    ['nullable', 'type', 'size', 'precision', 'enumeration',
-                     'missing_representation'] if attr[k]}
+        # Not used.
+        # metadata = {k: attr[k] for k in
+        #             ['nullable', 'type', 'size', 'precision', 'enumeration',
+        #              'missing_representation'] if attr[k]}
+
+        metadata = {'data_source_id': self.data_source_id}
+
         code.append("schema_{0}.add('{1}', {2}, {3},\n{5}{4})".format(
             self.output, attr['name'], data_type, attr['nullable'],
             pprint.pformat(metadata, indent=0), ' ' * 20
