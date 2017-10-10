@@ -4,7 +4,7 @@ import time
 from random import random
 from textwrap import dedent
 
-from juicer.operation import Operation
+from juicer.operation import Operation, TraceabilityData
 from juicer.spark.expression import Expression
 
 
@@ -56,15 +56,17 @@ class AddRowsOperation(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
         self.parameters = parameters
-        self.has_code = len(self.named_inputs) == 2 and len(
-            self.named_outputs) > 0
+        self.has_code = (len(self.named_inputs) == 2 and len(
+            self.named_outputs) > 0) or self.contains_results()
+        self.output = self.named_outputs.get(
+            'output data', 'add_rows_{}'.format(self.order))
+
+    def get_output_names(self, sep=", "):
+        return self.output
 
     def generate_code(self):
-        output = self.named_outputs.get('output data', 'add_row_out_{}'.format(
-            self.order))
-
         code = "{out} = {input1}.unionAll({input2})".format(
-            out=output, input1=self.named_inputs['input data 1'],
+            out=self.output, input1=self.named_inputs['input data 1'],
             input2=self.named_inputs['input data 2'])
         return dedent(code)
 
@@ -90,7 +92,9 @@ class SortOperation(Operation):
                 _("Parameter '{}' must be informed for task {}").format(
                     self.ATTRIBUTES_PARAM, self.__class__))
 
-        self.has_code = len(self.named_inputs) == 1 or self.must_be_executed()
+        self.has_code = len(self.named_inputs) == 1 or self.contains_results()
+        self.output = self.named_outputs.get('output data',
+                                             'out_task_{}'.format(self.order))
 
     def generate_code(self):
         ascending = []
@@ -99,12 +103,10 @@ class SortOperation(Operation):
             attributes.append(attr['attribute'])
             ascending.append(1 if attr['f'] == 'asc' else 0)
 
-        output = self.named_outputs.get('output data', 'sorted_data_{}'.format(
-            self.order))
         input_data = self.named_inputs['input data']
 
         code = "{out} = {input}.orderBy({attrs}, ascending={asc})".format(
-            out=output, input=input_data, attrs=json.dumps(attributes),
+            out=self.output, input=input_data, attrs=json.dumps(attributes),
             asc=json.dumps(ascending))
 
         return dedent(code)
@@ -214,7 +216,7 @@ class SampleOrPartitionOperation(Operation):
         elif self.type == self.VALUE_PARAM:
             # Spark 2.0.2 DataFrame API does not have takeSample implemented
             # See [SPARK-15324]
-            # This implementation may be innefficient!
+            # This implementation may be inefficient!
             code = ("{out} = {input}.sample(withReplacement={wr}, "
                     "fraction={fr}, seed={seed}).limit({limit})"
                     .format(out=self.output, input=input_data,
@@ -575,6 +577,17 @@ class AggregationOperation(Operation):
 
     def get_output_names(self, sep=", "):
         return self.output
+
+    def attribute_traceability(self):
+        result = []
+        for i, function in enumerate(self.functions):
+            result.append(TraceabilityData(
+                input=self.named_inputs.values()[0],
+                attribute=function.get('alias', function.get('value')),
+                derived_from=function['attribute'],
+                was_value=False)
+            )
+        return result
 
     def generate_code(self):
         elements = []

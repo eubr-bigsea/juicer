@@ -200,7 +200,10 @@ class DataReaderOperation(Operation):
         return '\n'.join(code)
 
     def _apply_privacy_constraints(self, restrictions):
-        result = ['import juicer.privaaas']
+        result = [
+            'import juicer.privaaas',
+            'original_schema = {out}.schema'.format(out=self.output)
+         ]
         try:
             if restrictions.get('attributes'):
                 attrs = sorted(restrictions['attributes'],
@@ -218,6 +221,16 @@ class DataReaderOperation(Operation):
                         else:
                             raise ValueError(
                                 _('Invalid anonymization type ({})').format(k))
+                result.append(dedent("""
+                    for attr in {out}.schema:
+                        found = next(o for o in original_schema
+                            if attr.name == o.name)
+                        version = dataframe_util.spark_version(spark_session)
+                        if found is not None and version >= (2, 2, 0):
+                            {out} = {out}.withColumn(attr.name,
+                                functions.col(attr.name).alias(attr.name,
+                                    metadata=found.metadata))
+                """.format(out=self.output)))
         except Exception as e:
             print e
             raise
@@ -243,7 +256,9 @@ class DataReaderOperation(Operation):
         #             ['nullable', 'type', 'size', 'precision', 'enumeration',
         #              'missing_representation'] if attr[k]}
 
-        metadata = {'data_source_id': self.data_source_id}
+        metadata = {'sources': [
+                '{}/{}'.format(self.data_source_id, attr['name'])
+        ]}
 
         code.append("schema_{0}.add('{1}', {2}, {3},\n{5}{4})".format(
             self.output, attr['name'], data_type, attr['nullable'],

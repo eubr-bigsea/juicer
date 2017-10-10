@@ -99,7 +99,7 @@ def emit_schema(task_id, df, emit_event, name):
             in df.schema.fields]
     content = SimpleTableReport(
         'table table-striped table-bordered', headers, rows,
-        'Schema for {}'.format(name),
+        _('Schema for {}').format(name),
         numbered=True)
 
     emit_event('update task', status='COMPLETED',
@@ -117,7 +117,7 @@ def emit_sample(task_id, df, emit_event, name, size=50):
 
     content = SimpleTableReport(
         'table table-striped table-bordered', headers, rows,
-        'Sample data for {}'.format(name),
+        _('Sample data for {})').format(name),
         numbered=True)
 
     emit_event('update task', status='COMPLETED',
@@ -205,3 +205,14 @@ class SparkObjectProxy(object):
                     return method_to_call
 
         return wrapper if callable(member_to_call) else member_to_call
+
+
+def spark_version(spark_session):
+    return tuple(map(int, spark_session.version.split('.')))
+
+
+def merge_dicts(x, y):
+    """Given two dicts, merge them into a new dict as a shallow copy."""
+    z = x.copy()
+    z.update(y)
+    return z
