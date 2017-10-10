@@ -357,17 +357,25 @@ class SaveOperation(Operation):
             {input} = {input}.select(*cols)
             mode = '{mode}'
             # Write in a temporary directory
+            # Header configuration will be handled by LemondadeFileUtil class
             {input}.write.csv('{url}{uuid}',
-                         header={header}, mode=mode)
+                         header=False, mode=mode)
             # Merge files using Hadoop HDFS API
             conf = spark_session._jsc.hadoopConfiguration()
-            fs = spark_session._jvm.org.apache.hadoop.fs.FileSystem.get(
-                spark_session._jvm.java.net.URI('{storage_url}'), conf)
+            jvm = spark_session._jvm
+            fs = jvm.org.apache.hadoop.fs.FileSystem.get(
+                jvm.java.net.URI('{storage_url}'), conf)
 
-            path = spark_session._jvm.org.apache.hadoop.fs.Path('{url}')
-            tmp_path = spark_session._jvm.org.apache.hadoop.fs.Path(
+            path = jvm.org.apache.hadoop.fs.Path('{url}')
+            tmp_path = jvm.org.apache.hadoop.fs.Path(
                 '{url}{uuid}')
-            fs_util = spark_session._jvm.org.apache.hadoop.fs.FileUtil
+            write_header = {header}
+            # org.apache.hadoop.fs.FileUtil do not handle files with header
+            header = None
+            if write_header:
+                header = ','.join([attr.name for attr in {input}.schema])
+
+            fs_util = jvm.br.ufmg.dcc.lemonade.ext.io.LemonadeFileUtil
             if fs.exists(path):
                 if mode == 'error':
                     raise ValueError('{error_file_exists}')
@@ -378,12 +386,13 @@ class SaveOperation(Operation):
                         identifier='{task_id}')
                 elif mode == 'overwrite':
                     fs.delete(path, False)
-                    fs_util.copyMerge(fs, tmp_path, fs, path, True, conf, None)
+                    fs_util.copyMergeWithHeader(fs, tmp_path, fs, path, True,
+                        conf, header)
                 else:
                     raise ValueError('{error_invalid_mode}')
             else:
-                fs_util.copyMerge(fs, tmp_path, fs, path, True, conf, None)
-            fs_util.chmod(path.toString(), '700')
+                fs_util.copyMergeWithHeader(fs, tmp_path, fs, path, True, conf,
+                    header)
             """.format(
                 input=self.named_inputs['input data'],
                 url=final_url, header=self.header, mode=self.mode,

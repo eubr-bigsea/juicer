@@ -82,18 +82,25 @@ class Operation(object):
         return ', '.join(self.named_inputs.values())
 
     def get_output_names(self, sep=", "):
-        return sep.join(self.named_outputs.values())
+        if self.named_outputs:
+            return sep.join(self.named_outputs.values())
+        else:
+            return self.output
 
     def get_data_out_names(self, sep=','):
         return self.get_output_names(sep)
+
+    def contains_results(self):
+        forms = self.parameters['task']['forms']
+        return (
+            forms.get('display_sample', {}).get('value') in (1, '1') or
+            forms.get('display_schema', {}).get('value') in (1, '1'))
 
     def must_be_executed(self, is_satisfied, ignore_out_degree=False,
                          ignore_has_code=False):
         consider_degree = self.out_degree == 0 or ignore_out_degree
         forms = self.parameters['task']['forms']
-        info_or_data = (
-            forms.get('display_sample', {}).get('value') in (1, '1') or
-            forms.get('display_schema', {}).get('value') in (1, '1'))
+        info_or_data = self.contains_results()
         return (((self.has_code or ignore_has_code) and is_satisfied and
                  consider_degree) or info_or_data)
 
