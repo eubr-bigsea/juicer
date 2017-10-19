@@ -18,7 +18,6 @@ def remove_initial_final_path_separator(path):
 
 def query_limonero(base_url, item_path, token, item_id):
     headers = {'X-Auth-Token': token}
-
     base_url = remove_initial_final_path_separator(base_url)
     item_path = remove_initial_final_path_separator(item_path)
     item_id = remove_initial_final_path_separator(str(item_id))
@@ -47,7 +46,7 @@ def get_storage_info(base_url, token, storage_id):
 
 
 def get_data_source_info(base_url, token, data_source_id):
-    return query_limonero(base_url, '', token, data_source_id)
+    return query_limonero(base_url, 'datasources', token, data_source_id)
 
 
 def register_model(base_url, payload, token):

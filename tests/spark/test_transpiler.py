@@ -120,7 +120,7 @@ def test_transpiler_basic_flow_success():
         }
     }
     with mock.patch(
-            'juicer.workflow.workflow.Workflow.builds_initial_workflow_graph') \
+            'juicer.workflow.workflow.Workflow._build_initial_workflow_graph') \
             as mocked_fn:
         mocked_fn.side_effect = lambda: ""
         out = StringIO()

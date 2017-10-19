@@ -384,9 +384,6 @@ class EvaluateModelOperation(Operation):
     def generate_code(self):
 
         if self.has_code:
-            limonero_conf = self.config['juicer']['services']['limonero']
-            caipirinha_conf = self.config['juicer']['services']['caipirinha']
-
             code = dedent("""
                 # Creates the evaluator according to the model
                 # (user should not change it)
@@ -1315,11 +1312,6 @@ class RegressionModelOperation(Operation):
     REG_PARAM = 'reg_param'
     ELASTIC_NET_PARAM = 'elastic_net'
 
-    SOLVER_PARAM = 'solver'
-
-    TYPE_SOLVER_AUTO = 'auto'
-    TYPE_SOLVER_NORMAL = 'normal'
-
     # RegType missing -  none (a.k.a. ordinary least squares),
     # L2 (ridge regression)
     #                    L1 (Lasso) and   L2 + L1 (elastic net)
@@ -1748,7 +1740,6 @@ class AFTSurvivalRegressionOperation(RegressionOperation):
 
             self.censor = self.parameters.get(
                 self.CENSOR_COL_PARAM, ['censor'])[0]
-
             self.quantile_prob = self.parameters.get(
                 self.QUANTILES_PROBABILITIES_PARAM,
                 '0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99')
@@ -1876,7 +1867,7 @@ class SaveModelOperation(Operation):
         self.storage_id = parameters.get(self.STORAGE_PARAM)
 
         if self.name is None or self.storage_id is None:
-            msg = _('Missing parameters. Check if values for parameters {} ' \
+            msg = _('Missing parameters. Check if values for parameters {} '
                     'were informed')
             raise ValueError(
                 msg.format(', '.join([self.NAME_PARAM, self.STORAGE_PARAM])))
@@ -1908,8 +1899,6 @@ class SaveModelOperation(Operation):
         url = limonero_config['url']
         token = str(limonero_config['auth_token'])
         storage = limonero_service.get_storage_info(url, token, self.storage_id)
-
-        final_url = '{}/{}'.format(storage['url'], self.path)
 
         models = self.named_inputs['models']
         if not isinstance(models, list):

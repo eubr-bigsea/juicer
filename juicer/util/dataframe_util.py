@@ -94,17 +94,18 @@ def format_row_for_bar_chart_visualization(row):
 
 def emit_schema(task_id, df, emit_event, name):
     from juicer.spark.reports import SimpleTableReport
-    headers = ['Attribute', 'Type']
-    rows = [[f.name, str(f.dataType)] for f in df.schema.fields]
+    headers = [_('Attribute'), _('Type'), _('Metadata')]
+    rows = [[f.name, str(f.dataType), json.dumps(f.metadata) if f else ''] for f
+            in df.schema.fields]
     content = SimpleTableReport(
         'table table-striped table-bordered', headers, rows,
-        'Schema for {}'.format(name),
+        _('Schema for {}').format(name),
         numbered=True)
 
     emit_event('update task', status='COMPLETED',
                identifier=task_id,
                message=content.generate(),
-               type='HTML', title='Schema for {}'.format(name),
+               type='HTML', title=_('Schema for {}').format(name),
                task=task_id)
 
 
@@ -116,13 +117,13 @@ def emit_sample(task_id, df, emit_event, name, size=50):
 
     content = SimpleTableReport(
         'table table-striped table-bordered', headers, rows,
-        'Sample data for {}'.format(name),
+        _('Sample data for {})').format(name),
         numbered=True)
 
     emit_event('update task', status='COMPLETED',
                identifier=task_id,
                message=content.generate(),
-               type='HTML', title='Sample data for {}'.format(name),
+               type='HTML', title=_('Sample data for {}').format(name),
                task=task_id)
 
 
@@ -204,3 +205,14 @@ class SparkObjectProxy(object):
                     return method_to_call
 
         return wrapper if callable(member_to_call) else member_to_call
+
+
+def spark_version(spark_session):
+    return tuple(map(int, spark_session.version.split('.')))
+
+
+def merge_dicts(x, y):
+    """Given two dicts, merge them into a new dict as a shallow copy."""
+    z = x.copy()
+    z.update(y)
+    return z

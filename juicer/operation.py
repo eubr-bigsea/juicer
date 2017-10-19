@@ -1,10 +1,15 @@
 # -*- coding: utf-8 -*-
 import logging
+from collections import namedtuple
 
 from juicer.runner import configuration
 
 log = logging.getLogger()
 log.setLevel(logging.DEBUG)
+
+TraceabilityData = namedtuple(
+    'TraceabilityData',
+    'input, attribute, derived_from, was_value')
 
 
 # noinspection PyClassHasNoInit
@@ -102,6 +107,13 @@ class Operation(object):
         info_or_data = self.contains_results()
         return (((self.has_code or ignore_has_code) and is_satisfied and
                  consider_degree) or info_or_data)
+
+    # noinspection PyMethodMayBeStatic
+    def attribute_traceability(self):
+        """
+        Handle attribute traceability. This is the default implementation.
+        """
+        return []
 
 
 # noinspection PyAbstractClass

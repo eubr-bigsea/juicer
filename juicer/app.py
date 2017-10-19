@@ -1,5 +1,8 @@
 # !/usr/bin/env python
 # -*- coding: utf-8 -*-
+from __future__ import print_function
+from __future__ import print_function
+
 import argparse
 import gettext
 import json
@@ -53,7 +56,7 @@ class JuicerSparkService:
         pass
 
     def run(self):
-        _id = 'status_{}'.format(self.workflow_id)
+        # _id = 'status_{}'.format(self.workflow_id)
         # status = self.redis_conn.hgetall(_id)
         # print '>>>', status
 
@@ -72,7 +75,7 @@ class JuicerSparkService:
         if r.status_code == 200:
             loader = Workflow(json.loads(r.text), self.config)
         else:
-            print tahiti_conf['url'], r.text
+            print(tahiti_conf['url'], r.text)
             exit(-1)
         # FIXME: Implement validation
         # loader.verify_workflow()

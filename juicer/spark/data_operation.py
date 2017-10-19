@@ -1,15 +1,17 @@
 # -*- coding: utf-8 -*-
 import ast
+import itertools
 import json
 import pprint
 import uuid
 from textwrap import dedent
 
 from juicer.operation import Operation
+from juicer.privaaas import PrivacyPreservingDecorator
 from juicer.service import limonero_service
 
 
-class DataReader(Operation):
+class DataReaderOperation(Operation):
     """
     Reads a database.
     Parameters:
@@ -49,7 +51,7 @@ class DataReader(Operation):
         self.has_code = len(self.named_outputs) > 0 or True
         if self.has_code:
             if self.DATA_SOURCE_ID_PARAM in parameters:
-                self.database_id = parameters[self.DATA_SOURCE_ID_PARAM]
+                self.data_source_id = int(parameters[self.DATA_SOURCE_ID_PARAM])
                 self.header = parameters.get(
                     self.HEADER_PARAM, False) not in ('0', 0, 'false', False)
 
@@ -58,11 +60,18 @@ class DataReader(Operation):
                 limonero_config = \
                     self.parameters['configuration']['juicer']['services'][
                         'limonero']
-                url = '{}/datasources'.format(limonero_config['url'])
+                url = limonero_config['url']
                 token = str(limonero_config['auth_token'])
 
-                self.metadata = limonero_service.get_data_source_info(
-                    url, token, self.database_id)
+                # Is data source information cached?
+                self.metadata = self.parameters.get('workflow', {}).get(
+                    'data_source_cache', {}).get(self.data_source_id)
+                if self.metadata is None:
+                    self.metadata = limonero_service.get_data_source_info(
+                        url, token, self.data_source_id)
+                    self.parameters['workflow']['data_source_cache'][
+                        self.data_source_id] = self.metadata
+
                 if not self.metadata.get('url'):
                     raise ValueError(
                         _('Incorrect data source configuration (empty url)'))
@@ -151,9 +160,6 @@ class DataReader(Operation):
                             url)""".format(output=self.output,
                                            null_option=null_option))
                     code.append(code_csv)
-                # FIXME: Evaluate if it is good idea to always use cache
-                code.append('{}.cache()'.format(self.output))
-
             elif self.metadata['format'] == 'PARQUET_FILE':
                 # TO DO
                 pass
@@ -184,13 +190,55 @@ class DataReader(Operation):
 
                 code.append(code_csv)
                 # # FIXME: Evaluate if it is good idea to always use cache
-                code.append('{}.cache()'.format(self.output))
 
+        if self.metadata.get('privacy_aware', False):
+            restrictions = self.parameters['workflow'].get(
+                'privacy_restrictions', {}).get(self.data_source_id)
+            code.extend(self._apply_privacy_constraints(restrictions))
+
+        code.append('{}.cache()'.format(self.output))
         return '\n'.join(code)
 
+    def _apply_privacy_constraints(self, restrictions):
+        result = [
+            'import juicer.privaaas',
+            'original_schema = {out}.schema'.format(out=self.output)
+         ]
+        try:
+            if restrictions.get('attributes'):
+                attrs = sorted(restrictions['attributes'],
+                               key=lambda x: x['anonymization_technique'])
+                grouped_by_type = itertools.groupby(
+                    attrs, key=lambda x: x['anonymization_technique'])
+                privacy_decorator = PrivacyPreservingDecorator(self.output)
+                for k, group in grouped_by_type:
+                    if k is not None and k != 'NO_TECHNIQUE':
+                        if hasattr(privacy_decorator, k.lower()):
+                            action = getattr(privacy_decorator, k.lower())
+                            action_result = action(group)
+                            if action_result:
+                                result.append(action_result)
+                        else:
+                            raise ValueError(
+                                _('Invalid anonymization type ({})').format(k))
+                result.append(dedent("""
+                    for attr in {out}.schema:
+                        found = next(o for o in original_schema
+                            if attr.name == o.name)
+                        version = dataframe_util.spark_version(spark_session)
+                        if found is not None and version >= (2, 2, 0):
+                            {out} = {out}.withColumn(attr.name,
+                                functions.col(attr.name).alias(attr.name,
+                                    metadata=found.metadata))
+                """.format(out=self.output)))
+        except Exception as e:
+            print e
+            raise
+
+        return result
+
     def _add_attribute_to_schema(self, attr, code):
-        data_type = self.LIMONERO_TO_SPARK_DATA_TYPES[
-            attr['type']]
+        data_type = self.LIMONERO_TO_SPARK_DATA_TYPES[attr['type']]
         if attr['type'] in self.DATA_TYPES_WITH_PRECISION:
             data_type = '{}({}, {})'.format(
                 data_type,
@@ -203,9 +251,15 @@ class DataReader(Operation):
         # option of StructField is just a hint and when
         # loading CSV file, it won't work. So, we are adding
         # this information in metadata.
-        metadata = {k: attr[k] for k in
-                    ['nullable', 'type', 'size', 'precision', 'enumeration',
-                     'missing_representation'] if attr[k]}
+        # Not used.
+        # metadata = {k: attr[k] for k in
+        #             ['nullable', 'type', 'size', 'precision', 'enumeration',
+        #              'missing_representation'] if attr[k]}
+
+        metadata = {'sources': [
+                '{}/{}'.format(self.data_source_id, attr['name'])
+        ]}
+
         code.append("schema_{0}.add('{1}', {2}, {3},\n{5}{4})".format(
             self.output, attr['name'], data_type, attr['nullable'],
             pprint.pformat(metadata, indent=0), ' ' * 20

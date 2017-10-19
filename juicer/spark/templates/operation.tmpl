@@ -7,6 +7,7 @@ Auto-generated Spark code from Lemonade Workflow
 More information about Lemonade to be provided
 """
 from concurrent.futures import ThreadPoolExecutor
+import collections
 import itertools
 import json
 import os
@@ -21,7 +22,7 @@ from textwrap import dedent
 from timeit import default_timer as timer
 
 from pyspark.ml import classification, evaluation, feature, tuning, clustering
-from pyspark.sql import functions, types
+from pyspark.sql import functions, types, Row
 from pyspark.sql.utils import IllegalArgumentException
 
 from pyspark.ml import Pipeline
@@ -32,7 +33,7 @@ from pyspark.ml.feature import *
 from pyspark.ml.tuning import *
 from pyspark.ml.recommendation import *
 from pyspark.ml.regression import *
-
+from juicer import privaaas
 from juicer.util import dataframe_util
 
 executor = ThreadPoolExecutor(max_workers={{instances|length}})
@@ -174,6 +175,26 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.ord
     {%- endfor %}
     {%- endif %}
 
+    {#-
+        Privacy related part.
+    #}
+    {%- set traces = instance.attribute_traceability() %}
+    {%- if traces %}
+    if dataframe_util.spark_version(spark_session) >= (2, 2, 0):
+    {%- for trace in traces %}
+    {%- for out in instance.get_data_out_names(',').split(',') %}
+    {%- if out %}
+        schema = {{trace.input}}.schema
+        meta = {}
+        meta.update(schema['{{trace.derived_from}}'].metadata)
+        {{out}} = {{out}}.withColumn('{{trace.attribute}}',
+            functions.col('{{trace.attribute}}').alias('', metadata=meta))
+    {%- endif %}
+    {%- endfor %}
+    {%- endfor %}
+        pass
+    {%- endif %}
+
     {%- if instance.parameters.task.forms.get('display_sample', {}).get('value') in (1, '1') %}
     # Outputs' samples
     {%- for out in instance.get_data_out_names(',').split(',') %}
@@ -187,7 +208,8 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.ord
     # Outputs' schemas
     {%- for out in instance.get_data_out_names(',').split(',') %}
     {%- if out %}
-    dataframe_util.emit_schema('{{instance.parameters.task.id}}', {{out}}, emit_event, '{{out}}')
+    dataframe_util.emit_schema('{{instance.parameters.task.id}}',
+        {{out}}, emit_event, '{{out}}')
     {%- endif %}
     {%- endfor %}
     {%- endif %}
