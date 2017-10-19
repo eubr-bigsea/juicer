@@ -212,7 +212,7 @@ class DataReaderOperation(Operation):
                     attrs, key=lambda x: x['anonymization_technique'])
                 privacy_decorator = PrivacyPreservingDecorator(self.output)
                 for k, group in grouped_by_type:
-                    if k != 'NO_TECHNIQUE':
+                    if k is not None and k != 'NO_TECHNIQUE':
                         if hasattr(privacy_decorator, k.lower()):
                             action = getattr(privacy_decorator, k.lower())
                             action_result = action(group)
