@@ -94,7 +94,7 @@ class Expression:
             raise ValueError(_('Function set() expects exactly 1 argument.'))
 
         get_set_function = dedent("""
-            functions.udf(lambda values: list(set(values)),
+            functions.udf(lambda values: [v for v in set(values) if v != ''],
                         types.ArrayType(types.{type}()))
         """).format(type=data_type).strip()
 
