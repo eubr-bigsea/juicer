@@ -12,7 +12,10 @@ import time
 import traceback
 
 # noinspection PyUnresolvedReferences
-import datetime
+import zipfile
+import glob
+
+import itertools
 
 import codecs
 import os
@@ -45,6 +48,7 @@ class SparkMinion(Minion):
     # max idle time allowed in seconds until this minion self termination
     IDLENESS_TIMEOUT = 600
     TIMEOUT = 'timeout'
+    DIST_ZIP_FILE = '/tmp/lemonade-lib-python.zip'
 
     def __init__(self, redis_conn, workflow_id, app_id, config, lang='en',
                  jars=None):
@@ -106,6 +110,60 @@ class SparkMinion(Minion):
             _('Task ignored (not used by other task or as an output)')
         ]
         self.current_lang = lang
+        self._build_dist_file()
+
+    def _build_dist_file(self):
+        """
+        Build a Zip file containing files in dist packages. Such packages
+        contain code to be executed in the Spark cluster and should be
+        distributed among all nodes.
+        """
+        project_base = os.path.abspath(os.path.join(os.path.dirname(__file__),
+                                       '..', '..'))
+
+        lib_paths = [
+            project_base,
+            os.path.join(project_base, 'juicer'),
+            os.path.join(project_base, 'juicer', 'include'),
+            os.path.join(project_base, 'juicer', 'privaaas'),
+            os.path.join(project_base, 'juicer', 'runner'),
+            os.path.join(project_base, 'juicer', 'service'),
+            os.path.join(project_base, 'juicer', 'spark'),
+            os.path.join(project_base, 'juicer', 'util'),
+            os.path.join(project_base, 'juicer', 'workflow'),
+            os.path.join(project_base, 'juicer', 'i18n/locales/pt/LC_MESSAGES'),
+            os.path.join(project_base, 'juicer', 'i18n/locales/en/LC_MESSAGES'),
+            os.path.join(project_base, 'juicer', 'i18n/locales/es/LC_MESSAGES'),
+        ]
+        valid_extensions = ['*.py', '*.ini', '*.mo']
+        build = not os.path.exists(self.DIST_ZIP_FILE)
+
+        def multiple_file_types(base_path, *patterns):
+            return list(itertools.chain.from_iterable(
+                glob.iglob(os.path.join(base_path, pattern)) for pattern in
+                patterns))
+
+        if not build:
+            for lib_path in lib_paths:
+                dist_files = multiple_file_types(lib_path, *valid_extensions)
+                zip_mtime = os.path.getmtime(self.DIST_ZIP_FILE)
+                for f in dist_files:
+                    if zip_mtime < os.path.getmtime(
+                            os.path.join(lib_path, f)):
+                        build = True
+                        break
+                if build:
+                    break
+
+        if build:
+            zf = zipfile.ZipFile(self.DIST_ZIP_FILE, mode='w')
+            zf.pwd = project_base
+            for lib_path in lib_paths:
+                dist_files = multiple_file_types(lib_path, *valid_extensions)
+                for f in dist_files:
+                    print f
+                    zf.write(f, arcname=os.path.relpath(f, project_base))
+            zf.close()
 
     def _emit_event(self, room, namespace):
         def emit_event(name, message, status, identifier, **kwargs):
@@ -451,13 +509,12 @@ class SparkMinion(Minion):
             try:
                 log_level = logging.getLevelName(log.getEffectiveLevel())
                 self.spark_session.sparkContext.setLogLevel(log_level)
-            except Exception as e:
+            except Exception:
                 log_level = 'WARN'
                 self.spark_session.sparkContext.setLogLevel(log_level)
 
-                # self.transpiler.build_dist_file()
-                # self.spark_session.sparkContext.addPyFile(
-                #    self.transpiler.DIST_ZIP_FILE)
+            self._build_dist_file()
+            self.spark_session.sparkContext.addPyFile(self.DIST_ZIP_FILE)
 
         log.info(_("Minion is using '%s' as Spark master"),
                  self.spark_session.sparkContext.master)
