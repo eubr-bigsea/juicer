@@ -4,7 +4,6 @@ import logging
 import time
 import urlparse
 
-import happybase
 import requests
 from juicer.service import limonero_service
 from juicer.util.dataframe_util import CustomEncoder
@@ -84,23 +83,6 @@ def _get_hbsase_visualization_format(user, visualization, workflow_id):
     # return vis_value
 
 
-def _get_params(config):
-    # Get Limonero configuration
-    limonero_config = config['juicer']['services']['limonero']
-    # Get Caipirinha configuration
-    caipirinha_config = config['juicer']['services']['caipirinha']
-    # Storage refers to the underlying environment used for storing
-    # visualizations, e.g., HBase
-    storage = limonero_service.get_storage_info(
-        limonero_config['url'], str(limonero_config['auth_token']),
-        caipirinha_config['storage_id'])
-    # Get HBase hostname and port
-    parsed_url = urlparse.urlparse(storage['url'])
-    connection = happybase.Connection(host=parsed_url.hostname,
-                                      port=parsed_url.port)
-    vis_table = connection.table('visualization')
-    batch = vis_table.batch(timestamp=int(time.time()))
-    return batch, caipirinha_config, connection
 
 
 def new_dashboard(config, title, user, workflow_id, workflow_name, job_id,
@@ -110,7 +92,7 @@ def new_dashboard(config, title, user, workflow_id, workflow_name, job_id,
                 workflow_name=workflow_name, job_id=job_id, task_id=task_id,
                 visualizations=visualizations)
 
-    batch, caipirinha_config, connection = _get_params(config)
+    caipirinha_config = config['juicer']['services']['caipirinha']
     _emit_saving_visualization(emit_event_fn, task_id)
 
     for visualization in visualizations:
@@ -123,13 +105,6 @@ def new_dashboard(config, title, user, workflow_id, workflow_name, job_id,
         _emit_saved_visualization(_type, emit_event_fn, visualization)
 
         del visualization['model']
-    #     batch.put(b'{job_id}-{task_id}'.format(task_id=visualization['task_id'],
-    #                                            job_id=job_id), vis_value)
-    # batch.send()
-
-    # Ensure HBase connection is closed
-    connection.close()
-
     r = _update_caipirinha(caipirinha_config['url'], 'dashboards',
                            caipirinha_config['auth_token'], '',
                            json.dumps(data))
@@ -140,7 +115,7 @@ def new_dashboard(config, title, user, workflow_id, workflow_name, job_id,
 def new_visualization(config, user, workflow_id, job_id,
                       task_id, visualization, emit_event_fn=None,
                       _type='VISUALIZATION'):
-    batch, caipirinha_config, connection = _get_params(config)
+    caipirinha_config = config['juicer']['services']['caipirinha']
 
     _emit_saving_visualization(emit_event_fn, task_id)
     # vis_value = _get_hbsase_visualization_format(
@@ -148,12 +123,6 @@ def new_visualization(config, user, workflow_id, job_id,
     _emit_saved_visualization(_type, emit_event_fn, visualization)
 
     del visualization['model']
-    # batch.put(b'{job_id}-{task_id}'.format(
-    #     task_id=visualization['task_id'], job_id=job_id), vis_value)
-    # batch.send()
-
-    # Ensure HBase connection is closed
-    connection.close()
 
     r = _update_caipirinha(
         caipirinha_config['url'], 'visualizations',

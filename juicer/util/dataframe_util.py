@@ -117,7 +117,7 @@ def emit_sample(task_id, df, emit_event, name, size=50):
 
     content = SimpleTableReport(
         'table table-striped table-bordered', headers, rows,
-        _('Sample data for {})').format(name),
+        _('Sample data for {}').format(name),
         numbered=True)
 
     emit_event('update task', status='COMPLETED',
