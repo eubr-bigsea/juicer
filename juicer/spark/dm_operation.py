@@ -23,8 +23,9 @@ class FrequentItemSetOperation(Operation):
                 self.__class__))
 
         self.min_support = float(parameters.get(self.MIN_SUPPORT_PARAM))
-        if self.min_support < .01:
-            raise ValueError('Support must be greater or equal to 0.01')
+        if self.min_support < .0001 or self.min_support > 1.0:
+            raise ValueError('Support must be greater or equal '
+                             'to 0.0001 and smaller than 1.0')
 
         self.output = self.named_outputs.get(
             'output data', 'freq_items_{}'.format(self.order))
