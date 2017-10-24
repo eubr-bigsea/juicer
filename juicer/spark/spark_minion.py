@@ -106,6 +106,59 @@ class SparkMinion(Minion):
             _('Task ignored (not used by other task or as an output)')
         ]
         self.current_lang = lang
+        #self._build_dist_file()
+
+    def _build_dist_file(self):
+        """
+        Build a Zip file containing files in dist packages. Such packages
+        contain code to be executed in the Spark cluster and should be
+        distributed among all nodes.
+        """
+        project_base = os.path.abspath(os.path.join(os.path.dirname(__file__),
+                                       '..', '..'))
+
+        lib_paths = [
+            project_base,
+            os.path.join(project_base, 'juicer'),
+            os.path.join(project_base, 'juicer', 'include'),
+            os.path.join(project_base, 'juicer', 'privaaas'),
+            os.path.join(project_base, 'juicer', 'runner'),
+            os.path.join(project_base, 'juicer', 'service'),
+            os.path.join(project_base, 'juicer', 'spark'),
+            os.path.join(project_base, 'juicer', 'util'),
+            os.path.join(project_base, 'juicer', 'workflow'),
+            os.path.join(project_base, 'juicer', 'i18n/locales/pt/LC_MESSAGES'),
+            os.path.join(project_base, 'juicer', 'i18n/locales/en/LC_MESSAGES'),
+            os.path.join(project_base, 'juicer', 'i18n/locales/es/LC_MESSAGES'),
+        ]
+        valid_extensions = ['*.py', '*.ini', '*.mo']
+        build = not os.path.exists(self.DIST_ZIP_FILE)
+
+        def multiple_file_types(base_path, *patterns):
+            return list(itertools.chain.from_iterable(
+                glob.iglob(os.path.join(base_path, pattern)) for pattern in
+                patterns))
+
+        if not build:
+            for lib_path in lib_paths:
+                dist_files = multiple_file_types(lib_path, *valid_extensions)
+                zip_mtime = os.path.getmtime(self.DIST_ZIP_FILE)
+                for f in dist_files:
+                    if zip_mtime < os.path.getmtime(
+                            os.path.join(lib_path, f)):
+                        build = True
+                        break
+                if build:
+                    break
+
+        if build:
+            zf = zipfile.ZipFile(self.DIST_ZIP_FILE, mode='w')
+            zf.pwd = project_base
+            for lib_path in lib_paths:
+                dist_files = multiple_file_types(lib_path, *valid_extensions)
+                for f in dist_files:
+                    zf.write(f, arcname=os.path.relpath(f, project_base))
+            zf.close()
 
     def _emit_event(self, room, namespace):
         def emit_event(name, message, status, identifier, **kwargs):
