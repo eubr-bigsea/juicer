@@ -161,7 +161,6 @@ class SparkMinion(Minion):
             for lib_path in lib_paths:
                 dist_files = multiple_file_types(lib_path, *valid_extensions)
                 for f in dist_files:
-                    print f
                     zf.write(f, arcname=os.path.relpath(f, project_base))
             zf.close()
 
@@ -223,11 +222,16 @@ class SparkMinion(Minion):
                                                block=True,
                                                timeout=self.IDLENESS_TIMEOUT)
 
-        if msg is None and self.active_messages == 0:
-            self._timeout_termination()
+        if msg is None:
+            if self.active_messages == 0:
+                self._timeout_termination()
             return
 
-        msg_info = json.loads(msg)
+        try:
+            msg_info = json.loads(msg)
+        except TypeError as te:
+            log.exception(_('Invalid message JSON: {}').format(msg))
+            return
 
         # Sanity check: this minion should not process messages from another
         # workflow/app

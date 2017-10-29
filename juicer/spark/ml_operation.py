@@ -151,7 +151,8 @@ class IndexToStringOperation(Operation):
         self.alias = [x[1] or '{}_str'.format(x[0]) for x in
                       izip_longest(self.attributes,
                                    self.alias[:len(self.attributes)])]
-        self.has_code = 'input data' in self.named_inputs
+        self.has_code = any(
+            ['input data' in self.named_inputs, self.contains_results()])
 
     def generate_code(self):
         input_data = self.named_inputs['input data']
@@ -257,7 +258,8 @@ class FeatureAssemblerOperation(Operation):
                     self.ATTRIBUTES_PARAM, self.__class__))
         self.alias = parameters.get(self.ALIAS_PARAM, 'features')
 
-        self.has_code = len(self.named_inputs) > 0
+        self.has_code = any(
+            [len(self.named_inputs) > 0, self.contains_results()])
 
     def generate_code(self):
         input_data = self.named_inputs['input data']
@@ -279,7 +281,8 @@ class ApplyModelOperation(Operation):
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
-        self.has_code = len(self.named_inputs) == 2
+        self.has_code = any(
+            [len(self.named_inputs) == 2, self.contains_results()])
 
         self.new_attribute = parameters.get(self.NEW_ATTRIBUTE_PARAM,
                                             'new_attribute')
@@ -358,11 +361,11 @@ class EvaluateModelOperation(Operation):
         else:
             raise ValueError(_('Invalid metric value {}').format(self.metric))
 
-        self.has_code = (
+        self.has_code = any([(
             (len(self.named_inputs) > 0 and len(self.named_outputs) > 0) or
             (self.named_outputs.get('evaluator') is not None) or
             (len(self.named_inputs) == 2)
-        )
+        ), self.contains_results()])
 
         self.model = self.named_inputs.get('model')
         self.model_out = self.named_outputs.get(
@@ -486,7 +489,8 @@ class CrossValidationOperation(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-        self.has_code = len(self.named_inputs) == 3
+        self.has_code = any(
+            [len(self.named_inputs) == 3, self.contains_results()])
         self.num_folds = parameters.get(self.NUM_FOLDS_PARAM, 3)
 
         self.output = self.named_outputs.get(
@@ -595,7 +599,8 @@ class ClassificationModelOperation(Operation):
         Operation.__init__(self, parameters, named_inputs,
                            named_outputs)
 
-        self.has_code = len(named_outputs) > 0 and len(named_inputs) == 2
+        self.has_code = any([len(named_outputs) > 0 and len(named_inputs) == 2,
+                             self.contains_results()])
 
         if not all([self.FEATURES_ATTRIBUTE_PARAM in parameters,
                     self.LABEL_ATTRIBUTE_PARAM in parameters]):
@@ -663,7 +668,7 @@ class ClassifierOperation(Operation):
         Operation.__init__(self, parameters, named_inputs,
                            named_outputs)
 
-        self.has_code = len(named_outputs) > 0
+        self.has_code = any([len(named_outputs) > 0, self.contains_results()])
         self.name = "BaseClassifier"
         self.output = self.named_outputs.get('algorithm',
                                              'algo_task_{}'.format(self.order))
@@ -758,7 +763,8 @@ class ClassificationReport(ReportOperation):
     def __init__(self, parameters, named_inputs,
                  named_outputs):
         ReportOperation.__init__(self, parameters, named_inputs, named_outputs)
-        self.has_code = len(self.named_inputs) > 1
+        self.has_code = any(
+            [len(self.named_inputs) > 1, self.contains_results()])
         self.multiple_inputs = True
 
     def get_data_out_names(self, sep=','):
@@ -782,7 +788,8 @@ class ClusteringModelOperation(Operation):
         Operation.__init__(self, parameters, named_inputs,
                            named_outputs)
 
-        self.has_code = len(named_outputs) > 0 and len(named_inputs) == 2
+        self.has_code = any([len(named_outputs) > 0 and len(named_inputs) == 2,
+                             self.contains_results()])
 
         if self.FEATURES_ATTRIBUTE_PARAM not in parameters:
             msg = _("Parameter '{}' must be informed for task {}")
@@ -892,7 +899,7 @@ class ClusteringOperation(Operation):
                  named_outputs):
         Operation.__init__(self, parameters, named_inputs,
                            named_outputs)
-        self.has_code = len(named_outputs) > 0
+        self.has_code = any([len(named_outputs) > 0, self.contains_results()])
         self.name = "BaseClustering"
         self.set_values = []
         self.output = self.named_outputs.get('algorithm',
@@ -951,7 +958,7 @@ class LdaClusteringOperation(ClusteringOperation):
             ['Optimizer', "'{}'".format(self.optimizer)],
             ['TopicConcentration', self.topic_concentration],
         ]
-        self.has_code = len(named_outputs) > 0
+        self.has_code = any([len(named_outputs) > 0, self.contains_results()])
         self.name = "clustering.LDA"
 
 
@@ -1004,7 +1011,7 @@ class KMeansClusteringOperation(ClusteringOperation):
                 _('Invalid type {} for class {}').format(
                     self.type, self.__class__))
 
-        self.has_code = len(named_outputs) > 0
+        self.has_code = any([len(named_outputs) > 0, self.contains_results()])
 
 
 class GaussianMixtureClusteringOperation(ClusteringOperation):
@@ -1026,7 +1033,7 @@ class GaussianMixtureClusteringOperation(ClusteringOperation):
             ['Tol', self.tolerance],
         ]
         self.name = "clustering.GaussianMixture"
-        self.has_code = len(named_outputs) > 0
+        self.has_code = any([len(named_outputs) > 0, self.contains_results()])
 
 
 class TopicReportOperation(ReportOperation):
@@ -1040,7 +1047,8 @@ class TopicReportOperation(ReportOperation):
         ReportOperation.__init__(self, parameters, named_inputs, named_outputs)
         self.terms_per_topic = parameters.get(self.TERMS_PER_TOPIC_PARAM, 20)
 
-        self.has_code = len(self.named_inputs) == 3
+        self.has_code = any(
+            [len(self.named_inputs) == 3, self.contains_results()])
         self.output = self.named_outputs.get('output data',
                                              'out_task_{}'.format(self.order))
 
@@ -1086,7 +1094,8 @@ class RecommendationModel(Operation):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         self.inputs = None
-        self.has_code = len(named_outputs) > 0 and len(self.inputs) == 2
+        self.has_code = any([len(named_outputs) > 0 and len(self.inputs) == 2,
+                             self.contains_results()])
 
         if not all([self.RANK_PARAM in parameters['workflow_json'],
                     self.RATING_COL_PARAM in parameters['workflow_json']]):
@@ -1141,7 +1150,7 @@ class CollaborativeOperation(Operation):
         Operation.__init__(self, parameters, named_inputs,
                            named_outputs)
 
-        self.has_code = len(named_outputs) > 0
+        self.has_code = any([len(named_outputs) > 0, self.contains_results()])
         self.name = "als"
         self.set_values = []
         # Define outputs and model
@@ -1203,7 +1212,7 @@ class AlternatingLeastSquaresOperation(Operation):
         self.regParam = parameters.get(self.REG_PARAM, 0.1)
         self.implicitPrefs = parameters.get(self.IMPLICIT_PREFS_PARAM, False)
 
-        self.has_code = len(named_outputs) > 0
+        self.has_code = any([len(named_outputs) > 0, self.contains_results()])
         self.name = "collaborativefiltering.ALS"
 
         # Define input and output
@@ -1257,7 +1266,8 @@ class LogisticRegressionModel(Operation):
                            named_outputs)
 
         self.inputs = None
-        self.has_code = len(named_outputs) > 0 and len(self.inputs) == 2
+        self.has_code = any([len(named_outputs) > 0 and len(self.inputs) == 2,
+                             self.contains_results()])
 
         if not all([self.FEATURES_PARAM in parameters['workflow_json'],
                     self.LABEL_PARAM in parameters['workflow_json']]):
@@ -1319,7 +1329,8 @@ class RegressionModelOperation(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-        self.has_code = len(named_outputs) > 0 and len(named_inputs) == 2
+        self.has_code = any([len(named_outputs) > 0 and len(named_inputs) == 2,
+                             self.contains_results()])
 
         if self.has_code:
             self.algorithm = self.named_inputs['algorithm']
@@ -1486,7 +1497,7 @@ class LinearRegressionOperation(RegressionOperation):
                                      named_outputs)
         self.parameters = parameters
         self.name = 'regression.LinearRegression'
-        self.has_code = len(named_outputs) > 0
+        self.has_code = any([len(named_outputs) > 0, self.contains_results()])
 
         if self.has_code:
             # self.read_common_params(parameters)
@@ -1550,7 +1561,7 @@ class GeneralizedLinearRegressionOperation(RegressionOperation):
                                      named_outputs)
         self.parameters = parameters
         self.name = 'regression.GeneralizedLinearRegression'
-        self.has_code = len(named_outputs) > 0
+        self.has_code = any([len(named_outputs) > 0, self.contains_results()])
 
         if self.has_code:
             self.max_iter = parameters.get(self.MAX_ITER_PARAM, 10)
@@ -1614,7 +1625,7 @@ class DecisionTreeRegressionOperation(RegressionOperation):
                                      named_outputs)
         self.parameters = parameters
         self.name = 'regression.DecisionTreeRegressor'
-        self.has_code = len(named_outputs) > 0
+        self.has_code = any([len(named_outputs) > 0, self.contains_results()])
 
         if self.has_code:
             self.read_common_params(parameters)
@@ -1677,7 +1688,7 @@ class GBTRegressorOperation(RegressionOperation):
                                      named_outputs)
         self.parameters = parameters
         self.name = 'regression.GBTRegressor'
-        self.has_code = len(named_outputs) > 0
+        self.has_code = any([len(named_outputs) > 0, self.contains_results()])
 
         if self.has_code:
             self.max_iter = parameters.get(self.MAX_ITER_PARAM, 10) or 10
@@ -1732,7 +1743,7 @@ class AFTSurvivalRegressionOperation(RegressionOperation):
                                      named_outputs)
         self.parameters = parameters
         self.name = 'regression.AFTSurvivalRegression'
-        self.has_code = len(named_outputs) > 0
+        self.has_code = any([len(named_outputs) > 0, self.contains_results()])
 
         if self.has_code:
             self.max_iter = parameters.get(self.MAX_ITER_PARAM, 100)
@@ -1786,7 +1797,8 @@ class RandomForestRegressorOperation(RegressionOperation):
                                      named_outputs)
         self.parameters = parameters
         self.name = 'regression.RandomForestRegressor'
-        self.has_code = len(self.named_outputs) > 0
+        self.has_code = any(
+            [len(self.named_outputs) > 0, self.contains_results()])
 
         if self.has_code:
             self.max_depth = parameters.get(self.MAX_DEPTH_PARAM, 5) or 5
@@ -1827,7 +1839,8 @@ class IsotonicRegressionOperation(RegressionOperation):
                                      named_outputs)
         self.parameters = parameters
         self.name = 'regression.IsotonicRegression'
-        self.has_code = len(self.named_outputs) > 0
+        self.has_code = any(
+            [len(self.named_outputs) > 0, self.contains_results()])
 
         if self.has_code:
             self.weight_col = parameters.get(self.WEIGHT_COL_PARAM, None)
@@ -1890,7 +1903,7 @@ class SaveModelOperation(Operation):
                 _('Invalid value for parameter {param}: {value}').format(
                     param=self.SAVE_CRITERIA_PARAM, value=self.criteria))
 
-        self.has_code = len(named_inputs) > 0
+        self.has_code = any([len(named_inputs) > 0, self.contains_results()])
 
     def generate_code(self):
         limonero_config = self.parameters.get('configuration') \
@@ -1993,7 +2006,7 @@ class LoadModelOperation(Operation):
             msg = 'Missing parameter model'
             raise ValueError(msg)
 
-        self.has_code = len(named_outputs) > 0
+        self.has_code = any([len(named_outputs) > 0, self.contains_results()])
         self.output_model = named_outputs.get(
             'model', 'model_{}'.format(self.order))
 

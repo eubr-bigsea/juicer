@@ -266,7 +266,7 @@ class PrivacyPreservingDecorator(object):
 
     def suppression(self, group):
         return dedent("""
-            # PRIVAaS Privacy policy: attribute suppression
+            # PRIVAaaS Privacy policy: attribute suppression
             {out} = {out}.drop(*{cols})""".format(
             out=self.output, cols=json.dumps([g['name'] for g in group])))
 
