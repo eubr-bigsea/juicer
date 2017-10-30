@@ -1,8 +1,10 @@
 # coding=utf-8
 import decimal
 import json
+import re
 
 import datetime
+from pyspark.sql.utils import AnalysisException, IllegalArgumentException
 
 
 class CustomEncoder(json.JSONEncoder):
@@ -94,17 +96,18 @@ def format_row_for_bar_chart_visualization(row):
 
 def emit_schema(task_id, df, emit_event, name):
     from juicer.spark.reports import SimpleTableReport
-    headers = ['Attribute', 'Type']
-    rows = [[f.name, str(f.dataType)] for f in df.schema.fields]
+    headers = [_('Attribute'), _('Type'), _('Metadata')]
+    rows = [[f.name, str(f.dataType), json.dumps(f.metadata) if f else ''] for f
+            in df.schema.fields]
     content = SimpleTableReport(
         'table table-striped table-bordered', headers, rows,
-        'Schema for {}'.format(name),
+        _('Schema for {}').format(name),
         numbered=True)
 
     emit_event('update task', status='COMPLETED',
                identifier=task_id,
                message=content.generate(),
-               type='HTML', title='Schema for {}'.format(name),
+               type='HTML', title=_('Schema for {}').format(name),
                task=task_id)
 
 
@@ -116,13 +119,13 @@ def emit_sample(task_id, df, emit_event, name, size=50):
 
     content = SimpleTableReport(
         'table table-striped table-bordered', headers, rows,
-        'Sample data for {}'.format(name),
+        _('Sample data for {}').format(name),
         numbered=True)
 
     emit_event('update task', status='COMPLETED',
                identifier=task_id,
                message=content.generate(),
-               type='HTML', title='Sample data for {}'.format(name),
+               type='HTML', title=_('Sample data for {}').format(name),
                task=task_id)
 
 
@@ -204,3 +207,52 @@ class SparkObjectProxy(object):
                     return method_to_call
 
         return wrapper if callable(member_to_call) else member_to_call
+
+
+def spark_version(spark_session):
+    return tuple(map(int, spark_session.version.split('.')))
+
+
+def merge_dicts(x, y):
+    """Given two dicts, merge them into a new dict as a shallow copy."""
+    z = x.copy()
+    z.update(y)
+    return z
+
+
+def handle_spark_exception(e):
+    result = False
+    if isinstance(e, AnalysisException):
+        value_expr = re.compile(r'(`.+`).+\[(.+)\]')
+        found = value_expr.findall(e.desc)
+        if found:
+            field, fields = found[0]
+            raise ValueError(
+                _('Attribute {} not found. Valid attributes: {}').format(
+                    field, fields))
+    elif isinstance(e, IllegalArgumentException):
+        # Invalid column type
+        if 'must be of type equal' in e.desc:
+            value_expr = re.compile(
+                "requirement failed: Column (.+?) must be"
+                ".+following types: \[(.+?)\] but was actually of type (.+).")
+            found = value_expr.findall(e.desc)
+            if found:
+                attr, correct, used = found[0]
+                raise ValueError(_('Attribute {attr} must be one of these types'
+                                   ' [{correct}], but it is {used}').format(
+                    attr=attr, used=used, correct=correct
+                ))
+    elif hasattr(e, 'java_exception'):
+        cause = e.java_exception.getCause()
+        if cause is not None:
+            nfe = 'java.lang.NumberFormatException'
+            if cause.getClass().getName() == nfe and cause.getMessage():
+                value_expr = re.compile(r'.+"(.+)"')
+                value = value_expr.findall(cause.getMessage())[0]
+                raise ValueError(_('Invalid numeric data in at least one '
+                                   'data source (attribute: {})').format(value))
+            elif cause.getMessage() == u'Malformed CSV record':
+                raise ValueError('At least one input data source is not in '
+                                 'the correct format')
+    return result

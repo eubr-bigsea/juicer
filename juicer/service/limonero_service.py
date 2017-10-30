@@ -18,7 +18,6 @@ def remove_initial_final_path_separator(path):
 
 def query_limonero(base_url, item_path, token, item_id):
     headers = {'X-Auth-Token': token}
-
     base_url = remove_initial_final_path_separator(base_url)
     item_path = remove_initial_final_path_separator(item_path)
     item_id = remove_initial_final_path_separator(str(item_id))
@@ -38,8 +37,8 @@ def query_limonero(base_url, item_path, token, item_id):
                   r.status_code, r.text)
         raise RuntimeError(_(
             u"Error loading {} id {}: HTTP {} - {}").format(item_path, item_id,
-                                                           r.status_code,
-                                                           r.text))
+                                                            r.status_code,
+                                                            r.text))
 
 
 def get_storage_info(base_url, token, storage_id):
@@ -47,7 +46,7 @@ def get_storage_info(base_url, token, storage_id):
 
 
 def get_data_source_info(base_url, token, data_source_id):
-    return query_limonero(base_url, '', token, data_source_id)
+    return query_limonero(base_url, 'datasources', token, data_source_id)
 
 
 def register_model(base_url, payload, token):
@@ -63,6 +62,25 @@ def register_model(base_url, payload, token):
     if r.status_code == 200:
         return json.loads(r.text)
     else:
-        log.error('Error saving model in Limonero URL: %s (%s: %s)', url,
+        log.error(_('Error saving model in Limonero URL: %s (%s: %s)'), url,
                   r.status_code, r.text)
-        raise RuntimeError(u"Error saving model: {}".format(r.text))
+        raise RuntimeError(_("Error saving model: {})").format(r.text))
+
+
+def register_datasource(base_url, payload, token, mode=''):
+    url = "{url}/datasources?mode={mode}".format(
+        url=remove_initial_final_path_separator(base_url), mode=mode)
+
+    headers = {
+        'x-auth-token': token,
+        'content-type': "application/json",
+        'cache-control': "no-cache"
+    }
+    r = requests.request("POST", url, data=json.dumps(payload), headers=headers)
+
+    if r.status_code == 200:
+        return json.loads(r.text)
+    else:
+        log.error(_('Error saving data source in Limonero URL: %s (%s: %s)'),
+                  url, r.status_code, r.text)
+        raise RuntimeError(_("Error saving datasource: {})").format(r.text))

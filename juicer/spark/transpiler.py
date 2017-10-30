@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
-import json
 import sys
-import zipfile
 
 import jinja2
 import juicer.spark.data_operation
@@ -42,13 +40,18 @@ class SparkTranspilerVisitor:
     def __init__(self):
         pass
 
-    def visit(self, workflow, operations, params):
+    def visit(self, workflow, sorted_tasks, operations, params):
         raise NotImplementedError()
 
 
+class ValidateAttributeReferencesVisitor(SparkTranspilerVisitor):
+    def visit(self, workflow, sorted_tasks, operations, params):
+        pass
+
+
 class RemoveTasksWhenMultiplexingVisitor(SparkTranspilerVisitor):
-    def visit(self, graph, operations, params):
-        return graph
+    def visit(self, workflow, sorted_tasks, operations, params):
+        return None
         # external_input_op = juicer.spark.ws_operation.MultiplexerOperation
         # for task_id in graph.node:
         #     task = graph.node[task_id]
@@ -77,7 +80,6 @@ class SparkTranspiler(object):
     Convert Lemonada workflow representation (JSON) into code to be run in
     Apache Spark.
     """
-    DIST_ZIP_FILE = '/tmp/lemonade-lib-python.zip'
     VISITORS = [RemoveTasksWhenMultiplexingVisitor]
 
     def __init__(self, configuration):
@@ -86,68 +88,14 @@ class SparkTranspiler(object):
         self.current_task_id = None
         self.configuration = configuration
 
-    """
-    def pre_transpile(self, workflow, graph, out=None, params=None):
-        self.graph = graph
-        self.params = params if params is not None else {}
-
-        self.using_stdout = out is None
-        if self.using_stdout:
-            self.out = sys.stdout
-        else:
-            self.out = out
-
-        self.workflow_json = json.dumps(workflow)
-        self.workflow_name = workflow['name']
-        self.workflow_id = workflow['id']
-        self.workflow_user = workflow.get('user', {})
-
-        self.requires_info = {}
-
-        # dependency = sort_topologically(graph)
-        # self.tasks = [all_tasks[item] for sublist in dependency for item in
-        #               sublist]
-
-        self.execute_main = False
+    def pre_transpile(self, workflow, graph, params=None):
+        params = params or {}
         for visitor in self.VISITORS:
-            self.workflow = visitor().visit(
-                self.graph, self.operations, params)
-    """
+            visitor().visit(workflow, nx.topological_sort(graph),
+                            self.operations, params)
 
-    def build_dist_file(self):
-        """
-        Build a Zip file containing files in dist packages. Such packages
-        contain code to be executed in the Spark cluster and should be
-        distributed among all nodes.
-        """
-        project_base = os.path.join(
-            os.path.abspath(os.path.dirname(__file__)), '..', '..')
-
-        lib_paths = [
-            # os.path.join(project_base, 'spark/dist'),
-            # os.path.join(project_base, 'dist')
-            os.path.join(project_base, 'juicer')
-        ]
-        build = not os.path.exists(self.DIST_ZIP_FILE)
-        if not build:
-            for lib_path in lib_paths:
-                dist_files = os.listdir(lib_path)
-                zip_mtime = os.path.getmtime(self.DIST_ZIP_FILE)
-                for f in dist_files:
-                    if zip_mtime < os.path.getmtime(
-                            os.path.join(lib_path, f)):
-                        build = True
-                        break
-                if build:
-                    break
-
-        if build:
-            zf = zipfile.PyZipFile(self.DIST_ZIP_FILE, mode='w')
-            for lib_path in lib_paths:
-                zf.writepy(lib_path)
-            zf.close()
-
-    def _gen_port_name(self, flow, seq):
+    @staticmethod
+    def _gen_port_name(flow, seq):
         name = flow.get('source_port_name', 'data')
         parts = name.split()
         if len(parts) == 1:
@@ -254,7 +202,7 @@ class SparkTranspiler(object):
 
             parameters['task'] = task
             parameters['configuration'] = self.configuration
-            parameters['workflow_json'] = json.dumps(workflow)
+            parameters['workflow'] = workflow
             parameters['user'] = workflow['user']
             parameters['workflow_id'] = workflow['id']
             parameters['workflow_name'] = workflow['name']
@@ -262,6 +210,10 @@ class SparkTranspiler(object):
             parameters['task_id'] = task['id']
             parameters['operation_slug'] = task['operation']['slug']
             parameters['job_id'] = job_id
+            parameters['display_sample'] = parameters['task']['forms'].get(
+                'display_sample', {}).get('value') in (1, '1', True, 'true')
+            parameters['display_schema'] = parameters['task']['forms'].get(
+                'display_schema', {}).get('value') in (1, '1', True, 'true')
             port = ports.get(task['id'], {})
 
             instance = class_name(parameters, port.get('named_inputs', {}),
@@ -309,6 +261,7 @@ class SparkTranspiler(object):
             'distinct': juicer.spark.etl_operation.RemoveDuplicatedOperation,
             'drop': juicer.spark.etl_operation.DropOperation,
             'execute-python': juicer.spark.etl_operation.ExecutePythonOperation,
+            'execute-sql': juicer.spark.etl_operation.ExecuteSQLOperation,
             'filter': juicer.spark.etl_operation.FilterOperation,
             # Alias for filter
             'filter-selection': juicer.spark.etl_operation.FilterOperation,
@@ -333,7 +286,11 @@ class SparkTranspiler(object):
         }
         dm_ops = {
             'frequent-item-set':
-                juicer.spark.dm_operation.FrequentItemSetOperation
+                juicer.spark.dm_operation.FrequentItemSetOperation,
+            'association-rules':
+                juicer.spark.dm_operation.AssociationRulesOperation,
+            'sequence-mining':
+                juicer.spark.dm_operation.SequenceMiningOperation,
         }
         ml_ops = {
             'apply-model': juicer.spark.ml_operation.ApplyModelOperation,
@@ -399,7 +356,7 @@ class SparkTranspiler(object):
         data_ops = {
             'change-attribute':
                 juicer.spark.data_operation.ChangeAttributeOperation,
-            'data-reader': juicer.spark.data_operation.DataReader,
+            'data-reader': juicer.spark.data_operation.DataReaderOperation,
             'data-writer': juicer.spark.data_operation.SaveOperation,
             'external-input':
                 juicer.spark.data_operation.ExternalInputOperation,

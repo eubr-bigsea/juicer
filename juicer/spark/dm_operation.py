@@ -11,7 +11,7 @@ class FrequentItemSetOperation(Operation):
     """
     MIN_SUPPORT_PARAM = 'min_support'
     ATTRIBUTE_PARAM = 'attribute'
-    CONFIDENCE_PARAM = 'confidence'
+    CONFIDENCE_PARAM = 'min_confidence'
 
     def __init__(self, parameters, named_inputs,
                  named_outputs):
@@ -20,11 +20,12 @@ class FrequentItemSetOperation(Operation):
         if self.MIN_SUPPORT_PARAM not in parameters:
             raise ValueError(_(
                 'Support must be informed for classifier {}').format(
-                    self.__class__))
+                self.__class__))
 
         self.min_support = float(parameters.get(self.MIN_SUPPORT_PARAM))
-        if self.min_support < .1:
-            raise ValueError('Support must be greater or equal to 0.1')
+        if self.min_support < .0001 or self.min_support > 1.0:
+            raise ValueError('Support must be greater or equal '
+                             'to 0.0001 and smaller than 1.0')
 
         self.output = self.named_outputs.get(
             'output data', 'freq_items_{}'.format(self.order))
@@ -49,94 +50,41 @@ class FrequentItemSetOperation(Operation):
         return self.get_output_names(sep)
 
     def generate_code(self):
-        code = """
-            from pyspark.ml.fpm import FPGrowth
-            from pyspark.sql.types import StructType, StructField, \\
-                StringType, FloatType, ArrayType
+        code = u"""
+            try:
+                from pyspark.ml.fpm import FPGrowth
+                algorithm = FPGrowth(itemsCol="{attr}",
+                    minSupport={support}, minConfidence={confidence})
 
-            algorithm = FPGrowth(itemsCol="{attr}",
-                minSupport={support}, minConfidence=0.6) # FIXME
-            model = algorithm.fit({input})
+                # Evaluate if using cache is a good idea
+                {input}.cache()
+                size = float({input}.count())
+                model = algorithm.fit({input})
 
-            emit_event(name='update task', message='{model_trained}',
-                       status='RUNNING', identifier='{task_id}')
-            {output} = model.freqItemsets
-            {rules} = model.associationRules
-
+                emit_event(name='update task', message='{model_trained}',
+                           status='RUNNING', identifier='{task_id}')
+                {output} = model.freqItemsets.withColumn('relative_support',
+                    functions.col('freq') / size)
+                {rules} = model.associationRules
+            except Exception as e:
+                sparkException = 'org.apache.spark.SparkException'
+                if hasattr(e, 'java_exception') and \
+                        e.java_exception.getClass().getName() == sparkException:
+                    cause = e.java_exception.getCause()
+                    not_unique = 'Items in a transaction must be unique'
+                    if cause and cause.getMessage().find(not_unique) > -1:
+                        raise ValueError('{not_unique}')
+                    else:
+                        raise
+                else:
+                    raise
         """.format(input=self.named_inputs['input data'],
                    support=self.min_support,
                    output=self.output,
                    attr=self.attribute,
                    task_id=self.parameters['task']['id'],
                    rules=self.rules,
-                   confidence=self.confidence,
-                   model_trained=_('Model trained'))
-
-        return dedent(code)
-
-    def generate_code2(self):
-        # def lift(sup_X_u_Y, n, sup_X, sup_Y):
-        #     total = float(n)
-        #     return (sup_X_u_Y / total) / (sup_X / total * sup_Y / total)
-        # def leverage():
-        #     pass
-        # def conviction():
-        #     pass
-        code = """
-            from pyspark.mllib.fpm import FPGrowth
-            from pyspark.sql.types import StructType, StructField, \\
-                StringType, FloatType, ArrayType
-
-            # Current version of Spark supports FP-Growth only in RDD.
-            # Assume that data is a line with transaction items separated by
-            # space.
-            data = {input}.rdd
-            inx = reduce(
-                lambda x, y: max(x, y),
-                [inx for inx, attr in enumerate({input}.schema)
-                    if attr.name == '{attr}'], 0)
-
-            transactions = data.map(lambda line: line[inx])
-            model = FPGrowth.train(
-                transactions, minSupport={support}, numPartitions=10)
-
-            emit_event(name='update task', message='{model_trained}',
-                       status='RUNNING', identifier='{task_id}')
-
-            items = model.freqItemsets()
-
-            rules_schema = StructType(
-                 [
-                    StructField("antecedent", StringType()),
-                    StructField("consequent", StringType()),
-                    StructField("confidence", FloatType())
-                ])
-
-            gen_rules = []
-            if items.isEmpty():
-                schema = StructType(
-                    [StructField("freq_item_sets", StringType()),
-                    StructField("support", FloatType())])
-                {output} = spark_session.createDataFrame([], schema)
-            else:
-                {output} = items.toDF(['freq_item_sets'])
-                #{output} = {output}.withColumn(
-                #    'support', {output}['freq'] / count)
-                # noinspection PyProtectedMember
-                rules = model._java_model.generateAssociationRules({confidence})
-                for rule in list(rules):
-                    gen_rules.append([
-                        list(rule.antecedent()),
-                        list(rule.consequent()),
-                        list(rule.confidence())
-                    ])
-            {rules} = spark_session.createDataFrame(gen_rules, rules_schema)
-        """.format(input=self.named_inputs['input data'],
-                   support=self.min_support,
-                   output=self.output,
-                   attr=self.attribute,
-                   task_id=self.parameters['task']['id'],
-                   rules=self.rules,
+                   not_unique=_('Items in a transaction must be unique'),
                    confidence=self.confidence,
                    model_trained=_('Model trained'))
 
@@ -151,6 +99,7 @@ class AssociationRulesOperation(Operation):
     CONFIDENCE_PARAM = 'confidence'
     RULES_COUNT_PARAM = 'rules_count'
     ATTRIBUTE_PARAM = 'attribute'
+    FREQ_PARAM = 'freq'
 
     def __init__(self, parameters, named_inputs,
                  named_outputs):
@@ -160,56 +109,39 @@ class AssociationRulesOperation(Operation):
         if self.has_code:
             self.confidence = float(parameters.get(self.CONFIDENCE_PARAM, 0.9))
             self.rules_count = parameters.get(self.RULES_COUNT_PARAM, 200)
-            self.attribute = parameters.get(self.ATTRIBUTE_PARAM)
+            self.attribute = parameters.get(self.ATTRIBUTE_PARAM, ['items'])
+            self.freq = parameters.get(self.FREQ_PARAM, ['freq'])
 
     def get_output_names(self, sep=", "):
         return self.output
 
     def generate_code(self):
-        code = """
-            from pyspark.mllib.fpm import FPGrowth
-            from pyspark.sql.types import StructType, StructField, StringType
-            # Current version of Spark (2.1) supports FP-Growth only in RDD.
-            # Assume that data is a line with transaction items separated by
-            # space.
-            # TODO: Use correct class
-            data = {input}.rdd
-            # data.cache()
-            #
-            # inx = reduce(
-            #     lambda a, b: max(a, b),
-            #     [inx for inx, x in enumerate({input}.schema)
-            #         if x.name == '{attr}'], 0)
-            #
-            # transactions = data.map(lambda line:
-            #     [int(v) for v in line[inx].strip().split(' ')])
-            model = FPGrowth.train(
-                data, minSupport={support}, numPartitions=10)
+        code = u"""
+            from pyspark.sql import DataFrame
+            try:
+                ext_pkg = spark_session._jvm.br.ufmg.dcc.lemonade.ext.fpm
+                associative_impl = ext_pkg.LemonadeAssociativeRules()
+            except TypeError as te:
+                if 'JavaPackage' in te.message:
+                    raise ValueError('{required_pkg}')
+                else:
+                    raise
+            items = {input}
+            java_df = associative_impl.run(spark_session._jsparkSession,
+                items._jdf, {confidence}, '{attr}', '{freq}')
 
-            # Experimental code!
-            rules = sorted(
-               model._java_model.generateAssociationRules(0.9).collect(),
-               key=lambda x: x.confidence(), reverse=True)
-            for rule in rules[:{rules_count}]:
-               print rule
-
-            emit_event(name='update task', message='{model_trained}',
-                       status=_('RUNNING'), identifier='{task_id}')
-
-            items = model.freqItemsets()
-            if items.isEmpty():
-                schema = StructType(
-                    [StructField("freq_item_sets", StringType(), True), ])
-                {output} = spark_session.createDataFrame([], schema)
-            else:
-                {output} = items.toDF(['freq_item_sets'])
+            {output} = DataFrame(java_df, spark_session)
         """.format(input=self.named_inputs['input data'],
                    confidence=self.confidence,
                    output=self.output,
                    rules_count=self.rules_count,
                    attr=self.attribute[0],
+                   freq=self.freq[0],
                    task_id=self.parameters['task']['id'],
-                   model_trained=_('Model trained'))
+                   model_trained=_('Model trained'),
+                   required_pkg=_('Required Lemonade Spark Extensions '
+                                  'not found in CLASSPATH.')
+                   )
 
         return dedent(code)
 
@@ -221,6 +153,7 @@ class SequenceMiningOperation(Operation):
     MIN_SUPPORT_PARAM = 'min_support'
     MAX_PATTERN_LENGTH_PARAM = 'max_pattern_length'
     ATTRIBUTE_PARAM = 'attribute'
+    FREQ_PARAM = 'freq'
 
     def __init__(self, parameters, named_inputs,
                  named_outputs):
@@ -230,51 +163,38 @@ class SequenceMiningOperation(Operation):
         if self.has_code:
             self.min_support = float(
                 parameters.get(self.MIN_SUPPORT_PARAM, 0.1))
-            self.rules_count = parameters.get(self.MAX_PATTERN_LENGTH_PARAM, 10)
-            self.attribute = parameters.get(self.ATTRIBUTE_PARAM)
+            self.max_length = parameters.get(self.MAX_PATTERN_LENGTH_PARAM, 10)
+            self.attribute = parameters.get(self.ATTRIBUTE_PARAM, ['items'])
+            self.freq = parameters.get(self.FREQ_PARAM, ['freq'])
 
     def get_output_names(self, sep=", "):
         return self.output
 
     def generate_code(self):
-        code = """
-            from pyspark.mllib.fpm import PrefixSpan
-            from pyspark.sql.types import StructType, StructField, StringType
-            # Current version of Spark (2.1) supports only RDD.
+        code = dedent(u"""
+            from pyspark.sql import DataFrame
+            try:
+                ext_pkg = spark_session._jvm.br.ufmg.dcc.lemonade.ext.fpm
+                prefix_span_impl = ext_pkg.LemonadePrefixSpan()
+            except TypeError as te:
+                if 'JavaPackage' in te.message:
+                    raise ValueError('{required_pkg}')
+                else:
+                    raise
+            sequences = {input}
+            java_df = prefix_span_impl.run(spark_session._jsparkSession,
+                sequences._jdf, {min_support}, {max_length}, '{attr}',
+                '{freq}')
 
-            data = {input}.rdd
-            data.cache()
+            {output} = DataFrame(java_df, spark_session)
 
-            inx = reduce(
-                lambda a, b: max(a, b),
-                [inx for inx, x in enumerate({input}.schema)
-                    if x.name == '{attr}'], 0)
-
-            transactions = data.map(lambda line:
-                [int(v) for v in line[inx].strip().split(' ')])
-            model = FPGrowth.train(
-                transactions, minSupport={support}, numPartitions=10)
-
-            # Experimental code!
-            rules = sorted(
-               model._java_model.generateAssociationRules(0.9).collect(),
-               key=lambda x: x.confidence(), reverse=True)
-            for rule in rules[:{rules_count}]:
-               print rule
-
-            emit_event(name='update task', message=_('Model trained'),
-                       status=_('RUNNING'), identifier='{task_id}')
-
-            items = model.freqItemsets()
-            if items.isEmpty():
-                schema = StructType(
-                    [StructField("freq_item_sets", StringType(), True), ])
-                {output} = spark_session.createDataFrame([], schema)
-            else:
-                {output} = items.toDF(['freq_item_sets'])
         """.format(input=self.named_inputs['input data'],
-                   confidence=self.min_support,
+                   min_support=self.min_support,
+                   max_length=self.max_length,
                    output=self.output,
-                   rules_count=self.rules_count,
                    attr=self.attribute[0],
-                   task_id=self.parameters['task']['id'])
+                   freq=self.freq[0],
+                   required_pkg=_('Required Lemonade Spark Extensions '
+                                  'not found in CLASSPATH.')
+                   ))
+        return code

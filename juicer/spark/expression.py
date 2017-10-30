@@ -1,3 +1,6 @@
+import functools
+from textwrap import dedent
+
 from juicer.util import group
 
 
@@ -21,6 +24,9 @@ class Expression:
 
         # Expression parsing
         elif tree['type'] == 'CallExpression':
+            if tree['callee']['name'] not in self.functions:
+                raise ValueError(_('Function {f}() does not exists.').format(
+                    f=tree['callee']['name']))
             result = self.functions[tree['callee']['name']](tree, params)
 
         # Identifier parsing
@@ -75,6 +81,24 @@ class Expression:
             value=', '.join(arguments[:-2]), bin=bins_size,
             start_or_end=field_name)
         return result
+
+    def get_set_function(self, spec, params, data_type):
+        """
+        Removes duplicates from a list or vector column using set collection in
+        Python.
+        """
+        # Evaluates if column name is wrapped in a col() function call
+        arguments = [self.parse(x, params) for x in spec['arguments']]
+
+        if len(arguments) != 1:
+            raise ValueError(_('Function set() expects exactly 1 argument.'))
+
+        get_set_function = dedent("""
+            functions.udf(lambda values: [v for v in set(values) if v != ''],
+                        types.ArrayType(types.{type}()))
+        """).format(type=data_type).strip()
+
+        return '{}({})'.format(get_set_function, arguments[0])
 
     def get_when_function(self, spec, params):
         """
@@ -216,6 +240,12 @@ class Expression:
         # should not use 'get_function_call' for code generation in this case.
         custom_functions = {
             'group_datetime': self.get_window_function,
+            'set_of_ints': functools.partial(self.get_set_function,
+                                             data_type='IntegerType'),
+            'set_of_strings': functools.partial(self.get_set_function,
+                                                data_type='StringType'),
+            'set_of_floats': functools.partial(self.get_set_function,
+                                               data_type='FloatType'),
             'strip_accents': self.get_strip_accents_function,
             'strip_punctuation': self.get_strip_punctuation_function,
             'when': self.get_when_function,

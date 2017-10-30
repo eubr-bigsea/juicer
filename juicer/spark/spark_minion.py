@@ -12,7 +12,10 @@ import time
 import traceback
 
 # noinspection PyUnresolvedReferences
-import datetime
+import zipfile
+import glob
+
+import itertools
 
 import codecs
 import os
@@ -45,10 +48,13 @@ class SparkMinion(Minion):
     # max idle time allowed in seconds until this minion self termination
     IDLENESS_TIMEOUT = 600
     TIMEOUT = 'timeout'
+    DIST_ZIP_FILE = '/tmp/lemonade-lib-python.zip'
 
-    def __init__(self, redis_conn, workflow_id, app_id, config, lang='en'):
+    def __init__(self, redis_conn, workflow_id, app_id, config, lang='en',
+                 jars=None):
         Minion.__init__(self, redis_conn, workflow_id, app_id, config)
 
+        self.jars = jars
         self.terminate_proc_queue = multiprocessing.Queue()
         self.execute_process = None
         self.ping_process = None
@@ -84,8 +90,79 @@ class SparkMinion(Minion):
         # self termination timeout
         self.active_messages = 0
         self.self_terminate = True
+        # Errors and messages
+        self.MNN000 = ('MNN000', _('Success.'))
+        self.MNN001 = ('MNN001', _('Port output format not supported.'))
+        self.MNN002 = ('MNN002', _('Success getting data from task.'))
+        self.MNN003 = ('MNN003', _('State does not exists, processing app.'))
+        self.MNN004 = ('MNN004', _('Invalid port.'))
+        self.MNN005 = ('MNN005',
+                       _('Unable to retrieve data because a previous error.'))
+        self.MNN006 = ('MNN006',
+                       _('Invalid Python code or incorrect encoding: {}'))
+        self.MNN007 = ('MNN007', _('Job {} was canceled'))
+        self.MNN008 = ('MNN008', _('App {} was terminated'))
+        self.MNN009 = ('MNN009', _('Workflow specification is missing'))
 
+        # Used in the template file, declared here to gettext detect them
+        self.msgs = [
+            _('Task running'), _('Task completed'),
+            _('Task ignored (not used by other task or as an output)')
+        ]
         self.current_lang = lang
+        # self._build_dist_file()
+
+    def _build_dist_file(self):
+        """
+        Build a Zip file containing files in dist packages. Such packages
+        contain code to be executed in the Spark cluster and should be
+        distributed among all nodes.
+        """
+        project_base = os.path.abspath(os.path.join(os.path.dirname(__file__),
+                                       '..', '..'))
+
+        lib_paths = [
+            project_base,
+            os.path.join(project_base, 'juicer'),
+            os.path.join(project_base, 'juicer', 'include'),
+            os.path.join(project_base, 'juicer', 'privaaas'),
+            os.path.join(project_base, 'juicer', 'runner'),
+            os.path.join(project_base, 'juicer', 'service'),
+            os.path.join(project_base, 'juicer', 'spark'),
+            os.path.join(project_base, 'juicer', 'util'),
+            os.path.join(project_base, 'juicer', 'workflow'),
+            os.path.join(project_base, 'juicer', 'i18n/locales/pt/LC_MESSAGES'),
+            os.path.join(project_base, 'juicer', 'i18n/locales/en/LC_MESSAGES'),
+            os.path.join(project_base, 'juicer', 'i18n/locales/es/LC_MESSAGES'),
+        ]
+        valid_extensions = ['*.py', '*.ini', '*.mo']
+        build = not os.path.exists(self.DIST_ZIP_FILE)
+
+        def multiple_file_types(base_path, *patterns):
+            return list(itertools.chain.from_iterable(
+                glob.iglob(os.path.join(base_path, pattern)) for pattern in
+                patterns))
+
+        if not build:
+            for lib_path in lib_paths:
+                dist_files = multiple_file_types(lib_path, *valid_extensions)
+                zip_mtime = os.path.getmtime(self.DIST_ZIP_FILE)
+                for f in dist_files:
+                    if zip_mtime < os.path.getmtime(
+                            os.path.join(lib_path, f)):
+                        build = True
+                        break
+                if build:
+                    break
+
+        if build:
+            zf = zipfile.ZipFile(self.DIST_ZIP_FILE, mode='w')
+            zf.pwd = project_base
+            for lib_path in lib_paths:
+                dist_files = multiple_file_types(lib_path, *valid_extensions)
+                for f in dist_files:
+                    zf.write(f, arcname=os.path.relpath(f, project_base))
+            zf.close()
 
     def _emit_event(self, room, namespace):
         def emit_event(name, message, status, identifier, **kwargs):
@@ -145,11 +222,16 @@ class SparkMinion(Minion):
                                                block=True,
                                                timeout=self.IDLENESS_TIMEOUT)
 
-        if msg is None and self.active_messages == 0:
-            self._timeout_termination()
+        if msg is None:
+            if self.active_messages == 0:
+                self._timeout_termination()
             return
 
-        msg_info = json.loads(msg)
+        try:
+            msg_info = json.loads(msg)
+        except TypeError as te:
+            log.exception(_('Invalid message JSON: {}').format(msg))
+            return
 
         # Sanity check: this minion should not process messages from another
         # workflow/app
@@ -303,7 +385,7 @@ class SparkMinion(Minion):
 
         except UnicodeEncodeError as ude:
             message = self.MNN006[1].format(ude)
-            log.warn(_(message))
+            log.exception(_(message))
             # Mark job as failed
             self._emit_event(room=job_id, namespace='/stand')(
                 name='update job', message=message,
@@ -312,12 +394,10 @@ class SparkMinion(Minion):
             result = False
 
         except ValueError as ve:
-            message = _('Invalid or missing parameters: {}').format(ve.message)
-            print('#' * 30)
-            import traceback
-            traceback.print_exc(file=sys.stdout)
-            print('#' * 30)
-            log.warn(message)
+            msg = ve.message
+            txt = msg.decode('utf8') if isinstance(msg, str) else msg
+            message = _('Invalid or missing parameters: {}').format(txt)
+            log.exception(message)
             if self.transpiler.current_task_id is not None:
                 self._emit_event(room=job_id, namespace='/stand')(
                     name='update task', message=message,
@@ -330,7 +410,7 @@ class SparkMinion(Minion):
 
         except SyntaxError as se:
             message = self.MNN006[1].format(se)
-            log.warn(message)
+            log.exception(message)
             self._emit_event(room=job_id, namespace='/stand')(
                 name='update job', message=message,
                 status='ERROR', identifier=job_id)
@@ -391,6 +471,9 @@ class SparkMinion(Minion):
                 app_configs['driver-library-path'] = \
                     '{}/lib/native/'.format(os.environ.get('HADOOP_HOME'))
 
+            # Default options from configuration file
+            app_configs.update(self.config['juicer'].get('spark', {}))
+
             # Juicer listeners configuration.
             listeners = self.config['juicer'].get('listeners', [])
 
@@ -407,9 +490,20 @@ class SparkMinion(Minion):
                         listener.get('params', {}).get('log_path',
                                                        '/tmp/juicer-spark-logs')
 
-            app_configs['spark.extraListeners'] = ','.join(classes)
-            app_configs['spark.driver.extraClassPath'] = ':'.join(all_jars)
+            if self.jars:
+                all_jars.extend(self.jars.split(os.path.pathsep))
 
+            app_configs['spark.extraListeners'] = ','.join(classes)
+
+            # Must use CLASSPATH from config file also!
+            if 'spark.driver.extraClassPath' in app_configs:
+                all_jars.append(app_configs['spark.driver.extraClassPath'])
+
+            app_configs['spark.driver.extraClassPath'] = os.path.pathsep.join(
+                all_jars)
+
+            log.info('JAVA CLASSPATH: %s',
+                     app_configs['spark.driver.extraClassPath'])
             # All options passed by application are sent to Spark
             for option, value in app_configs.items():
                 spark_builder = spark_builder.config(option, value)
@@ -419,13 +513,12 @@ class SparkMinion(Minion):
             try:
                 log_level = logging.getLevelName(log.getEffectiveLevel())
                 self.spark_session.sparkContext.setLogLevel(log_level)
-            except Exception as e:
+            except Exception:
                 log_level = 'WARN'
                 self.spark_session.sparkContext.setLogLevel(log_level)
 
-                # self.transpiler.build_dist_file()
-                # self.spark_session.sparkContext.addPyFile(
-                #    self.transpiler.DIST_ZIP_FILE)
+            self._build_dist_file()
+            self.spark_session.sparkContext.addPyFile(self.DIST_ZIP_FILE)
 
         log.info(_("Minion is using '%s' as Spark master"),
                  self.spark_session.sparkContext.master)
