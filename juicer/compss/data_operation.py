@@ -3,7 +3,7 @@
 import ast
 import pprint
 from textwrap import dedent
-
+from itertools import izip_longest
 
 from juicer.operation import Operation
 
@@ -11,47 +11,167 @@ from juicer.operation import Operation
 
 class DataReaderOperation(Operation):
 
+    """
+    Reads a CSV file using HDFS.
+
+    REVIEW: 2017-10-05
+    OK
+    """
 
     HEADER_PARAM = 'header'
-    SCHEMA = 'infer_schema' # FROM_VALUES, FROM_LIMONEIRO, NO
+    SCHEMA = 'infer_schema' # FROM_VALUES, FROM_LIMONEIRO or NO
     NULL_VALUES_PARAM = 'null_values'
     SEPARATOR = 'separator'
-
+    MODE_PARAM = 'mode'
+    FILE = 'data_source'
 
     def __init__(self, parameters, named_inputs,  named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
-        self.name_file = parameters['data_source']
+
+        if self.FILE not in parameters:
+            raise ValueError(
+                _("Parameter '{}' must be informed for task {}")
+                    .format(self.FILE, self.__class__))
+
+        self.name_file = "/"+parameters[self.FILE]
         self.separator = parameters.get(self.SEPARATOR, ',')
         self.header = parameters.get(self.HEADER_PARAM, False) in (1, '1', True)
         self.schema = parameters.get(self.SCHEMA, "FROM_VALUES")
-
-
-        self.null_values = [v.strip() for v in parameters.get(self.NULL_VALUES_PARAM, '').split(",")]
+        self.mode   = parameters.get(self.MODE_PARAM, 'FAILFAST')
+        null_values = parameters.get(self.NULL_VALUES_PARAM, '')
+        if null_values == '':
+            self.null_values = []
+        else:
+            self.null_values = list(set(v.strip() for v in null_values.split(",")))
 
         self.has_code = len(named_outputs)>0
-        if self.has_code:
-            self.has_import = "from functions.data.ReadData import ReadParallelFile\n"
-
-
+        self.has_import = \
+                "from functions.data.ReadData import ReadCSVFromHDFSOperation\n"
 
     def generate_code(self):
 
+        if len(self.null_values)>0:
+            null = "settings['na_values'] = {null_values}"\
+                    .format(null_values = self.null_values)
+        else:
+            null = ""
+
         code =  """
-                    numFrag  = 4
-                    {output} = ReadParallelFile('{input}','{separator}', {header},'{schema}',{null_values})
+                    settings = dict()
+
+                    settings['port'] = 0
+                    settings['host'] = 'default'
+                    settings['path'] = '{input}'
+
+                    settings['header'] = {header}
+                    settings['separator'] = '{separator}'
+                    settings['infer'] = '{schema}'
+                    settings['mode'] = '{mode}'
+                    {null}
+
+                    {output} = ReadCSVFromHDFSOperation(settings, numFrag)
+
                 """.format(output   = self.output,
                            input    = self.name_file,
                            separator= self.separator,
                            header   = self.header,
+                           mode     = self.mode,
                            schema   = self.schema,
-                           null_values = self.null_values)
+                           null = null)
         return dedent(code)
+
+class SaveHDFSOperation(Operation):
+    """
+    Saves the content of the DataFrame at the specified path (in HDFS)
+
+    REVIEW: 2017-10-05
+    OK
+    """
+    NAME_PARAM = 'name'
+    PATH_PARAM = 'path'
+    STORAGE_ID_PARAM = 'storage'
+    FORMAT_PARAM = 'format'
+    TAGS_PARAM = 'tags'
+    OVERWRITE_MODE_PARAM = 'mode'
+    HEADER_PARAM = 'header'
+
+    MODE_ERROR = 'error'
+    #MODE_APPEND = 'append'
+    MODE_OVERWRITE = 'overwrite'
+    MODE_IGNORE = 'ignore'
+
+    FORMAT_PICKLE = 'PICKLE'
+    FORMAT_CSV = 'CSV'
+    FORMAT_JSON = 'JSON'
+
+
+    def __init__(self, parameters,  named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+
+        for att in [self.NAME_PARAM, self.FORMAT_PARAM, self.PATH_PARAM]:
+           if att not in parameters:
+               raise ValueError(
+                   _("Parameter '{}' must be informed for task {}")
+                       .format(att, self.__class__))
+
+
+        self.name   = parameters.get(self.NAME_PARAM)
+        self.format = parameters.get(self.FORMAT_PARAM,self.FORMAT_CSV)
+        self.path   = parameters.get(self.PATH_PARAM,'.')
+        self.mode   = parameters.get(self.OVERWRITE_MODE_PARAM,
+                                     self.MODE_ERROR)
+        self.header = parameters.get(self.HEADER_PARAM, False) in \
+                      (1, '1', True)
+
+        self.has_code = len(named_inputs) == 1
+        if self.has_code:
+            self.has_import = \
+                "from functions.data.SaveData import SaveHDFSOperation\n"
+
+        self.output = self.named_outputs.get('output data',
+                                             'output_data_{}'.format(self.order))
+
+        if len(self.path)>0:
+            self.filename= '/'+self.name
+        else:
+            self.filename= '/'+self.path+'/'+self.name
+
+        self.has_code = len(self.named_inputs) == 1
+
+    def get_data_out_names(self, sep=','):
+        return ''
+
+    def get_output_names(self, sep=", "):
+        return self.output
+
+    def generate_code(self):
+
+        code_save = """
+            settings = dict()
+            settings['filename'] = '{output}'
+            settings['mode']     = '{mode}'
+            settings['header']   = {header}
+            settings['format']   = '{format}'
+            SaveHDFSOperation({input}, settings)
+            {tmp} = None
+            """.format( tmp = self.output,
+                        output = self.filename,
+                        input  = self.named_inputs['input data'],
+                        mode   = self.mode,
+                        header = self.header,
+                        format = self.format )
+
+        return dedent(code_save)
+
+
 
 
 class SaveOperation(Operation):
     """
-    Saves the content of the DataFrame at the specified path
+    Saves the content of the DataFrame at the specified path (without HDFS)
 
+    REVIEW: 2017-10-05
+    OK
     """
     NAME_PARAM = 'name'
     PATH_PARAM = 'path'
@@ -74,23 +194,28 @@ class SaveOperation(Operation):
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
         self.has_code = len(named_inputs) == 1
-        if self.has_code:
 
-            self.name   = parameters.get(self.NAME_PARAM)
-            self.format = parameters.get(self.FORMAT_PARAM,'CSV')
-            self.path   = parameters.get(self.PATH_PARAM)
-            self.mode   = parameters.get(self.OVERWRITE_MODE_PARAM, self.MODE_ERROR)
-            self.header = parameters.get(self.HEADER_PARAM, False) in (1, '1', True)
-            self.has_import = "from functions.data.SaveData import SaveOperation\n"
+        self.name   = parameters.get(self.NAME_PARAM)
+        self.format = parameters.get(self.FORMAT_PARAM,'CSV')
+        self.path   = parameters.get(self.PATH_PARAM)
+        self.mode   = parameters.get(self.OVERWRITE_MODE_PARAM,
+                                     self.MODE_ERROR)
+        self.header = parameters.get(self.HEADER_PARAM, False) in \
+                                        (1, '1', True)
 
-            self.output_tmp = "{}_tmp".format(self.named_inputs['input data'])
 
-            if self.path == None:
-                self.filename= self.name
-            elif len(self.path)>0:
-                self.filename= self.path+"/"+self.name
-            else:
-                self.filename= self.name
+        self.has_import = \
+            "from functions.data.SaveData import SaveOperation\n"
+
+        self.output = self.named_outputs.get('output data',
+                                             'output_data_{}'.format(self.order))
+
+        if self.path == None:
+            self.filename= self.name
+        elif len(self.path)>0:
+            self.filename= self.path+"/"+self.name
+        else:
+            self.filename= self.name
 
 
 
@@ -100,31 +225,27 @@ class SaveOperation(Operation):
         return ''
 
     def get_output_names(self, sep=", "):
-        return self.output_tmp
+        return self.output
 
     def generate_code(self):
 
         code_save = ''
         if self.format == self.FORMAT_CSV:
             code_save = """
-                        numFrag = 4
-                        settings = dict()
-                        settings['filename'] = '{output}'
-                        settings['mode']     = '{mode}'
-                        settings['header']   = {header}
-                        settings['format']   = '{format}'
-                        {tmp} = SaveOperation({input}, settings,numFrag)
-                        """.format( tmp     = self.output_tmp,
-                                    output  =self.filename,
-                                    input   =self.named_inputs['input data'],
-                                    mode    =self.mode,
-                                    header  =self.header,
-                                    format  =self.format )
+                settings = dict()
+                settings['filename'] = '{output}'
+                settings['mode']     = '{mode}'
+                settings['header']   = {header}
+                settings['format']   = '{format}'
+                {tmp} = SaveOperation({input}, settings,numFrag)
+                """.format( tmp     = self.output_tmp,
+                            output  =self.filename,
+                            input   =self.named_inputs['input data'],
+                            mode    =self.mode,
+                            header  =self.header,
+                            format  =self.format )
              # Need to generate an output, even though it is not used.
              #code_save += '\n{0}_tmp = {0}'.format(self.named_inputs['input data'])
-
-        elif self.format == self.FORMAT_PICKLE:
-             pass
 
 
         code = dedent(code_save)
@@ -137,55 +258,67 @@ class SaveOperation(Operation):
 class WorkloadBalancerOperation(Operation):
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
-        self.has_code = (len(self.named_inputs) == 1) and (len(self.named_outputs) == 1)
-
-        if self.has_code:
-            self.has_import = "from functions.data.Balancer import WorkloadBalancerOperation\n"
+        if (len(self.named_inputs) == 1) and (len(self.named_outputs) > 0):
+            self.has_code = True
+            self.has_import = "from functions.data.Balancer " \
+                              "import WorkloadBalancerOperation\n"
+        else:
+            raise ValueError(
+                _("Parameter '{}' and '{}' must be informed for task {}")
+                    .format('input','output', self.__class__))
 
     def generate_code(self):
-        if self.has_code:
-            code = """
-                        numFrag = 4
-                        {out} = WorkloadBalancerOperation({input},numFrag)
-                    """.format( out     = self.named_outputs['output data'],
-                                input   =self.named_inputs['input data'])
+        code = """
+        {out} = WorkloadBalancerOperation({input}, numFrag)
+        """.format( out   = self.named_outputs['output data'],
+                    input = self.named_inputs['input data'])
 
-            return dedent(code)
+        return dedent(code)
 
 
 class ChangeAttributesOperation(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs, named_outputs)
-        self.has_code = (len(named_inputs) == 1) and (len(named_outputs)>0)
+
 
         if 'attributes' not in self.parameters:
             self.has_code = False
-            msg = "Parameters '{}' must be informed for task {}"
-            raise ValueError(msg.format('attributes', self.__class__.__name__))
+            raise ValueError(
+                _("Parameter '{}' must be informed for task {}")\
+                    .format('attributes', self.__class__))
+
+        self.output = named_outputs.get('output data',
+                                        'output_data_{}'.format(self.order))
+
+        self.attributes = parameters['attributes']
+        self.new_name = [s.strip() for s in
+                         self.parameters.get('new_name','').split(',')]
+        # Adjust alias in order to have the same number of aliases as attributes
+        # by filling missing alias with the attribute name sufixed by _indexed.
+        if len(self.new_name)>0:
+            self.new_name = [x[1] or '{}_new'.format(x[0]) for x in
+                          izip_longest(self.attributes,
+                                       self.new_name[:len(self.attributes)])]
+
+        self.new_type = parameters.get('new_data_type','keep')
+        self.has_code = len(named_inputs) == 1
 
         if self.has_code:
-            self.has_import = "from functions.data.AttributesChanger import AttributesChangerOperation\n"
+            self.has_import = "from functions.data.AttributesChanger " \
+                              "import AttributesChangerOperation\n"
 
-def generate_code(self):
-    if self.has_code:
-
-        new_name = self.parameters.get('new_name',[])
-        new_data_type = self.parameters.get('new_data_type','keep')
-
+    def generate_code(self):
         code = """
-            numFrag  = 4
-            settings = dict()
-            settings['new_data_type'] = {new_data_type}
-            settings['attributes']    = {att}
-            settings['new_name']      = {new_name}
-            {out} = AttributesChangerOperation({input},settings,numFrag)
-            """.format(out   = self.named_outputs['output data'],
-                       input = self.named_inputs['input data'],
-                       new_name = new_name,
-                       new_data_type = new_data_type,
-                       att = self.parameters['attributes']
-                       )
+        settings = dict()
+        settings['new_data_type'] = '{newtype}'
+        settings['attributes']    = {att}
+        settings['new_name']      = {newname}
+        {out} = AttributesChangerOperation({inputData}, settings, numFrag)
+        """.format(out   = self.output,
+                   inputData = self.named_inputs['input data'],
+                   newname = self.new_name,
+                   newtype = self.new_type,
+                   att = self.attributes)
+
         return dedent(code)
-    else:
-        msg = "Parameters '{}' and '{}' must be informed for task {}"
-        raise ValueError(msg.format('[]inputs',  '[]outputs', self.__class__))
+
