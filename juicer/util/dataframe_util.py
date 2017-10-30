@@ -4,7 +4,7 @@ import json
 import re
 
 import datetime
-from pyspark.sql.utils import AnalysisException
+from pyspark.sql.utils import AnalysisException, IllegalArgumentException
 
 
 class CustomEncoder(json.JSONEncoder):
@@ -230,6 +230,19 @@ def handle_spark_exception(e):
             raise ValueError(
                 _('Attribute {} not found. Valid attributes: {}').format(
                     field, fields))
+    elif isinstance(e, IllegalArgumentException):
+        # Invalid column type
+        if 'must be of type equal' in e.desc:
+            value_expr = re.compile(
+                "requirement failed: Column (.+?) must be"
+                ".+following types: \[(.+?)\] but was actually of type (.+).")
+            found = value_expr.findall(e.desc)
+            if found:
+                attr, correct, used = found[0]
+                raise ValueError(_('Attribute {attr} must be one of these types'
+                                   ' [{correct}], but it is {used}').format(
+                    attr=attr, used=used, correct=correct
+                ))
     elif hasattr(e, 'java_exception'):
         cause = e.java_exception.getCause()
         if cause is not None:

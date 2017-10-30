@@ -110,7 +110,7 @@ class SparkMinion(Minion):
             _('Task ignored (not used by other task or as an output)')
         ]
         self.current_lang = lang
-        self._build_dist_file()
+        # self._build_dist_file()
 
     def _build_dist_file(self):
         """
