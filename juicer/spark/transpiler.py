@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 import sys
-import zipfile
 
 import jinja2
 import juicer.spark.data_operation
@@ -81,7 +80,6 @@ class SparkTranspiler(object):
     Convert Lemonada workflow representation (JSON) into code to be run in
     Apache Spark.
     """
-    DIST_ZIP_FILE = '/tmp/lemonade-lib-python.zip'
     VISITORS = [RemoveTasksWhenMultiplexingVisitor]
 
     def __init__(self, configuration):
@@ -95,39 +93,6 @@ class SparkTranspiler(object):
         for visitor in self.VISITORS:
             visitor().visit(workflow, nx.topological_sort(graph),
                             self.operations, params)
-
-    def build_dist_file(self):
-        """
-        Build a Zip file containing files in dist packages. Such packages
-        contain code to be executed in the Spark cluster and should be
-        distributed among all nodes.
-        """
-        project_base = os.path.join(
-            os.path.abspath(os.path.dirname(__file__)), '..', '..')
-
-        lib_paths = [
-            # os.path.join(project_base, 'spark/dist'),
-            # os.path.join(project_base, 'dist')
-            os.path.join(project_base, 'juicer')
-        ]
-        build = not os.path.exists(self.DIST_ZIP_FILE)
-        if not build:
-            for lib_path in lib_paths:
-                dist_files = os.listdir(lib_path)
-                zip_mtime = os.path.getmtime(self.DIST_ZIP_FILE)
-                for f in dist_files:
-                    if zip_mtime < os.path.getmtime(
-                            os.path.join(lib_path, f)):
-                        build = True
-                        break
-                if build:
-                    break
-
-        if build:
-            zf = zipfile.PyZipFile(self.DIST_ZIP_FILE, mode='w')
-            for lib_path in lib_paths:
-                zf.writepy(lib_path)
-            zf.close()
 
     @staticmethod
     def _gen_port_name(flow, seq):
