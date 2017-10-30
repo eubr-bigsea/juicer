@@ -4,7 +4,7 @@ import time
 from random import random
 from textwrap import dedent
 
-from juicer.operation import Operation
+from juicer.operation import Operation, TraceabilityData
 from juicer.spark.expression import Expression
 
 
@@ -26,7 +26,8 @@ class SplitOperation(Operation):
 
         self.weights = [value, 100 - value]
         self.seed = parameters.get(self.SEED_PARAM, int(random() * time.time()))
-        self.has_code = len(self.named_outputs) > 0
+        self.has_code = any(
+            [len(self.named_outputs) > 0, self.contains_results()])
 
         self.output1 = self.named_outputs.get(
             'splitted data 1',
@@ -56,15 +57,17 @@ class AddRowsOperation(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
         self.parameters = parameters
-        self.has_code = len(self.named_inputs) == 2 and len(
-            self.named_outputs) > 0
+        self.has_code = any([(len(self.named_inputs) == 2 and len(
+            self.named_outputs) > 0), self.contains_results()])
+        self.output = self.named_outputs.get(
+            'output data', 'add_rows_{}'.format(self.order))
+
+    def get_output_names(self, sep=", "):
+        return self.output
 
     def generate_code(self):
-        output = self.named_outputs.get('output data', 'add_row_out_{}'.format(
-            self.order))
-
         code = "{out} = {input1}.unionAll({input2})".format(
-            out=output, input1=self.named_inputs['input data 1'],
+            out=self.output, input1=self.named_inputs['input data 1'],
             input2=self.named_inputs['input data 2'])
         return dedent(code)
 
@@ -90,7 +93,10 @@ class SortOperation(Operation):
                 _("Parameter '{}' must be informed for task {}").format(
                     self.ATTRIBUTES_PARAM, self.__class__))
 
-        self.has_code = len(self.named_inputs) == 1
+        self.has_code = any(
+            [len(self.named_inputs) == 1, self.contains_results()])
+        self.output = self.named_outputs.get('output data',
+                                             'out_task_{}'.format(self.order))
 
     def generate_code(self):
         ascending = []
@@ -99,12 +105,10 @@ class SortOperation(Operation):
             attributes.append(attr['attribute'])
             ascending.append(1 if attr['f'] == 'asc' else 0)
 
-        output = self.named_outputs.get('output data', 'sorted_data_{}'.format(
-            self.order))
         input_data = self.named_inputs['input data']
 
         code = "{out} = {input}.orderBy({attrs}, ascending={asc})".format(
-            out=output, input=input_data, attrs=json.dumps(attributes),
+            out=self.output, input=input_data, attrs=json.dumps(attributes),
             asc=json.dumps(ascending))
 
         return dedent(code)
@@ -124,7 +128,8 @@ class RemoveDuplicatedOperation(Operation):
         else:
             self.attributes = []
 
-        self.has_code = len(self.named_inputs) == 1
+        self.has_code = any(
+            [len(self.named_inputs) == 1, self.contains_results()])
 
     def generate_code(self):
         output = self.named_outputs.get('output data', 'dedup_data_{}'.format(
@@ -182,18 +187,20 @@ class SampleOrPartitionOperation(Operation):
                 self.fraction = float(parameters[self.FRACTION_PARAM])
                 if not (0 <= self.fraction <= 100):
                     msg = _("Parameter '{}' must be in " \
-                          "range [0, 100] for task {}") \
+                            "range [0, 100] for task {}") \
                         .format(self.FRACTION_PARAM, __name__)
                     raise ValueError(msg)
                 if self.fraction > 1.0:
                     self.fraction *= 0.01
             else:
-                raise ValueError(_("Parameter '{}' must be informed for task {}").format(
+                raise ValueError(
+                    _("Parameter '{}' must be informed for task {}").format(
                         self.FRACTION_PARAM, self.__class__))
         elif self.type in [self.TYPE_VALUE, self.TYPE_HEAD]:
             self.value = int(parameters.get(self.VALUE_PARAM, 100))
 
-        self.has_code = len(self.named_inputs) == 1
+        self.has_code = any(
+            [len(self.named_inputs) == 1, self.contains_results()])
         self.output = self.named_outputs.get(
             'sampled data', 'sampled_data_{}'.format(self.order))
 
@@ -213,7 +220,7 @@ class SampleOrPartitionOperation(Operation):
         elif self.type == self.VALUE_PARAM:
             # Spark 2.0.2 DataFrame API does not have takeSample implemented
             # See [SPARK-15324]
-            # This implementation may be innefficient!
+            # This implementation may be inefficient!
             code = ("{out} = {input}.sample(withReplacement={wr}, "
                     "fraction={fr}, seed={seed}).limit({limit})"
                     .format(out=self.output, input=input_data,
@@ -236,7 +243,8 @@ class IntersectionOperation(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
         self.parameters = parameters
-        self.has_code = len(self.named_inputs) == 2
+        self.has_code = any(
+            [len(self.named_inputs) == 2, self.contains_results()])
 
     def generate_code(self):
         output = self.named_outputs.get(
@@ -258,7 +266,8 @@ class DifferenceOperation(Operation):
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
-        self.has_code = len(self.named_inputs) == 2
+        self.has_code = any(
+            [len(self.named_inputs) == 2, self.contains_results()])
 
     def generate_code(self):
         output = self.named_outputs.get(
@@ -367,7 +376,8 @@ class DropOperation(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
         self.column = parameters['column']
-        self.has_code = len(self.named_inputs) == 1
+        self.has_code = any(
+            [len(self.named_inputs) == 1, self.contains_results()])
 
     def generate_code(self):
         output = self.named_outputs.get('output data', 'sampled_data_{}'.format(
@@ -398,11 +408,12 @@ class TransformationOperation(Operation):
             raise ValueError(
                 _("Parameters '{}' and {} must be informed for task {}").format(
                     self.ALIAS_PARAM, self.EXPRESSION_PARAM, self.__class__))
-        self.has_code = len(self.named_inputs) > 0
+        self.has_code = any(
+            [len(self.named_inputs) > 0, self.contains_results()])
+        self.output = self.named_outputs.get(
+            'output data', 'sampled_data_{}'.format(self.order))
 
     def generate_code(self):
-        output = self.named_outputs.get('output data', 'sampled_data_{}'.format(
-            self.order))
         input_data = self.named_inputs['input data']
         params = {'input': input_data}
 
@@ -410,9 +421,10 @@ class TransformationOperation(Operation):
         expression = Expression(self.json_expression, params)
         built_expression = expression.parsed_expression
 
-        code = "{out} = {in1}.withColumn('{alias}', {expr})".format(
-            out=output, in1=input_data, alias=self.alias,
-            expr=built_expression)
+        code = dedent("""
+        {out} = {in1}.withColumn('{alias}',
+            {expr})""".format(out=self.output, in1=input_data, alias=self.alias,
+                              expr=built_expression))
         return dedent(code)
 
 
@@ -455,7 +467,7 @@ class ReplaceValueOperation(Operation):
     """
     ATTRIBUTES_PARAM = 'attributes'
     REPLACEMENT_PARAM = 'replacement'
-    ORIGINAL_PARAM = 'original'
+    VALUE_PARAM = 'value'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
@@ -471,12 +483,12 @@ class ReplaceValueOperation(Operation):
                 _("Parameter '{}' must be informed for task {}").format(
                     self.REPLACEMENT_PARAM, self.__class__))
 
-        if self.ORIGINAL_PARAM in parameters:
-            self.original = parameters.get(self.ORIGINAL_PARAM)
+        if self.VALUE_PARAM in parameters:
+            self.original = parameters.get(self.VALUE_PARAM)
         else:
             raise ValueError(
                 _("Parameter '{}' must be informed for task {}").format(
-                    self.ORIGINAL_PARAM, self.__class__))
+                    self.VALUE_PARAM, self.__class__))
 
         def check(v):
             result = False
@@ -492,16 +504,17 @@ class ReplaceValueOperation(Operation):
         if not check(self.original):
             raise ValueError(
                 _("Parameter '{}' for task '{}' must be a number "
-                "or enclosed in quotes.").format(
-                    self.ORIGINAL_PARAM, self.__class__))
+                  "or enclosed in quotes.").format(
+                    self.VALUE_PARAM, self.__class__))
 
         if not check(self.replacement):
             raise ValueError(
                 _("Parameter '{}' for task '{}' must be a number "
-                "or enclosed in quotes.").format(
+                  "or enclosed in quotes.").format(
                     self.REPLACEMENT_PARAM, self.__class__))
 
-        self.has_code = len(self.named_inputs) == 1
+        self.has_code = any(
+            [len(self.named_inputs) == 1, self.contains_results()])
 
     def get_output_names(self, sep=", "):
         return self.output
@@ -509,12 +522,20 @@ class ReplaceValueOperation(Operation):
     def generate_code(self):
         input_data = self.named_inputs['input data']
 
-        code = dedent("""
+        code = dedent(u"""
+        try:
             {out} = {in1}.replace({original},
-                {replacement}, subset={subset})""".format(
+                {replacement}, subset={subset})
+        except ValueError as ve:
+            if 'Mixed type replacements are not supported' in ve.message:
+                raise ValueError('{replacement_same_type}')
+            else:
+                raise""".format(
             out=self.output, in1=input_data,
             original=self.original,
             replacement=self.replacement,
+            replacement_same_type=_('Value and replacement must be of '
+                                    'the same type for all attributes'),
             subset=json.dumps(self.attributes)))
         return code
 
@@ -551,7 +572,8 @@ class AggregationOperation(Operation):
             if not all([f.get('attribute'), f.get('f'), f.get('alias')]):
                 raise ValueError(_('Missing parameter in aggregation function'))
 
-        self.has_code = len(self.named_inputs) == 1
+        self.has_code = any(
+            [len(self.named_inputs) == 1, self.contains_results()])
         # noinspection PyArgumentEqualDefault
         self.pivot = next(iter(parameters.get(self.PIVOT_ATTRIBUTE) or []),
                           None)
@@ -565,6 +587,17 @@ class AggregationOperation(Operation):
 
     def get_output_names(self, sep=", "):
         return self.output
+
+    def attribute_traceability(self):
+        result = []
+        for i, function in enumerate(self.functions):
+            result.append(TraceabilityData(
+                input=self.named_inputs.values()[0],
+                attribute=function.get('alias', function.get('value')),
+                derived_from=function['attribute'],
+                was_value=False)
+            )
+        return result
 
     def generate_code(self):
         elements = []
@@ -635,7 +668,8 @@ class FilterOperation(Operation):
 
         self.filter = parameters.get(self.FILTER_PARAM)
 
-        self.has_code = len(self.named_inputs) == 1
+        self.has_code = any(
+            [len(self.named_inputs) == 1, self.contains_results()])
 
     def generate_code(self):
         input_data = self.named_inputs['input data']
@@ -696,14 +730,15 @@ class CleanMissingOperation(Operation):
 
         # In this case, nothing will be generated besides create reference to
         # data frame
-        self.has_code = all([
+        self.has_code = any([all([
             any([self.value is not None, self.cleaning_mode != self.VALUE]),
-            len(self.named_inputs) > 0])
+            len(self.named_inputs) > 0]), self.contains_results()])
+        self.output = self.named_outputs.get('output result',
+                                             'out_{}'.format(self.order))
 
     def generate_code(self):
 
         input_data = self.named_inputs['input data']
-        output = self.named_outputs['output result']
 
         pre_code = []
         partial = []
@@ -734,13 +769,13 @@ class CleanMissingOperation(Operation):
         if self.cleaning_mode == self.REMOVE_ROW:
             partial.append("""
                 {0} = {1}.na.drop(how='any', subset=attributes_{1})""".format(
-                output, input_data))
+                self.output, input_data))
 
         elif self.cleaning_mode == self.VALUE:
             # value = ast.literal_eval(self.value)
             partial.append(
                 "\n    {0} = {1}.na.fill(value={2}, "
-                "subset=attributes_{1})".format(output, input_data,
+                "subset=attributes_{1})".format(self.output, input_data,
                                                 self.value))
 
         elif self.cleaning_mode == self.REMOVE_COLUMN:
@@ -748,7 +783,7 @@ class CleanMissingOperation(Operation):
             partial.append(
                 "\n{0} = {1}.select("
                 "[c for c in {1}.columns if c not in attributes_{1}])".format(
-                    output, input_data))
+                    self.output, input_data))
 
         elif self.cleaning_mode == self.MODE:
             # Based on http://stackoverflow.com/a/36695251/1646932
@@ -759,7 +794,7 @@ class CleanMissingOperation(Operation):
                         .orderBy(desc('count')).limit(1)
                     md_replace_{1}[md_attr_{1}] = md_count_{1}.collect()[0][0]
              {0} = {1}.fillna(value=md_replace_{1})""".format(
-                output, input_data)
+                self.output, input_data)
             )
 
         elif self.cleaning_mode == self.MEDIAN:
@@ -768,19 +803,19 @@ class CleanMissingOperation(Operation):
             partial.append("""
                 mdn_replace_{1} = dict()
                 for mdn_attr_{1} in attributes_{1}:
-                    # Computes median value for column with relat. error = 10%
+                    # Computes median value for column with relat. error=10%
                     mdn_{1} = {1}.na.drop(subset=[mdn_attr_{1}])\\
                         .approxQuantile(mdn_attr_{1}, [.5], .1)
                     md_replace_{1}[mdn_attr_{1}] = mdn_{1}[0]
                 {0} = {1}.fillna(value=mdn_replace_{1})""".format(
-                output, input_data))
+                self.output, input_data))
 
         elif self.cleaning_mode == self.MEAN:
             partial.append("""
                 avg_{1} = {1}.select([functions.avg(c).alias(c)
                                         for c in attributes_{1}]).collect()
                 values_{1} = dict([(c, avg_{1}[0][c]) for c in attributes_{1}])
-                {0} = {1}.na.fill(value=values_{1})""".format(output,
+                {0} = {1}.na.fill(value=values_{1})""".format(self.output,
                                                               input_data))
         else:
             raise ValueError(
@@ -793,7 +828,7 @@ class CleanMissingOperation(Operation):
                '\n    '.join([dedent(line) for line in partial]).replace(
                    '\n',
                    '\n    ') + \
-               "\nelse:\n    {0} = {1}".format(output, input_data)
+               "\nelse:\n    {0} = {1}".format(self.output, input_data)
 
 
 class AddColumnsOperation(Operation):
@@ -805,7 +840,8 @@ class AddColumnsOperation(Operation):
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
-        self.has_code = len(self.named_inputs) == 2
+        self.has_code = any(
+            [len(self.named_inputs) == 2, self.contains_results()])
         self.aliases = [
             alias.strip() for alias in
             parameters.get(self.ALIASES_PARAM, 'ds0_, ds1_').split(',')]
@@ -867,7 +903,8 @@ class PivotTableOperation(Operation):
         self.pivot = parameters.get(self.PIVOT_ATTRIBUTE_PARAM)
         self.functions = parameters.get(self.FUNCTIONS_PARAM)
 
-        self.has_code = len(self.named_inputs) == 1
+        self.has_code = any(
+            [len(self.named_inputs) == 1, self.contains_results()])
 
     def generate_code(self):
         elements = []
@@ -899,7 +936,7 @@ class ExecutePythonOperation(Operation):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         if not all([self.PYTHON_CODE_PARAM in parameters]):
-            msg = ("Required parameter {} must be informed for task {}")
+            msg = _("Required parameter {} must be informed for task {}")
             raise ValueError(msg.format(self.PYTHON_CODE_PARAM, self.__class__))
 
         self.code = parameters.get(self.PYTHON_CODE_PARAM)
@@ -979,6 +1016,81 @@ class ExecutePythonOperation(Operation):
         {out2} = out2
         """.format(out1=out1, out2=out2))
         return dedent(code)
+
+
+class ExecuteSQLOperation(Operation):
+    QUERY_PARAM = 'query'
+    NAMES_PARAM = 'names'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+
+        if not all([self.QUERY_PARAM in parameters]):
+            msg = _("Required parameter {} must be informed for task {}")
+            raise ValueError(msg.format(self.QUERY_PARAM, self.__class__))
+
+        self.query = ExecuteSQLOperation._escape_string(
+            parameters.get(self.QUERY_PARAM).strip().replace('\n', ' '))
+        if self.query[:6].upper() != 'SELECT':
+            raise ValueError(_('Invalid query. Only SELECT is allowed.'))
+
+        if self.NAMES_PARAM in parameters:
+            self.names = [
+                n.strip() for n in parameters.get(self.NAMES_PARAM).split(',')
+                if n.strip()]
+        else:
+            self.names = None
+
+        self.has_code = any([len(self.named_outputs) > 0,
+                             self.contains_results()])
+        self.input1 = self.named_inputs.get('input data 1')
+        self.input2 = self.named_inputs.get('input data 2')
+        self.output = self.named_outputs.get('output data',
+                                             'out_{}'.format(self.order))
+
+    def get_data_out_names(self, sep=','):
+        return self.output
+
+    @staticmethod
+    def _escape_string(value):
+        """ Escape a SQL string. Borrowed from
+        https://github.com/PyMySQL/PyMySQL/blob/master/pymysql/converters.py"""
+        return value
+        # _escape_table = [unichr(x) for x in range(128)]
+        # _escape_table[0] = u'\\0'
+        # _escape_table[ord('\\')] = u'\\\\'
+        # _escape_table[ord('\n')] = u'\\n'
+        # _escape_table[ord('\r')] = u'\\r'
+        # _escape_table[ord('\032')] = u'\\Z'
+        # _escape_table[ord('"')] = u'\\"'
+        # _escape_table[ord("'")] = u"\\'"
+        # return value.translate(_escape_table)
+
+    def generate_code(self):
+        code = dedent(u"""
+        from pyspark.sql import SQLContext
+
+        # Input data
+        sql_context = SQLContext(spark_session.sparkContext)
+        if {in1} is not None:
+            sql_context.registerDataFrameAsTable({in1}, 'ds1')
+        if {in2} is not None:
+            sql_context.registerDataFrameAsTable({in2}, 'ds2')
+        query = {query}
+        {out} = sql_context.sql(query)
+        names = {names}
+        if names is not None and len(names) > 0:
+            old_names = {out}.schema.names
+            if len(old_names) != len(names):
+                raise ValueError('{invalid_names}')
+            rename = [functions.col(pair[0]).alias(pair[1])
+                for pair in zip(old_names, names)]
+            {out} = {out}.select(*rename)
+        """.format(in1=self.input1, in2=self.input2, query=repr(self.query),
+                   out=self.output, names=repr(self.names),
+                   invalid_names=_('Invalid names. Number of attributes in '
+                                   'result differs from names informed.')))
+        return code
 
 
 class TableLookupOperation(Operation):

@@ -7,6 +7,7 @@ Auto-generated Spark code from Lemonade Workflow
 More information about Lemonade to be provided
 """
 from concurrent.futures import ThreadPoolExecutor
+import collections
 import itertools
 import json
 import os
@@ -21,7 +22,7 @@ from textwrap import dedent
 from timeit import default_timer as timer
 
 from pyspark.ml import classification, evaluation, feature, tuning, clustering
-from pyspark.sql import functions, types
+from pyspark.sql import functions, types, Row
 from pyspark.sql.utils import IllegalArgumentException
 
 from pyspark.ml import Pipeline
@@ -32,7 +33,7 @@ from pyspark.ml.feature import *
 from pyspark.ml.tuning import *
 from pyspark.ml.recommendation import *
 from pyspark.ml.regression import *
-
+from juicer import privaaas
 from juicer.util import dataframe_util
 
 executor = ThreadPoolExecutor(max_workers={{instances|length}})
@@ -174,6 +175,26 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.ord
     {%- endfor %}
     {%- endif %}
 
+    {#-
+        Privacy related part.
+    #}
+    {%- set traces = instance.attribute_traceability() %}
+    {%- if traces %}
+    if dataframe_util.spark_version(spark_session) >= (2, 2, 0):
+    {%- for trace in traces %}
+    {%- for out in instance.get_data_out_names(',').split(',') %}
+    {%- if out %}
+        schema = {{trace.input}}.schema
+        meta = {}
+        meta.update(schema['{{trace.derived_from}}'].metadata)
+        {{out}} = {{out}}.withColumn('{{trace.attribute}}',
+            functions.col('{{trace.attribute}}').alias('', metadata=meta))
+    {%- endif %}
+    {%- endfor %}
+    {%- endfor %}
+        pass
+    {%- endif %}
+
     {%- if instance.parameters.task.forms.get('display_sample', {}).get('value') in (1, '1') %}
     # Outputs' samples
     {%- for out in instance.get_data_out_names(',').split(',') %}
@@ -187,7 +208,8 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.ord
     # Outputs' schemas
     {%- for out in instance.get_data_out_names(',').split(',') %}
     {%- if out %}
-    dataframe_util.emit_schema('{{instance.parameters.task.id}}', {{out}}, emit_event, '{{out}}')
+    dataframe_util.emit_schema('{{instance.parameters.task.id}}',
+        {{out}}, emit_event, '{{out}}')
     {%- endif %}
     {%- endfor %}
     {%- endif %}
@@ -216,6 +238,9 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.ord
 {%- endhandleinstance %}
 {% endfor %}
 
+def get_results(task_futures, id):
+    return task_futures[id].result() if id in task_futures else None
+
 def main(spark_session, cached_state, emit_event):
     """ Run generated code """
 
@@ -234,7 +259,7 @@ def main(spark_session, cached_state, emit_event):
 
         {%- for instance in instances %}
         {%- set is_satisfied = dependency_controller.is_satisfied(instance.parameters.task.id) %}
-        {%- if instance.has_code and is_satisfied and instance.out_degree == 0 %}
+        {%- if instance.must_be_executed(is_satisfied) %}
         {%- set s = dependency_controller.satisfied(instance.parameters.task.id) %}
         task_futures['{{instance.parameters.task.id}}'] = executor.submit(
             lambda: {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.order}}(spark_session, cached_state, emit_event))
@@ -243,14 +268,14 @@ def main(spark_session, cached_state, emit_event):
 
         {%- for instance in instances %}
         {%- set is_satisfied = dependency_controller.is_satisfied(instance.parameters.task.id) %}
-        {%- if instance.has_code and is_satisfied and instance.out_degree == 0 %}
+        {%- if instance.must_be_executed(is_satisfied) %}
         {%- set s = dependency_controller.satisfied(instance.parameters.task.id) %}
         task_futures['{{instance.parameters.task.id}}'].result()
         {%- endif %}
         {%- endfor %}
 
         end = time.time()
-        print("{}\t{}".format(end - start, end - session_start_time))
+        print(end - start)
         return {
             'status': 'OK',
             'message': 'Execution defined',
@@ -258,29 +283,12 @@ def main(spark_session, cached_state, emit_event):
               {%- set is_satisfied = dependency_controller.is_satisfied(instance.parameters.task.id) %}
               {%- if instance.has_code and is_satisfied %}
                 '{{instance.parameters.task.id}}':
-                    task_futures['{{instance.parameters.task.id}}'].result(),
+                    get_results(task_futures, '{{instance.parameters.task.id}}'),
               {%- endif %}
             {%- endfor %}
         }
-    except Exception, e:
-        nfe = 'java.lang.NumberFormatException'
-        # noinspection PyUnresolvedReferences
-        if hasattr(e, 'java_exception'):
-            cause = e.java_exception.getCause()
-            value_expr = re.compile(r'.+"(.+)"')
-            if cause is not None:
-                if cause.getClass().getName() == nfe and cause.getMessage():
-                    value = value_expr.findall(cause.getMessage())[0]
-                    raise ValueError('Invalid numeric data in at least one '
-                        'data source (attribute: {})'.format(value))
-                elif cause.getMessage() == u'Malformed CSV record':
-                    raise ValueError('At least one input data source is not in '
-                        'the correct format')
-                else:
-                    raise
-            else:
-                raise
-        else:
+    except Exception as e:
+        if not dataframe_util.handle_spark_exception(e):
             raise
 
 {%- if execute_main %}

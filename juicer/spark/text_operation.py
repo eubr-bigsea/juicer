@@ -39,19 +39,20 @@ class TokenizerOperation(Operation):
         self.alias = [alias.strip() for alias in
                       parameters.get(self.ALIAS_PARAM, '').split(',')]
         # Adjust alias in order to have the same number of aliases as attributes
-        # by filling missing alias with the attribute name sufixed by _tokenized.
+        # by filling missing alias with attribute name suffixed by tokenized.
         self.alias = [x[1] or '{}_tokenized'.format(x[0]) for x in
                       izip_longest(self.attributes,
                                    self.alias[:len(self.attributes)])]
 
         self.expression_param = parameters.get(self.EXPRESSION_PARAM, r'\s+')
         self.min_token_lenght = parameters.get(self.MINIMUM_SIZE, 3)
-        self.has_code = len(self.named_inputs) > 0
+        self.has_code = any(
+            [len(self.named_inputs) > 0, self.contains_results()])
+        self.output = self.named_outputs.get('output data',
+                                             'out_{}'.format(self.order))
 
     def generate_code(self):
         input_data = self.named_inputs['input data']
-        output = self.named_outputs['output data']
-
         code = ''
 
         if self.type == self.TYPE_SIMPLE:
@@ -65,7 +66,7 @@ class TokenizerOperation(Operation):
                 pipeline = Pipeline(stages=tokenizers)
 
                 {2} = pipeline.fit({1}).transform({1})
-            """.format(self.attributes, input_data, output,
+            """.format(self.attributes, input_data, self.output,
                        json.dumps(zip(self.attributes, self.alias)))
 
         elif self.type == self.TYPE_REGEX:
@@ -82,7 +83,7 @@ class TokenizerOperation(Operation):
                 pipeline = Pipeline(stages=regextokenizers)
 
                 {2} = pipeline.fit({1}).transform({1})
-            """.format(self.attributes, input_data, output,
+            """.format(self.attributes, input_data, self.output,
                        json.dumps(zip(self.attributes, self.alias)),
                        self.expression_param,
                        self.min_token_lenght)
@@ -100,7 +101,7 @@ class RemoveStopWordsOperation(Operation):
     ALIAS_PARAM = 'alias'
     STOP_WORD_LIST_PARAM = 'stop_word_list'
     STOP_WORD_ATTRIBUTE_PARAM = 'stop_word_attribute'
-    STOP_WORD_LANGUAGE_PARAM = 'stop_word_language'
+    STOP_WORD_LANGUAGE_PARAM = 'language'
     STOP_WORD_CASE_SENSITIVE_PARAM = 'sw_case_sensitive'
 
     def __init__(self, parameters, named_inputs,
@@ -118,7 +119,7 @@ class RemoveStopWordsOperation(Operation):
 
         self.stop_word_list = [s.strip() for s in
                                self.parameters.get(self.STOP_WORD_LIST_PARAM,
-                                                   '').split(',')]
+                                                   '').split(',') if s.strip()]
 
         self.alias = [alias.strip() for alias in
                       parameters.get(self.ALIAS_PARAM, '').split(',')]
@@ -135,11 +136,13 @@ class RemoveStopWordsOperation(Operation):
         self.sw_case_sensitive = self.parameters.get(
             self.STOP_WORD_CASE_SENSITIVE_PARAM, 'False')
 
-        self.has_code = len(self.named_inputs) > 0
+        self.has_code = any(
+            [len(self.named_inputs) > 0, self.contains_results()])
+        self.output = self.named_outputs.get('output data',
+                                             'out_{}'.format(self.order))
 
     def generate_code(self):
         input_data = self.named_inputs['input data']
-        output = self.named_outputs['output data']
         code = ''
 
         if len(self.named_inputs) != 2:
@@ -149,8 +152,13 @@ class RemoveStopWordsOperation(Operation):
             french, german, hungarian, italian, norwegian, portuguese,
             russian, spanish, swedish, turkish
             """
-            code = "sw = StopWordsRemover.loadDefaultStopWords({})".format(
-                self.stop_word_language)
+            if self.stop_word_list:
+                code = "sw = {list}".format(
+                    list=json.dumps(self.stop_word_list))
+            elif self.stop_word_language:
+                code = dedent("""
+                sw = StopWordsRemover.loadDefaultStopWords('{}')""".format(
+                    self.stop_word_language))
 
             code += dedent("""
             col_alias = {3}
@@ -164,7 +172,7 @@ class RemoveStopWordsOperation(Operation):
             pipeline = Pipeline(stages=removers)
             {2} = pipeline.fit({1}).transform({1})
         """.format(self.attributes, input_data,
-                   output, json.dumps(zip(self.attributes, self.alias)),
+                   self.output, json.dumps(zip(self.attributes, self.alias)),
                    self.sw_case_sensitive))
         else:
             code = ("sw = [stop[0].strip() "
@@ -182,7 +190,7 @@ class RemoveStopWordsOperation(Operation):
                 pipeline = Pipeline(stages=removers)
                 {2} = pipeline.fit({1}).transform({1})
             """.format(self.attributes, input_data,
-                       output,
+                       self.output,
                        json.dumps(zip(self.attributes, self.alias)),
                        self.sw_case_sensitive))
         return code
@@ -238,14 +246,15 @@ class WordToVectorOperation(Operation):
         self.minimum_size = parameters.get(self.MINIMUM_VECTOR_SIZE_PARAM, 3)
         self.minimum_count = parameters.get(self.MINIMUM_COUNT_PARAM, 0)
 
-        self.has_code = len(self.named_inputs) > 0
+        self.has_code = any(
+            [len(self.named_inputs) > 0, self.contains_results()])
         self.output = self.named_outputs.get('output data',
                                              'out_{}'.format(self.order))
         self.vocab = self.named_outputs.get('vocabulary',
                                             'vocab_task_{}'.format(self.order))
 
     def get_data_out_names(self, sep=','):
-        return self.named_outputs['output data']
+        return self.output
 
     def get_output_names(self, sep=", "):
         return sep.join([self.output, self.vocab])
@@ -272,7 +281,7 @@ class WordToVectorOperation(Operation):
                 self.vocab))
 
             code = code.format(self.attributes, input_data,
-                               self.named_outputs['output data'],
+                               self.output,
                                json.dumps(zip(self.attributes, self.alias)),
                                self.minimum_tf, self.minimum_df,
                                self.vocab_size)
@@ -280,40 +289,33 @@ class WordToVectorOperation(Operation):
         elif self.type == self.TYPE_WORD2VEC:
             # @FIXME Check
             code = dedent("""
-                col_alias = {3}
-                vectorizers = [Word2Vec(vectorSize={4},
-                            minCount={5},
+                col_alias = {aliases}
+                vectorizers = [Word2Vec(vectorSize={size},
+                            minCount={count},
                             numPartitions=1,
                             stepSize=0.025,
                             maxIter=1,
                             seed=None,
                             inputCol=col,
-                            outputCol=alias) for col, alias in col_alias]""")
-
-            code += dedent("""
-            # Use Pipeline to process all attributes once
-            pipeline = Pipeline(stages=vectorizers)
-            model = pipeline.fit({1})
-            {2} = model.transform({1})
-            """)
-
-            vocab_out = self.named_outputs.get('vocabulary',
-                                               '{}_vocab'.format(
-                                                   input_data))
-            code += dedent("""
-                {} = dict([(col_alias[i][1], v.vocabulary)
-                        for i, v in enumerate(model.stages)])""".format(
-                vocab_out))
-
-            code = code.format(self.attributes, input_data,
-                               self.named_outputs['output data'],
-                               json.dumps(zip(self.attributes, self.alias)),
-                               self.minimum_size, self.minimum_count)
+                            outputCol=alias) for col, alias in col_alias]
+                # Use Pipeline to process all attributes once
+                pipeline = Pipeline(stages=vectorizers)
+                model = pipeline.fit({input})
+                {out} = model.transform({input})
+                {vocab} = dict([(col_alias[i][1], v.getVectors())
+                             for i, v in enumerate(model.stages)])""".format(
+                self.attributes,
+                input=input_data,
+                out=self.output,
+                aliases=json.dumps(zip(self.attributes, self.alias)),
+                size=self.minimum_size, count=self.minimum_count,
+                vocab=self.vocab
+            ))
 
         else:
             raise ValueError(
                 _("Invalid type '{}' for task {}").format(self.type,
-                                                       self.__class__))
+                                                          self.__class__))
         return code
 
 
@@ -354,11 +356,13 @@ class GenerateNGramsOperation(Operation):
                       izip_longest(self.attributes,
                                    self.alias[:len(self.attributes)])]
 
-        self.has_code = len(self.named_inputs) > 0
+        self.has_code = any(
+            [len(self.named_inputs) > 0, self.contains_results()])
+        self.output = self.named_outputs.get('output data',
+                                             'out_{}'.format(self.order))
 
     def generate_code(self):
         input_data = self.named_inputs['input data']
-        output = self.named_outputs['output data']
         code = dedent("""
             col_alias = {alias}
             n_gramers = [NGram(n={n}, inputCol=col,
@@ -368,6 +372,6 @@ class GenerateNGramsOperation(Operation):
             model = pipeline.fit({input})
             {output} = model.transform({input})
             """).format(alias=json.dumps(zip(self.attributes, self.alias)),
-                        n=self.n, input=input_data, output=output)
+                        n=self.n, input=input_data, output=self.output)
 
         return code

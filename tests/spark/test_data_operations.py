@@ -2,7 +2,7 @@
 import ast
 from textwrap import dedent
 
-from juicer.spark.data_operation import DataReader
+from juicer.spark.data_operation import DataReaderOperation
 from tests import compare_ast, format_code_comparison
 
 
@@ -18,11 +18,12 @@ def test_data_reader_minimal_parameters_no_attributes_success():
                     }
                 }
             }
-        }
+        },
+        'workflow': {'data_source_cache': {}}
     }
     n_out = {'output data': 'output_1'}
 
-    instance = DataReader(parameters, named_inputs={}, named_outputs=n_out)
+    instance = DataReaderOperation(parameters, named_inputs={}, named_outputs=n_out)
     code = instance.generate_code()
     generated_tree = ast.parse(code)
 

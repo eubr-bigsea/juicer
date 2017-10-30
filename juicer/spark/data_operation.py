@@ -1,14 +1,17 @@
 # -*- coding: utf-8 -*-
 import ast
+import itertools
 import json
 import pprint
+import uuid
 from textwrap import dedent
 
 from juicer.operation import Operation
+from juicer.privaaas import PrivacyPreservingDecorator
 from juicer.service import limonero_service
 
 
-class DataReader(Operation):
+class DataReaderOperation(Operation):
     """
     Reads a database.
     Parameters:
@@ -39,7 +42,8 @@ class DataReader(Operation):
     DATA_TYPES_WITH_PRECISION = {'DECIMAL'}
 
     SEPARATORS = {
-        '{tab}': '\\t'
+        '{tab}': '\\t',
+        '{new_line}': '\\n',
     }
 
     def __init__(self, parameters, named_inputs, named_outputs):
@@ -47,7 +51,7 @@ class DataReader(Operation):
         self.has_code = len(self.named_outputs) > 0 or True
         if self.has_code:
             if self.DATA_SOURCE_ID_PARAM in parameters:
-                self.database_id = parameters[self.DATA_SOURCE_ID_PARAM]
+                self.data_source_id = int(parameters[self.DATA_SOURCE_ID_PARAM])
                 self.header = parameters.get(
                     self.HEADER_PARAM, False) not in ('0', 0, 'false', False)
 
@@ -56,11 +60,21 @@ class DataReader(Operation):
                 limonero_config = \
                     self.parameters['configuration']['juicer']['services'][
                         'limonero']
-                url = '{}/datasources'.format(limonero_config['url'])
+                url = limonero_config['url']
                 token = str(limonero_config['auth_token'])
 
-                self.metadata = limonero_service.get_data_source_info(
-                    url, token, self.database_id)
+                # Is data source information cached?
+                self.metadata = self.parameters.get('workflow', {}).get(
+                    'data_source_cache', {}).get(self.data_source_id)
+                if self.metadata is None:
+                    self.metadata = limonero_service.get_data_source_info(
+                        url, token, self.data_source_id)
+                    self.parameters['workflow']['data_source_cache'][
+                        self.data_source_id] = self.metadata
+
+                if not self.metadata.get('url'):
+                    raise ValueError(
+                        _('Incorrect data source configuration (empty url)'))
                 self.sep = parameters.get(
                     self.SEPARATOR_PARAM, self.metadata.get(
                         'attribute_delimiter', ',')) or ','
@@ -138,21 +152,28 @@ class DataReader(Operation):
                     code.append(code_csv)
                 else:
                     code_csv = dedent("""
-                    {output} = spark_session.read \\
-                           {null_option} \\
-                           .schema(schema_{output}) \\
-                           .option('treatEmptyValuesAsNulls', 'true') \\
-                           .text(url)""".format(output=self.output,
-                                                null_option=null_option))
+                    schema_{output} = types.StructType()
+                    schema_{output}.add('value', types.StringType(), True)
+                    {output} = spark_session.read{null_option}.schema(
+                        schema_{output}).option(
+                        'treatEmptyValuesAsNulls', 'true').text(
+                            url)""".format(output=self.output,
+                                           null_option=null_option))
                     code.append(code_csv)
-                # FIXME: Evaluate if it is good idea to always use cache
-                code.append('{}.cache()'.format(self.output))
-
             elif self.metadata['format'] == 'PARQUET_FILE':
                 # TO DO
                 pass
-            elif self.metadata['format'] == 'JSON_FILE':
-                # TO DO
+            elif self.metadata['format'] == 'JSON':
+                code_json = dedent("""
+                    schema_{output} = types.StructType()
+                    schema_{output}.add('value', types.StringType(), True)
+                    {output} = spark_session.read.option(
+                        'treatEmptyValuesAsNulls', 'true').json(
+                        '{url}')""".format(output=self.output,
+                                           url=self.metadata['url']))
+                code.append(code_json)
+                # FIXME: Evaluate if it is good idea to always use cache
+                code.append('{}.cache()'.format(self.output))
                 pass
             elif self.metadata['format'] == 'LIB_SVM':
                 # Test
@@ -169,13 +190,55 @@ class DataReader(Operation):
 
                 code.append(code_csv)
                 # # FIXME: Evaluate if it is good idea to always use cache
-                code.append('{}.cache()'.format(self.output))
 
+        if self.metadata.get('privacy_aware', False):
+            restrictions = self.parameters['workflow'].get(
+                'privacy_restrictions', {}).get(self.data_source_id)
+            code.extend(self._apply_privacy_constraints(restrictions))
+
+        code.append('{}.cache()'.format(self.output))
         return '\n'.join(code)
 
+    def _apply_privacy_constraints(self, restrictions):
+        result = [
+            'import juicer.privaaas',
+            'original_schema = {out}.schema'.format(out=self.output)
+         ]
+        try:
+            if restrictions.get('attributes'):
+                attrs = sorted(restrictions['attributes'],
+                               key=lambda x: x['anonymization_technique'])
+                grouped_by_type = itertools.groupby(
+                    attrs, key=lambda x: x['anonymization_technique'])
+                privacy_decorator = PrivacyPreservingDecorator(self.output)
+                for k, group in grouped_by_type:
+                    if k is not None and k != 'NO_TECHNIQUE':
+                        if hasattr(privacy_decorator, k.lower()):
+                            action = getattr(privacy_decorator, k.lower())
+                            action_result = action(group)
+                            if action_result:
+                                result.append(action_result)
+                        else:
+                            raise ValueError(
+                                _('Invalid anonymization type ({})').format(k))
+                result.append(dedent("""
+                    for attr in {out}.schema:
+                        found = next(o for o in original_schema
+                            if attr.name == o.name)
+                        version = dataframe_util.spark_version(spark_session)
+                        if found is not None and version >= (2, 2, 0):
+                            {out} = {out}.withColumn(attr.name,
+                                functions.col(attr.name).alias(attr.name,
+                                    metadata=found.metadata))
+                """.format(out=self.output)))
+        except Exception as e:
+            print e
+            raise
+
+        return result
+
     def _add_attribute_to_schema(self, attr, code):
-        data_type = self.LIMONERO_TO_SPARK_DATA_TYPES[
-            attr['type']]
+        data_type = self.LIMONERO_TO_SPARK_DATA_TYPES[attr['type']]
         if attr['type'] in self.DATA_TYPES_WITH_PRECISION:
             data_type = '{}({}, {})'.format(
                 data_type,
@@ -188,10 +251,15 @@ class DataReader(Operation):
         # option of StructField is just a hint and when
         # loading CSV file, it won't work. So, we are adding
         # this information in metadata.
-        metadata = {k: attr[k] for k in
-                    ['feature', 'label', 'nullable', 'type', 'size',
-                     'precision', 'enumeration', 'missing_representation'] if
-                    attr[k]}
+        # Not used.
+        # metadata = {k: attr[k] for k in
+        #             ['nullable', 'type', 'size', 'precision', 'enumeration',
+        #              'missing_representation'] if attr[k]}
+
+        metadata = {'sources': [
+                '{}/{}'.format(self.data_source_id, attr['name'])
+        ]}
+
         code.append("schema_{0}.add('{1}', {2}, {3},\n{5}{4})".format(
             self.output, attr['name'], data_type, attr['nullable'],
             pprint.pformat(metadata, indent=0), ' ' * 20
@@ -283,19 +351,73 @@ class SaveOperation(Operation):
 
         limonero_config = \
             self.parameters['configuration']['juicer']['services']['limonero']
-        url = limonero_config['url']
+        url = '{}'.format(limonero_config['url'], self.mode)
         token = str(limonero_config['auth_token'])
         storage = limonero_service.get_storage_info(url, token, self.storage_id)
 
-        final_url = '{}/{}/{}'.format(storage['url'], self.path,
-                                      self.name.replace(' ', '_'))
+        final_url = '{}/limonero/user_data/{}/{}/{}'.format(
+            storage['url'], self.user['id'], self.path,
+            self.name.replace(' ', '_'))
         code_save = ''
         if self.format == self.FORMAT_CSV:
-            code_save = dedent("""
-            {}.write.csv('{}',
-                         header={}, mode='{}')""".format(
-                self.named_inputs['input data'], final_url, self.header,
-                self.mode))
+            code_save = dedent(u"""
+            cols = []
+            for attr in {input}.schema:
+                if attr.dataType.typeName() in ['array']:
+                    cols.append(functions.concat_ws(
+                        ', ', {input}[attr.name]).alias(attr.name))
+                else:
+                    cols.append({input}[attr.name])
+
+            {input} = {input}.select(*cols)
+            mode = '{mode}'
+            # Write in a temporary directory
+            # Header configuration will be handled by LemondadeFileUtil class
+            {input}.write.csv('{url}{uuid}',
+                         header=False, mode=mode)
+            # Merge files using Hadoop HDFS API
+            conf = spark_session._jsc.hadoopConfiguration()
+            jvm = spark_session._jvm
+            fs = jvm.org.apache.hadoop.fs.FileSystem.get(
+                jvm.java.net.URI('{storage_url}'), conf)
+
+            path = jvm.org.apache.hadoop.fs.Path('{url}')
+            tmp_path = jvm.org.apache.hadoop.fs.Path(
+                '{url}{uuid}')
+            write_header = {header}
+            # org.apache.hadoop.fs.FileUtil do not handle files with header
+            header = None
+            if write_header:
+                header = ','.join([attr.name for attr in {input}.schema])
+
+            fs_util = jvm.br.ufmg.dcc.lemonade.ext.io.LemonadeFileUtil
+            if fs.exists(path):
+                if mode == 'error':
+                    raise ValueError('{error_file_exists}')
+                elif mode == 'ignore':
+                    emit_event(name='update task',
+                        message='{warn_ignored}',
+                        status='COMPLETED',
+                        identifier='{task_id}')
+                elif mode == 'overwrite':
+                    fs.delete(path, False)
+                    fs_util.copyMergeWithHeader(fs, tmp_path, fs, path, True,
+                        conf, header)
+                else:
+                    raise ValueError('{error_invalid_mode}')
+            else:
+                fs_util.copyMergeWithHeader(fs, tmp_path, fs, path, True, conf,
+                    header)
+            """.format(
+                input=self.named_inputs['input data'],
+                url=final_url, header=self.header, mode=self.mode,
+                uuid=uuid.uuid4().get_hex(),
+                storage_url=storage['url'],
+                task_id=self.parameters['task_id'],
+                error_file_exists=_('File already exists'),
+                warn_ignored=_('File not written (already exists)'),
+                error_invalid_mode=_('Invalid mode {}').format(self.mode)
+            ))
             # Need to generate an output, even though it is not used.
         elif self.format == self.FORMAT_PARQUET:
             code_save = dedent("""
@@ -306,53 +428,65 @@ class SaveOperation(Operation):
             code_save += '\n{0}_tmp = {0}'.format(
                 self.named_inputs['input data'])
         elif self.format == self.FORMAT_JSON:
-            pass
+            code_save = dedent("""
+            {}.write.json('{}', mode='{}')""".format(
+                self.named_inputs['input data'],
+                final_url, self.mode))
 
         code = dedent(code_save)
 
-        if not self.workflow_json == '':
-            code_api = """
-                # Code to update Limonero metadata information
-                from juicer.include.metadata import MetadataPost
-                types_names = {13}
+        code_api = u"""
+            # Code to update Limonero metadata information
+            from juicer.service.limonero_service import register_datasource
+            types_names = {data_types}
 
-                schema = []
-                # nullable information is also stored in metadata
-                # because Spark ignores this information when loading CSV files
-                for att in {0}.schema:
-                    schema.append({{
-                      'name': att.name,
-                      'dataType': types_names[str(att.dataType)],
-                      'nullable': att.nullable or attr.metadata.get('nullable'),
-                      'metadata': att.metadata,
-                    }})
-                parameters = {{
-                    'name': "{1}",
-                    'format': "{2}",
-                    'storage_id': {3},
-                    'provenience': '',
-                    'description': "{5}",
-                    'user_id': "{6}",
-                    'user_login': "{7}",
-                    'user_name': "{8}",
-                    'workflow_id': "{9}",
-                    'url': "{10}",
-                }}
-                instance = MetadataPost('{12}', '{11}', schema, parameters)
-                """.format(self.named_inputs['input data'], self.name,
-                           self.format,
-                           self.storage_id,
-                           self.workflow_json,
-                           self.user['name'],
-                           self.user['id'],
-                           self.user['login'],
-                           self.user['name'],
-                           self.workflow_id, final_url, token, url,
-                           json.dumps(self.SPARK_TO_LIMONERO_DATA_TYPES)
-                           )
-            code += dedent(code_api)
-            # No return
-            code += '{} = None'.format(self.output)
+            # nullable information is also stored in metadata
+            # because Spark ignores this information when loading CSV files
+            attributes = []
+            for att in {input}.schema:
+                attributes.append({{
+                  'enumeration': 0,
+                  'feature': 0,
+                  'label': 0,
+                  'name': att.name,
+                  'type': types_names[str(att.dataType)],
+                  'nullable': att.nullable,
+                  'metadata': att.metadata,
+                }})
+            parameters = {{
+                'name': "{name}",
+                'enabled': 1,
+                'is_public': 0,
+                'format': "{format}",
+                'storage_id': {storage},
+                'description': "{description}",
+                'user_id': "{user_id}",
+                'user_login': "{user_login}",
+                'user_name': "{user_name}",
+                'workflow_id': "{workflow_id}",
+                'url': "{final_url}",
+                'attributes': attributes
+            }}
+            register_datasource('{url}', parameters, '{token}', '{mode}')
+            """.format(
+            input=self.named_inputs['input data'],
+            name=self.name,
+            format=self.format,
+            storage=self.storage_id,
+            description=_('Data source generated by workflow {}').format(
+                self.workflow_id),
+            user_name=self.user['name'],
+            user_id=self.user['id'],
+            user_login=self.user['login'],
+            workflow_id=self.workflow_id,
+            final_url=final_url,
+            token=token,
+            url=url,
+            mode=self.mode,
+            data_types=json.dumps(self.SPARK_TO_LIMONERO_DATA_TYPES))
+        code += dedent(code_api)
+        # No return
+        code += '{} = None'.format(self.output)
 
         return code
 
@@ -401,7 +535,7 @@ class ChangeAttributeOperation(Operation):
         else:
             raise ValueError(_(
                 "Parameter '{}' must be informed for task {}").format(
-                    self.ATTRIBUTES_PARAM, self.__class__))
+                self.ATTRIBUTES_PARAM, self.__class__))
         self.has_code = len(self.named_inputs) == 1
 
     def generate_code(self):
