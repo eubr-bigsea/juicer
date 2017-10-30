@@ -39,7 +39,7 @@ class TokenizerOperation(Operation):
         self.alias = [alias.strip() for alias in
                       parameters.get(self.ALIAS_PARAM, '').split(',')]
         # Adjust alias in order to have the same number of aliases as attributes
-        # by filling missing alias with the attribute name sufixed by _tokenized.
+        # by filling missing alias with attribute name suffixed by tokenized.
         self.alias = [x[1] or '{}_tokenized'.format(x[0]) for x in
                       izip_longest(self.attributes,
                                    self.alias[:len(self.attributes)])]
@@ -48,11 +48,11 @@ class TokenizerOperation(Operation):
         self.min_token_lenght = parameters.get(self.MINIMUM_SIZE, 3)
         self.has_code = any(
             [len(self.named_inputs) > 0, self.contains_results()])
+        self.output = self.named_outputs.get('output data',
+                                             'out_{}'.format(self.order))
 
     def generate_code(self):
         input_data = self.named_inputs['input data']
-        output = self.named_outputs['output data']
-
         code = ''
 
         if self.type == self.TYPE_SIMPLE:
@@ -66,7 +66,7 @@ class TokenizerOperation(Operation):
                 pipeline = Pipeline(stages=tokenizers)
 
                 {2} = pipeline.fit({1}).transform({1})
-            """.format(self.attributes, input_data, output,
+            """.format(self.attributes, input_data, self.output,
                        json.dumps(zip(self.attributes, self.alias)))
 
         elif self.type == self.TYPE_REGEX:
@@ -83,7 +83,7 @@ class TokenizerOperation(Operation):
                 pipeline = Pipeline(stages=regextokenizers)
 
                 {2} = pipeline.fit({1}).transform({1})
-            """.format(self.attributes, input_data, output,
+            """.format(self.attributes, input_data, self.output,
                        json.dumps(zip(self.attributes, self.alias)),
                        self.expression_param,
                        self.min_token_lenght)
@@ -138,10 +138,11 @@ class RemoveStopWordsOperation(Operation):
 
         self.has_code = any(
             [len(self.named_inputs) > 0, self.contains_results()])
+        self.output = self.named_outputs.get('output data',
+                                             'out_{}'.format(self.order))
 
     def generate_code(self):
         input_data = self.named_inputs['input data']
-        output = self.named_outputs['output data']
         code = ''
 
         if len(self.named_inputs) != 2:
@@ -151,7 +152,7 @@ class RemoveStopWordsOperation(Operation):
             french, german, hungarian, italian, norwegian, portuguese,
             russian, spanish, swedish, turkish
             """
-            code = "sw = StopWordsRemover.loadDefaultStopWords({})".format(
+            code = "sw = StopWordsRemover.loadDefaultStopWords('{}')".format(
                 self.stop_word_language)
 
             code += dedent("""
@@ -166,7 +167,7 @@ class RemoveStopWordsOperation(Operation):
             pipeline = Pipeline(stages=removers)
             {2} = pipeline.fit({1}).transform({1})
         """.format(self.attributes, input_data,
-                   output, json.dumps(zip(self.attributes, self.alias)),
+                   self.output, json.dumps(zip(self.attributes, self.alias)),
                    self.sw_case_sensitive))
         else:
             code = ("sw = [stop[0].strip() "
@@ -184,7 +185,7 @@ class RemoveStopWordsOperation(Operation):
                 pipeline = Pipeline(stages=removers)
                 {2} = pipeline.fit({1}).transform({1})
             """.format(self.attributes, input_data,
-                       output,
+                       self.output,
                        json.dumps(zip(self.attributes, self.alias)),
                        self.sw_case_sensitive))
         return code
@@ -359,10 +360,11 @@ class GenerateNGramsOperation(Operation):
 
         self.has_code = any(
             [len(self.named_inputs) > 0, self.contains_results()])
+        self.output = self.named_outputs.get('output data',
+                                             'out_{}'.format(self.order))
 
     def generate_code(self):
         input_data = self.named_inputs['input data']
-        output = self.named_outputs['output data']
         code = dedent("""
             col_alias = {alias}
             n_gramers = [NGram(n={n}, inputCol=col,
@@ -372,6 +374,6 @@ class GenerateNGramsOperation(Operation):
             model = pipeline.fit({input})
             {output} = model.transform({input})
             """).format(alias=json.dumps(zip(self.attributes, self.alias)),
-                        n=self.n, input=input_data, output=output)
+                        n=self.n, input=input_data, output=self.output)
 
         return code
