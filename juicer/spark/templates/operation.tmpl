@@ -275,7 +275,7 @@ def main(spark_session, cached_state, emit_event):
         {%- endfor %}
 
         end = time.time()
-        print("{}\t{}".format(end - start, end - session_start_time))
+        print(end - start)
         return {
             'status': 'OK',
             'message': 'Execution defined',
@@ -287,25 +287,8 @@ def main(spark_session, cached_state, emit_event):
               {%- endif %}
             {%- endfor %}
         }
-    except Exception, e:
-        nfe = 'java.lang.NumberFormatException'
-        # noinspection PyUnresolvedReferences
-        if hasattr(e, 'java_exception'):
-            cause = e.java_exception.getCause()
-            value_expr = re.compile(r'.+"(.+)"')
-            if cause is not None:
-                if cause.getClass().getName() == nfe and cause.getMessage():
-                    value = value_expr.findall(cause.getMessage())[0]
-                    raise ValueError('Invalid numeric data in at least one '
-                        'data source (attribute: {})'.format(value))
-                elif cause.getMessage() == u'Malformed CSV record':
-                    raise ValueError('At least one input data source is not in '
-                        'the correct format')
-                else:
-                    raise
-            else:
-                raise
-        else:
+    except Exception as e:
+        if not dataframe_util.handle_spark_exception(e):
             raise
 
 {%- if execute_main %}

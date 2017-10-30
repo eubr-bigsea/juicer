@@ -1,8 +1,10 @@
 # coding=utf-8
 import decimal
 import json
+import re
 
 import datetime
+from pyspark.sql.utils import AnalysisException
 
 
 class CustomEncoder(json.JSONEncoder):
@@ -216,3 +218,28 @@ def merge_dicts(x, y):
     z = x.copy()
     z.update(y)
     return z
+
+
+def handle_spark_exception(e):
+    result = False
+    if isinstance(e, AnalysisException):
+        value_expr = re.compile(r'(`.+`).+\[(.+)\]')
+        found = value_expr.findall(e.desc)
+        if found:
+            field, fields = found[0]
+            raise ValueError(
+                _('Attribute {} not found. Valid attributes: {}').format(
+                    field, fields))
+    elif hasattr(e, 'java_exception'):
+        cause = e.java_exception.getCause()
+        if cause is not None:
+            nfe = 'java.lang.NumberFormatException'
+            if cause.getClass().getName() == nfe and cause.getMessage():
+                value_expr = re.compile(r'.+"(.+)"')
+                value = value_expr.findall(cause.getMessage())[0]
+                raise ValueError(_('Invalid numeric data in at least one '
+                                   'data source (attribute: {})').format(value))
+            elif cause.getMessage() == u'Malformed CSV record':
+                raise ValueError('At least one input data source is not in '
+                                 'the correct format')
+    return result

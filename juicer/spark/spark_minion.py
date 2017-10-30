@@ -12,7 +12,10 @@ import time
 import traceback
 
 # noinspection PyUnresolvedReferences
-import datetime
+import zipfile
+import glob
+
+import itertools
 
 import codecs
 import os
@@ -45,6 +48,7 @@ class SparkMinion(Minion):
     # max idle time allowed in seconds until this minion self termination
     IDLENESS_TIMEOUT = 600
     TIMEOUT = 'timeout'
+    DIST_ZIP_FILE = '/tmp/lemonade-lib-python.zip'
 
     def __init__(self, redis_conn, workflow_id, app_id, config, lang='en',
                  jars=None):
@@ -106,7 +110,7 @@ class SparkMinion(Minion):
             _('Task ignored (not used by other task or as an output)')
         ]
         self.current_lang = lang
-        #self._build_dist_file()
+        self._build_dist_file()
 
     def _build_dist_file(self):
         """
@@ -218,11 +222,16 @@ class SparkMinion(Minion):
                                                block=True,
                                                timeout=self.IDLENESS_TIMEOUT)
 
-        if msg is None and self.active_messages == 0:
-            self._timeout_termination()
+        if msg is None:
+            if self.active_messages == 0:
+                self._timeout_termination()
             return
 
-        msg_info = json.loads(msg)
+        try:
+            msg_info = json.loads(msg)
+        except TypeError as te:
+            log.exception(_('Invalid message JSON: {}').format(msg))
+            return
 
         # Sanity check: this minion should not process messages from another
         # workflow/app
@@ -504,13 +513,12 @@ class SparkMinion(Minion):
             try:
                 log_level = logging.getLevelName(log.getEffectiveLevel())
                 self.spark_session.sparkContext.setLogLevel(log_level)
-            except Exception as e:
+            except Exception:
                 log_level = 'WARN'
                 self.spark_session.sparkContext.setLogLevel(log_level)
 
-                # self.transpiler.build_dist_file()
-                # self.spark_session.sparkContext.addPyFile(
-                #    self.transpiler.DIST_ZIP_FILE)
+            self._build_dist_file()
+            self.spark_session.sparkContext.addPyFile(self.DIST_ZIP_FILE)
 
         log.info(_("Minion is using '%s' as Spark master"),
                  self.spark_session.sparkContext.master)

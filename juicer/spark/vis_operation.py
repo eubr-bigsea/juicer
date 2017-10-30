@@ -161,7 +161,8 @@ class VisualizationMethodOperation(Operation):
         self.title = parameters.get(
             self.TITLE_PARAM, 'Result for job ' + str(
                 self.parameters.get('job_id', '0')))
-        self.column_names = parameters.get(self.COLUMN_NAMES_PARAM, [])
+        self.column_names = [c.strip() for c in
+                             parameters.get(self.COLUMN_NAMES_PARAM, [])]
         self.orientation = parameters.get(self.ORIENTATION_PARAM, '')
         self.id_attribute = parameters.get(self.ID_ATTR_PARAM, [])
         self.value_attribute = parameters.get(self.VALUE_ATTR_PARAM, [])
