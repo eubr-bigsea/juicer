@@ -101,7 +101,7 @@ class RemoveStopWordsOperation(Operation):
     ALIAS_PARAM = 'alias'
     STOP_WORD_LIST_PARAM = 'stop_word_list'
     STOP_WORD_ATTRIBUTE_PARAM = 'stop_word_attribute'
-    STOP_WORD_LANGUAGE_PARAM = 'stop_word_language'
+    STOP_WORD_LANGUAGE_PARAM = 'language'
     STOP_WORD_CASE_SENSITIVE_PARAM = 'sw_case_sensitive'
 
     def __init__(self, parameters, named_inputs,
@@ -119,7 +119,7 @@ class RemoveStopWordsOperation(Operation):
 
         self.stop_word_list = [s.strip() for s in
                                self.parameters.get(self.STOP_WORD_LIST_PARAM,
-                                                   '').split(',')]
+                                                   '').split(',') if s.strip()]
 
         self.alias = [alias.strip() for alias in
                       parameters.get(self.ALIAS_PARAM, '').split(',')]
@@ -152,8 +152,13 @@ class RemoveStopWordsOperation(Operation):
             french, german, hungarian, italian, norwegian, portuguese,
             russian, spanish, swedish, turkish
             """
-            code = "sw = StopWordsRemover.loadDefaultStopWords('{}')".format(
-                self.stop_word_language)
+            if self.stop_word_list:
+                code = "sw = {list}".format(
+                    list=json.dumps(self.stop_word_list))
+            elif self.stop_word_language:
+                code = dedent("""
+                sw = StopWordsRemover.loadDefaultStopWords('{}')""".format(
+                    self.stop_word_language))
 
             code += dedent("""
             col_alias = {3}
@@ -284,35 +289,28 @@ class WordToVectorOperation(Operation):
         elif self.type == self.TYPE_WORD2VEC:
             # @FIXME Check
             code = dedent("""
-                col_alias = {3}
-                vectorizers = [Word2Vec(vectorSize={4},
-                            minCount={5},
+                col_alias = {aliases}
+                vectorizers = [Word2Vec(vectorSize={size},
+                            minCount={count},
                             numPartitions=1,
                             stepSize=0.025,
                             maxIter=1,
                             seed=None,
                             inputCol=col,
-                            outputCol=alias) for col, alias in col_alias]""")
-
-            code += dedent("""
-            # Use Pipeline to process all attributes once
-            pipeline = Pipeline(stages=vectorizers)
-            model = pipeline.fit({1})
-            {2} = model.transform({1})
-            """)
-
-            vocab_out = self.named_outputs.get('vocabulary',
-                                               '{}_vocab'.format(
-                                                   input_data))
-            code += dedent("""
-                {} = dict([(col_alias[i][1], v.vocabulary)
-                        for i, v in enumerate(model.stages)])""".format(
-                vocab_out))
-
-            code = code.format(self.attributes, input_data,
-                               self.named_outputs['output data'],
-                               json.dumps(zip(self.attributes, self.alias)),
-                               self.minimum_size, self.minimum_count)
+                            outputCol=alias) for col, alias in col_alias]
+                # Use Pipeline to process all attributes once
+                pipeline = Pipeline(stages=vectorizers)
+                model = pipeline.fit({input})
+                {out} = model.transform({input})
+                {vocab} = dict([(col_alias[i][1], v.getVectors())
+                             for i, v in enumerate(model.stages)])""".format(
+                self.attributes,
+                input=input_data,
+                out=self.output,
+                aliases=json.dumps(zip(self.attributes, self.alias)),
+                size=self.minimum_size, count=self.minimum_count,
+                vocab=self.vocab
+            ))
 
         else:
             raise ValueError(
