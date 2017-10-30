@@ -8,7 +8,12 @@ import juicer.compss.etl_operation
 import juicer.compss.geo_operation
 import juicer.compss.graph_operation
 import juicer.compss.ml_operation
+import juicer.compss.associative_operation
+import juicer.compss.feature_operation
+import juicer.compss.model_operation
 import juicer.compss.text_operation
+import juicer.compss.classification_operation
+
 import networkx as nx
 import os
 from juicer import operation
@@ -43,7 +48,7 @@ class COMPSsTranspiler(object):
         self.configuration = configuration
         self.operations = {}
         self._assign_operations()
-
+        self.numFrag = 4
         # self.graph = graph
         # self.params = params if params is not None else {}
         #
@@ -66,6 +71,7 @@ class COMPSsTranspiler(object):
 
         ports = {}
         sequential_ports = {}
+
 
         for source_id in graph.edge:
             for target_id in graph.edge[source_id]:
@@ -113,7 +119,8 @@ class COMPSsTranspiler(object):
                             target_port['named_inputs'][flow_name] = sequence
                         target_port['inputs'].append(sequence)
 
-        env_setup = {'instances': [], 'workflow_name': workflow['name']}
+        env_setup = {'instances': [], 'instances_by_task_id': {},
+                     'workflow_name': workflow['name']}
 
         sorted_tasks_id = nx.topological_sort(graph)
 
@@ -160,7 +167,7 @@ class COMPSsTranspiler(object):
             parameters['task_id'] = task['id']
             parameters['operation_slug'] = task['operation']['slug']
             parameters['job_id'] = job_id
-
+            parameters['numFrag'] = self.numFrag
             port = ports.get(task['id'], {})
 
             instance = class_name(parameters, port.get('named_inputs', {}),
@@ -170,7 +177,25 @@ class COMPSsTranspiler(object):
                 params.get('requires_info', False))
 
             env_setup['instances'].append(instance)
-            env_setup['execute_main'] = self.execute_main
+            env_setup['instances_by_task_id'][task['id']] = instance
+            env_setup['execute_main'] = params.get('execute_main', False)
+            env_setup['plain'] = params.get('plain', False)
+
+            dict_msgs = {}
+            dict_msgs['task_completed'] = _('Task completed')
+            dict_msgs['task_running']   = _('Task running')
+            dict_msgs['lemonade_task_completed'] = \
+                _('Lemonade task %s completed')
+            dict_msgs['lemonade_task_parents'] = \
+            _('Parents completed, submitting %s')
+            dict_msgs['lemonade_task_started'] = \
+                _('Lemonade task %s started')
+            dict_msgs['lemonade_task_afterbefore'] = \
+                _("Submitting parent task {} "
+              "before {}")
+
+            env_setup['dict_msgs'] = dict_msgs
+            env_setup['numFrag'] = self.numFrag
 
         template_loader = jinja2.FileSystemLoader(
             searchpath=os.path.dirname(__file__))
@@ -199,66 +224,93 @@ class COMPSsTranspiler(object):
 
     def _assign_operations(self):
         etl_ops = {
-            'add-columns': juicer.compss.etl_operation.AddColumnsOperation,
-            'add-rows': juicer.compss.etl_operation.UnionOperation,
-            'aggregation': juicer.compss.etl_operation.AggregationOperation,
-            'clean-missing': juicer.compss.etl_operation.CleanMissingOperation,
-            'difference': juicer.compss.etl_operation.DifferenceOperation,
-
-            'drop': juicer.compss.etl_operation.DropOperation,
-            'filter-selection': juicer.compss.etl_operation.FilterOperation,
-            'join': juicer.compss.etl_operation.JoinOperation,
-
-            'projection': juicer.compss.etl_operation.SelectOperation,
+            'add-columns':
+                juicer.compss.etl_operation.AddColumnsOperation,
+            'add-rows':
+                juicer.compss.etl_operation.UnionOperation,
+            'aggregation':
+                juicer.compss.etl_operation.AggregationOperation,
+            'clean-missing':
+                juicer.compss.etl_operation.CleanMissingOperation,
+            'difference':
+                juicer.compss.etl_operation.DifferenceOperation,
+            'drop':
+                juicer.compss.etl_operation.DropOperation,
+            'filter-selection':
+                juicer.compss.etl_operation.FilterOperation,
+            'join':
+                juicer.compss.etl_operation.JoinOperation,
+            'normalize':
+                juicer.compss.etl_operation.NormalizeOperation,
+            'projection':
+                juicer.compss.etl_operation.SelectOperation,
             'remove-duplicated-rows':
                 juicer.compss.etl_operation.DistinctOperation,
-            'replace-value': juicer.compss.etl_operation.ReplaceValuesOperation,
-
-            'sample': juicer.compss.etl_operation.SampleOrPartition,
-            'set-intersection': juicer.compss.etl_operation.Intersection,
-            'sort': juicer.compss.etl_operation.SortOperation,
-            'split': juicer.compss.etl_operation.SplitOperation,
+            'replace-value':
+                juicer.compss.etl_operation.ReplaceValuesOperation,
+            'sample':
+                juicer.compss.etl_operation.SampleOrPartition,
+            'set-intersection':
+                juicer.compss.etl_operation.Intersection,
+            'sort':
+                juicer.compss.etl_operation.SortOperation,
+            'split':
+                juicer.compss.etl_operation.SplitOperation,
             'transformation':
                 juicer.compss.etl_operation.TransformationOperation,
 
         }
 
         data_ops = {
-            'data-reader': juicer.compss.data_operation.DataReaderOperation,
-            'data-writer': juicer.compss.data_operation.SaveOperation,
-            'save': juicer.compss.data_operation.SaveOperation,
+            'data-reader':
+                juicer.compss.data_operation.DataReaderOperation,
+            'data-writer':
+                juicer.compss.data_operation.SaveHDFSOperation,
+            'save':
+                juicer.compss.data_operation.SaveHDFSOperation,
             'balance-data':
                 juicer.compss.data_operation.WorkloadBalancerOperation,
-            'change-attributes':
+            'change-attribute':
                 juicer.compss.data_operation.ChangeAttributesOperation,
         }
 
         geo_ops = {
-            # 'read-shapefile':
-            # juicer.compss.geo_operation.ReadShapefileOperation,
-            # 'within':
-            # juicer.compss.geo_operation.GeoWithinOperation,
+            'read-shapefile':
+                juicer.compss.geo_operation.ReadShapefileOperation,
+            'within':
+                juicer.compss.geo_operation.GeoWithinOperation,
+            'stdbscan':
+                juicer.compss.geo_operation.STDBSCANOperation,
         }
 
         graph_ops = {
-            'page-rank': juicer.compss.graph_operation.PageRankOperation,
+            'page-rank':
+                juicer.compss.graph_operation.PageRankOperation,
         }
 
         ml_ops = {
             # ------ Associative ------#
-            'frequent-item-set': juicer.compss.ml_operation.AprioriOperation,
+            'frequent-item-set':
+                juicer.compss.associative_operation.AprioriOperation,
             'association-rules':
-                juicer.compss.ml_operation.AssociationRulesOperation,
+                juicer.compss.associative_operation.AssociationRulesOperation,
 
             # ------ Feature Extraction Operations  ------#
 
             'feature-assembler':
-                juicer.compss.ml_operation.FeatureAssemblerOperation,
+                juicer.compss.feature_operation.FeatureAssemblerOperation,
             'feature-indexer':
-                juicer.compss.ml_operation.FeatureIndexerOperation,
+                juicer.compss.feature_operation.FeatureIndexerOperation,
 
             # ------ Model Operations  ------#
-            'apply-model': juicer.compss.ml_operation.ApplyModel,
+            'apply-model':
+                juicer.compss.model_operation.ApplyModel,
+            'evaluate-model':
+                juicer.compss.model_operation.EvaluateModelOperation,
+            'load-model':
+                juicer.compss.model_operation.LoadModel,
+            'save-model':
+                juicer.compss.model_operation.SaveModel,
 
             # ------ Clustering      -----#
             'clustering-model':
@@ -268,18 +320,17 @@ class COMPSsTranspiler(object):
 
             # ------ Classification  -----#
             'classification-model':
-                juicer.compss.ml_operation.ClassificationModelOperation,
+                juicer.compss.classification_operation.ClassificationModelOperation,
 
-            'knn-classifier': juicer.compss.ml_operation.KNNClassifierOperation,
+            'knn-classifier':
+                juicer.compss.classification_operation.KNNClassifierOperation,
             'logistic-regression':
-                juicer.compss.ml_operation.LogisticRegressionOperation,
+                juicer.compss.classification_operation.LogisticRegressionOperation,
             'naive-bayes-classifier':
-                juicer.compss.ml_operation.NaiveBayesClassifierOperation,
+                juicer.compss.classification_operation.NaiveBayesClassifierOperation,
             'svm-classification':
-                juicer.compss.ml_operation.SvmClassifierOperation,
+                juicer.compss.classification_operation.SvmClassifierOperation,
 
-            # ------ Evaluation  -----#
-            'evaluate-model': juicer.compss.ml_operation.EvaluateModelOperation,
 
             # ------ Regression  -----#
             'regression-model':

@@ -122,8 +122,8 @@ class Expression:
         bins_size = args[1]
         var_date    = args[0]
 
-        result = "group_datetime({date}, {bins_size})".format(date = var_date,
-                                                              bins_size = bins_size)
+        result = "group_datetime(col[{date}], {bins_size})"\
+            .format(date = var_date, bins_size = bins_size)
 
         return result
 
@@ -362,11 +362,7 @@ class Expression:
             "str2time":             "from dateutil import parser",
             "strip_accents":        "import unicodedata",
             "strip_punctuation":    "import string",
-            "group_datetime":
-            """def group_datetime(d, interval):
-                 seconds = d.second + d.hour*3600 + d.minute*60 + d.microsecond/1000
-                 k = d - datetime.timedelta(seconds=seconds % interval)
-                 return datetime.datetime(k.year, k.month, k.day, k.hour, k.minute, k.second)"""
+
         }
 
 

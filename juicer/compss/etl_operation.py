@@ -2,32 +2,47 @@
 from textwrap import dedent
 from juicer.operation import Operation
 from juicer.compss.expression import Expression
+from itertools import izip_longest
 
-class AddColumnsOperation(Operation): # ok
+class AddColumnsOperation(Operation):
     """
     Merge two data frames, column-wise, similar to the command paste in Linux.
+
+    REVIEW: 2017-10-20
+    OK - Juicer / Tahiti / implementation
     """
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs, named_outputs)
-        self.has_code = (len(named_inputs) == 2) and (len(named_outputs)>0)
+
+        self.has_code = len(named_inputs) == 2
+
+        self.suffixes = parameters.get('aliases','_l,_r')
+        self.suffixes = [ s for s in self.suffixes.split(',')]
+
         if self.has_code:
-            self.has_import = "from functions.etl.AddColumns import AddColumnsOperation\n"
+            self.has_import = \
+                "from functions.etl.AddColumns import AddColumnsOperation\n"
+        else:
+            raise ValueError(
+                _("Parameters '{}' and '{}' must be informed for task {}")
+                  .format('input data 1',  'input data  2', self.__class__))
+
+        self.output = self.named_outputs.get(
+            'output data', 'output_data_{}'.format(self.order))
 
     def generate_code(self):
-        if self.has_code:
 
-            code = """
-            numFrag  = 4
-            balanced = False #Currently, all data are considered unbalanced
-            {0} = AddColumnsOperation({1},{2},balanced,numFrag)
-            """.format(self.named_outputs['output data'],
-                       self.named_inputs['input data 1'],
-                       self.named_inputs['input data 2'])
-            return dedent(code)
-        else:
-            msg = "Parameters '{}' and '{}' must be informed for task {}"
-            raise ValueError(msg.format('[]inputs',  '[]outputs', self.__class__))
+        code = """
+        suffixes = {suffixes}
+        balanced = False #Currently, all data are considered unbalanced
+        {out} = AddColumnsOperation({input1}, {input2}, balanced, numFrag)
+        """.format(out = self.output,
+                   suffixes = self.suffixes,
+                   input1 = self.named_inputs['input data 1'],
+                   input2 = self.named_inputs['input data 2'])
+        return dedent(code)
+
 
 class AggregationOperation(Operation):
     """
@@ -37,40 +52,60 @@ class AggregationOperation(Operation):
         is the column to perform aggregation on, and the value is the aggregate
         function. The available aggregate functions are avg, max, min, sum,
         count.
+
+    REVIEW: 2017-10-20
+    OK - Juicer / Tahiti / implementation
     """
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs, named_outputs)
-        self.has_code = (len(named_inputs) == 1) and (len(self.named_outputs)>0)
-        if self.has_code:
-            self.has_import = "from functions.etl.Aggregation import AggregationOperation\n"
-        self.input_columns = parameters['attributes']
+
+        self.input_columns =  parameters.get('attributes', [])
+        functions = parameters.get('function',[])
         self.input_aliases = {}
         self.input_operations = {}
-        for dict in parameters['function']:
+
+        self.has_code = all([len(named_inputs) == 1,
+                            len(functions)>0,
+                            len(self.input_columns) > 0])
+
+        if self.has_code:
+            self.has_import = \
+                "from functions.etl.Aggregation import AggregationOperation\n"
+        else:
+            raise ValueError(
+                _("Parameter '{}', '{}' and '{}' must be informed for task {}")
+                .format('input data',  'attributes', 'function', self.__class__))
+
+        for dict in functions:
             att = dict['attribute']
-            if att in self.input_operations:
-                self.input_operations[att].append(dict['f'])
-                self.input_aliases[att].append(dict['alias'])
-            else:
-                self.input_operations[att] = [dict['f']]
-                self.input_aliases[att] = [dict['alias']]
+            f = dict['f']
+            a = dict['alias']
+            if (f is not None) and (a is not None):
+                if att in self.input_operations:
+                        self.input_operations[att].append(f)
+                        self.input_aliases[att].append(a)
+                else:
+                        self.input_operations[att] = [f]
+                        self.input_aliases[att] = [a]
+
+        self.output = self.named_outputs.get('output data',
+                                             'output_data_{}'.format(self.order))
+
 
     def generate_code(self):
-        if self.has_code:
 
-            code = """
-            numFrag = 4
-            settings = dict()
-            settings['columns'] = {columns}
-            settings['operation'] = {operations}
-            settings['aliases']   = {aliases}
-            {output} = AggregationOperation({input},settings,numFrag)
-            """.format(output = self.named_outputs['output data'],
-                       input  = self.named_inputs['input data'],
-                       columns= self.input_columns,
-                       aliases= self.input_aliases,
-                       operations= self.input_operations)
-            return dedent(code)
+        code = """
+        settings = dict()
+        settings['columns'] = {columns}
+        settings['operation'] = {operations}
+        settings['aliases']   = {aliases}
+        {output} = AggregationOperation({input}, settings, numFrag)
+        """.format(output = self.output,
+                   input  = self.named_inputs['input data'],
+                   columns= self.input_columns,
+                   aliases= self.input_aliases,
+                   operations= self.input_operations)
+        return dedent(code)
 
 
 class CleanMissingOperation(Operation):
@@ -86,100 +121,110 @@ class CleanMissingOperation(Operation):
           * "REMOVE_ROW": remove entire row
           * "REMOVE_COLUMN": remove entire column
         - value: optional, used to replace missing values
+
+    REVIEW: 2017-10-20
+    OK - Juicer / Tahiti / implementation
     """
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs, named_outputs)
 
+        if 'attributes' in parameters:
+            self.attributes_CM  = parameters['attributes']
+        else:
+            raise ValueError(
+                _("Parameter '{}' must be informed for task {}")\
+                    .format('attributes', self.__class__))
 
-        self.attributes_CM    = self.parameters['attributes']
-        self.mode_CM          = self.parameters.get('cleaning_mode',"REMOVE_ROW")
-        self.value_CM         = self.parameters.get('value', None)
+        self.mode_CM  = self.parameters.get('cleaning_mode',"REMOVE_ROW")
+        self.value_CM = self.parameters.get('value', None)
+
         self.has_code = all([
                 any([self.value_CM is not None,  self.mode_CM != "VALUE"]),
-                len(self.named_inputs) > 0,
-                len(self.named_outputs) > 0
-        ])
+                len(self.named_inputs) == 1 ])
 
         if self.has_code:
-            self.has_import = "from functions.etl.CleanMissing import CleanMissingOperation\n"
+            self.has_import = \
+                "from functions.etl.CleanMissing import CleanMissingOperation\n"
 
+        self.output = self.named_outputs.get(
+            'output data', 'output_data_{}'.format(self.order))
 
     def generate_code(self):
-        if self.has_code:
-
-            code = """
-                numFrag = 4
-                settings = dict()
-                settings['attributes'] = {attributes}
-                settings['cleaning_mode'] = '{cleaning_mode}'
-                """.format(attributes = self.attributes_CM,
-                           cleaning_mode = self.mode_CM)
-            if self.mode_CM == "VALUE":
-                code +="""
-                settings['value']   = {value}
-                """.format(value = self.value_CM)
+        code = """
+            settings = dict()
+            settings['attributes'] = {attributes}
+            settings['cleaning_mode'] = '{cleaning_mode}'
+            """.format(attributes = self.attributes_CM,
+                       cleaning_mode = self.mode_CM)
+        if self.mode_CM == "VALUE":
             code +="""
-                {output} = CleanMissingOperation({input},settings,numFrag)
-                """.format(output = self.named_outputs['output result'],
-                           input  = self.named_inputs['input data'])
+            settings['value']   = {value}
+            """.format(value = self.value_CM)
+        code +="""
+            {output} = CleanMissingOperation({input}, settings, numFrag)
+            """.format(output = self.output,
+                       input  = self.named_inputs['input data'])
 
-            return dedent(code)
+        return dedent(code)
 
 
 class DifferenceOperation(Operation):
     """
     Returns a new DataFrame containing rows in this frame but not in another
     frame.
+
+    REVIEW: 2017-10-20
+    OK - Juicer / Tahiti / implementation
     """
 
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
-        self.has_code = (len(named_inputs) == 2) and (len(self.named_outputs)>0)
+        self.has_code = len(named_inputs) == 2
         if self.has_code:
-            self.has_import = "from functions.etl.Difference import DifferenceOperation\n"
+            self.has_import = \
+                "from functions.etl.Difference import DifferenceOperation\n"
+        self.output = self.named_outputs.get(
+            'output data', 'output_data_{}'.format(self.order))
 
     def generate_code(self):
-        if self.has_code:
-
-            code = """
-            numFrag = 4
-            {} = DifferenceOperation({},{},numFrag)
-            """.format( self.named_outputs['output data'],
-                        self.named_inputs['input data 1'],
-                        self.named_inputs['input data 2'])
-            return dedent(code)
+        code = """
+        {} = DifferenceOperation({}, {}, numFrag)
+        """.format( self.output,
+                    self.named_inputs['input data 1'],
+                    self.named_inputs['input data 2'])
+        return dedent(code)
 
 class DistinctOperation(Operation):
     """
     Returns a new DataFrame containing the distinct rows in this DataFrame.
     Parameters: attributes to consider during operation (keys)
-    """
-    ATTRIBUTES_PARAM = 'attributes'
 
-    #se a lista for vazia, entao usar todos
+    REVIEW: 2017-10-20
+    OK - Juicer / Tahiti / implementation
+    """
 
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
-        self.has_code = (len(named_inputs) == 1) and (len(self.named_outputs)>0)
-        if self.ATTRIBUTES_PARAM in parameters:
-            self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
-        else:
-            self.attributes = []
+
+        self.has_code = len(named_inputs) == 1
 
         if self.has_code:
-            self.has_import = "from functions.etl.Distinct import DistinctOperation\n"
+            self.has_import = \
+                "from functions.etl.Distinct import DistinctOperation\n"
 
+        self.attributes = parameters.get('attributes',[])
+        self.output = self.named_outputs.get(
+            'output data', 'output_data_{}'.format(self.order))
 
 
     def generate_code(self):
         if self.has_code:
             code = """
-            numFrag = 4
             columns = {keys}
-            {output} = DistinctOperation({input},columns,numFrag)
-            """.format( output=self.named_outputs['output data'],
-                        input=self.named_inputs['input data'],
-                        keys=self.attributes)
+            {output} = DistinctOperation({input}, columns, numFrag)
+            """.format( output= self.output,
+                        input = self.named_inputs['input data'],
+                        keys  = self.attributes)
             return dedent(code)
 
 
@@ -188,25 +233,28 @@ class DropOperation(Operation):
     Returns a new DataFrame that drops the specified column.
     Nothing is done if schema doesn't contain the given column name(s).
     The only parameters is the name of the columns to be removed.
+
+    REVIEW: 2017-10-20
+    OK - Juicer / Tahiti / implementation
     """
 
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
-        self.has_code = (len(named_inputs) == 1) and (len(self.named_outputs)>0)
+        self.has_code = len(named_inputs) == 1
         if self.has_code:
             self.has_import = "from functions.etl.Drop import DropOperation\n"
 
-    def generate_code(self):
-        if self.has_code:
+        self.output = self.named_outputs.get(
+            'output data', 'output_data_{}'.format(self.order))
 
-            code = """
-            numFrag = 4
-            columns = {columns}
-            {output} = DropOperation({input},columns,numFrag)
-            """.format(output   = self.named_outputs['output data'],
-                       input    = self.named_inputs['input data'],
-                       columns  = self.parameters['attributes'])
-            return dedent(code)
+    def generate_code(self):
+        code = """
+        columns = {columns}
+        {output} = DropOperation({input}, columns, numFrag)
+        """.format(output  = self.output,
+                   input   = self.named_inputs['input data'],
+                   columns = self.parameters['attributes'])
+        return dedent(code)
 
 
 class FilterOperation(Operation):
@@ -214,6 +262,9 @@ class FilterOperation(Operation):
     Filters rows using the given condition.
     Parameters:
         - The expression (==, <, >)
+
+    REVIEW: 2017-10-20
+    OK - Juicer / Tahiti / implementation
     """
     FILTER_PARAM = 'filter'
 
@@ -221,29 +272,32 @@ class FilterOperation(Operation):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
 
         if self.FILTER_PARAM not in parameters:
-            raise ValueError("Parameter '{}' must be informed for task {}".format(self.FILTER_PARAM, self.__class__))
+            raise ValueError(
+                _("Parameters '{}' must be informed for task {}").
+                  format(self.FILTER_PARAM, self.__class__))
 
-        tmp = parameters.get(self.FILTER_PARAM)
 
-        self.has_code = (len(named_inputs) == 1) and (len(self.named_outputs)>0)
-        self.has_import = "from functions.etl.Filter import FilterOperation\n"
-        self.query = ""
-        for dict in tmp:
-            self.query += "({} {} {}) &".format(dict['attribute'], dict['f'], dict['alias'] )
-        self.query = self.query[:-2]
-
+        self.has_code = (len(named_inputs) == 1)
         if self.has_code:
-            self.generate_code()
+            self.has_import = \
+                "from functions.etl.Filter import FilterOperation\n"
+
+        self.query = ""
+        for dict in parameters.get(self.FILTER_PARAM):
+            self.query += "({} {} {}) and ".format(dict['attribute'],
+                                                dict['f'],
+                                                dict['alias'] )
+        self.query = self.query[:-4]
+        self.output = self.named_outputs.get(
+            'output data', 'output_data_{}'.format(self.order))
+
 
     def generate_code(self):
-        output = self.named_outputs['output data'] if len(self.named_outputs) else '{}_tmp'.format(self.named_inputs['input data'])
-
         code = """
-        numFrag = 4
         settings = dict()
         settings['query'] = "{query}"
-        {out} = FilterOperation({input},settings,numFrag)
-        """.format( out   = output,
+        {out} = FilterOperation({input}, settings, numFrag)
+        """.format( out   = self.output,
                     input = self.named_inputs['input data'],
                     query = self.query)
 
@@ -253,21 +307,34 @@ class FilterOperation(Operation):
 
 class Intersection(Operation):
     """
-    Returns a new DataFrame containing rows only in both this frame and another frame.
+    Returns a new DataFrame containing rows only in both this
+    frame and another frame.
+
+    REVIEW: 2017-10-20
+    OK - Juicer / Tahiti / implementation
     """
 
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
-        self.parameters = parameters
-        self.has_code = (len(named_inputs) == 2) and (len(self.named_outputs)>0)
+
+        self.has_code = len(named_inputs) == 2
+
         if self.has_code:
-            self.has_import = "from functions.etl.Intersect import IntersectionOperation\n"
+            self.has_import = \
+                "from functions.etl.Intersect import IntersectionOperation\n"
+        else:
+            raise ValueError(
+                _("Parameter '{}' and '{}' must be informed for task {}")
+                    .format('input data 1',  'input data 2', self.__class__))
+
+        self.output = self.named_outputs.get(
+            'output data', 'output_data_{}'.format(self.order))
 
     def generate_code(self):
-
-        code = "{} = IntersectionOperation({},{})".format(self.named_outputs['output data'],
-                                              self.named_inputs['input data 1'],
-                                              self.named_inputs['input data 2'])
+        code = "{} = IntersectionOperation({},{})".format(
+                self.output,
+                self.named_inputs['input data 1'],
+                self.named_inputs['input data 2'])
         return dedent(code)
 
 
@@ -275,6 +342,9 @@ class JoinOperation(Operation):
     """
     Joins with another DataFrame, using the given join expression.
     The expression must be defined as a string parameter.
+
+    REVIEW: 2017-10-20
+    OK - Juicer / Tahiti / implementation
     """
     KEEP_RIGHT_KEYS_PARAM   = 'keep_right_keys'
     MATCH_CASE_PARAM        = 'match_case'
@@ -285,115 +355,214 @@ class JoinOperation(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
         self.keep_right_keys = parameters.get(self.KEEP_RIGHT_KEYS_PARAM, False)
-        self.match_case = parameters.get(self.MATCH_CASE_PARAM, False)
+        self.match_case = parameters.get(self.MATCH_CASE_PARAM, False) \
+                          in (1, '1', True)
         self.join_type = parameters.get(self.JOIN_TYPE_PARAM, 'inner')
-        if self.has_code:
-            self.has_import = "from functions.etl.Join import JoinOperation\n"
 
         if not all([self.LEFT_ATTRIBUTES_PARAM in parameters,
                     self.RIGHT_ATTRIBUTES_PARAM in parameters]):
             raise ValueError(
-                "Parameters '{}' and {} must be informed for task {}".format(
-                    self.LEFT_ATTRIBUTES_PARAM, self.RIGHT_ATTRIBUTES_PARAM,
-                    self.__class__))
+                _("Parameters '{}' and '{}' must be informed for task {}")\
+                    .format(self.LEFT_ATTRIBUTES_PARAM,
+                            self.RIGHT_ATTRIBUTES_PARAM,
+                            self.__class__))
+
+
+        self.has_code = len(named_inputs) == 2
+        if self.has_code:
+            self.has_import = "from functions.etl.Join import JoinOperation\n"
         else:
-            self.left_attributes = parameters.get(self.LEFT_ATTRIBUTES_PARAM)
-            self.right_attributes = parameters.get(self.RIGHT_ATTRIBUTES_PARAM)
+            raise ValueError(
+                _("Parameter '{}' and '{}' must be informed for task {}")
+                    .format('input data 1',  'input data 2', self.__class__))
 
+        self.left_attributes = parameters.get(self.LEFT_ATTRIBUTES_PARAM)
+        self.right_attributes = parameters.get(self.RIGHT_ATTRIBUTES_PARAM)
+
+        self.suffixes = parameters.get('aliases','_l,_r')
+        self.suffixes = [ s for s in self.suffixes.split(',')]
+        self.output = self.named_outputs.get('output data',
+                                        'output_data_{}'.format(self.order))
     def generate_code(self):
-        output = self.named_outputs.get('output data', 'intersected_data_{}'.format(self.order))
-
 
         code = """
-            numFrag = 4
             params = dict()
             params['option'] = '{type}'
             params['key1']   = {id1}
             params['key2']   = {id2}
             params['case']   = {case}
+            params['suffixes'] = {suffixes}
             params['keep_keys'] = {keep}
-            {out} = JoinOperation({in1},{in2}, params, numFrag)
-            """.format( out  = output,
+            {out} = JoinOperation({in1}, {in2}, params, numFrag)
+            """.format( out  = self.output,
                         type = self.join_type,
                         in1  = self.named_inputs['input data 1'],
                         in2  = self.named_inputs['input data 2'],
                         id1  = self.parameters['left_attributes'],
                         id2  = self.parameters['right_attributes'],
                         case = self.match_case,
-                        keep = self.keep_right_keys)
+                        keep = self.keep_right_keys,
+                        suffixes = self.suffixes)
 
         return dedent(code)
 
 
-class ReplaceValuesOperation(Operation): # ok
-    def __init__(self, parameters, named_inputs, named_outputs):
-        Operation.__init__(self, parameters,  named_inputs, named_outputs)
-        self.has_code = (len(named_inputs) == 1) and (len(self.named_outputs)>0)
+class NormalizeOperation(Operation):
+    def __init__(self, parameters,  named_inputs, named_outputs):
+        Operation.__init__(self, parameters,  named_inputs,  named_outputs)
+
+        if 'attributes' not in parameters:
+            raise ValueError(
+                _("Parameters '{}' must be informed for task {}") \
+                    .format('attributes', self.__class__))
+
+        elif 'mode' not in parameters:
+            raise ValueError(
+                _("Parameters '{}' must be informed for task {}") \
+                    .format('mode', self.__class__))
+
+        self.output = self.named_outputs.get('output data',
+                                             'output_data_{}'.format(self.order))
+        self.alias = [s.strip() for s in parameters.get("alias", []).split(',')]
+
+
+        self.attributes = parameters['attributes']
+        # Adjust alias in order to have the same number of aliases as attributes
+        # by filling missing alias with the attribute name sufixed by _indexed.
+        if len(self.alias)>0:
+            self.alias = [x[1] or '{}_norm'.format(x[0]) for x in
+                          izip_longest(self.attributes,
+                                       self.alias[:len(self.attributes)])]
+
+        self.mode = parameters.get('mode', 'range')
+        self.has_code =  len(self.named_inputs) == 1
         if self.has_code:
-            self.has_import = "from functions.etl.ReplaceValues import ReplaceValuesOperation\n"
-        self.mode = parameters.get('mode', 'value')
-        self.input_regex = False if self.mode == 'value' else True
-        self.input_replaces = {}
-        i = 0
-
-        if not self.input_regex:
-            self.has_code = (len(self.parameters['old_value']) > 0) and (len(self.parameters['new_value']) > 0)
-
-            for att in parameters['attributes']:
-                if att not in self.input_replaces:
-                    self.input_replaces[att] = [[],[]]
-                self.input_replaces[att][0].append(self.parameters['old_value'][i])
-                self.input_replaces[att][1].append(self.parameters['new_value'][i])
-                i+=1
-        else:
-            for att in parameters['attributes']:
-                if att not in self.input_replaces:
-                    self.input_replaces[att] = [[],[]]
-                self.input_replaces[att][0].append(self.parameters['regex'][i])
-                self.input_replaces[att][1].append(self.parameters['new_value'][i])
-                i+=1
+            self.has_import = "from functions.etl.Normalize " \
+                              "import NormalizeOperation\n"
 
     def generate_code(self):
 
         code = """
-            numFrag = 4
+        settings = dict()
+        settings['attributes']  = {att}
+        settings['alias'] = {alias}
+        settings['mode'] = '{mode}'
+        {output} = NormalizeOperation({input}, settings, numFrag)
+        """.format( output = self.output,
+                    input  = self.named_inputs['input data'],
+                    att = self.attributes,
+                    mode = self.mode,
+                    alias  = self.alias)
+
+        return dedent(code)
+
+class ReplaceValuesOperation(Operation):
+    """
+    Replace values in one or more attributes from a dataframe.
+    Parameters:
+    - The list of columns selected.
+
+    REVIEW: 2017-10-20
+    OK - Juicer / Tahiti / implementation
+    """
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters,  named_inputs, named_outputs)
+
+        self.mode = parameters.get('mode', 'value')
+        self.input_regex = self.mode != 'value'
+        self.replaces = {}
+
+        i = 0
+        if not self.input_regex:
+
+            if any([ 'old_value' not in parameters,
+                     'new_value' not in parameters]):
+                raise ValueError(
+                    _("Parameter {} and {} must be informed if is using "
+                      "replace by value in task {}.")
+                        .format('old_value',  'new_value', self.__class__))
+
+            for att in parameters['attributes']:
+                if att not in self.replaces:
+                    self.replaces[att] = [[],[]]
+                self.replaces[att][0].append(self.parameters['old_value'])
+                self.replaces[att][1].append(self.parameters['new_value'])
+                i+=1
+        else:
+            for att in parameters['attributes']:
+                if att not in self.replaces:
+                    self.replaces[att] = [[],[]]
+                self.replaces[att][0].append(self.parameters['regex'])
+                self.replaces[att][1].append(self.parameters['new_value'])
+                i+=1
+
+        self.has_code = len(named_inputs) == 1
+        if self.has_code:
+            self.has_import = \
+               "from functions.etl.ReplaceValues import ReplaceValuesOperation\n"
+        self.output = self.named_outputs.get('output data',
+                                             'output_data_{}'.format(self.order))
+
+    def generate_code(self):
+
+        code = """
             settings = dict()
             settings['replaces'] = {replaces}
             settings['regex'] = {regex}
-            {output} = ReplaceValuesOperation({input},settings,numFrag)
-            """.format(output = self.named_outputs['output data'],
+            {output} = ReplaceValuesOperation({input}, settings, numFrag)
+            """.format(output = self.output,
                        input  = self.named_inputs['input data'],
-                       replaces = self.input_replaces,
+                       replaces = self.replaces,
                        regex = self.input_regex)
         return dedent(code)
 
 
 class SampleOrPartition(Operation):
+    """
+    Returns a sampled subset of this DataFrame.
+    Parameters:
+    - withReplacement -> can elements be sampled multiple times
+                        (replaced when sampled out)
+    - fraction -> fraction of the data frame to be sampled.
+        without replacement: probability that each element is chosen;
+            fraction must be [0, 1]
+        with replacement: expected number of times each element is chosen;
+            fraction must be >= 0
+    - seed -> seed for random operation.
 
+    REVIEW: 2017-10-20
+    OK - Juicer / Tahiti / implementation
+    """
 
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
-        self.has_code = (len(self.named_inputs) == 1) and (len(self.named_outputs) > 0)
-        if self.has_code:
-            self.has_import = "from functions.etl.Sample import SampleOperation\n"
+
 
         self.type   = self.parameters.get('type', 'percent')
-        self.value  = self.parameters.get('value', None)
-        if (self.value == None) or (self.value < 0):
-            self.type = 'percent'
+        self.value  = self.parameters.get('value', -1)
+
+        if (self.value < 0 ) and (self.type != 'percent'):
+            raise ValueError(
+                _("Parameter 'value' must be [x>=0] if is using "
+                  "the current type of sampling in task {}.")
+                    .format(self.__class__))
 
         self.seed   = self.parameters.get('seed', None)
+        self.output = self.named_outputs.get('sampled data',
+                                             'output_data_{}'.format(self.order))
 
+        self.has_code = len(self.named_inputs) == 1
+        if self.has_code:
+            self.has_import="from functions.etl.Sample import SampleOperation\n"
 
     def generate_code(self):
         code = """
-        numFrag  = 4
         settings = dict()
         settings['type']  = '{type}'
         settings['value'] = {value}
         settings['seed']  = {seed}
-        {output} = SampleOperation({input},settings,numFrag)
-        """.format(output= self.named_outputs['sampled data'],
+        {output} = SampleOperation({input}, settings, numFrag)
+        """.format(output= self.output,
                    input = self.named_inputs['input data'],
                    type  = self.type,
                    seed  = self.seed,
@@ -408,6 +577,9 @@ class SelectOperation(Operation):
     Projects a set of expressions and returns a new DataFrame.
     Parameters:
     - The list of columns selected.
+
+    REVIEW: 2017-10-20
+    OK - Juicer / Tahiti / implementation
     """
     ATTRIBUTES_PARAM = 'attributes'
 
@@ -416,64 +588,87 @@ class SelectOperation(Operation):
 
         if self.ATTRIBUTES_PARAM in parameters:
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
+            self.cols = ', '.join(['"{}"'.format(x) for x in self.attributes])
         else:
             raise ValueError(
-                "Parameter '{}' must be informed for task {}".format(self.ATTRIBUTES_PARAM, self.__class__))
+                _("Parameter '{}' must be informed for task {}").format(
+                    self.ATTRIBUTES_PARAM, self.__class__))
 
-        self.has_code = (len(named_inputs) == 1) and (len(self.named_outputs)>0)
+        self.has_code = len(named_inputs) == 1
+        self.output = self.named_outputs.get(
+            'output projected data', 'projection_data_{}'.format(self.order))
         if self.has_code:
-            self.has_import = "from functions.etl.Select import SelectOperation\n"
+            self.has_import = \
+                "from functions.etl.Select import SelectOperation\n"
 
     def generate_code(self):
 
         code = """
-        numFrag = 4
         columns = [{column}]
-        {output} = SelectOperation({input},columns,numFrag)
-        """.format( output = self.named_outputs['output projected data'],
-                    input = self.named_inputs['input data'],
-                    column = ', '.join(['"{}"'.format(x) for x in self.attributes]))
+        {output} = SelectOperation({input}, columns, numFrag)
+        """.format( output = self.output,
+                    input  = self.named_inputs['input data'],
+                    column = self.cols)
         return dedent(code)
 
 
 class SortOperation(Operation):
+    """
+    Returns a new DataFrame sorted by the specified column(s).
+    Parameters:
+    - The list of columns to be sorted.
+    - A list indicating whether the sort order is ascending for the columns.
+    Condition: the list of columns should have the same size of the list of
+               boolean to indicating if it is ascending sorting.
+
+    REVIEW: 2017-10-20
+    OK - Juicer / Tahiti / implementation
+    """
+
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs, named_outputs)
 
+        attributes = parameters.get('attributes',[])
+        if len(attributes)==0:
+            raise ValueError(
+                _("Parameter '{}' must be informed for task {}").format(
+                    'attributes', self.__class__))
+
+        self.input_columns = [ dict['attribute'] for dict in attributes]
+        self.AscDes = [ True for _ in range(len(self.input_columns))]
+        for i, v in enumerate([ dict['f'] for dict in attributes]):
+            if v != "asc":
+                self.AscDes[i] = False
+            else:
+                self.AscDes[i] = True
+
+        # if numFrag is power of 2, the algorithm will be 'Bitonic Sort',
+        # otherwise, "Odd-Even Sort"
+        numFrag = parameters['numFrag']
+        if not ((numFrag & (numFrag - 1)) == 0) and numFrag != 0:
+            self.algo = "odd-even"
+        else: self.algo = "bitonic"
+
+        self.has_code = len(named_inputs) == 1
         if self.has_code:
             self.has_import = "from functions.etl.Sort import SortOperation\n"
 
-        self.input_columns = [ dict['attribute'] for dict in parameters['attributes'] if dict['attribute'] != None]
-        tmp =  [ dict['f'] for dict in parameters['attributes'] if dict['f'] != None]
-        if len(self.input_columns) == len(tmp):
-            self.order = []
-            for v in tmp:
-                if v == "asc":
-                    self.order.append(True)
-                else:
-                    self.order.append(False)
-        else:
-            self.order = True if tmp[0] == 'asc' else False
-
-        self.has_code = ((len(named_inputs) == 1) and len(self.input_columns)>0 and len(self.order)>0)
+        self.output = self.named_outputs.get(
+            'output data', 'output_data_{}'.format(self.order))
 
 
     def generate_code(self):
-
-        self.algo = "bitonic"  #"odd-even" "bitonic"  => avaliar como receber o numFrag no Juicer
-
         code = """
-            numFrag = 4
             settings = dict()
             settings['columns'] = {columns}
             settings['ascending'] = {asc}
             settings['algorithm'] = '{algo}'
-            {output} = SortOperation({input},settings,numFrag)
-            """.format(output = self.named_outputs['output data'],
+            {output} = SortOperation({input}, settings, numFrag)
+            """.format(output = self.output,
                        input  = self.named_inputs['input data'],
                        columns= self.input_columns,
                        algo   = self.algo,
-                       asc    = self.order)
+                       asc    = self.AscDes)
         return dedent(code)
 
 
@@ -482,17 +677,28 @@ class SplitOperation(Operation):
     Randomly splits a Data Frame into two data frames.
     Parameters:
     - List with two weights for the two new data frames.
-    - Optional seed in case of deterministic random operation ('0' means no seed).
+    - Optional seed in case of deterministic random operation
+        ('0' means no seed).
+
+    REVIEW: 2017-10-20
+    OK - Juicer / Tahiti / implementation
     """
 
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
-        self.has_code = (len(named_inputs) == 1) and (len(self.named_outputs)>0)
+
+        self.has_code = len(named_inputs) == 1
         if self.has_code:
             self.has_import = "from functions.etl.Split import SplitOperation\n"
 
-        self.out1 = self.named_outputs.get('splitted data 1', '{}_1_tmp'.format(self.output))
-        self.out2 = self.named_outputs.get('splitted data 2', '{}_2_tmp'.format(self.output))
+        self.percentage = float(self.parameters.get('weights', 0.5))/100
+        self.seed = self.parameters.get("seed", 0)
+        self.seed = self.seed if self.seed !=0 else None
+
+        self.out1 = self.named_outputs.get('splitted data 1',
+                                           'splitted_1_{}'.format(self.order))
+        self.out2 = self.named_outputs.get('splitted data 2',
+                                           'splitted_2_{}'.format(self.order))
 
     def get_data_out_names(self, sep=','):
             return ''
@@ -500,22 +706,17 @@ class SplitOperation(Operation):
     def get_output_names(self, sep=', '):
         return sep.join([self.out1, self.out2])
 
-
-
     def generate_code(self):
-        v = self.parameters.get('weights', 0)
-        self.percentage = float(v)/100
 
         code =  """
-        numFrag  = 4
         settings = dict()
         settings['percentage'] = {percentage}
         settings['seed']       = {seed}
-        {out1},{out2} = SplitOperation({input},settings,numFrag)
+        {out1},{out2} = SplitOperation({input}, settings, numFrag)
                 """.format( out1    = self.out1,
                             out2    = self.out2,
                             input   = self.named_inputs['input data'],
-                            seed    = self.parameters.get("seed", None),
+                            seed    = self.seed,
                             percentage = self.percentage
                             )
         return dedent(code)
@@ -524,8 +725,13 @@ class TransformationOperation(Operation):
     """
     Returns a new DataFrame applying the expression to the specified column.
     Parameters:
-        - Alias: new column name. If the name is the same of an existing, replace it.
+        - Alias: new column name. If the name is the same of an existing,
+            replace it.
         - Expression: json describing the transformation expression
+
+    REVIEW: 2017-10-20
+    OK - Juicer / Tahiti / implementation
+    !!! TODO: Need to review the list of functions
     """
     ALIAS_PARAM = 'alias'
     EXPRESSION_PARAM = 'expression'
@@ -534,59 +740,70 @@ class TransformationOperation(Operation):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
         import json
 
-        if all(['alias' in self.parameters, 'expression' in self.parameters]):
-            self.alias = self.parameters['alias']
-            self.json_expression = json.loads(self.parameters['expression'])['tree']
-            self.has_code = (len(self.named_inputs) == 1) and (len(self.named_outputs)>0)
-        else:
-            self.has_code = False
+        if any(['alias' not in self.parameters,
+                'expression' not in self.parameters]):
             raise ValueError(
-                 "Parameters '{}' and '{}' must be informed for task {}".format(
-                     self.ALIAS_PARAM, self.EXPRESSION_PARAM, self.__class__))
+                 _("Parameters '{}' and '{}' must be informed for task {}")\
+                     .format(self.ALIAS_PARAM,
+                             self.EXPRESSION_PARAM, self.__class__))
 
-
+        self.alias = self.parameters['alias']
+        self.json_expression = json.loads(self.parameters['expression'])['tree']
+        self.has_code = len(self.named_inputs) == 1
         if self.has_code:
-            self.has_import = "from functions.etl.Transform import TransformOperation\n"
+            self.has_import = \
+                "from functions.etl.Transform import TransformOperation\n"
 
-
+        self.output = self.named_outputs.get('output data',
+                                        'output_data_{}'.format(self.order))
 
     def generate_code(self):
-        output = self.named_outputs.get('output data', 'sampled_data_{}'.format(self.order))
-        input_data = self.named_inputs['input data']
 
         # Builds the expression and identify the target column
-        params = {'input': input_data}
+        params = {'input': 'input_data'}
         expression = Expression(self.json_expression, params)
-        print self.json_expression
-        functions = [ self.alias, expression.parsed_expression, expression.imports ]
+        #print self.json_expression
+        functions = [ self.alias,
+                      expression.parsed_expression,
+                      expression.imports ]
 
         code = """
-        numFrag = 4
-        settins = dict()
+        settings = dict()
         settings['functions']   = [{expr}]
         {out} = TransformOperation({input}, settings, numFrag)
-        """.format(out=output, input=input_data, expr=functions)
+        """.format(out=self.output,
+                   input=self.named_inputs['input data'],
+                   expr=functions)
         return dedent(code)
 
 
 
-class UnionOperation(Operation): #ok
+class UnionOperation(Operation):
     """
     Return a new DataFrame containing all rows in this frame and another frame.
     Takes no parameters.
+
+    REVIEW: 2017-10-20
+    OK - Juicer / Tahiti / implementation
     """
 
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
-        self.has_code = len(self.named_inputs) == 2 and len(self.named_outputs) > 0
+        self.has_code = len(self.named_inputs) == 2
         if self.has_code:
             self.has_import = "from functions.etl.Union import UnionOperation\n"
+        else:
+            raise ValueError(
+                _("Parameter '{}' and '{}' must be informed for task {}")
+                    .format('input data 1',  'input data 2', self.__class__))
+
+        self.output = self.named_outputs.get(
+            'output data', 'output_data_{}'.format(self.order))
 
     def generate_code(self):
         code = """
-        numFrag = 4
-        {0} = UnionOperation({1},{2}, numFrag)
-        """.format( self.named_outputs['output data'],
+        {0} = UnionOperation({1}, {2}, numFrag)
+        """.format( self.output,
                     self.named_inputs['input data 1'],
                     self.named_inputs['input data 2'])
         return dedent(code)
