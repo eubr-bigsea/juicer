@@ -224,10 +224,12 @@ def handle_spark_exception(e):
     result = False
     if isinstance(e, AnalysisException):
         value_expr = re.compile(r'(`.+`).+\[(.+)\]')
-        field, fields = value_expr.findall(e.desc)[0]
-        raise ValueError(
-            _('Attribute {} not found. Valid attributes: {}').format(
-                field, fields))
+        found = value_expr.findall(e.desc)
+        if found:
+            field, fields = found[0]
+            raise ValueError(
+                _('Attribute {} not found. Valid attributes: {}').format(
+                    field, fields))
     elif hasattr(e, 'java_exception'):
         cause = e.java_exception.getCause()
         if cause is not None:
