@@ -46,7 +46,8 @@ class TokenizerOperation(Operation):
 
         self.expression_param = parameters.get(self.EXPRESSION_PARAM, r'\s+')
         self.min_token_lenght = parameters.get(self.MINIMUM_SIZE, 3)
-        self.has_code = len(self.named_inputs) > 0
+        self.has_code = any(
+            [len(self.named_inputs) > 0, self.contains_results()])
 
     def generate_code(self):
         input_data = self.named_inputs['input data']
@@ -135,7 +136,8 @@ class RemoveStopWordsOperation(Operation):
         self.sw_case_sensitive = self.parameters.get(
             self.STOP_WORD_CASE_SENSITIVE_PARAM, 'False')
 
-        self.has_code = len(self.named_inputs) > 0
+        self.has_code = any(
+            [len(self.named_inputs) > 0, self.contains_results()])
 
     def generate_code(self):
         input_data = self.named_inputs['input data']
@@ -238,14 +240,15 @@ class WordToVectorOperation(Operation):
         self.minimum_size = parameters.get(self.MINIMUM_VECTOR_SIZE_PARAM, 3)
         self.minimum_count = parameters.get(self.MINIMUM_COUNT_PARAM, 0)
 
-        self.has_code = len(self.named_inputs) > 0
+        self.has_code = any(
+            [len(self.named_inputs) > 0, self.contains_results()])
         self.output = self.named_outputs.get('output data',
                                              'out_{}'.format(self.order))
         self.vocab = self.named_outputs.get('vocabulary',
                                             'vocab_task_{}'.format(self.order))
 
     def get_data_out_names(self, sep=','):
-        return self.named_outputs['output data']
+        return self.output
 
     def get_output_names(self, sep=", "):
         return sep.join([self.output, self.vocab])
@@ -272,7 +275,7 @@ class WordToVectorOperation(Operation):
                 self.vocab))
 
             code = code.format(self.attributes, input_data,
-                               self.named_outputs['output data'],
+                               self.output,
                                json.dumps(zip(self.attributes, self.alias)),
                                self.minimum_tf, self.minimum_df,
                                self.vocab_size)
@@ -313,7 +316,7 @@ class WordToVectorOperation(Operation):
         else:
             raise ValueError(
                 _("Invalid type '{}' for task {}").format(self.type,
-                                                       self.__class__))
+                                                          self.__class__))
         return code
 
 
@@ -354,7 +357,8 @@ class GenerateNGramsOperation(Operation):
                       izip_longest(self.attributes,
                                    self.alias[:len(self.attributes)])]
 
-        self.has_code = len(self.named_inputs) > 0
+        self.has_code = any(
+            [len(self.named_inputs) > 0, self.contains_results()])
 
     def generate_code(self):
         input_data = self.named_inputs['input data']

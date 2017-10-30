@@ -26,7 +26,8 @@ class SplitOperation(Operation):
 
         self.weights = [value, 100 - value]
         self.seed = parameters.get(self.SEED_PARAM, int(random() * time.time()))
-        self.has_code = len(self.named_outputs) > 0
+        self.has_code = any(
+            [len(self.named_outputs) > 0, self.contains_results()])
 
         self.output1 = self.named_outputs.get(
             'splitted data 1',
@@ -56,8 +57,8 @@ class AddRowsOperation(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
         self.parameters = parameters
-        self.has_code = (len(self.named_inputs) == 2 and len(
-            self.named_outputs) > 0) or self.contains_results()
+        self.has_code = any([(len(self.named_inputs) == 2 and len(
+            self.named_outputs) > 0), self.contains_results()])
         self.output = self.named_outputs.get(
             'output data', 'add_rows_{}'.format(self.order))
 
@@ -92,7 +93,8 @@ class SortOperation(Operation):
                 _("Parameter '{}' must be informed for task {}").format(
                     self.ATTRIBUTES_PARAM, self.__class__))
 
-        self.has_code = len(self.named_inputs) == 1 or self.contains_results()
+        self.has_code = any(
+            [len(self.named_inputs) == 1, self.contains_results()])
         self.output = self.named_outputs.get('output data',
                                              'out_task_{}'.format(self.order))
 
@@ -126,7 +128,8 @@ class RemoveDuplicatedOperation(Operation):
         else:
             self.attributes = []
 
-        self.has_code = len(self.named_inputs) == 1
+        self.has_code = any(
+            [len(self.named_inputs) == 1, self.contains_results()])
 
     def generate_code(self):
         output = self.named_outputs.get('output data', 'dedup_data_{}'.format(
@@ -196,7 +199,8 @@ class SampleOrPartitionOperation(Operation):
         elif self.type in [self.TYPE_VALUE, self.TYPE_HEAD]:
             self.value = int(parameters.get(self.VALUE_PARAM, 100))
 
-        self.has_code = len(self.named_inputs) == 1
+        self.has_code = any(
+            [len(self.named_inputs) == 1, self.contains_results()])
         self.output = self.named_outputs.get(
             'sampled data', 'sampled_data_{}'.format(self.order))
 
@@ -239,7 +243,8 @@ class IntersectionOperation(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
         self.parameters = parameters
-        self.has_code = len(self.named_inputs) == 2
+        self.has_code = any(
+            [len(self.named_inputs) == 2, self.contains_results()])
 
     def generate_code(self):
         output = self.named_outputs.get(
@@ -261,7 +266,8 @@ class DifferenceOperation(Operation):
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
-        self.has_code = len(self.named_inputs) == 2
+        self.has_code = any(
+            [len(self.named_inputs) == 2, self.contains_results()])
 
     def generate_code(self):
         output = self.named_outputs.get(
@@ -370,7 +376,8 @@ class DropOperation(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
         self.column = parameters['column']
-        self.has_code = len(self.named_inputs) == 1
+        self.has_code = any(
+            [len(self.named_inputs) == 1, self.contains_results()])
 
     def generate_code(self):
         output = self.named_outputs.get('output data', 'sampled_data_{}'.format(
@@ -401,7 +408,8 @@ class TransformationOperation(Operation):
             raise ValueError(
                 _("Parameters '{}' and {} must be informed for task {}").format(
                     self.ALIAS_PARAM, self.EXPRESSION_PARAM, self.__class__))
-        self.has_code = len(self.named_inputs) > 0 or self.contains_results()
+        self.has_code = any(
+            [len(self.named_inputs) > 0, self.contains_results()])
         self.output = self.named_outputs.get(
             'output data', 'sampled_data_{}'.format(self.order))
 
@@ -505,7 +513,8 @@ class ReplaceValueOperation(Operation):
                   "or enclosed in quotes.").format(
                     self.REPLACEMENT_PARAM, self.__class__))
 
-        self.has_code = len(self.named_inputs) == 1
+        self.has_code = any(
+            [len(self.named_inputs) == 1, self.contains_results()])
 
     def get_output_names(self, sep=", "):
         return self.output
@@ -563,7 +572,8 @@ class AggregationOperation(Operation):
             if not all([f.get('attribute'), f.get('f'), f.get('alias')]):
                 raise ValueError(_('Missing parameter in aggregation function'))
 
-        self.has_code = len(self.named_inputs) == 1
+        self.has_code = any(
+            [len(self.named_inputs) == 1, self.contains_results()])
         # noinspection PyArgumentEqualDefault
         self.pivot = next(iter(parameters.get(self.PIVOT_ATTRIBUTE) or []),
                           None)
@@ -658,7 +668,8 @@ class FilterOperation(Operation):
 
         self.filter = parameters.get(self.FILTER_PARAM)
 
-        self.has_code = len(self.named_inputs) == 1
+        self.has_code = any(
+            [len(self.named_inputs) == 1, self.contains_results()])
 
     def generate_code(self):
         input_data = self.named_inputs['input data']
@@ -719,9 +730,9 @@ class CleanMissingOperation(Operation):
 
         # In this case, nothing will be generated besides create reference to
         # data frame
-        self.has_code = all([
+        self.has_code = any([all([
             any([self.value is not None, self.cleaning_mode != self.VALUE]),
-            len(self.named_inputs) > 0])
+            len(self.named_inputs) > 0]), self.contains_results()])
         self.output = self.named_outputs.get('output result',
                                              'out_{}'.format(self.order))
 
@@ -829,7 +840,8 @@ class AddColumnsOperation(Operation):
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
-        self.has_code = len(self.named_inputs) == 2
+        self.has_code = any(
+            [len(self.named_inputs) == 2, self.contains_results()])
         self.aliases = [
             alias.strip() for alias in
             parameters.get(self.ALIASES_PARAM, 'ds0_, ds1_').split(',')]
@@ -891,7 +903,8 @@ class PivotTableOperation(Operation):
         self.pivot = parameters.get(self.PIVOT_ATTRIBUTE_PARAM)
         self.functions = parameters.get(self.FUNCTIONS_PARAM)
 
-        self.has_code = len(self.named_inputs) == 1
+        self.has_code = any(
+            [len(self.named_inputs) == 1, self.contains_results()])
 
     def generate_code(self):
         elements = []
@@ -1029,8 +1042,7 @@ class ExecuteSQLOperation(Operation):
             self.names = None
 
         self.has_code = any([len(self.named_outputs) > 0,
-                             parameters.get('display_schema'),
-                             parameters.get('display_sample')])
+                             self.contains_results()])
         self.input1 = self.named_inputs.get('input data 1')
         self.input2 = self.named_inputs.get('input data 2')
         self.output = self.named_outputs.get('output data',
