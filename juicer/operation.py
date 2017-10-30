@@ -95,7 +95,7 @@ class Operation(object):
         return self.get_output_names(sep)
 
     def contains_results(self):
-        forms = self.parameters['task']['forms']
+        forms = self.parameters.get('task', {}).get('forms', {})
         return (
             forms.get('display_sample', {}).get('value') in (1, '1') or
             forms.get('display_schema', {}).get('value') in (1, '1'))
