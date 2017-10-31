@@ -41,7 +41,6 @@ pylint==1.6.4
 pyparsing==2.2.0
 Pyqtree==0.24
 pyshp==1.2.10
-pyspark
 pytest==3.0.2
 pytest-cov==2.4.0
 python-dateutil==2.6.0
