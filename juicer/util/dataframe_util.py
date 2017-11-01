@@ -1,10 +1,11 @@
 # coding=utf-8
 import decimal
 import json
-import re
 
 import datetime
 from pyspark.sql.utils import AnalysisException, IllegalArgumentException
+
+import re
 
 
 class CustomEncoder(json.JSONEncoder):
@@ -140,6 +141,11 @@ class LazySparkTransformationDataframe(object):
         self.transformed_df = None
         self.load_op = load_op
 
+    def __getitem__(self, item):
+        if self.transformed_df is None:
+            self.transformed_df = self.load_op(self.df)
+        return self.transformed_df[item]
+
     def __getattr__(self, name):
         if self.transformed_df is None:
             self.transformed_df = self.load_op(self.df)
@@ -247,6 +253,7 @@ def handle_spark_exception(e):
         cause = e.java_exception.getCause()
         if cause is not None:
             nfe = 'java.lang.NumberFormatException'
+            uoe = 'java.lang.UnsupportedOperationException'
             if cause.getClass().getName() == nfe and cause.getMessage():
                 value_expr = re.compile(r'.+"(.+)"')
                 value = value_expr.findall(cause.getMessage())[0]
@@ -255,4 +262,13 @@ def handle_spark_exception(e):
             elif cause.getMessage() == u'Malformed CSV record':
                 raise ValueError('At least one input data source is not in '
                                  'the correct format')
+        elif e.java_exception.getMessage():
+            value_expr = re.compile(r'CSV data source does not support '
+                                    r'(.+?) data type')
+            value = value_expr.findall(e.java_exception.getMessage())[0]
+            if value:
+                raise ValueError(
+                    _('CSV format does not support the data type {}. '
+                      'try to convert the attribute to string (see to_json()) '
+                      'before saving.'.format(value)))
     return result

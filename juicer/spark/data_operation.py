@@ -203,7 +203,7 @@ class DataReaderOperation(Operation):
         result = [
             'import juicer.privaaas',
             'original_schema = {out}.schema'.format(out=self.output)
-         ]
+        ]
         try:
             if restrictions.get('attributes'):
                 attrs = sorted(restrictions['attributes'],
@@ -257,7 +257,7 @@ class DataReaderOperation(Operation):
         #              'missing_representation'] if attr[k]}
 
         metadata = {'sources': [
-                '{}/{}'.format(self.data_source_id, attr['name'])
+            '{}/{}'.format(self.data_source_id, attr['name'])
         ]}
 
         code.append("schema_{0}.add('{1}', {2}, {3},\n{5}{4})".format(
@@ -325,11 +325,20 @@ class SaveOperation(Operation):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         self.name = parameters.get(self.NAME_PARAM)
-        self.format = parameters.get(self.FORMAT_PARAM)
+        self.format = parameters.get(self.FORMAT_PARAM, '') or ''
+        valid_formats = (self.FORMAT_PARQUET, self.FORMAT_CSV, self.FORMAT_JSON)
+        if not self.format.strip() or self.format not in valid_formats:
+            raise ValueError(_('You must specify a valid format.'))
+
         self.url = parameters.get(self.PATH_PARAM)
         self.storage_id = parameters.get(self.STORAGE_ID_PARAM)
+        if not self.storage_id:
+            raise ValueError(_('You must specify a storage for saving data.'))
+
         self.tags = ast.literal_eval(parameters.get(self.TAGS_PARAM, '[]'))
         self.path = parameters.get(self.PATH_PARAM)
+        if self.path is None or not self.path.strip():
+            raise ValueError(_('You must specify a path for saving data.'))
 
         self.workflow_json = parameters.get(self.WORKFLOW_JSON_PARAM, '')
 
@@ -443,15 +452,26 @@ class SaveOperation(Operation):
             # nullable information is also stored in metadata
             # because Spark ignores this information when loading CSV files
             attributes = []
+            decimal_regex = re.compile(r'DecimalType\((\d+),\s*(\d+)\)')
             for att in {input}.schema:
+                type_name = unicode(att.dataType)
+                precision = None
+                scale = None
+                found = decimal_regex.findall(type_name)
+                if found:
+                    type_name = 'DecimalType'
+                    precision = found[0][0]
+                    scale = found[0][1]
                 attributes.append({{
                   'enumeration': 0,
                   'feature': 0,
                   'label': 0,
                   'name': att.name,
-                  'type': types_names[str(att.dataType)],
+                  'type': types_names[str(type_name)],
                   'nullable': att.nullable,
                   'metadata': att.metadata,
+                  'precision': precision,
+                  'scale': scale
                 }})
             parameters = {{
                 'name': "{name}",
