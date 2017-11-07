@@ -756,7 +756,7 @@ class PerceptronClassifier(ClassifierOperation):
                  named_outputs):
         ClassifierOperation.__init__(self, parameters, named_inputs,
                                      named_outputs)
-        self.name = 'classification.MultilayerPerceptronClassificationModel'
+        self.name = 'classification.MultilayerPerceptronClassifier'
 
 
 class ClassificationReport(ReportOperation):
