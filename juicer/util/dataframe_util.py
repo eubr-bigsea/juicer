@@ -230,7 +230,7 @@ def handle_spark_exception(e):
     result = False
     if isinstance(e, AnalysisException):
         value_expr = re.compile(r'(`.+`).+\[(.+)\]')
-        found = value_expr.findall(e.desc)
+        found = value_expr.findall(unicode(e.message))
         if found:
             field, fields = found[0]
             raise ValueError(
@@ -238,7 +238,7 @@ def handle_spark_exception(e):
                     field, fields))
     elif isinstance(e, IllegalArgumentException):
         # Invalid column type
-        if 'must be of type equal' in e.desc:
+        if 'must be of type equal' in unicode(e.message):
             value_expr = re.compile(
                 "requirement failed: Column (.+?) must be"
                 ".+following types: \[(.+?)\] but was actually of type (.+).")
@@ -254,21 +254,32 @@ def handle_spark_exception(e):
         if cause is not None:
             nfe = 'java.lang.NumberFormatException'
             uoe = 'java.lang.UnsupportedOperationException'
-            if cause.getClass().getName() == nfe and cause.getMessage():
+            npe = 'java.lang.NullPointerException'
+
+            cause_msg = cause.getMessage()
+            inner_cause = cause.getCause()
+            if cause.getClass().getName() == nfe and cause_msg:
                 value_expr = re.compile(r'.+"(.+)"')
-                value = value_expr.findall(cause.getMessage())[0]
+                value = value_expr.findall(cause_msg)[0]
                 raise ValueError(_('Invalid numeric data in at least one '
                                    'data source (attribute: {})').format(value))
-            elif cause.getMessage() == u'Malformed CSV record':
-                raise ValueError('At least one input data source is not in '
-                                 'the correct format')
+            elif cause_msg == u'Malformed CSV record':
+                raise ValueError(_('At least one input data source is not in '
+                                 'the correct format.'))
+            elif inner_cause and inner_cause.getClass().getName() == npe:
+                if cause_msg and 'createTransformFunc' in cause_msg:
+                    raise ValueError(_('There is null values in your data set '
+                                       'and Spark cannot handle them. '
+                                       'Please, remove them before applying '
+                                       'a data transformation.'))
+                pass
         elif e.java_exception.getMessage():
             value_expr = re.compile(r'CSV data source does not support '
                                     r'(.+?) data type')
-            value = value_expr.findall(e.java_exception.getMessage())[0]
+            value = value_expr.findall(e.java_exception.getMessage())
             if value:
                 raise ValueError(
                     _('CSV format does not support the data type {}. '
-                      'try to convert the attribute to string (see to_json()) '
-                      'before saving.'.format(value)))
+                      'Try to convert the attribute to string (see to_json()) '
+                      'before saving.'.format(value[0])))
     return result

@@ -161,8 +161,8 @@ class RemoveStopWordsOperation(Operation):
                     self.stop_word_language))
 
             code += dedent("""
-            col_alias = {3}
-            case_sensitive = {4}
+            col_alias = {alias}
+            case_sensitive = {case_sensitive}
             removers = [StopWordsRemover(inputCol=col, outputCol=alias,
                         stopWords=sw,
                         caseSensitive=case_sensitive)
@@ -170,10 +170,11 @@ class RemoveStopWordsOperation(Operation):
 
             # Use Pipeline to process all attributes once
             pipeline = Pipeline(stages=removers)
-            {2} = pipeline.fit({1}).transform({1})
-        """.format(self.attributes, input_data,
-                   self.output, json.dumps(zip(self.attributes, self.alias)),
-                   self.sw_case_sensitive))
+            {out} = pipeline.fit({input}).transform({input})
+        """.format(input=input_data,
+                   out=self.output,
+                   alias=json.dumps(zip(self.attributes, self.alias)),
+                   case_sensitive=self.sw_case_sensitive))
         else:
             code = ("sw = [stop[0].strip() "
                     "for stop in {}.collect() if stop and stop[0]]").format(

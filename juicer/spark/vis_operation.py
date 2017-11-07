@@ -586,6 +586,10 @@ class PieChartModel(ChartVisualization):
     def get_data(self):
         label_attr, _, value_attr = self._get_axis_info()
 
+        # @FIXME Spark 2.2.0 is raising an exception if self.data.collect()
+        # is called directly when the output port is used multiple times.
+        raise ValueError('Algo de ruim aconteceu')
+        self.data.count()
         rows = self.data.collect()
         result = self._get_title_legend_tootip()
         result['legend']['isVisible'] = self.params.get('legend') in ('1', 1)

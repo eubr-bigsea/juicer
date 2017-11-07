@@ -367,10 +367,15 @@ class SparkMinion(Minion):
             # current state (if any). We pass the current state to the execution
             # to avoid re-computing the same tasks over and over again, in case
             # of several partial workflow executions.
-            new_state = self.module.main(
-                self.get_or_create_spark_session(loader, app_configs),
-                self._state,
-                self._emit_event(room=job_id, namespace='/stand'))
+            try:
+                new_state = self.module.main(
+                    self.get_or_create_spark_session(loader, app_configs),
+                    self._state,
+                    self._emit_event(room=job_id, namespace='/stand'))
+            except:
+                if self.is_spark_session_available():
+                    self.spark_session.sparkContext.cancelAllJobs()
+                raise
 
             end = timer()
             # Mark job as completed
@@ -451,8 +456,8 @@ class SparkMinion(Minion):
 
         from pyspark.sql import SparkSession
         if not self.is_spark_session_available():
-            log.info(_("Creating a new Spark session"))
 
+            log.info(_("Creating a new Spark session"))
             app_name = '%s(workflow_id=%s,app_id=%s)' % (
                 strip_accents(loader.workflow.get('name', '')),
                 self.workflow_id, self.app_id)
