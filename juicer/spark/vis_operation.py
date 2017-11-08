@@ -588,7 +588,6 @@ class PieChartModel(ChartVisualization):
 
         # @FIXME Spark 2.2.0 is raising an exception if self.data.collect()
         # is called directly when the output port is used multiple times.
-        raise ValueError('Algo de ruim aconteceu')
         self.data.count()
         rows = self.data.collect()
         result = self._get_title_legend_tootip()
