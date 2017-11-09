@@ -749,13 +749,11 @@ class SvmClassifierOperation(ClassifierOperation):
                         'numFeatures']
 
         param_grid = parameters.get('paramgrid', {})
-        ctor_params = {
-            'standardization': parameters.get(self.STANDARDIZATION_PARAM,
-                                              '1') in ('1', 1, 'true', True)
-        }
+        ctor_params = {}
         params_name = [
             ['maxIter', self.MAX_ITER_PARAM, int],
-            ['standardization', self.STANDARDIZATION_PARAM, int],
+            ['standardization', self.STANDARDIZATION_PARAM,
+             lambda x: x in ('1', 1, 'true', True)],
             ['threshold', self.THRESHOLD_PARAM, float],
             ['tol', self.TOL_PARAM, float],
             ['weightAttr', self.WEIGHT_ATTR_PARAM, str],
@@ -835,7 +833,8 @@ class DecisionTreeClassifierOperation(ClassifierOperation):
         ctor_params = {}
         params_name = [
             ['maxBins', self.MAX_BINS_PARAM, int],
-            ['cacheNodeIds', self.CACHE_NODE_IDS_PARAM, int],
+            ['cacheNodeIds', self.CACHE_NODE_IDS_PARAM,
+             lambda x: x in ('1', 1, 'true', True)],
             ['maxDepth', self.MAX_DEPTH_PARAM, int],
             ['minInfoGain', self.MIN_INFO_GAIN_PARAM, float],
             ['minInstancesPerNode', self.MIN_INSTANCES_PER_NODE_PARAM, int],
@@ -871,7 +870,8 @@ class GBTClassifierOperation(ClassifierOperation):
         param_grid = parameters.get('paramgrid', {})
         ctor_params = {}
         params_name = [
-            ['cacheNodeIds', self.CACHE_NODE_IDS_PARAM, int],
+            ['cacheNodeIds', self.CACHE_NODE_IDS_PARAM,
+             lambda x: x in ('1', 1, 'true', True)],
             ['lossType', self.LOSS_TYPE_PARAM, str],
             ['maxBins', self.MAX_BINS_PARAM, int],
             ['maxDepth', self.MAX_DEPTH_PARAM, int],
@@ -939,8 +939,9 @@ class RandomForestClassifierOperation(ClassifierOperation):
         param_grid = parameters.get('paramgrid', {})
         ctor_params = {}
         params_name = [
-            ['impurity', self.IMPURITY_PARAM, float],
-            ['cacheNodeIds', self.CACHE_NODE_IDS_PARAM, int],
+            ['impurity', self.IMPURITY_PARAM, str],
+            ['cacheNodeIds', self.CACHE_NODE_IDS_PARAM,
+             lambda x: x in ('1', 1, 'true', True)],
             ['featureSubsetStrategy', self.FEATURE_SUBSET_STRATEGY_PARAM, str],
             ['maxBins', self.MAX_BINS_PARAM, int],
             ['maxDepth', self.MAX_DEPTH_PARAM, int],
