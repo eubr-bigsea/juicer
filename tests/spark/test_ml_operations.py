@@ -477,7 +477,7 @@ def test_cross_validation_partial_operation_success():
 
     expected_code = dedent("""
             grid_builder = tuning.ParamGridBuilder()
-            estimator, param_grid = {algorithm}
+            estimator, param_grid, metrics = {algorithm}
 
             for param_name, values in param_grid.items():
                 param = getattr(estimator, param_name)
@@ -556,7 +556,7 @@ def test_cross_validation_complete_operation_success():
 
     expected_code = dedent("""
             grid_builder = tuning.ParamGridBuilder()
-            estimator, param_grid = {algorithm}
+            estimator, param_grid, metrics = {algorithm}
 
             for param_name, values in param_grid.items():
                 param = getattr(estimator, param_name)
@@ -642,7 +642,9 @@ def test_classification_model_operation_success():
     params = {
         ClassificationModelOperation.FEATURES_ATTRIBUTE_PARAM: 'f',
         ClassificationModelOperation.LABEL_ATTRIBUTE_PARAM: 'l',
-        ClassificationModelOperation.PREDICTION_ATTRIBUTE_PARAM: 'prediction1'
+        ClassificationModelOperation.PREDICTION_ATTRIBUTE_PARAM: 'prediction1',
+        'task_id': 'a7asf788',
+        'operation_id': 200,
 
     }
     n_in = {'algorithm': 'algo_param', 'train input data': 'train'}
@@ -653,7 +655,7 @@ def test_classification_model_operation_success():
     code = instance.generate_code()
 
     expected_code = dedent("""
-        algorithm, param_grid = {algorithm}
+        algorithm, param_grid, metrics = {algorithm}
         algorithm.setPredictionCol('{prediction}')
         algorithm.setLabelCol('{label}')
         algorithm.setFeaturesCol('{features}')
@@ -664,6 +666,28 @@ def test_classification_model_operation_success():
             return model_1.transform(df)
         out_task_1 = dataframe_util.LazySparkTransformationDataframe(
             {output}, {train}, call_transform)
+
+        display_text = True
+        if display_text:
+            from juicer.spark.reports import SimpleTableReport
+            rows = [[m, getattr(model_1, m)] for m in metrics
+                if hasattr(model_1, m)]
+            headers = ['Parameter', 'Value']
+            content = SimpleTableReport(
+                'table table-striped table-bordered table-sm',
+                headers, rows)
+
+            result = '<h4>Generated classification model parameters</h4>'
+
+            emit_event(
+                'update task', status='COMPLETED',
+                identifier='a7asf788',
+                message=result + content.generate(),
+                type='HTML', title='Generated classification model parameters',
+                task={{'id': 'a7asf788'}},
+                operation={{'id': 200}},
+                operation_id=200)
+
         """.format(output=n_out['model'],
                    train=n_in['train input data'],
                    algorithm=n_in['algorithm'],
@@ -761,8 +785,8 @@ def test_classifier_operation_success():
     param_grid = {{}}
     # Output result is the classifier and its parameters. Parameters are
     # need in classification model or cross validator.
-    {output} = ({name}(), param_grid)
-    """.format(output=n_out['algorithm'], name='BaseClassifier',
+    {output} = ({name}, param_grid, [])
+    """.format(output=n_out['algorithm'], name='BaseClassifier()',
                param_grid=json.dumps(param_grid)))
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
@@ -800,7 +824,8 @@ def test_svm_classifier_operation_success():
                                           named_outputs=n_out)
 
     # Is not possible to generate_code(), because has_code is False
-    assert instance_svm.name == 'classification.SVM'
+    assert (instance_svm.name ==
+            "classification.LinearSVC(**{'standardization': True})")
 
 
 def test_lr_classifier_operation_success():
@@ -817,7 +842,8 @@ def test_lr_classifier_operation_success():
         params, named_inputs={}, named_outputs=n_out)
 
     # Is not possible to generate_code(), because has_code is False
-    assert instance_lr.name == 'classification.LogisticRegression'
+    # noinspection PyUnresolvedReferences
+    assert instance_lr.name == 'classification.LogisticRegression(**{})'
 
 
 def test_dt_classifier_operation_success():
@@ -834,7 +860,8 @@ def test_dt_classifier_operation_success():
         params, named_inputs={}, named_outputs=n_out)
 
     # Is not possible to generate_code(), because has_code is False
-    assert instance_dt.name == 'classification.DecisionTreeClassifier'
+    # noinspection PyUnresolvedReferences
+    assert instance_dt.name == 'classification.DecisionTreeClassifier(**{})'
 
 
 def test_gbt_classifier_operation_success():
@@ -851,7 +878,8 @@ def test_gbt_classifier_operation_success():
         params, named_inputs={}, named_outputs=n_out)
 
     # Is not possible to generate_code(), because has_code is False
-    assert instance_dt.name == 'classification.GBTClassifier'
+    # noinspection PyUnresolvedReferences
+    assert instance_dt.name == 'classification.GBTClassifier(**{})'
 
 
 def test_nb_classifier_operation_success():
@@ -868,7 +896,8 @@ def test_nb_classifier_operation_success():
         params, named_inputs={}, named_outputs=n_out)
 
     # Is not possible to generate_code(), because has_code is False
-    assert instance_nb.name == 'classification.NaiveBayes'
+    # noinspection PyUnresolvedReferences
+    assert instance_nb.name == 'classification.NaiveBayes(**{})'
 
 
 def test_rf_classifier_operation_success():
@@ -884,7 +913,8 @@ def test_rf_classifier_operation_success():
         params, named_inputs={}, named_outputs=n_out)
 
     # Is not possible to generate_code(), because has_code is False
-    assert instance_nb.name == 'classification.RandomForestClassifier'
+    # noinspection PyUnresolvedReferences
+    assert instance_nb.name == 'classification.RandomForestClassifier(**{})'
 
 
 def test_perceptron_classifier_operation_success():
@@ -901,8 +931,9 @@ def test_perceptron_classifier_operation_success():
         params, named_inputs={}, named_outputs=n_out)
 
     # Is not possible to generate_code(), because has_code is False
-    assert instance_pct.name == \
-           'classification.MultilayerPerceptronClassificationModel'
+    # noinspection PyUnresolvedReferences
+    assert (instance_pct.name ==
+            'classification.MultilayerPerceptronClassifier(**{})')
 
 
 """
