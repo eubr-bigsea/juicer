@@ -304,6 +304,8 @@ class SparkTranspiler(object):
                 juicer.spark.ml_operation.CrossValidationOperation,
             'decision-tree-classifier':
                 juicer.spark.ml_operation.DecisionTreeClassifierOperation,
+            'one-vs-rest-classifier':
+                juicer.spark.ml_operation.OneVsRestClassifier,
             'evaluate-model': juicer.spark.ml_operation.EvaluateModelOperation,
             'feature-assembler':
                 juicer.spark.ml_operation.FeatureAssemblerOperation,
