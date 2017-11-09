@@ -445,7 +445,7 @@ class EvaluateModelOperation(Operation):
                            evaluator_out=self.evaluator_out,
                            task_id=self.parameters['task_id'],
                            operation_id=self.parameters['operation_id'],
-                           title='Evaluation result',
+                           title=_('Evaluation result'),
                            display_text=display_text,
                            headers=[_('Parameter'), _('Description'),
                                     _('Value'), _('Default')]
@@ -517,7 +517,7 @@ class CrossValidationOperation(Operation):
     def generate_code(self):
         code = dedent("""
                 grid_builder = tuning.ParamGridBuilder()
-                estimator, param_grid = {algorithm}
+                estimator, param_grid, metrics = {algorithm}
 
                 for param_name, values in param_grid.items():
                     param = getattr(estimator, param_name)
@@ -601,6 +601,7 @@ class ClassificationModelOperation(Operation):
 
         self.has_code = any([len(named_outputs) > 0 and len(named_inputs) == 2,
                              self.contains_results()])
+        self.has_code = self.has_code and 'algorithm' in self.named_inputs
 
         if not all([self.FEATURES_ATTRIBUTE_PARAM in parameters,
                     self.LABEL_ATTRIBUTE_PARAM in parameters]):
@@ -628,8 +629,12 @@ class ClassificationModelOperation(Operation):
 
     def generate_code(self):
         if self.has_code:
+            task = self.parameters.get('task', {})
+            display_text = task.get('forms', {}).get(
+                'display_text', {'value': 1}).get('value', 1) in (1, '1')
+
             code = """
-            algorithm, param_grid = {algorithm}
+            algorithm, param_grid, metrics = {algorithm}
             algorithm.setPredictionCol('{prediction}')
             algorithm.setLabelCol('{label}')
             algorithm.setFeaturesCol('{feat}')
@@ -640,19 +645,42 @@ class ClassificationModelOperation(Operation):
                 return {model}.transform(df)
             {output} = dataframe_util.LazySparkTransformationDataframe(
                 {model}, {train}, call_transform)
-            """.format(model=self.model,
-                       algorithm=self.named_inputs['algorithm'],
-                       train=self.named_inputs['train input data'],
-                       label=self.label, feat=self.features,
-                       prediction=self.prediction,
-                       output=self.output)
+            display_text = {display_text}
+            if display_text:
+                from juicer.spark.reports import SimpleTableReport
+                rows = [[m, getattr({model}, m)] for m in metrics
+                    if hasattr({model}, m)]
+                headers = {headers}
+                content = SimpleTableReport(
+                    'table table-striped table-bordered table-sm',
+                    headers, rows)
+
+                result = '<h4>{title}</h4>'
+
+                emit_event(
+                    'update task', status='COMPLETED',
+                    identifier='{task_id}',
+                    message=result + content.generate(),
+                    type='HTML', title='{title}',
+                    task={{'id': '{task_id}'}},
+                    operation={{'id': {operation_id}}},
+                    operation_id={operation_id})
+
+            """.format(
+                model=self.model,
+                algorithm=self.named_inputs.get('algorithm'),
+                train=self.named_inputs['train input data'],
+                label=self.label, feat=self.features,
+                prediction=self.prediction,
+                output=self.output,
+                display_text=display_text,
+                title=_('Generated classification model parameters'),
+                headers=[_('Parameter'), _('Value'), ],
+                task_id=self.parameters['task_id'],
+                operation_id=self.parameters['operation_id'],
+            )
 
             return dedent(code)
-            # else:
-            #     msg = "Parameters '{}' and '{}' must be informed for task {}"
-            #     raise ValueError(msg.format('[]inputs',
-            #                                 '[]outputs',
-            #                                 self.__class__))
 
 
 class ClassifierOperation(Operation):
@@ -669,9 +697,11 @@ class ClassifierOperation(Operation):
                            named_outputs)
 
         self.has_code = any([len(named_outputs) > 0, self.contains_results()])
-        self.name = "BaseClassifier"
+        self.name = "BaseClassifier()"
         self.output = self.named_outputs.get('algorithm',
                                              'algo_task_{}'.format(self.order))
+        self.metrics = []
+        self.summary_metrics = []
 
     def get_data_out_names(self, sep=','):
         return ''
@@ -685,12 +715,15 @@ class ClassifierOperation(Operation):
 
             }
             declare = dedent("""
-            param_grid = {2}
+            param_grid = {param_grid}
             # Output result is the classifier and its parameters. Parameters are
             # need in classification model or cross validator.
-            {0} = ({1}(), param_grid)
-            """).format(self.output, self.name,
-                        json.dumps(param_grid, indent=4))
+            {out} = ({name},
+                param_grid,
+                {metrics})
+            """).format(out=self.output, name=self.name,
+                        param_grid=json.dumps(param_grid, indent=4),
+                        metrics=json.dumps(self.metrics))
 
             code = [declare]
             return "\n".join(code)
@@ -701,62 +734,270 @@ class ClassifierOperation(Operation):
 
 
 class SvmClassifierOperation(ClassifierOperation):
+    MAX_ITER_PARAM = 'max_iter'
+    STANDARDIZATION_PARAM = 'standardization'
+    THRESHOLD_PARAM = 'threshold'
+    WEIGHT_ATTR_PARAM = 'weight_attr'
+    TOL_PARAM = 'tol'
+
     def __init__(self, parameters, named_inputs,
                  named_outputs):
         ClassifierOperation.__init__(self, parameters, named_inputs,
                                      named_outputs)
         self.parameters = parameters
-        self.has_code = False
-        self.name = 'classification.SVM'
+        self.metrics = ['coefficients', 'intercept', 'numClasses',
+                        'numFeatures']
+
+        param_grid = parameters.get('paramgrid', {})
+        ctor_params = {
+            'standardization': parameters.get(self.STANDARDIZATION_PARAM,
+                                              '1') in ('1', 1, 'true', True)
+        }
+        params_name = [
+            ['maxIter', self.MAX_ITER_PARAM, int],
+            ['standardization', self.STANDARDIZATION_PARAM, int],
+            ['threshold', self.THRESHOLD_PARAM, float],
+            ['tol', self.TOL_PARAM, float],
+            ['weightAttr', self.WEIGHT_ATTR_PARAM, str],
+
+        ]
+        for spark_name, lemonade_name, f in params_name:
+            if lemonade_name in param_grid and param_grid.get(lemonade_name):
+                ctor_params[spark_name] = f(param_grid.get(lemonade_name))
+
+        self.name = 'classification.LinearSVC(**{kwargs})'.format(
+            kwargs=ctor_params)
 
 
 class LogisticRegressionClassifierOperation(ClassifierOperation):
+    WEIGHT_COL_PARAM = 'weight_col'
+    FAMILY_PARAM = 'family'
+    ALLOWED_FAMILY_VALUE = ['auto', 'binomial', 'multinomial']
+
+    AGGREGATION_DEPTH_PARAM = 'aggregation_depth'
+    ELASTIC_NET_PARAM_PARAM = 'elastic_net_param'
+    FIT_INTERCEPT_PARAM = 'fit_intercept'
+    MAX_ITER_PARAM = 'max_iter'
+    REG_PARAM_PARAM = 'reg_param'
+    TOL_PARAM = 'tol'
+    THRESHOLD_PARAM = 'threshold'
+    THRESHOLDS_PARAM = 'thresholds'
+
     def __init__(self, parameters, named_inputs,
                  named_outputs):
         ClassifierOperation.__init__(self, parameters, named_inputs,
                                      named_outputs)
         self.parameters = parameters
         self.name = 'classification.LogisticRegression'
+        self.metrics = ['coefficientMatrix', 'coefficients', 'intercept',
+                        'numClasses', 'numFeatures']
+
+        param_grid = parameters.get('paramgrid', {})
+        ctor_params = {}
+        params_name = [
+            ['weightCol', self.WEIGHT_COL_PARAM, str],
+            ['family', self.FAMILY_PARAM, str],
+            ['aggregationDepth', self.AGGREGATION_DEPTH_PARAM, int],
+            ['elasticNetParam', self.ELASTIC_NET_PARAM_PARAM, float],
+            ['fitIntercept', self.FIT_INTERCEPT_PARAM, int],
+            ['maxIter', self.MAX_ITER_PARAM, int],
+            ['regParam', self.REG_PARAM_PARAM, float],
+            ['tol', self.TOL_PARAM, float],
+            ['threshold', self.THRESHOLD_PARAM, float],
+            ['thresholds', self.THRESHOLDS_PARAM,
+             lambda x: [float(y) for y in x.split(',')]],
+        ]
+        for spark_name, lemonade_name, f in params_name:
+            if lemonade_name in param_grid and param_grid.get(lemonade_name):
+                ctor_params[spark_name] = f(param_grid.get(lemonade_name))
+
+        self.name = 'classification.LogisticRegression(**{kwargs})'.format(
+            kwargs=ctor_params)
 
 
 class DecisionTreeClassifierOperation(ClassifierOperation):
+    CACHE_NODE_IDS_PARAM = 'cache_node_ids'
+    MAX_BINS_PARAM = 'max_bins'
+    MAX_DEPTH_PARAM = 'max_depth'
+    MIN_INFO_GAIN_PARAM = 'min_info_gain'
+    MIN_INSTANCES_PER_NODE_PARAM = 'min_instances_per_node'
+    IMPURITY_PARAM = 'impurity'
+
     def __init__(self, parameters, named_inputs,
                  named_outputs):
         ClassifierOperation.__init__(self, parameters, named_inputs,
                                      named_outputs)
-        self.name = 'classification.DecisionTreeClassifier'
+
+        self.metrics = ['depth', 'featureImportances', 'numClasses',
+                        'numFeatures', 'numNodes', ]
+
+        param_grid = parameters.get('paramgrid', {})
+        ctor_params = {}
+        params_name = [
+            ['maxBins', self.MAX_BINS_PARAM, int],
+            ['cacheNodeIds', self.CACHE_NODE_IDS_PARAM, int],
+            ['maxDepth', self.MAX_DEPTH_PARAM, int],
+            ['minInfoGain', self.MIN_INFO_GAIN_PARAM, float],
+            ['minInstancesPerNode', self.MIN_INSTANCES_PER_NODE_PARAM, int],
+            ['impurity', self.IMPURITY_PARAM, str],
+
+        ]
+        for spark_name, lemonade_name, f in params_name:
+            if lemonade_name in param_grid and param_grid.get(lemonade_name):
+                ctor_params[spark_name] = f(param_grid.get(lemonade_name))
+
+        self.name = 'classification.DecisionTreeClassifier(**{kwargs})'.format(
+            kwargs=ctor_params)
 
 
 class GBTClassifierOperation(ClassifierOperation):
+    CACHE_NODE_IDS_PARAM = 'cache_node_ids'
+    LOSS_TYPE_PARAM = 'loss_type'
+    MAX_BINS_PARAM = 'max_bins'
+    MAX_DEPTH_PARAM = 'max_depth'
+    MAX_ITER_PARAM = 'max_iter'
+    MIN_INFO_GAIN_PARAM = 'min_info_gain'
+    MIN_INSTANCES_PER_NODE_PARAM = 'min_instances_per_node'
+    STEP_SIZE_PARAM = 'step_size'
+    SUBSAMPLING_RATE_PARAM = 'subsampling_rate'
+
     def __init__(self, parameters, named_inputs,
                  named_outputs):
         ClassifierOperation.__init__(self, parameters, named_inputs,
                                      named_outputs)
-        self.name = 'classification.GBTClassifier'
+        self.metrics = ['featureImportances', 'numFeatures', 'totalNumNodes',
+                        'treeWeights', 'trees']
+
+        param_grid = parameters.get('paramgrid', {})
+        ctor_params = {}
+        params_name = [
+            ['cacheNodeIds', self.CACHE_NODE_IDS_PARAM, int],
+            ['lossType', self.LOSS_TYPE_PARAM, str],
+            ['maxBins', self.MAX_BINS_PARAM, int],
+            ['maxDepth', self.MAX_DEPTH_PARAM, int],
+            ['maxIter', self.MAX_ITER_PARAM, int],
+            ['minInfoGain', self.MIN_INFO_GAIN_PARAM, float],
+            ['minInstancesPerNode', self.MIN_INSTANCES_PER_NODE_PARAM, int],
+            ['stepSize', self.STEP_SIZE_PARAM, float],
+            ['subsamplingRate', self.SUBSAMPLING_RATE_PARAM, float],
+
+        ]
+        for spark_name, lemonade_name, f in params_name:
+            if lemonade_name in param_grid and param_grid.get(lemonade_name):
+                ctor_params[spark_name] = f(param_grid.get(lemonade_name))
+        self.name = 'classification.GBTClassifier(**{kwargs})'.format(
+            kwargs=ctor_params)
 
 
 class NaiveBayesClassifierOperation(ClassifierOperation):
+    SMOOTHING_PARAM = 'smoothing'
+    MODEL_TYPE_PARAM = 'model_type'
+    THRESHOLDS_PARAM = 'thresholds'
+    WEIGHT_ATTR_PARAM = 'weight_attr'
+
     def __init__(self, parameters, named_inputs,
                  named_outputs):
         ClassifierOperation.__init__(self, parameters, named_inputs,
                                      named_outputs)
-        self.name = 'classification.NaiveBayes'
+        self.metrics = ['numClasses', 'numFeatures', 'pi', 'theta']
+
+        param_grid = parameters.get('paramgrid', {})
+        ctor_params = {}
+        params_name = [
+            ['smoothing', self.SMOOTHING_PARAM, float],
+            ['modelType', self.MODEL_TYPE_PARAM, str],
+            ['thresholds', self.THRESHOLDS_PARAM,
+             lambda x: [float(y) for y in x.split(',')]],
+            ['weightAttr', self.WEIGHT_ATTR_PARAM, str],
+        ]
+        for spark_name, lemonade_name, f in params_name:
+            if lemonade_name in param_grid and param_grid.get(lemonade_name):
+                ctor_params[spark_name] = f(param_grid.get(lemonade_name))
+
+        self.name = 'classification.NaiveBayes(**{kwargs})'.format(
+            kwargs=ctor_params)
 
 
 class RandomForestClassifierOperation(ClassifierOperation):
+    IMPURITY_PARAM = 'impurity'
+    CACHE_NODE_IDS_PARAM = 'cache_node_ids'
+    FEATURE_SUBSET_STRATEGY_PARAM = 'feature_subset_strategy'
+    MAX_BINS_PARAM = 'max_bins'
+    MAX_DEPTH_PARAM = 'max_depth'
+    MIN_INFO_GAIN_PARAM = 'min_info_gain'
+    MIN_INSTANCES_PER_NODE_PARAM = 'min_instances_per_node'
+    NUM_TREES_PARAM = 'num_trees'
+    SUBSAMPLING_RATE_PARAM = 'subsampling_rate'
+
     def __init__(self, parameters, named_inputs,
                  named_outputs):
         ClassifierOperation.__init__(self, parameters, named_inputs,
                                      named_outputs)
-        self.name = 'classification.RandomForestClassifier'
+        self.metrics = ['featureImportances', 'getNumTrees',
+                        'numClasses', 'numFeatures', 'trees']
+
+        param_grid = parameters.get('paramgrid', {})
+        ctor_params = {}
+        params_name = [
+            ['impurity', self.IMPURITY_PARAM, float],
+            ['cacheNodeIds', self.CACHE_NODE_IDS_PARAM, int],
+            ['featureSubsetStrategy', self.FEATURE_SUBSET_STRATEGY_PARAM, str],
+            ['maxBins', self.MAX_BINS_PARAM, int],
+            ['maxDepth', self.MAX_DEPTH_PARAM, int],
+            ['minInfoGain', self.MIN_INFO_GAIN_PARAM, float],
+            ['minInstancesPerNode', self.MIN_INSTANCES_PER_NODE_PARAM, int],
+            ['numTrees', self.NUM_TREES_PARAM, int],
+            ['subsamplingRate', self.SUBSAMPLING_RATE_PARAM, float],
+        ]
+        for spark_name, lemonade_name, f in params_name:
+            if lemonade_name in param_grid and param_grid.get(lemonade_name):
+                ctor_params[spark_name] = f(param_grid.get(lemonade_name))
+
+        self.name = 'classification.RandomForestClassifier(**{kwargs})'.format(
+            kwargs=ctor_params)
 
 
 class PerceptronClassifier(ClassifierOperation):
+    BLOCK_SIZE_PARAM = 'block_size'
+    MAX_ITER_PARAM = 'max_iter'
+    SEED_PARAM = 'seed'
+    SOLVER_PARAM = 'solver'
+
     def __init__(self, parameters, named_inputs,
                  named_outputs):
         ClassifierOperation.__init__(self, parameters, named_inputs,
                                      named_outputs)
-        self.name = 'classification.MultilayerPerceptronClassifier'
+        self.metrics = ['layers', 'numFeatures', 'weights']
+        param_grid = parameters.get('paramgrid', {})
+        ctor_params = {}
+        params_name = [
+            ['blockSize', self.BLOCK_SIZE_PARAM, int],
+            ['maxIter', self.MAX_ITER_PARAM, int],
+            ['seed', self.SEED_PARAM, int],
+            ['solver', self.SOLVER_PARAM, str]
+        ]
+        for spark_name, lemonade_name, f in params_name:
+            if lemonade_name in param_grid and param_grid.get(lemonade_name):
+                ctor_params[spark_name] = f(param_grid.get(lemonade_name))
+
+        self.name = 'classification.MultilayerPerceptronClassifier(**{k})' \
+            .format(k=ctor_params)
+
+
+class OneVsRestClassifier(ClassifierOperation):
+    def __init__(self, parameters, named_inputs,
+                 named_outputs):
+        ClassifierOperation.__init__(self, parameters, named_inputs,
+                                     named_outputs)
+        self.metrics = ['classifier', 'featuresCol', 'labelCol',
+                        'predictionCol']
+
+        self.has_code = self.has_code and 'algorithm' in self.named_inputs
+
+        ctor_params = {
+        }
+        self.name = 'classification.OneVsRest(classifier={c}[0], **{k})'.format(
+            c=self.named_inputs.get('algorithm'), k=ctor_params)
 
 
 class ClassificationReport(ReportOperation):
