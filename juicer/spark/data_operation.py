@@ -20,6 +20,7 @@ class DataReaderOperation(Operation):
     DATA_SOURCE_ID_PARAM = 'data_source'
     HEADER_PARAM = 'header'
     SEPARATOR_PARAM = 'separator'
+    QUOTE_PARAM = 'quote'
     INFER_SCHEMA_PARAM = 'infer_schema'
     NULL_VALUES_PARAM = 'null_values'
     MODE_PARAM = 'mode'
@@ -79,6 +80,12 @@ class DataReaderOperation(Operation):
                     self.SEPARATOR_PARAM, self.metadata.get(
                         'attribute_delimiter', ',')) or ','
 
+                self.quote = parameters.get(self.QUOTE_PARAM,
+                                            self.metadata.get('text_delimiter'))
+
+                if self.quote == '\'':
+                    self.quote = '\\\''
+
                 if self.sep in self.SEPARATORS:
                     self.sep = self.SEPARATORS[self.sep]
                 self.infer_schema = parameters.get(self.INFER_SCHEMA_PARAM,
@@ -136,8 +143,11 @@ class DataReaderOperation(Operation):
                 if self.metadata['format'] == 'CSV':
                     code_csv = dedent("""
                         {output} = spark_session.read{null_option}.option(
-                            'treatEmptyValuesAsNulls', 'true').csv(
+                            'treatEmptyValuesAsNulls', 'true').option(
+                            'wholeFile', True).option('multiLine', True).option(
+                            'escape', '"').csv(
                                 url, schema=schema_{output},
+                                quote='{quote}',
                                 header={header}, sep='{sep}',
                                 inferSchema={infer_schema},
                                 mode='{mode}')""".format(
@@ -145,6 +155,7 @@ class DataReaderOperation(Operation):
                         header=self.header or self.metadata.get(
                             'is_first_line_header', False),
                         sep=self.sep,
+                        quote=self.quote,
                         infer_schema=infer_from_data,
                         null_option=null_option,
                         mode=self.mode

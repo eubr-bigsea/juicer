@@ -240,9 +240,9 @@ class WordToVectorOperation(Operation):
                       izip_longest(self.attributes,
                                    self.alias[:len(self.attributes)])]
 
-        self.vocab_size = parameters.get(self.VOCAB_SIZE_PARAM, 1000)
-        self.minimum_df = parameters.get(self.MINIMUM_DF_PARAM, 5)
-        self.minimum_tf = parameters.get(self.MINIMUM_TF_PARAM, 1)
+        self.vocab_size = parameters.get(self.VOCAB_SIZE_PARAM, 1000) or 1000
+        self.minimum_df = parameters.get(self.MINIMUM_DF_PARAM, 1) or 1.0
+        self.minimum_tf = parameters.get(self.MINIMUM_TF_PARAM, 1) or 1.0
 
         self.minimum_size = parameters.get(self.MINIMUM_VECTOR_SIZE_PARAM, 3)
         self.minimum_count = parameters.get(self.MINIMUM_COUNT_PARAM, 0)
