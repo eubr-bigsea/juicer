@@ -58,9 +58,9 @@ class FeatureIndexerOperation(Operation):
         output = self.named_outputs.get('output data',
                                         'out_task_{}'.format(self.order))
 
+        models = self.named_outputs.get('indexer models',
+                                        'models_task_{}'.format(self.order))
         if self.type == self.TYPE_STRING:
-            models = self.named_outputs.get('indexer models',
-                                            'models_task_{}'.format(self.order))
             code = """
                 col_alias = dict({alias})
                 indexers = [feature.StringIndexer(
@@ -84,25 +84,28 @@ class FeatureIndexerOperation(Operation):
                                         indent=None))
         elif self.type == self.TYPE_VECTOR:
             code = """
-                col_alias = dict({3})
-                indexers = [feature.VectorIndexer(maxCategories={4},
+                col_alias = dict({alias})
+                indexers = [feature.VectorIndexer(maxCategories={max_categ},
                                 inputCol=col, outputCol=alias)
                                     for col, alias in col_alias.items()]
 
                 # Use Pipeline to process all attributes once
                 pipeline = Pipeline(stages=indexers)
-                models = dict([(col, indexers[i].fit({1})) for i, col in
+                {models} = dict([(col, indexers[i].fit({input})) for i, col in
                                 enumerate(col_alias)])
                 labels = None
 
                 # Spark ML 2.0.1 do not deal with null in indexer.
                 # See SPARK-11569
-                {1}_without_null = {1}.na.fill('NA', subset=col_alias.keys())
+                {input}_without_null = {input}.na.fill('NA',
+                    subset=col_alias.keys())
 
-                {2} = pipeline.fit({1}_without_null).transform({1}_without_null)
-            """.format(self.attributes, input_data, output,
-                       json.dumps(zip(self.attributes, self.alias)),
-                       self.max_categories)
+                {out} = pipeline.fit({input}_without_null).transform(
+                    {input}_without_null)
+            """.format(input=input_data, out=output,
+                       alias=json.dumps(zip(self.attributes, self.alias)),
+                       max_categ=self.max_categories,
+                       models=models)
         else:
             # Only if the field be open to type
             raise ValueError(
