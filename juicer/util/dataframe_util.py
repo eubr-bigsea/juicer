@@ -262,10 +262,11 @@ def handle_spark_exception(e):
                 value_expr = re.compile(r'.+"(.+)"')
                 value = value_expr.findall(cause_msg)[0]
                 raise ValueError(_('Invalid numeric data in at least one '
-                                   'data source (attribute: {})').format(value))
+                                   'data source (value: {})').format(
+                    value).encode('utf8'))
             elif cause_msg == u'Malformed CSV record':
                 raise ValueError(_('At least one input data source is not in '
-                                 'the correct format.'))
+                                   'the correct format.'))
             elif inner_cause and inner_cause.getClass().getName() == npe:
                 if cause_msg and 'createTransformFunc' in cause_msg:
                     raise ValueError(_('There is null values in your data set '
