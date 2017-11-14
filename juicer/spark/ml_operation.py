@@ -1074,7 +1074,8 @@ class ClusteringModelOperation(Operation):
             from juicer.spark.reports import SimpleTableReport
 
             {algorithm}.setFeaturesCol('{features}')
-            {algorithm}.setPredictionCol('{prediction}')
+            if hasattr({algorithm}, 'setPredictionCol'):
+                {algorithm}.setPredictionCol('{prediction}')
             {model} = {algorithm}.fit({input})
             # There is no way to pass which attribute was used in clustering, so
             # this information will be stored in uid (hack).
