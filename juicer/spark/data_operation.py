@@ -147,7 +147,7 @@ class DataReaderOperation(Operation):
                             'wholeFile', True).option('multiLine', True).option(
                             'escape', '"').csv(
                                 url, schema=schema_{output},
-                                quote='{quote}',
+                                quote={quote},
                                 header={header}, sep='{sep}',
                                 inferSchema={infer_schema},
                                 mode='{mode}')""".format(
@@ -155,7 +155,8 @@ class DataReaderOperation(Operation):
                         header=self.header or self.metadata.get(
                             'is_first_line_header', False),
                         sep=self.sep,
-                        quote=self.quote,
+                        quote='None' if self.quote is None else "'{}'".format(
+                            self.quote),
                         infer_schema=infer_from_data,
                         null_option=null_option,
                         mode=self.mode

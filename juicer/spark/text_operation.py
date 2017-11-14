@@ -52,41 +52,31 @@ class TokenizerOperation(Operation):
                                              'out_{}'.format(self.order))
 
     def generate_code(self):
+        """
+        Generate code with RegexTokenizer because TextTokenizer does not have
+        the parameter minTokenLength.
+        """
         input_data = self.named_inputs['input data']
-        code = ''
 
         if self.type == self.TYPE_SIMPLE:
-
-            code = """
-                col_alias = {3}
-                tokenizers = [Tokenizer(inputCol=col, outputCol=alias)
-                                    for col, alias in col_alias]
-
-                # Use Pipeline to process all attributes once
-                pipeline = Pipeline(stages=tokenizers)
-
-                {2} = pipeline.fit({1}).transform({1})
-            """.format(self.attributes, input_data, self.output,
-                       json.dumps(zip(self.attributes, self.alias)))
-
-        elif self.type == self.TYPE_REGEX:
-            code = """
-                col_alias = {3}
-                pattern_exp = r'{4}'
-                min_token_length = {5}
-                regextokenizers = [RegexTokenizer(inputCol=col, outputCol=alias,
+            self.expression_param = r'\s+'
+        code = """
+                col_alias = {alias}
+                pattern_exp = r'{pattern}'
+                min_token_length = {min_token}
+                tokenizers = [RegexTokenizer(inputCol=col, outputCol=alias,
                                     pattern=pattern_exp,
                                     minTokenLength=min_token_length)
                                     for col, alias in col_alias]
 
                 # Use Pipeline to process all attributes once
-                pipeline = Pipeline(stages=regextokenizers)
+                pipeline = Pipeline(stages=tokenizers)
 
-                {2} = pipeline.fit({1}).transform({1})
-            """.format(self.attributes, input_data, self.output,
-                       json.dumps(zip(self.attributes, self.alias)),
-                       self.expression_param,
-                       self.min_token_lenght)
+                {out} = pipeline.fit({input}).transform({input})
+            """.format(input=input_data, out=self.output,
+                       alias=json.dumps(zip(self.attributes, self.alias)),
+                       pattern=self.expression_param,
+                       min_token=self.min_token_lenght)
 
         return dedent(code)
 

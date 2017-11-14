@@ -23,6 +23,19 @@ out any overhead when starting the processing environment and data loading.
 This approach (keeping the context) is used in many implementations of data
 analytics notebooks, such as Jupyter, Cloudera Hue and Databricks notebook.
 
+## Other optional dependencies
+
+MLlib algorithms can use OpenBlas/Atlas optimizations. So, you need to install the packages
+ libgfortran3, libatlas3-base and libopenblas-base. If you are using Debian/Ubuntu, you can
+ install these libraries running the following command:
+
+ ```sudo apt-get install libatlas3-base libopenblas-base libgfortran3```
+
+If the application is reporting this message: `WARN util.NativeCodeLoader: Unable to load
+native-hadoop library for your platform... using builtin-java classes where applicable`, you
+need to add `$HADOOP_HOME/lib/native` to `LD_LIBRARY_PATH`:
+
+```export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$HADOOP_HOME/lib/native```
 ## Configuration
 All configuration is defined in a Yaml file located in `conf/juicer-config.yaml`,
 with the following structure:
