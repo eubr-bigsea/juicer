@@ -35,17 +35,16 @@ class ConfusionMatrixImageReport(BaseHtmlReport):
         self.classes = classes
         self.normalize = normalize
         self.title = title
-        self.cmap = cmap,
+        self.cmap = cmap
         if axis is not None:
             self.axis = axis
         else:
             self.axis = [_('Label'), _('Predicted')]
 
-        if cmap is None:
+        if self.cmap is None:
             self.cmap = plt.cm.Blues
 
     def generate(self):
-
         if self.normalize:
             self.cm = self.cm.astype(
                 'float') / self.cm.sum(axis=1)[:, np.newaxis]
@@ -55,8 +54,8 @@ class ConfusionMatrixImageReport(BaseHtmlReport):
         plt.title(self.title)
         plt.colorbar()
         tick_marks = np.arange(len(self.classes))
-        plt.xticks(tick_marks, self.classes, rotation=45)
-        plt.yticks(tick_marks, self.classes)
+        plt.xticks(tick_marks, self.classes, rotation=45, fontsize=9)
+        plt.yticks(tick_marks, self.classes, fontsize=9)
 
         fmt = '.2f' if self.normalize else 'd'
         thresh = self.cm.max() / 2.
@@ -66,12 +65,14 @@ class ConfusionMatrixImageReport(BaseHtmlReport):
                      horizontalalignment="center",
                      color="white" if self.cm[i, j] > thresh else "black")
 
-        plt.tight_layout(pad=0.4, w_pad=0.5, h_pad=3.0)
+        plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+
         plt.ylabel(self.axis[0])
         plt.xlabel(self.axis[1])
         fig_file = BytesIO()
         plt.savefig(fig_file, format='png')
 
+        plt.close()
         return base64.b64encode(fig_file.getvalue())
 
 

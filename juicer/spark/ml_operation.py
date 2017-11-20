@@ -387,7 +387,7 @@ class EvaluateModelOperation(Operation):
         return ''
 
     def get_output_names(self, sep=", "):
-        return sep.join([self.model_out, self.evaluator_out])
+        return ''
 
     def generate_code(self):
 
@@ -480,7 +480,10 @@ class EvaluateModelOperation(Operation):
                 from juicer.spark.ml_operation import ModelsEvaluationResultList
                 {model_output} = ModelsEvaluationResultList(
                     [{model}], {model}, '{metric}', metric_value)
-                {out}
+
+                {metric} = metric_value
+                {model_output} = None
+
                 """.format(model_output=self.model_out,
                            model=self.model,
                            input=self.named_inputs['input data'],
