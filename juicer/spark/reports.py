@@ -39,7 +39,7 @@ class ConfusionMatrixImageReport(BaseHtmlReport):
         if axis is not None:
             self.axis = axis
         else:
-            self.axis = ['True label', 'Predicted label']
+            self.axis = [_('Label'), _('Predicted')]
 
         if cmap is None:
             self.cmap = plt.cm.Blues
@@ -66,7 +66,7 @@ class ConfusionMatrixImageReport(BaseHtmlReport):
                      horizontalalignment="center",
                      color="white" if self.cm[i, j] > thresh else "black")
 
-        plt.tight_layout()
+        plt.tight_layout(pad=0.4, w_pad=0.5, h_pad=3.0)
         plt.ylabel(self.axis[0])
         plt.xlabel(self.axis[1])
         fig_file = BytesIO()
