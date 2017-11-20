@@ -30,8 +30,11 @@ def test_tokenizer_operation_type_simple_success():
 
     expected_code = dedent("""
             col_alias = {3}
-            tokenizers = [Tokenizer(inputCol=col, outputCol=alias)
-                                for col, alias in col_alias]
+            pattern_exp = r'\s+'
+            min_token_length = 3
+            tokenizers = [RegexTokenizer(inputCol=col, outputCol=alias,
+                    pattern=pattern_exp, minTokenLength=min_token_length)
+                    for col, alias in col_alias]
 
             # Use Pipeline to process all attributes once
             pipeline = Pipeline(stages=tokenizers)
@@ -69,13 +72,13 @@ def test_tokenizer_operation_type_regexp_success():
             pattern_exp = r'{4}'
             min_token_length = {5}
 
-            regextokenizers = [RegexTokenizer(inputCol=col, outputCol=alias,
+            tokenizers = [RegexTokenizer(inputCol=col, outputCol=alias,
                                 pattern=pattern_exp,
                                 minTokenLength=min_token_length)
                                 for col, alias in col_alias]
 
             # Use Pipeline to process all attributes once
-            pipeline = Pipeline(stages=regextokenizers)
+            pipeline = Pipeline(stages=tokenizers)
 
             {2} = pipeline.fit({1}).transform({1})
         """.format(params[TokenizerOperation.TYPE_PARAM], n_in['input data'],
