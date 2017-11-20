@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import hashlib
 import sys
 
 import jinja2
@@ -165,6 +166,7 @@ class SparkTranspiler(object):
                      'workflow_name': workflow['name']}
 
         sorted_tasks_id = nx.topological_sort(graph)
+        task_hash = hashlib.sha1()
         for i, task_id in enumerate(sorted_tasks_id):
             self.current_task_id = task_id
             task = graph.node[task_id]
@@ -185,12 +187,16 @@ class SparkTranspiler(object):
                                 'execution logging', 'logging'],
                         definition['value'] is not None]):
 
+                    task_hash.update(str(definition['value']))
                     if cat in ['paramgrid', 'logging']:
                         if cat not in parameters:
                             parameters[cat] = {}
                         parameters[cat][parameter] = definition['value']
                     else:
                         parameters[parameter] = definition['value']
+
+            # Hash is used in order to avoid re-run task.
+            parameters['hash'] = task_hash.hexdigest()
 
             # Operation SAVE requires the complete workflow
             if task['operation']['slug'] == 'data-writer':

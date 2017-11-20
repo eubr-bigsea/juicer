@@ -1,7 +1,6 @@
 import collections
 import logging
 
-import matplotlib.pyplot as plt
 import networkx as nx
 from juicer import privaaas
 from juicer.service import tahiti_service, limonero_service
@@ -323,6 +322,9 @@ class Workflow(object):
                 label_pos=50.3, alpha=1, arrows=True, node_shape='s',
                 font_size=8,
                 font_color='#FFFFFF')
+
+        # Must import pyplot here!
+        import matplotlib.pyplot as plt
         plt.show()
         # If necessary save the image
         # plt.savefig(filename, dpi=300, orientation='landscape', format=None,
