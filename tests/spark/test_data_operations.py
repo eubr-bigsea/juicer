@@ -31,10 +31,14 @@ def test_data_reader_minimal_parameters_no_attributes_success():
         schema_{output} = types.StructType()
         schema_{output}.add('value', types.StringType(), 1, None)
         url = '{url}'
-        {output} = spark_session.read\
-                               .option('nullValue', '')\
-                               .option('treatEmptyValuesAsNulls', 'true')\
+        {output} = spark_session.read\\
+                               .option('nullValue', '')\\
+                               .option('treatEmptyValuesAsNulls', 'true')\\
+                               .option('wholeFile', True)\\
+                               .option('multiLine', True)\\
+                               .option('escape', '"')\\
                                .csv(url, schema=schema_output_1,
+                                    quote=None,
                                     header=False, sep=',',
                                     inferSchema=False, mode='FAILFAST')
         {output}.cache()
