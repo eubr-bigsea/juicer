@@ -3,7 +3,11 @@ import decimal
 import json
 
 import datetime
-from pyspark.sql.utils import AnalysisException, IllegalArgumentException
+
+try:
+    from pyspark.sql.utils import AnalysisException, IllegalArgumentException
+except ImportError:
+    pass
 
 import re
 

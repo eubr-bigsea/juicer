@@ -148,7 +148,7 @@ def test_feature_indexer_vector_operation_success():
 
             # Use Pipeline to process all attributes once
             pipeline = Pipeline(stages=indexers)
-            models = dict([(col, indexers[i].fit({1})) for i, col in
+            models_task_1 = dict([(col, indexers[i].fit({1})) for i, col in
                         enumerate(col_alias)])
             labels = None
 
@@ -328,41 +328,91 @@ def test_evaluate_model_operation_success():
     code = instance.generate_code()
 
     expected_code = dedent("""
-            {evaluator_out} = {evaluator}({predic_col}='{predic_atr}',
-                                  labelCol='{label_atr}', metricName='{metric}')
+        metric_value = 0.0
+        display_text = True
+        display_image = True
 
-            {output} = {evaluator_out}.evaluate({input_1})
-
-            display_text = True
+        metric = '{metric}'
+        if metric in ['areaUnderROC', 'areaUnderPR']:
+            evaluator = evaluation.BinaryClassificationEvaluator(
+                predictionCol='{predic_atr}',
+                labelCol='{label_atr}',
+                metricName=metric)
+            metric_value = evaluator.evaluate({input_1})
             if display_text:
-                from juicer.spark.reports import SimpleTableReport
-                headers = ['Parameter', 'Description', 'Value', 'Default']
-                rows = [
-                        [x.name, x.doc,
-                            df_evaluator._paramMap.get(x, 'unset'),
-                             df_evaluator._defaultParamMap.get(
-                                 x, 'unset')] for x in
-                    df_evaluator.extractParamMap()]
-
-                content = SimpleTableReport(
-                        'table table-striped table-bordered table-sm', headers,
-                        rows)
-
-                result = '<h4>{{}}: {{}}</h4>'.format('f1',
+                result = '<h4>{{}}: {{}}</h4>'.format('{metric}',
                     metric_value)
 
                 emit_event(
-                    'update task', status='COMPLETED',
-                    identifier='{task_id}',
-                    message=result + content.generate(),
-                    type='HTML', title='Evaluation result',
-                    task={{'id': '{task_id}'}},
-                    operation={{'id': {operation_id}}},
-                    operation_id={operation_id})
+                   'update task', status='COMPLETED',
+                   identifier='{task_id}',
+                   message=result,
+                   type='HTML', title='Evaluation result',
+                   task={{'id': '{task_id}'}},
+                   operation={{'id': {operation_id}}},
+                   operation_id={operation_id})
 
-            from juicer.spark.ml_operation import ModelsEvaluationResultList
-            model_task_1 = ModelsEvaluationResultList(
-                [df_model], df_model, 'f1', metric_value)
+        elif metric in ['f1', 'weightedPrecision', 'weightedRecall',
+                'accuracy']:
+            label_prediction = input_1.select(
+                '{label_atr}', '{predic_atr}')
+            evaluator = MulticlassMetrics(label_prediction.rdd)
+            if metric == 'f1':
+                metric_value = evaluator.weightedFMeasure()
+            elif metric == 'weightedPrecision':
+                metric_value = evaluator.weightedPrecision
+            elif metric == 'weightedRecall':
+                metric_value = evaluator.weightedRecall
+            elif metric == 'accuracy':
+                metric_value = evaluator.accuracy
+
+            if display_image:
+                classes = ['c: {{}}'.format(x[0]) for x in
+                    label_prediction.select(
+                        'c').distinct().sort(
+                            'c', ascending=True).collect()]
+
+                content = ConfusionMatrixImageReport(
+                    cm=evaluator.confusionMatrix().toArray(),
+                    classes=classes,)
+
+                emit_event(
+                   'update task', status='COMPLETED',
+                   identifier='{task_id}',
+                   message=content.generate(),
+                   type='IMAGE', title='Evaluation result',
+                   task={{'id': '{task_id}'}},
+                   operation={{'id': {operation_id}}},
+                   operation_id={operation_id})
+
+
+            if display_text:
+                headers = ['Metric', 'Value']
+                rows = [
+                    ['F1', evaluator.weightedFMeasure()],
+                    ['Weighted Precision', evaluator.weightedPrecision],
+                    ['Weighted Recall', evaluator.weightedRecall],
+                    ['Accuracy', evaluator.accuracy],
+                ]
+
+                content = SimpleTableReport(
+                        'table table-striped table-bordered table-sm',
+                        headers, rows)
+
+                emit_event(
+                   'update task', status='COMPLETED',
+                   identifier='{task_id}',
+                   message=content.generate(),
+                   type='HTML', title='Evaluation result',
+                   task={{'id': '{task_id}'}},
+                   operation={{'id': {operation_id}}},
+                   operation_id={operation_id})
+
+        from juicer.spark.ml_operation import ModelsEvaluationResultList
+        model_task_1 = ModelsEvaluationResultList(
+            [df_model], df_model, '{metric}', metric_value)
+        f1 = metric_value
+        model_task_1 = None
             """.format(output=n_out['metric'],
                        evaluator_out=n_out['evaluator'],
                        input_2=n_in['model'],
@@ -381,24 +431,7 @@ def test_evaluate_model_operation_success():
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
     assert result, msg + format_code_comparison(code,
-                                                expected_code)  # + '\n' + '\n'.join(difflib.unified_diff(code.split('\n'), expected_code.split('\n')))
-
-
-    # @!BUG - Acessing 'task''order' in parameter attribute, but doesn't exist
-    # def test_evaluate_model_operation_missing_output_param_failure():
-    #     params = {
-    #
-    #         EvaluateModel.PREDICTION_ATTRIBUTE_PARAM: 'c',
-    #         EvaluateModel.LABEL_ATTRIBUTE_PARAM: 'c',
-    #         EvaluateModel.METRIC_PARAM: 'f1',
-    #     }
-    #     inputs = ['input_1', 'input_2']
-    #     outputs = []
-    #     with pytest.raises(ValueError):
-    #         evaluator = EvaluateModel(params, inputs,
-    #                                   outputs, named_inputs={},
-    #                                   named_outputs={})
-    #         evaluator.generate_code()
+                                                expected_code)
 
 
 def test_evaluate_model_operation_wrong_metric_param_failure():
@@ -825,7 +858,7 @@ def test_svm_classifier_operation_success():
 
     # Is not possible to generate_code(), because has_code is False
     assert (instance_svm.name ==
-            "classification.LinearSVC(**{'standardization': True})")
+            "classification.LinearSVC(**{})")
 
 
 def test_lr_classifier_operation_success():
@@ -964,11 +997,13 @@ def test_clustering_model_operation_success():
         from juicer.spark.reports import SimpleTableReport
 
         {algorithm}.setFeaturesCol('{features}')
-        df_1.setPredictionCol('prediction')
+        if hasattr(df_1, 'setPredictionCol'):
+            df_1.setPredictionCol('prediction')
         {model} = {algorithm}.fit({input})
         # There is no way to pass which attribute was used in clustering, so
         # this information will be stored in uid (hack).
         {model}.uid += '|{features}'
+
         # Lazy execution in case of sampling the data in UI
         def call_transform(df):
             return output_2.transform(df)
@@ -976,7 +1011,6 @@ def test_clustering_model_operation_success():
              output_2, df_2, call_transform)
 
         summary = getattr(output_2, 'summary', None)
-        # <>
         def call_clusters(df):
             if hasattr(output_2, 'clusterCenters'):
                 return spark_session.createDataFrame(
