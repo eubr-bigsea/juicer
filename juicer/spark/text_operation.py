@@ -234,8 +234,8 @@ class WordToVectorOperation(Operation):
         self.minimum_df = parameters.get(self.MINIMUM_DF_PARAM, 1) or 1.0
         self.minimum_tf = parameters.get(self.MINIMUM_TF_PARAM, 1) or 1.0
 
-        self.minimum_size = parameters.get(self.MINIMUM_VECTOR_SIZE_PARAM, 3)
-        self.minimum_count = parameters.get(self.MINIMUM_COUNT_PARAM, 0)
+        self.minimum_size = parameters.get(self.MINIMUM_VECTOR_SIZE_PARAM, 100)
+        self.minimum_count = parameters.get(self.MINIMUM_COUNT_PARAM, 5)
 
         self.has_code = any(
             [len(self.named_inputs) > 0, self.contains_results()])

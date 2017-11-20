@@ -381,6 +381,8 @@ class EvaluateModelOperation(Operation):
             raise ValueError(
                 _('Model is being used, but at least one input is missing'))
 
+        self.supports_cache = False
+
     def get_data_out_names(self, sep=','):
         return ''
 
@@ -408,12 +410,36 @@ class EvaluateModelOperation(Operation):
             if len(self.named_inputs) == 2:
                 display_text = self.parameters['task']['forms'].get(
                     'display_text', {'value': 1}).get('value', 1) in (1, '1')
+                display_image = self.parameters['task']['forms'].get(
+                    'display_image', {'value': 1}).get('value', 1) in (1, '1')
                 code += dedent(u"""
 
                 metric_value = {evaluator_out}.evaluate({input})
                 display_text = {display_text}
+                display_image = {display_image}
+                if display_image:
+                    label_prediction = {input}.select(
+                        '{prediction_attr}', '{label_attr}')
+                    classes = ['{label_attr}: {{}}'.format(x[0]) for x in
+                        label_prediction.select('{label_attr}')\\
+                            .distinct().sort('{label_attr}', ascending=True)\\
+                            .collect()]
+
+                    metrics = MulticlassMetrics(label_prediction.rdd)
+                    content = ConfusionMatrixImageReport(
+                        cm=metrics.confusionMatrix().toArray(),
+                        classes=classes,)
+
+                    emit_event(
+                        'update task', status='COMPLETED',
+                        identifier='{task_id}',
+                        message=content.generate(),
+                        type='IMAGE', title='{title}',
+                        task={{'id': '{task_id}'}},
+                        operation={{'id': {operation_id}}},
+                        operation_id={operation_id})
+
                 if display_text:
-                    from juicer.spark.reports import SimpleTableReport
                     headers = {headers}
                     rows = [
                             [x.name, x.doc,
@@ -450,6 +476,9 @@ class EvaluateModelOperation(Operation):
                            operation_id=self.parameters['operation_id'],
                            title=_('Evaluation result'),
                            display_text=display_text,
+                           display_image=display_image,
+                           prediction_attr=self.prediction_attribute,
+                           label_attr=self.label_attribute,
                            headers=[_('Parameter'), _('Description'),
                                     _('Value'), _('Default')]
                            ))
