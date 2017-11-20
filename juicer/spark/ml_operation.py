@@ -392,81 +392,95 @@ class EvaluateModelOperation(Operation):
     def generate_code(self):
 
         if self.has_code:
+            display_text = self.parameters['task']['forms'].get(
+                'display_text', {'value': 1}).get('value', 1) in (1, '1')
+            display_image = self.parameters['task']['forms'].get(
+                'display_image', {'value': 1}).get('value', 1) in (1, '1')
+
             code = dedent("""
-                # Creates the evaluator according to the model
-                # (user should not change it)
-                {evaluator_out} = {evaluator}(
-                    {prediction_arg}='{prediction_attr}',
-                    labelCol='{label_attr}',
-                    metricName='{metric}')
-            """.format(evaluator=self.evaluator,
-                       evaluator_out=self.evaluator_out,
-                       prediction_arg=self.param_prediction_arg,
-                       prediction_attr=self.prediction_attribute,
-                       label_attr=self.label_attribute,
-                       metric=self.metric))
-
-            # Not being used with a cross validator
-            if len(self.named_inputs) == 2:
-                display_text = self.parameters['task']['forms'].get(
-                    'display_text', {'value': 1}).get('value', 1) in (1, '1')
-                display_image = self.parameters['task']['forms'].get(
-                    'display_image', {'value': 1}).get('value', 1) in (1, '1')
-                code += dedent(u"""
-
-                metric_value = {evaluator_out}.evaluate({input})
+                metric_value = 0.0
                 display_text = {display_text}
                 display_image = {display_image}
-                if display_image:
+
+                metric = '{metric}'
+                if metric in ['areaUnderROC', 'areaUnderPR']:
+                    evaluator = evaluation.BinaryClassificationEvaluator(
+                        {prediction_arg}='{prediction_attr}',
+                        labelCol='{label_attr}',
+                        metricName=metric)
+                    metric_value = evaluator.evaluate({input})
+                    if display_text:
+                        result = '<h4>{{}}: {{}}</h4>'.format('{metric}',
+                            metric_value)
+
+                        emit_event(
+                            'update task', status='COMPLETED',
+                            identifier='{task_id}',
+                            message=result,
+                            type='HTML', title='{title}',
+                            task={{'id': '{task_id}'}},
+                            operation={{'id': {operation_id}}},
+                            operation_id={operation_id})
+
+                elif metric in ['f1', 'weightedPrecision', 'weightedRecall',
+                        'accuracy']:
                     label_prediction = {input}.select(
                         '{prediction_attr}', '{label_attr}')
-                    classes = ['{label_attr}: {{}}'.format(x[0]) for x in
-                        label_prediction.select('{label_attr}')\\
-                            .distinct().sort('{label_attr}', ascending=True)\\
-                            .collect()]
+                    evaluator = MulticlassMetrics(label_prediction.rdd)
+                    if metric == 'f1':
+                        metric_value = evaluator.weightedFMeasure()
+                    elif metric == 'weightedPrecision':
+                        metric_value = evaluator.weightedPrecision
+                    elif metric == 'weightedRecall':
+                        metric_value = evaluator.weightedRecall
+                    elif metric == 'accuracy':
+                        metric_value = evaluator.accuracy
 
-                    metrics = MulticlassMetrics(label_prediction.rdd)
-                    content = ConfusionMatrixImageReport(
-                        cm=metrics.confusionMatrix().toArray(),
-                        classes=classes,)
+                    if display_image:
+                        classes = ['{label_attr}: {{}}'.format(x[0]) for x in
+                            label_prediction.select(
+                                '{label_attr}').distinct().sort(
+                                    '{label_attr}', ascending=True).collect()]
 
-                    emit_event(
-                        'update task', status='COMPLETED',
-                        identifier='{task_id}',
-                        message=content.generate(),
-                        type='IMAGE', title='{title}',
-                        task={{'id': '{task_id}'}},
-                        operation={{'id': {operation_id}}},
-                        operation_id={operation_id})
+                        content = ConfusionMatrixImageReport(
+                            cm=evaluator.confusionMatrix().toArray(),
+                            classes=classes,)
 
-                if display_text:
-                    headers = {headers}
-                    rows = [
-                            [x.name, x.doc,
-                                {evaluator_out}._paramMap.get(x, 'unset'),
-                                 {evaluator_out}._defaultParamMap.get(
-                                     x, 'unset')] for x in
-                        {evaluator_out}.extractParamMap()]
+                        emit_event(
+                            'update task', status='COMPLETED',
+                            identifier='{task_id}',
+                            message=content.generate(),
+                            type='IMAGE', title='{title}',
+                            task={{'id': '{task_id}'}},
+                            operation={{'id': {operation_id}}},
+                            operation_id={operation_id})
 
-                    content = SimpleTableReport(
-                            'table table-striped table-bordered table-sm',
-                            headers, rows)
+                    if display_text:
+                        headers = {headers}
+                        rows = [
+                            ['F1', evaluator.weightedFMeasure()],
+                            ['Weighted Precision', evaluator.weightedPrecision],
+                            ['Weighted Recall', evaluator.weightedRecall],
+                            ['Accuracy', evaluator.accuracy],
+                        ]
 
-                    result = '<h4>{{}}: {{}}</h4>'.format('{metric}',
-                        metric_value)
+                        content = SimpleTableReport(
+                                'table table-striped table-bordered table-sm',
+                                headers, rows)
 
-                    emit_event(
-                        'update task', status='COMPLETED',
-                        identifier='{task_id}',
-                        message=result + content.generate(),
-                        type='HTML', title='{title}',
-                        task={{'id': '{task_id}'}},
-                        operation={{'id': {operation_id}}},
-                        operation_id={operation_id})
+                        emit_event(
+                            'update task', status='COMPLETED',
+                            identifier='{task_id}',
+                            message=content.generate(),
+                            type='HTML', title='{title}',
+                            task={{'id': '{task_id}'}},
+                            operation={{'id': {operation_id}}},
+                            operation_id={operation_id})
 
                 from juicer.spark.ml_operation import ModelsEvaluationResultList
                 {model_output} = ModelsEvaluationResultList(
                     [{model}], {model}, '{metric}', metric_value)
+                {out}
                 """.format(model_output=self.model_out,
                            model=self.model,
                            input=self.named_inputs['input data'],
@@ -479,25 +493,26 @@ class EvaluateModelOperation(Operation):
                            display_image=display_image,
                            prediction_attr=self.prediction_attribute,
                            label_attr=self.label_attribute,
-                           headers=[_('Parameter'), _('Description'),
-                                    _('Value'), _('Default')]
-                           ))
-            elif self.named_outputs.get(
-                    'evaluator'):  # Used with cross validator
-                code = """
-                {evaluator_out} = {evaluator}(
-                    {prediction_arg}='{prediction_attr}',
-                    labelCol='{label_attr}',
-                    metricName='{metric}')
-               {metric_out} = None
-               {model_output} = None
-                """.format(evaluator=self.evaluator,
-                           evaluator_out=self.evaluator_out,
+                           headers=[_('Metric'), _('Value')],
+                           evaluator=self.evaluator,
                            prediction_arg=self.param_prediction_arg,
-                           prediction_attr=self.prediction_attribute,
-                           label_attr=self.label_attribute,
-                           metric=self.metric, metric_out=self.metric,
-                           model_output=self.model_out)
+                           ))
+            # elif self.named_outputs.get(
+            #         'evaluator'):  # Used with cross validator
+            #     code = """
+            #     {evaluator_out} = {evaluator}(
+            #         {prediction_arg}='{prediction_attr}',
+            #         labelCol='{label_attr}',
+            #         metricName='{metric}')
+            #    {metric_out} = None
+            #    {model_output} = None
+            #     """.format(evaluator=self.evaluator,
+            #                evaluator_out=self.evaluator_out,
+            #                prediction_arg=self.param_prediction_arg,
+            #                prediction_attr=self.prediction_attribute,
+            #                label_attr=self.label_attribute,
+            #                metric=self.metric, metric_out=self.metric,
+            #                model_output=self.model_out)
             return dedent(code)
 
 
