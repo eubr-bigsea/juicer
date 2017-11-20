@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2017-11-17 14:11-0200\n"
-"PO-Revision-Date: 2017-11-17 14:11-0200\n"
+"POT-Creation-Date: 2017-11-20 17:39-0200\n"
+"PO-Revision-Date: 2017-11-20 17:39-0200\n"
 "Last-Translator: \n"
 "Language-Team: pt_BR <LL@li.org>\n"
 "Language: pt_BR\n"
@@ -100,7 +100,7 @@ msgstr "Esta implementação de rastreabilidade não suporta entradas múltiplas
 #: juicer/spark/feature_operation.py:27 juicer/spark/geo_operation.py:31
 #: juicer/spark/ml_operation.py:37 juicer/spark/ml_operation.py:140
 #: juicer/spark/ml_operation.py:147 juicer/spark/ml_operation.py:204
-#: juicer/spark/ml_operation.py:260 juicer/spark/ml_operation.py:1040
+#: juicer/spark/ml_operation.py:260 juicer/spark/ml_operation.py:1087
 #: juicer/spark/statistic_operation.py:21 juicer/spark/text_operation.py:32
 #: juicer/spark/text_operation.py:104 juicer/spark/text_operation.py:221
 #: juicer/spark/text_operation.py:331 juicer/spark/text_operation.py:338
@@ -120,10 +120,10 @@ msgstr "Parâmetros '{}' devem ser informados para a tarefa {}"
 #: juicer/compss/etl_operation.py:28 juicer/compss/etl_operation.py:365
 #: juicer/compss/etl_operation.py:746 juicer/compss/ml_operation.py:30
 #: juicer/compss/ml_operation.py:138 juicer/compss/ml_operation.py:147
-#: juicer/compss/model_operation.py:80 juicer/spark/ml_operation.py:611
-#: juicer/spark/ml_operation.py:1348 juicer/spark/ml_operation.py:1383
-#: juicer/spark/ml_operation.py:1520 juicer/spark/ml_operation.py:1550
-#: juicer/spark/ml_operation.py:1587 juicer/spark/ml_operation.py:1712
+#: juicer/compss/model_operation.py:80 juicer/spark/ml_operation.py:658
+#: juicer/spark/ml_operation.py:1395 juicer/spark/ml_operation.py:1430
+#: juicer/spark/ml_operation.py:1567 juicer/spark/ml_operation.py:1597
+#: juicer/spark/ml_operation.py:1634 juicer/spark/ml_operation.py:1759
 msgid "Parameters '{}' and '{}' must be informed for task {}"
 msgstr "Parâmetros '{}' e '{}' devem ser informado para a tarefa {}"
 
@@ -270,15 +270,15 @@ msgstr ""
 "\n"
 "ERRO! Estado do código: {},{}\n"
 
-#: juicer/privaaas/__init__.py:218
+#: juicer/privaaas/__init__.py:216
 msgid "Invalid encryption function {}"
 msgstr "Função de criptografia inválida {}"
 
-#: juicer/privaaas/__init__.py:240
+#: juicer/privaaas/__init__.py:238
 msgid "Invalid masking type: {}"
 msgstr "Tipo de máscara inválido: {}"
 
-#: juicer/privaaas/__init__.py:314
+#: juicer/privaaas/__init__.py:312
 msgid "Data type is not supported for masking: {}"
 msgstr "Tipo de dados não suportado para máscara: {}"
 
@@ -363,19 +363,19 @@ msgstr "Terminando %s minions ativos"
 msgid "Killing juicer server subprocesses and terminating"
 msgstr "Matando subprocessos do servidor juicer e finalizando"
 
-#: juicer/runner/minion.py:37
+#: juicer/runner/minion.py:42
 msgid "Starting minion"
 msgstr "Iniciando o minion"
 
-#: juicer/runner/minion.py:38
+#: juicer/runner/minion.py:43
 msgid "(c) Lemonade - DCC UFMG"
 msgstr "Direitos Autorais (C) - DCC UFMG"
 
-#: juicer/runner/minion.py:62
+#: juicer/runner/minion.py:67
 msgid "{type} is not supported (yet!)"
 msgstr "{type} não é suportado (ainda!)"
 
-#: juicer/runner/minion.py:65
+#: juicer/runner/minion.py:70
 msgid "Error running minion"
 msgstr "Erro executando o minion"
 
@@ -620,7 +620,7 @@ msgid "Parameter type has an invalid value {}"
 msgstr "Tipo de parâmetro tem um valor inválido {}"
 
 #: juicer/spark/ml_operation.py:294 juicer/spark/ml_operation.py:382
-#: juicer/spark/ml_operation.py:625
+#: juicer/spark/ml_operation.py:672
 msgid "Model is being used, but at least one input is missing"
 msgstr "Model está sendo usado, mas falta pelo menos uma entrada."
 
@@ -632,53 +632,57 @@ msgstr "Parâmetro '{}' , '{}' e '{}' devem ser informado para a tarefa {}"
 msgid "Invalid metric value {}"
 msgstr "Valor de métrica inválido {}"
 
-#: juicer/spark/ml_operation.py:451
+#: juicer/spark/ml_operation.py:494
 msgid "Evaluation result"
 msgstr "Resultado da avaliação"
 
-#: juicer/spark/ml_operation.py:453 juicer/spark/ml_operation.py:681
-msgid "Parameter"
-msgstr "Parâmetro"
+#: juicer/spark/ml_operation.py:499
+msgid "Metric"
+msgstr "Métrica"
 
-#: juicer/spark/ml_operation.py:453
-msgid "Description"
-msgstr "Descrição"
-
-#: juicer/spark/ml_operation.py:454 juicer/spark/ml_operation.py:681
+#: juicer/spark/ml_operation.py:499 juicer/spark/ml_operation.py:728
 msgid "Value"
 msgstr "Valor"
 
-#: juicer/spark/ml_operation.py:454
-msgid "Default"
-msgstr "Valor padrão"
-
-#: juicer/spark/ml_operation.py:680
+#: juicer/spark/ml_operation.py:727
 msgid "Generated classification model parameters"
 msgstr "Parâmetros gerados para o modelo de classificação"
 
-#: juicer/spark/ml_operation.py:735 juicer/spark/ml_operation.py:1776
-#: juicer/spark/ml_operation.py:1854 juicer/spark/ml_operation.py:1917
-#: juicer/spark/ml_operation.py:1976 juicer/spark/ml_operation.py:2030
+#: juicer/spark/ml_operation.py:728
+msgid "Parameter"
+msgstr "Parâmetro"
+
+#: juicer/spark/ml_operation.py:782 juicer/spark/ml_operation.py:1823
+#: juicer/spark/ml_operation.py:1901 juicer/spark/ml_operation.py:1964
+#: juicer/spark/ml_operation.py:2023 juicer/spark/ml_operation.py:2077
 msgid "Parameter output must be informed for classifier {}"
 msgstr "Parâmetro de saída deve ser informado para o classificador {}"
 
-#: juicer/spark/ml_operation.py:1188
+#: juicer/spark/ml_operation.py:1235
 msgid "Invalid optimizer value {} for class {}"
 msgstr "Valor de optimizer inválido {} para classe {}"
 
-#: juicer/spark/ml_operation.py:1257
+#: juicer/spark/ml_operation.py:1304
 msgid "Invalid type {} for class {}"
 msgstr "Tipo inválido {} para a classe {}"
 
-#: juicer/spark/ml_operation.py:2129
+#: juicer/spark/ml_operation.py:2176
 msgid "Missing parameters. Check if values for parameters {} were informed"
 msgstr ""
 "Parâmetros ausentes. Verifique se os valores para os parâmetros {} foram "
 "informados"
 
-#: juicer/spark/ml_operation.py:2141 juicer/spark/ml_operation.py:2149
+#: juicer/spark/ml_operation.py:2188 juicer/spark/ml_operation.py:2196
 msgid "Invalid value for parameter {param}: {value}"
 msgstr "Valor inválido para o parâmetro {param}: {value}"
+
+#: juicer/spark/reports.py:42
+msgid "Label"
+msgstr "Rótulo"
+
+#: juicer/spark/reports.py:42
+msgid "Predicted"
+msgstr "Predição"
 
 #: juicer/spark/spark_minion.py:76
 #, python-format
@@ -747,7 +751,7 @@ msgstr "Atributo {} para o label não existe em ({})"
 msgid "The maximum number of values for this chart is 100."
 msgstr "O número máximo para valores para este gráfico é 100."
 
-#: juicer/util/dataframe_util.py:73 juicer/util/dataframe_util.py:92
+#: juicer/util/dataframe_util.py:77 juicer/util/dataframe_util.py:96
 msgid ""
 "Invalid input data for visualization. It should contains 2 (name, value) or "
 "3 columns (id, name, value)."
@@ -755,47 +759,47 @@ msgstr ""
 "Entrada de dados invalida para a visualização.  Deve conter 2 (nome, valor) "
 "ou  3 colunas (id, nome, valor)."
 
-#: juicer/util/dataframe_util.py:100
+#: juicer/util/dataframe_util.py:104
 msgid "Attribute"
 msgstr "Atributo"
 
-#: juicer/util/dataframe_util.py:100
+#: juicer/util/dataframe_util.py:104
 msgid "Type"
 msgstr "Tipo"
 
-#: juicer/util/dataframe_util.py:100
+#: juicer/util/dataframe_util.py:104
 msgid "Metadata"
 msgstr "Metadados"
 
-#: juicer/util/dataframe_util.py:105 juicer/util/dataframe_util.py:111
+#: juicer/util/dataframe_util.py:109 juicer/util/dataframe_util.py:115
 msgid "Schema for {}"
 msgstr "Schema para {}"
 
-#: juicer/util/dataframe_util.py:123 juicer/util/dataframe_util.py:129
+#: juicer/util/dataframe_util.py:127 juicer/util/dataframe_util.py:133
 msgid "Sample data for {}"
 msgstr "Amostra de dados para {}"
 
-#: juicer/util/dataframe_util.py:237
+#: juicer/util/dataframe_util.py:241
 msgid "Attribute {} not found. Valid attributes: {}"
 msgstr "Atributo {} não encontrado. Atributos válidos: {}"
 
-#: juicer/util/dataframe_util.py:248
+#: juicer/util/dataframe_util.py:252
 msgid ""
 "Attribute {attr} must be one of these types [{correct}], but it is {used}"
 msgstr ""
 "Atributo {attr} deve ser de um destes tipo: [{correct}. mas ele é do do tipo "
 "{used}"
 
-#: juicer/util/dataframe_util.py:264
+#: juicer/util/dataframe_util.py:268
 msgid "Invalid numeric data in at least one data source (value: {})"
 msgstr ""
 "Dados numéricos inválidos em pelo menos uma das fontes de dados (valor: {})"
 
-#: juicer/util/dataframe_util.py:268
+#: juicer/util/dataframe_util.py:272
 msgid "At least one input data source is not in the correct format."
 msgstr "Pelo menos uma fonte de dados de entrada não está no formato correto."
 
-#: juicer/util/dataframe_util.py:272
+#: juicer/util/dataframe_util.py:276
 msgid ""
 "There is null values in your data set and Spark cannot handle them. Please, "
 "remove them before applying a data transformation."
@@ -803,7 +807,7 @@ msgstr ""
 "Existem valores nulos no conjunto de dados e o Spark não consegue tratá-los. "
 "Por favor, remova-os antes de aplicar a transformação."
 
-#: juicer/util/dataframe_util.py:285
+#: juicer/util/dataframe_util.py:289
 msgid ""
 "CSV format does not support the data type {}. Try to convert the attribute "
 "to string (see to_json()) before saving."
@@ -828,34 +832,40 @@ msgid "Type error parsing template for instance {id} {instance}."
 msgstr ""
 "Erro de tipo analisando modelo (template) para instância {id} {instance}"
 
-#: juicer/workflow/workflow.py:54
+#: juicer/workflow/workflow.py:53
 msgid "Port '{}/{}' must be informed for operation{}"
 msgstr "Porta '{}/{}' deve ser informado para operação {}"
 
-#: juicer/workflow/workflow.py:184
+#: juicer/workflow/workflow.py:183
 msgid "Task {task} uses an invalid or disabled operation ({op})"
 msgstr "Tarefa {task} está usando uma operação inválida ou disabilitada ({op})"
 
-#: juicer/workflow/workflow.py:216
+#: juicer/workflow/workflow.py:215
 #, python-format
 msgid "Incorrect configuration for ports: %s, %s"
 msgstr "Configuração incorreta para as portas: %s, %s"
 
-#: juicer/workflow/workflow.py:219
+#: juicer/workflow/workflow.py:218
 msgid "Invalid or inexisting port in '{op}' {s} {t}"
 msgstr "Porta inválida ou inexistente na '{op}' {s} {t}"
 
-#: juicer/workflow/workflow.py:239
+#: juicer/workflow/workflow.py:238
 msgid "Port '{} in node {}' missing, must be informed for operation {}"
 msgstr "Porta '{} no nó {}' ausente, deve ser informada para a operação {}"
 
-#: juicer/workflow/workflow.py:254
+#: juicer/workflow/workflow.py:253
 msgid "Port '{}' missing, must be informed for operation {}"
 msgstr "Porta '{}' ausente, deve ser informado para a operação {}"
 
-#: juicer/workflow/workflow.py:444
+#: juicer/workflow/workflow.py:446
 msgid "The node informed doesn't exist"
 msgstr "O nó informado não existe"
+
+#~ msgid "Description"
+#~ msgstr "Descrição"
+
+#~ msgid "Default"
+#~ msgstr "Valor padrão"
 
 #~ msgid "Invalid numeric data in at least one data source (attribute: {})"
 #~ msgstr ""
