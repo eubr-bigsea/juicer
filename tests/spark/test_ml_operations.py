@@ -397,7 +397,7 @@ def test_evaluate_model_operation_success():
 
                 content = SimpleTableReport(
                         'table table-striped table-bordered table-sm',
-                        headers, rows)
+                        headers, rows, title='Evaluation result')
 
                 emit_event(
                    'update task', status='COMPLETED',
