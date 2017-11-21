@@ -466,7 +466,8 @@ class EvaluateModelOperation(Operation):
 
                         content = SimpleTableReport(
                                 'table table-striped table-bordered table-sm',
-                                headers, rows)
+                                headers, rows,
+                                title='{title}')
 
                         emit_event(
                             'update task', status='COMPLETED',
