@@ -902,8 +902,13 @@ class TableVisualizationModel(VisualizationModel):
                 dataframe_util.convert_to_python).collect()
 
         return {"rows": rows,
-                "attributes": self.get_column_names().split(','),
-                "schema": self.get_schema()}
+                "attributes": self.get_column_names().split(',')}
+
+    def get_schema(self):
+        if self.column_names:
+            return self.data.select(*self.column_names).schema.json()
+        else:
+            return self.data.schema.json()
 
     def get_column_names(self):
         if self.column_names:
