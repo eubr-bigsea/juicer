@@ -435,6 +435,7 @@ class SelectOperation(Operation):
     - The list of columns selected.
     """
     ATTRIBUTES_PARAM = 'attributes'
+    REMOVE_ATTRIBUTES_PARAM = 'remove_attributes'
     ASCENDING_PARAM = 'ascending'
 
     def __init__(self, parameters, named_inputs, named_outputs):

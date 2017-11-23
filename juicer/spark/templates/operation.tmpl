@@ -209,14 +209,14 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.ord
           {%- endfor %}
         }
 
-    {%- if instance.parameters.task.forms.get('display_sample', {}).get('value') in (1, '1') %}
+    {%- if instance.has_code and instance.parameters.task.forms.get('display_sample', {}).get('value') in (1, '1') %}
     for name, out in results.items():
         if (isinstance(out, dict) and 'output' in out
                 and isinstance(out['output'], DataFrame)):
             dataframe_util.emit_sample(
                 '{{instance.parameters.task.id}}', out['output'], emit_event, name)
     {%- endif %}
-    {%- if instance.parameters.task.forms.get('display_schema', {}).get('value') in (1, '1') %}
+    {%- if instance.has_code and instance.parameters.task.forms.get('display_schema', {}).get('value') in (1, '1') %}
     for name, out in results.items():
         if (isinstance(out, dict) and 'output' in out
                 and isinstance(out['output'], DataFrame)):

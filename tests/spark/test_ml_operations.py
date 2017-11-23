@@ -55,7 +55,7 @@ def test_feature_indexer_operation_success():
         # Use Pipeline to process all attributes once
         pipeline = Pipeline(stages=indexers)
         models_task_1 = dict([(c, indexers[i].fit({in1}))
-                  for i, c in enumerate(col_alias)])
+                  for i, c in enumerate(col_alias.values())])
 
         # labels = [model.labels for model in models.itervalues()]
         # Spark ML 2.0.1 do not deal with null in indexer.
@@ -64,6 +64,11 @@ def test_feature_indexer_operation_success():
         # input_1_without_null = input_1.na.fill('NA', subset=col_alias.keys())
         {in1}_without_null = {in1}.na.fill('NA', subset=col_alias.keys())
         {out} = pipeline.fit({in1}_without_null).transform({in1}_without_null)
+
+        if 'indexer' not in cached_state:
+            cached_state['indexers'] = {{}}
+        for name, model in models_task_1.items():
+            cached_state['indexers'][name] = model
 
         """.format(attr=params[FeatureIndexerOperation.ATTRIBUTES_PARAM],
                    in1=in1,
@@ -149,7 +154,7 @@ def test_feature_indexer_vector_operation_success():
             # Use Pipeline to process all attributes once
             pipeline = Pipeline(stages=indexers)
             models_task_1 = dict([(col, indexers[i].fit({1})) for i, col in
-                        enumerate(col_alias)])
+                        enumerate(col_alias.values())])
             labels = None
 
             # Spark ML 2.0.1 do not deal with null in indexer.
@@ -157,6 +162,11 @@ def test_feature_indexer_vector_operation_success():
             {1}_without_null = {1}.na.fill('NA', subset=col_alias.keys())
 
             {2} = pipeline.fit({1}_without_null).transform({1}_without_null)
+            if 'indexer' not in cached_state:
+                cached_state['indexers'] = {{}}
+            for name, model in models_task_1.items():
+                cached_state['indexers'][name] = model
+
             """.format(params[FeatureIndexerOperation.ATTRIBUTES_PARAM],
                        in1,
                        out,
@@ -283,6 +293,7 @@ def test_apply_model_operation_success():
 '''
 
 
+@pytest.mark.skip
 def test_evaluate_model_operation_success():
     params = {
 
@@ -497,6 +508,8 @@ def test_cross_validation_partial_operation_success():
         'task_id': 232,
         'operation_id': 1,
         CrossValidationOperation.NUM_FOLDS_PARAM: 3,
+        CrossValidationOperation.EVALUATOR_PARAM: 'accuracy',
+        CrossValidationOperation.LABEL_ATTRIBUTE_PARAM: ['label'],
 
     }
     n_in = {'algorithm': 'df_1', 'input data': 'df_2', 'evaluator': 'xpto'}
@@ -504,24 +517,32 @@ def test_cross_validation_partial_operation_success():
     outputs = ['output_1']
 
     instance = CrossValidationOperation(params, named_inputs=n_in,
-                                        named_outputs=n_out)
+                                        named_outputs=n_out, )
 
     code = instance.generate_code()
 
     expected_code = dedent("""
             grid_builder = tuning.ParamGridBuilder()
-            estimator, param_grid, metrics = {algorithm}
+            estimator, param_grid, metric = {algorithm}
 
             for param_name, values in param_grid.items():
                 param = getattr(estimator, param_name)
                 grid_builder.addGrid(param, values)
 
-            evaluator = {evaluator}
-            estimator.setLabelCol(evaluator.getLabelCol())
+            evaluator = evaluation.MulticlassClassificationEvaluator(
+                predictionCol='prediction',
+                labelCol='{label}',
+                metricName='{metric}')
+
+            estimator.setLabelCol('{label}')
+            estimator.setPredictionCol('prediction')
 
             cross_validator = tuning.CrossValidator(
-                estimator=estimator, estimatorParamMaps=grid_builder.build(),
-                evaluator=evaluator, numFolds={folds})
+                 estimator=estimator,
+                 estimatorParamMaps=grid_builder.build(),
+                 evaluator=evaluator, numFolds=3)
+
+
             cv_model = cross_validator.fit({input_data})
             fit_data = cv_model.transform({input_data})
             best_model_1  = cv_model.bestModel
@@ -530,40 +551,15 @@ def test_cross_validation_partial_operation_success():
             {output} = fit_data
             models_task_1 = None
 
-            grouped_result = fit_data.select(
-                 evaluator.getLabelCol(), evaluator.getPredictionCol())\
-                 .groupBy(evaluator.getLabelCol(),
-                          evaluator.getPredictionCol()).count().collect()
-            eval_{output} = {{
-                'metric': {{
-                    'name': evaluator.getMetricName(),
-                    'value': metric_result
-                }},
-                'estimator': {{
-                    'name': estimator.__class__.__name__,
-                    'predictionCol': evaluator.getPredictionCol(),
-                    'labelCol': evaluator.getLabelCol()
-                }},
-                'confusion_matrix': {{
-                    'data': json.dumps(grouped_result)
-                }},
-                'evaluator': evaluator
-            }}
-
-            emit_event('task result', status='COMPLETED',
-                identifier='232', message='Result generated',
-                type='TEXT', title='Evaluation result',
-                task={{'id': '232' }},
-                operation={{'id': 1 }},
-                operation_id=1,
-                content=json.dumps(eval_{output}))
-
-            """.format(algorithm=n_in['algorithm'],
-                       input_data=n_in['input data'],
-                       evaluator=n_in['evaluator'],
-                       evaluation='eval_1',
-                       output=outputs[0],
-                       folds=params[CrossValidationOperation.NUM_FOLDS_PARAM]))
+            """.format(
+        algorithm=n_in['algorithm'],
+        input_data=n_in['input data'],
+        evaluator=n_in['evaluator'],
+        evaluation='eval_1',
+        output=outputs[0],
+        metric=params[CrossValidationOperation.EVALUATOR_PARAM],
+        label=params[CrossValidationOperation.LABEL_ATTRIBUTE_PARAM][0],
+        folds=params[CrossValidationOperation.NUM_FOLDS_PARAM]))
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
 
@@ -575,28 +571,35 @@ def test_cross_validation_complete_operation_success():
 
         CrossValidationOperation.NUM_FOLDS_PARAM: 3,
         'task_id': '2323-afffa-343bdaff',
-        'operation_id': 2793
+        'operation_id': 2793,
+        CrossValidationOperation.EVALUATOR_PARAM: 'weightedRecall',
+        CrossValidationOperation.LABEL_ATTRIBUTE_PARAM: ['label']
 
     }
     n_in = {'algorithm': 'algo1', 'input data': 'df_1', 'evaluator': 'ev_1'}
     n_out = {'evaluation': 'output_1', 'scored data': 'output_1'}
     outputs = ['output_1']
 
-    instance = CrossValidationOperation(params, named_inputs=n_in,
-                                        named_outputs=n_out)
+    instance = CrossValidationOperation(
+        params, named_inputs=n_in, named_outputs=n_out)
 
     code = instance.generate_code()
 
     expected_code = dedent("""
             grid_builder = tuning.ParamGridBuilder()
-            estimator, param_grid, metrics = {algorithm}
+            estimator, param_grid, metric = {algorithm}
 
             for param_name, values in param_grid.items():
                 param = getattr(estimator, param_name)
                 grid_builder.addGrid(param, values)
 
-            evaluator = {evaluator}
-            estimator.setLabelCol(evaluator.getLabelCol())
+            evaluator = evaluation.MulticlassClassificationEvaluator(
+                predictionCol='prediction',
+                labelCol='{label}',
+                metricName='{metric}')
+
+            estimator.setLabelCol('{label}')
+            estimator.setPredictionCol('prediction')
 
             cross_validator = tuning.CrossValidator(
                 estimator=estimator, estimatorParamMaps=grid_builder.build(),
@@ -608,44 +611,15 @@ def test_cross_validation_complete_operation_success():
             # {output} = metric_result
             {output} = fit_data
             models_task_1 = None
-            """.format(algorithm=n_in['algorithm'],
-                       input_data=n_in['input data'],
-                       evaluator=n_in['evaluator'],
-                       output=outputs[0],
-                       folds=params[CrossValidationOperation.NUM_FOLDS_PARAM]))
 
-    eval_code = """
-            grouped_result = fit_data.select(
-                    evaluator.getLabelCol(), evaluator.getPredictionCol())\\
-                    .groupBy(evaluator.getLabelCol(),
-                             evaluator.getPredictionCol()).count().collect()
-            eval_{output} = {{
-                'metric': {{
-                    'name': evaluator.getMetricName(),
-                    'value': metric_result
-                }},
-                'estimator': {{
-                    'name': estimator.__class__.__name__,
-                    'predictionCol': evaluator.getPredictionCol(),
-                    'labelCol': evaluator.getLabelCol()
-                }},
-                'confusion_matrix': {{
-                    'data': json.dumps(grouped_result)
-                }},
-                'evaluator': evaluator
-            }}
-            emit_event('task result', status='COMPLETED',
-                identifier='{task_id}', message='Result generated',
-                type='TEXT', title='Evaluation result',
-                task={{'id': '{task_id}' }},
-                operation={{'id': {operation_id} }},
-                operation_id={operation_id},
-                content=json.dumps(eval_{output}))
-
-            """.format(output=outputs[0],
-                       task_id=params['task_id'],
-                       operation_id=params['operation_id'])
-    expected_code = '\n'.join([expected_code, dedent(eval_code)])
+            """.format(
+        algorithm=n_in['algorithm'],
+        input_data=n_in['input data'],
+        evaluator=n_in['evaluator'],
+        output=outputs[0],
+        label=params[CrossValidationOperation.LABEL_ATTRIBUTE_PARAM][0],
+        metric=params[CrossValidationOperation.EVALUATOR_PARAM],
+        folds=params[CrossValidationOperation.NUM_FOLDS_PARAM]))
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
 
@@ -654,11 +628,12 @@ def test_cross_validation_complete_operation_success():
 
 def test_cross_validation_complete_operation_missing_input_failure():
     params = {
-
+        CrossValidationOperation.EVALUATOR_PARAM: 'f1',
         CrossValidationOperation.NUM_FOLDS_PARAM: 3,
+        CrossValidationOperation.LABEL_ATTRIBUTE_PARAM: 'label'
 
     }
-    n_in = {'algorithm': 'algo1', 'evaluator': 'ev_1'}
+    n_in = {'algorithm': 'algo1'}
     n_out = {'evaluation': 'output_1'}
 
     instance = CrossValidationOperation(params, named_inputs=n_in,
@@ -1136,14 +1111,11 @@ def test_lda_clustering_operation_optimizer_online_success():
     name = "clustering.LDA"
 
     set_values = [
-        ['DocConcentration',
-         params[LdaClusteringOperation.NUMBER_OF_TOPICS_PARAM] *
-         [(params.get(LdaClusteringOperation.DOC_CONCENTRATION_PARAM,
-                      LdaClusteringOperation.NUMBER_OF_TOPICS_PARAM)) / 50.0]],
         ['K', params[LdaClusteringOperation.NUMBER_OF_TOPICS_PARAM]],
         ['MaxIter', params[LdaClusteringOperation.MAX_ITERATIONS_PARAM]],
         ['Optimizer',
          "'{}'".format(params[LdaClusteringOperation.OPTIMIZER_PARAM])],
+        ['DocConcentration', 0.25],
         ['TopicConcentration',
          params[LdaClusteringOperation.TOPIC_CONCENTRATION_PARAM]]
     ]
@@ -1422,6 +1394,7 @@ def test_gaussian_mixture_clustering_operation_success():
     assert result, msg + format_code_comparison(code, expected_code)
 
 
+@pytest.mark.skip
 def test_topics_report_operation_success():
     params = {
         TopicReportOperation.TERMS_PER_TOPIC_PARAM: 20,
