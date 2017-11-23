@@ -61,7 +61,7 @@ class FeatureIndexerOperation(Operation):
         models = self.named_outputs.get('indexer models',
                                         'models_task_{}'.format(self.order))
         if self.type == self.TYPE_STRING:
-            code = """
+            code = dedent("""
                 col_alias = dict({alias})
                 indexers = [feature.StringIndexer(
                     inputCol=col, outputCol=alias, handleInvalid='skip')
@@ -70,7 +70,7 @@ class FeatureIndexerOperation(Operation):
                 # Use Pipeline to process all attributes once
                 pipeline = Pipeline(stages=indexers)
                 {models} = dict([(c, indexers[i].fit({input})) for i, c in
-                                 enumerate(col_alias)])
+                                 enumerate(col_alias.values())])
 
                 # Spark ML 2.0.1 do not deal with null in indexer.
                 # See SPARK-11569
@@ -81,9 +81,9 @@ class FeatureIndexerOperation(Operation):
                     .transform({input}_without_null)
             """.format(input=input_data, out=output, models=models,
                        alias=json.dumps(zip(self.attributes, self.alias),
-                                        indent=None))
+                                        indent=None)))
         elif self.type == self.TYPE_VECTOR:
-            code = """
+            code = dedent("""
                 col_alias = dict({alias})
                 indexers = [feature.VectorIndexer(maxCategories={max_categ},
                                 inputCol=col, outputCol=alias)
@@ -92,7 +92,7 @@ class FeatureIndexerOperation(Operation):
                 # Use Pipeline to process all attributes once
                 pipeline = Pipeline(stages=indexers)
                 {models} = dict([(col, indexers[i].fit({input})) for i, col in
-                                enumerate(col_alias)])
+                                enumerate(col_alias.values())])
                 labels = None
 
                 # Spark ML 2.0.1 do not deal with null in indexer.
@@ -105,13 +105,25 @@ class FeatureIndexerOperation(Operation):
             """.format(input=input_data, out=output,
                        alias=json.dumps(zip(self.attributes, self.alias)),
                        max_categ=self.max_categories,
-                       models=models)
+                       models=models))
         else:
             # Only if the field be open to type
             raise ValueError(
                 _("Parameter type has an invalid value {}").format(self.type))
 
-        return dedent(code)
+        code += dedent(
+            """
+            # Store indexer models in cache. Some operations may need to use
+            # them. If an indexer is created more than once for attributes with
+            # the same name, the last executed will overwrite the previous one.
+            # FIXME: evaluate how to handle this conflict.
+            if 'indexer' not in cached_state:
+                cached_state['indexers'] = {{}}
+            for name, model in {models}.items():
+                cached_state['indexers'][name] = model
+        """.format(models=models))
+
+        return code
 
     def get_output_names(self, sep=','):
         output = self.named_outputs.get('output data',
@@ -404,6 +416,13 @@ class EvaluateModelOperation(Operation):
 
                 metric = '{metric}'
                 if metric in ['areaUnderROC', 'areaUnderPR']:
+                    # scoreAndPrediction = {input}.select('prediction',
+                    #     'survived')
+                    # evaluator = BinaryClassificationMetrics(
+                    #     scoreAndPrediction.rdd)
+                    # roc =  [[a._1(), a._2()] for a
+                    #     in m2._java_model.roc().collect()]
+
                     evaluator = evaluation.BinaryClassificationEvaluator(
                         {prediction_arg}='{prediction_attr}',
                         labelCol='{label_attr}',
@@ -425,7 +444,8 @@ class EvaluateModelOperation(Operation):
                 elif metric in ['f1', 'weightedPrecision', 'weightedRecall',
                         'accuracy']:
                     label_prediction = {input}.select(
-                        '{prediction_attr}', '{label_attr}')
+                        functions.col('{prediction_attr}').cast('Double'),
+                        functions.col('{label_attr}').cast('Double'))
                     evaluator = MulticlassMetrics(label_prediction.rdd)
                     if metric == 'f1':
                         metric_value = evaluator.weightedFMeasure()
@@ -437,10 +457,19 @@ class EvaluateModelOperation(Operation):
                         metric_value = evaluator.accuracy
 
                     if display_image:
-                        classes = ['{label_attr}: {{}}'.format(x[0]) for x in
-                            label_prediction.select(
-                                '{label_attr}').distinct().sort(
-                                    '{label_attr}', ascending=True).collect()]
+
+                        # Test if feature indexer is in global cache, because
+                        # strings must be converted into numbers in order tho
+                        # run algorithms, but they are cooler when displaying
+                        # results.
+                        indexer = cached_state.get('indexers', {{}}).get(
+                            '{label_attr}')
+                        if indexer:
+                            classes = indexer.labels
+                        else:
+                            classes = sorted(
+                                [x[0] for x in label_prediction.select(
+                                        '{label_attr}').distinct().collect()])
 
                         content = ConfusionMatrixImageReport(
                             cm=evaluator.confusionMatrix().toArray(),
@@ -501,22 +530,7 @@ class EvaluateModelOperation(Operation):
                            evaluator=self.evaluator,
                            prediction_arg=self.param_prediction_arg,
                            ))
-            # elif self.named_outputs.get(
-            #         'evaluator'):  # Used with cross validator
-            #     code = """
-            #     {evaluator_out} = {evaluator}(
-            #         {prediction_arg}='{prediction_attr}',
-            #         labelCol='{label_attr}',
-            #         metricName='{metric}')
-            #    {metric_out} = None
-            #    {model_output} = None
-            #     """.format(evaluator=self.evaluator,
-            #                evaluator_out=self.evaluator_out,
-            #                prediction_arg=self.param_prediction_arg,
-            #                prediction_attr=self.prediction_attribute,
-            #                label_attr=self.label_attribute,
-            #                metric=self.metric, metric_out=self.metric,
-            #                model_output=self.model_out)
+
             return dedent(code)
 
 
@@ -536,28 +550,77 @@ class CrossValidationOperation(Operation):
     as folds provided in input.
     """
     NUM_FOLDS_PARAM = 'folds'
+    EVALUATOR_PARAM = 'evaluator'
+    SEED_PARAM = 'seed'
+    PREDICTION_ATTRIBUTE_PARAM = 'prediction_attribute'
+    LABEL_ATTRIBUTE_PARAM = 'label_attribute'
+
+    METRIC_TO_EVALUATOR = {
+        'areaUnderROC': (
+            'evaluation.BinaryClassificationEvaluator', 'rawPredictionCol'),
+        'areaUnderPR': (
+            'evaluation.BinaryClassificationEvaluator', 'rawPredictionCol'),
+        'f1': ('evaluation.MulticlassClassificationEvaluator', 'predictionCol'),
+        'weightedPrecision': (
+            'evaluation.MulticlassClassificationEvaluator', 'predictionCol'),
+        'weightedRecall': (
+            'evaluation.MulticlassClassificationEvaluator', 'predictionCol'),
+        'accuracy': (
+            'evaluation.MulticlassClassificationEvaluator', 'predictionCol'),
+        'rmse': ('evaluation.RegressionEvaluator', 'predictionCol'),
+        'mse': ('evaluation.RegressionEvaluator', 'predictionCol'),
+        'mae': ('evaluation.RegressionEvaluator', 'predictionCol'),
+    }
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-        self.has_code = any(
-            [len(self.named_inputs) == 3, self.contains_results()])
+        self.has_code = any([len(self.named_inputs) == 2])
+
+        if self.EVALUATOR_PARAM not in parameters:
+            raise ValueError(
+                _("Parameter '{}' must be informed for task {}").format(
+                    self.EVALUATOR_PARAM, self.__class__))
+
+        self.metric = parameters.get(self.EVALUATOR_PARAM)
+
+        if self.metric in self.METRIC_TO_EVALUATOR:
+            self.evaluator = self.METRIC_TO_EVALUATOR[self.metric][0]
+            self.param_prediction_arg = self.METRIC_TO_EVALUATOR[self.metric][1]
+        else:
+            raise ValueError(_('Invalid metric value {}').format(self.metric))
+
+        self.prediction_attr = parameters.get(self.PREDICTION_ATTRIBUTE_PARAM,
+                                              'prediction')
+
+        if self.LABEL_ATTRIBUTE_PARAM not in parameters:
+            raise ValueError(
+                _("Parameter '{}' must be informed for task {}").format(
+                    self.LABEL_ATTRIBUTE_PARAM, self.__class__))
+
+        self.label_attr = parameters.get(self.LABEL_ATTRIBUTE_PARAM)
+
         self.num_folds = parameters.get(self.NUM_FOLDS_PARAM, 3)
+        self.seed = parameters.get(self.SEED_PARAM)
 
         self.output = self.named_outputs.get(
             'scored data', 'scored_data_task_{}'.format(self.order))
-        # self.evaluation = self.named_outputs.get(
-        #     'evaluation', 'evaluation_task_{}'.format(self.order))
         self.models = self.named_outputs.get(
             'models', 'models_task_{}'.format(self.order))
         self.best_model = self.named_outputs.get(
             'best model', 'best_model_{}'.format(self.order))
 
+        self.algorithm_port = self.named_inputs.get(
+            'algorithm', 'algo_{}'.format(self.order))
+        self.input_port = self.named_inputs.get(
+            'input data', 'in_{}'.format(self.order))
+        self.evaluator_port = self.named_inputs.get(
+            'evaluator', 'eval_{}'.format(self.order))
+
     @property
     def get_inputs_names(self):
-        return ', '.join([self.named_inputs['algorithm'],
-                          self.named_inputs['input data'],
-                          self.named_inputs['evaluator']])
+        return ', '.join(
+            [self.algorithm_port, self.input_port, self.evaluator_port])
 
     def get_output_names(self, sep=", "):
         return sep.join([self.output, self.best_model, self.models])
@@ -568,15 +631,19 @@ class CrossValidationOperation(Operation):
     def generate_code(self):
         code = dedent("""
                 grid_builder = tuning.ParamGridBuilder()
-                estimator, param_grid, metrics = {algorithm}
+                estimator, param_grid, metric = {algorithm}
 
                 for param_name, values in param_grid.items():
                     param = getattr(estimator, param_name)
                     grid_builder.addGrid(param, values)
 
-                evaluator = {evaluator}
+                evaluator = {evaluator}(
+                    {prediction_arg}='{prediction_attr}',
+                    labelCol='{label_attr}',
+                    metricName='{metric}')
 
-                estimator.setLabelCol(evaluator.getLabelCol())
+                estimator.setLabelCol('{label_attr}')
+                estimator.setPredictionCol('{prediction_attr}')
 
                 cross_validator = tuning.CrossValidator(
                     estimator=estimator,
@@ -586,21 +653,23 @@ class CrossValidationOperation(Operation):
                 fit_data = cv_model.transform({input_data})
                 {best_model} = cv_model.bestModel
                 metric_result = evaluator.evaluate(fit_data)
-                # evaluation = metric_result
                 {output} = fit_data
                 {models} = None
-                """.format(algorithm=self.named_inputs['algorithm'],
-                           input_data=self.named_inputs['input data'],
-                           evaluator=self.named_inputs['evaluator'],
-                           # evaluation=self.evaluation,
+                """.format(algorithm=self.algorithm_port,
+                           input_data=self.input_port,
+                           evaluator=self.evaluator,
                            output=self.output,
                            best_model=self.best_model,
                            models=self.models,
-                           folds=self.num_folds))
+                           prediction_arg=self.param_prediction_arg,
+                           prediction_attr=self.prediction_attr,
+                           label_attr=self.label_attr[0],
+                           folds=self.num_folds,
+                           metric=self.metric))
 
         # If there is an output needing the evaluation result, it must be
         # processed here (summarization of data results)
-        needs_evaluation = 'evaluation' in self.named_outputs
+        needs_evaluation = 'evaluation' in self.named_outputs and False
         if needs_evaluation:
             eval_code = """
                 grouped_result = fit_data.select(
@@ -635,7 +704,9 @@ class CrossValidationOperation(Operation):
                            title='Evaluation result',
                            task_id=self.parameters['task_id'],
                            operation_id=self.parameters['operation_id'])
-            code = '\n'.join([code, dedent(eval_code)])
+        else:
+            eval_code = ''
+        code = '\n'.join([code, dedent(eval_code)])
 
         return code
 
@@ -1238,20 +1309,23 @@ class LdaClusteringOperation(ClusteringOperation):
 
         self.max_iterations = parameters.get(self.MAX_ITERATIONS_PARAM, 10)
 
-        self.doc_concentration = self.number_of_clusters * [
-            float(parameters.get(self.DOC_CONCENTRATION_PARAM,
-                                 self.number_of_clusters)) / 50.0]
+        self.doc_concentration = parameters.get(self.DOC_CONCENTRATION_PARAM)
+        # if not self.doc_concentration:
+        #     self.doc_concentration = self.number_of_clusters * [-1.0]
 
-        self.topic_concentration = float(
-            parameters.get(self.TOPIC_CONCENTRATION_PARAM, 0.1))
+        self.topic_concentration = parameters.get(
+            self.TOPIC_CONCENTRATION_PARAM)
 
         self.set_values = [
-            ['DocConcentration', self.doc_concentration],
             ['K', self.number_of_clusters],
             ['MaxIter', self.max_iterations],
             ['Optimizer', "'{}'".format(self.optimizer)],
-            ['TopicConcentration', self.topic_concentration],
         ]
+        if self.doc_concentration:
+            self.set_values.append(['DocConcentration', self.doc_concentration])
+        if self.topic_concentration:
+            self.set_values.append(
+                ['TopicConcentration', self.topic_concentration])
         self.has_code = any([len(named_outputs) > 0, self.contains_results()])
         self.name = "clustering.LDA"
 
@@ -1339,18 +1413,30 @@ class TopicReportOperation(ReportOperation):
     def __init__(self, parameters, named_inputs,
                  named_outputs):
         ReportOperation.__init__(self, parameters, named_inputs, named_outputs)
-        self.terms_per_topic = parameters.get(self.TERMS_PER_TOPIC_PARAM, 20)
+        self.terms_per_topic = parameters.get(self.TERMS_PER_TOPIC_PARAM, 10)
 
         self.has_code = any(
             [len(self.named_inputs) == 3, self.contains_results()])
         self.output = self.named_outputs.get('output data',
                                              'out_task_{}'.format(self.order))
 
+        self.vocabulary_input = self.named_outputs.get(
+            'vocabulary data', 'vocab_{}'.format(self.order))
+
     def generate_code(self):
         code = dedent("""
-            topic_df = {model}.describeTopics(maxTermsPerTopic={tpt})
+            # TODO: evaluate if using broadcast() is more efficient
+            terms_idx_to_str = functions.udf(lambda term_indexes:
+                [{vocabulary}['text_vector'][inx]  for inx in term_indexes])
+            topic_df = {model}.describeTopics(
+                maxTermsPerTopic={tpt}).withColumn(
+                    'terms', terms_idx_to_str(functions.col('termIndices')))
+
+            {output} = topic_df
+
             # See hack in ClusteringModelOperation
             features = {model}.uid.split('|')[1]
+
             '''
             for row in topic_df.collect():
                 topic_number = row[0]
@@ -1362,10 +1448,9 @@ class TopicReportOperation(ReportOperation):
                     print {vocabulary}[features][inx],
                 print
             '''
-            {output} =  {input}
         """.format(model=self.named_inputs['model'],
                    tpt=self.terms_per_topic,
-                   vocabulary=self.named_inputs['vocabulary'],
+                   vocabulary=self.vocabulary_input,
                    output=self.output,
                    input=self.named_inputs['input data']))
         return code
