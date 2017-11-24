@@ -119,7 +119,7 @@ class SparkMinion(Minion):
         distributed among all nodes.
         """
         project_base = os.path.abspath(os.path.join(os.path.dirname(__file__),
-                                       '..', '..'))
+                                                    '..', '..'))
 
         lib_paths = [
             project_base,
@@ -434,6 +434,16 @@ class SparkMinion(Minion):
 
         self.message_processed('execute')
 
+        stop = self.config['juicer'].get('minion', {}).get(
+            'terminate_after_run', False)
+
+        if stop:
+            log.warn(
+                _('Minion is configured to stop Spark after each execution'))
+            self._state = {}
+            self.spark_session.stop()
+            self.spark_session = None
+
         return result
 
     # noinspection PyProtectedMember
@@ -442,7 +452,7 @@ class SparkMinion(Minion):
         Check whether the spark session is available, i.e., the spark session
         is set and not stopped.
         """
-        return (self.spark_session and
+        return (self.spark_session and self.spark_session is not None and
                 self.spark_session.sparkContext._jsc and
                 not self.spark_session.sparkContext._jsc.sc().isStopped())
 
@@ -458,9 +468,9 @@ class SparkMinion(Minion):
         if not self.is_spark_session_available():
 
             log.info(_("Creating a new Spark session"))
-            app_name = '%s(workflow_id=%s,app_id=%s)' % (
-                strip_accents(loader.workflow.get('name', '')),
-                self.workflow_id, self.app_id)
+            app_name = '{name} (workflow_id={wf},app_id={app})'.format(
+                name=strip_accents(loader.workflow.get('name', '')),
+                wf=self.workflow_id, app=self.app_id)
 
             spark_builder = SparkSession.builder.appName(
                 app_name)
