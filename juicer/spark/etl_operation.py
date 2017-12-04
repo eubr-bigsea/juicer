@@ -960,6 +960,7 @@ class ExecutePythonOperation(Operation):
         from RestrictedPython.RCompile import compile_restricted
         from RestrictedPython.PrintCollector import PrintCollector
 
+
         # Input data
         in1 = {in1}
         in2 = {in2}
@@ -974,6 +975,9 @@ class ExecutePythonOperation(Operation):
             'in2': in2,
             'out1': out1,
             'out2': out2,
+            'VectorAssembler': VectorAssembler, # from pyspark.ml.feature
+            'to_dense_vector': functions.udf(
+                lambda vs: Vectors.dense(vs), VectorUDT()),
 
             # Restrictions in Python language
              '_write_': lambda v: v,

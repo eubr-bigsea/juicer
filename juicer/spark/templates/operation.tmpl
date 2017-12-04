@@ -24,6 +24,7 @@ from timeit import default_timer as timer
 from pyspark.ml import classification, evaluation, feature, tuning, clustering
 from pyspark.sql import functions, types, Row, DataFrame
 from pyspark.sql.utils import IllegalArgumentException
+from pyspark.ml.linalg import Vectors, VectorUDT
 
 from pyspark.ml import Pipeline
 from pyspark.ml.classification import *
@@ -97,11 +98,11 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.ord
     {%- endif %}
     Task hash: {{instance.parameters.hash}}.
     """
-
-    spark_logging(spark_session).info(
-        "Submitting parent task {{instance.parameters.task.parents}} "
-        "before {{instance.parameters.task.id}}")
     {%- if instance.parameters.task.parents %}
+    spark_logging(spark_session).info(
+        "Submitting parent task(s)"
+        "{{instance.parameters.task.parents|join(', ')}}"
+        "before {{instance.parameters.task.id}}")
     # If the task's result is not cached, we submit its dependencies first
     {%- for parent in instance.parameters.task.parents %}
     {%- set parent_instance = instances_by_task_id[parent] %}
@@ -129,7 +130,10 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.ord
     {% if parent_instance.get_output_names(", ") %}
     parent_result = task_futures['{{parent}}'].result()
     {%- for port_name,out in zip(parent_instance.parameters.task.port_names, parent_instance.get_output_names(',').split(','))%}
-    {{out}}, pr_{{out}} = (parent_result['{{port_name}}']['output'], parent_result['{{port_name}}']['sample']){% endfor %}{% endif %}
+    {{out}}, pr_{{out}} = (parent_result['{{port_name}}']['output'],
+        parent_result['{{port_name}}']['sample'])
+    {%- endfor %}
+    {%- endif %}
     ts_{{parent_instance.output}} = parent_result['time']
     {%- endif %}
     {%- endfor %}
@@ -159,7 +163,8 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.ord
                        status='RUNNING',
                        identifier='{{instance.parameters.task.id}}')
             spark_logging(spark_session).info (
-                'Cache hit for operation {}'.format('{{instance.parameters.task.id}}'))
+                'Cache hit for operation {}'.format(
+                '{{instance.parameters.task.id}}'))
             results = cached
     if results is None:
         {{instance.generate_code().strip() | indent(width=8, indentfirst=False)}}
@@ -209,17 +214,18 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.ord
           {%- endfor %}
         }
 
+    df_types = (DataFrame, dataframe_util.LazySparkTransformationDataframe)
     {%- if instance.has_code and instance.parameters.task.forms.get('display_sample', {}).get('value') in (1, '1') %}
     for name, out in results.items():
         if (isinstance(out, dict) and 'output' in out
-                and isinstance(out['output'], DataFrame)):
+                and isinstance(out['output'], df_types)):
             dataframe_util.emit_sample(
                 '{{instance.parameters.task.id}}', out['output'], emit_event, name)
     {%- endif %}
     {%- if instance.has_code and instance.parameters.task.forms.get('display_schema', {}).get('value') in (1, '1') %}
     for name, out in results.items():
         if (isinstance(out, dict) and 'output' in out
-                and isinstance(out['output'], DataFrame)):
+                and isinstance(out['output'], df_types)):
             dataframe_util.emit_schema(
                 '{{instance.parameters.task.id}}', out['output'], emit_event, name)
     {%- endif %}
