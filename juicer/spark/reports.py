@@ -49,30 +49,37 @@ class ConfusionMatrixImageReport(BaseHtmlReport):
             self.cm = self.cm.astype(
                 'float') / self.cm.sum(axis=1)[:, np.newaxis]
 
-        plt.figure()
-        plt.imshow(self.cm, interpolation='nearest', cmap=self.cmap)
-        plt.title(self.title)
-        plt.colorbar()
+        fig = plt.figure()
+        ax1 = fig.add_subplot(111)
+
+        cax = ax1.imshow(self.cm, interpolation='nearest', cmap=self.cmap)
+        fig.colorbar(cax)
+        ax1.set_title(self.title)
         tick_marks = np.arange(len(self.classes))
-        plt.xticks(tick_marks, self.classes, rotation=45, fontsize=9)
-        plt.yticks(tick_marks, self.classes, fontsize=9)
+        ax1.set_xticks(tick_marks)
+        ax1.set_xticklabels(self.classes, rotation=45, fontsize=9)
+
+        ax1.set_yticks(tick_marks)
+        ax1.set_yticklabels(self.classes, fontsize=9)
 
         fmt = '.2f' if self.normalize else 'd'
         thresh = self.cm.max() / 2.
         for i, j in itertools.product(range(self.cm.shape[0]),
                                       range(self.cm.shape[1])):
-            plt.text(j, i, format(int(self.cm[i, j]), fmt),
+            ax1.text(j, i, format(int(self.cm[i, j]), fmt),
                      horizontalalignment="center",
                      color="white" if self.cm[i, j] > thresh else "black")
 
-        plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+        fig.tight_layout(rect=[0, 0.03, 1, 0.95])
 
-        plt.ylabel(self.axis[0])
-        plt.xlabel(self.axis[1])
+        ax1.set_ylabel(self.axis[0])
+        ax1.set_xlabel(self.axis[1])
         fig_file = BytesIO()
-        plt.savefig(fig_file, format='png')
+        fig.savefig(fig_file, format='png')
 
-        plt.close()
+        plt.close(fig)
+        plt.close('all')
+
         return base64.b64encode(fig_file.getvalue())
 
 
