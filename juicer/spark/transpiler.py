@@ -329,6 +329,7 @@ class SparkTranspiler(object):
                 juicer.spark.ml_operation.NaiveBayesClassifierOperation,
             'one-hot-encoder':
                 juicer.spark.ml_operation.OneHotEncoderOperation,
+            'pca': juicer.spark.ml_operation.PCAOperation,
             'pearson-correlation':
                 juicer.spark.statistic_operation.PearsonCorrelation,
             'perceptron-classifier':
