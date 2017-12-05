@@ -325,10 +325,12 @@ class SparkTranspiler(object):
             'k-means-clustering':
                 juicer.spark.ml_operation.KMeansClusteringOperation,
             'lda-clustering': juicer.spark.ml_operation.LdaClusteringOperation,
+            'lsh': juicer.spark.ml_operation.LSHOperation,
             'naive-bayes-classifier':
                 juicer.spark.ml_operation.NaiveBayesClassifierOperation,
             'one-hot-encoder':
                 juicer.spark.ml_operation.OneHotEncoderOperation,
+            'pca': juicer.spark.ml_operation.PCAOperation,
             'pearson-correlation':
                 juicer.spark.statistic_operation.PearsonCorrelation,
             'perceptron-classifier':

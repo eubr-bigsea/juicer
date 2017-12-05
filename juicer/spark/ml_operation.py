@@ -756,7 +756,16 @@ class ClassificationModelOperation(Operation):
                 'display_text', {'value': 1}).get('value', 1) in (1, '1')
 
             code = """
-            algorithm, param_grid, metrics = {algorithm}
+            alg, param_grid, metrics = {algorithm}
+
+            # Clone the algorithm because it can be used more than once
+            # and this may cause concurrency problems
+            params = dict([(p.name, v) for p, v in
+                alg.extractParamMap().items()])
+            algorithm_cls = globals()[alg.__class__.__name__]
+            algorithm = algorithm_cls()
+            algorithm.setParams(**params)
+
             algorithm.setPredictionCol('{prediction}')
             algorithm.setLabelCol('{label}')
             algorithm.setFeaturesCol('{feat}')
@@ -2412,5 +2421,123 @@ class LoadModelOperation(Operation):
             path=path,
             cls=parts[-1],
             pkg='.'.join(parts[:-1])
+        ))
+        return code
+
+
+class PCAOperation(Operation):
+    K_PARAM = 'k'
+    ATTRIBUTE_PARAM = 'attribute'
+    OUTPUT_ATTRIBUTE_PARAM = 'output_attribute'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+
+        self.parameters = parameters
+
+        self.k = parameters.get(self.K_PARAM)
+        if not self.k:
+            raise ValueError(
+                _("Parameter '{}' must be informed for task {}").format(
+                    self.K_PARAM, self.__class__))
+        self.attribute = parameters.get(self.ATTRIBUTE_PARAM)
+        if not self.attribute or len(self.attribute) == 0:
+            raise ValueError(
+                _("Parameter '{}' must be informed for task {}").format(
+                    self.ATTRIBUTE_PARAM, self.__class__))
+
+        self.output_attribute = parameters.get(self.OUTPUT_ATTRIBUTE_PARAM,
+                                               'pca_features')
+        self.has_code = any([len(named_outputs) > 0 and len(named_inputs) > 0,
+                             self.contains_results()])
+        self.output = named_outputs.get('output data',
+                                        'out_{}'.format(self.order))
+
+    def generate_code(self):
+        input_data = self.named_inputs['input data']
+        code = dedent("""
+            pca = PCA(k={k}, inputCol='{inputAttr}', outputCol='{outputAttr}')
+            model = pca.fit({input})
+            {out} = model.transform({input})
+        """.format(
+            k=self.k,
+            inputAttr=self.attribute[0],
+            outputAttr=self.output_attribute,
+            input=input_data,
+            out=self.output
+
+        ))
+        return code
+
+
+class LSHOperation(Operation):
+    NUM_HASH_TABLES_PARAM = 'num_hash_tables'
+    ATTRIBUTE_PARAM = 'attribute'
+    OUTPUT_ATTRIBUTE_PARAM = 'output_attribute'
+    TYPE_ATTRIBUTE = 'type'
+    BUCKET_LENGTH_PARAM = 'bucket_length'
+    SEED_PARAM = 'seed'
+
+    TYPES = ['min-hash-lsh', 'bucketed-random']
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+
+        self.parameters = parameters
+
+        self.num_hash_tables = parameters.get(self.NUM_HASH_TABLES_PARAM)
+        if not self.num_hash_tables:
+            raise ValueError(
+                _("Parameter '{}' must be informed for task {}").format(
+                    self.NUM_HASH_TABLES_PARAM, self.__class__))
+
+        self.attribute = parameters.get(self.ATTRIBUTE_PARAM)
+        if not self.attribute or len(self.attribute) == 0:
+            raise ValueError(
+                _("Parameter '{}' must be informed for task {}").format(
+                    self.ATTRIBUTE_PARAM, self.__class__))
+
+        self.type = parameters.get(self.TYPE_ATTRIBUTE, 'min-hash-lsh')
+        if self.type not in self.TYPES:
+            raise ValueError(
+                _("Invalid type '{}' for class {}").format(
+                    self.type, self.__class__))
+
+        self.bucket_length = parameters.get(self.BUCKET_LENGTH_PARAM)
+        self.seed = parameters.get(self.SEED_PARAM)
+
+        self.output_attribute = parameters.get(self.OUTPUT_ATTRIBUTE_PARAM,
+                                               'hashes')
+        self.has_code = any([len(named_outputs) > 0 and len(named_inputs) > 0,
+                             self.contains_results()])
+        self.output = named_outputs.get('output data',
+                                        'out_{}'.format(self.order))
+
+    def generate_code(self):
+        input_data = self.named_inputs['input data']
+        code = dedent("""
+            type = '{type}'
+            if type == 'bucketed-random':
+                lsh = BucketedRandomProjectionLSH(
+                    inputCol='{inputAttr}',
+                    outputCol='{outputAttr}',
+                    bucketLength={bucket_length}
+                    numHashTables={num_hash_tables})
+            elif type == 'min-hash-lsh':
+                lsh = inputCol(
+                    inputCol='{inputAttr}',
+                    outputCol='{outputAttr}',
+                    numHashTables={num_hash_tables})
+            model = lsh.fit({input})
+            {out} = model.transform({input})
+        """.format(
+            num_hash_tables=self.num_hash_tables,
+            bucket_length=self.bucket_length,
+            inputAttr=self.attribute[0],
+            outputAttr=self.output_attribute,
+            input=input_data,
+            out=self.output,
+            type=self.type,
+
         ))
         return code

@@ -663,7 +663,15 @@ def test_classification_model_operation_success():
     code = instance.generate_code()
 
     expected_code = dedent("""
-        algorithm, param_grid, metrics = {algorithm}
+        alg, param_grid, metrics = {algorithm}
+
+        params = dict([(p.name, v) for p, v in
+            alg.extractParamMap().items()])
+        algorithm_cls = globals()[alg.__class__.__name__]
+        algorithm = algorithm_cls()
+        algorithm.setParams(**params)
+
+
         algorithm.setPredictionCol('{prediction}')
         algorithm.setLabelCol('{label}')
         algorithm.setFeaturesCol('{features}')
