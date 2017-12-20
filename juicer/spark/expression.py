@@ -119,12 +119,13 @@ class Expression:
         arguments = ', '.join(
             [self.parse(x, params) for x in spec['arguments']])
 
-        strip_accents = (
-            "functions.udf("
-            "lambda text: ''.join(c for c in unicodedata.normalize('NFD', text) "
-            "if unicodedata.category(c) != 'Mn'), "
-            "types.StringType())"
-        )
+        # strip_accents = (
+        #     "functions.udf("
+        #     "lambda text: ''.join(c for c in unicodedata.normalize('NFD', text) "
+        #     "if unicodedata.category(c) != 'Mn'), "
+        #     "types.StringType())"
+        # )
+        strip_accents = 'juicer_ext.strip_accents_udf'
 
         result = '{}({})'.format(strip_accents, arguments)
 
@@ -136,12 +137,13 @@ class Expression:
         arguments = ', '.join(
             [self.parse(x, params) for x in spec['arguments']])
 
-        strip_punctuation = (
-            "functions.udf("
-            "lambda text: text.translate("
-            "dict((ord(char), None) for char in string.punctuation)), "
-            "types.StringType())"
-        )
+        # strip_punctuation = (
+        #     "functions.udf("
+        #     "lambda text: text.translate("
+        #     "dict((ord(char), None) for char in string.punctuation)), "
+        #     "types.StringType())"
+        # )
+        strip_punctuation = 'juicer_ext.remove_punctuation_udf'
 
         result = '{}({})'.format(strip_punctuation, arguments)
 
