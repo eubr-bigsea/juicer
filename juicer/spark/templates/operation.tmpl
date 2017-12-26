@@ -197,7 +197,9 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.ord
         {%- if out %}
             schema = {{trace.input}}.schema
             meta = {}
+            {%- if trace.derived_from != '*' %}
             meta.update(schema['{{trace.derived_from}}'].metadata)
+            {%- endif %}
             {{out}} = {{out}}.withColumn('{{trace.attribute}}',
                 functions.col('{{trace.attribute}}').alias('', metadata=meta))
         {%- endif %}

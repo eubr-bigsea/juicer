@@ -52,52 +52,52 @@ class DataReaderOperation(Operation):
         self.has_code = len(self.named_outputs) > 0 or True
         if self.has_code:
             if self.DATA_SOURCE_ID_PARAM in parameters:
-                self.data_source_id = int(parameters[self.DATA_SOURCE_ID_PARAM])
-                self.header = parameters.get(
-                    self.HEADER_PARAM, False) not in ('0', 0, 'false', False)
-
-                self.null_values = [v.strip() for v in parameters.get(
-                    self.NULL_VALUES_PARAM, '').split(",")]
-                limonero_config = \
-                    self.parameters['configuration']['juicer']['services'][
-                        'limonero']
-                url = limonero_config['url']
-                token = str(limonero_config['auth_token'])
-
-                # Is data source information cached?
-                self.metadata = self.parameters.get('workflow', {}).get(
-                    'data_source_cache', {}).get(self.data_source_id)
-                if self.metadata is None:
-                    self.metadata = limonero_service.get_data_source_info(
-                        url, token, self.data_source_id)
-                    self.parameters['workflow']['data_source_cache'][
-                        self.data_source_id] = self.metadata
-
-                if not self.metadata.get('url'):
-                    raise ValueError(
-                        _('Incorrect data source configuration (empty url)'))
-                self.sep = parameters.get(
-                    self.SEPARATOR_PARAM, self.metadata.get(
-                        'attribute_delimiter', ',')) or ','
-
-                self.quote = parameters.get(self.QUOTE_PARAM,
-                                            self.metadata.get('text_delimiter'))
-
-                if self.quote == '\'':
-                    self.quote = '\\\''
-
-                if self.sep in self.SEPARATORS:
-                    self.sep = self.SEPARATORS[self.sep]
-                self.infer_schema = parameters.get(self.INFER_SCHEMA_PARAM,
-                                                   self.INFER_FROM_LIMONERO)
-
-                self.mode = parameters.get(self.MODE_PARAM, 'FAILFAST')
+                self._set_data_source_parameters(parameters)
             else:
                 raise ValueError(
                     _("Parameter '{}' must be informed for task {}").format(
                         self.DATA_SOURCE_ID_PARAM, self.__class__))
         self.output = named_outputs.get('output data',
                                         'out_task_{}'.format(self.order))
+
+    def _set_data_source_parameters(self, parameters):
+
+        self.data_source_id = int(parameters[self.DATA_SOURCE_ID_PARAM])
+        # Retrieve metadata from Limonero.
+        limonero_config = \
+            self.parameters['configuration']['juicer']['services'][
+                'limonero']
+        url = limonero_config['url']
+        token = str(limonero_config['auth_token'])
+        # Is data source information cached?
+        self.metadata = self.parameters.get('workflow', {}).get(
+            'data_source_cache', {}).get(self.data_source_id)
+        if self.metadata is None:
+            self.metadata = limonero_service.get_data_source_info(
+                url, token, self.data_source_id)
+            self.parameters['workflow']['data_source_cache'][
+                self.data_source_id] = self.metadata
+        if not self.metadata.get('url'):
+            raise ValueError(
+                _('Incorrect data source configuration (empty url)'))
+
+        self.header = parameters.get(
+            self.HEADER_PARAM, False) not in ('0', 0, 'false', False)
+        self.null_values = [v.strip() for v in parameters.get(
+            self.NULL_VALUES_PARAM, '').split(",")]
+
+        self.sep = parameters.get(
+            self.SEPARATOR_PARAM,
+            self.metadata.get('attribute_delimiter', ',')) or ','
+        self.quote = parameters.get(self.QUOTE_PARAM,
+                                    self.metadata.get('text_delimiter'))
+        if self.quote == '\'':
+            self.quote = '\\\''
+        if self.sep in self.SEPARATORS:
+            self.sep = self.SEPARATORS[self.sep]
+        self.infer_schema = parameters.get(self.INFER_SCHEMA_PARAM,
+                                           self.INFER_FROM_LIMONERO)
+        self.mode = parameters.get(self.MODE_PARAM, 'FAILFAST')
 
     def generate_code(self):
 
@@ -644,3 +644,84 @@ class ExternalInputOperation(Operation):
     def generate_code(self):
         code = """{out} = None""".format(out=self.output)
         return code
+
+
+class StreamConsumerOperation(DataReaderOperation):
+    SOURCE_TYPE_PARAM = 'source_type'
+    WINDOW_TYPE_PARAM = 'window_type'
+    WINDOW_SIZE_PARAM = 'window_size'
+    BROKER_URL_PARAM = 'broker_url'
+    TOPIC_PARAM = 'topic'
+    GROUP_PARAM = 'group'
+
+    SOURCE_TYPES = ['kafka', 'hdfs']
+    WINDOW_TYPES = ['seconds', 'size']
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        DataReaderOperation.__init__(self, parameters, named_inputs,
+                                     named_outputs)
+
+        self.source_type = parameters.get(self.SOURCE_TYPE_PARAM, 'hdfs')
+        if self.source_type not in self.SOURCE_TYPES:
+            raise ValueError(_("Invalid value '{}' for parameter '{}'".format(
+                self.source_type, self.SOURCE_TYPE_PARAM)))
+
+        self.window_type = parameters.get(self.WINDOW_TYPE_PARAM, 'seconds')
+        if self.window_type not in self.WINDOW_TYPES:
+            raise ValueError(_("Invalid value '{}' for parameter '{}'".format(
+                self.window_type, self.WINDOW_TYPE_PARAM)))
+
+        self.broker_url = parameters.get(self.BROKER_URL_PARAM)
+        if not self.broker_url:
+            raise ValueError(
+                _("Parameter '{}' must be informed for task {}").format(
+                    self.BROKER_URL_PARAM, self.__class__))
+
+        self.window_size = parameters.get(self.WINDOW_SIZE_PARAM, 5)
+        self.topic = parameters.get(self.TOPIC_PARAM)
+        self.group = parameters.get(self.GROUP_PARAM)
+
+        self.stream_context_ref = parameters.get('stream_context')
+        self.has_code = len(self.output) > 0
+
+    def generate_code(self):
+
+        code = []
+        if 'attributes' in self.metadata:
+            code.append('schema_{0} = types.StructType()'.format(self.output))
+            attrs = self.metadata.get('attributes')
+            for attr in attrs:
+                self._add_attribute_to_schema(attr, code)
+            else:
+                v = "schema_{0}.add('value', types.StringType(), 1, None)"
+                code.append(v.format(self.output))
+            code.append("")
+        else:
+            raise ValueError(
+                _("Metadata do not include attributes information"))
+
+        code.append(dedent("""
+            from pyspark.streaming.kafka import KafkaUtils
+
+            source_type = '{source_type}'
+            window_type = '{window_type}'
+            scc = {stream_ctx}
+
+            if source_type == 'kafka':
+                kvs = KafkaUtils.createStream(
+                    ssc, broker, '{group}', {{'{topic}': 1}})
+            lines = kvs.map(lambda x: x[1])
+
+            counts = lines.flatMap(
+                lambda line: [w.lower() for w in line.split() if w.strip()]).map(
+                lambda word: (word, 1)).reduceByKey(
+                lambda a, b: a + b).transform(
+                lambda rdd: rdd.sortBy(lambda x: x[1], False))
+        """.format(source_type=self.source_type, window_type=self.window_type,
+                   stream_ctx=self.stream_context_ref, topic=self.topic,
+                   group=self.group)))
+        return code
+
+    @property
+    def is_stream_consumer(self):
+        return True

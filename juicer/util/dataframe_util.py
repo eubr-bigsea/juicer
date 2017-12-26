@@ -4,11 +4,6 @@ import json
 
 import datetime
 
-try:
-    from pyspark.sql.utils import AnalysisException, IllegalArgumentException
-except ImportError:
-    pass
-
 import re
 
 
@@ -231,10 +226,12 @@ def merge_dicts(x, y):
 
 
 def handle_spark_exception(e):
+    from pyspark.sql.utils import AnalysisException, IllegalArgumentException
     result = False
     if isinstance(e, AnalysisException):
-        value_expr = re.compile(r'(`.+`).+\[(.+)\]')
-        found = value_expr.findall(unicode(e.message))
+        value_expr = re.compile(r'[`"](.+)[`"].+columns:\s(.+)$')
+        found = value_expr.findall(unicode(e.desc.split('\n')[0]))
+        print '?>>>>', e.desc.split('\n')[0]
         if found:
             field, fields = found[0]
             raise ValueError(
