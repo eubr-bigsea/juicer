@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import json
 from itertools import izip_longest
 from textwrap import dedent
 
@@ -21,7 +22,9 @@ class ReadShapefile(Operation):
         if self.DATA_SOURCE_ID_PARAM in parameters:
             self.database_id = parameters[self.DATA_SOURCE_ID_PARAM]
 
-            limonero_config = self.parameters['configuration']['juicer']['services']['limonero']
+            limonero_config = \
+                self.parameters['configuration']['juicer']['services'][
+                    'limonero']
             url = limonero_config['url']
             token = limonero_config['auth_token']
             metadata_obj = MetadataGet(url, token)
@@ -45,10 +48,9 @@ class ReadShapefile(Operation):
         code = """
             import shapefile
             from io import BytesIO
-            reload(sys)
-            sys.setdefaultencoding('utf-8')
-            metadata = {}
-            shp_file = metadata['url']
+            # reload(sys)
+            # sys.setdefaultencoding('utf-8')
+            shp_file = '{url}'
             dbf_file = re.sub('.shp$', '.dbf', shp_file)
             shp_content = spark_session.sparkContext.binaryFiles(shp_file)\
                 .collect()
@@ -56,25 +58,24 @@ class ReadShapefile(Operation):
                 .collect()
             shp_io = BytesIO(shp_content[0][1])
             dbf_io = BytesIO(dbf_content[0][1])
+
             shp_object = shapefile.Reader(shp=shp_io, dbf=dbf_io)
             records = shp_object.records()
-            sectors = shp_object.shapeRecords()
-            header = []
-            for record in metadata['attributes']:
-                header.append(json.dumps(record['name']).strip('"'))
-            header.append('points')
+            records = shp_object.shapeRecords()
+            header = {attrs}
+            header = types.StructType(
+                [types.StructField(h, types.StringType(), False)
+                             for h in header])
+            header.add(types.StructField('points', types.ArrayType(
+                types.ArrayType(types.DoubleType()))))
             data = []
-            for i, sector in enumerate(sectors):
-                attributes = []
-                for r in records[i]:
-                    attributes.append(str(r))
-                points = []
-                for point in sector.shape.points:
-                    points.append([point[1], point[0]])
-                attributes.append(points)
-                data.append(attributes)
-            {} = spark_session.createDataFrame(data, header)
-        """.format(self.metadata, self.named_outputs['geodata'])
+            for shape_record in records:
+                data.append(shape_record.record + [shape_record.shape.points])
+            {out} = spark_session.createDataFrame(data, header)
+        """.format(url=self.metadata['url'],
+                   attrs=json.dumps([a['name'] for a in
+                                     self.metadata.get('attributes', [])]),
+                   out=self.named_outputs['geodata'])
 
         return dedent(code)
 
@@ -114,59 +115,63 @@ class GeoWithin(Operation):
             from matplotlib.path import Path
             import pyqtree
 
+            schema = [s.name for s in {0}.schema]
             shp_object = {0}.collect()
             broad_shapefile_{0} = spark_session.sparkContext.broadcast(
                 shp_object)
 
-            xmin = float('+inf')
-            ymin = float('+inf')
-            xmax = float('-inf')
-            ymax = float('-inf')
-            for i, sector in enumerate(shp_object):
-                for point in sector['points']:
-                    xmin = min(xmin, point[1])
-                    ymin = min(ymin, point[0])
-                    xmax = max(xmax, point[1])
-                    ymax = max(ymax, point[0])
+            x_min = float('+inf')
+            y_min = float('+inf')
+            x_max = float('-inf')
+            y_max = float('-inf')
+            for i, polygon in enumerate(shp_object):
+                for point in polygon['points']:
+                    x_min = min(x_min, point[1])
+                    y_min = min(y_min, point[0])
+                    x_max = max(x_max, point[1])
+                    y_max = max(y_max, point[0])
             #
-            spindex = pyqtree.Index(bbox=[xmin, ymin, xmax, ymax])
-            for inx, sector in enumerate(shp_object):
+            sp_index = pyqtree.Index(bbox=[x_min, y_min, x_max, y_max])
+            for inx, polygon in enumerate(shp_object):
                 points = []
-                xmin = float('+inf')
-                ymin = float('+inf')
-                xmax = float('-inf')
-                ymax = float('-inf')
-                for point in sector['points']:
-                    points.append((point[1], point[0]))
-                    xmin = min(xmin, point[1])
-                    ymin = min(ymin, point[0])
-                    xmax = max(xmax, point[1])
-                    ymax = max(ymax, point[0])
-                spindex.insert(item=inx, bbox=[xmin, ymin, xmax, ymax])
+                x_min = float('+inf')
+                y_min = float('+inf')
+                x_max = float('-inf')
+                y_max = float('-inf')
+                for point in polygon['points']:
+                    points.append((point[0], point[1]))
+                    x_min = min(x_min, point[0])
+                    y_min = min(y_min, point[1])
+                    x_max = max(x_max, point[0])
+                    y_max = max(y_max, point[1])
+                sp_index.insert(item=inx, bbox=[x_min, y_min, x_max, y_max])
 
-            broad_casted_spindex = spark_session.sparkContext.broadcast(spindex)
+            broad_casted_sp_index = spark_session.sparkContext.broadcast(
+                sp_index)
 
-            def get_first_sector(lat, lng):
+            def get_first_polygon(lat, lng):
                 x = float(lat)
                 y = float(lng)
-                bindex = broad_casted_spindex.value
-                matches = bindex.intersect([y, x, y, x]) # why reversed?
+                bcast_index = broad_casted_sp_index.value
+                # Here it uses longitude, latitude
+                matches = bcast_index.intersect([y, x, y, x])
 
                 for shp_inx in matches:
                     row = broad_shapefile_{0}.value[shp_inx]
                     polygon = Path(row['points'])
-                    if polygon.contains_point([x, y]):
+                    # Here it uses longitude, latitude
+                    if polygon.contains_point([y, y]):
                         return [col for col in row]
                 return [None] * len(broad_shapefile_{0}.value[0])
 
             shapefile_features_count_{0}= len(broad_shapefile_{0}.value[0])
-            udf_get_first_sector = functions.udf(
-                get_first_sector, types.ArrayType(types.StringType()))
+            udf_get_first_polygon = functions.udf(
+                get_first_polygon, types.ArrayType(types.StringType()))
             within_{0} = {2}.withColumn(
-                "sector_position", udf_get_first_sector(functions.col('{3}'),
+                "polygon_position", udf_get_first_polygon(functions.col('{3}'),
                                                         functions.col('{4}')))
             {5} = within_{0}.select(within_{0}.columns +
-                [within_{0}.sector_position[i]
+                [within_{0}.polygon_position[i].alias(schema[i])
                     for i in xrange(shapefile_features_count_{0})])
         """.format(self.named_inputs['geo data'], self.polygon_column[0],
                    self.named_inputs['input data'], self.lat_column[0],
