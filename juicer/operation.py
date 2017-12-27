@@ -82,6 +82,14 @@ class Operation(object):
         return []
 
     @property
+    def is_stream_consumer(self):
+        return False
+
+    @property
+    def supports_pipeline(self):
+        return False
+
+    @property
     def get_inputs_names(self):
         return ', '.join(self.named_inputs.values())
 
