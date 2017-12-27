@@ -160,7 +160,7 @@ class GeoWithin(Operation):
                     row = broad_shapefile_{0}.value[shp_inx]
                     polygon = Path(row['points'])
                     # Here it uses longitude, latitude
-                    if polygon.contains_point([y, y]):
+                    if polygon.contains_point([y, x]):
                         return [col for col in row]
                 return [None] * len(broad_shapefile_{0}.value[0])
 

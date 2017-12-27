@@ -16,6 +16,7 @@ import string
 import sys
 import time
 import threading
+import traceback
 import unicodedata
 import juicer.spark.ext as juicer_ext
 
@@ -305,6 +306,8 @@ def main(spark_session, cached_state, emit_event):
             {%- endfor %}
         }
     except Exception as e:
+        spark_session.sparkContext.cancelAllJobs()
+        traceback.print_exc(file=sys.stderr)
         if not dataframe_util.handle_spark_exception(e):
             raise
 

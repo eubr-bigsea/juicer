@@ -434,10 +434,9 @@ class ChartVisualization(VisualizationModel):
                 _('Attribute {} for X-axis does not exist in ({})').format(
                     x, ', '.join([c.name for c in schema])))
         if len(y_attrs) == 0:
-            raise ValueError(
-                _(
-                    'At least one attribute for Y-axis does not exist: {}').format(
-                    ', '.join(self.params.get('column_names'))))
+            raise ValueError(_(
+                'At least one attribute for Y-axis does not exist: {}').format(
+                ', '.join(self.params.get('column_names', []))))
 
         x_type = ChartVisualization._get_attr_type(x_attr)
         return x_attr, x_type, y_attrs

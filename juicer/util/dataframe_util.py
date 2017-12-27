@@ -236,7 +236,7 @@ def handle_spark_exception(e):
             field, fields = found[0]
             raise ValueError(
                 _('Attribute {} not found. Valid attributes: {}').format(
-                    field, fields))
+                    field, fields.replace(';', '')))
     elif isinstance(e, IllegalArgumentException):
         # Invalid column type
         if 'must be of type equal' in unicode(e.message):
