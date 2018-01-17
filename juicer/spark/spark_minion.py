@@ -351,7 +351,8 @@ class SparkMinion(Minion):
             if self.new_session:
                 self._emit_event(room=job_id, namespace='/stand')(
                     name='update job',
-                    message=_('Running job, but it requires allocation of '
+                    message=_('Running job, but it requires allocation'
+                              ' of '
                               'cluster computers first and it takes time.'),
                     status='RUNNING', identifier=job_id)
             else:
