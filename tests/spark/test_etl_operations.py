@@ -662,8 +662,15 @@ def test_transformation_minumum_params_success():
     instance = TransformationOperation(params, named_inputs=n_in,
                                        named_outputs=n_out)
     code = instance.generate_code()
-    expected_code = "{out} = {in1}.withColumn('{alias}'" \
-                    ", functions.lower('attr_name'))"
+
+
+    expected_code = dedent(
+        """
+        from juicer.spark.ext import CustomExpressionTransformer
+        transformer = CustomExpressionTransformer(
+            outputCol='{alias}', expression=functions.lower('attr_name'))
+        {out} = transformer.transform({in1})
+        """)
 
     expected_code = expected_code.format(
         out=n_out['output data'], in1=n_in['input data'],
@@ -697,8 +704,14 @@ def test_transformation_math_expression_success():
     instance = TransformationOperation(params, named_inputs=n_in,
                                        named_outputs=n_out)
     code = instance.generate_code()
-    expected_code = "{out} = {in1}.withColumn('{alias}'" \
-                    ", {in1}['a'] * 100)"
+
+    expected_code = dedent(
+        """
+        from juicer.spark.ext import CustomExpressionTransformer
+        transformer = CustomExpressionTransformer(
+            outputCol='{alias}', expression=({in1}['a'] * 100))
+        {out} = transformer.transform({in1})
+        """)
 
     expected_code = expected_code.format(
         out=n_out['output data'], in1=n_in['input data'],
@@ -736,8 +749,13 @@ def test_transformation_complex_expression_success():
     instance = TransformationOperation(params, named_inputs=n_in,
                                        named_outputs=n_out)
     code = instance.generate_code()
-    expected_code = "{out} = {in1}.withColumn('{alias}', " \
-                    "- {in1}['a'] + {in1}['b'])"
+    expected_code = dedent(
+        """
+        from juicer.spark.ext import CustomExpressionTransformer
+        transformer = CustomExpressionTransformer(
+            outputCol='{alias}', expression=(- {in1}['a'] + {in1}['b']))
+        {out} = transformer.transform({in1})
+        """)
 
     expected_code = expected_code.format(
         out=n_out['output data'], in1=n_in['input data'],
