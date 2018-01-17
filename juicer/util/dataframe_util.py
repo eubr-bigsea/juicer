@@ -5,6 +5,7 @@ import json
 import datetime
 
 import re
+import types
 
 
 class CustomEncoder(json.JSONEncoder):
@@ -114,8 +115,26 @@ def emit_schema(task_id, df, emit_event, name):
 def emit_sample(task_id, df, emit_event, name, size=50):
     from juicer.spark.reports import SimpleTableReport
     headers = [f.name for f in df.schema.fields]
-    rows = [[json.dumps(col, cls=CustomEncoder) for col in row] for row in
-            df.take(size)]
+
+    number_types = (types.IntType, types.LongType,
+                    types.FloatType, types.ComplexType)
+
+    rows = []
+    for row in df.take(size):
+        new_row = []
+        rows.append(new_row)
+        for col in row:
+            if isinstance(col, str):
+                value = col.decode('latin1')
+            elif isinstance(col, unicode):
+                value = col
+            elif isinstance(col, (datetime.datetime, datetime.date)):
+                value = col.isoformat()
+            elif isinstance(col, number_types):
+                value = str(col)
+            else:
+                value = json.dumps(col, cls=CustomEncoder)
+            new_row.append(value)
 
     content = SimpleTableReport(
         'table table-striped table-bordered', headers, rows,

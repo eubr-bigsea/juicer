@@ -111,6 +111,17 @@ class SparkMinion(Minion):
         ]
         self.current_lang = lang
         # self._build_dist_file()
+        signal.signal(signal.SIGINT, self._cleanup)
+        self.last_job_id = 0
+        self.new_session = False
+
+    def _cleanup(self, pid, flag):
+        log.warn(_('Finishing minion'))
+        msg = _('Pressed CTRL+C / SIGINT. Minion canceled the job.')
+        self._emit_event(room=self.last_job_id, namespace='/stand')(
+            name='update job', message=msg,
+            status='ERROR', identifier=self.last_job_id)
+        sys.exit(0)
 
     def _build_dist_file(self):
         """
@@ -253,6 +264,7 @@ class SparkMinion(Minion):
             self.active_messages += 1
             log.info('Execute message received')
             job_id = msg_info['job_id']
+            self.last_job_id = job_id
             workflow = msg_info['workflow']
 
             lang = workflow.get('locale', self.current_lang)
@@ -336,9 +348,16 @@ class SparkMinion(Minion):
             self.get_or_create_spark_session(loader, app_configs)
 
             # Mark job as running
-            self._emit_event(room=job_id, namespace='/stand')(
-                name='update job', message=_('Running job'),
-                status='RUNNING', identifier=job_id)
+            if self.new_session:
+                self._emit_event(room=job_id, namespace='/stand')(
+                    name='update job',
+                    message=_('Running job, but it requires allocation of '
+                              'cluster computers first and it takes time.'),
+                    status='RUNNING', identifier=job_id)
+            else:
+                self._emit_event(room=job_id, namespace='/stand')(
+                    name='update job', message=_('Running job'),
+                    status='RUNNING', identifier=job_id)
 
             module_name = 'juicer_app_{}_{}_{}'.format(
                 self.workflow_id,
@@ -534,6 +553,7 @@ class SparkMinion(Minion):
 
             self._build_dist_file()
             self.spark_session.sparkContext.addPyFile(self.DIST_ZIP_FILE)
+            self.new_session = True
 
         log.info(_("Minion is using '%s' as Spark master"),
                  self.spark_session.sparkContext.master)
