@@ -413,6 +413,9 @@ class TransformationOperation(Operation):
         self.output = self.named_outputs.get(
             'output data', 'sampled_data_{}'.format(self.order))
 
+    def supports_pipeline(self):
+        return True
+
     def generate_code(self):
         input_data = self.named_inputs['input data']
         params = {'input': input_data}
@@ -421,10 +424,18 @@ class TransformationOperation(Operation):
         expression = Expression(self.json_expression, params)
         built_expression = expression.parsed_expression
 
+        # code = dedent("""
+        # {out} = {in1}.withColumn('{alias}',
+        #   {expr})""".format(out=self.output, in1=input_data, alias=self.alias,
+        #                       expr=built_expression))
         code = dedent("""
-        {out} = {in1}.withColumn('{alias}',
-            {expr})""".format(out=self.output, in1=input_data, alias=self.alias,
-                              expr=built_expression))
+            from juicer.spark.ext import CustomExpressionTransformer
+            transformer = CustomExpressionTransformer(
+                outputCol='{alias}', expression={expr})
+            {out} = transformer.transform({in1})
+        """.format(out=self.output, in1=input_data, alias=self.alias,
+                   expr=built_expression))
+
         return dedent(code)
 
 

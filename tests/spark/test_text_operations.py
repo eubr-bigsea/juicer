@@ -211,24 +211,23 @@ def test_word_to_vector_count_operation_success():
                                outputCol=alias) for col, alias in col_alias]
                 # Use Pipeline to process all attributes once
                 pipeline = Pipeline(stages=vectorizers)
-                model = pipeline.fit({1})
-                {2} = model.transform({1})
+                model_1 = pipeline.fit({1})
+                {2} = model_1.transform({1})
 
                 {7} = dict([(col_alias[i][1], v.vocabulary)
-                        for i, v in enumerate(model.stages)])
-                """
-        .format(
-        params[WordToVectorOperation.ATTRIBUTES_PARAM],
-        n_in['input data'],
-        n_out['output data'],
-        json.dumps(zip(params[WordToVectorOperation.ATTRIBUTES_PARAM],
-                       params[WordToVectorOperation.ALIAS_PARAM])),
-        params[WordToVectorOperation.MINIMUM_TF_PARAM],
-        params[WordToVectorOperation.MINIMUM_DF_PARAM],
-        params[WordToVectorOperation.VOCAB_SIZE_PARAM],
-        n_out['vocabulary']
+                        for i, v in enumerate(model_1.stages)])
+                """.format(params[WordToVectorOperation.ATTRIBUTES_PARAM],
+                           n_in['input data'],
+                           n_out['output data'],
+                           json.dumps(zip(
+                               params[WordToVectorOperation.ATTRIBUTES_PARAM],
+                               params[WordToVectorOperation.ALIAS_PARAM])),
+                           params[WordToVectorOperation.MINIMUM_TF_PARAM],
+                           params[WordToVectorOperation.MINIMUM_DF_PARAM],
+                           params[WordToVectorOperation.VOCAB_SIZE_PARAM],
+                           n_out['vocabulary']
 
-    ))
+                           ))
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
     assert result, msg + format_code_comparison(code, expected_code)
@@ -264,11 +263,11 @@ def test_word_to_vector_word2vec_operation_success():
                             ) for col, alias in col_alias]
                 # Use Pipeline to process all attributes once
                 pipeline = Pipeline(stages=vectorizers)
-                model = pipeline.fit({1})
-                {2} = model.transform({1})
+                model_1 = pipeline.fit({1})
+                {2} = model_1.transform({1})
 
                 {6} = dict([(col_alias[i][1], v.getVectors())
-                        for i, v in enumerate(model.stages)])
+                        for i, v in enumerate(model_1.stages)])
                 """.format(params[WordToVectorOperation.ATTRIBUTES_PARAM],
                            n_in['input data'],
                            n_out['output data'],

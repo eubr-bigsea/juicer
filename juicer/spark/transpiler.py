@@ -96,6 +96,15 @@ class SparkTranspiler(object):
                             self.operations, params)
 
     @staticmethod
+    def _escape_chars(text):
+        if isinstance(text, str):
+            return text.encode('string-escape').replace('"', '\\"').replace(
+                "'", "\\'")
+        else:
+            return text.encode('unicode-escape').replace('"', '\\"').replace(
+                "'", "\\'")
+
+    @staticmethod
     def _gen_port_name(flow, seq):
         name = flow.get('source_port_name', 'data')
         parts = name.split()
@@ -194,6 +203,13 @@ class SparkTranspiler(object):
                         parameters[cat][parameter] = definition['value']
                     else:
                         parameters[parameter] = definition['value']
+                # escape invalid characters for code generation
+                # except JSON (starting with {)
+                if definition['value'] is not None:
+                    if '"' in definition['value'] or "'" in definition['value']:
+                        if definition['value'][0] != '{':
+                            definition['value'] = SparkTranspiler._escape_chars(
+                                definition['value'])
 
             # Hash is used in order to avoid re-run task.
             parameters['hash'] = task_hash.hexdigest()
@@ -211,7 +227,8 @@ class SparkTranspiler(object):
             parameters['workflow'] = workflow
             parameters['user'] = workflow['user']
             parameters['workflow_id'] = workflow['id']
-            parameters['workflow_name'] = workflow['name']
+            parameters['workflow_name'] = SparkTranspiler._escape_chars(
+                workflow['name'])
             parameters['operation_id'] = task['operation']['id']
             parameters['task_id'] = task['id']
             parameters['operation_slug'] = task['operation']['slug']

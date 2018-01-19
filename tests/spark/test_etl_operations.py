@@ -411,7 +411,7 @@ def test_join_left_join_keep_columns_minimal_params_success():
         """.format(
         out=n_out['output data'], in0=n_in['input data 1'],
         a0='left_', a1='right_',
-        in1=n_in['input data 2'], type=params[JoinOperation.JOIN_TYPE_PARAM],))
+        in1=n_in['input data 2'], type=params[JoinOperation.JOIN_TYPE_PARAM], ))
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
     assert result, msg + format_code_comparison(code, expected_code)
@@ -662,8 +662,14 @@ def test_transformation_minumum_params_success():
     instance = TransformationOperation(params, named_inputs=n_in,
                                        named_outputs=n_out)
     code = instance.generate_code()
-    expected_code = "{out} = {in1}.withColumn('{alias}'" \
-                    ", functions.lower('attr_name'))"
+
+    expected_code = dedent(
+        """
+        from juicer.spark.ext import CustomExpressionTransformer
+        transformer = CustomExpressionTransformer(
+            outputCol='{alias}', expression=functions.lower('attr_name'))
+        {out} = transformer.transform({in1})
+        """)
 
     expected_code = expected_code.format(
         out=n_out['output data'], in1=n_in['input data'],
@@ -697,8 +703,14 @@ def test_transformation_math_expression_success():
     instance = TransformationOperation(params, named_inputs=n_in,
                                        named_outputs=n_out)
     code = instance.generate_code()
-    expected_code = "{out} = {in1}.withColumn('{alias}'" \
-                    ", {in1}['a'] * 100)"
+
+    expected_code = dedent(
+        """
+        from juicer.spark.ext import CustomExpressionTransformer
+        transformer = CustomExpressionTransformer(
+            outputCol='{alias}', expression=({in1}['a'] * 100))
+        {out} = transformer.transform({in1})
+        """)
 
     expected_code = expected_code.format(
         out=n_out['output data'], in1=n_in['input data'],
@@ -736,8 +748,13 @@ def test_transformation_complex_expression_success():
     instance = TransformationOperation(params, named_inputs=n_in,
                                        named_outputs=n_out)
     code = instance.generate_code()
-    expected_code = "{out} = {in1}.withColumn('{alias}', " \
-                    "- {in1}['a'] + {in1}['b'])"
+    expected_code = dedent(
+        """
+        from juicer.spark.ext import CustomExpressionTransformer
+        transformer = CustomExpressionTransformer(
+            outputCol='{alias}', expression=(- {in1}['a'] + {in1}['b']))
+        {out} = transformer.transform({in1})
+        """)
 
     expected_code = expected_code.format(
         out=n_out['output data'], in1=n_in['input data'],

@@ -16,7 +16,9 @@ import string
 import sys
 import time
 import threading
+import traceback
 import unicodedata
+import juicer.spark.ext as juicer_ext
 
 from textwrap import dedent
 from timeit import default_timer as timer
@@ -196,7 +198,9 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.ord
         {%- if out %}
             schema = {{trace.input}}.schema
             meta = {}
+            {%- if trace.derived_from != '*' %}
             meta.update(schema['{{trace.derived_from}}'].metadata)
+            {%- endif %}
             {{out}} = {{out}}.withColumn('{{trace.attribute}}',
                 functions.col('{{trace.attribute}}').alias('', metadata=meta))
         {%- endif %}
@@ -302,6 +306,8 @@ def main(spark_session, cached_state, emit_event):
             {%- endfor %}
         }
     except Exception as e:
+        spark_session.sparkContext.cancelAllJobs()
+        traceback.print_exc(file=sys.stderr)
         if not dataframe_util.handle_spark_exception(e):
             raise
 
