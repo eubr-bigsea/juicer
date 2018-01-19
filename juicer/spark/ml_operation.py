@@ -928,7 +928,7 @@ class LogisticRegressionClassifierOperation(ClassifierOperation):
             ['family', self.FAMILY_PARAM, str],
             ['aggregationDepth', self.AGGREGATION_DEPTH_PARAM, int],
             ['elasticNetParam', self.ELASTIC_NET_PARAM_PARAM, float],
-            ['fitIntercept', self.FIT_INTERCEPT_PARAM, int],
+            ['fitIntercept', self.FIT_INTERCEPT_PARAM, bool],
             ['maxIter', self.MAX_ITER_PARAM, int],
             ['regParam', self.REG_PARAM_PARAM, float],
             ['tol', self.TOL_PARAM, float],
