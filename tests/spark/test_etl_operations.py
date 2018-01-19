@@ -411,7 +411,7 @@ def test_join_left_join_keep_columns_minimal_params_success():
         """.format(
         out=n_out['output data'], in0=n_in['input data 1'],
         a0='left_', a1='right_',
-        in1=n_in['input data 2'], type=params[JoinOperation.JOIN_TYPE_PARAM],))
+        in1=n_in['input data 2'], type=params[JoinOperation.JOIN_TYPE_PARAM], ))
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
     assert result, msg + format_code_comparison(code, expected_code)
@@ -662,7 +662,6 @@ def test_transformation_minumum_params_success():
     instance = TransformationOperation(params, named_inputs=n_in,
                                        named_outputs=n_out)
     code = instance.generate_code()
-
 
     expected_code = dedent(
         """
