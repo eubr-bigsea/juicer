@@ -33,6 +33,7 @@ from juicer.spark.transpiler import SparkTranspiler
 from juicer.util import dataframe_util, listener_util
 from juicer.workflow.workflow import Workflow
 from juicer.util.template_util import strip_accents
+from juicer.spark.ext.listener import SparkListener
 
 logging.config.fileConfig('logging_config.ini')
 log = logging.getLogger('juicer.spark.spark_minion')
@@ -78,7 +79,6 @@ class SparkMinion(Minion):
             log.warn(_('SPARK_HOME environment variable is not defined'))
 
         self.spark_session = None
-        signal.signal(signal.SIGTERM, self._terminate)
 
         self.mgr = socketio.RedisManager(
             config['juicer']['servers']['redis_url'],
@@ -111,6 +111,7 @@ class SparkMinion(Minion):
         ]
         self.current_lang = lang
         # self._build_dist_file()
+        signal.signal(signal.SIGTERM, self._terminate)
         signal.signal(signal.SIGINT, self._cleanup)
         self.last_job_id = 0
         self.new_session = False
@@ -121,6 +122,7 @@ class SparkMinion(Minion):
         self._emit_event(room=self.last_job_id, namespace='/stand')(
             name='update job', message=msg,
             status='ERROR', identifier=self.last_job_id)
+        self.terminate()
         sys.exit(0)
 
     def _build_dist_file(self):
@@ -345,7 +347,7 @@ class SparkMinion(Minion):
             loader = Workflow(workflow, self.config)
 
             # force the spark context creation
-            self.get_or_create_spark_session(loader, app_configs)
+            self.get_or_create_spark_session(loader, app_configs, job_id)
 
             # Mark job as running
             if self.new_session:
@@ -389,7 +391,8 @@ class SparkMinion(Minion):
             # of several partial workflow executions.
             try:
                 new_state = self.module.main(
-                    self.get_or_create_spark_session(loader, app_configs),
+                    self.get_or_create_spark_session(loader, app_configs,
+                                                     job_id),
                     self._state,
                     self._emit_event(room=job_id, namespace='/stand'))
             except:
@@ -476,8 +479,8 @@ class SparkMinion(Minion):
                 self.spark_session.sparkContext._jsc and
                 not self.spark_session.sparkContext._jsc.sc().isStopped())
 
-    # noinspection PyUnresolvedReferences
-    def get_or_create_spark_session(self, loader, app_configs):
+    # noinspection PyUnresolvedReferences,PyProtectedMember
+    def get_or_create_spark_session(self, loader, app_configs, job_id):
         """
         Get an existing spark session (context) for this minion or create a new
         one. Ideally the spark session instantiation is done only once, in order
@@ -555,6 +558,17 @@ class SparkMinion(Minion):
             self._build_dist_file()
             self.spark_session.sparkContext.addPyFile(self.DIST_ZIP_FILE)
             self.new_session = True
+
+            def _send_listener_log(data):
+                self._emit_event(room=job_id, namespace='/stand')(
+                    name='update job', message=data, status='RUNNING',
+                    identifier=job_id)
+
+            # self.listener = SparkListener(_send_listener_log)
+            #
+            # sc = self.spark_session.sparkContext
+            # sc._gateway.start_callback_server()
+            # sc._jsc.toSparkContext(sc._jsc).addSparkListener(self.listener)
 
         log.info(_("Minion is using '%s' as Spark master"),
                  self.spark_session.sparkContext.master)
@@ -700,6 +714,7 @@ class SparkMinion(Minion):
     def _terminate(self, _signal, _frame):
         self.terminate()
 
+    # noinspection PyProtectedMember
     def terminate(self):
         """
         This is a handler that reacts to a sigkill signal. The most feasible
@@ -708,9 +723,12 @@ class SparkMinion(Minion):
         (spark_session) and kill the subprocess managed in here.
         """
         if self.spark_session:
+            sc = self.spark_session.sparkContext
+
             self.spark_session.stop()
             self.spark_session.sparkContext.stop()
             self.spark_session = None
+            sc._gateway.shutdown_callback_server()
 
         log.info('Post terminate message in queue')
         self.terminate_proc_queue.put({'terminate': True})

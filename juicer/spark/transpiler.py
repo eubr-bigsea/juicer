@@ -205,7 +205,8 @@ class SparkTranspiler(object):
                         parameters[parameter] = definition['value']
                 # escape invalid characters for code generation
                 # except JSON (starting with {)
-                if definition['value'] is not None:
+                if definition['value'] is not None and not isinstance(
+                        definition['value'], bool):
                     if '"' in definition['value'] or "'" in definition['value']:
                         if definition['value'][0] != '{':
                             definition['value'] = SparkTranspiler._escape_chars(
