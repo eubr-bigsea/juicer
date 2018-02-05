@@ -682,10 +682,11 @@ class FilterOperation(Operation):
 
         self.has_code = any(
             [len(self.named_inputs) == 1, self.contains_results()])
+        self.output = self.named_outputs.get('output data',
+                                             'out_{}'.format(self.order))
 
     def generate_code(self):
         input_data = self.named_inputs['input data']
-        output = self.named_outputs['output data']
 
         filters = [
             "(functions.col('{0}') {1} '{2}')".format(
@@ -693,7 +694,7 @@ class FilterOperation(Operation):
             for f in self.filter]
 
         code = "{out} = {in1}.filter({f})".format(
-            out=output, in1=input_data, f=' & '.join(filters))
+            out=self.output, in1=input_data, f=' & '.join(filters))
         return dedent(code)
 
 
@@ -917,6 +918,8 @@ class PivotTableOperation(Operation):
 
         self.has_code = any(
             [len(self.named_inputs) == 1, self.contains_results()])
+        self.output = self.named_outputs.get('output data',
+                                             'out_{}'.format(self.order))
 
     def generate_code(self):
         elements = []
@@ -926,7 +929,6 @@ class PivotTableOperation(Operation):
                 function['alias']))
 
         input_data = self.named_inputs['input data']
-        output = self.named_outputs['output data']
 
         group_by = ', '.join(
             ["functions.col('{}')".format(attr)
@@ -935,7 +937,8 @@ class PivotTableOperation(Operation):
 
         code = """
             {out} = {input}.groupBy({keys}).pivot({pivot}).agg({el})
-            """.format(out=output, input=input_data, keys=group_by, pivot=pivot,
+            """.format(out=self.output, input=input_data, keys=group_by,
+                       pivot=pivot,
                        el=', \n        '.join(elements))
 
         return dedent(code)
