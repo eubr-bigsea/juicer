@@ -126,7 +126,7 @@ class PublishVisualizationOperation(Operation):
         code_lines.append(get_caipirinha_config(self.config))
         code_lines.append(dedent(u"""
             caipirinha_service.new_dashboard(config, '{title}', {user},
-                {workflow_id}, '{workflow_name}',
+                {workflow_id}, u'{workflow_name}',
                 {job_id}, '{task_id}', visualizations, emit_event)
             """.format(
             title=self.title or 'Result for job ' + str(
