@@ -1,7 +1,8 @@
 FROM ubuntu:16.04
 MAINTAINER Vinicius Dias <viniciusvdias@dcc.ufmg.br>
 
-ARG SPARK_VERSION=2.2.1 HADOOP_VERSION=2.6
+ARG SPARK_VERSION=2.2.1
+ARG HADOOP_VERSION=2.6
 ENV SPARK_HOME=/usr/local/spark JUICER_HOME=/usr/local/juicer
 ENV PYTHONPATH=$PYTHONPATH:$JUICER_HOME:$SPARK_HOME/python
 ENV SPARK_HADOOP_URL http://ftp.unicamp.br/pub/apache/spark/spark-${SPARK_VERSION}/spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION}.tgz
