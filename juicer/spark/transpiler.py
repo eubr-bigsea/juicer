@@ -196,7 +196,8 @@ class SparkTranspiler(object):
                                 'execution logging', 'logging'],
                         definition['value'] is not None]):
 
-                    task_hash.update(str(definition['value']))
+                    task_hash.update(unicode(definition['value']).encode(
+                        'utf8', errors='ignore'))
                     if cat in ['paramgrid', 'logging']:
                         if cat not in parameters:
                             parameters[cat] = {}
