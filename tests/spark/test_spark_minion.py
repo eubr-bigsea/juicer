@@ -25,7 +25,7 @@ config = {
 # This functions are used to prevent minons
 # from using unsupported operations in test mode
 # noinspection PyUnusedLocal
-def dummy_get_or_create_spark_session(b, c):
+def dummy_get_or_create_spark_session(b, c, d):
     return None
 
 
