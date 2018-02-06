@@ -946,12 +946,14 @@ class SummaryStatisticsModel(TableVisualizationModel):
         else:
             self.attrs = [attr for attr in all_attr if
                           attr in self.params['attributes']]
-        self.names = ['attribute', 'max', 'min', 'stddev', 'count', 'avg',
-                      'approx. distinct', 'missing']
+        self.names = [_('attribute'), _('max'), _('min'), _('std. dev.'),
+                      _('count'), _('avg'),
+                      _('approx. distinct'), _('missing'), _('skewness'),
+                      _('kurtosis')]
 
         self.names.extend(
-            ['correlation to {}'.format(attr) for attr in self.attrs])
-
+            [_('correlation to {} (Pearson)').format(attr) for attr in
+             self.attrs])
         self.column_names = self.names
 
     def get_icon(self):
@@ -1002,6 +1004,12 @@ class SummaryStatisticsModel(TableVisualizationModel):
                 'distinct_{}'.format(name)))
             stats.append((df_count - functions.count(df_col)).alias(
                 'missing_{}'.format(name)))
+
+            stats.append(functions.round(functions.skewness(df_col), 2).alias(
+                'skewness_{}'.format(name)))
+            stats.append(functions.round(functions.kurtosis(df_col), 2).alias(
+                'kurtosis_{}'.format(name)))
+
             for pair in corr_pairs[i]:
                 if all([pair[0] in self.numeric_attrs,
                         pair[1] in self.numeric_attrs]):
@@ -1011,9 +1019,9 @@ class SummaryStatisticsModel(TableVisualizationModel):
                 else:
                     stats.append(functions.lit('-'))
 
-        aggregated = self.data.agg(*stats).take(1)[0]
+        self.data = self.data.agg(*stats)
+        aggregated = self.data.take(1)[0]
         n = len(self.names)
         rows = [aggregated[i:i + n] for i in range(0, len(aggregated), n)]
 
-        return {"rows": rows, "attributes": self.get_column_names().split(','),
-                "schema": self.get_schema()}
+        return {"rows": rows, "attributes": self.get_column_names().split(',')}
