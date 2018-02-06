@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2018-02-06 09:34-0200\n"
-"PO-Revision-Date: 2018-02-06 09:35-0200\n"
+"POT-Creation-Date: 2018-02-06 17:18-0200\n"
+"PO-Revision-Date: 2018-02-06 17:18-0200\n"
 "Last-Translator: \n"
 "Language-Team: pt_BR <LL@li.org>\n"
 "Language: pt_BR\n"
@@ -97,7 +97,7 @@ msgstr "Esta implementação de rastreabilidade não suporta entradas múltiplas
 #: juicer/spark/etl_operation.py:197 juicer/spark/etl_operation.py:458
 #: juicer/spark/etl_operation.py:495 juicer/spark/etl_operation.py:502
 #: juicer/spark/etl_operation.py:580 juicer/spark/etl_operation.py:678
-#: juicer/spark/etl_operation.py:733 juicer/spark/feature_operation.py:27
+#: juicer/spark/etl_operation.py:734 juicer/spark/feature_operation.py:27
 #: juicer/spark/geo_operation.py:34 juicer/spark/ml_operation.py:37
 #: juicer/spark/ml_operation.py:152 juicer/spark/ml_operation.py:159
 #: juicer/spark/ml_operation.py:216 juicer/spark/ml_operation.py:272
@@ -427,24 +427,24 @@ msgstr "Especificação do workflow não especificada"
 msgid "Task running (cached data)"
 msgstr "Tarefa executando (usando dados em cache)"
 
-#: juicer/service/caipirinha_service.py:23
+#: juicer/service/caipirinha_service.py:19
 #, python-format
 msgid "Querying Caipirinha URL: %s"
 msgstr "Consultando a URL Caipirinha: %s"
 
-#: juicer/service/caipirinha_service.py:29
+#: juicer/service/caipirinha_service.py:25
 msgid "Error in URL {}: HTTP {} - {}"
 msgstr "Erro na URL {}: HTTP {} - {}"
 
-#: juicer/service/caipirinha_service.py:40
+#: juicer/service/caipirinha_service.py:36
 msgid "Saving visualizations"
 msgstr "Salvando visualizações"
 
-#: juicer/service/caipirinha_service.py:50
+#: juicer/service/caipirinha_service.py:46
 msgid "Result generated"
 msgstr "Resultado gerado"
 
-#: juicer/service/caipirinha_service.py:63
+#: juicer/service/caipirinha_service.py:59
 msgid "Visualizations saved"
 msgstr "Visualização salva"
 
@@ -580,23 +580,23 @@ msgstr ""
 msgid "Missing parameter in aggregation function"
 msgstr "Parâmetro ausente na função de agregação"
 
-#: juicer/spark/etl_operation.py:834
+#: juicer/spark/etl_operation.py:835
 msgid "Parameter '{}' has an incorrect value '{}' in {}"
 msgstr "Parâmetro '{}' tem um valor incorreto '{}' in {}"
 
-#: juicer/spark/etl_operation.py:910
+#: juicer/spark/etl_operation.py:911
 msgid "Required parameters must be informed for task {}"
 msgstr "Parâmetro necessário deve ser informado para a tarefa {}"
 
-#: juicer/spark/etl_operation.py:951 juicer/spark/etl_operation.py:1045
+#: juicer/spark/etl_operation.py:954 juicer/spark/etl_operation.py:1048
 msgid "Required parameter {} must be informed for task {}"
 msgstr "Parâmetro obrigatório {} deve ser informado para tarefa {}"
 
-#: juicer/spark/etl_operation.py:1051
+#: juicer/spark/etl_operation.py:1054
 msgid "Invalid query. Only SELECT is allowed."
 msgstr "Consulta inválida. Apenas SELECT é permitido."
 
-#: juicer/spark/etl_operation.py:1107
+#: juicer/spark/etl_operation.py:1110
 msgid ""
 "Invalid names. Number of attributes in result differs from names informed."
 msgstr ""
@@ -802,6 +802,50 @@ msgstr "Atributo {} para o label não existe em ({})"
 #: juicer/spark/vis_operation.py:623
 msgid "The maximum number of values for this chart is 100."
 msgstr "O número máximo para valores para este gráfico é 100."
+
+#: juicer/spark/vis_operation.py:949
+msgid "attribute"
+msgstr "atributo"
+
+#: juicer/spark/vis_operation.py:949
+msgid "max"
+msgstr "máximo"
+
+#: juicer/spark/vis_operation.py:949
+msgid "min"
+msgstr "mínimo"
+
+#: juicer/spark/vis_operation.py:949
+msgid "std. dev."
+msgstr "desvio padrão"
+
+#: juicer/spark/vis_operation.py:950
+msgid "count"
+msgstr "contagem"
+
+#: juicer/spark/vis_operation.py:950
+msgid "avg"
+msgstr "média"
+
+#: juicer/spark/vis_operation.py:951
+msgid "approx. distinct"
+msgstr "distintos (aproximado)"
+
+#: juicer/spark/vis_operation.py:951
+msgid "missing"
+msgstr "ausentes"
+
+#: juicer/spark/vis_operation.py:951
+msgid "skewness"
+msgstr "assimetria (skewness)"
+
+#: juicer/spark/vis_operation.py:952
+msgid "kurtosis"
+msgstr "curtose (kurtosis)"
+
+#: juicer/spark/vis_operation.py:955
+msgid "correlation to {} (Pearson)"
+msgstr "correlação com {} (Pearson)"
 
 #: juicer/util/dataframe_util.py:73 juicer/util/dataframe_util.py:92
 msgid ""
