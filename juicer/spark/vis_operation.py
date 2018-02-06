@@ -855,11 +855,19 @@ class ScatterPlotModel(ChartVisualization):
 
 class HtmlVisualizationModel(VisualizationModel):
     # noinspection PyUnusedLocal
-    def __init__(self, data, task_id, type_id, type_name, title,
-                 column_names,
-                 orientation, id_attribute, value_attribute, params):
-        # type_id = 1
-        # type_name = 'html'
+    def __init__(self, data=None, task_id=None, type_id=1, type_name=None,
+                 title=None,
+                 column_names=None,
+                 orientation=None, id_attribute=None,
+                 value_attribute=None, params=None):
+        type_id = 1
+        type_name = 'html'
+        if id_attribute is None:
+            id_attribute = []
+        if value_attribute is None:
+            value_attribute = []
+        if column_names is None:
+            column_names = []
         VisualizationModel.__init__(self, data, task_id, type_id, type_name,
                                     title, column_names, orientation,
                                     id_attribute, value_attribute, params)
