@@ -1,10 +1,13 @@
 import string
 import unicodedata
 
-from pyspark import keyword_only
-from pyspark.ml import Transformer
-from pyspark.ml.param.shared import Param, HasOutputCol
-from pyspark.sql import functions, types
+try:
+    from pyspark import keyword_only
+    from pyspark.ml import Transformer
+    from pyspark.ml.param.shared import Param, HasOutputCol
+    from pyspark.sql import functions, types
+except ImportError:
+    pass
 
 
 def remove_punctuation_udf(text):
