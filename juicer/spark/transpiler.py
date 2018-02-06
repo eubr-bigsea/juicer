@@ -381,6 +381,7 @@ class SparkTranspiler(object):
             'load-model': juicer.spark.ml_operation.LoadModelOperation,
 
         }
+
         data_ops = {
             'change-attribute':
                 juicer.spark.data_operation.ChangeAttributeOperation,
@@ -394,6 +395,10 @@ class SparkTranspiler(object):
         data_quality_ops = {
             'entity-matching':
                 juicer.spark.data_quality_operation.EntityMatchingOperation,
+        }
+        statistics_ops = {
+            'kaplan-meier-survival':
+                juicer.spark.statistic_operation.KaplanMeierSurvivalOperation,
         }
         other_ops = {
             'comment': operation.NoOp,
@@ -442,7 +447,9 @@ class SparkTranspiler(object):
                 juicer.spark.feature_operation.MinMaxScalerOperation,
 
         }
+
         self.operations = {}
         for ops in [data_ops, etl_ops, geo_ops, ml_ops, other_ops, text_ops,
+                    statistics_ops,
                     ws_ops, vis_ops, dm_ops, data_quality_ops, feature_ops]:
             self.operations.update(ops)
