@@ -584,8 +584,8 @@ class AggregationOperation(Operation):
             if not all([f.get('attribute'), f.get('f'), f.get('alias')]):
                 raise ValueError(_('Missing parameter in aggregation function'))
 
-        self.has_code = any(
-            [len(self.named_inputs) == 1, self.contains_results()])
+        self.has_code = len(self.named_inputs) == 1 and any(
+            [len(self.named_outputs) == 1, self.contains_results()])
         # noinspection PyArgumentEqualDefault
         self.pivot = next(iter(parameters.get(self.PIVOT_ATTRIBUTE) or []),
                           None)
