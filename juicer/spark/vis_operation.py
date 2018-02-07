@@ -182,7 +182,8 @@ class VisualizationMethodOperation(Operation):
                  't_axis_attribute', 't_title', 't_prefix', 't_suffix',
                  't_format',
                  'latitude', 'longitude', 'value', 'label',
-                 'y_axis_attribute', 'z_axis_attribute', 't_axis_attribute']
+                 'y_axis_attribute', 'z_axis_attribute', 't_axis_attribute',
+                 'series_attribute']
         for k, v in self.parameters.items():
             if k in valid:
                 result[k] = v
@@ -833,7 +834,7 @@ class ScatterPlotModel(ChartVisualization):
                         "values": []
                     }
                     current_color += 1
-                data = series[series_value]
+                data = series[series_value]['values']
             else:
                 data = series[series_key]['values']
 
