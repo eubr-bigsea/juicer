@@ -269,15 +269,18 @@ class DifferenceOperation(Operation):
         self.has_code = any(
             [len(self.named_inputs) == 2, self.contains_results()])
 
-    def generate_code(self):
-        output = self.named_outputs.get(
+        self.output = self.named_outputs.get(
             'output data', 'intersected_data_{}'.format(self.order))
 
+    def get_output_names(self, sep=", "):
+        return self.output
+
+    def generate_code(self):
         input_data1 = self.named_inputs['input data 1']
         input_data2 = self.named_inputs['input data 2']
 
         code = "{out} = {in1}.subtract({in2})".format(
-            out=output, in1=input_data1, in2=input_data2)
+            out=self.output, in1=input_data1, in2=input_data2)
         return dedent(code)
 
 
