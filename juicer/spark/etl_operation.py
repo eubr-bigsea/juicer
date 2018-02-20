@@ -806,7 +806,7 @@ class CleanMissingOperation(Operation):
                     md_count_{1} = {0}.groupBy(md_attr_{1}).count()\\
                         .orderBy(desc('count')).limit(1)
                     md_replace_{1}[md_attr_{1}] = md_count_{1}.collect()[0][0]
-             {0} = {1}.fillna(value=md_replace_{1})""".format(
+                {0} = {1}.fillna(value=md_replace_{1})""".format(
                 self.output, input_data)
             )
 
