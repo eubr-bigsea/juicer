@@ -272,7 +272,7 @@ def main(spark_session, cached_state, emit_event):
 
         {%- for instance in instances %}
         {%- set is_satisfied = dependency_controller.is_satisfied(instance.parameters.task.id) %}
-        {%- if instance.must_be_executed(is_satisfied) %}
+        {%- if instance.must_be_executed(is_satisfied) and instance.has_code %}
         {%- set s = dependency_controller.satisfied(instance.parameters.task.id) %}
         task_futures['{{instance.parameters.task.id}}'] = executor.submit(
             lambda: {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.order}}(spark_session, cached_state, emit_event))
@@ -281,7 +281,7 @@ def main(spark_session, cached_state, emit_event):
 
         {%- for instance in instances %}
         {%- set is_satisfied = dependency_controller.is_satisfied(instance.parameters.task.id) %}
-        {%- if instance.must_be_executed(is_satisfied) %}
+        {%- if instance.must_be_executed(is_satisfied) and instance.has_code %}
         {%- set s = dependency_controller.satisfied(instance.parameters.task.id) %}
         task_futures['{{instance.parameters.task.id}}'].result()
         {%- endif %}

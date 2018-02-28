@@ -1,35 +1,7 @@
-import json
 from textwrap import dedent
 
 from juicer.operation import Operation
 from juicer.spark.vis_operation import get_caipirinha_config
-
-
-class PearsonCorrelation(Operation):
-    """
-    Calculates the correlation of two columns of a DataFrame as a double value.
-    @deprecated: It should be used as a function in expressions
-    """
-    ATTRIBUTES_PARAM = 'attributes'
-
-    def __init__(self, parameters, named_inputs, named_outputs):
-        Operation.__init__(self, parameters, named_inputs, named_outputs)
-        if self.ATTRIBUTES_PARAM in parameters:
-            self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
-        else:
-            raise ValueError(
-                _("Parameter '{}' must be informed for task {}").format(
-                    self.ATTRIBUTES_PARAM, self.__class__))
-
-        self.has_code = len(self.inputs) == 1
-
-    def generate_code(self):
-        output = self.outputs[0] if len(self.outputs) else '{}_tmp'.format(
-            self.inputs[0])
-        code = """{} = {}.corr('{}', '{}')""".format(
-            output, self.inputs[0], self.attributes[0], self.attributes[1])
-
-        return dedent(code)
 
 
 class KaplanMeierSurvivalOperation(Operation):
@@ -59,13 +31,13 @@ class KaplanMeierSurvivalOperation(Operation):
                                              'out_task_{}'.format(self.order))
         self.input = self.named_inputs.get('input data')
 
-        self.has_code = any([len(named_outputs) > 0 and
-                             len(self.named_inputs) == 1,
-                             self.contains_results()])
         self.legend = parameters.get(self.LEGEND_PARAM, [])
         self.title = parameters.get(self.TITLE_PARAM,
                                     _('Kaplar-Meier survival'))
         self.supports_cache = False
+        self.has_code = all([
+            len(self.named_inputs) == 1,
+            any([len(self.named_outputs) == 1, self.contains_results()])])
 
     def get_data_out_names(self, sep=','):
         return self.output
@@ -74,6 +46,8 @@ class KaplanMeierSurvivalOperation(Operation):
         return self.output
 
     def generate_code(self):
+        display_image = self.parameters['task']['forms'].get(
+            'display_image', {'value': 1}).get('value', 1) in (1, '1')
         code = [
             dedent("""
             import matplotlib.pyplot as plt
@@ -91,11 +65,7 @@ class KaplanMeierSurvivalOperation(Operation):
             df = {input}.toPandas()
             pivot = '{pivot}'
             labels = {legend}
-            fig = plt.figure()
-            plt.title('{title}')
-            ax1 = fig.add_subplot(111)
-            ax1.set_xlabel('{t}')
-            fig_file = BytesIO()
+
             if pivot:
                 groups = df.groupby([pivot])
                 {out} = None
@@ -137,29 +107,35 @@ class KaplanMeierSurvivalOperation(Operation):
                 {out} = spark_session.createDataFrame(
                             pd_df, ['{f}', '{t}'])
                 kmf.survival_function_.plot(ax=ax1)
+            if display_image:
+                fig = plt.figure()
+                plt.title('{title}')
+                ax1 = fig.add_subplot(111)
+                ax1.set_xlabel('{t}')
+                fig_file = BytesIO()
 
-            fig.tight_layout(rect=[0, 0.03, 1, 0.95])
-            fig.savefig(fig_file, format='png')
-            visualization = {{
-                'job_id': '{job_id}',
-                'task_id': '{task_id}',
-                'title': '{title}',
-                'type': {{
-                    'id': 1,
-                    'name': 'HTML'
-                }},
-                'model': HtmlVisualizationModel(title='{title}'),
-                'data': json.dumps({{
-                    'html': '<img src="data:image/png;base64, ' +
-                        base64.b64encode(fig_file.getvalue()) + '"/>'
-                }}),
-            }}
+                fig.tight_layout(rect=[0, 0.03, 1, 0.95])
+                fig.savefig(fig_file, format='png')
+                visualization = {{
+                    'job_id': '{job_id}',
+                    'task_id': '{task_id}',
+                    'title': '{title}',
+                    'type': {{
+                        'id': 1,
+                        'name': 'HTML'
+                    }},
+                    'model': HtmlVisualizationModel(title='{title}'),
+                    'data': json.dumps({{
+                        'html': '<img src="data:image/png;base64, ' +
+                            base64.b64encode(fig_file.getvalue()) + '"/>'
+                    }}),
+                }}
 
-            caipirinha_service.new_visualization(
-                config,
-                {user},
-                {workflow_id}, {job_id}, '{task_id}',
-                visualization, emit_event)
+                caipirinha_service.new_visualization(
+                    config,
+                    {user},
+                    {workflow_id}, {job_id}, '{task_id}',
+                    visualization, emit_event)
         """.format(out=self.output,
                    input=self.input,
                    pivot=self.pivot_attribute or '',
@@ -175,5 +151,124 @@ class KaplanMeierSurvivalOperation(Operation):
                    job_id=self.parameters['job_id'],
                    user=self.parameters['user'],
                    workflow_id=self.parameters['workflow_id'],
+                   display_image=display_image
                    ))]
+        return ''.join(code)
+
+
+class CoxProportionalHazardsOperation(Operation):
+    ATTRIBUTES_PARAM = 'attributes'
+    Y_ATTRIBUTE_PARAM = 'y_attribute'
+    TIME_ATTRIBUTE_PARAM = 'time_attribute'
+
+    LEGEND_PARAM = 'legend'
+    TITLE_PARAM = 'title'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+        required = [self.Y_ATTRIBUTE_PARAM, self.TIME_ATTRIBUTE_PARAM]
+
+        self.time_attribute = None
+        self.y_attribute = None
+        for r in required:
+            if r in parameters and len(parameters[r]) > 0:
+                setattr(self, r, parameters.get(r)[0])
+            else:
+                raise ValueError(
+                    _("Parameter '{}' must be informed for task {}").format(
+                        r, self.__class__))
+        self.attributes = parameters.get('attributes', [])
+
+        self.input = self.named_inputs.get('input data')
+        self.output = self.named_outputs.get('output data',
+                                             'out_task_{}'.format(self.order))
+        self.has_code = len(self.named_inputs) == 1
+
+        self.legend = parameters.get(self.LEGEND_PARAM, [])
+        self.title = parameters.get(self.TITLE_PARAM,
+                                    _('Cox Proportional Hazard'))
+        self.supports_cache = False
+
+    def get_data_out_names(self, sep=','):
+        return self.output
+
+    def get_output_names(self, sep=", "):
+        return self.output
+
+    def generate_code(self):
+        display_image = self.parameters['task']['forms'].get(
+            'display_image', {'value': 1}).get('value', 1) not in (0, '0')
+        code = [
+            dedent("""
+            from io import BytesIO
+            from juicer.lib import cox
+            from juicer.service import caipirinha_service
+            from juicer.spark.vis_operation import HtmlVisualizationModel
+            from matplotlib.ticker import FormatStrFormatter
+            import matplotlib.pyplot as plt
+            import base64
+            """),
+            dedent(get_caipirinha_config(self.config)),
+            dedent("""
+            df = {input}.toPandas()
+            y_name = '{y_name}'
+            t_name = '{t_name}'
+            columns = {attributes}
+            result = cox(df, y_name, t_name, columns)
+            final_names = [x[0] for x in result.columns.values]
+            {out} = spark_session.createDataFrame(result, final_names)
+            labels = list(result.keys().levels[0])
+
+            display_image = {display_image}
+            if display_image:
+                rows = len(labels) - 1
+                fig, axes = plt.subplots(ncols=1, nrows=rows, figsize=(8, 8))
+                # axes.yaxis.set_major_formatter(FormatStrFormatter('%.2f'))
+                # axes.xaxis.set_major_formatter(FormatStrFormatter('%.2f'))
+
+                plt.title('{title}')
+                for i, l in enumerate(labels):
+                    if l != 'Time':
+                        plt.subplot(rows, 1, i + 1)
+                        plt.scatter(result["Time"], result[l])
+
+                fig.subplots_adjust()
+                fig_file = BytesIO()
+                # fig.tight_layout(rect=[0, 0.03, 1, 0.95])
+
+                fig.savefig(fig_file, format='png')
+                visualization = {{
+                    'job_id': '{job_id}',
+                    'task_id': '{task_id}',
+                    'title': '{title}',
+                    'type': {{
+                        'id': 1,
+                        'name': 'HTML'
+                    }},
+                    'model': HtmlVisualizationModel(title='{title}'),
+                    'data': json.dumps({{
+                        'html': '<img src="data:image/png;base64, ' +
+                            base64.b64encode(fig_file.getvalue()) + '"/>'
+                    }}),
+                }}
+
+                caipirinha_service.new_visualization(
+                    config,
+                    {user},
+                    {workflow_id}, {job_id}, '{task_id}',
+                    visualization, emit_event)
+
+
+            """.format(input=self.input, y_name=self.y_attribute,
+                       t_name=self.time_attribute,
+                       out=self.output,
+                       title=self.title,
+                       task_id=self.parameters['task_id'],
+                       operation_id=self.parameters['operation_id'],
+                       job_id=self.parameters['job_id'],
+                       user=self.parameters['user'],
+                       workflow_id=self.parameters['workflow_id'],
+                       display_image=display_image,
+                       attributes=repr(self.attributes)))
+        ]
         return ''.join(code)
