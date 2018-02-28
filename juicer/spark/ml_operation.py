@@ -725,20 +725,22 @@ class ClassificationModelOperation(Operation):
                              self.contains_results()])
         self.has_code = self.has_code and 'algorithm' in self.named_inputs
 
-        if not all([self.FEATURES_ATTRIBUTE_PARAM in parameters,
-                    self.LABEL_ATTRIBUTE_PARAM in parameters]):
-            msg = _("Parameters '{}' and '{}' must be informed for task {}")
-            raise ValueError(msg.format(
-                self.FEATURES_ATTRIBUTE_PARAM, self.LABEL_ATTRIBUTE_PARAM,
-                self.__class__.__name__))
+        if self.has_code:
+            if not all(
+                    [self.FEATURES_ATTRIBUTE_PARAM in parameters,
+                     self.LABEL_ATTRIBUTE_PARAM in parameters]):
+                msg = _("Parameters '{}' and '{}' must be informed for task {}")
+                raise ValueError(msg.format(
+                    self.FEATURES_ATTRIBUTE_PARAM, self.LABEL_ATTRIBUTE_PARAM,
+                    self.__class__.__name__))
 
-        self.label = parameters.get(self.LABEL_ATTRIBUTE_PARAM)[0]
-        self.features = parameters.get(self.FEATURES_ATTRIBUTE_PARAM)[0]
-        self.prediction = parameters.get(self.PREDICTION_ATTRIBUTE_PARAM,
-                                         'prediction')
+            self.label = parameters.get(self.LABEL_ATTRIBUTE_PARAM)[0]
+            self.features = parameters.get(self.FEATURES_ATTRIBUTE_PARAM)[0]
+            self.prediction = parameters.get(self.PREDICTION_ATTRIBUTE_PARAM,
+                                             'prediction')
 
-        self.model = named_outputs.get('model',
-                                       'model_task_{}'.format(self.order))
+            self.model = named_outputs.get('model',
+                                           'model_task_{}'.format(self.order))
         if not self.has_code and len(self.named_outputs) > 0:
             raise ValueError(
                 _('Model is being used, but at least one input is missing'))

@@ -350,8 +350,6 @@ class SparkTranspiler(object):
             'one-hot-encoder':
                 juicer.spark.ml_operation.OneHotEncoderOperation,
             'pca': juicer.spark.ml_operation.PCAOperation,
-            'pearson-correlation':
-                juicer.spark.statistic_operation.PearsonCorrelation,
             'perceptron-classifier':
                 juicer.spark.ml_operation.PerceptronClassifier,
             'random-forest-classifier':
@@ -400,6 +398,8 @@ class SparkTranspiler(object):
         statistics_ops = {
             'kaplan-meier-survival':
                 juicer.spark.statistic_operation.KaplanMeierSurvivalOperation,
+            'cox-proportional-hazards':
+                juicer.spark.statistic_operation.CoxProportionalHazardsOperation
         }
         other_ops = {
             'comment': operation.NoOp,
