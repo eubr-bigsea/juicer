@@ -65,12 +65,16 @@ class KaplanMeierSurvivalOperation(Operation):
             df = {input}.toPandas()
             pivot = '{pivot}'
             labels = {legend}
-
+            display_image = {display_image}
             if pivot:
                 groups = df.groupby([pivot])
                 {out} = None
 
-
+                if display_image:
+                    fig = plt.figure()
+                    plt.title('{title}')
+                    ax1 = fig.add_subplot(111)
+                    ax1.set_xlabel('{t}')
                 for i, group_id in enumerate(groups.groups):
                     if len(labels) > i:
                         label = labels[i]
@@ -94,9 +98,10 @@ class KaplanMeierSurvivalOperation(Operation):
                     else:
                         {out} = {out}.union(spark_session.createDataFrame(
                             pd_df, ['{f}', '{v}', '{t}']))
-                    kmf.survival_function_.plot(ax=ax1)
-
-                ax1.set_ylabel('')
+                    if display_image:
+                        kmf.survival_function_.plot(ax=ax1)
+                if display_image:
+                    ax1.set_ylabel('')
             else:
                 kmf.fit(df['{duration}'], event_observed=df['{event_observed}'],
                     label=labels[0] if labels else None)
@@ -108,10 +113,6 @@ class KaplanMeierSurvivalOperation(Operation):
                             pd_df, ['{f}', '{t}'])
                 kmf.survival_function_.plot(ax=ax1)
             if display_image:
-                fig = plt.figure()
-                plt.title('{title}')
-                ax1 = fig.add_subplot(111)
-                ax1.set_xlabel('{t}')
                 fig_file = BytesIO()
 
                 fig.tight_layout(rect=[0, 0.03, 1, 0.95])
@@ -130,12 +131,20 @@ class KaplanMeierSurvivalOperation(Operation):
                             base64.b64encode(fig_file.getvalue()) + '"/>'
                     }}),
                 }}
-
-                caipirinha_service.new_visualization(
-                    config,
-                    {user},
-                    {workflow_id}, {job_id}, '{task_id}',
-                    visualization, emit_event)
+                emit_event(
+                            'update task', status='COMPLETED',
+                            identifier='{task_id}',
+                            message=base64.b64encode(fig_file.getvalue()),
+                            type='IMAGE', title='{title}',
+                            task={{'id': '{task_id}'}},
+                            operation={{'id': {operation_id}}},
+                            operation_id={operation_id})
+                            
+                # caipirinha_service.new_visualization(
+                #     config,
+                #     {user},
+                #     {workflow_id}, {job_id}, '{task_id}',
+                #     visualization, emit_event)
         """.format(out=self.output,
                    input=self.input,
                    pivot=self.pivot_attribute or '',
@@ -251,12 +260,20 @@ class CoxProportionalHazardsOperation(Operation):
                             base64.b64encode(fig_file.getvalue()) + '"/>'
                     }}),
                 }}
+                emit_event(
+                            'update task', status='COMPLETED',
+                            identifier='{task_id}',
+                            message=base64.b64encode(fig_file.getvalue()),
+                            type='IMAGE', title='{title}',
+                            task={{'id': '{task_id}'}},
+                            operation={{'id': {operation_id}}},
+                            operation_id={operation_id})
 
-                caipirinha_service.new_visualization(
-                    config,
-                    {user},
-                    {workflow_id}, {job_id}, '{task_id}',
-                    visualization, emit_event)
+                # caipirinha_service.new_visualization(
+                #     config,
+                #     {user},
+                #     {workflow_id}, {job_id}, '{task_id}',
+                #     visualization, emit_event)
 
 
             """.format(input=self.input, y_name=self.y_attribute,
