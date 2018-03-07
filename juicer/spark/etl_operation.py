@@ -130,19 +130,26 @@ class RemoveDuplicatedOperation(Operation):
 
         self.has_code = any(
             [len(self.named_inputs) == 1, self.contains_results()])
+        self.output = self.named_outputs.get('output data',
+                                             'dedup_data_{}'.format(
+                                                 self.order))
+
+    def get_output_names(self, sep=", "):
+        return self.output
+
+    def get_data_out_names(self, sep=','):
+        return self.output
 
     def generate_code(self):
-        output = self.named_outputs.get('output data', 'dedup_data_{}'.format(
-            self.order))
         input_data = self.named_inputs['input data']
 
         if self.attributes:
             code = "{output} = {input}.dropDuplicates(subset={attrs})".format(
-                output=output, input=input_data,
+                output=self.output, input=input_data,
                 attrs=json.dumps(self.attributes))
         else:
             code = "{out} = {input}.dropDuplicates()".format(
-                out=output, input=input_data)
+                out=self.output, input=input_data)
         return dedent(code)
 
 
