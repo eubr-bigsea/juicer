@@ -250,7 +250,6 @@ def handle_spark_exception(e):
     if isinstance(e, AnalysisException):
         value_expr = re.compile(r'[`"](.+)[`"].+columns:\s(.+)$')
         found = value_expr.findall(unicode(e.desc.split('\n')[0]))
-        print '?>>>>', e.desc.split('\n')[0]
         if found:
             field, fields = found[0]
             raise ValueError(
@@ -271,10 +270,14 @@ def handle_spark_exception(e):
                 ))
     elif hasattr(e, 'java_exception'):
         cause = e.java_exception.getCause()
+        while cause.getCause() is not None:
+            cause = cause.getCause()
+
         if cause is not None:
             nfe = 'java.lang.NumberFormatException'
             uoe = 'java.lang.UnsupportedOperationException'
             npe = 'java.lang.NullPointerException'
+            bme = 'org.apache.hadoop.hdfs.BlockMissingException'
 
             cause_msg = cause.getMessage()
             inner_cause = cause.getCause()
@@ -294,6 +297,13 @@ def handle_spark_exception(e):
                                        'Please, remove them before applying '
                                        'a data transformation.'))
                 pass
+            elif cause.getClass().getName() == bme:
+                raise ValueError(
+                    _('Cannot read data from the data source. In this case, '
+                      'it may be a configuration problem with HDFS. '
+                      'Please, check if HDFS namenode is up and you '
+                      'correctly configured the option '
+                      'dfs.client.use.datanode.hostname in Juicer\' config.'))
         elif e.java_exception.getMessage():
             value_expr = re.compile(r'CSV data source does not support '
                                     r'(.+?) data type')
