@@ -33,7 +33,6 @@ from juicer.spark.transpiler import SparkTranspiler
 from juicer.util import dataframe_util, listener_util
 from juicer.workflow.workflow import Workflow
 from juicer.util.template_util import strip_accents
-from juicer.spark.ext.listener import SparkListener
 
 logging.config.fileConfig('logging_config.ini')
 log = logging.getLogger('juicer.spark.spark_minion')
@@ -115,6 +114,9 @@ class SparkMinion(Minion):
         signal.signal(signal.SIGINT, self._cleanup)
         self.last_job_id = 0
         self.new_session = False
+
+        self.cluster_options = {}
+        self.last_cluster_id = None
 
     def _cleanup(self, pid, flag):
         log.warn(_('Finishing minion'))
@@ -263,9 +265,60 @@ class SparkMinion(Minion):
 
         # Forward the message according to its purpose
         if msg_type == juicer_protocol.EXECUTE:
+
+            # Checks if it's a valid cluster
+            job_id = msg_info['job_id']
+            cluster_info = msg_info.get('cluster', {})
+            if cluster_info.get('type') not in ('SPARK_LOCAL', 'MESOS', 'YARN'):
+                self._emit_event(room=job_id, namespace='/stand')(
+                    name='update job',
+                    message=_('Unsupported cluster type, '
+                              'it cannot run Spark applications.'),
+                    status='ERROR', identifier=job_id)
+                return
+
+            if all([self.last_cluster_id,
+                    self.last_cluster_id != cluster_info['id']]):
+                if self.spark_session:
+                    self._emit_event(room=job_id, namespace='/stand')(
+                        name='update job',
+                        message=_('Cluster configuration changed. '
+                                  'Stopping previous cluster.'),
+                        status='RUNNING', identifier=job_id)
+                    # Requires finish Spark Context
+                    self.spark_session.stop()
+                    self._state = {}
+                    self.spark_session = None
+
+            self.cluster_options = {}
+
+            # Add general parameters in the form param1=value1,param2=value2
+            if cluster_info.get('general_parameters'):
+                parameters = cluster_info['general_parameters'].split(',')
+                for parameter in parameters:
+                    key, value = parameter.split('=')
+                    self.cluster_options[key.strip()] = value.strip()
+
+            # Spark mapping for cluster properties
+            options = {'address': 'spark.master',
+                       'executors': 'spark.cores.max',
+                       'executor_cores': 'spark.executor.cores',
+                       'executor_memory': 'spark.executor.memory',
+                       }
+
+            for option, spark_name in options.items():
+                if option in cluster_info:
+                    print '>>>>', option, cluster_info[option]
+                self.cluster_options[spark_name] = cluster_info[option]
+
+            print '*' * 40
+            print self.cluster_options
+            print '*' * 40
+
+            self.last_cluster_id = cluster_info['id']
+
             self.active_messages += 1
             log.info('Execute message received')
-            job_id = msg_info['job_id']
             self.last_job_id = job_id
             workflow = msg_info['workflow']
 
@@ -345,7 +398,6 @@ class SparkMinion(Minion):
         start = timer()
         try:
             loader = Workflow(workflow, self.config)
-
             # force the spark context creation
             self.get_or_create_spark_session(loader, app_configs, job_id)
 
@@ -542,8 +594,13 @@ class SparkMinion(Minion):
 
             log.info('JAVA CLASSPATH: %s',
                      app_configs['spark.driver.extraClassPath'])
+
             # All options passed by application are sent to Spark
             for option, value in app_configs.items():
+                spark_builder = spark_builder.config(option, value)
+
+            # All options passed by the client during job execution
+            for option, value in self.cluster_options.items():
                 spark_builder = spark_builder.config(option, value)
 
             self.spark_session = spark_builder.getOrCreate()
@@ -564,11 +621,11 @@ class SparkMinion(Minion):
                     name='update job', message=data, status='RUNNING',
                     identifier=job_id)
 
-            # self.listener = SparkListener(_send_listener_log)
-            #
-            # sc = self.spark_session.sparkContext
-            # sc._gateway.start_callback_server()
-            # sc._jsc.toSparkContext(sc._jsc).addSparkListener(self.listener)
+                # self.listener = SparkListener(_send_listener_log)
+                #
+                # sc = self.spark_session.sparkContext
+                # sc._gateway.start_callback_server()
+                # sc._jsc.toSparkContext(sc._jsc).addSparkListener(self.listener)
 
         log.info(_("Minion is using '%s' as Spark master"),
                  self.spark_session.sparkContext.master)

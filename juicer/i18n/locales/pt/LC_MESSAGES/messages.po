@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2018-02-06 17:18-0200\n"
-"PO-Revision-Date: 2018-02-06 17:18-0200\n"
+"POT-Creation-Date: 2018-03-02 14:44-0300\n"
+"PO-Revision-Date: 2018-03-02 14:45-0300\n"
 "Last-Translator: \n"
 "Language-Team: pt_BR <LL@li.org>\n"
 "Language: pt_BR\n"
@@ -71,7 +71,7 @@ msgstr "Esperando que os greenlets da conexão Regis terminem..."
 msgid "All Redis connection greenlets terminated. Duration: %.2f s."
 msgstr "Todos os greenlets da conexão Regis foram encerrados. Duração: %.2f s."
 
-#: juicer/operation.py:74 juicer/spark/vis_operation.py:195
+#: juicer/operation.py:74 juicer/spark/vis_operation.py:196
 msgid "Method generate_code should be implemented in {} subclass"
 msgstr "Método generate_code pode ser implementado na subclasse {}"
 
@@ -94,18 +94,18 @@ msgstr "Esta implementação de rastreabilidade não suporta entradas múltiplas
 #: juicer/compss/text_operation.py:212 juicer/spark/data_operation.py:58
 #: juicer/spark/data_operation.py:568 juicer/spark/data_operation.py:677
 #: juicer/spark/data_quality_operation.py:18 juicer/spark/etl_operation.py:93
-#: juicer/spark/etl_operation.py:197 juicer/spark/etl_operation.py:458
-#: juicer/spark/etl_operation.py:495 juicer/spark/etl_operation.py:502
-#: juicer/spark/etl_operation.py:580 juicer/spark/etl_operation.py:678
-#: juicer/spark/etl_operation.py:734 juicer/spark/feature_operation.py:27
+#: juicer/spark/etl_operation.py:197 juicer/spark/etl_operation.py:461
+#: juicer/spark/etl_operation.py:498 juicer/spark/etl_operation.py:505
+#: juicer/spark/etl_operation.py:583 juicer/spark/etl_operation.py:681
+#: juicer/spark/etl_operation.py:737 juicer/spark/feature_operation.py:27
 #: juicer/spark/geo_operation.py:34 juicer/spark/ml_operation.py:37
 #: juicer/spark/ml_operation.py:152 juicer/spark/ml_operation.py:159
 #: juicer/spark/ml_operation.py:216 juicer/spark/ml_operation.py:272
 #: juicer/spark/ml_operation.py:582 juicer/spark/ml_operation.py:598
-#: juicer/spark/ml_operation.py:1168 juicer/spark/ml_operation.py:2441
-#: juicer/spark/ml_operation.py:2446 juicer/spark/ml_operation.py:2491
-#: juicer/spark/ml_operation.py:2497 juicer/spark/statistic_operation.py:21
-#: juicer/spark/statistic_operation.py:56 juicer/spark/text_operation.py:32
+#: juicer/spark/ml_operation.py:1170 juicer/spark/ml_operation.py:2443
+#: juicer/spark/ml_operation.py:2448 juicer/spark/ml_operation.py:2493
+#: juicer/spark/ml_operation.py:2499 juicer/spark/statistic_operation.py:28
+#: juicer/spark/statistic_operation.py:187 juicer/spark/text_operation.py:32
 #: juicer/spark/text_operation.py:104 juicer/spark/text_operation.py:222
 #: juicer/spark/text_operation.py:357 juicer/spark/text_operation.py:364
 msgid "Parameter '{}' must be informed for task {}"
@@ -124,10 +124,10 @@ msgstr "Parâmetros '{}' devem ser informados para a tarefa {}"
 #: juicer/compss/etl_operation.py:28 juicer/compss/etl_operation.py:365
 #: juicer/compss/etl_operation.py:746 juicer/compss/ml_operation.py:30
 #: juicer/compss/ml_operation.py:138 juicer/compss/ml_operation.py:147
-#: juicer/compss/model_operation.py:80 juicer/spark/ml_operation.py:730
-#: juicer/spark/ml_operation.py:1490 juicer/spark/ml_operation.py:1525
-#: juicer/spark/ml_operation.py:1662 juicer/spark/ml_operation.py:1692
-#: juicer/spark/ml_operation.py:1729 juicer/spark/ml_operation.py:1854
+#: juicer/compss/model_operation.py:80 juicer/spark/ml_operation.py:732
+#: juicer/spark/ml_operation.py:1492 juicer/spark/ml_operation.py:1527
+#: juicer/spark/ml_operation.py:1664 juicer/spark/ml_operation.py:1694
+#: juicer/spark/ml_operation.py:1731 juicer/spark/ml_operation.py:1856
 msgid "Parameters '{}' and '{}' must be informed for task {}"
 msgstr "Parâmetros '{}' e '{}' devem ser informado para a tarefa {}"
 
@@ -145,53 +145,53 @@ msgstr ""
 "Erro não tratado (%s) \n"
 ">%s"
 
-#: juicer/compss/compss_minion.py:130 juicer/spark/spark_minion.py:261
+#: juicer/compss/compss_minion.py:130 juicer/spark/spark_minion.py:270
 #, python-format
 msgid "Processing message %s for app %s"
 msgstr "Processando a mesangem %s para a aplicação %s"
 
-#: juicer/compss/compss_minion.py:144 juicer/spark/spark_minion.py:276
+#: juicer/compss/compss_minion.py:144 juicer/spark/spark_minion.py:285
 msgid "Running job with lang {}/{}"
 msgstr "Executando o job usando o idioma {}/{}"
 
-#: juicer/compss/compss_minion.py:167 juicer/spark/spark_minion.py:299
+#: juicer/compss/compss_minion.py:167 juicer/spark/spark_minion.py:308
 msgid "Execute message finished"
 msgstr "Mensagem de execução finalizada"
 
-#: juicer/compss/compss_minion.py:173 juicer/spark/spark_minion.py:320
+#: juicer/compss/compss_minion.py:173 juicer/spark/spark_minion.py:329
 #, python-format
 msgid "Terminate message received (job_id=%s)"
 msgstr "Mensagem de término recebida (job_id=%s)"
 
-#: juicer/compss/compss_minion.py:177 juicer/spark/spark_minion.py:324
+#: juicer/compss/compss_minion.py:177 juicer/spark/spark_minion.py:333
 #, python-format
 msgid "Terminate message received (app=%s)"
 msgstr "Mensagem de término recebida (app=%s)"
 
 #: juicer/compss/compss_minion.py:185 juicer/compss/compss_minion.py:186
-#: juicer/runner/juicer_server.py:112 juicer/spark/spark_minion.py:332
-#: juicer/spark/spark_minion.py:333
+#: juicer/runner/juicer_server.py:112 juicer/spark/spark_minion.py:341
+#: juicer/spark/spark_minion.py:342
 #, python-format
 msgid "Unknown message type %s"
 msgstr "Tipo da mensagem desconhecido %s"
 
-#: juicer/compss/compss_minion.py:207 juicer/spark/spark_minion.py:362
+#: juicer/compss/compss_minion.py:207 juicer/spark/spark_minion.py:371
 msgid "Running job"
 msgstr "Executando tarefa"
 
-#: juicer/compss/compss_minion.py:247 juicer/spark/spark_minion.py:407
+#: juicer/compss/compss_minion.py:247 juicer/spark/spark_minion.py:416
 msgid "Job finished in {0:.2f}s"
 msgstr "Job executado em {0:.2f}s"
 
-#: juicer/compss/compss_minion.py:266 juicer/spark/spark_minion.py:427
+#: juicer/compss/compss_minion.py:266 juicer/spark/spark_minion.py:436
 msgid "Invalid or missing parameters: {}"
 msgstr "Parâmetro inválido ou ausente: {}"
 
-#: juicer/compss/compss_minion.py:294 juicer/spark/spark_minion.py:451
+#: juicer/compss/compss_minion.py:294 juicer/spark/spark_minion.py:460
 msgid "Unhandled error"
 msgstr "Erro não tratado"
 
-#: juicer/compss/compss_minion.py:430 juicer/spark/spark_minion.py:750
+#: juicer/compss/compss_minion.py:430 juicer/spark/spark_minion.py:759
 #, python-format
 msgid "Spark minion (workflow_id=%s,app_id=%s) started (pid=%s)"
 msgstr "Spark minion (workflow_id=%s, app_id=%s) iniciou (pid=%s)"
@@ -561,42 +561,42 @@ msgstr "Extensões do Lemonade para Spark não foram encontradas no CLASSPATH."
 msgid "Parameter '{}' must be in range [0, 100] for task {}"
 msgstr "Parâmetro '{}' deve estar entre [0,100] para a tarefa {}"
 
-#: juicer/spark/etl_operation.py:305 juicer/spark/etl_operation.py:409
+#: juicer/spark/etl_operation.py:308 juicer/spark/etl_operation.py:412
 msgid "Parameters '{}' and {} must be informed for task {}"
 msgstr "Parâmetro '{}' e {} devem ser informado para a tarefa {}"
 
-#: juicer/spark/etl_operation.py:518 juicer/spark/etl_operation.py:524
+#: juicer/spark/etl_operation.py:521 juicer/spark/etl_operation.py:527
 msgid "Parameter '{}' for task '{}' must be a number or enclosed in quotes."
 msgstr ""
 "Parâmetro '{}' para a tarefa '{}' deve ser numérico ou estar entre aspas."
 
-#: juicer/spark/etl_operation.py:549
+#: juicer/spark/etl_operation.py:552
 msgid "Value and replacement must be of the same type for all attributes"
 msgstr ""
 "O valor a ser substituído e a substituição devem ser do mesmo tipo para "
 "todos os atributos"
 
-#: juicer/spark/etl_operation.py:585
+#: juicer/spark/etl_operation.py:588
 msgid "Missing parameter in aggregation function"
 msgstr "Parâmetro ausente na função de agregação"
 
-#: juicer/spark/etl_operation.py:835
+#: juicer/spark/etl_operation.py:838
 msgid "Parameter '{}' has an incorrect value '{}' in {}"
 msgstr "Parâmetro '{}' tem um valor incorreto '{}' in {}"
 
-#: juicer/spark/etl_operation.py:911
+#: juicer/spark/etl_operation.py:914
 msgid "Required parameters must be informed for task {}"
 msgstr "Parâmetro necessário deve ser informado para a tarefa {}"
 
-#: juicer/spark/etl_operation.py:954 juicer/spark/etl_operation.py:1048
+#: juicer/spark/etl_operation.py:957 juicer/spark/etl_operation.py:1051
 msgid "Required parameter {} must be informed for task {}"
 msgstr "Parâmetro obrigatório {} deve ser informado para tarefa {}"
 
-#: juicer/spark/etl_operation.py:1054
+#: juicer/spark/etl_operation.py:1057
 msgid "Invalid query. Only SELECT is allowed."
 msgstr "Consulta inválida. Apenas SELECT é permitido."
 
-#: juicer/spark/etl_operation.py:1110
+#: juicer/spark/etl_operation.py:1113
 msgid ""
 "Invalid names. Number of attributes in result differs from names informed."
 msgstr ""
@@ -632,7 +632,7 @@ msgid "Parameter type has an invalid value {}"
 msgstr "Tipo de parâmetro tem um valor inválido {}"
 
 #: juicer/spark/ml_operation.py:306 juicer/spark/ml_operation.py:394
-#: juicer/spark/ml_operation.py:744
+#: juicer/spark/ml_operation.py:746
 msgid "Model is being used, but at least one input is missing"
 msgstr "Model está sendo usado, mas falta pelo menos uma entrada."
 
@@ -652,43 +652,43 @@ msgstr "Resultado da avaliação"
 msgid "Metric"
 msgstr "Métrica"
 
-#: juicer/spark/ml_operation.py:529 juicer/spark/ml_operation.py:809
+#: juicer/spark/ml_operation.py:529 juicer/spark/ml_operation.py:811
 msgid "Value"
 msgstr "Valor"
 
-#: juicer/spark/ml_operation.py:808
+#: juicer/spark/ml_operation.py:810
 msgid "Generated classification model parameters"
 msgstr "Parâmetros gerados para o modelo de classificação"
 
-#: juicer/spark/ml_operation.py:809
+#: juicer/spark/ml_operation.py:811
 msgid "Parameter"
 msgstr "Parâmetro"
 
-#: juicer/spark/ml_operation.py:863 juicer/spark/ml_operation.py:1918
-#: juicer/spark/ml_operation.py:1996 juicer/spark/ml_operation.py:2059
-#: juicer/spark/ml_operation.py:2118 juicer/spark/ml_operation.py:2172
+#: juicer/spark/ml_operation.py:865 juicer/spark/ml_operation.py:1920
+#: juicer/spark/ml_operation.py:1998 juicer/spark/ml_operation.py:2061
+#: juicer/spark/ml_operation.py:2120 juicer/spark/ml_operation.py:2174
 msgid "Parameter output must be informed for classifier {}"
 msgstr "Parâmetro de saída deve ser informado para o classificador {}"
 
-#: juicer/spark/ml_operation.py:1316
+#: juicer/spark/ml_operation.py:1318
 msgid "Invalid optimizer value {} for class {}"
 msgstr "Valor de optimizer inválido {} para classe {}"
 
-#: juicer/spark/ml_operation.py:1388
+#: juicer/spark/ml_operation.py:1390
 msgid "Invalid type {} for class {}"
 msgstr "Tipo inválido {} para a classe {}"
 
-#: juicer/spark/ml_operation.py:2271
+#: juicer/spark/ml_operation.py:2273
 msgid "Missing parameters. Check if values for parameters {} were informed"
 msgstr ""
 "Parâmetros ausentes. Verifique se os valores para os parâmetros {} foram "
 "informados"
 
-#: juicer/spark/ml_operation.py:2283 juicer/spark/ml_operation.py:2291
+#: juicer/spark/ml_operation.py:2285 juicer/spark/ml_operation.py:2293
 msgid "Invalid value for parameter {param}: {value}"
 msgstr "Valor inválido para o parâmetro {param}: {value}"
 
-#: juicer/spark/ml_operation.py:2503
+#: juicer/spark/ml_operation.py:2505
 msgid "Invalid type '{}' for class {}"
 msgstr "Tipo inválido '{}' para classe {}"
 
@@ -721,11 +721,15 @@ msgstr "Terminar o minion"
 msgid "Pressed CTRL+C / SIGINT. Minion canceled the job."
 msgstr "CTRL+C/SIGINT pressionado. Minion cancelou o job."
 
-#: juicer/spark/spark_minion.py:246
+#: juicer/spark/spark_minion.py:251
+msgid "Unsupported cluster type, it cannot run Spark applications."
+msgstr "Tipo de cluster não suportado, ele não pode executar aplicações Spark."
+
+#: juicer/spark/spark_minion.py:255
 msgid "Invalid message JSON: {}"
 msgstr "Mensagem JSON inválida: {}"
 
-#: juicer/spark/spark_minion.py:356
+#: juicer/spark/spark_minion.py:365
 msgid ""
 "Running job, but it requires allocation of cluster computers first and it "
 "takes time."
@@ -733,117 +737,121 @@ msgstr ""
 "Executando o job, mas ele requer alocação dos computadores no cluster e isto "
 "leva tempo."
 
-#: juicer/spark/spark_minion.py:465
+#: juicer/spark/spark_minion.py:474
 msgid "Minion is configured to stop Spark after each execution"
 msgstr "Minion está configurado para parar o Spark após cada execução"
 
-#: juicer/spark/spark_minion.py:493
+#: juicer/spark/spark_minion.py:502
 msgid "Creating a new Spark session"
 msgstr "Criando um nova sessão Spark"
 
-#: juicer/spark/spark_minion.py:504
+#: juicer/spark/spark_minion.py:513
 #, python-format
 msgid "Setting spark configuration %s"
 msgstr "Ajustando as configurações do spark %s"
 
-#: juicer/spark/spark_minion.py:573
+#: juicer/spark/spark_minion.py:582
 #, python-format
 msgid "Minion is using '%s' as Spark master"
 msgstr "Minion está usando '%s\" como mestre Spark"
 
-#: juicer/spark/statistic_operation.py:67
+#: juicer/spark/statistic_operation.py:36
 msgid "Kaplar-Meier survival"
 msgstr "Kaplar-Meier survival"
 
-#: juicer/spark/statistic_operation.py:170
+#: juicer/spark/statistic_operation.py:155
 msgid "KM_estimate"
 msgstr "KM_estimate"
 
-#: juicer/spark/statistic_operation.py:171
+#: juicer/spark/statistic_operation.py:156
 msgid "value"
 msgstr "valor"
 
-#: juicer/spark/statistic_operation.py:172
+#: juicer/spark/statistic_operation.py:157
 msgid "timeline"
 msgstr "linha temporal"
+
+#: juicer/spark/statistic_operation.py:198
+msgid "Cox Proportional Hazard"
+msgstr "Cox Proportional Hazard"
 
 #: juicer/spark/text_operation.py:253 juicer/spark/text_operation.py:334
 msgid "Invalid type '{}' for task {}"
 msgstr "Tipo inválido '{}' para a tarefa {}"
 
-#: juicer/spark/vis_operation.py:372 juicer/spark/vis_operation.py:386
+#: juicer/spark/vis_operation.py:373 juicer/spark/vis_operation.py:387
 msgid "Should be implemented in derived classes"
 msgstr "Deve estar implementado em classes derivadas"
 
-#: juicer/spark/vis_operation.py:426
+#: juicer/spark/vis_operation.py:427
 msgid "X-axis attribute not specified"
 msgstr "Atributo do Eixo-X não especificado"
 
-#: juicer/spark/vis_operation.py:434
+#: juicer/spark/vis_operation.py:435
 msgid "Attribute {} for X-axis does not exist in ({})"
 msgstr "Atributo {} para o eixo-X não existe em ({})"
 
-#: juicer/spark/vis_operation.py:437
+#: juicer/spark/vis_operation.py:438
 msgid "At least one attribute for Y-axis does not exist: {}"
 msgstr "Pelo menos um atributo para o eixo-Y não existe: {}"
 
-#: juicer/spark/vis_operation.py:537
+#: juicer/spark/vis_operation.py:538
 msgid "The maximum number of values for x-axis is 100."
 msgstr "O número máximo de valores para o eixo-x é 100."
 
-#: juicer/spark/vis_operation.py:572
+#: juicer/spark/vis_operation.py:573
 msgid "Attribute {} does not exist in ({})"
 msgstr "Atributo {} não existe em ({})"
 
-#: juicer/spark/vis_operation.py:580
+#: juicer/spark/vis_operation.py:581
 msgid "Attribute {} for label does not exist in ({})"
 msgstr "Atributo {} para o label não existe em ({})"
 
-#: juicer/spark/vis_operation.py:623
+#: juicer/spark/vis_operation.py:624
 msgid "The maximum number of values for this chart is 100."
 msgstr "O número máximo para valores para este gráfico é 100."
 
-#: juicer/spark/vis_operation.py:949
+#: juicer/spark/vis_operation.py:950
 msgid "attribute"
 msgstr "atributo"
 
-#: juicer/spark/vis_operation.py:949
+#: juicer/spark/vis_operation.py:950
 msgid "max"
 msgstr "máximo"
 
-#: juicer/spark/vis_operation.py:949
+#: juicer/spark/vis_operation.py:950
 msgid "min"
 msgstr "mínimo"
 
-#: juicer/spark/vis_operation.py:949
+#: juicer/spark/vis_operation.py:950
 msgid "std. dev."
 msgstr "desvio padrão"
 
-#: juicer/spark/vis_operation.py:950
+#: juicer/spark/vis_operation.py:951
 msgid "count"
 msgstr "contagem"
 
-#: juicer/spark/vis_operation.py:950
+#: juicer/spark/vis_operation.py:951
 msgid "avg"
 msgstr "média"
 
-#: juicer/spark/vis_operation.py:951
+#: juicer/spark/vis_operation.py:952
 msgid "approx. distinct"
 msgstr "distintos (aproximado)"
 
-#: juicer/spark/vis_operation.py:951
+#: juicer/spark/vis_operation.py:952
 msgid "missing"
 msgstr "ausentes"
 
-#: juicer/spark/vis_operation.py:951
+#: juicer/spark/vis_operation.py:952
 msgid "skewness"
 msgstr "assimetria (skewness)"
 
-#: juicer/spark/vis_operation.py:952
+#: juicer/spark/vis_operation.py:953
 msgid "kurtosis"
 msgstr "curtose (kurtosis)"
 
-#: juicer/spark/vis_operation.py:955
+#: juicer/spark/vis_operation.py:956
 msgid "correlation to {} (Pearson)"
 msgstr "correlação com {} (Pearson)"
 
