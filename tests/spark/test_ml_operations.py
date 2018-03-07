@@ -737,8 +737,8 @@ def test_classification_model_operation_missing_features_failure():
     params = {
         ClassificationModelOperation.LABEL_ATTRIBUTE_PARAM: 'label'
     }
-    n_in = {}
-    n_out = {}
+    n_in = {'a': 'a', 'b': 'b'}
+    n_out = {'c': 'c'}
 
     with pytest.raises(ValueError):
         ClassificationModelOperation(
