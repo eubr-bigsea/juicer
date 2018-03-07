@@ -130,19 +130,26 @@ class RemoveDuplicatedOperation(Operation):
 
         self.has_code = any(
             [len(self.named_inputs) == 1, self.contains_results()])
+        self.output = self.named_outputs.get('output data',
+                                             'dedup_data_{}'.format(
+                                                 self.order))
+
+    def get_output_names(self, sep=", "):
+        return self.output
+
+    def get_data_out_names(self, sep=','):
+        return self.output
 
     def generate_code(self):
-        output = self.named_outputs.get('output data', 'dedup_data_{}'.format(
-            self.order))
         input_data = self.named_inputs['input data']
 
         if self.attributes:
             code = "{output} = {input}.dropDuplicates(subset={attrs})".format(
-                output=output, input=input_data,
+                output=self.output, input=input_data,
                 attrs=json.dumps(self.attributes))
         else:
             code = "{out} = {input}.dropDuplicates()".format(
-                out=output, input=input_data)
+                out=self.output, input=input_data)
         return dedent(code)
 
 
@@ -245,16 +252,29 @@ class IntersectionOperation(Operation):
         self.parameters = parameters
         self.has_code = any(
             [len(self.named_inputs) == 2, self.contains_results()])
+        self.output = self.named_outputs.get(
+            'output data', 'out_{}'.format(self.order))
+
+    def get_output_names(self, sep=", "):
+        return self.output
+
+    def get_data_out_names(self, sep=','):
+        return self.output
 
     def generate_code(self):
-        output = self.named_outputs.get(
-            'output data', 'intersected_data_{}'.format(self.order))
-
         input_data1 = self.named_inputs['input data 1']
         input_data2 = self.named_inputs['input data 2']
 
-        code = "{out} = {in1}.intersect({in2})".format(
-            out=output, in1=input_data1, in2=input_data2)
+        code = dedent(
+            """
+            if len({in1}.columns) != len({in2}.columns):
+                raise ValueError('{error}')
+            {out} = {in1}.intersect({in2})
+            """.format(out=self.output, in1=input_data1, in2=input_data2,
+                       error=_(
+                           'For intersection operation, both input data '
+                           'sources must have the same number of attributes '
+                           'and types.')))
         return dedent(code)
 
 
