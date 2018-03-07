@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2018-03-07 14:47-0300\n"
-"PO-Revision-Date: 2018-03-07 14:47-0300\n"
+"POT-Creation-Date: 2018-03-07 15:28-0300\n"
+"PO-Revision-Date: 2018-03-07 15:29-0300\n"
 "Last-Translator: \n"
 "Language-Team: pt_BR <LL@li.org>\n"
 "Language: pt_BR\n"
@@ -94,10 +94,10 @@ msgstr "Esta implementação de rastreabilidade não suporta entradas múltiplas
 #: juicer/compss/text_operation.py:212 juicer/spark/data_operation.py:58
 #: juicer/spark/data_operation.py:568 juicer/spark/data_operation.py:677
 #: juicer/spark/data_quality_operation.py:18 juicer/spark/etl_operation.py:93
-#: juicer/spark/etl_operation.py:204 juicer/spark/etl_operation.py:480
-#: juicer/spark/etl_operation.py:517 juicer/spark/etl_operation.py:524
-#: juicer/spark/etl_operation.py:602 juicer/spark/etl_operation.py:700
-#: juicer/spark/etl_operation.py:756 juicer/spark/feature_operation.py:27
+#: juicer/spark/etl_operation.py:204 juicer/spark/etl_operation.py:481
+#: juicer/spark/etl_operation.py:518 juicer/spark/etl_operation.py:525
+#: juicer/spark/etl_operation.py:603 juicer/spark/etl_operation.py:701
+#: juicer/spark/etl_operation.py:757 juicer/spark/feature_operation.py:27
 #: juicer/spark/geo_operation.py:34 juicer/spark/ml_operation.py:37
 #: juicer/spark/ml_operation.py:152 juicer/spark/ml_operation.py:159
 #: juicer/spark/ml_operation.py:216 juicer/spark/ml_operation.py:272
@@ -569,42 +569,42 @@ msgstr ""
 "Para a operação de interseção, ambas as fontes de dados devem ter o mesmo "
 "número de atributos e tipos correspondentes."
 
-#: juicer/spark/etl_operation.py:327 juicer/spark/etl_operation.py:431
+#: juicer/spark/etl_operation.py:328 juicer/spark/etl_operation.py:432
 msgid "Parameters '{}' and {} must be informed for task {}"
 msgstr "Parâmetro '{}' e {} devem ser informado para a tarefa {}"
 
-#: juicer/spark/etl_operation.py:540 juicer/spark/etl_operation.py:546
+#: juicer/spark/etl_operation.py:541 juicer/spark/etl_operation.py:547
 msgid "Parameter '{}' for task '{}' must be a number or enclosed in quotes."
 msgstr ""
 "Parâmetro '{}' para a tarefa '{}' deve ser numérico ou estar entre aspas."
 
-#: juicer/spark/etl_operation.py:571
+#: juicer/spark/etl_operation.py:572
 msgid "Value and replacement must be of the same type for all attributes"
 msgstr ""
 "O valor a ser substituído e a substituição devem ser do mesmo tipo para "
 "todos os atributos"
 
-#: juicer/spark/etl_operation.py:607
+#: juicer/spark/etl_operation.py:608
 msgid "Missing parameter in aggregation function"
 msgstr "Parâmetro ausente na função de agregação"
 
-#: juicer/spark/etl_operation.py:857
+#: juicer/spark/etl_operation.py:858
 msgid "Parameter '{}' has an incorrect value '{}' in {}"
 msgstr "Parâmetro '{}' tem um valor incorreto '{}' in {}"
 
-#: juicer/spark/etl_operation.py:933
+#: juicer/spark/etl_operation.py:934
 msgid "Required parameters must be informed for task {}"
 msgstr "Parâmetro necessário deve ser informado para a tarefa {}"
 
-#: juicer/spark/etl_operation.py:976 juicer/spark/etl_operation.py:1070
+#: juicer/spark/etl_operation.py:977 juicer/spark/etl_operation.py:1071
 msgid "Required parameter {} must be informed for task {}"
 msgstr "Parâmetro obrigatório {} deve ser informado para tarefa {}"
 
-#: juicer/spark/etl_operation.py:1076
+#: juicer/spark/etl_operation.py:1077
 msgid "Invalid query. Only SELECT is allowed."
 msgstr "Consulta inválida. Apenas SELECT é permitido."
 
-#: juicer/spark/etl_operation.py:1132
+#: juicer/spark/etl_operation.py:1133
 msgid ""
 "Invalid names. Number of attributes in result differs from names informed."
 msgstr ""
@@ -739,7 +739,7 @@ msgstr "Tipo de cluster não suportado, ele não pode executar aplicações Spar
 
 #: juicer/spark/spark_minion.py:285
 msgid "Cluster configuration changed. Stopping previous cluster."
-msgstr ""
+msgstr "Configuração do cluster alterada. Parando o cluster anterior."
 
 #: juicer/spark/spark_minion.py:408
 msgid ""
@@ -895,27 +895,27 @@ msgstr "Schema para {}"
 msgid "Sample data for {}"
 msgstr "Amostra de dados para {}"
 
-#: juicer/util/dataframe_util.py:257
+#: juicer/util/dataframe_util.py:256
 msgid "Attribute {} not found. Valid attributes: {}"
 msgstr "Atributo {} não encontrado. Atributos válidos: {}"
 
-#: juicer/util/dataframe_util.py:268
+#: juicer/util/dataframe_util.py:267
 msgid ""
 "Attribute {attr} must be one of these types [{correct}], but it is {used}"
 msgstr ""
 "Atributo {attr} deve ser de um destes tipo: [{correct}. mas ele é do do tipo "
 "{used}"
 
-#: juicer/util/dataframe_util.py:284
+#: juicer/util/dataframe_util.py:287
 msgid "Invalid numeric data in at least one data source (value: {})"
 msgstr ""
 "Dados numéricos inválidos em pelo menos uma das fontes de dados (valor: {})"
 
-#: juicer/util/dataframe_util.py:288
+#: juicer/util/dataframe_util.py:291
 msgid "At least one input data source is not in the correct format."
 msgstr "Pelo menos uma fonte de dados de entrada não está no formato correto."
 
-#: juicer/util/dataframe_util.py:292
+#: juicer/util/dataframe_util.py:295
 msgid ""
 "There is null values in your data set and Spark cannot handle them. Please, "
 "remove them before applying a data transformation."
@@ -923,7 +923,19 @@ msgstr ""
 "Existem valores nulos no conjunto de dados e o Spark não consegue tratá-los. "
 "Por favor, remova-os antes de aplicar a transformação."
 
-#: juicer/util/dataframe_util.py:305
+#: juicer/util/dataframe_util.py:302
+msgid ""
+"Cannot read data from the data source. In this case, it may be a "
+"configuration problem with HDFS. Please, check if HDFS namenode is up and "
+"you correctly configured the option dfs.client.use.datanode.hostname in "
+"Juicer' config."
+msgstr ""
+"Não foi possível ler dados da fonte de dados. Neste caso, pode ser um "
+"problema com a configuração do HDFS. Por favor, verifique se o servidor "
+"namenode do HDFS está executando e se você configurou corretamente a opção "
+"dfs.client.use.datanode.hostname na configuração do Juicer."
+
+#: juicer/util/dataframe_util.py:315
 msgid ""
 "CSV format does not support the data type {}. Try to convert the attribute "
 "to string (see to_json()) before saving."
