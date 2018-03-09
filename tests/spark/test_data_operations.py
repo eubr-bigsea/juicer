@@ -38,7 +38,7 @@ def test_data_reader_minimal_parameters_no_attributes_success():
                                .option('multiLine', True)\\
                                .option('escape', '"')\\
                                .csv(url, schema=schema_output_1,
-                                    quote=None,
+                                    quote=None, encoding='UTF-8',
                                     header=False, sep=',',
                                     inferSchema=False, mode='FAILFAST')
         {output}.cache()
