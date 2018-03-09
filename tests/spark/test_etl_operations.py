@@ -339,9 +339,18 @@ def test_intersection_minimal_params_success():
                                      named_outputs=n_out)
 
     code = instance.generate_code()
-    expected_code = "{out} = {in1}.intersect({in2})".format(
-        out=n_out['output data'], in1=n_in['input data 1'],
-        in2=n_in['input data 2'])
+    expected_code = dedent(
+        """
+        if len(df1.columns) != len(df2.columns):
+            raise ValueError('{error}')
+        {out} = {in1}.intersect({in2})
+        """.format(
+            out=n_out['output data'], in1=n_in['input data 1'],
+            in2=n_in['input data 2'],
+            error=(
+                'For intersection operation, both input data '
+                'sources must have the same number of attributes '
+                'and types.')))
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
     assert result, msg + format_code_comparison(code, expected_code)
 
