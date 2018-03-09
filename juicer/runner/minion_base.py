@@ -34,6 +34,8 @@ class Minion:
         self.MNN007 = ('MNN007', _('Job {} was canceled'))
         self.MNN008 = ('MNN008', _('App {} was terminated'))
         self.MNN009 = ('MNN009', _('Workflow specification is missing'))
+        self.MNN010 = ('MNN010', _(
+            'Task completed, but not executed (not used in the workflow).'))
 
         # Used in the template file, declared here to gettext detect them
         self.msgs = [
