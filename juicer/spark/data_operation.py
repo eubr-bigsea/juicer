@@ -141,13 +141,18 @@ class DataReaderOperation(Operation):
                      set(null_values)]) if null_values else ""
 
                 if self.metadata['format'] == 'CSV':
+                    encoding = self.metadata.get('encoding', 'UTF-8')
+                    # Spark does not works with encoding + multiline options
+                    # See https://github.com/databricks/spark-csv/issues/448
                     code_csv = dedent("""
                         {output} = spark_session.read{null_option}.option(
                             'treatEmptyValuesAsNulls', 'true').option(
-                            'wholeFile', True).option('multiLine', True).option(
-                            'escape', '"').csv(
+                            'wholeFile', True).option(
+                                'multiLine', {multiline}).option('escape',
+                                    '"').csv(
                                 url, schema=schema_{output},
                                 quote={quote},
+                                encoding='{encoding}',
                                 header={header}, sep='{sep}',
                                 inferSchema={infer_schema},
                                 mode='{mode}')""".format(
@@ -159,7 +164,9 @@ class DataReaderOperation(Operation):
                             self.quote),
                         infer_schema=infer_from_data,
                         null_option=null_option,
-                        mode=self.mode
+                        mode=self.mode,
+                        encoding=encoding,
+                        multiline=encoding in ('UTF-8', 'UTF8')
                     ))
                     code.append(code_csv)
                 else:
