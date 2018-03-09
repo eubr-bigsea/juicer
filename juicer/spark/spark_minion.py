@@ -269,7 +269,8 @@ class SparkMinion(Minion):
             # Checks if it's a valid cluster
             job_id = msg_info['job_id']
             cluster_info = msg_info.get('cluster', {})
-            if cluster_info.get('type') not in ('SPARK_LOCAL', 'MESOS', 'YARN'):
+            if cluster_info.get('type', 'SPARK_LOCAL') not in (
+                    'SPARK_LOCAL', 'MESOS', 'YARN'):
                 self._emit_event(room=job_id, namespace='/stand')(
                     name='update job',
                     message=_('Unsupported cluster type, '
