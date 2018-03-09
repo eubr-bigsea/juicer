@@ -1,1 +1,12 @@
 .git
+.idea
+libs
+logs
+metastore_db
+tests
+venv
+*.jar
+*.pyc
+*.py
+*.iml
+*.log
