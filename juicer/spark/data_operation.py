@@ -49,7 +49,9 @@ class DataReaderOperation(Operation):
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
-        self.has_code = len(self.named_outputs) > 0 or True
+        self.has_code = any(
+            [len(self.named_outputs) > 0, self.contains_results()])
+
         if self.has_code:
             if self.DATA_SOURCE_ID_PARAM in parameters:
                 self._set_data_source_parameters(parameters)
@@ -141,7 +143,7 @@ class DataReaderOperation(Operation):
                      set(null_values)]) if null_values else ""
 
                 if self.metadata['format'] == 'CSV':
-                    encoding = self.metadata.get('encoding', 'UTF-8')
+                    encoding = self.metadata.get('encoding', 'UTF-8') or 'UTF-8'
                     # Spark does not works with encoding + multiline options
                     # See https://github.com/databricks/spark-csv/issues/448
                     code_csv = dedent("""
@@ -152,7 +154,7 @@ class DataReaderOperation(Operation):
                                     '"').csv(
                                 url, schema=schema_{output},
                                 quote={quote},
-                                encoding=encoding,
+                                encoding='{encoding}',
                                 header={header}, sep='{sep}',
                                 inferSchema={infer_schema},
                                 mode='{mode}')""".format(
