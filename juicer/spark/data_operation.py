@@ -152,7 +152,7 @@ class DataReaderOperation(Operation):
                                     '"').csv(
                                 url, schema=schema_{output},
                                 quote={quote},
-                                encoding='{encoding}',
+                                encoding=encoding,
                                 header={header}, sep='{sep}',
                                 inferSchema={infer_schema},
                                 mode='{mode}')""".format(
@@ -166,7 +166,7 @@ class DataReaderOperation(Operation):
                         null_option=null_option,
                         mode=self.mode,
                         encoding=encoding,
-                        multiline=encoding in ('UTF-8', 'UTF8')
+                        multiline=encoding in ('UTF-8', 'UTF8', '')
                     ))
                     code.append(code_csv)
                 else:
