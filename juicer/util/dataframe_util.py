@@ -134,6 +134,9 @@ def emit_sample(task_id, df, emit_event, name, size=50):
                 value = str(col)
             else:
                 value = json.dumps(col, cls=CustomEncoder)
+            # truncate column if size is bigger than 200 chars.
+            if len(value) > 200:
+                value = value[:150] + ' ... ' + value[-50:]
             new_row.append(value)
 
     content = SimpleTableReport(
