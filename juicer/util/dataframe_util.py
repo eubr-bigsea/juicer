@@ -270,7 +270,7 @@ def handle_spark_exception(e):
                 ))
     elif hasattr(e, 'java_exception'):
         cause = e.java_exception.getCause()
-        while cause.getCause() is not None:
+        while cause is not None and cause.getCause() is not None:
             cause = cause.getCause()
 
         if cause is not None:
