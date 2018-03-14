@@ -5,12 +5,16 @@ ENV SPARK_HOME /usr/local/spark
 ENV JUICER_HOME /usr/local/juicer
 ENV PYTHONPATH $PYTHONPATH:$JUICER_HOME:$SPARK_HOME/python
 
-RUN apt-get update && apt-get install -y \
+RUN apt-key adv --keyserver keyserver.ubuntu.com --recv E56151BF \
+  && echo deb http://repos.mesosphere.io/ubuntu trusty main > /etc/apt/sources.list.d/mesosphere.list \
+
+  && apt-get update && apt-get install -y --no-install-recommends \
       python-pip \
       python-tk \
       openjdk-8-jdk \
       curl \
       locales \
+      mesos \
   && sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen \
   && locale-gen \ 
   && update-locale LANG=en_US.UTF-8 \
