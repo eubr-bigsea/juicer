@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from __future__ import unicode_literals
 import ast
 import json
 from textwrap import dedent
@@ -688,7 +689,7 @@ def test_classification_model_operation_success():
             from juicer.spark.reports import SimpleTableReport
             rows = [[m, getattr(model_1, m)] for m in metrics
                 if hasattr(model_1, m)]
-            headers = ['Parameter', 'Value']
+            headers = [u'Parameter', u'Value']
             content = SimpleTableReport(
                 'table table-striped table-bordered table-sm',
                 headers, rows)

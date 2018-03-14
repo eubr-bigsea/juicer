@@ -1,4 +1,5 @@
-# -*- coding: utf-8 -*-
+# coding=utf-8
+from __future__ import unicode_literals
 import decimal
 import itertools
 import json
@@ -808,7 +809,7 @@ class ScatterPlotModel(ChartVisualization):
             series_attr = None
 
         series = {}
-        series_key = '@_ \UNIQUE KEY/ :P_ @'
+        series_key = '@_ \\UNIQUE KEY/ :P_ @'
         if not series_attr:
             series[series_key] = {
                 "id": result['title'],
