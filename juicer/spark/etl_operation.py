@@ -424,17 +424,20 @@ class TransformationOperation(Operation):
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
-        if all(['alias' in parameters, 'expression' in parameters]):
-            self.alias = parameters['alias']
-            self.json_expression = json.loads(parameters['expression'])['tree']
-        else:
-            raise ValueError(
-                _("Parameters '{}' and {} must be informed for task {}").format(
-                    self.ALIAS_PARAM, self.EXPRESSION_PARAM, self.__class__))
         self.has_code = any(
             [len(self.named_inputs) > 0, self.contains_results()])
-        self.output = self.named_outputs.get(
-            'output data', 'sampled_data_{}'.format(self.order))
+        if self.has_code:
+            if all(['alias' in parameters, 'expression' in parameters]):
+                self.alias = parameters['alias']
+                self.json_expression = json.loads(parameters['expression'])[
+                    'tree']
+            else:
+                msg = _("Parameters '{}' and {} must be informed for task {}")
+                raise ValueError(
+                    msg.format(self.ALIAS_PARAM, self.EXPRESSION_PARAM,
+                               self.__class__))
+            self.output = self.named_outputs.get(
+                'output data', 'sampled_data_{}'.format(self.order))
 
     def supports_pipeline(self):
         return True
