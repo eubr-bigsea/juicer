@@ -10,6 +10,13 @@ RUN apt-get update && apt-get install -y \
       python-tk \
       openjdk-8-jdk \
       curl \
+      locales \
+  && sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen \
+  && locale-gen \ 
+  && update-locale LANG=en_US.UTF-8 \
+  && echo "LANG=en_US.UTF-8" >> /etc/default/locale \
+  && echo "LANGUAGE=en_US.UTF-8" >> /etc/default/locale \
+  && echo "LC_ALL=en_US.UTF-8" >> /etc/default/locale \
   && rm -rf /var/lib/apt/lists/*
 
 ENV SPARK_HADOOP_PKG spark-2.2.0-bin-hadoop2.6
@@ -21,6 +28,10 @@ WORKDIR $JUICER_HOME
 COPY requirements.txt $JUICER_HOME
 
 RUN pip install -r $JUICER_HOME/requirements.txt
+
+ENV LC_ALL en_US.UTF-8
+ENV LANG en_US.UTF-8
+ENV LANGUAGE en_US.UTF-8
 
 COPY . $JUICER_HOME
 RUN pybabel compile -d $JUICER_HOME/juicer/i18n/locales
