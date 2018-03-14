@@ -58,6 +58,8 @@ class Expression:
                 tree['test'], tree['consequent'], tree['alternate']
             ]}
             result = self.get_when_function(spec, params)
+        elif tree['type'] == 'Compound':
+            raise ValueError(_("Transformation has an invalid expression."))
         else:
             raise ValueError(_("Unknown type: {}").format(tree['type']))
         return result
