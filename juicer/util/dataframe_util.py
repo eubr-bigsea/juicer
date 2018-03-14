@@ -125,7 +125,7 @@ def emit_sample(task_id, df, emit_event, name, size=50):
         rows.append(new_row)
         for col in row:
             if isinstance(col, str):
-                value = col.decode('latin1')
+                value = col
             elif isinstance(col, unicode):
                 value = col
             elif isinstance(col, (datetime.datetime, datetime.date)):
