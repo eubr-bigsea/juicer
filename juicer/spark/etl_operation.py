@@ -2,7 +2,6 @@
 from __future__ import unicode_literals
 
 import json
-import sys
 import time
 from random import random
 from textwrap import dedent
@@ -1213,18 +1212,22 @@ class WindowTransformationOperation(Operation):
                     raise ValueError(msg.format('tree'), self.__class__)
 
             self.order_by = parameters.get(self.ORDER_BY_PARAM)
-            self.rows_from = parameters.get(self.ROWS_FROM_PARAM, 
+            self.rows_from = parameters.get(
+                self.ROWS_FROM_PARAM,
                 'Window.unboundedPreceding') or 'Window.unboundedPreceding'
-            self.rows_to = parameters.get(self.ROWS_TO_PARAM, 
+            self.rows_to = parameters.get(
+                self.ROWS_TO_PARAM,
                 'Window.unboundedFollowing') or 'Window.unboundedFollowing'
 
-            self.range_from = parameters.get(self.RANGE_FROM_PARAM, 
+            self.range_from = parameters.get(
+                self.RANGE_FROM_PARAM,
                 'Window.unboundedPreceding') or 'Window.unboundedPreceding'
-            self.range_to = parameters.get(self.RANGE_TO_PARAM, 
+            self.range_to = parameters.get(
+                self.RANGE_TO_PARAM,
                 'Window.unboundedFollowing') or 'Window.unboundedFollowing'
 
             self.output = self.named_outputs.get(
-                'output data', 'sampled_data_{}'.format(self.order))
+                'output data', 'data_{}'.format(self.order))
 
     def get_output_names(self, sep=", "):
         return self.output
@@ -1237,9 +1240,11 @@ class WindowTransformationOperation(Operation):
         attributes = []
         for attr in self.order_by:
             if attr['f'] == 'asc':
-                attributes.append("functions.asc('{}')".format(attr['attribute']))
+                attributes.append(
+                    "functions.asc('{}')".format(attr['attribute']))
             else:
-                attributes.append("functions.desc('{}')".format(attr['attribute']))
+                attributes.append(
+                    "functions.desc('{}')".format(attr['attribute']))
 
         if attributes:
             order_attrs = []
@@ -1251,6 +1256,10 @@ class WindowTransformationOperation(Operation):
         rows_code = ''
         range_code = ''
         if self.type == self.ROWS:
+            if self.rows_from > self.rows_to:
+                raise ValueError(_(
+                    'Start of offset must be >= its end: [{}, {}]').format(
+                    self.rows_from, self.rows_to))
             rows_code = ".rowsBetween({rows_from}, {rows_to})".format(
                 rows_from=self.rows_from, rows_to=self.rows_to)
         elif self.type == self.RANGE:
@@ -1274,8 +1283,8 @@ class WindowTransformationOperation(Operation):
             aliases = {aliases}
 
             {out} = {in1}
-            for spec in specs:
-                {out} = {out}.withColumn(spec[1], spec[0])
+            for i, spec in enumerate(specs):
+                {out} = {out}.withColumn(aliases[i], spec)
         """.format(out=self.output, in1=input_data,
                    partition=self.partition_attribute,
                    order_by_code=order_by_code,
