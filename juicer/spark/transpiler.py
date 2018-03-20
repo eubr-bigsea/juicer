@@ -309,6 +309,8 @@ class SparkTranspiler(object):
             'split': juicer.spark.etl_operation.SplitOperation,
             'transformation':
                 juicer.spark.etl_operation.TransformationOperation,
+            'window-transformation':
+                juicer.spark.etl_operation.WindowTransformationOperation,
         }
         dm_ops = {
             'frequent-item-set':
