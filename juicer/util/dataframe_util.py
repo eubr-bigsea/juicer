@@ -258,6 +258,20 @@ def handle_spark_exception(e):
             raise ValueError(
                 _('Attribute {} not found. Valid attributes: {}').format(
                     field, fields.replace(';', '')))
+        else:
+            value_expr = re.compile(r'The data type of the expression in the '
+                                    r'ORDER BY clause should be a numeric type')
+            found = value_expr.findall(unicode(e.desc.split('\n')[0]))
+            if found:
+                raise ValueError(
+                    _('When using Window Operation with range type, the order '
+                      'by attribute must be numeric.'))
+            found = 'This Range Window Frame only accepts ' \
+                    'at most one ORDER BY' in e.desc
+            if found:
+                raise ValueError(
+                    _('When using Window Operation with range type, the order '
+                      'option must include only one attribute.'))
     elif isinstance(e, IllegalArgumentException):
         # Invalid column type
         if 'must be of type equal' in unicode(e.message):

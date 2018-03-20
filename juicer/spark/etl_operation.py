@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
+
 import json
 import time
 from random import random
@@ -1153,3 +1154,143 @@ class TableLookupOperation(Operation):
 
     def generate_code(self):
         pass
+
+
+class WindowTransformationOperation(Operation):
+    """
+    Returns a new DataFrame applying transformations over a window.
+    See documentation about window operations in Spark.
+    """
+
+    PARTITION_ATTRIBUTE_PARAM = 'partition_attribute'
+    ORDER_BY_PARAM = 'order_by'
+    ROWS_FROM_PARAM = 'rows_from'
+    ROWS_TO_PARAM = 'rows_to'
+    RANGE_FROM_PARAM = 'range_from'
+    RANGE_TO_PARAM = 'range_to'
+    EXPRESSIONS_PARAM = 'expressions'
+    TYPE_PARAM = 'type'
+
+    ROWS = 'rows'
+    RANGE = 'range'
+    NONE = 'none'
+    TYPES = (ROWS, RANGE, NONE)
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+        self.has_code = any(
+            [len(self.named_inputs) > 0, self.contains_results()])
+
+        self.partition_attribute = None
+        self.expressions = None
+        if self.has_code:
+            required_params = [self.EXPRESSIONS_PARAM,
+                               self.PARTITION_ATTRIBUTE_PARAM]
+            for required in required_params:
+                if required in parameters:
+                    setattr(self, required, parameters[required])
+                else:
+                    msg = _("Parameter '{}' must be informed for task {}")
+                    raise ValueError(msg.format(required, self.__class__))
+
+            self.expressions = json.loads(self.expressions)
+            if isinstance(self.partition_attribute, list):
+                self.partition_attribute = self.partition_attribute[0]
+            self.type = parameters.get(self.TYPE_PARAM, self.NONE)
+            if self.type not in self.TYPES:
+                msg = _('The value for parameter {} must be one of these: {}.')
+                raise ValueError(msg.format('type', ', '.join(self.TYPES)))
+
+            for expression in self.expressions:
+                if 'alias' not in expression:
+                    msg = _("Parameter '{}' must be informed in all "
+                            "expressions in task {}.")
+                    raise ValueError(msg.format('alias'), self.__class__)
+                if 'tree' not in expression:
+                    msg = _("Parameter '{}' must be informed in all "
+                            "expressions in task {}.")
+                    raise ValueError(msg.format('tree'), self.__class__)
+
+            self.order_by = parameters.get(self.ORDER_BY_PARAM)
+            self.rows_from = parameters.get(
+                self.ROWS_FROM_PARAM,
+                'Window.unboundedPreceding') or 'Window.unboundedPreceding'
+            self.rows_to = parameters.get(
+                self.ROWS_TO_PARAM,
+                'Window.unboundedFollowing') or 'Window.unboundedFollowing'
+
+            self.range_from = parameters.get(
+                self.RANGE_FROM_PARAM,
+                'Window.unboundedPreceding') or 'Window.unboundedPreceding'
+            self.range_to = parameters.get(
+                self.RANGE_TO_PARAM,
+                'Window.unboundedFollowing') or 'Window.unboundedFollowing'
+
+            self.output = self.named_outputs.get(
+                'output data', 'data_{}'.format(self.order))
+
+    def get_output_names(self, sep=", "):
+        return self.output
+
+    def generate_code(self):
+        input_data = self.named_inputs['input data']
+        params = {'input': input_data}
+
+        ascending = []
+        attributes = []
+        for attr in self.order_by:
+            if attr['f'] == 'asc':
+                attributes.append(
+                    "functions.asc('{}')".format(attr['attribute']))
+            else:
+                attributes.append(
+                    "functions.desc('{}')".format(attr['attribute']))
+
+        if attributes:
+            order_attrs = []
+            order_by_code = ".orderBy({attrs})".format(
+                attrs=', '.join(attributes))
+        else:
+            order_by_code = ''
+
+        rows_code = ''
+        range_code = ''
+        if self.type == self.ROWS:
+            if self.rows_from > self.rows_to:
+                raise ValueError(_(
+                    'Start of offset must be >= its end: [{}, {}]').format(
+                    self.rows_from, self.rows_to))
+            rows_code = ".rowsBetween({rows_from}, {rows_to})".format(
+                rows_from=self.rows_from, rows_to=self.rows_to)
+        elif self.type == self.RANGE:
+            range_code = ".rangeBetween({range_from}, {range_to})".format(
+                range_from=self.range_from, range_to=self.range_to)
+
+        new_attrs = []
+        aliases = []
+        params = {}
+        for expr in self.expressions:
+            expression = Expression(expr['tree'], params, window=True)
+            built_expr = expression.parsed_expression
+            new_attrs.append(built_expr)
+            aliases.append(expr['alias'])
+
+        code = dedent("""
+            from juicer.spark.ext import CustomExpressionTransformer
+
+            window = Window.partitionBy('{partition}'){order_by_code}{rows_code}{range_code}
+            specs = [{new_attrs}]
+            aliases = {aliases}
+
+            {out} = {in1}
+            for i, spec in enumerate(specs):
+                {out} = {out}.withColumn(aliases[i], spec)
+        """.format(out=self.output, in1=input_data,
+                   partition=self.partition_attribute,
+                   order_by_code=order_by_code,
+                   rows_code=rows_code,
+                   range_code=range_code,
+                   new_attrs=',\n                     '.join(new_attrs),
+                   aliases=json.dumps(aliases)))
+
+        return dedent(code)

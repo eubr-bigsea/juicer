@@ -285,7 +285,8 @@ def main(spark_session, cached_state, emit_event):
         {%- if instance.must_be_executed(is_satisfied) and instance.has_code %}
         {%- set s = dependency_controller.satisfied(instance.parameters.task.id) %}
         task_futures['{{instance.parameters.task.id}}'].result()
-        {%- else %}
+        {%- endif %}
+        {%- if not instance.has_code  %}
         emit_event(name='update task', message=_(
             'Task completed, but not executed (not used in the workflow).'),
             status='COMPLETED', identifier='{{instance.parameters.task.id}}')
