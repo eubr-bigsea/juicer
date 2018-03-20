@@ -146,4 +146,4 @@ class MinMaxScalerOperation(ScalerOperation):
 
     def _get_scaler_algorithm_and_parameters(self):
         return ScalerNameAndParameters(
-            'MinMaxScaler', {'min': self.min, 'max': self.max}, ['min', 'max'])
+            'MinMaxScaler', {'min': self.min, 'max': self.max}, [])
