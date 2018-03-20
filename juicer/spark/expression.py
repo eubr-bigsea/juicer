@@ -7,7 +7,8 @@ from juicer.util import group
 
 
 class Expression:
-    def __init__(self, json_code, params):
+    def __init__(self, json_code, params, window=False):
+        self.window = window
         self.code = json_code
         self.functions = {}
         self.build_functions_dict()
@@ -66,7 +67,7 @@ class Expression:
             raise ValueError(_("Unknown type: {}").format(tree['type']))
         return result
 
-    def get_window_function(self, spec, params):
+    def get_time_window_function(self, spec, params):
         """
         Window function is slightly different from the Spark counterpart: the
         last parameter indicates if it is using the start or end field in
@@ -166,6 +167,15 @@ class Expression:
                                            arguments)
         return result
 
+    def get_window_function(self, spec, params):
+        """ """
+        arguments = ', '.join(
+            [self.parse(x, params) for x in spec['arguments']])
+
+        result = 'functions.{}({}).over({})'.format(
+            spec['callee']['name'], arguments, params.get('window', 'window'))
+        return result
+
     def build_functions_dict(self):
         spark_sql_functions = {
             'add_months': self.get_function_call,
@@ -247,7 +257,7 @@ class Expression:
         # custom function is necessarily defined here. Also, we
         # should not use 'get_function_call' for code generation in this case.
         custom_functions = {
-            'group_datetime': self.get_window_function,
+            'group_datetime': self.get_time_window_function,
             'set_of_ints': functools.partial(self.get_set_function,
                                              data_type='IntegerType'),
             'set_of_strings': functools.partial(self.get_set_function,
@@ -257,8 +267,29 @@ class Expression:
             'strip_accents': self.get_strip_accents_function,
             'strip_punctuation': self.get_strip_punctuation_function,
             'when': self.get_when_function,
-            'window': self.get_window_function,
+            'window': self.get_time_window_function,
         }
-
+        
         self.functions.update(spark_sql_functions)
         self.functions.update(custom_functions)
+
+        if self.window:
+            window_functions = {
+                'max': self.get_window_function,
+                'min': self.get_window_function,
+                'count': self.get_window_function,
+                'avg': self.get_window_function,
+                'sum': self.get_window_function,
+                'std': self.get_window_function,
+                'lag': self.get_window_function,
+                'lead': self.get_window_function,
+                'first': self.get_window_function,
+                'last': self.get_window_function,
+                'ntile': self.get_window_function,
+                'cume_dist': self.get_window_function,
+                'percent_rank': self.get_window_function,
+                'rank': self.get_window_function,
+                'dense_rank': self.get_window_function,
+                'row_number': self.get_window_function,
+            }
+            self.functions.update(window_functions)
