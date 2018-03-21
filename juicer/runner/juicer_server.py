@@ -70,6 +70,13 @@ class JuicerServer:
         self.advertise_ip = config['juicer'].get('minion', {}).get(
             'libprocess_advertise_ip')
 
+        # Minion requires 3 different ports:
+        # 1 for libprocess/Mesos communication
+        # 1 for driver port
+        # 1 for block manager
+        self.port_offset = config['juicer'].get('minion', {}).get(
+            'port_offset', 100)
+
         log.info(_('Libprocess configuration: {}:{}').format(self.advertise_ip,
                                                              self.port_range))
 
@@ -182,16 +189,22 @@ class JuicerServer:
         stderr_log = os.path.join(self.log_dir, minion_id + '_err.log')
         log.debug(_('Forking minion %s.'), minion_id)
 
+        port = self._get_next_available_port()
         # Setup command and launch the minion script. We return the subprocess
         # created as part of an active minion.
+        # spark.driver.port and spark.driver.blockManager.port are required
+        # when running the driver inside a docker container.
+
         open_opts = ['nohup', sys.executable, self.minion_executable,
                      '-w', workflow_id, '-a', app_id, '-t', platform, '-c',
-                     self.config_file_path]
+                     self.config_file_path,
+                     '--conf', 'spark.driver.port', port + self.port_offset,
+                     '--conf', 'spark.driver.blockManager.port',
+                     port + self.port_offset * 2]
         log.debug(_('Minion command: %s'), json.dumps(open_opts))
 
         # Mesos / libprocess configuration. See:
         # http://mesos.apache.org/documentation/latest/configuration/libprocess/
-        port = self._get_next_available_port()
         cloned_env = os.environ.copy()
         cloned_env['LIBPROCESS_PORT'] = str(port)
         if self.advertise_ip is not None:
@@ -334,7 +347,6 @@ class JuicerServer:
         self.minion_support_process = multiprocessing.Process(
             name="help_desk", target=self.minion_support)
         self.minion_support_process.daemon = False
-
 
         self.new_minion_watch_process = multiprocessing.Process(
             name="minion_status", target=self.watch_new_minion)

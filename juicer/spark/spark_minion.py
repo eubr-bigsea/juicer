@@ -1,5 +1,6 @@
 # coding=utf-8
 from __future__ import unicode_literals
+
 import gc
 import gettext
 import imp
@@ -553,8 +554,9 @@ class SparkMinion(Minion):
                 app_name)
 
             # Use config file default configurations to set up Spark session
+            excluded = ['spark.driver.port', 'spark.driver.blockManager.port']
             for option, value in self.config['juicer'].get('spark', {}).items():
-                if value is not None:
+                if value is not None and option not in excluded:
                     log.info(_('Setting spark configuration %s'), option)
                     spark_builder = spark_builder.config(option, value)
 
