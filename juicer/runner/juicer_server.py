@@ -266,34 +266,6 @@ class JuicerServer:
         except Exception as ex:
             log.exception(ex)
 
-    # def watch_minion_status(self):
-    #     parsed_url = urlparse.urlparse(
-    #         self.config['juicer']['servers']['redis_url'])
-    #     log.info('%s', parsed_url)
-    #     redis_conn = redis.StrictRedis(host=parsed_url.hostname,
-    #                                    port=parsed_url.port)
-    #     self.watch_minion_process(redis_conn)
-    #
-    # def watch_minion_process(self, redis_conn):
-    #     try:
-    #         pub_sub = redis_conn.pubsub()
-    #         pub_sub.psubscribe('__keyevent@*__:expired')
-    #         for msg in pub_sub.listen():
-    #             if msg.get('type') == 'pmessage' and 'minion' in msg.get(
-    #                     'data'):
-    #                 app_id = msg.get('data').split('_')[-1]
-    #                 log.warn(_('Minion {id} stopped').format(id=app_id))
-    #                 if redis_conn.lrange('queue_app_{}'.format(app_id), 0, 0):
-    #                     log.warn(_('There are messages to process in app {} '
-    #                                'queue, starting minion.').format(app_id))
-    #                     if self.state_control is None:
-    #                         self.state_control = StateControlRedis(redis_conn)
-    #                     self._start_minion(app_id, app_id,
-    #                                        self.state_control, self.platform)
-    #     except ConnectionError as cx:
-    #         log.exception(cx)
-    #         time.sleep(1)
-
     def _get_next_available_port(self):
         used_ports = set(
             [minion['port'] for minion in self.active_minions.values()])
@@ -325,6 +297,18 @@ class JuicerServer:
                         if data == 'del' or data == 'expired':
                             del self.active_minions[key]
                             log.info(_('Minion {} finished.').format(app_id))
+                            if redis_conn.lrange('queue_app_{}'.format(app_id),
+                                                 0, 0):
+                                log.warn(
+                                    _('There are messages to process in app {} '
+                                      'queue, starting minion.').format(app_id))
+                                if self.state_control is None:
+                                    self.state_control = StateControlRedis(
+                                        redis_conn)
+                                self._start_minion(
+                                    app_id, app_id, self.state_control,
+                                    self.platform)
+
                     elif data == 'set':
                         # Externally launched minion
                         minion_info = json.loads(redis_conn.get(
@@ -351,9 +335,6 @@ class JuicerServer:
             name="help_desk", target=self.minion_support)
         self.minion_support_process.daemon = False
 
-        # self.minion_watch_process = multiprocessing.Process(
-        #     name="minion_status", target=self.watch_minion_status)
-        # self.minion_watch_process.daemon = False
 
         self.new_minion_watch_process = multiprocessing.Process(
             name="minion_status", target=self.watch_new_minion)
@@ -361,13 +342,11 @@ class JuicerServer:
 
         self.start_process.start()
         self.minion_support_process.start()
-        # self.minion_watch_process.start()
         self.new_minion_watch_process.start()
 
         try:
             self.start_process.join()
             self.minion_support_process.join()
-            # self.minion_watch_process.join()
             self.new_minion_watch_process.join()
         except KeyboardInterrupt:
             self._terminate(None, None)
