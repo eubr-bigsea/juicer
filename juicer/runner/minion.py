@@ -23,17 +23,18 @@ locales_path = os.path.join(os.path.dirname(__file__), '..', 'i18n', 'locales')
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("-c", "--config", help="Config file", required=True)
-    parser.add_argument("-w", "--workflow_id", help="Workflow id", type=str,
+    parser.add_argument("-c", "--config", help="Config file.", required=True)
+    parser.add_argument("-w", "--workflow_id", help="Workflow id.", type=str,
                         required=True)
     parser.add_argument("-a", "--app_id", help="Job id", type=str,
                         required=False)
-    parser.add_argument("-t", "--type", help="Execution engine",
+    parser.add_argument("-t", "--type", help="Execution engine.",
                         required=False, default="spark")
-    parser.add_argument("--lang", help="Minion messages language (i18n)",
+    parser.add_argument("--lang", help="Minion messages language (i18n).",
                         required=False, default="en_US")
     parser.add_argument("--jars", help="Add Java JAR files to class path.",
                         required=False)
+
     args = parser.parse_args()
     t = gettext.translation('messages', locales_path, [args.lang],
                             fallback=True)
