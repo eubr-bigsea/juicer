@@ -62,9 +62,8 @@ class Minion:
         status = {
             'status': 'READY', 'pid': os.getpid(),
         }
-        self.state_control.set_minion_status(self.app_id,
-                                             json.dumps(status), ex=30,
-                                             nx=False)
+        self.state_control.set_minion_status(
+            self.app_id, json.dumps(status), ex=10, nx=False)
 
     def ping(self, q):
         """ Pings redis to inform master this minion is online """

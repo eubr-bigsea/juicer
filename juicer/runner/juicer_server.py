@@ -47,6 +47,7 @@ class JuicerServer:
                  config_file_path=None):
 
         self.minion_support_process = None
+        self.new_minion_watch_process = None
         self.start_process = None
         self.minion_status_process = None
         self.state_control = None
@@ -63,6 +64,14 @@ class JuicerServer:
 
         signal.signal(signal.SIGTERM, self._terminate)
         self.platform = 'spark'
+
+        self.port_range = config['juicer'].get('minion', {}).get(
+            'libprocess_port_range', [36000, 36500])
+        self.advertise_ip = config['juicer'].get('minion', {}).get(
+            'libprocess_advertise_ip')
+
+        log.info(_('Libprocess configuration: {}:{}').format(self.advertise_ip,
+                                                             self.port_range))
 
     def start(self):
         signal.signal(signal.SIGTERM, self._terminate_minions)
@@ -120,7 +129,8 @@ class JuicerServer:
             if app_id:
                 self.state_control.push_app_output_queue(app_id, json.dumps(
                     {'code': je.code, 'message': je.message}))
-
+        except KeyboardInterrupt:
+            pass
         except Exception as ex:
             log.exception(ex)
             if app_id:
@@ -147,7 +157,9 @@ class JuicerServer:
 
             minion_process = self._start_minion(
                 workflow_id, app_id, self.state_control, platform)
-            self.active_minions[(workflow_id, app_id)] = minion_process
+            self.active_minions[(workflow_id, app_id)] = {
+                'pid': minion_process.pid, 'process': minion_process,
+                'port': self._get_next_available_port()}
 
         # Forward the message to the minion, which can be an execute or a
         # deliver command
@@ -156,8 +168,8 @@ class JuicerServer:
 
         log.info(_('Message %s forwarded to minion (workflow_id=%s,app_id=%s)'),
                  msg_type, workflow_id, app_id)
-        log.info(_('Message content (workflow_id=%s,app_id=%s): %s'),
-                 workflow_id, app_id, msg)
+        # log.info(_('Message content (workflow_id=%s,app_id=%s): %s'),
+        #          workflow_id, app_id, msg)
         self.state_control.push_app_output_queue(app_id, json.dumps(
             {'code': 0,
              'message': 'Minion is processing message %s' % msg_type}))
@@ -170,18 +182,32 @@ class JuicerServer:
         stderr_log = os.path.join(self.log_dir, minion_id + '_err.log')
         log.debug(_('Forking minion %s.'), minion_id)
 
-        # Expires in 30 seconds and sets only if it doesn't exist
-        state_control.set_minion_status(app_id, self.STARTED, ex=30, nx=False)
-
         # Setup command and launch the minion script. We return the subprocess
         # created as part of an active minion.
         open_opts = ['nohup', sys.executable, self.minion_executable,
                      '-w', workflow_id, '-a', app_id, '-t', platform, '-c',
                      self.config_file_path]
         log.debug(_('Minion command: %s'), json.dumps(open_opts))
-        return subprocess.Popen(open_opts,
+
+        # Mesos / libprocess configuration. See:
+        # http://mesos.apache.org/documentation/latest/configuration/libprocess/
+        port = self._get_next_available_port()
+        cloned_env = os.environ.copy()
+        cloned_env['LIBPROCESS_PORT'] = str(port)
+        if self.advertise_ip is not None:
+            cloned_env['LIBPROCESS_ADVERTISE_IP'] = self.advertise_ip
+
+        proc = subprocess.Popen(open_opts,
                                 stdout=open(stdout_log, 'a'),
-                                stderr=open(stderr_log, 'a'))
+                                stderr=open(stderr_log, 'a'),
+                                env=cloned_env)
+
+        # Expires in 30 seconds and sets only if it doesn't exist
+        proc_id = int(proc.pid)
+        state_control.set_minion_status(
+            app_id, json.dumps({'pid': proc_id, 'port': port}), ex=30,
+            nx=False)
+        return proc
 
     def _terminate_minion(self, workflow_id, app_id):
         # In this case we got a request for terminating this workflow
@@ -192,7 +218,7 @@ class JuicerServer:
         log.info(_("Terminating (workflow_id=%s,app_id=%s)"),
                  workflow_id, app_id)
         if (workflow_id, app_id) in self.active_minions:
-            os.kill(self.active_minions[(workflow_id, app_id)].pid,
+            os.kill(self.active_minions[(workflow_id, app_id)].get('pid'),
                     signal.SIGTERM)
             del self.active_minions[(workflow_id, app_id)]
 
@@ -231,7 +257,8 @@ class JuicerServer:
                 pass
             else:
                 log.warn(_("Unknown help reason %s"), reason)
-
+        except KeyboardInterrupt:
+            pass
         except ConnectionError as cx:
             log.exception(cx)
             time.sleep(1)
@@ -239,31 +266,77 @@ class JuicerServer:
         except Exception as ex:
             log.exception(ex)
 
-    def watch_minion_status(self):
-        parsed_url = urlparse.urlparse(
-            self.config['juicer']['servers']['redis_url'])
-        log.info('%s', parsed_url)
-        redis_conn = redis.StrictRedis(host=parsed_url.hostname,
-                                       port=parsed_url.port)
-        self.watch_minion_process(redis_conn)
+    # def watch_minion_status(self):
+    #     parsed_url = urlparse.urlparse(
+    #         self.config['juicer']['servers']['redis_url'])
+    #     log.info('%s', parsed_url)
+    #     redis_conn = redis.StrictRedis(host=parsed_url.hostname,
+    #                                    port=parsed_url.port)
+    #     self.watch_minion_process(redis_conn)
+    #
+    # def watch_minion_process(self, redis_conn):
+    #     try:
+    #         pub_sub = redis_conn.pubsub()
+    #         pub_sub.psubscribe('__keyevent@*__:expired')
+    #         for msg in pub_sub.listen():
+    #             if msg.get('type') == 'pmessage' and 'minion' in msg.get(
+    #                     'data'):
+    #                 app_id = msg.get('data').split('_')[-1]
+    #                 log.warn(_('Minion {id} stopped').format(id=app_id))
+    #                 if redis_conn.lrange('queue_app_{}'.format(app_id), 0, 0):
+    #                     log.warn(_('There are messages to process in app {} '
+    #                                'queue, starting minion.').format(app_id))
+    #                     if self.state_control is None:
+    #                         self.state_control = StateControlRedis(redis_conn)
+    #                     self._start_minion(app_id, app_id,
+    #                                        self.state_control, self.platform)
+    #     except ConnectionError as cx:
+    #         log.exception(cx)
+    #         time.sleep(1)
 
-    def watch_minion_process(self, redis_conn):
+    def _get_next_available_port(self):
+        used_ports = set(
+            [minion['port'] for minion in self.active_minions.values()])
+        for i in self.port_range:
+            if i not in used_ports:
+                return i
+        raise ValueError(_('Unable to launch minion: there is not available '
+                           'port for libprocess.'))
+
+    def watch_new_minion(self):
         try:
-            pubsub = redis_conn.pubsub()
-            pubsub.psubscribe('__keyevent@*__:expired')
-            for msg in pubsub.listen():
-                log.info(_('watch subscribe: %s'), msg)
-                if msg.get('type') == 'pmessage' and 'minion' in msg.get(
-                        'data'):
-                    app_id = msg.get('data').split('_')[-1]
-                    log.warn(_('Minion {id} stopped').format(id=app_id))
-                    if redis_conn.lrange('queue_app_{}'.format(app_id), 0, 0):
-                        log.warn(_('There are messages to process in app {} '
-                                   'queue, starting minion.').format(app_id))
-                        if self.state_control is None:
-                            self.state_control = StateControlRedis(redis_conn)
-                        self._start_minion(app_id, app_id,
-                                           self.state_control, self.platform)
+            log.info(_('Watching minions events.'))
+
+            parsed_url = urlparse.urlparse(
+                self.config['juicer']['servers']['redis_url'])
+            redis_conn = redis.StrictRedis(host=parsed_url.hostname,
+                                           port=parsed_url.port)
+            redis_conn.config_set('notify-keyspace-events', 'KE$gx')
+            pub_sub = redis_conn.pubsub()
+            pub_sub.psubscribe('__keyspace*__:key_minion_app*')
+            for msg in pub_sub.listen():
+                # print '|{}|'.format(msg.get('channel'))
+                app_id = msg.get('channel', '').split('_')[-1]
+                if app_id.isdigit():
+                    app_id = int(app_id)
+                    key = (app_id, app_id)
+                    data = msg.get('data', '')
+                    if key in self.active_minions:
+                        if data == 'del' or data == 'expired':
+                            del self.active_minions[key]
+                            log.info(_('Minion {} finished.').format(app_id))
+                    elif data == 'set':
+                        # Externally launched minion
+                        minion_info = json.loads(redis_conn.get(
+                            'key_minion_app_{}'.format(app_id)))
+                        port = self._get_next_available_port()
+                        self.active_minions[key] = {
+                            'pid': minion_info.get('pid'), 'port': port}
+                        log.info(
+                            _('Minion {} joined (pid: {}, port: {}).').format(
+                                app_id, minion_info.get('pid'), port))
+        except KeyboardInterrupt:
+            pass
         except ConnectionError as cx:
             log.exception(cx)
             time.sleep(1)
@@ -278,17 +351,26 @@ class JuicerServer:
             name="help_desk", target=self.minion_support)
         self.minion_support_process.daemon = False
 
-        self.minion_watch_process = multiprocessing.Process(
-            name="minion_status", target=self.watch_minion_status)
-        self.minion_watch_process.daemon = False
+        # self.minion_watch_process = multiprocessing.Process(
+        #     name="minion_status", target=self.watch_minion_status)
+        # self.minion_watch_process.daemon = False
+
+        self.new_minion_watch_process = multiprocessing.Process(
+            name="minion_status", target=self.watch_new_minion)
+        self.new_minion_watch_process.daemon = False
 
         self.start_process.start()
         self.minion_support_process.start()
-        self.minion_watch_process.start()
+        # self.minion_watch_process.start()
+        self.new_minion_watch_process.start()
 
-        self.start_process.join()
-        self.minion_support_process.join()
-        self.minion_watch_process.join()
+        try:
+            self.start_process.join()
+            self.minion_support_process.join()
+            # self.minion_watch_process.join()
+            self.new_minion_watch_process.join()
+        except KeyboardInterrupt:
+            self._terminate(None, None)
 
     # noinspection PyUnusedLocal
     def _terminate_minions(self, _signal, _frame):
@@ -308,13 +390,14 @@ class JuicerServer:
             os.kill(self.start_process.pid, signal.SIGTERM)
         if self.minion_support_process:
             os.kill(self.minion_support_process.pid, signal.SIGKILL)
-        if self.minion_watch_process:
-            os.kill(self.minion_watch_process.pid, signal.SIGKILL)
+        # if self.minion_watch_process:
+        #     os.kill(self.minion_watch_process.pid, signal.SIGKILL)
+        if self.new_minion_watch_process:
+            os.kill(self.new_minion_watch_process.pid, signal.SIGKILL)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    # parser.add_argument("-p", "--port", help="Listen port")
     parser.add_argument("-c", "--config", help="Config file", required=True)
     parser.add_argument("--lang", help="Minion messages language (i18n)",
                         required=False, default="en_US")
