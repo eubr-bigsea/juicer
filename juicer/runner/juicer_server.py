@@ -198,9 +198,10 @@ class JuicerServer:
         open_opts = ['nohup', sys.executable, self.minion_executable,
                      '-w', workflow_id, '-a', app_id, '-t', platform, '-c',
                      self.config_file_path,
-                     '--conf', 'spark.driver.port', port + self.port_offset,
+                     '--conf', 'spark.driver.port',
+                     str(port + self.port_offset),
                      '--conf', 'spark.driver.blockManager.port',
-                     port + self.port_offset * 2]
+                     str(port + self.port_offset * 2)]
         log.debug(_('Minion command: %s'), json.dumps(open_opts))
 
         # Mesos / libprocess configuration. See:
