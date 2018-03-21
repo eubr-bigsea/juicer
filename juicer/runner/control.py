@@ -1,3 +1,4 @@
+# coding=utf-8
 class StateControlRedis:
     """
     Controls state of Workflows, Minions and Jobs in Lemonade.
