@@ -1193,7 +1193,6 @@ class WindowTransformationOperation(Operation):
                     msg = _("Parameter '{}' must be informed for task {}")
                     raise ValueError(msg.format(required, self.__class__))
 
-            self.expressions = json.loads(self.expressions)
             if isinstance(self.partition_attribute, list):
                 self.partition_attribute = self.partition_attribute[0]
             self.type = parameters.get(self.TYPE_PARAM, self.NONE)
@@ -1256,7 +1255,15 @@ class WindowTransformationOperation(Operation):
         rows_code = ''
         range_code = ''
         if self.type == self.ROWS:
-            if self.rows_from > self.rows_to:
+            from_int = None
+            if self.rows_from.isdigit():
+                from_int = int(self.rows_from)
+
+            to_int = None
+            if self.rows_to.isdigit():
+                to_int = int(self.rows_to)
+
+            if to_int and from_int and from_int > to_int:
                 raise ValueError(_(
                     'Start of offset must be >= its end: [{}, {}]').format(
                     self.rows_from, self.rows_to))
@@ -1278,7 +1285,8 @@ class WindowTransformationOperation(Operation):
         code = dedent("""
             from juicer.spark.ext import CustomExpressionTransformer
 
-            window = Window.partitionBy('{partition}'){order_by_code}{rows_code}{range_code}
+            window = Window.partitionBy(
+                '{partition}'){order_by_code}{rows_code}{range_code}
             specs = [{new_attrs}]
             aliases = {aliases}
 
