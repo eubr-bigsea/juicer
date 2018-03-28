@@ -196,18 +196,17 @@ class JuicerServer:
         # when running the driver inside a docker container.
 
         open_opts = ['nohup', sys.executable, self.minion_executable,
-                     '-w', workflow_id, '-a', app_id, '-t', platform, '-c',
-                     self.config_file_path,
-                     '--conf', 'spark.driver.port',
-                     str(port + self.port_offset),
-                     '--conf', 'spark.driver.blockManager.port',
-                     str(port + self.port_offset * 2)]
+                     '-w', str(workflow_id), '-a', str(app_id), '-t', platform, '-c',
+                     self.config_file_path, ]
         log.debug(_('Minion command: %s'), json.dumps(open_opts))
 
         # Mesos / libprocess configuration. See:
         # http://mesos.apache.org/documentation/latest/configuration/libprocess/
         cloned_env = os.environ.copy()
         cloned_env['LIBPROCESS_PORT'] = str(port)
+        cloned_env['SPARK_DRIVER_PORT'] = str(port + self.port_offset)
+        cloned_env['SPARK_DRIVER_BLOCKMANAGER_PORT'] = str(port + 2 * self.port_offset)
+
         if self.advertise_ip is not None:
             cloned_env['LIBPROCESS_ADVERTISE_IP'] = self.advertise_ip
 
