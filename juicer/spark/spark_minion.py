@@ -296,13 +296,22 @@ class SparkMinion(Minion):
             self.cluster_options = {}
 
             # Add general parameters in the form param1=value1,param2=value2
-            if cluster_info.get('general_parameters'):
-                parameters = cluster_info['general_parameters'].split(',')
-                for parameter in parameters:
-                    key, value = parameter.split('=')
-                    self.cluster_options[key.strip()] = value.strip()
+            try:
+                if cluster_info.get('general_parameters'):
+                    parameters = cluster_info['general_parameters'].split(',')
+                    for parameter in parameters:
+                        key, value = parameter.split('=')
+                        self.cluster_options[key.strip()] = value.strip()
+            except Exception as ex:
+                msg = _("Error in general cluster parameters: {}").format(ex)
+                self._emit_event(room=job_id, namespace='/stand')(
+                    name='update job',
+                    message=msg,
+                    status='CANCELED', identifier=job_id)
+                log.warn(msg)
+                return
 
-            # Spark mapping for cluster properties
+                # Spark mapping for cluster properties
             options = {'address': 'spark.master',
                        'executors': 'spark.cores.max',
                        'executor_cores': 'spark.executor.cores',
@@ -310,13 +319,10 @@ class SparkMinion(Minion):
                        }
 
             for option, spark_name in options.items():
-                if option in cluster_info:
-                    print '>>>>', option, cluster_info[option]
                 self.cluster_options[spark_name] = cluster_info[option]
 
-            print '*' * 40
-            print self.cluster_options
-            print '*' * 40
+            log.info("Cluster options: %s",
+                     json.dumps(self.cluster_options, indent=0))
 
             self.last_cluster_id = cluster_info['id']
 
@@ -554,9 +560,8 @@ class SparkMinion(Minion):
                 app_name)
 
             # Use config file default configurations to set up Spark session
-            excluded = ['spark.driver.port', 'spark.driver.blockManager.port']
             for option, value in self.config['juicer'].get('spark', {}).items():
-                if value is not None and option not in excluded:
+                if value is not None:
                     log.info(_('Setting spark configuration %s'), option)
                     spark_builder = spark_builder.config(option, value)
 
@@ -568,6 +573,16 @@ class SparkMinion(Minion):
             # Default options from configuration file
             app_configs.update(self.config['juicer'].get('spark', {}))
 
+            environment_settings = {'SPARK_DRIVER_PORT': 'spark.driver.port', 
+                'SPARK_DRIVER_BLOCKMANAGER_PORT': 'spark.driver.blockManager.port'}
+            print os.environ.get('SPARK_DRIVER_PORT')
+            print os.environ.get('SPARK_DRIVER_BLOCKMANAGER_PORT')
+            for k, v in environment_settings.items():
+                if k in os.environ:
+                    spark_builder = spark_builder.config(
+                        environment_settings[k], os.environ.get(k))
+
+ 
             # Juicer listeners configuration.
             listeners = self.config['juicer'].get('listeners', [])
 
