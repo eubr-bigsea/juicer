@@ -421,7 +421,6 @@ class TransformationOperation(Operation):
         replace it.
         - Expression: json describing the transformation expression
     """
-    ALIAS_PARAM = 'alias'
     EXPRESSION_PARAM = 'expression'
 
     def __init__(self, parameters, named_inputs, named_outputs):
@@ -429,15 +428,12 @@ class TransformationOperation(Operation):
         self.has_code = any(
             [len(self.named_inputs) > 0, self.contains_results()])
         if self.has_code:
-            if all(['alias' in parameters, 'expression' in parameters]):
-                self.alias = parameters['alias']
-                self.json_expression = json.loads(parameters['expression'])[
-                    'tree']
+            if 'expression' in parameters:
+                self.expressions = parameters['expression']
             else:
-                msg = _("Parameters '{}' and {} must be informed for task {}")
+                msg = _("Parameter must be informed for task {}.")
                 raise ValueError(
-                    msg.format(self.ALIAS_PARAM, self.EXPRESSION_PARAM,
-                               self.__class__))
+                    msg.format(self.EXPRESSION_PARAM, self.__class__))
             self.output = self.named_outputs.get(
                 'output data', 'sampled_data_{}'.format(self.order))
 
@@ -448,21 +444,23 @@ class TransformationOperation(Operation):
         input_data = self.named_inputs['input data']
         params = {'input': input_data}
 
-        # Builds the expression and identify the target column
-        expression = Expression(self.json_expression, params)
-        built_expression = expression.parsed_expression
+        expr_alias = []
+        for expr in self.expressions:
+            # Builds the expression and identify the target column
+            expression = Expression(expr['tree'], params)
+            expr_alias.append([expression.parsed_expression, expr['alias']])
 
-        # code = dedent("""
-        # {out} = {in1}.withColumn('{alias}',
-        #   {expr})""".format(out=self.output, in1=input_data, alias=self.alias,
-        #                       expr=built_expression))
         code = dedent("""
             from juicer.spark.ext import CustomExpressionTransformer
-            transformer = CustomExpressionTransformer(
-                outputCol='{alias}', expression={expr})
-            {out} = transformer.transform({in1})
-        """.format(out=self.output, in1=input_data, alias=self.alias,
-                   expr=built_expression))
+            expr_alias = {expr_alias}
+            tmp_out = {in1}
+            for expr, alias in expr_alias:
+                transformer = CustomExpressionTransformer(outputCol=alias,
+                                                          expression=expr)
+                tmp_out = transformer.transform(tmp_out)
+            {out} = tmp_out
+        """.format(out=self.output, in1=input_data,
+                   expr_alias=json.dumps(expr_alias)))
 
         return dedent(code)
 
