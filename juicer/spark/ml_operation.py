@@ -42,7 +42,8 @@ class FeatureIndexerOperation(Operation):
         self.alias = [alias.strip() for alias in
                       parameters.get(self.ALIAS_PARAM, '').split(',')]
 
-        self.max_categories = int(parameters.get(self.MAX_CATEGORIES_PARAM, 0))
+        self.max_categories = int(
+            parameters.get(self.MAX_CATEGORIES_PARAM, 0) or 20)
         if not (self.max_categories >= 0):
             msg = _(
                 "Parameter '{}' must be in range [x>=0] for task {}").format(
