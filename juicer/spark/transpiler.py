@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
+
 import hashlib
 import sys
 
@@ -183,6 +184,9 @@ class SparkTranspiler(object):
             class_name = self.operations[task['operation']['slug']]
 
             parameters = {}
+            not_empty_params = [(k, d) for k, d in task['forms'].items() if
+                                d['value'] != '' and d['value'] is not None]
+            task['forms'] = dict(not_empty_params)
             for parameter, definition in task['forms'].items():
                 # @FIXME: Fix wrong name of form category
                 # (using name instead of category)

@@ -24,7 +24,7 @@ class SplitOperation(Operation):
     def __init__(self, parameters, named_inputs,
                  named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
-        value = float(parameters.get(self.WEIGHTS_PARAM, 50))
+        value = float(parameters.get(self.WEIGHTS_PARAM, 50) or 50)
 
         self.weights = [value, 100 - value]
         self.seed = parameters.get(self.SEED_PARAM, int(random() * time.time()))
