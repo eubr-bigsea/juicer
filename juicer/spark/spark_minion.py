@@ -573,16 +573,17 @@ class SparkMinion(Minion):
             # Default options from configuration file
             app_configs.update(self.config['juicer'].get('spark', {}))
 
-            environment_settings = {'SPARK_DRIVER_PORT': 'spark.driver.port', 
-                'SPARK_DRIVER_BLOCKMANAGER_PORT': 'spark.driver.blockManager.port'}
-            print os.environ.get('SPARK_DRIVER_PORT')
-            print os.environ.get('SPARK_DRIVER_BLOCKMANAGER_PORT')
+            environment_settings = {
+                'SPARK_DRIVER_PORT': 'spark.driver.port',
+                'SPARK_DRIVER_BLOCKMANAGER_PORT':
+                    'spark.driver.blockManager.port'}
+            # print os.environ.get('SPARK_DRIVER_PORT')
+            # print os.environ.get('SPARK_DRIVER_BLOCKMANAGER_PORT')
             for k, v in environment_settings.items():
                 if k in os.environ:
                     spark_builder = spark_builder.config(
                         environment_settings[k], os.environ.get(k))
 
- 
             # Juicer listeners configuration.
             listeners = self.config['juicer'].get('listeners', [])
 
