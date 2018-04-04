@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 import ast
-import json
 from textwrap import dedent
 
 import pytest
@@ -640,14 +639,15 @@ def test_sort_minimal_params_success():
 
 def test_sort_missing_attributes_failure():
     params = {}
-    with pytest.raises(ValueError) as excinfo:
+    with pytest.raises(ValueError):
         n_in = {'input data': 'df1'}
         n_out = {'output data': 'out'}
         SortOperation(params, named_inputs=n_in, named_outputs=n_out)
 
 
 def test_transformation_minumum_params_success():
-    expr = {'tree': {
+    alias = 'result_1'
+    expr = [{'tree': {
         "type": "CallExpression",
         "arguments": [
             {
@@ -659,11 +659,10 @@ def test_transformation_minumum_params_success():
         "callee": {
             "type": "Identifier",
             "name": "lower"
-        }
-    }, 'expression': "lower(attr_name)"}
+        },
+    }, 'alias': alias, 'expression': "lower(attr_name)"}]
     params = {
-        TransformationOperation.EXPRESSION_PARAM: json.dumps(expr),
-        TransformationOperation.ALIAS_PARAM: 'new_column',
+        TransformationOperation.EXPRESSION_PARAM: expr,
         'input': 'input_x',
     }
     n_in = {'input data': 'df1'}
@@ -675,21 +674,27 @@ def test_transformation_minumum_params_success():
     expected_code = dedent(
         """
         from juicer.spark.ext import CustomExpressionTransformer
-        transformer = CustomExpressionTransformer(
-            outputCol='{alias}', expression=functions.lower('attr_name'))
-        {out} = transformer.transform({in1})
+        expr_alias = [
+            [functions.lower('attr_name'), '{alias}']
+        ]
+        tmp_out = {in1}
+        for expr, alias in expr_alias:
+            transformer = CustomExpressionTransformer(
+                outputCol=alias, expression=expr)
+            tmp_out = transformer.transform(tmp_out)
+        {out} = tmp_out
         """)
 
     expected_code = expected_code.format(
-        out=n_out['output data'], in1=n_in['input data'],
-        alias=params[TransformationOperation.ALIAS_PARAM])
+        out=n_out['output data'], in1=n_in['input data'], alias=alias)
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
     assert result, msg + format_code_comparison(code, expected_code)
 
 
 def test_transformation_math_expression_success():
-    expr = {'tree': {
+    alias = 'result_2'
+    expr = [{'tree': {
         "type": "BinaryExpression",
         "operator": "*",
         "left": {
@@ -701,11 +706,10 @@ def test_transformation_math_expression_success():
             "value": 100,
             "raw": "100"
         }
-    }, 'expression': "lower(a)"}
+    }, 'alias': alias, 'expression': "lower(a)"}]
 
     params = {
-        TransformationOperation.EXPRESSION_PARAM: json.dumps(expr),
-        TransformationOperation.ALIAS_PARAM: 'new_column'
+        TransformationOperation.EXPRESSION_PARAM: expr,
     }
     n_in = {'input data': 'df1'}
     n_out = {'output data': 'out'}
@@ -716,21 +720,27 @@ def test_transformation_math_expression_success():
     expected_code = dedent(
         """
         from juicer.spark.ext import CustomExpressionTransformer
-        transformer = CustomExpressionTransformer(
-            outputCol='{alias}', expression=({in1}['a'] * 100))
-        {out} = transformer.transform({in1})
+        expr_alias = [
+            [{in1}['a'] * 100, '{alias}']
+        ]
+        tmp_out = {in1}
+        for expr, alias in expr_alias:
+            transformer = CustomExpressionTransformer(
+                outputCol=alias, expression=expr)
+            tmp_out = transformer.transform(tmp_out)
+        {out} = tmp_out
         """)
 
     expected_code = expected_code.format(
-        out=n_out['output data'], in1=n_in['input data'],
-        alias=params[TransformationOperation.ALIAS_PARAM])
+        out=n_out['output data'], in1=n_in['input data'], alias=alias)
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
     assert result, msg + format_code_comparison(code, expected_code)
 
 
 def test_transformation_complex_expression_success():
-    expr = {'tree': {
+    alias = 'result_3'
+    expr = [{'tree': {
         "type": "BinaryExpression",
         "operator": "+",
         "left": {
@@ -746,11 +756,10 @@ def test_transformation_complex_expression_success():
             "type": "Identifier",
             "name": "b"
         }
-    }, 'expression': "a + b "}
+    }, 'alias': alias, 'expression': "a + b "}]
 
     params = {
-        TransformationOperation.EXPRESSION_PARAM: json.dumps(expr),
-        TransformationOperation.ALIAS_PARAM: 'new_column'
+        TransformationOperation.EXPRESSION_PARAM: expr,
     }
     n_in = {'input data': 'df1'}
     n_out = {'output data': 'out'}
@@ -760,14 +769,19 @@ def test_transformation_complex_expression_success():
     expected_code = dedent(
         """
         from juicer.spark.ext import CustomExpressionTransformer
-        transformer = CustomExpressionTransformer(
-            outputCol='{alias}', expression=(- {in1}['a'] + {in1}['b']))
-        {out} = transformer.transform({in1})
+        expr_alias = [
+            [(- {in1}['a'] + {in1}['b']), '{alias}']
+        ]
+        tmp_out = {in1}
+        for expr, alias in expr_alias:
+            transformer = CustomExpressionTransformer(
+                outputCol=alias, expression=expr)
+            tmp_out = transformer.transform(tmp_out)
+        {out} = tmp_out
         """)
 
     expected_code = expected_code.format(
-        out=n_out['output data'], in1=n_in['input data'],
-        alias=params[TransformationOperation.ALIAS_PARAM])
+        out=n_out['output data'], in1=n_in['input data'], alias=alias)
 
     debug_ast(code, expected_code)
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
@@ -776,18 +790,6 @@ def test_transformation_complex_expression_success():
 
 def test_transformation_missing_expr_failure():
     params = {
-        TransformationOperation.ALIAS_PARAM: 'new_column2'
-    }
-    with pytest.raises(ValueError):
-        n_in = {'input data': 'df1'}
-        n_out = {'output data': 'out'}
-        TransformationOperation(params, named_inputs=n_in,
-                                named_outputs=n_out)
-
-
-def test_transformation_missing_alias_failure():
-    params = {
-        TransformationOperation.EXPRESSION_PARAM: '{}'
     }
     with pytest.raises(ValueError):
         n_in = {'input data': 'df1'}
