@@ -448,11 +448,14 @@ class TransformationOperation(Operation):
         for expr in self.expressions:
             # Builds the expression and identify the target column
             expression = Expression(expr['tree'], params)
-            expr_alias.append([expression.parsed_expression, expr['alias']])
+            expr_alias.append("                [{}, '{}']".format(
+                expression.parsed_expression, expr['alias']))
 
         code = dedent("""
             from juicer.spark.ext import CustomExpressionTransformer
-            expr_alias = {expr_alias}
+            expr_alias = [
+                {expr_alias}
+            ]
             tmp_out = {in1}
             for expr, alias in expr_alias:
                 transformer = CustomExpressionTransformer(outputCol=alias,
@@ -460,7 +463,7 @@ class TransformationOperation(Operation):
                 tmp_out = transformer.transform(tmp_out)
             {out} = tmp_out
         """.format(out=self.output, in1=input_data,
-                   expr_alias=json.dumps(expr_alias)))
+                   expr_alias=',\n'.join(expr_alias).strip()))
 
         return dedent(code)
 
