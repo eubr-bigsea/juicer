@@ -1,5 +1,6 @@
 # coding=utf-8
 from __future__ import unicode_literals
+
 import functools
 from textwrap import dedent
 
@@ -62,7 +63,9 @@ class Expression:
             ]}
             result = self.get_when_function(spec, params)
         elif tree['type'] == 'Compound':
-            raise ValueError(_("Transformation has an invalid expression."))
+            raise ValueError(
+                _("Transformation has an invalid expression. "
+                  "Maybe variables are using spaces in their names."))
         else:
             raise ValueError(_("Unknown type: {}").format(tree['type']))
         return result
@@ -269,7 +272,7 @@ class Expression:
             'when': self.get_when_function,
             'window': self.get_time_window_function,
         }
-        
+
         self.functions.update(spark_sql_functions)
         self.functions.update(custom_functions)
 

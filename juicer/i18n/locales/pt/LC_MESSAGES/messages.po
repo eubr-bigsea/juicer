@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2018-03-20 15:29-0300\n"
-"PO-Revision-Date: 2018-03-20 15:31-0300\n"
+"POT-Creation-Date: 2018-04-04 14:57-0300\n"
+"PO-Revision-Date: 2018-04-04 14:58-0300\n"
 "Last-Translator: \n"
 "Language-Team: pt_BR <LL@li.org>\n"
 "Language: pt_BR\n"
@@ -94,10 +94,10 @@ msgstr "Esta implementação de rastreabilidade não suporta entradas múltiplas
 #: juicer/compss/text_operation.py:212 juicer/spark/data_operation.py:61
 #: juicer/spark/data_operation.py:578 juicer/spark/data_operation.py:687
 #: juicer/spark/data_quality_operation.py:19 juicer/spark/etl_operation.py:95
-#: juicer/spark/etl_operation.py:206 juicer/spark/etl_operation.py:486
-#: juicer/spark/etl_operation.py:523 juicer/spark/etl_operation.py:530
-#: juicer/spark/etl_operation.py:608 juicer/spark/etl_operation.py:706
-#: juicer/spark/etl_operation.py:762 juicer/spark/etl_operation.py:1193
+#: juicer/spark/etl_operation.py:206 juicer/spark/etl_operation.py:487
+#: juicer/spark/etl_operation.py:524 juicer/spark/etl_operation.py:531
+#: juicer/spark/etl_operation.py:609 juicer/spark/etl_operation.py:707
+#: juicer/spark/etl_operation.py:763 juicer/spark/etl_operation.py:1194
 #: juicer/spark/feature_operation.py:28 juicer/spark/geo_operation.py:35
 #: juicer/spark/ml_operation.py:39 juicer/spark/ml_operation.py:154
 #: juicer/spark/ml_operation.py:161 juicer/spark/ml_operation.py:218
@@ -132,12 +132,12 @@ msgstr "Parâmetros '{}' devem ser informados para a tarefa {}"
 msgid "Parameters '{}' and '{}' must be informed for task {}"
 msgstr "Parâmetros '{}' e '{}' devem ser informado para a tarefa {}"
 
-#: juicer/compss/compss_minion.py:81 juicer/spark/spark_minion.py:185
+#: juicer/compss/compss_minion.py:81 juicer/spark/spark_minion.py:186
 #, python-format
 msgid "Emit %s %s %s %s"
 msgstr "Emitir %s %s %s %s"
 
-#: juicer/compss/compss_minion.py:98 juicer/spark/spark_minion.py:227
+#: juicer/compss/compss_minion.py:98 juicer/spark/spark_minion.py:228
 #, python-format
 msgid ""
 "Unhandled error (%s) \n"
@@ -146,53 +146,53 @@ msgstr ""
 "Erro não tratado (%s) \n"
 ">%s"
 
-#: juicer/compss/compss_minion.py:130 juicer/spark/spark_minion.py:264
+#: juicer/compss/compss_minion.py:130 juicer/spark/spark_minion.py:265
 #, python-format
 msgid "Processing message %s for app %s"
 msgstr "Processando a mesangem %s para a aplicação %s"
 
-#: juicer/compss/compss_minion.py:144 juicer/spark/spark_minion.py:331
+#: juicer/compss/compss_minion.py:144 juicer/spark/spark_minion.py:338
 msgid "Running job with lang {}/{}"
 msgstr "Executando o job usando o idioma {}/{}"
 
-#: juicer/compss/compss_minion.py:167 juicer/spark/spark_minion.py:354
+#: juicer/compss/compss_minion.py:167 juicer/spark/spark_minion.py:361
 msgid "Execute message finished"
 msgstr "Mensagem de execução finalizada"
 
-#: juicer/compss/compss_minion.py:173 juicer/spark/spark_minion.py:375
+#: juicer/compss/compss_minion.py:173 juicer/spark/spark_minion.py:382
 #, python-format
 msgid "Terminate message received (job_id=%s)"
 msgstr "Mensagem de término recebida (job_id=%s)"
 
-#: juicer/compss/compss_minion.py:177 juicer/spark/spark_minion.py:379
+#: juicer/compss/compss_minion.py:177 juicer/spark/spark_minion.py:386
 #, python-format
 msgid "Terminate message received (app=%s)"
 msgstr "Mensagem de término recebida (app=%s)"
 
 #: juicer/compss/compss_minion.py:185 juicer/compss/compss_minion.py:186
-#: juicer/runner/juicer_server.py:112 juicer/spark/spark_minion.py:387
-#: juicer/spark/spark_minion.py:388
+#: juicer/runner/juicer_server.py:128 juicer/spark/spark_minion.py:394
+#: juicer/spark/spark_minion.py:395
 #, python-format
 msgid "Unknown message type %s"
 msgstr "Tipo da mensagem desconhecido %s"
 
-#: juicer/compss/compss_minion.py:207 juicer/spark/spark_minion.py:416
+#: juicer/compss/compss_minion.py:207 juicer/spark/spark_minion.py:423
 msgid "Running job"
 msgstr "Executando tarefa"
 
-#: juicer/compss/compss_minion.py:247 juicer/spark/spark_minion.py:461
+#: juicer/compss/compss_minion.py:247 juicer/spark/spark_minion.py:468
 msgid "Job finished in {0:.2f}s"
 msgstr "Job executado em {0:.2f}s"
 
-#: juicer/compss/compss_minion.py:266 juicer/spark/spark_minion.py:481
+#: juicer/compss/compss_minion.py:266 juicer/spark/spark_minion.py:488
 msgid "Invalid or missing parameters: {}"
 msgstr "Parâmetro inválido ou ausente: {}"
 
-#: juicer/compss/compss_minion.py:294 juicer/spark/spark_minion.py:505
+#: juicer/compss/compss_minion.py:294 juicer/spark/spark_minion.py:512
 msgid "Unhandled error"
 msgstr "Erro não tratado"
 
-#: juicer/compss/compss_minion.py:430 juicer/spark/spark_minion.py:809
+#: juicer/compss/compss_minion.py:430 juicer/spark/spark_minion.py:826
 #, python-format
 msgid "Spark minion (workflow_id=%s,app_id=%s) started (pid=%s)"
 msgstr "Spark minion (workflow_id=%s, app_id=%s) iniciou (pid=%s)"
@@ -239,12 +239,12 @@ msgid "Invalid type for operation Tokenizer: {}"
 msgstr "Tipo inválido para operação Tokenizer: {}"
 
 #: juicer/compss/transpiler.py:185 juicer/runner/minion_base.py:42
-#: juicer/spark/spark_minion.py:109
+#: juicer/spark/spark_minion.py:110
 msgid "Task completed"
 msgstr "Tarefa completada"
 
 #: juicer/compss/transpiler.py:186 juicer/runner/minion_base.py:42
-#: juicer/spark/spark_minion.py:109
+#: juicer/spark/spark_minion.py:110
 msgid "Task running"
 msgstr "Tarefa executando"
 
@@ -287,140 +287,147 @@ msgstr "Tipo de máscara inválido: {}"
 msgid "Data type is not supported for masking: {}"
 msgstr "Tipo de dados não suportado para máscara: {}"
 
-#: juicer/runner/juicer_server.py:69
+#: juicer/runner/juicer_server.py:80
+msgid "Libprocess configuration: {}:{}"
+msgstr "Configuração do libprocess: {}:{}"
+
+#: juicer/runner/juicer_server.py:85
 msgid "Starting master process. Reading \"start\" queue"
 msgstr "Inicializando o processo mestre. Lendo a fila de inicialização"
 
-#: juicer/runner/juicer_server.py:81
+#: juicer/runner/juicer_server.py:97
 msgid "Starting pending app {}"
 msgstr "Iniciando aplicação {} pendente"
 
-#: juicer/runner/juicer_server.py:133
+#: juicer/runner/juicer_server.py:150
 #, python-format
 msgid "Minion status for (workflow_id=%s,app_id=%s): %s"
 msgstr "Estado do Minion para (workflow_id=%s, app_id=%s): %s"
 
-#: juicer/runner/juicer_server.py:140
+#: juicer/runner/juicer_server.py:157
 #, python-format
 msgid "Minion (workflow_id=%s,app_id=%s) is running on %s."
 msgstr "Minion (workflow_id=%s,app_id=%s)  está executando em %s."
 
-#: juicer/runner/juicer_server.py:157
+#: juicer/runner/juicer_server.py:176
 #, python-format
 msgid "Message %s forwarded to minion (workflow_id=%s,app_id=%s)"
 msgstr "Mesangem %s encaminhada para o minion (workflow_id=%s, app_id=%s)"
 
-#: juicer/runner/juicer_server.py:159
-#, python-format
-msgid "Message content (workflow_id=%s,app_id=%s): %s"
-msgstr "Contéudo da mensagem (workflow_id=%s, app_id=%s): %s"
-
-#: juicer/runner/juicer_server.py:171
+#: juicer/runner/juicer_server.py:190
 #, python-format
 msgid "Forking minion %s."
 msgstr "Dividingo minion %s."
 
-#: juicer/runner/juicer_server.py:181
+#: juicer/runner/juicer_server.py:201
 #, python-format
 msgid "Minion command: %s"
 msgstr "Comando do minion: %s"
 
-#: juicer/runner/juicer_server.py:192
+#: juicer/runner/juicer_server.py:231
 #, python-format
 msgid "Terminating (workflow_id=%s,app_id=%s)"
 msgstr "Terminando (workflow_id=%s, app_id=%s)"
 
-#: juicer/runner/juicer_server.py:214
+#: juicer/runner/juicer_server.py:253
 #, python-format
 msgid "Master received a ticket for app %s"
 msgstr "Mestre recebeu um rótulo para a aplicação %s"
 
-#: juicer/runner/juicer_server.py:233
+#: juicer/runner/juicer_server.py:272
 #, python-format
 msgid "Unknown help reason %s"
 msgstr "Motivo de ajuda desconhecido %s"
 
-#: juicer/runner/juicer_server.py:255
-#, python-format
-msgid "watch subscribe: %s"
-msgstr "Assistindo o assinante: %s"
+#: juicer/runner/juicer_server.py:288
+msgid "Unable to launch minion: there is not available port for libprocess."
+msgstr ""
+"Impossível iniciar o minion: não há porta disponível para o libprocess."
 
-#: juicer/runner/juicer_server.py:259
-msgid "Minion {id} stopped"
-msgstr "Minion {id} parou"
+#: juicer/runner/juicer_server.py:293
+msgid "Watching minions events."
+msgstr "Acompanhando eventos do minion."
 
-#: juicer/runner/juicer_server.py:261
+#: juicer/runner/juicer_server.py:312
+msgid "Minion {} finished."
+msgstr "Minion {} terminou."
+
+#: juicer/runner/juicer_server.py:316
 msgid "There are messages to process in app {} queue, starting minion."
 msgstr ""
 "Existem mensagens a processar na fila da aplicação {}, iniciando o minion."
 
-#: juicer/runner/juicer_server.py:272
+#: juicer/runner/juicer_server.py:333
+msgid "Minion {} joined (pid: {}, port: {})."
+msgstr "Minion juntou-se ao servidor (pid: {}, porta: {})."
+
+#: juicer/runner/juicer_server.py:342
 #, python-format
 msgid "Juicer server started (pid=%s)"
 msgstr "Servidor Juicer iniciado (pid=%s)"
 
-#: juicer/runner/juicer_server.py:295
+#: juicer/runner/juicer_server.py:368
 #, python-format
 msgid "Terminating %s active minions"
 msgstr "Terminando %s minions ativos"
 
-#: juicer/runner/juicer_server.py:306
+#: juicer/runner/juicer_server.py:379
 msgid "Killing juicer server subprocesses and terminating"
 msgstr "Matando subprocessos do servidor juicer e finalizando"
 
-#: juicer/runner/minion.py:42
+#: juicer/runner/minion.py:43
 msgid "Starting minion"
 msgstr "Iniciando o minion"
 
-#: juicer/runner/minion.py:43
+#: juicer/runner/minion.py:44
 msgid "(c) Lemonade - DCC UFMG"
 msgstr "Direitos Autorais (C) - DCC UFMG"
 
-#: juicer/runner/minion.py:67
+#: juicer/runner/minion.py:68
 msgid "{type} is not supported (yet!)"
 msgstr "{type} não é suportado (ainda!)"
 
-#: juicer/runner/minion.py:70
+#: juicer/runner/minion.py:71
 msgid "Error running minion"
 msgstr "Erro executando o minion"
 
-#: juicer/runner/minion_base.py:25 juicer/spark/spark_minion.py:94
+#: juicer/runner/minion_base.py:25 juicer/spark/spark_minion.py:95
 msgid "Success."
 msgstr "Sucesso."
 
-#: juicer/runner/minion_base.py:26 juicer/spark/spark_minion.py:95
+#: juicer/runner/minion_base.py:26 juicer/spark/spark_minion.py:96
 msgid "Port output format not supported."
 msgstr "Formato da porta de saída  não suportado."
 
-#: juicer/runner/minion_base.py:27 juicer/spark/spark_minion.py:96
+#: juicer/runner/minion_base.py:27 juicer/spark/spark_minion.py:97
 msgid "Success getting data from task."
 msgstr "Sucesso ao obter dados da tarefa."
 
-#: juicer/runner/minion_base.py:28 juicer/spark/spark_minion.py:97
+#: juicer/runner/minion_base.py:28 juicer/spark/spark_minion.py:98
 msgid "State does not exists, processing app."
 msgstr "Estado não existe, processando a aplicação"
 
-#: juicer/runner/minion_base.py:29 juicer/spark/spark_minion.py:98
+#: juicer/runner/minion_base.py:29 juicer/spark/spark_minion.py:99
 msgid "Invalid port."
 msgstr "Porta inválida."
 
-#: juicer/runner/minion_base.py:31 juicer/spark/spark_minion.py:100
+#: juicer/runner/minion_base.py:31 juicer/spark/spark_minion.py:101
 msgid "Unable to retrieve data because a previous error."
 msgstr "Não é possível recuperar os dados devido a um erro anterior."
 
-#: juicer/runner/minion_base.py:33 juicer/spark/spark_minion.py:102
+#: juicer/runner/minion_base.py:33 juicer/spark/spark_minion.py:103
 msgid "Invalid Python code or incorrect encoding: {}"
 msgstr "Código Python inválido ou codificação incorreta: {}"
 
-#: juicer/runner/minion_base.py:34 juicer/spark/spark_minion.py:103
+#: juicer/runner/minion_base.py:34 juicer/spark/spark_minion.py:104
 msgid "Job {} was canceled"
 msgstr "Trabalho {} foi cancelado."
 
-#: juicer/runner/minion_base.py:35 juicer/spark/spark_minion.py:104
+#: juicer/runner/minion_base.py:35 juicer/spark/spark_minion.py:105
 msgid "App {} was terminated"
 msgstr "Aplicação {} foi finalizada."
 
-#: juicer/runner/minion_base.py:36 juicer/spark/spark_minion.py:105
+#: juicer/runner/minion_base.py:36 juicer/spark/spark_minion.py:106
 msgid "Workflow specification is missing"
 msgstr "Especificação do workflow não especificada"
 
@@ -574,42 +581,46 @@ msgstr ""
 "Para a operação de interseção, ambas as fontes de dados devem ter o mesmo "
 "número de atributos e tipos correspondentes."
 
-#: juicer/spark/etl_operation.py:330 juicer/spark/etl_operation.py:437
+#: juicer/spark/etl_operation.py:330
 msgid "Parameters '{}' and {} must be informed for task {}"
 msgstr "Parâmetro '{}' e {} devem ser informado para a tarefa {}"
 
-#: juicer/spark/etl_operation.py:546 juicer/spark/etl_operation.py:552
+#: juicer/spark/etl_operation.py:434
+msgid "Parameter must be informed for task {}."
+msgstr "Parâmetro deve ser informado para a tarefa: {}."
+
+#: juicer/spark/etl_operation.py:547 juicer/spark/etl_operation.py:553
 msgid "Parameter '{}' for task '{}' must be a number or enclosed in quotes."
 msgstr ""
 "Parâmetro '{}' para a tarefa '{}' deve ser numérico ou estar entre aspas."
 
-#: juicer/spark/etl_operation.py:577
+#: juicer/spark/etl_operation.py:578
 msgid "Value and replacement must be of the same type for all attributes"
 msgstr ""
 "O valor a ser substituído e a substituição devem ser do mesmo tipo para "
 "todos os atributos"
 
-#: juicer/spark/etl_operation.py:613
+#: juicer/spark/etl_operation.py:614
 msgid "Missing parameter in aggregation function"
 msgstr "Parâmetro ausente na função de agregação"
 
-#: juicer/spark/etl_operation.py:863
+#: juicer/spark/etl_operation.py:864
 msgid "Parameter '{}' has an incorrect value '{}' in {}"
 msgstr "Parâmetro '{}' tem um valor incorreto '{}' in {}"
 
-#: juicer/spark/etl_operation.py:939
+#: juicer/spark/etl_operation.py:940
 msgid "Required parameters must be informed for task {}"
 msgstr "Parâmetro necessário deve ser informado para a tarefa {}"
 
-#: juicer/spark/etl_operation.py:982 juicer/spark/etl_operation.py:1076
+#: juicer/spark/etl_operation.py:983 juicer/spark/etl_operation.py:1077
 msgid "Required parameter {} must be informed for task {}"
 msgstr "Parâmetro obrigatório {} deve ser informado para tarefa {}"
 
-#: juicer/spark/etl_operation.py:1082
+#: juicer/spark/etl_operation.py:1083
 msgid "Invalid query. Only SELECT is allowed."
 msgstr "Consulta inválida. Apenas SELECT é permitido."
 
-#: juicer/spark/etl_operation.py:1138
+#: juicer/spark/etl_operation.py:1139
 msgid ""
 "Invalid names. Number of attributes in result differs from names informed."
 msgstr ""
@@ -624,23 +635,27 @@ msgstr "O valor para o parâmetro {} deve ser um destes: {}."
 msgid "Parameter '{}' must be informed in all expressions in task {}."
 msgstr "Parâmetro '{}' deve ser informado em todas as expressões na tarefa {}."
 
-#: juicer/spark/etl_operation.py:1260
+#: juicer/spark/etl_operation.py:1268
 msgid "Start of offset must be >= its end: [{}, {}]"
 msgstr "O começo do deslocamento deve ser >= ao seu final: [{}, {}]"
 
-#: juicer/spark/expression.py:31
+#: juicer/spark/expression.py:32
 msgid "Function {f}() does not exists."
 msgstr "Função {f}() não existe."
 
-#: juicer/spark/expression.py:65
-msgid "Transformation has an invalid expression."
-msgstr "Transformação possui uma expressão inválida."
-
 #: juicer/spark/expression.py:67
+msgid ""
+"Transformation has an invalid expression. Maybe variables are using spaces "
+"in their names."
+msgstr ""
+"Transformação possui uma expressão inválida. Talvez os nomes das variáveis "
+"contenham espaço."
+
+#: juicer/spark/expression.py:70
 msgid "Unknown type: {}"
 msgstr "Tipo desconhecido: {}"
 
-#: juicer/spark/expression.py:99
+#: juicer/spark/expression.py:102
 msgid "Function set() expects exactly 1 argument."
 msgstr "Função set() espera exatamente 1 argumento."
 
@@ -729,40 +744,44 @@ msgstr "Rótulo"
 msgid "Predicted"
 msgstr "Predição"
 
-#: juicer/spark/spark_minion.py:77
+#: juicer/spark/spark_minion.py:78
 #, python-format
 msgid "SPARK_HOME set to %s"
 msgstr "SPARK_HOME definido como %s"
 
-#: juicer/spark/spark_minion.py:79
+#: juicer/spark/spark_minion.py:80
 msgid "SPARK_HOME environment variable is not defined"
 msgstr "Variável de ambiente SPARK_HOME não está definida"
 
-#: juicer/spark/spark_minion.py:110
+#: juicer/spark/spark_minion.py:111
 msgid "Task ignored (not used by other task or as an output)"
 msgstr "Tarefa ignorada (não é usada por outra tarefa ou como saída)"
 
-#: juicer/spark/spark_minion.py:123
+#: juicer/spark/spark_minion.py:124
 msgid "Finishing minion"
 msgstr "Terminar o minion"
 
-#: juicer/spark/spark_minion.py:124
+#: juicer/spark/spark_minion.py:125
 msgid "Pressed CTRL+C / SIGINT. Minion canceled the job."
 msgstr "CTRL+C/SIGINT pressionado. Minion cancelou o job."
 
-#: juicer/spark/spark_minion.py:249
+#: juicer/spark/spark_minion.py:250
 msgid "Invalid message JSON: {}"
 msgstr "Mensagem JSON inválida: {}"
 
-#: juicer/spark/spark_minion.py:277
+#: juicer/spark/spark_minion.py:278
 msgid "Unsupported cluster type, it cannot run Spark applications."
 msgstr "Tipo de cluster não suportado, ele não pode executar aplicações Spark."
 
-#: juicer/spark/spark_minion.py:287
+#: juicer/spark/spark_minion.py:288
 msgid "Cluster configuration changed. Stopping previous cluster."
 msgstr "Configuração do cluster alterada. Parando o cluster anterior."
 
-#: juicer/spark/spark_minion.py:410
+#: juicer/spark/spark_minion.py:306
+msgid "Error in general cluster parameters: {}"
+msgstr "Erro nos parâmetros gerais do cluster: {}."
+
+#: juicer/spark/spark_minion.py:417
 msgid ""
 "Running job, but it requires allocation of cluster computers first and it "
 "takes time."
@@ -770,20 +789,20 @@ msgstr ""
 "Executando o job, mas ele requer alocação dos computadores no cluster e isto "
 "leva tempo."
 
-#: juicer/spark/spark_minion.py:519
+#: juicer/spark/spark_minion.py:526
 msgid "Minion is configured to stop Spark after each execution"
 msgstr "Minion está configurado para parar o Spark após cada execução"
 
-#: juicer/spark/spark_minion.py:547
+#: juicer/spark/spark_minion.py:554
 msgid "Creating a new Spark session"
 msgstr "Criando um nova sessão Spark"
 
-#: juicer/spark/spark_minion.py:558
+#: juicer/spark/spark_minion.py:565
 #, python-format
 msgid "Setting spark configuration %s"
 msgstr "Ajustando as configurações do spark %s"
 
-#: juicer/spark/spark_minion.py:632
+#: juicer/spark/spark_minion.py:649
 #, python-format
 msgid "Minion is using '%s' as Spark master"
 msgstr "Minion está usando '%s\" como mestre Spark"
@@ -1025,6 +1044,18 @@ msgstr "Porta '{}' ausente, deve ser informado para a operação {}"
 #: juicer/workflow/workflow.py:446
 msgid "The node informed doesn't exist"
 msgstr "O nó informado não existe"
+
+#~ msgid "Message content (workflow_id=%s,app_id=%s): %s"
+#~ msgstr "Contéudo da mensagem (workflow_id=%s, app_id=%s): %s"
+
+#~ msgid "watch subscribe: %s"
+#~ msgstr "Assistindo o assinante: %s"
+
+#~ msgid "Minion {id} stopped"
+#~ msgstr "Minion {id} parou"
+
+#~ msgid "Transformation has an invalid expression."
+#~ msgstr "Transformação possui uma expressão inválida."
 
 #~ msgid ""
 #~ "Running job, but it requires allocating of cluster computers first and it "
