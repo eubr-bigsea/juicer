@@ -1,15 +1,11 @@
+# -*- coding: utf-8 -*-
 from textwrap import dedent
 from juicer.operation import Operation
 
 
-#-------------------------------------------------------------------------------#
-#
-#                         Feature Extraction Operations
-#
-#-------------------------------------------------------------------------------#
-
 class FeatureAssemblerOperation(Operation):
-    """
+    """FeatureAssemblerOperation.
+
     REVIEW: 2017-10-20
     OK - Juicer / Tahiti ???????????? / implementation
 
@@ -21,13 +17,12 @@ class FeatureAssemblerOperation(Operation):
 
         if 'attributes' not in parameters:
             raise ValueError(
-                _("Parameters '{}' must be informed for task {}") \
-                    .format('attributes', self.__class__))
+                _("Parameters '{}' must be informed for task {}")
+                .format('attributes', self.__class__))
 
-
-        self.alias = parameters.get("alias",'FeatureField')
-        self.output = self.named_outputs.get('output data',
-                                             'output_data_{}'.format(self.order))
+        tmp = 'output_data_{}'.format(self.order)
+        self.alias = parameters.get("alias", 'FeatureField')
+        self.output = self.named_outputs.get('output data', tmp)
 
         self.has_code = len(self.named_inputs) == 1
         if self.has_code:
@@ -35,22 +30,21 @@ class FeatureAssemblerOperation(Operation):
                               "import FeatureAssemblerOperation\n"
 
     def generate_code(self):
-
+        """Generate code."""
         code = """
-            cols  = {cols}
+            cols = {cols}
             alias = '{alias}'
             {output} = FeatureAssemblerOperation({input}, cols, alias, numFrag)
-            """.format( output = self.output,
-                        input  = self.named_inputs['input data'],
-                        cols    = self.parameters['attributes'],
-                        alias  = self.alias)
+            """.format(output=self.output, alias=self.alias,
+                       input=self.named_inputs['input data'],
+                       cols=self.parameters['attributes'])
 
         return dedent(code)
 
 
-
 class FeatureIndexerOperation(Operation):
-    """
+    """FeatureIndexerOperation.
+
     REVIEW: 2017-10-20
     OK - Juicer / Tahiti ???????????? / implementation
 
@@ -62,40 +56,36 @@ class FeatureIndexerOperation(Operation):
 
         if 'attributes' not in parameters:
             raise ValueError(
-                _("Parameters '{}' must be informed for task {}") \
-                    .format('attributes', self.__class__))
+                _("Parameters '{}' must be informed for task {}")
+                .format('attributes', self.__class__))
         elif 'alias' not in parameters:
             raise ValueError(
-                _("Parameters '{}' must be informed for task {}") \
-                    .format('alias', self.__class__))
+                _("Parameters '{}' must be informed for task {}")
+                .format('alias', self.__class__))
 
         elif 'type' not in parameters:
             raise ValueError(
-                _("Parameters '{}' must be informed for task {}") \
-                    .format('type', self.__class__))
+                _("Parameters '{}' must be informed for task {}")
+                .format('type', self.__class__))
 
-        self.output = self.named_outputs.get('output data',
-                                             'output_data_{}'.format(self.order))
-        self.alias = parameters.get("alias",'FeatureIndexed')
-
-        self.has_code =  len(self.named_inputs) == 1
+        tmp = 'output_data_{}'.format(self.order)
+        self.output = self.named_outputs.get('output data', tmp)
+        self.alias = parameters.get("alias", 'FeatureIndexed')
+        self.has_code = len(self.named_inputs) == 1
         if self.has_code:
             self.has_import = "from functions.ml.FeatureAssembler " \
                               "import FeatureAssemblerOperation\n"
 
     def generate_code(self):
-
+        """Generate Code."""
         code = """
             settings = dict()
-            settings['inputCol']  = {columns}
+            settings['inputCol'] = {columns}
             settings['outputCol'] = '{alias}'
             settings['IndexToString'] = False #Currently, only String to Index
-            {output}, mapper= FeatureIndexerOperation({input}, settings, numFrag)
-            """.format( output = self.output,
-                        input  = self.named_inputs['input data'],
-                        columns= self.parameters['attributes'],
-                        alias  = self.alias)
+            {out}, mapper = FeatureIndexerOperation({input}, settings, numFrag)
+            """.format(out=self.output, alias=self.alias,
+                       input=self.named_inputs['input data'],
+                       columns=self.parameters['attributes'])
 
         return dedent(code)
-
-

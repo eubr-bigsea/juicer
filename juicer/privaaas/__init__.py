@@ -15,8 +15,6 @@ import sys
 from textwrap import dedent
 
 import datetime
-from pyspark.sql.functions import udf
-from pyspark.sql.types import StringType
 
 ANONYMIZATION_TECHNIQUES = {
     'NO_TECHNIQUE': 0,
@@ -108,12 +106,12 @@ def _string_range_to_string(value, details):
 def _number_to_bucket(value, bucket_size):
     result = None
     if isinstance(value, numbers.Integral):
-        start = int(math.floor(value / bucket_size) * bucket_size)
-        end = int(math.ceil(value / bucket_size) * bucket_size - 1)
+        start = int(math.ceil(value / bucket_size) * bucket_size - 1)
+        end = int(math.floor(value / bucket_size) * bucket_size)
         result = [start, end]
     elif isinstance(value, numbers.Real):
-        start = float(math.floor(value / bucket_size) * bucket_size)
-        end = float(math.ceil(value / bucket_size) * bucket_size - 1)
+        start = float(math.ceil(value / bucket_size) * bucket_size - 1)
+        end = float(math.floor(value / bucket_size) * bucket_size)
         result = [start, end]
     elif isinstance(value, basestring):
         # @FIXME Implement
@@ -157,8 +155,6 @@ def generalization(details):
             return _number_to_bucket(v, bucket_size=bucket_size)
 
         result = _inner_number_to_bucket
-        # result = functools.partial(_number_to_bucket,
-        #                            bucket_size=bucket_size)
     elif gen_type == 'substring':
         args = details.get('substring_args', {})
         _from = args.get('from') or 0
@@ -266,7 +262,7 @@ class PrivacyPreservingDecorator(object):
 
     def suppression(self, group):
         return dedent("""
-            # PRIVAaS Privacy policy: attribute suppression
+            # PRIVAaaS Privacy policy: attribute suppression
             {out} = {out}.drop(*{cols})""".format(
             out=self.output, cols=json.dumps([g['name'] for g in group])))
 

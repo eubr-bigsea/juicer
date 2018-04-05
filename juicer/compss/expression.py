@@ -29,6 +29,9 @@ class Expression:
 
         # Expression parsing
         elif tree['type'] == 'CallExpression':
+            if tree['callee']['name'] not in self.functions:
+                raise ValueError(_('Function {f}() does not exists.').format(
+                    f=tree['callee']['name']))
             result = self.functions[tree['callee']['name']](tree, params)
 
         # Identifier parsing
@@ -71,6 +74,16 @@ class Expression:
         result = " np.{}({})".format(function_name, arguments)
         return result
 
+    def get_function_call(self, spec, params):
+        """
+        Wrap column name with col() function call, if such call is not present.
+        """
+        callee = spec['arguments'][0].get('callee', {})
+        # Evaluates if column name is wrapped in a col() function call
+        arguments = ', '.join([self.parse(x, params) for x in spec['arguments']])
+        function_name = spec['callee']['name']
+        result = " {}({})".format(function_name, arguments)
+        return result
 
     def get_date_function_call(self, spec, params):
         """
@@ -345,7 +358,7 @@ class Expression:
 
             'str2time':         'parser.parse',
 
-            'date:':            'datetime.date',
+            'date':            'datetime.date',
             'today':            'date.today',
             'now':              'datetime.now',
             'utcnow':           'datetime.utcnow',
@@ -373,6 +386,7 @@ class Expression:
             'group_datetime':       self.get_window_function,
             'strip_accents':        self.get_strip_accents_function,
             'strip_punctuation':    self.get_strip_punctuation_function,
+            'str': self.get_function_call
             # 'col':                  self.convertToPandas_function,
         }
         self.functions.update(custom_functions)

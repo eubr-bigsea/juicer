@@ -161,7 +161,8 @@ class VisualizationMethodOperation(Operation):
         self.title = parameters.get(
             self.TITLE_PARAM, 'Result for job ' + str(
                 self.parameters.get('job_id', '0')))
-        self.column_names = parameters.get(self.COLUMN_NAMES_PARAM, [])
+        self.column_names = [c.strip() for c in
+                             parameters.get(self.COLUMN_NAMES_PARAM, [])]
         self.orientation = parameters.get(self.ORIENTATION_PARAM, '')
         self.id_attribute = parameters.get(self.ID_ATTR_PARAM, [])
         self.value_attribute = parameters.get(self.VALUE_ATTR_PARAM, [])
@@ -585,6 +586,9 @@ class PieChartModel(ChartVisualization):
     def get_data(self):
         label_attr, _, value_attr = self._get_axis_info()
 
+        # @FIXME Spark 2.2.0 is raising an exception if self.data.collect()
+        # is called directly when the output port is used multiple times.
+        self.data.count()
         rows = self.data.collect()
         result = self._get_title_legend_tootip()
         result['legend']['isVisible'] = self.params.get('legend') in ('1', 1)
@@ -898,8 +902,13 @@ class TableVisualizationModel(VisualizationModel):
                 dataframe_util.convert_to_python).collect()
 
         return {"rows": rows,
-                "attributes": self.get_column_names().split(','),
-                "schema": self.get_schema()}
+                "attributes": self.get_column_names().split(',')}
+
+    def get_schema(self):
+        if self.column_names:
+            return self.data.select(*self.column_names).schema.json()
+        else:
+            return self.data.schema.json()
 
     def get_column_names(self):
         if self.column_names:

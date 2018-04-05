@@ -38,6 +38,7 @@ class Minion:
         # Used in the template file, declared here to gettext detect them
         self.msgs = [
             _('Task running'), _('Task completed'),
+            _('Task running (cached data)')
         ]
 
     def process(self):

@@ -4,6 +4,13 @@ import json
 
 import datetime
 
+try:
+    from pyspark.sql.utils import AnalysisException, IllegalArgumentException
+except ImportError:
+    pass
+
+import re
+
 
 class CustomEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -138,6 +145,11 @@ class LazySparkTransformationDataframe(object):
         self.transformed_df = None
         self.load_op = load_op
 
+    def __getitem__(self, item):
+        if self.transformed_df is None:
+            self.transformed_df = self.load_op(self.df)
+        return self.transformed_df[item]
+
     def __getattr__(self, name):
         if self.transformed_df is None:
             self.transformed_df = self.load_op(self.df)
@@ -216,3 +228,63 @@ def merge_dicts(x, y):
     z = x.copy()
     z.update(y)
     return z
+
+
+def handle_spark_exception(e):
+    result = False
+    if isinstance(e, AnalysisException):
+        value_expr = re.compile(r'(`.+`).+\[(.+)\]')
+        found = value_expr.findall(unicode(e.message))
+        if found:
+            field, fields = found[0]
+            raise ValueError(
+                _('Attribute {} not found. Valid attributes: {}').format(
+                    field, fields))
+    elif isinstance(e, IllegalArgumentException):
+        # Invalid column type
+        if 'must be of type equal' in unicode(e.message):
+            value_expr = re.compile(
+                "requirement failed: Column (.+?) must be"
+                ".+following types: \[(.+?)\] but was actually of type (.+).")
+            found = value_expr.findall(e.desc)
+            if found:
+                attr, correct, used = found[0]
+                raise ValueError(_('Attribute {attr} must be one of these types'
+                                   ' [{correct}], but it is {used}').format(
+                    attr=attr, used=used, correct=correct
+                ))
+    elif hasattr(e, 'java_exception'):
+        cause = e.java_exception.getCause()
+        if cause is not None:
+            nfe = 'java.lang.NumberFormatException'
+            uoe = 'java.lang.UnsupportedOperationException'
+            npe = 'java.lang.NullPointerException'
+
+            cause_msg = cause.getMessage()
+            inner_cause = cause.getCause()
+            if cause.getClass().getName() == nfe and cause_msg:
+                value_expr = re.compile(r'.+"(.+)"')
+                value = value_expr.findall(cause_msg)[0]
+                raise ValueError(_('Invalid numeric data in at least one '
+                                   'data source (value: {})').format(
+                    value).encode('utf8'))
+            elif cause_msg == u'Malformed CSV record':
+                raise ValueError(_('At least one input data source is not in '
+                                   'the correct format.'))
+            elif inner_cause and inner_cause.getClass().getName() == npe:
+                if cause_msg and 'createTransformFunc' in cause_msg:
+                    raise ValueError(_('There is null values in your data set '
+                                       'and Spark cannot handle them. '
+                                       'Please, remove them before applying '
+                                       'a data transformation.'))
+                pass
+        elif e.java_exception.getMessage():
+            value_expr = re.compile(r'CSV data source does not support '
+                                    r'(.+?) data type')
+            value = value_expr.findall(e.java_exception.getMessage())
+            if value:
+                raise ValueError(
+                    _('CSV format does not support the data type {}. '
+                      'Try to convert the attribute to string (see to_json()) '
+                      'before saving.'.format(value[0])))
+    return result

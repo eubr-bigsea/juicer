@@ -3,11 +3,16 @@ import gettext
 import logging.config
 import urlparse
 
+import matplotlib
 import os
 import redis
 import yaml
 from juicer.compss.compss_minion import COMPSsMinion
 from juicer.spark.spark_minion import SparkMinion
+
+# Important!
+# See https://stackoverflow.com/a/29172195/1646932
+matplotlib.use('Agg', force=True, warn=True)
 
 logging.config.fileConfig('logging_config.ini')
 log = logging.getLogger(__name__)
@@ -52,6 +57,7 @@ if __name__ == '__main__':
                                  juicer_config,
                                  args.lang, args.jars)
         elif args.type == 'compss':
+            # log.info('Starting COMPSs Minion')
             minion = COMPSsMinion(redis_conn,
                                   args.workflow_id,
                                   args.app_id or args.workflow_id,

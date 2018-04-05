@@ -2,13 +2,12 @@
 from textwrap import dedent
 from itertools import izip_longest
 import re
-
 from juicer.operation import Operation
 
 
 class ReadShapefileOperation(Operation):
-    """
-    Reads a shapefile.
+    """Reads a shapefile.
+
     Parameters:
         - File location
         - Alias
@@ -16,45 +15,46 @@ class ReadShapefileOperation(Operation):
     REVIEW: 2017-10-20
     OK - Juicer / Tahiti / implementation
     """
+
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         self.has_code = 'shapefile' in parameters
         if not self.has_code:
             raise ValueError(
-                _("Parameter '{}' must be informed for task {}").format(
-                    'shapefile', self.__class__))
+                _("Parameter '{}' must be informed for task {}")
+                .format('shapefile', self.__class__))
 
         self.shp_file = parameters['shapefile']
         if '.shp' not in self.shp_file:
             self.shp_file = self.shp_file+'.shp'
 
         self.dbf_file = re.sub('.shp$', '.dbf', self.shp_file)
-        self.has_import = \
-           "from functions.geo.ReadShapeFile import ReadShapeFileOperation\n"
-        self.alias = parameters.get('polygon','points')
+        self.has_import = "from functions.geo.ReadShapeFile "\
+                          "import ReadShapeFileOperation\n"
+        self.alias = parameters.get('polygon', 'points')
 
     def generate_code(self):
+        """Generate code."""
         code = """
         settings = dict()
         settings['polygon'] = '{alias}'
         settings['shp_path'] = '{shp}'
         settings['dbf_path'] = '{dbf}'
         ReadShapeFileOperation(settings)
-        """.format(alias = self.alias,
-                   shp =   self.shp_file,
-                   dbf =   self.dbf_file)
-
+        """.format(alias=self.alias, shp=self.shp_file, dbf=self.dbf_file)
         return dedent(code)
 
-class GeoWithinOperation(Operation):
 
-    """
+class GeoWithinOperation(Operation):
+    """GeoWithinOperation.
+
     REVIEW: 2017-10-20
     OK - Juicer / Tahiti / implementation
     """
+
     POLYGON_POINTS_COLUMN_PARAM = 'polygon'
-    POLYGON_ATTRIBUTES_COLUMN_PARAM = 'polygon_attributes'
+    POLYGON_ATTR_COLUMN_PARAM = 'polygon_attributes'
     TARGET_LAT_COLUMN_PARAM = 'latitude'
     TARGET_LON_COLUMN_PARAM = 'longitude'
 
@@ -69,12 +69,12 @@ class GeoWithinOperation(Operation):
             if att not in parameters:
                 raise ValueError(
                     _("Parameter '{}' must be informed for task {}")
-                        .format(att, self.__class__))
+                    .format(att, self.__class__))
 
         self.lat_column = parameters[self.TARGET_LAT_COLUMN_PARAM]
         self.lon_column = parameters[self.TARGET_LON_COLUMN_PARAM]
         self.polygon_column = parameters[self.POLYGON_POINTS_COLUMN_PARAM]
-        self.attributes = parameters.get(self.POLYGON_ATTRIBUTES_COLUMN_PARAM,[])
+        self.attributes = parameters.get(self.POLYGON_ATTR_COLUMN_PARAM, [])
         self.alias = parameters.get('alias', 'sector_position')
 
         if len(named_inputs) == 2:
@@ -84,39 +84,38 @@ class GeoWithinOperation(Operation):
         else:
             raise ValueError(
                 _("Parameter '{}' and '{}' must be informed for task {}")
-                    .format('input data',  'geo data', self.__class__))
-
+                .format('input data',  'geo data', self.__class__))
 
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
 
     def generate_code(self):
+        """Generate code."""
         code = """
             settings = dict()
-            settings['lat_col']  = "{LAT}"
+            settings['lat_col'] = "{LAT}"
             settings['long_col'] = "{LON}"
-            settings['attributes']   = {ids}
-            settings['alias']   = '{alias}'
-            settings['polygon']  = '{polygon}'
+            settings['attributes'] = {ids}
+            settings['alias'] = '{alias}'
+            settings['polygon'] = '{polygon}'
             {out} = GeoWithinOperation({input}, {shape}, settings, numFrag)
-            """.format(shape   = self.named_inputs['geo data'],
-                       polygon = self.polygon_column[0],
-                       ids     = self.attributes,
-                       alias   = self.alias,
-                       input   = self.named_inputs['input data'],
-                       LAT     = self.lat_column[0],
-                       LON     = self.lon_column[0],
-                       out     = self.output)
+            """.format(shape=self.named_inputs['geo data'],
+                       polygon=self.polygon_column[0],
+                       ids=self.attributes,  alias=self.alias,
+                       input=self.named_inputs['input data'],
+                       LAT=self.lat_column[0], LON=self.lon_column[0],
+                       out=self.output)
         return dedent(code)
 
 
 class STDBSCANOperation(Operation):
+    """STDBSCANOperation.
 
-    """
     Perform a ST-DBSCAN with the geospatial data
     REVIEW: 2017-10-20
     OK - Juicer / Tahiti / implementation
     """
+
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
@@ -126,55 +125,52 @@ class STDBSCANOperation(Operation):
 
         if any([self.latCol == 0, self.lonCol == 0, self.datetimeCol == 0]):
             raise ValueError(
-                _('Parameters {}, {} and {} must be informed for task {}.')\
-                   .format('Latitude', 'Longitude', 'Datetime', self.__class__))
+                _('Parameters {}, {} and {} must be informed for task {}.')
+                .format('Latitude', 'Longitude', 'Datetime', self.__class__))
 
         if any([len(self.latCol) > 1,
-                len(self.lonCol)> 1,
-                len(self.datetimeCol)>1]):
+                len(self.lonCol) > 1,
+                len(self.datetimeCol) > 1]):
             raise ValueError(
                 _('Parameters {}, {} and {} must contain only '
-                  'one field (in each one) for task {}.') \
-                    .format('Latitude', 'Longitude', 'Datetime', self.__class__))
+                  'one field (in each one) for task {}.')
+                .format('Latitude', 'Longitude', 'Datetime', self.__class__))
 
         self.predCol = parameters.get('alias', 'Cluster')
-        self.minPts  = parameters.get('min_sample', 5)
-        self.spatialThr  = parameters.get('spatial_threshold', 500)
+        self.minPts = parameters.get('min_sample', 5)
+        self.spatialThr = parameters.get('spatial_threshold', 500)
         self.temporalThr = parameters.get('thresold_temporal', 60)
 
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
 
-        self.has_code = len(named_inputs)==1
+        self.has_code = len(named_inputs) == 1
         if self.has_code:
             self.has_import = \
                 'from functions.geo.stdbscan.stdbscan import STDBSCAN\n'
 
     def generate_code(self):
+        """Generate code."""
         code = """
             settings = dict()
 
-            settings['spatial_threshold']  = {spatial}  #meters
-            settings['temporal_threshold'] = {temporal} #minutes
-            settings['minPts']             = {minPts}
+            settings['spatial_threshold'] = {spatial}  # meters
+            settings['temporal_threshold'] = {temporal} # minutes
+            settings['minPts'] = {minPts}
 
-            #columns
-            settings['lat_col']  = '{latitude}'
-            settings['lon_col']  = '{longitude}'
+            # columns
+            settings['lat_col'] = '{LAT}'
+            settings['lon_col'] = '{LON}'
             settings['datetime'] = '{datetime}'
-            settings['predCol']  = '{predCol}'
+            settings['predCol'] = '{predCol}'
 
             stdbscan = STDBSCAN()
 
             {output} = stdbscan.fit_predict({data_input}, settings, numFrag)
-            """.format( data_input = self.named_inputs['input data'],
-                        output    = self.output,
-                        minPts    = self.minPts,
-                        spatial   = self.spatialThr,
-                        temporal  = self.temporalThr,
-                        latitude  = self.latCol[0],
-                        longitude = self.lonCol[0],
-                        datetime  = self.datetimeCol[0],
-                        predCol   = self.predCol)
+            """.format(data_input=self.named_inputs['input data'],
+                       output=self.output, minPts=self.minPts,
+                       spatial=self.spatialThr, temporal=self.temporalThr,
+                       LAT=self.latCol[0], LON=self.lonCol[0],
+                       datetime=self.datetimeCol[0], predCol=self.predCol)
 
         return dedent(code)

@@ -58,10 +58,10 @@ class FeatureIndexerOperation(Operation):
         output = self.named_outputs.get('output data',
                                         'out_task_{}'.format(self.order))
 
+        models = self.named_outputs.get('indexer models',
+                                        'models_task_{}'.format(self.order))
         if self.type == self.TYPE_STRING:
-            models = self.named_outputs.get('indexer models',
-                                            'models_task_{}'.format(self.order))
-            code = """
+            code = dedent("""
                 col_alias = dict({alias})
                 indexers = [feature.StringIndexer(
                     inputCol=col, outputCol=alias, handleInvalid='skip')
@@ -70,7 +70,7 @@ class FeatureIndexerOperation(Operation):
                 # Use Pipeline to process all attributes once
                 pipeline = Pipeline(stages=indexers)
                 {models} = dict([(c, indexers[i].fit({input})) for i, c in
-                                 enumerate(col_alias)])
+                                 enumerate(col_alias.values())])
 
                 # Spark ML 2.0.1 do not deal with null in indexer.
                 # See SPARK-11569
@@ -81,34 +81,49 @@ class FeatureIndexerOperation(Operation):
                     .transform({input}_without_null)
             """.format(input=input_data, out=output, models=models,
                        alias=json.dumps(zip(self.attributes, self.alias),
-                                        indent=None))
+                                        indent=None)))
         elif self.type == self.TYPE_VECTOR:
-            code = """
-                col_alias = dict({3})
-                indexers = [feature.VectorIndexer(maxCategories={4},
+            code = dedent("""
+                col_alias = dict({alias})
+                indexers = [feature.VectorIndexer(maxCategories={max_categ},
                                 inputCol=col, outputCol=alias)
                                     for col, alias in col_alias.items()]
 
                 # Use Pipeline to process all attributes once
                 pipeline = Pipeline(stages=indexers)
-                models = dict([(col, indexers[i].fit({1})) for i, col in
-                                enumerate(col_alias)])
+                {models} = dict([(col, indexers[i].fit({input})) for i, col in
+                                enumerate(col_alias.values())])
                 labels = None
 
                 # Spark ML 2.0.1 do not deal with null in indexer.
                 # See SPARK-11569
-                {1}_without_null = {1}.na.fill('NA', subset=col_alias.keys())
+                {input}_without_null = {input}.na.fill('NA',
+                    subset=col_alias.keys())
 
-                {2} = pipeline.fit({1}_without_null).transform({1}_without_null)
-            """.format(self.attributes, input_data, output,
-                       json.dumps(zip(self.attributes, self.alias)),
-                       self.max_categories)
+                {out} = pipeline.fit({input}_without_null).transform(
+                    {input}_without_null)
+            """.format(input=input_data, out=output,
+                       alias=json.dumps(zip(self.attributes, self.alias)),
+                       max_categ=self.max_categories,
+                       models=models))
         else:
             # Only if the field be open to type
             raise ValueError(
                 _("Parameter type has an invalid value {}").format(self.type))
 
-        return dedent(code)
+        code += dedent(
+            """
+            # Store indexer models in cache. Some operations may need to use
+            # them. If an indexer is created more than once for attributes with
+            # the same name, the last executed will overwrite the previous one.
+            # FIXME: evaluate how to handle this conflict.
+            if 'indexer' not in cached_state:
+                cached_state['indexers'] = {{}}
+            for name, model in {models}.items():
+                cached_state['indexers'][name] = model
+        """.format(models=models))
+
+        return code
 
     def get_output_names(self, sep=','):
         output = self.named_outputs.get('output data',
@@ -378,66 +393,127 @@ class EvaluateModelOperation(Operation):
             raise ValueError(
                 _('Model is being used, but at least one input is missing'))
 
+        self.supports_cache = False
+
     def get_data_out_names(self, sep=','):
         return ''
 
     def get_output_names(self, sep=", "):
-        return sep.join([self.model_out, self.evaluator_out])
+        return ''
 
     def generate_code(self):
 
         if self.has_code:
+            display_text = self.parameters['task']['forms'].get(
+                'display_text', {'value': 1}).get('value', 1) in (1, '1')
+            display_image = self.parameters['task']['forms'].get(
+                'display_image', {'value': 1}).get('value', 1) in (1, '1')
+
             code = dedent("""
-                # Creates the evaluator according to the model
-                # (user should not change it)
-                {evaluator_out} = {evaluator}(
-                    {prediction_arg}='{prediction_attr}',
-                    labelCol='{label_attr}',
-                    metricName='{metric}')
-            """.format(evaluator=self.evaluator,
-                       evaluator_out=self.evaluator_out,
-                       prediction_arg=self.param_prediction_arg,
-                       prediction_attr=self.prediction_attribute,
-                       label_attr=self.label_attribute,
-                       metric=self.metric))
-
-            # Not being used with a cross validator
-            if len(self.named_inputs) == 2:
-                display_text = self.parameters['task']['forms'].get(
-                    'display_text', {'value': 1}).get('value', 1) in (1, '1')
-                code += dedent(u"""
-
-                metric_value = {evaluator_out}.evaluate({input})
+                metric_value = 0.0
                 display_text = {display_text}
-                if display_text:
-                    from juicer.spark.reports import SimpleTableReport
-                    headers = {headers}
-                    rows = [
-                            [x.name, x.doc,
-                                {evaluator_out}._paramMap.get(x, 'unset'),
-                                 {evaluator_out}._defaultParamMap.get(
-                                     x, 'unset')] for x in
-                        {evaluator_out}.extractParamMap()]
+                display_image = {display_image}
 
-                    content = SimpleTableReport(
-                            'table table-striped table-bordered table-sm',
-                            headers, rows)
+                metric = '{metric}'
+                if metric in ['areaUnderROC', 'areaUnderPR']:
+                    # scoreAndPrediction = {input}.select('prediction',
+                    #     'survived')
+                    # evaluator = BinaryClassificationMetrics(
+                    #     scoreAndPrediction.rdd)
+                    # roc =  [[a._1(), a._2()] for a
+                    #     in m2._java_model.roc().collect()]
 
-                    result = '<h4>{{}}: {{}}</h4>'.format('{metric}',
-                        metric_value)
+                    evaluator = evaluation.BinaryClassificationEvaluator(
+                        {prediction_arg}='{prediction_attr}',
+                        labelCol='{label_attr}',
+                        metricName=metric)
+                    metric_value = evaluator.evaluate({input})
+                    if display_text:
+                        result = '<h4>{{}}: {{}}</h4>'.format('{metric}',
+                            metric_value)
 
-                    emit_event(
-                        'update task', status='COMPLETED',
-                        identifier='{task_id}',
-                        message=result + content.generate(),
-                        type='HTML', title='{title}',
-                        task={{'id': '{task_id}'}},
-                        operation={{'id': {operation_id}}},
-                        operation_id={operation_id})
+                        emit_event(
+                            'update task', status='COMPLETED',
+                            identifier='{task_id}',
+                            message=result,
+                            type='HTML', title='{title}',
+                            task={{'id': '{task_id}'}},
+                            operation={{'id': {operation_id}}},
+                            operation_id={operation_id})
+
+                elif metric in ['f1', 'weightedPrecision', 'weightedRecall',
+                        'accuracy']:
+                    label_prediction = {input}.select(
+                        functions.col('{prediction_attr}').cast('Double'),
+                        functions.col('{label_attr}').cast('Double'))
+                    evaluator = MulticlassMetrics(label_prediction.rdd)
+                    if metric == 'f1':
+                        metric_value = evaluator.weightedFMeasure()
+                    elif metric == 'weightedPrecision':
+                        metric_value = evaluator.weightedPrecision
+                    elif metric == 'weightedRecall':
+                        metric_value = evaluator.weightedRecall
+                    elif metric == 'accuracy':
+                        metric_value = evaluator.accuracy
+
+                    if display_image:
+
+                        # Test if feature indexer is in global cache, because
+                        # strings must be converted into numbers in order tho
+                        # run algorithms, but they are cooler when displaying
+                        # results.
+                        indexer = cached_state.get('indexers', {{}}).get(
+                            '{label_attr}')
+                        if indexer:
+                            classes = indexer.labels
+                        else:
+                            classes = sorted(
+                                [x[0] for x in label_prediction.select(
+                                        '{label_attr}').distinct().collect()])
+
+                        content = ConfusionMatrixImageReport(
+                            cm=evaluator.confusionMatrix().toArray(),
+                            classes=classes,)
+
+                        emit_event(
+                            'update task', status='COMPLETED',
+                            identifier='{task_id}',
+                            message=content.generate(),
+                            type='IMAGE', title='{title}',
+                            task={{'id': '{task_id}'}},
+                            operation={{'id': {operation_id}}},
+                            operation_id={operation_id})
+
+                    if display_text:
+                        headers = {headers}
+                        rows = [
+                            ['F1', evaluator.weightedFMeasure()],
+                            ['Weighted Precision', evaluator.weightedPrecision],
+                            ['Weighted Recall', evaluator.weightedRecall],
+                            ['Accuracy', evaluator.accuracy],
+                        ]
+
+                        content = SimpleTableReport(
+                                'table table-striped table-bordered table-sm',
+                                headers, rows,
+                                title='{title}')
+
+                        emit_event(
+                            'update task', status='COMPLETED',
+                            identifier='{task_id}',
+                            message=content.generate(),
+                            type='HTML', title='{title}',
+                            task={{'id': '{task_id}'}},
+                            operation={{'id': {operation_id}}},
+                            operation_id={operation_id})
 
                 from juicer.spark.ml_operation import ModelsEvaluationResultList
                 {model_output} = ModelsEvaluationResultList(
                     [{model}], {model}, '{metric}', metric_value)
+
+                {metric} = metric_value
+                {model_output} = None
+
                 """.format(model_output=self.model_out,
                            model=self.model,
                            input=self.named_inputs['input data'],
@@ -445,27 +521,16 @@ class EvaluateModelOperation(Operation):
                            evaluator_out=self.evaluator_out,
                            task_id=self.parameters['task_id'],
                            operation_id=self.parameters['operation_id'],
-                           title='Evaluation result',
+                           title=_('Evaluation result'),
                            display_text=display_text,
-                           headers=[_('Parameter'), _('Description'),
-                                    _('Value'), _('Default')]
-                           ))
-            elif self.named_outputs.get(
-                    'evaluator'):  # Used with cross validator
-                code = """
-                {evaluator_out} = {evaluator}(
-                    {prediction_arg}='{prediction_attr}',
-                    labelCol='{label_attr}',
-                    metricName='{metric}')
-               {metric_out} = None
-               {model_output} = None
-                """.format(evaluator=self.evaluator,
-                           evaluator_out=self.evaluator_out,
-                           prediction_arg=self.param_prediction_arg,
+                           display_image=display_image,
                            prediction_attr=self.prediction_attribute,
                            label_attr=self.label_attribute,
-                           metric=self.metric, metric_out=self.metric,
-                           model_output=self.model_out)
+                           headers=[_('Metric'), _('Value')],
+                           evaluator=self.evaluator,
+                           prediction_arg=self.param_prediction_arg,
+                           ))
+
             return dedent(code)
 
 
@@ -485,28 +550,77 @@ class CrossValidationOperation(Operation):
     as folds provided in input.
     """
     NUM_FOLDS_PARAM = 'folds'
+    EVALUATOR_PARAM = 'evaluator'
+    SEED_PARAM = 'seed'
+    PREDICTION_ATTRIBUTE_PARAM = 'prediction_attribute'
+    LABEL_ATTRIBUTE_PARAM = 'label_attribute'
+
+    METRIC_TO_EVALUATOR = {
+        'areaUnderROC': (
+            'evaluation.BinaryClassificationEvaluator', 'rawPredictionCol'),
+        'areaUnderPR': (
+            'evaluation.BinaryClassificationEvaluator', 'rawPredictionCol'),
+        'f1': ('evaluation.MulticlassClassificationEvaluator', 'predictionCol'),
+        'weightedPrecision': (
+            'evaluation.MulticlassClassificationEvaluator', 'predictionCol'),
+        'weightedRecall': (
+            'evaluation.MulticlassClassificationEvaluator', 'predictionCol'),
+        'accuracy': (
+            'evaluation.MulticlassClassificationEvaluator', 'predictionCol'),
+        'rmse': ('evaluation.RegressionEvaluator', 'predictionCol'),
+        'mse': ('evaluation.RegressionEvaluator', 'predictionCol'),
+        'mae': ('evaluation.RegressionEvaluator', 'predictionCol'),
+    }
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-        self.has_code = any(
-            [len(self.named_inputs) == 3, self.contains_results()])
+        self.has_code = any([len(self.named_inputs) == 2])
+
+        if self.EVALUATOR_PARAM not in parameters:
+            raise ValueError(
+                _("Parameter '{}' must be informed for task {}").format(
+                    self.EVALUATOR_PARAM, self.__class__))
+
+        self.metric = parameters.get(self.EVALUATOR_PARAM)
+
+        if self.metric in self.METRIC_TO_EVALUATOR:
+            self.evaluator = self.METRIC_TO_EVALUATOR[self.metric][0]
+            self.param_prediction_arg = self.METRIC_TO_EVALUATOR[self.metric][1]
+        else:
+            raise ValueError(_('Invalid metric value {}').format(self.metric))
+
+        self.prediction_attr = parameters.get(self.PREDICTION_ATTRIBUTE_PARAM,
+                                              'prediction')
+
+        if self.LABEL_ATTRIBUTE_PARAM not in parameters:
+            raise ValueError(
+                _("Parameter '{}' must be informed for task {}").format(
+                    self.LABEL_ATTRIBUTE_PARAM, self.__class__))
+
+        self.label_attr = parameters.get(self.LABEL_ATTRIBUTE_PARAM)
+
         self.num_folds = parameters.get(self.NUM_FOLDS_PARAM, 3)
+        self.seed = parameters.get(self.SEED_PARAM)
 
         self.output = self.named_outputs.get(
             'scored data', 'scored_data_task_{}'.format(self.order))
-        # self.evaluation = self.named_outputs.get(
-        #     'evaluation', 'evaluation_task_{}'.format(self.order))
         self.models = self.named_outputs.get(
             'models', 'models_task_{}'.format(self.order))
         self.best_model = self.named_outputs.get(
             'best model', 'best_model_{}'.format(self.order))
 
+        self.algorithm_port = self.named_inputs.get(
+            'algorithm', 'algo_{}'.format(self.order))
+        self.input_port = self.named_inputs.get(
+            'input data', 'in_{}'.format(self.order))
+        self.evaluator_port = self.named_inputs.get(
+            'evaluator', 'eval_{}'.format(self.order))
+
     @property
     def get_inputs_names(self):
-        return ', '.join([self.named_inputs['algorithm'],
-                          self.named_inputs['input data'],
-                          self.named_inputs['evaluator']])
+        return ', '.join(
+            [self.algorithm_port, self.input_port, self.evaluator_port])
 
     def get_output_names(self, sep=", "):
         return sep.join([self.output, self.best_model, self.models])
@@ -517,15 +631,19 @@ class CrossValidationOperation(Operation):
     def generate_code(self):
         code = dedent("""
                 grid_builder = tuning.ParamGridBuilder()
-                estimator, param_grid = {algorithm}
+                estimator, param_grid, metric = {algorithm}
 
                 for param_name, values in param_grid.items():
                     param = getattr(estimator, param_name)
                     grid_builder.addGrid(param, values)
 
-                evaluator = {evaluator}
+                evaluator = {evaluator}(
+                    {prediction_arg}='{prediction_attr}',
+                    labelCol='{label_attr}',
+                    metricName='{metric}')
 
-                estimator.setLabelCol(evaluator.getLabelCol())
+                estimator.setLabelCol('{label_attr}')
+                estimator.setPredictionCol('{prediction_attr}')
 
                 cross_validator = tuning.CrossValidator(
                     estimator=estimator,
@@ -535,21 +653,23 @@ class CrossValidationOperation(Operation):
                 fit_data = cv_model.transform({input_data})
                 {best_model} = cv_model.bestModel
                 metric_result = evaluator.evaluate(fit_data)
-                # evaluation = metric_result
                 {output} = fit_data
                 {models} = None
-                """.format(algorithm=self.named_inputs['algorithm'],
-                           input_data=self.named_inputs['input data'],
-                           evaluator=self.named_inputs['evaluator'],
-                           # evaluation=self.evaluation,
+                """.format(algorithm=self.algorithm_port,
+                           input_data=self.input_port,
+                           evaluator=self.evaluator,
                            output=self.output,
                            best_model=self.best_model,
                            models=self.models,
-                           folds=self.num_folds))
+                           prediction_arg=self.param_prediction_arg,
+                           prediction_attr=self.prediction_attr,
+                           label_attr=self.label_attr[0],
+                           folds=self.num_folds,
+                           metric=self.metric))
 
         # If there is an output needing the evaluation result, it must be
         # processed here (summarization of data results)
-        needs_evaluation = 'evaluation' in self.named_outputs
+        needs_evaluation = 'evaluation' in self.named_outputs and False
         if needs_evaluation:
             eval_code = """
                 grouped_result = fit_data.select(
@@ -584,7 +704,9 @@ class CrossValidationOperation(Operation):
                            title='Evaluation result',
                            task_id=self.parameters['task_id'],
                            operation_id=self.parameters['operation_id'])
-            code = '\n'.join([code, dedent(eval_code)])
+        else:
+            eval_code = ''
+        code = '\n'.join([code, dedent(eval_code)])
 
         return code
 
@@ -601,6 +723,7 @@ class ClassificationModelOperation(Operation):
 
         self.has_code = any([len(named_outputs) > 0 and len(named_inputs) == 2,
                              self.contains_results()])
+        self.has_code = self.has_code and 'algorithm' in self.named_inputs
 
         if not all([self.FEATURES_ATTRIBUTE_PARAM in parameters,
                     self.LABEL_ATTRIBUTE_PARAM in parameters]):
@@ -628,8 +751,21 @@ class ClassificationModelOperation(Operation):
 
     def generate_code(self):
         if self.has_code:
+            task = self.parameters.get('task', {})
+            display_text = task.get('forms', {}).get(
+                'display_text', {'value': 1}).get('value', 1) in (1, '1')
+
             code = """
-            algorithm, param_grid = {algorithm}
+            alg, param_grid, metrics = {algorithm}
+
+            # Clone the algorithm because it can be used more than once
+            # and this may cause concurrency problems
+            params = dict([(p.name, v) for p, v in
+                alg.extractParamMap().items()])
+            algorithm_cls = globals()[alg.__class__.__name__]
+            algorithm = algorithm_cls()
+            algorithm.setParams(**params)
+
             algorithm.setPredictionCol('{prediction}')
             algorithm.setLabelCol('{label}')
             algorithm.setFeaturesCol('{feat}')
@@ -640,19 +776,42 @@ class ClassificationModelOperation(Operation):
                 return {model}.transform(df)
             {output} = dataframe_util.LazySparkTransformationDataframe(
                 {model}, {train}, call_transform)
-            """.format(model=self.model,
-                       algorithm=self.named_inputs['algorithm'],
-                       train=self.named_inputs['train input data'],
-                       label=self.label, feat=self.features,
-                       prediction=self.prediction,
-                       output=self.output)
+            display_text = {display_text}
+            if display_text:
+                from juicer.spark.reports import SimpleTableReport
+                rows = [[m, getattr({model}, m)] for m in metrics
+                    if hasattr({model}, m)]
+                headers = {headers}
+                content = SimpleTableReport(
+                    'table table-striped table-bordered table-sm',
+                    headers, rows)
+
+                result = '<h4>{title}</h4>'
+
+                emit_event(
+                    'update task', status='COMPLETED',
+                    identifier='{task_id}',
+                    message=result + content.generate(),
+                    type='HTML', title='{title}',
+                    task={{'id': '{task_id}'}},
+                    operation={{'id': {operation_id}}},
+                    operation_id={operation_id})
+
+            """.format(
+                model=self.model,
+                algorithm=self.named_inputs.get('algorithm'),
+                train=self.named_inputs['train input data'],
+                label=self.label, feat=self.features,
+                prediction=self.prediction,
+                output=self.output,
+                display_text=display_text,
+                title=_('Generated classification model parameters'),
+                headers=[_('Parameter'), _('Value'), ],
+                task_id=self.parameters['task_id'],
+                operation_id=self.parameters['operation_id'],
+            )
 
             return dedent(code)
-            # else:
-            #     msg = "Parameters '{}' and '{}' must be informed for task {}"
-            #     raise ValueError(msg.format('[]inputs',
-            #                                 '[]outputs',
-            #                                 self.__class__))
 
 
 class ClassifierOperation(Operation):
@@ -669,9 +828,11 @@ class ClassifierOperation(Operation):
                            named_outputs)
 
         self.has_code = any([len(named_outputs) > 0, self.contains_results()])
-        self.name = "BaseClassifier"
+        self.name = "BaseClassifier()"
         self.output = self.named_outputs.get('algorithm',
                                              'algo_task_{}'.format(self.order))
+        self.metrics = []
+        self.summary_metrics = []
 
     def get_data_out_names(self, sep=','):
         return ''
@@ -685,12 +846,15 @@ class ClassifierOperation(Operation):
 
             }
             declare = dedent("""
-            param_grid = {2}
+            param_grid = {param_grid}
             # Output result is the classifier and its parameters. Parameters are
             # need in classification model or cross validator.
-            {0} = ({1}(), param_grid)
-            """).format(self.output, self.name,
-                        json.dumps(param_grid, indent=4))
+            {out} = ({name},
+                param_grid,
+                {metrics})
+            """).format(out=self.output, name=self.name,
+                        param_grid=json.dumps(param_grid, indent=4),
+                        metrics=json.dumps(self.metrics))
 
             code = [declare]
             return "\n".join(code)
@@ -701,62 +865,271 @@ class ClassifierOperation(Operation):
 
 
 class SvmClassifierOperation(ClassifierOperation):
+    MAX_ITER_PARAM = 'max_iter'
+    STANDARDIZATION_PARAM = 'standardization'
+    THRESHOLD_PARAM = 'threshold'
+    WEIGHT_ATTR_PARAM = 'weight_attr'
+    TOL_PARAM = 'tol'
+
     def __init__(self, parameters, named_inputs,
                  named_outputs):
         ClassifierOperation.__init__(self, parameters, named_inputs,
                                      named_outputs)
         self.parameters = parameters
-        self.has_code = False
-        self.name = 'classification.SVM'
+        self.metrics = ['coefficients', 'intercept', 'numClasses',
+                        'numFeatures']
+
+        param_grid = parameters.get('paramgrid', {})
+        ctor_params = {}
+        params_name = [
+            ['maxIter', self.MAX_ITER_PARAM, int],
+            ['standardization', self.STANDARDIZATION_PARAM,
+             lambda x: x in ('1', 1, 'true', True)],
+            ['threshold', self.THRESHOLD_PARAM, float],
+            ['tol', self.TOL_PARAM, float],
+            ['weightAttr', self.WEIGHT_ATTR_PARAM, str],
+
+        ]
+        for spark_name, lemonade_name, f in params_name:
+            if lemonade_name in param_grid and param_grid.get(lemonade_name):
+                ctor_params[spark_name] = f(param_grid.get(lemonade_name))
+
+        self.name = 'classification.LinearSVC(**{kwargs})'.format(
+            kwargs=ctor_params)
 
 
 class LogisticRegressionClassifierOperation(ClassifierOperation):
+    WEIGHT_COL_PARAM = 'weight_col'
+    FAMILY_PARAM = 'family'
+    ALLOWED_FAMILY_VALUE = ['auto', 'binomial', 'multinomial']
+
+    AGGREGATION_DEPTH_PARAM = 'aggregation_depth'
+    ELASTIC_NET_PARAM_PARAM = 'elastic_net_param'
+    FIT_INTERCEPT_PARAM = 'fit_intercept'
+    MAX_ITER_PARAM = 'max_iter'
+    REG_PARAM_PARAM = 'reg_param'
+    TOL_PARAM = 'tol'
+    THRESHOLD_PARAM = 'threshold'
+    THRESHOLDS_PARAM = 'thresholds'
+
     def __init__(self, parameters, named_inputs,
                  named_outputs):
         ClassifierOperation.__init__(self, parameters, named_inputs,
                                      named_outputs)
         self.parameters = parameters
         self.name = 'classification.LogisticRegression'
+        self.metrics = ['coefficientMatrix', 'coefficients', 'intercept',
+                        'numClasses', 'numFeatures']
+
+        param_grid = parameters.get('paramgrid', {})
+        ctor_params = {}
+        params_name = [
+            ['weightCol', self.WEIGHT_COL_PARAM, str],
+            ['family', self.FAMILY_PARAM, str],
+            ['aggregationDepth', self.AGGREGATION_DEPTH_PARAM, int],
+            ['elasticNetParam', self.ELASTIC_NET_PARAM_PARAM, float],
+            ['fitIntercept', self.FIT_INTERCEPT_PARAM, int],
+            ['maxIter', self.MAX_ITER_PARAM, int],
+            ['regParam', self.REG_PARAM_PARAM, float],
+            ['tol', self.TOL_PARAM, float],
+            ['threshold', self.THRESHOLD_PARAM, float],
+            ['thresholds', self.THRESHOLDS_PARAM,
+             lambda x: [float(y) for y in x.split(',')]],
+        ]
+        for spark_name, lemonade_name, f in params_name:
+            if lemonade_name in param_grid and param_grid.get(lemonade_name):
+                ctor_params[spark_name] = f(param_grid.get(lemonade_name))
+
+        self.name = 'classification.LogisticRegression(**{kwargs})'.format(
+            kwargs=ctor_params)
 
 
 class DecisionTreeClassifierOperation(ClassifierOperation):
+    CACHE_NODE_IDS_PARAM = 'cache_node_ids'
+    MAX_BINS_PARAM = 'max_bins'
+    MAX_DEPTH_PARAM = 'max_depth'
+    MIN_INFO_GAIN_PARAM = 'min_info_gain'
+    MIN_INSTANCES_PER_NODE_PARAM = 'min_instances_per_node'
+    IMPURITY_PARAM = 'impurity'
+
     def __init__(self, parameters, named_inputs,
                  named_outputs):
         ClassifierOperation.__init__(self, parameters, named_inputs,
                                      named_outputs)
-        self.name = 'classification.DecisionTreeClassifier'
+
+        self.metrics = ['depth', 'featureImportances', 'numClasses',
+                        'numFeatures', 'numNodes', ]
+
+        param_grid = parameters.get('paramgrid', {})
+        ctor_params = {}
+        params_name = [
+            ['maxBins', self.MAX_BINS_PARAM, int],
+            ['cacheNodeIds', self.CACHE_NODE_IDS_PARAM,
+             lambda x: x in ('1', 1, 'true', True)],
+            ['maxDepth', self.MAX_DEPTH_PARAM, int],
+            ['minInfoGain', self.MIN_INFO_GAIN_PARAM, float],
+            ['minInstancesPerNode', self.MIN_INSTANCES_PER_NODE_PARAM, int],
+            ['impurity', self.IMPURITY_PARAM, str],
+
+        ]
+        for spark_name, lemonade_name, f in params_name:
+            if lemonade_name in param_grid and param_grid.get(lemonade_name):
+                ctor_params[spark_name] = f(param_grid.get(lemonade_name))
+
+        self.name = 'classification.DecisionTreeClassifier(**{kwargs})'.format(
+            kwargs=ctor_params)
 
 
 class GBTClassifierOperation(ClassifierOperation):
+    CACHE_NODE_IDS_PARAM = 'cache_node_ids'
+    LOSS_TYPE_PARAM = 'loss_type'
+    MAX_BINS_PARAM = 'max_bins'
+    MAX_DEPTH_PARAM = 'max_depth'
+    MAX_ITER_PARAM = 'max_iter'
+    MIN_INFO_GAIN_PARAM = 'min_info_gain'
+    MIN_INSTANCES_PER_NODE_PARAM = 'min_instances_per_node'
+    STEP_SIZE_PARAM = 'step_size'
+    SUBSAMPLING_RATE_PARAM = 'subsampling_rate'
+
     def __init__(self, parameters, named_inputs,
                  named_outputs):
         ClassifierOperation.__init__(self, parameters, named_inputs,
                                      named_outputs)
-        self.name = 'classification.GBTClassifier'
+        self.metrics = ['featureImportances', 'numFeatures', 'totalNumNodes',
+                        'treeWeights', 'trees']
+
+        param_grid = parameters.get('paramgrid', {})
+        ctor_params = {}
+        params_name = [
+            ['cacheNodeIds', self.CACHE_NODE_IDS_PARAM,
+             lambda x: x in ('1', 1, 'true', True)],
+            ['lossType', self.LOSS_TYPE_PARAM, str],
+            ['maxBins', self.MAX_BINS_PARAM, int],
+            ['maxDepth', self.MAX_DEPTH_PARAM, int],
+            ['maxIter', self.MAX_ITER_PARAM, int],
+            ['minInfoGain', self.MIN_INFO_GAIN_PARAM, float],
+            ['minInstancesPerNode', self.MIN_INSTANCES_PER_NODE_PARAM, int],
+            ['stepSize', self.STEP_SIZE_PARAM, float],
+            ['subsamplingRate', self.SUBSAMPLING_RATE_PARAM, float],
+
+        ]
+        for spark_name, lemonade_name, f in params_name:
+            if lemonade_name in param_grid and param_grid.get(lemonade_name):
+                ctor_params[spark_name] = f(param_grid.get(lemonade_name))
+        self.name = 'classification.GBTClassifier(**{kwargs})'.format(
+            kwargs=ctor_params)
 
 
 class NaiveBayesClassifierOperation(ClassifierOperation):
+    SMOOTHING_PARAM = 'smoothing'
+    MODEL_TYPE_PARAM = 'model_type'
+    THRESHOLDS_PARAM = 'thresholds'
+    WEIGHT_ATTR_PARAM = 'weight_attr'
+
     def __init__(self, parameters, named_inputs,
                  named_outputs):
         ClassifierOperation.__init__(self, parameters, named_inputs,
                                      named_outputs)
-        self.name = 'classification.NaiveBayes'
+        self.metrics = ['numClasses', 'numFeatures', 'pi', 'theta']
+
+        param_grid = parameters.get('paramgrid', {})
+        ctor_params = {}
+        params_name = [
+            ['smoothing', self.SMOOTHING_PARAM, float],
+            ['modelType', self.MODEL_TYPE_PARAM, str],
+            ['thresholds', self.THRESHOLDS_PARAM,
+             lambda x: [float(y) for y in x.split(',')]],
+            ['weightAttr', self.WEIGHT_ATTR_PARAM, str],
+        ]
+        for spark_name, lemonade_name, f in params_name:
+            if lemonade_name in param_grid and param_grid.get(lemonade_name):
+                ctor_params[spark_name] = f(param_grid.get(lemonade_name))
+
+        self.name = 'classification.NaiveBayes(**{kwargs})'.format(
+            kwargs=ctor_params)
 
 
 class RandomForestClassifierOperation(ClassifierOperation):
+    IMPURITY_PARAM = 'impurity'
+    CACHE_NODE_IDS_PARAM = 'cache_node_ids'
+    FEATURE_SUBSET_STRATEGY_PARAM = 'feature_subset_strategy'
+    MAX_BINS_PARAM = 'max_bins'
+    MAX_DEPTH_PARAM = 'max_depth'
+    MIN_INFO_GAIN_PARAM = 'min_info_gain'
+    MIN_INSTANCES_PER_NODE_PARAM = 'min_instances_per_node'
+    NUM_TREES_PARAM = 'num_trees'
+    SUBSAMPLING_RATE_PARAM = 'subsampling_rate'
+
     def __init__(self, parameters, named_inputs,
                  named_outputs):
         ClassifierOperation.__init__(self, parameters, named_inputs,
                                      named_outputs)
-        self.name = 'classification.RandomForestClassifier'
+        self.metrics = ['featureImportances', 'getNumTrees',
+                        'numClasses', 'numFeatures', 'trees']
+
+        param_grid = parameters.get('paramgrid', {})
+        ctor_params = {}
+        params_name = [
+            ['impurity', self.IMPURITY_PARAM, str],
+            ['cacheNodeIds', self.CACHE_NODE_IDS_PARAM,
+             lambda x: x in ('1', 1, 'true', True)],
+            ['featureSubsetStrategy', self.FEATURE_SUBSET_STRATEGY_PARAM, str],
+            ['maxBins', self.MAX_BINS_PARAM, int],
+            ['maxDepth', self.MAX_DEPTH_PARAM, int],
+            ['minInfoGain', self.MIN_INFO_GAIN_PARAM, float],
+            ['minInstancesPerNode', self.MIN_INSTANCES_PER_NODE_PARAM, int],
+            ['numTrees', self.NUM_TREES_PARAM, int],
+            ['subsamplingRate', self.SUBSAMPLING_RATE_PARAM, float],
+        ]
+        for spark_name, lemonade_name, f in params_name:
+            if lemonade_name in param_grid and param_grid.get(lemonade_name):
+                ctor_params[spark_name] = f(param_grid.get(lemonade_name))
+
+        self.name = 'classification.RandomForestClassifier(**{kwargs})'.format(
+            kwargs=ctor_params)
 
 
 class PerceptronClassifier(ClassifierOperation):
+    BLOCK_SIZE_PARAM = 'block_size'
+    MAX_ITER_PARAM = 'max_iter'
+    SEED_PARAM = 'seed'
+    SOLVER_PARAM = 'solver'
+
     def __init__(self, parameters, named_inputs,
                  named_outputs):
         ClassifierOperation.__init__(self, parameters, named_inputs,
                                      named_outputs)
-        self.name = 'classification.MultilayerPerceptronClassificationModel'
+        self.metrics = ['layers', 'numFeatures', 'weights']
+        param_grid = parameters.get('paramgrid', {})
+        ctor_params = {}
+        params_name = [
+            ['blockSize', self.BLOCK_SIZE_PARAM, int],
+            ['maxIter', self.MAX_ITER_PARAM, int],
+            ['seed', self.SEED_PARAM, int],
+            ['solver', self.SOLVER_PARAM, str]
+        ]
+        for spark_name, lemonade_name, f in params_name:
+            if lemonade_name in param_grid and param_grid.get(lemonade_name):
+                ctor_params[spark_name] = f(param_grid.get(lemonade_name))
+
+        self.name = 'classification.MultilayerPerceptronClassifier(**{k})' \
+            .format(k=ctor_params)
+
+
+class OneVsRestClassifier(ClassifierOperation):
+    def __init__(self, parameters, named_inputs,
+                 named_outputs):
+        ClassifierOperation.__init__(self, parameters, named_inputs,
+                                     named_outputs)
+        self.metrics = ['classifier', 'featuresCol', 'labelCol',
+                        'predictionCol']
+
+        self.has_code = self.has_code and 'algorithm' in self.named_inputs
+
+        ctor_params = {
+        }
+        self.name = 'classification.OneVsRest(classifier={c}[0], **{k})'.format(
+            c=self.named_inputs.get('algorithm'), k=ctor_params)
 
 
 class ClassificationReport(ReportOperation):
@@ -829,7 +1202,8 @@ class ClusteringModelOperation(Operation):
             from juicer.spark.reports import SimpleTableReport
 
             {algorithm}.setFeaturesCol('{features}')
-            {algorithm}.setPredictionCol('{prediction}')
+            if hasattr({algorithm}, 'setPredictionCol'):
+                {algorithm}.setPredictionCol('{prediction}')
             {model} = {algorithm}.fit({input})
             # There is no way to pass which attribute was used in clustering, so
             # this information will be stored in uid (hack).
@@ -944,20 +1318,23 @@ class LdaClusteringOperation(ClusteringOperation):
 
         self.max_iterations = parameters.get(self.MAX_ITERATIONS_PARAM, 10)
 
-        self.doc_concentration = self.number_of_clusters * [
-            float(parameters.get(self.DOC_CONCENTRATION_PARAM,
-                                 self.number_of_clusters)) / 50.0]
+        self.doc_concentration = parameters.get(self.DOC_CONCENTRATION_PARAM)
+        # if not self.doc_concentration:
+        #     self.doc_concentration = self.number_of_clusters * [-1.0]
 
-        self.topic_concentration = float(
-            parameters.get(self.TOPIC_CONCENTRATION_PARAM, 0.1))
+        self.topic_concentration = parameters.get(
+            self.TOPIC_CONCENTRATION_PARAM)
 
         self.set_values = [
-            ['DocConcentration', self.doc_concentration],
             ['K', self.number_of_clusters],
             ['MaxIter', self.max_iterations],
             ['Optimizer', "'{}'".format(self.optimizer)],
-            ['TopicConcentration', self.topic_concentration],
         ]
+        if self.doc_concentration:
+            self.set_values.append(['DocConcentration', self.doc_concentration])
+        if self.topic_concentration:
+            self.set_values.append(
+                ['TopicConcentration', self.topic_concentration])
         self.has_code = any([len(named_outputs) > 0, self.contains_results()])
         self.name = "clustering.LDA"
 
@@ -1045,18 +1422,30 @@ class TopicReportOperation(ReportOperation):
     def __init__(self, parameters, named_inputs,
                  named_outputs):
         ReportOperation.__init__(self, parameters, named_inputs, named_outputs)
-        self.terms_per_topic = parameters.get(self.TERMS_PER_TOPIC_PARAM, 20)
+        self.terms_per_topic = parameters.get(self.TERMS_PER_TOPIC_PARAM, 10)
 
         self.has_code = any(
             [len(self.named_inputs) == 3, self.contains_results()])
         self.output = self.named_outputs.get('output data',
                                              'out_task_{}'.format(self.order))
 
+        self.vocabulary_input = self.named_outputs.get(
+            'vocabulary data', 'vocab_{}'.format(self.order))
+
     def generate_code(self):
         code = dedent("""
-            topic_df = {model}.describeTopics(maxTermsPerTopic={tpt})
+            # TODO: evaluate if using broadcast() is more efficient
+            terms_idx_to_str = functions.udf(lambda term_indexes:
+                [{vocabulary}['text_vector'][inx]  for inx in term_indexes])
+            topic_df = {model}.describeTopics(
+                maxTermsPerTopic={tpt}).withColumn(
+                    'terms', terms_idx_to_str(functions.col('termIndices')))
+
+            {output} = topic_df
+
             # See hack in ClusteringModelOperation
             features = {model}.uid.split('|')[1]
+
             '''
             for row in topic_df.collect():
                 topic_number = row[0]
@@ -1068,10 +1457,9 @@ class TopicReportOperation(ReportOperation):
                     print {vocabulary}[features][inx],
                 print
             '''
-            {output} =  {input}
         """.format(model=self.named_inputs['model'],
                    tpt=self.terms_per_topic,
-                   vocabulary=self.named_inputs['vocabulary'],
+                   vocabulary=self.vocabulary_input,
                    output=self.output,
                    input=self.named_inputs['input data']))
         return code
@@ -2033,5 +2421,123 @@ class LoadModelOperation(Operation):
             path=path,
             cls=parts[-1],
             pkg='.'.join(parts[:-1])
+        ))
+        return code
+
+
+class PCAOperation(Operation):
+    K_PARAM = 'k'
+    ATTRIBUTE_PARAM = 'attribute'
+    OUTPUT_ATTRIBUTE_PARAM = 'output_attribute'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+
+        self.parameters = parameters
+
+        self.k = parameters.get(self.K_PARAM)
+        if not self.k:
+            raise ValueError(
+                _("Parameter '{}' must be informed for task {}").format(
+                    self.K_PARAM, self.__class__))
+        self.attribute = parameters.get(self.ATTRIBUTE_PARAM)
+        if not self.attribute or len(self.attribute) == 0:
+            raise ValueError(
+                _("Parameter '{}' must be informed for task {}").format(
+                    self.ATTRIBUTE_PARAM, self.__class__))
+
+        self.output_attribute = parameters.get(self.OUTPUT_ATTRIBUTE_PARAM,
+                                               'pca_features')
+        self.has_code = any([len(named_outputs) > 0 and len(named_inputs) > 0,
+                             self.contains_results()])
+        self.output = named_outputs.get('output data',
+                                        'out_{}'.format(self.order))
+
+    def generate_code(self):
+        input_data = self.named_inputs['input data']
+        code = dedent("""
+            pca = PCA(k={k}, inputCol='{inputAttr}', outputCol='{outputAttr}')
+            model = pca.fit({input})
+            {out} = model.transform({input})
+        """.format(
+            k=self.k,
+            inputAttr=self.attribute[0],
+            outputAttr=self.output_attribute,
+            input=input_data,
+            out=self.output
+
+        ))
+        return code
+
+
+class LSHOperation(Operation):
+    NUM_HASH_TABLES_PARAM = 'num_hash_tables'
+    ATTRIBUTE_PARAM = 'attribute'
+    OUTPUT_ATTRIBUTE_PARAM = 'output_attribute'
+    TYPE_ATTRIBUTE = 'type'
+    BUCKET_LENGTH_PARAM = 'bucket_length'
+    SEED_PARAM = 'seed'
+
+    TYPES = ['min-hash-lsh', 'bucketed-random']
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+
+        self.parameters = parameters
+
+        self.num_hash_tables = parameters.get(self.NUM_HASH_TABLES_PARAM)
+        if not self.num_hash_tables:
+            raise ValueError(
+                _("Parameter '{}' must be informed for task {}").format(
+                    self.NUM_HASH_TABLES_PARAM, self.__class__))
+
+        self.attribute = parameters.get(self.ATTRIBUTE_PARAM)
+        if not self.attribute or len(self.attribute) == 0:
+            raise ValueError(
+                _("Parameter '{}' must be informed for task {}").format(
+                    self.ATTRIBUTE_PARAM, self.__class__))
+
+        self.type = parameters.get(self.TYPE_ATTRIBUTE, 'min-hash-lsh')
+        if self.type not in self.TYPES:
+            raise ValueError(
+                _("Invalid type '{}' for class {}").format(
+                    self.type, self.__class__))
+
+        self.bucket_length = parameters.get(self.BUCKET_LENGTH_PARAM)
+        self.seed = parameters.get(self.SEED_PARAM)
+
+        self.output_attribute = parameters.get(self.OUTPUT_ATTRIBUTE_PARAM,
+                                               'hashes')
+        self.has_code = any([len(named_outputs) > 0 and len(named_inputs) > 0,
+                             self.contains_results()])
+        self.output = named_outputs.get('output data',
+                                        'out_{}'.format(self.order))
+
+    def generate_code(self):
+        input_data = self.named_inputs['input data']
+        code = dedent("""
+            type = '{type}'
+            if type == 'bucketed-random':
+                lsh = BucketedRandomProjectionLSH(
+                    inputCol='{inputAttr}',
+                    outputCol='{outputAttr}',
+                    bucketLength={bucket_length}
+                    numHashTables={num_hash_tables})
+            elif type == 'min-hash-lsh':
+                lsh = inputCol(
+                    inputCol='{inputAttr}',
+                    outputCol='{outputAttr}',
+                    numHashTables={num_hash_tables})
+            model = lsh.fit({input})
+            {out} = model.transform({input})
+        """.format(
+            num_hash_tables=self.num_hash_tables,
+            bucket_length=self.bucket_length,
+            inputAttr=self.attribute[0],
+            outputAttr=self.output_attribute,
+            input=input_data,
+            out=self.output,
+            type=self.type,
+
         ))
         return code

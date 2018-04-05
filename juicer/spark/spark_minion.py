@@ -12,7 +12,10 @@ import time
 import traceback
 
 # noinspection PyUnresolvedReferences
-import datetime
+import zipfile
+import glob
+
+import itertools
 
 import codecs
 import os
@@ -45,6 +48,7 @@ class SparkMinion(Minion):
     # max idle time allowed in seconds until this minion self termination
     IDLENESS_TIMEOUT = 600
     TIMEOUT = 'timeout'
+    DIST_ZIP_FILE = '/tmp/lemonade-lib-python.zip'
 
     def __init__(self, redis_conn, workflow_id, app_id, config, lang='en',
                  jars=None):
@@ -106,7 +110,7 @@ class SparkMinion(Minion):
             _('Task ignored (not used by other task or as an output)')
         ]
         self.current_lang = lang
-        #self._build_dist_file()
+        # self._build_dist_file()
 
     def _build_dist_file(self):
         """
@@ -115,7 +119,7 @@ class SparkMinion(Minion):
         distributed among all nodes.
         """
         project_base = os.path.abspath(os.path.join(os.path.dirname(__file__),
-                                       '..', '..'))
+                                                    '..', '..'))
 
         lib_paths = [
             project_base,
@@ -218,11 +222,16 @@ class SparkMinion(Minion):
                                                block=True,
                                                timeout=self.IDLENESS_TIMEOUT)
 
-        if msg is None and self.active_messages == 0:
-            self._timeout_termination()
+        if msg is None:
+            if self.active_messages == 0:
+                self._timeout_termination()
             return
 
-        msg_info = json.loads(msg)
+        try:
+            msg_info = json.loads(msg)
+        except TypeError as te:
+            log.exception(_('Invalid message JSON: {}').format(msg))
+            return
 
         # Sanity check: this minion should not process messages from another
         # workflow/app
@@ -358,10 +367,15 @@ class SparkMinion(Minion):
             # current state (if any). We pass the current state to the execution
             # to avoid re-computing the same tasks over and over again, in case
             # of several partial workflow executions.
-            new_state = self.module.main(
-                self.get_or_create_spark_session(loader, app_configs),
-                self._state,
-                self._emit_event(room=job_id, namespace='/stand'))
+            try:
+                new_state = self.module.main(
+                    self.get_or_create_spark_session(loader, app_configs),
+                    self._state,
+                    self._emit_event(room=job_id, namespace='/stand'))
+            except:
+                if self.is_spark_session_available():
+                    self.spark_session.sparkContext.cancelAllJobs()
+                raise
 
             end = timer()
             # Mark job as completed
@@ -420,6 +434,16 @@ class SparkMinion(Minion):
 
         self.message_processed('execute')
 
+        stop = self.config['juicer'].get('minion', {}).get(
+            'terminate_after_run', False)
+
+        if stop:
+            log.warn(
+                _('Minion is configured to stop Spark after each execution'))
+            self._state = {}
+            self.spark_session.stop()
+            self.spark_session = None
+
         return result
 
     # noinspection PyProtectedMember
@@ -428,7 +452,7 @@ class SparkMinion(Minion):
         Check whether the spark session is available, i.e., the spark session
         is set and not stopped.
         """
-        return (self.spark_session and
+        return (self.spark_session and self.spark_session is not None and
                 self.spark_session.sparkContext._jsc and
                 not self.spark_session.sparkContext._jsc.sc().isStopped())
 
@@ -442,11 +466,11 @@ class SparkMinion(Minion):
 
         from pyspark.sql import SparkSession
         if not self.is_spark_session_available():
-            log.info(_("Creating a new Spark session"))
 
-            app_name = '%s(workflow_id=%s,app_id=%s)' % (
-                strip_accents(loader.workflow.get('name', '')),
-                self.workflow_id, self.app_id)
+            log.info(_("Creating a new Spark session"))
+            app_name = '{name} (workflow_id={wf},app_id={app})'.format(
+                name=strip_accents(loader.workflow.get('name', '')),
+                wf=self.workflow_id, app=self.app_id)
 
             spark_builder = SparkSession.builder.appName(
                 app_name)
@@ -504,13 +528,12 @@ class SparkMinion(Minion):
             try:
                 log_level = logging.getLevelName(log.getEffectiveLevel())
                 self.spark_session.sparkContext.setLogLevel(log_level)
-            except Exception as e:
+            except Exception:
                 log_level = 'WARN'
                 self.spark_session.sparkContext.setLogLevel(log_level)
 
-                # self.transpiler.build_dist_file()
-                # self.spark_session.sparkContext.addPyFile(
-                #    self.transpiler.DIST_ZIP_FILE)
+            self._build_dist_file()
+            self.spark_session.sparkContext.addPyFile(self.DIST_ZIP_FILE)
 
         log.info(_("Minion is using '%s' as Spark master"),
                  self.spark_session.sparkContext.master)
