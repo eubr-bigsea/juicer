@@ -20,6 +20,7 @@ class DataReaderOperation(Operation):
     DATA_SOURCE_ID_PARAM = 'data_source'
     HEADER_PARAM = 'header'
     SEPARATOR_PARAM = 'separator'
+    QUOTE_PARAM = 'quote'
     INFER_SCHEMA_PARAM = 'infer_schema'
     NULL_VALUES_PARAM = 'null_values'
     MODE_PARAM = 'mode'
@@ -79,6 +80,12 @@ class DataReaderOperation(Operation):
                     self.SEPARATOR_PARAM, self.metadata.get(
                         'attribute_delimiter', ',')) or ','
 
+                self.quote = parameters.get(self.QUOTE_PARAM,
+                                            self.metadata.get('text_delimiter'))
+
+                if self.quote == '\'':
+                    self.quote = '\\\''
+
                 if self.sep in self.SEPARATORS:
                     self.sep = self.SEPARATORS[self.sep]
                 self.infer_schema = parameters.get(self.INFER_SCHEMA_PARAM,
@@ -136,8 +143,11 @@ class DataReaderOperation(Operation):
                 if self.metadata['format'] == 'CSV':
                     code_csv = dedent("""
                         {output} = spark_session.read{null_option}.option(
-                            'treatEmptyValuesAsNulls', 'true').csv(
+                            'treatEmptyValuesAsNulls', 'true').option(
+                            'wholeFile', True).option('multiLine', True).option(
+                            'escape', '"').csv(
                                 url, schema=schema_{output},
+                                quote={quote},
                                 header={header}, sep='{sep}',
                                 inferSchema={infer_schema},
                                 mode='{mode}')""".format(
@@ -145,6 +155,8 @@ class DataReaderOperation(Operation):
                         header=self.header or self.metadata.get(
                             'is_first_line_header', False),
                         sep=self.sep,
+                        quote='None' if self.quote is None else "'{}'".format(
+                            self.quote),
                         infer_schema=infer_from_data,
                         null_option=null_option,
                         mode=self.mode
@@ -203,7 +215,7 @@ class DataReaderOperation(Operation):
         result = [
             'import juicer.privaaas',
             'original_schema = {out}.schema'.format(out=self.output)
-         ]
+        ]
         try:
             if restrictions.get('attributes'):
                 attrs = sorted(restrictions['attributes'],
@@ -257,7 +269,7 @@ class DataReaderOperation(Operation):
         #              'missing_representation'] if attr[k]}
 
         metadata = {'sources': [
-                '{}/{}'.format(self.data_source_id, attr['name'])
+            '{}/{}'.format(self.data_source_id, attr['name'])
         ]}
 
         code.append("schema_{0}.add('{1}', {2}, {3},\n{5}{4})".format(
@@ -325,11 +337,20 @@ class SaveOperation(Operation):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         self.name = parameters.get(self.NAME_PARAM)
-        self.format = parameters.get(self.FORMAT_PARAM)
+        self.format = parameters.get(self.FORMAT_PARAM, '') or ''
+        valid_formats = (self.FORMAT_PARQUET, self.FORMAT_CSV, self.FORMAT_JSON)
+        if not self.format.strip() or self.format not in valid_formats:
+            raise ValueError(_('You must specify a valid format.'))
+
         self.url = parameters.get(self.PATH_PARAM)
         self.storage_id = parameters.get(self.STORAGE_ID_PARAM)
+        if not self.storage_id:
+            raise ValueError(_('You must specify a storage for saving data.'))
+
         self.tags = ast.literal_eval(parameters.get(self.TAGS_PARAM, '[]'))
         self.path = parameters.get(self.PATH_PARAM)
+        if self.path is None or not self.path.strip():
+            raise ValueError(_('You must specify a path for saving data.'))
 
         self.workflow_json = parameters.get(self.WORKFLOW_JSON_PARAM, '')
 
@@ -435,59 +456,69 @@ class SaveOperation(Operation):
 
         code = dedent(code_save)
 
-        if not self.workflow_json == '':
-            code_api = u"""
-                # Code to update Limonero metadata information
-                from juicer.service.limonero_service import register_datasource
-                types_names = {data_types}
+        code_api = u"""
+            # Code to update Limonero metadata information
+            from juicer.service.limonero_service import register_datasource
+            types_names = {data_types}
 
-                # nullable information is also stored in metadata
-                # because Spark ignores this information when loading CSV files
-                attributes = []
-                for att in {input}.schema:
-                    attributes.append({{
-                      'enumeration': 0,
-                      'feature': 0,
-                      'label': 0,
-                      'name': att.name,
-                      'type': types_names[str(att.dataType)],
-                      'nullable': att.nullable,
-                      'metadata': att.metadata,
-                    }})
-                parameters = {{
-                    'name': "{name}",
-                    'enabled': 1,
-                    'is_public': 0,
-                    'format': "{format}",
-                    'storage_id': {storage},
-                    'description': "{description}",
-                    'user_id': "{user_id}",
-                    'user_login': "{user_login}",
-                    'user_name': "{user_name}",
-                    'workflow_id': "{workflow_id}",
-                    'url': "{final_url}",
-                    'attributes': attributes
-                }}
-                register_datasource('{url}', parameters, '{token}', '{mode}')
-                """.format(
-                input=self.named_inputs['input data'],
-                name=self.name,
-                format=self.format,
-                storage=self.storage_id,
-                description=_('Data source generated by workflow {}').format(
-                    self.workflow_id),
-                user_name=self.user['name'],
-                user_id=self.user['id'],
-                user_login=self.user['login'],
-                workflow_id=self.workflow_id,
-                final_url=final_url,
-                token=token,
-                url=url,
-                mode=self.mode,
-                data_types=json.dumps(self.SPARK_TO_LIMONERO_DATA_TYPES))
-            code += dedent(code_api)
-            # No return
-            code += '{} = None'.format(self.output)
+            # nullable information is also stored in metadata
+            # because Spark ignores this information when loading CSV files
+            attributes = []
+            decimal_regex = re.compile(r'DecimalType\((\d+),\s*(\d+)\)')
+            for att in {input}.schema:
+                type_name = unicode(att.dataType)
+                precision = None
+                scale = None
+                found = decimal_regex.findall(type_name)
+                if found:
+                    type_name = 'DecimalType'
+                    precision = found[0][0]
+                    scale = found[0][1]
+                attributes.append({{
+                  'enumeration': 0,
+                  'feature': 0,
+                  'label': 0,
+                  'name': att.name,
+                  'type': types_names[str(type_name)],
+                  'nullable': att.nullable,
+                  'metadata': att.metadata,
+                  'precision': precision,
+                  'scale': scale
+                }})
+            parameters = {{
+                'name': "{name}",
+                'enabled': 1,
+                'is_public': 0,
+                'format': "{format}",
+                'storage_id': {storage},
+                'description': "{description}",
+                'user_id': "{user_id}",
+                'user_login': "{user_login}",
+                'user_name': "{user_name}",
+                'workflow_id': "{workflow_id}",
+                'url': "{final_url}",
+                'attributes': attributes
+            }}
+            register_datasource('{url}', parameters, '{token}', '{mode}')
+            """.format(
+            input=self.named_inputs['input data'],
+            name=self.name,
+            format=self.format,
+            storage=self.storage_id,
+            description=_('Data source generated by workflow {}').format(
+                self.workflow_id),
+            user_name=self.user['name'],
+            user_id=self.user['id'],
+            user_login=self.user['login'],
+            workflow_id=self.workflow_id,
+            final_url=final_url,
+            token=token,
+            url=url,
+            mode=self.mode,
+            data_types=json.dumps(self.SPARK_TO_LIMONERO_DATA_TYPES))
+        code += dedent(code_api)
+        # No return
+        code += '{} = None'.format(self.output)
 
         return code
 

@@ -48,7 +48,8 @@ class COMPSsTranspiler(object):
         self.configuration = configuration
         self.operations = {}
         self._assign_operations()
-        self.numFrag = 4
+        self.numFrag = self.configuration.get('juicer', {}).get(
+            'compss', {}).get('numFrag')
         # self.graph = graph
         # self.params = params if params is not None else {}
         #

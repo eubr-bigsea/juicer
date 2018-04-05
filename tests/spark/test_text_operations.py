@@ -30,8 +30,11 @@ def test_tokenizer_operation_type_simple_success():
 
     expected_code = dedent("""
             col_alias = {3}
-            tokenizers = [Tokenizer(inputCol=col, outputCol=alias)
-                                for col, alias in col_alias]
+            pattern_exp = r'\s+'
+            min_token_length = 3
+            tokenizers = [RegexTokenizer(inputCol=col, outputCol=alias,
+                    pattern=pattern_exp, minTokenLength=min_token_length)
+                    for col, alias in col_alias]
 
             # Use Pipeline to process all attributes once
             pipeline = Pipeline(stages=tokenizers)
@@ -69,13 +72,13 @@ def test_tokenizer_operation_type_regexp_success():
             pattern_exp = r'{4}'
             min_token_length = {5}
 
-            regextokenizers = [RegexTokenizer(inputCol=col, outputCol=alias,
+            tokenizers = [RegexTokenizer(inputCol=col, outputCol=alias,
                                 pattern=pattern_exp,
                                 minTokenLength=min_token_length)
                                 for col, alias in col_alias]
 
             # Use Pipeline to process all attributes once
-            pipeline = Pipeline(stages=regextokenizers)
+            pipeline = Pipeline(stages=tokenizers)
 
             {2} = pipeline.fit({1}).transform({1})
         """.format(params[TokenizerOperation.TYPE_PARAM], n_in['input data'],
@@ -154,8 +157,7 @@ def test_remove_stopwords_operations_1_params_success():
     code = instance.generate_code()
 
     if len(n_in) != 2:
-        expected_code = "sw = StopWordsRemover.loadDefaultStopWords({})".format(
-            params[RemoveStopWordsOperation.STOP_WORD_LANGUAGE_PARAM])
+        expected_code = 'sw = ["stop_word_list"]'
 
     expected_code += dedent("""
         col_alias = {3}
@@ -167,18 +169,18 @@ def test_remove_stopwords_operations_1_params_success():
         # Use Pipeline to process all attributes once
         pipeline = Pipeline(stages=removers)
         {2} = pipeline.fit({1}).transform({1})
-        """.format(params[RemoveStopWordsOperation.ATTRIBUTES_PARAM],
-                   n_in['input data'],
-                   n_out['output data'],
-                   json.dumps(
-                       zip(params[RemoveStopWordsOperation.ATTRIBUTES_PARAM],
-                           params[RemoveStopWordsOperation.ALIAS_PARAM])),
-                   params[
-                                                   RemoveStopWordsOperation.STOP_WORD_CASE_SENSITIVE_PARAM]))
+        """.format(
+        params[RemoveStopWordsOperation.ATTRIBUTES_PARAM],
+        n_in['input data'],
+        n_out['output data'],
+        json.dumps(
+            zip(params[RemoveStopWordsOperation.ATTRIBUTES_PARAM],
+                params[RemoveStopWordsOperation.ALIAS_PARAM])),
+        params[RemoveStopWordsOperation.STOP_WORD_CASE_SENSITIVE_PARAM]))
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
 
-    assert result, msg
+    assert result, msg + format_code_comparison(code, expected_code)
 
 
 # Test WordToVectorOperation
@@ -265,7 +267,7 @@ def test_word_to_vector_word2vec_operation_success():
                 model = pipeline.fit({1})
                 {2} = model.transform({1})
 
-                {6} = dict([(col_alias[i][1], v.vocabulary)
+                {6} = dict([(col_alias[i][1], v.getVectors())
                         for i, v in enumerate(model.stages)])
                 """.format(params[WordToVectorOperation.ATTRIBUTES_PARAM],
                            n_in['input data'],
