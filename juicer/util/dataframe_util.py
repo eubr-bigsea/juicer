@@ -117,7 +117,7 @@ def emit_sample(task_id, df, emit_event, name, size=50):
     headers = [f.name for f in df.schema.fields]
 
     number_types = (types.IntType, types.LongType,
-                    types.FloatType, types.ComplexType)
+                    types.FloatType, types.ComplexType, decimal.Decimal)
 
     rows = []
     for row in df.take(size):
