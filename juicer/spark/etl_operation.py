@@ -856,7 +856,9 @@ class CleanMissingOperation(Operation):
             partial.append("""
                 avg_{1} = {1}.select([functions.avg(c).alias(c)
                                         for c in attributes_{1}]).collect()
-                values_{1} = dict([(c, avg_{1}[0][c]) for c in attributes_{1}])
+                # Convert to float because Spark complains about Decimal
+                values_{1} = dict([(c, float(avg_{1}[0][c]))
+                    for c in attributes_{1}])
                 {0} = {1}.na.fill(value=values_{1})""".format(self.output,
                                                               input_data))
         else:
