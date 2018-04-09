@@ -221,6 +221,7 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.ord
         }
 
     df_types = (DataFrame, dataframe_util.LazySparkTransformationDataframe)
+    ## {{instance.has_code}} {{instance.parameters.task.forms}}
     {%- if instance.has_code and instance.parameters.task.forms.get('display_sample', {}).get('value') in (1, '1') %}
     for name, out in results.items():
         if (isinstance(out, dict) and 'output' in out
