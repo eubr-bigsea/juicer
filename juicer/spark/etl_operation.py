@@ -829,12 +829,21 @@ class CleanMissingOperation(Operation):
 
         elif self.cleaning_mode == self.MODE:
             # Based on http://stackoverflow.com/a/36695251/1646932
+            # But null values cause exception, so it needs to remove them
             partial.append("""
+                import decimal
                 md_replace_{1} = dict()
                 for md_attr_{1} in attributes_{1}:
-                    md_count_{1} = {1}.groupBy(md_attr_{1}).count()\\
-                        .orderBy(desc('count')).limit(1)
-                    md_replace_{1}[md_attr_{1}] = md_count_{1}.collect()[0][0]
+                    md_count_{1} = {1}.na.drop(subset=[md_attr_{1}]).groupBy(
+                        md_attr_{1}).count().orderBy(
+                            functions.desc('count')).limit(1)
+                    # Spark does not support BigDecimal!
+                    if isinstance(md_count_{1}.collect()[0][0],
+                        decimal.Decimal):
+                        replacement = float(md_count_{1}.collect()[0][0])
+                    else:
+                        replacement = md_count_{1}.collect()[0][0]
+                    md_replace_{1}[md_attr_{1}] = replacement
                 {0} = {1}.fillna(value=md_replace_{1})""".format(
                 self.output, input_data)
             )
