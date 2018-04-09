@@ -26,14 +26,13 @@ class TokenizerOperation(Operation):
     TYPE_SIMPLE = 'simple'
     TYPE_REGEX = 'regex'
 
-
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         self.type = self.parameters.get(self.TYPE_PARAM, self.TYPE_SIMPLE)
         if self.type not in [self.TYPE_REGEX, self.TYPE_SIMPLE]:
-            raise ValueError(_('Invalid type for '
-                               'operation Tokenizer: {}').format(self.type))
+            raise ValueError(_('Invalid type for operation Tokenizer: {}')
+                             .format(self.type))
 
         self.expression_param = parameters.get(self.EXPRESSION_PARAM, '\s+')
 
