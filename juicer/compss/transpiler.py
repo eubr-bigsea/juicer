@@ -50,6 +50,7 @@ class COMPSsTranspiler(object):
         self._assign_operations()
         self.numFrag = self.configuration.get('juicer', {}).get(
             'compss', {}).get('numFrag')
+        self.candidates_to_otm = []
         # self.graph = graph
         # self.params = params if params is not None else {}
         #
@@ -73,12 +74,13 @@ class COMPSsTranspiler(object):
         ports = {}
         sequential_ports = {}
 
-
         for source_id in graph.edge:
+            if len(graph.edge[source_id]) == 1:
+                self.candidates_to_otm.append(source_id)
             for target_id in graph.edge[source_id]:
                 # Nodes accept multiple edges from same source
                 for flow in graph.edge[source_id][target_id].values():
-                    flow_id = '[{}:{}]'.format(source_id, flow['source_port'], )
+                    flow_id = '[{}:{}]'.format(source_id, flow['source_port'])
 
                     if flow_id not in sequential_ports:
                         sequential_ports[flow_id] = 'data{}'.format(
@@ -110,9 +112,9 @@ class COMPSsTranspiler(object):
                             if not isinstance(
                                     target_port['named_inputs'][flow_name],
                                     list):
-                                target_port['named_inputs'][flow_name] = [
-                                    target_port['named_inputs'][flow_name],
-                                    sequence]
+                                target_port['named_inputs'][flow_name] = \
+                                    [target_port['named_inputs'][flow_name],
+                                     sequence]
                             else:
                                 target_port['named_inputs'][flow_name].append(
                                     sequence)
@@ -184,25 +186,24 @@ class COMPSsTranspiler(object):
 
             dict_msgs = {}
             dict_msgs['task_completed'] = _('Task completed')
-            dict_msgs['task_running']   = _('Task running')
+            dict_msgs['task_running'] = _('Task running')
             dict_msgs['lemonade_task_completed'] = \
                 _('Lemonade task %s completed')
             dict_msgs['lemonade_task_parents'] = \
-            _('Parents completed, submitting %s')
+                _('Parents completed, submitting %s')
             dict_msgs['lemonade_task_started'] = \
                 _('Lemonade task %s started')
             dict_msgs['lemonade_task_afterbefore'] = \
-                _("Submitting parent task {} "
-              "before {}")
+                _("Submitting parent task {} before {}")
 
             env_setup['dict_msgs'] = dict_msgs
             env_setup['numFrag'] = self.numFrag
 
         template_loader = jinja2.FileSystemLoader(
             searchpath=os.path.dirname(__file__))
-        template_env = jinja2.Environment(loader=template_loader,
-                                          extensions=[AutoPep8Extension,
-                                                      HandleExceptionExtension])
+        template_env = jinja2.Environment(
+            loader=template_loader, extensions=[AutoPep8Extension,
+                                                HandleExceptionExtension])
         template_env.globals.update(zip=zip)
         template = template_env.get_template("operation.tmpl")
         v = template.render(env_setup)

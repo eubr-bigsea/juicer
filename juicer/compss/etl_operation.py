@@ -250,6 +250,7 @@ class DropOperation(Operation):
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
         self.has_code = len(named_inputs) == 1
+        self.onestage = True
         if self.has_code:
             self.has_import = "from functions.etl.Drop import DropOperation\n"
 
@@ -287,6 +288,7 @@ class FilterOperation(Operation):
                 format(self.FILTER_PARAM, self.__class__))
 
         self.has_code = (len(named_inputs) == 1)
+        self.onestage = True
         if self.has_code:
             self.has_import = \
                 "from functions.etl.Filter import FilterOperation\n"
@@ -313,7 +315,8 @@ class FilterOperation(Operation):
 
 
 class Intersection(Operation):
-    """
+    """Intersection.
+
     Returns a new DataFrame containing rows only in both this
     frame and another frame.
 
@@ -594,6 +597,7 @@ class SelectOperation(Operation):
                 .format(self.ATTRIBUTES_PARAM, self.__class__))
 
         self.has_code = len(named_inputs) == 1
+        self.onestage = True
         self.output = self.named_outputs.get(
             'output projected data', 'projection_data_{}'.format(self.order))
         if self.has_code:
@@ -691,7 +695,10 @@ class SplitOperation(Operation):
             self.has_import = "from functions.etl.Split "\
                               "import SplitOperation\n"
 
-        self.percentage = float(self.parameters.get('weights', 0.5))/100
+        self.percentage = self.parameters.get('weights', 0.5)
+        if self.percentage == "":
+            self.percentage = 0.5
+        self.percentage = float(self.percentage)/100
         self.seed = self.parameters.get("seed", 0)
         self.seed = self.seed if self.seed != 0 else None
 
@@ -739,6 +746,7 @@ class TransformationOperation(Operation):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
         self.has_code = any(
             [len(self.named_inputs) > 0, self.contains_results()])
+        self.onestage = True
         if self.has_code:
             if 'expression' in parameters:
                 self.expressions = parameters['expression']
