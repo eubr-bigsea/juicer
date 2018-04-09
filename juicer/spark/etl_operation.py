@@ -847,8 +847,8 @@ class CleanMissingOperation(Operation):
                 for mdn_attr_{1} in attributes_{1}:
                     # Computes median value for column with relat. error=10%
                     mdn_{1} = {1}.na.drop(subset=[mdn_attr_{1}])\\
-                        .approxQuantile(mdn_attr_{1}, [.5], .1)
-                    md_replace_{1}[mdn_attr_{1}] = mdn_{1}[0]
+                        .approxQuantile(str(mdn_attr_{1}), [.5], .1)
+                    mdn_replace_{1}[mdn_attr_{1}] = mdn_{1}[0]
                 {0} = {1}.fillna(value=mdn_replace_{1})""".format(
                 self.output, input_data))
 
