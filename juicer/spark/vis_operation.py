@@ -398,6 +398,10 @@ class ChartVisualization(VisualizationModel):
             attr_type = 'timestamp'
         elif attr.dataType.jsonValue() == 'string':
             attr_type = 'string'
+        elif attr.dataType.jsonValue() == 'time':
+            attr_type = 'time'
+        elif attr.dataType.jsonValue() == 'text':
+            attr_type = 'text'
         else:
             attr_type = 'number'
 
@@ -416,8 +420,7 @@ class ChartVisualization(VisualizationModel):
                     "{{name}}"
                 ],
                 "body": [
-                    "<span class='metric'></span>"
-                    "<span class='number'>{{name}}</span>"
+                    "<span class='metric'>{{x}}</span><span class='number'>{{y}}</span>"
                 ]
             },
         }
@@ -500,10 +503,14 @@ class BarChartModel(ChartVisualization):
         })
         if x_type in ['number']:
             result['x']['format'] = self.params.get("x_format", {}).get('key')
-        elif x_type in ['timestamp', 'date']:
-            result['x']["outFormat"] = self.params.get("x_format", {}).get(
-                'key')
-            result['x']["inFormat"] = self.params.get("x_format", {}).get('key')
+        elif x_type in ['timestamp', 'date', 'time']:
+            # lets have this hardcoded for now
+            result['x']["inFormat"] = "%Y-%m-%d"
+            result['x']["outFormat"] = "%Y-%m-%d"
+
+            # result['x']["outFormat"] = self.params.get("x_format", {}).get(
+            #     'key')
+            # result['x']["inFormat"] = self.params.get("x_format", {}).get('key')
 
         for inx_row, row in enumerate(rows):
             x_value = row[x_attr.name]
@@ -530,7 +537,7 @@ class BarChartModel(ChartVisualization):
                 data['values'].append(
                     {
                         'x': attr.name,
-                        'name': attr.name,
+                        'name': LineChartModel._format(x_value),
                         'y': LineChartModel._format(row[attr.name]),
                     }
                 )
@@ -649,7 +656,7 @@ class LineChartModel(ChartVisualization):
                 "color": COLORS_PALETTE[(i % 6) * 5 + ((i / 6) % 5)],
                 "pointColor": COLORS_PALETTE[(i % 6) * 5 + ((i / 6) % 5)],
                 "pointShape": SHAPES[i % len(SHAPES)],
-                "pointSize": 8,
+                "pointSize": 3,
                 "values": []
             })
 
@@ -671,12 +678,17 @@ class LineChartModel(ChartVisualization):
             },
             "data": data
         })
+
         if x_type in ['number']:
             result['x']['format'] = self.params.get("x_format", {}).get('key')
-        elif x_type in ['timestamp', 'date']:
-            result['x']["outFormat"] = self.params.get("x_format", {}).get(
-                'key')
-            result['x']["inFormat"] = self.params.get("x_format", {}).get('key')
+        elif x_type in ['timestamp', 'date', 'time']:
+            # Lets have this hardcoded for now
+            result['x']["inFormat"] = "%Y-%m-%d"
+            result['x']["outFormat"] = "%Y-%m-%d"
+
+            # old code
+            # result['x']["inFormat"] = self.params.get("x_format", {}).get('key')
+            # result['x']["outFormat"] = self.params.get("x_format", {}).get('key')
 
         for row in rows:
             for i, attr in enumerate(y_attrs):
