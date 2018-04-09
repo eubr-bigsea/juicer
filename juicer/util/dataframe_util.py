@@ -109,7 +109,7 @@ def emit_schema(task_id, df, emit_event, name):
                identifier=task_id,
                message=content.generate(),
                type='HTML', title=_('Schema for {}').format(name),
-               task=task_id)
+               task={'id': task_id})
 
 
 def emit_sample(task_id, df, emit_event, name, size=50):
@@ -148,7 +148,7 @@ def emit_sample(task_id, df, emit_event, name, size=50):
                identifier=task_id,
                message=content.generate(),
                type='HTML', title=_('Sample data for {}').format(name),
-               task=task_id)
+               task={'id': task_id})
 
 
 class LazySparkTransformationDataframe(object):
