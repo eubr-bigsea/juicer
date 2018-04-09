@@ -832,7 +832,7 @@ class CleanMissingOperation(Operation):
             partial.append("""
                 md_replace_{1} = dict()
                 for md_attr_{1} in attributes_{1}:
-                    md_count_{1} = {0}.groupBy(md_attr_{1}).count()\\
+                    md_count_{1} = {1}.groupBy(md_attr_{1}).count()\\
                         .orderBy(desc('count')).limit(1)
                     md_replace_{1}[md_attr_{1}] = md_count_{1}.collect()[0][0]
                 {0} = {1}.fillna(value=md_replace_{1})""".format(
