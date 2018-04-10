@@ -362,6 +362,7 @@ class VisualizationModel(object):
         self.column_names = column_names
         self.orientation = orientation
         self.params = params
+        self.default_time_format = '%Y-%m-%d'
 
         if len(id_attribute) > 0 and isinstance(id_attribute, list):
             self.id_attribute = id_attribute[0]
@@ -505,8 +506,8 @@ class BarChartModel(ChartVisualization):
             result['x']['format'] = self.params.get("x_format", {}).get('key')
         elif x_type in ['timestamp', 'date', 'time']:
             # lets have this hardcoded for now
-            result['x']["inFormat"] = "%Y-%m-%d"
-            result['x']["outFormat"] = "%Y-%m-%d"
+            result['x']["inFormat"] = self.default_time_format
+            result['x']["outFormat"] = self.default_time_format
 
             # result['x']["outFormat"] = self.params.get("x_format", {}).get(
             #     'key')
@@ -683,8 +684,8 @@ class LineChartModel(ChartVisualization):
             result['x']['format'] = self.params.get("x_format", {}).get('key')
         elif x_type in ['timestamp', 'date', 'time']:
             # Lets have this hardcoded for now
-            result['x']["inFormat"] = "%Y-%m-%d"
-            result['x']["outFormat"] = "%Y-%m-%d"
+            result['x']["inFormat"] = self.default_time_format
+            result['x']["outFormat"] = self.default_time_format
 
             # old code
             # result['x']["inFormat"] = self.params.get("x_format", {}).get('key')
@@ -815,8 +816,8 @@ class ScatterPlotModel(ChartVisualization):
                     result[axis]['format'] = axis_format.get('key')
 
                 elif axis_type in ['timestamp', 'date', 'time']:
-                    result[axis]["inFormat"] = "%Y-%m-%d"
-                    result[axis]["outFormat"] = "%Y-%m-%d"
+                    result[axis]["inFormat"] = self.default_time_format
+                    result[axis]["outFormat"] = self.default_time_format
 
                     # result[axis]["outFormat"] = axis_format.get('key')
                     # result[axis]["inFormat"] = axis_format.get('key')
