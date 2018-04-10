@@ -797,6 +797,12 @@ class ScatterPlotModel(ChartVisualization):
             attrs[axis] = next((c for c in schema if c.name == name), None)
             if attrs[axis]:
                 axis_type = ChartVisualization._get_attr_type(attrs[axis])
+
+                # this way we don't bind x_axis and y_axis types. Y is only
+                # going to be number for now
+                if axis == u'y':
+                  axis_type = 'number'
+
                 result[axis] = {
                     "title": self.params.get("{}_title".format(axis)),
                     "prefix": self.params.get("{}_prefix".format(axis)),
@@ -804,12 +810,16 @@ class ScatterPlotModel(ChartVisualization):
                     "type": axis_type
                 }
                 axis_format = self.params.get('{}_format'.format(axis), {})
+
                 if axis_type in ['number']:
-                    result[axis]['format'] = axis_format.get(
-                        'key')
-                elif axis_type in ['timestamp', 'date']:
-                    result[axis]["outFormat"] = axis_format.get('key')
-                    result[axis]["inFormat"] = axis_format.get('key')
+                    result[axis]['format'] = axis_format.get('key')
+
+                elif axis_type in ['timestamp', 'date', 'time']:
+                    result[axis]["inFormat"] = "%Y-%m-%d"
+                    result[axis]["outFormat"] = "%Y-%m-%d"
+
+                    # result[axis]["outFormat"] = axis_format.get('key')
+                    # result[axis]["inFormat"] = axis_format.get('key')
 
         result.update(self._get_title_legend_tootip())
 
@@ -865,7 +875,6 @@ class ScatterPlotModel(ChartVisualization):
             return ChartVisualization._format(row[attr.name])
         else:
             return default_value
-
 
 class HtmlVisualizationModel(VisualizationModel):
     # noinspection PyUnusedLocal
