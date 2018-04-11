@@ -183,6 +183,7 @@ class SampleOrPartitionOperation(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
+        self.supports_cache = (self.parameters.get(self.SEED_PARAM) is not None)
         self.seed = parameters.get(self.SEED_PARAM,
                                    int(random() * time.time()))
         self.fold_count = parameters.get(self.FOLD_COUNT_PARAM, 10)
@@ -213,6 +214,8 @@ class SampleOrPartitionOperation(Operation):
         self.output = self.named_outputs.get(
             'sampled data', 'sampled_data_{}'.format(self.order))
 
+
+
     def get_output_names(self, sep=", "):
         return self.output
 
@@ -230,11 +233,9 @@ class SampleOrPartitionOperation(Operation):
             # Spark 2.0.2 DataFrame API does not have takeSample implemented
             # See [SPARK-15324]
             # This implementation may be inefficient!
-            code = ("{out} = {input}.sample(withReplacement={wr}, "
-                    "fraction={fr}, seed={seed}).limit({limit})"
-                    .format(out=self.output, input=input_data,
-                            wr=self.withReplacement, fr=1.0, seed=self.seed,
-                            limit=self.value))
+            code = ("{out} = {input}.orderBy(functions.rand({seed})).limit("
+                    "{limit})".format(out=self.output, input=input_data,
+                                      seed=self.seed, limit=self.value))
             pass
         elif self.type == self.TYPE_HEAD:
             code = "{out} = {input}.limit({limit})" \

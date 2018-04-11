@@ -523,8 +523,8 @@ def test_sample_or_partition_type_value_success():
     instance = SampleOrPartitionOperation(params, named_inputs=n_in,
                                           named_outputs=n_out)
     code = instance.generate_code()
-    expected_code = """output_1 = input_1.sample(withReplacement=False,
-        fraction=1.0, seed=0).limit({})""".format(params['value'])
+    expected_code = """output_1 = input_1.orderBy(
+        functions.rand(0)).limit({})""".format(params['value'])
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
     assert result, msg
 
