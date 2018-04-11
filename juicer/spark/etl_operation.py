@@ -183,6 +183,7 @@ class SampleOrPartitionOperation(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
+        self.supports_cache = (self.parameters.get(self.SEED_PARAM) is not None)
         self.seed = parameters.get(self.SEED_PARAM,
                                    int(random() * time.time()))
         self.fold_count = parameters.get(self.FOLD_COUNT_PARAM, 10)
@@ -212,6 +213,8 @@ class SampleOrPartitionOperation(Operation):
             [len(self.named_inputs) == 1, self.contains_results()])
         self.output = self.named_outputs.get(
             'sampled data', 'sampled_data_{}'.format(self.order))
+
+
 
     def get_output_names(self, sep=", "):
         return self.output
