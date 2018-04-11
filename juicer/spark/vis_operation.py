@@ -256,7 +256,6 @@ class VisualizationMethodOperation(Operation):
             )))
         return '\n'.join(code_lines)
 
-
 class BarChartOperation(VisualizationMethodOperation):
     def __init__(self, parameters, named_inputs, named_outputs):
         VisualizationMethodOperation.__init__(self, parameters, named_inputs,
@@ -389,24 +388,14 @@ class ChartVisualization(VisualizationModel):
         raise NotImplementedError(_('Should be implemented in derived classes'))
 
     @staticmethod
-    def _get_attr_type(attr):
-        # @FIXME: Improve this code with other data types
-        if attr.dataType.jsonValue() == 'date':
-            attr_type = 'date'
-        elif attr.dataType.jsonValue() == 'boolean':
-            attr_type = 'bool'
-        elif attr.dataType.jsonValue() == 'timestamp':
-            attr_type = 'timestamp'
-        elif attr.dataType.jsonValue() == 'string':
-            attr_type = 'string'
-        elif attr.dataType.jsonValue() == 'time':
-            attr_type = 'time'
-        elif attr.dataType.jsonValue() == 'text':
-            attr_type = 'text'
-        else:
-            attr_type = 'number'
+    def _get_attr_type(attr_type):
+        valid_types = ['time', 'number', 'text']
 
-        return attr_type
+        # checks if attr_type is valid
+        if attr_type.lower() in valid_types:
+          return attr_type
+
+        return "number"
 
     def _get_title_legend_tootip(self):
         """ Common title and legend """
@@ -444,8 +433,7 @@ class ChartVisualization(VisualizationModel):
                 'At least one attribute for Y-axis does not exist: {}').format(
                 ', '.join(self.params.get('column_names', []))))
 
-        x_type = ChartVisualization._get_attr_type(x_attr)
-        return x_attr, x_type, y_attrs
+        return x_attr, y_attrs
 
     @staticmethod
     def _format(value):
@@ -467,7 +455,8 @@ class BarChartModel(ChartVisualization):
         return 'fa-bar-chart'
 
     def get_data(self):
-        x_attr, x_type, y_attrs = self._get_axis_info()
+        x_type = ChartVisualization._get_attr_type(self.params.get('x_axis_type', 'text'))
+        x_attr, y_attrs = self._get_axis_info()
 
         rows = self.data.collect()
 
@@ -645,7 +634,8 @@ class LineChartModel(ChartVisualization):
         return 'fa-line-chart'
 
     def get_data(self):
-        x_attr, x_type, y_attrs = self._get_axis_info()
+        x_type = ChartVisualization._get_attr_type(self.params.get('x_axis_type', 'number'))
+        x_attr, y_attrs = self._get_axis_info()
 
         rows = self.data.collect()
 
@@ -711,19 +701,11 @@ class MapModel(ChartVisualization):
         result.update(self._get_title_legend_tootip())
         rows = self.data.collect()
 
-        if self.params.get('value'):
-            value_attr = next((c for c in self.data.schema if
-                               c.name == self.params['value'][0]), None)
-            value_type = ChartVisualization._get_attr_type(value_attr)
-        else:
-            value_type = 'number'
+        valid_map_types = ['heatmap', 'polygon', 'points', 'lines']
+        map_type = self.params.get('type', 'points')
 
-        map_type = {
-            'heatmap': 'heat',
-            'bars': 'bars',
-            'bar': 'bars',
-            'points': 'points'
-        }[self.params.get('type', 'heatmap')]
+        if map_type.lower() not in valid_map_types:
+          map_type = 'points'
 
         result["bars"] = {
             "mapColor": "#8BC3D2",
@@ -739,6 +721,7 @@ class MapModel(ChartVisualization):
             "format": "",
             "type": value_type
         }
+
         result["heat"] = {
             "colors": ["#47d8c7", "#e3c170", "#fe492b"],
             "shapeId": "abbr",
@@ -797,11 +780,11 @@ class ScatterPlotModel(ChartVisualization):
                 name = None
             attrs[axis] = next((c for c in schema if c.name == name), None)
             if attrs[axis]:
-                axis_type = ChartVisualization._get_attr_type(attrs[axis])
 
-                # this way we don't bind x_axis and y_axis types. Y is only
-                # going to be number for now
-                if axis == u'y':
+                if axis == u'x':
+                  x_axis_type = self.params.get('x_axis_type', 'number')
+                  axis_type = ChartVisualization._get_attr_type(x_axis_type)
+                elif axis == u'y':
                   axis_type = 'number'
 
                 result[axis] = {
