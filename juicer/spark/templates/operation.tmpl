@@ -90,7 +90,7 @@ def juicer_debug(spark_session, name, variable, data_frame):
 {#% autopep8 %#}
 {%- for instance in instances %}
 {%-  handleinstance instance %}
-{%- if instance.has_code %}
+{%- if instance.has_code and instance.enabled %}
 
 # noinspection PyUnusedLocal
 def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.order}}(spark_session, cached_state, emit_event):
@@ -221,15 +221,14 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.ord
         }
 
     df_types = (DataFrame, dataframe_util.LazySparkTransformationDataframe)
-    ## {{instance.has_code}} {{instance.parameters.task.forms}}
-    {%- if instance.has_code and instance.parameters.task.forms.get('display_sample', {}).get('value') in (1, '1') %}
+    {%- if instance.has_code and instance.enabled and instance.parameters.task.forms.get('display_sample', {}).get('value') in (1, '1') %}
     for name, out in results.items():
         if (isinstance(out, dict) and 'output' in out
                 and isinstance(out['output'], df_types)):
             dataframe_util.emit_sample(
                 '{{instance.parameters.task.id}}', out['output'], emit_event, name)
     {%- endif %}
-    {%- if instance.has_code and instance.parameters.task.forms.get('display_schema', {}).get('value') in (1, '1') %}
+    {%- if instance.has_code and instance.enabled and instance.parameters.task.forms.get('display_schema', {}).get('value') in (1, '1') %}
     for name, out in results.items():
         if (isinstance(out, dict) and 'output' in out
                 and isinstance(out['output'], df_types)):
@@ -265,7 +264,7 @@ def main(spark_session, cached_state, emit_event):
         session_start_time = time.time()
 
         {%- for instance in instances %}
-        {%- if instance.has_code %}
+        {%- if instance.has_code and instance.enabled %}
         {%- if instance.multiple_inputs %}
         {{instance.get_inputs_names.replace(',', '=') }} = None
         {% endif %}
@@ -274,7 +273,7 @@ def main(spark_session, cached_state, emit_event):
 
         {%- for instance in instances %}
         {%- set is_satisfied = dependency_controller.is_satisfied(instance.parameters.task.id) %}
-        {%- if instance.must_be_executed(is_satisfied) and instance.has_code %}
+        {%- if instance.must_be_executed(is_satisfied) and instance.has_code and instance.enabled %}
         {%- set s = dependency_controller.satisfied(instance.parameters.task.id) %}
         task_futures['{{instance.parameters.task.id}}'] = executor.submit(
             lambda: {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.order}}(spark_session, cached_state, emit_event))
@@ -283,15 +282,20 @@ def main(spark_session, cached_state, emit_event):
 
         {%- for instance in instances %}
         {%- set is_satisfied = dependency_controller.is_satisfied(instance.parameters.task.id) %}
-        {%- if instance.must_be_executed(is_satisfied) and instance.has_code %}
+        {%- if instance.must_be_executed(is_satisfied) and instance.has_code and instance.enabled%}
         {%- set s = dependency_controller.satisfied(instance.parameters.task.id) %}
         task_futures['{{instance.parameters.task.id}}'].result()
         {%- endif %}
-        {%- if not instance.has_code  %}
+        {%- if not instance.has_code or not instance.enabled %}
         emit_event(name='update task', message=_(
             'Task completed, but not executed (not used in the workflow).'),
             status='COMPLETED', identifier='{{instance.parameters.task.id}}')
         {%- endif %}
+        {%- endfor %}
+        {%- for disabled in disabled_tasks %}
+        emit_event(name='update task', message=_(
+            'Task completed, but not executed (not used in the workflow).'),
+            status='COMPLETED', identifier='{{disabled}}')
         {%- endfor %}
 
         end = time.time()
@@ -306,7 +310,7 @@ def main(spark_session, cached_state, emit_event):
             },
             {%- for instance in instances %}
               {%- set is_satisfied = dependency_controller.is_satisfied(instance.parameters.task.id) %}
-              {%- if instance.has_code and is_satisfied %}
+              {%- if instance.has_code and is_satisfied and instance.enabled%}
                 '{{instance.parameters.task.id}}':
                     [get_results(task_futures, '{{instance.parameters.task.id}}'),
                     '{{instance.parameters.hash}}'],

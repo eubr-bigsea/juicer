@@ -31,8 +31,12 @@ class Workflow(object):
         # Initialize
         self.graph = nx.MultiDiGraph()
 
+        # Tasks disabled do not execute
+        self.disabled_tasks = {}
+
         # Workflow dictionary
         self.workflow = workflow_data
+        self.workflow['disabled_tasks'] = self.disabled_tasks
 
         # Construct graph
         self._build_initial_workflow_graph()
@@ -40,6 +44,7 @@ class Workflow(object):
 
         # Topological sorted tasks according to their dependencies
         self.sorted_tasks = []
+
 
         # Spark or COMPSs
         self.platform = workflow_data.get('platform', {}).get('slug', 'spark')
@@ -62,7 +67,7 @@ class Workflow(object):
         limonero_config = self.config['juicer']['services']['limonero']
         data_sources = []
         for t in self.workflow['tasks']:
-            if t['operation']['slug'] == 'data-reader':
+            if t['operation'].get('slug') == 'data-reader':
                 data_sources.append(limonero_service.get_data_source_info(
                     limonero_config['url'], str(limonero_config['auth_token']),
                     t['forms']['data_source']['value']))
@@ -121,101 +126,108 @@ class Workflow(object):
         task_map = {}
 
         for task in self.workflow['tasks']:
-            operation = operations_tahiti.get(task['operation']['id'])
-            form_fields = {}
-            for form in operation['forms']:
-                for field in form['fields']:
-                    form_fields[field['name']] = form['category']
+            if task.get('enabled', True):
+                operation = operations_tahiti.get(task['operation']['id'])
+                form_fields = {}
+                for form in operation['forms']:
+                    for field in form['fields']:
+                        form_fields[field['name']] = form['category']
 
-            task_map[task['id']] = {'task': task, 'operation': operation}
-            if operation:
-                # Slug information is required in order to select which
-                # operation will be executed
-                task['operation']['slug'] = operation['slug']
-                task['operation']['name'] = operation['name']
+                task_map[task['id']] = {'task': task, 'operation': operation}
+                if operation:
+                    # Slug information is required in order to select which
+                    # operation will be executed
+                    task['operation']['slug'] = operation['slug']
+                    task['operation']['name'] = operation['name']
 
-                ports_list = operation['ports']
-                # Get operation requirements in tahiti
-                result = {
-                    'N_INPUT': 0,
-                    'N_OUTPUT': 0,
-                    'PORT_NAMES': [],
-                    'M_INPUT': 'None',
-                    'M_OUTPUT': 'None'
-                }
+                    ports_list = operation['ports']
+                    # Get operation requirements in tahiti
+                    result = {
+                        'N_INPUT': 0,
+                        'N_OUTPUT': 0,
+                        'PORT_NAMES': [],
+                        'M_INPUT': 'None',
+                        'M_OUTPUT': 'None'
+                    }
 
-                # Correct form field types if the interface (Citron) does not
-                # send this information
-                for k, v in task['forms'].items():
-                    v['category'] = form_fields.get(k, 'EXECUTION')
+                    # Correct form field types if the interface (Citron) does
+                    # not send this information
+                    for k, v in task['forms'].items():
+                        v['category'] = form_fields.get(k, 'EXECUTION')
 
-                for port in ports_list:
-                    if port['type'] == 'INPUT':
-                        result['M_INPUT'] = port['multiplicity']
-                        if 'N_INPUT' in result:
-                            result['N_INPUT'] += 1
-                        else:
-                            result['N_INPUT'] = 1
-                    elif port['type'] == 'OUTPUT':
-                        result['M_OUTPUT'] = port['multiplicity']
-                        if 'N_OUTPUT' in result:
-                            result['N_OUTPUT'] += 1
-                        else:
-                            result['N_OUTPUT'] = 1
-                        if 'PORT_NAMES' in result:
-                            result['PORT_NAMES'].append(
-                                (int(port['order']), port['name']))
-                        else:
-                            result['PORT_NAMES'] = [
-                                (int(port['order']), port['name'])]
+                    for port in ports_list:
+                        if port['type'] == 'INPUT':
+                            result['M_INPUT'] = port['multiplicity']
+                            if 'N_INPUT' in result:
+                                result['N_INPUT'] += 1
+                            else:
+                                result['N_INPUT'] = 1
+                        elif port['type'] == 'OUTPUT':
+                            result['M_OUTPUT'] = port['multiplicity']
+                            if 'N_OUTPUT' in result:
+                                result['N_OUTPUT'] += 1
+                            else:
+                                result['N_OUTPUT'] = 1
+                            if 'PORT_NAMES' in result:
+                                result['PORT_NAMES'].append(
+                                    (int(port['order']), port['name']))
+                            else:
+                                result['PORT_NAMES'] = [
+                                    (int(port['order']), port['name'])]
 
-                self.graph.add_node(
-                    task.get('id'),
-                    in_degree_required=result['N_INPUT'],
-                    in_degree_multiplicity_required=result['M_INPUT'],
-                    out_degree_required=result['N_OUTPUT'],
-                    out_degree_multiplicity_required=result['M_OUTPUT'],
-                    port_names=[kv[1] for kv in sorted(
-                        result['PORT_NAMES'], key=lambda _kv: _kv[0])],
-                    parents=[],
-                    attr_dict=task)
+                    self.graph.add_node(
+                        task.get('id'),
+                        in_degree_required=result['N_INPUT'],
+                        in_degree_multiplicity_required=result['M_INPUT'],
+                        out_degree_required=result['N_OUTPUT'],
+                        out_degree_multiplicity_required=result['M_OUTPUT'],
+                        port_names=[kv[1] for kv in sorted(
+                            result['PORT_NAMES'], key=lambda _kv: _kv[0])],
+                        parents=[],
+                        attr_dict=task)
+                else:
+                    msg = _("Task {task} uses an invalid or disabled "
+                            "operation ({op})")
+                    raise ValueError(
+                        msg.format(task=task['id'], op=task['operation']['id']))
             else:
-                msg = _(
-                    "Task {task} uses an invalid or disabled operation ({op})")
-                raise ValueError(
-                    msg.format(task=task['id'], op=task['operation']['id']))
+                self.disabled_tasks[task['id']] = task
 
         for flow in self.workflow['flows']:
 
-            # Updates the source_port_name and target_port_name. They are
-            # used in the transpiler part instead of the id of the port.
-            source_port = filter(
-                lambda p: int(p['id']) == int(flow['source_port']),
-                task_map[flow['source_id']]['operation']['ports'])
+            # Ignore disabled tasks
+            if all([flow['source_id'] not in self.disabled_tasks,
+                    flow['target_id'] not in self.disabled_tasks]):
+                # Updates the source_port_name and target_port_name. They are
+                # used in the transpiler part instead of the id of the port.
+                source_port = filter(
+                    lambda p: int(p['id']) == int(flow['source_port']),
+                    task_map[flow['source_id']]['operation']['ports'])
 
-            target_port = filter(
-                lambda p: int(p['id']) == int(flow['target_port']),
-                task_map[flow['target_id']]['operation']['ports'])
+                target_port = filter(
+                    lambda p: int(p['id']) == int(flow['target_port']),
+                    task_map[flow['target_id']]['operation']['ports'])
 
-            if all([source_port, target_port]):
-                # Compatibility assertion, may be removed in future
-                # assert 'target_port_name' not in flow or \
-                #        flow['target_port_name'] == target_port[0]['slug']
-                # assert 'source_port_name' not in flow \
-                #        or flow['source_port_name'] == source_port[0]['slug']
+                if all([source_port, target_port]):
+                    # Compatibility assertion, may be removed in future
+                    # assert 'target_port_name' not in flow or \
+                    #        flow['target_port_name'] == target_port[0]['slug']
+                    # assert 'source_port_name' not in flow \
+                    #      or flow['source_port_name'] == source_port[0]['slug']
 
-                flow['target_port_name'] = target_port[0]['slug']
-                flow['source_port_name'] = source_port[0]['slug']
+                    flow['target_port_name'] = target_port[0]['slug']
+                    flow['source_port_name'] = source_port[0]['slug']
 
-                self.graph.add_edge(flow['source_id'], flow['target_id'],
-                                    attr_dict=flow)
-                self.graph.node[flow['target_id']]['parents'].append(
-                    flow['source_id'])
-            else:
-                self.log.warn(_("Incorrect configuration for ports: %s, %s"),
-                              source_port, target_port)
-                raise ValueError(
-                    _("Invalid or inexisting port in '{op}' {s} {t}").format(
+                    self.graph.add_edge(flow['source_id'], flow['target_id'],
+                                        attr_dict=flow)
+                    self.graph.node[flow['target_id']]['parents'].append(
+                        flow['source_id'])
+                else:
+                    self.log.warn(
+                        _("Incorrect configuration for ports: %s, %s"),
+                        source_port, target_port)
+                    raise ValueError(_(
+                        "Invalid or non-existing port: '{op}' {s} {t}").format(
                         op=task_map[flow['source_id']]['operation']['name'],
                         s=flow['source_port'], t=flow['target_port']))
 
