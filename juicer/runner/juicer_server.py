@@ -65,7 +65,7 @@ class JuicerServer:
         signal.signal(signal.SIGTERM, self._terminate)
         self.platform = 'spark'
 
-        self.port_range = range(* (config['juicer'].get('minion', {}).get(
+        self.port_range = range(*(config['juicer'].get('minion', {}).get(
             'libprocess_port_range', [36000, 36500])))
         self.advertise_ip = config['juicer'].get('minion', {}).get(
             'libprocess_advertise_ip')
@@ -76,9 +76,6 @@ class JuicerServer:
         # 1 for block manager
         self.port_offset = config['juicer'].get('minion', {}).get(
             'port_offset', 100)
-
-        log.info(_('Libprocess configuration: {}:{}').format(self.advertise_ip,
-                                                             self.port_range))
 
     def start(self):
         signal.signal(signal.SIGTERM, self._terminate_minions)
