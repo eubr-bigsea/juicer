@@ -230,11 +230,9 @@ class SampleOrPartitionOperation(Operation):
             # Spark 2.0.2 DataFrame API does not have takeSample implemented
             # See [SPARK-15324]
             # This implementation may be inefficient!
-            code = ("{out} = {input}.sample(withReplacement={wr}, "
-                    "fraction={fr}, seed={seed}).limit({limit})"
-                    .format(out=self.output, input=input_data,
-                            wr=self.withReplacement, fr=1.0, seed=self.seed,
-                            limit=self.value))
+            code = ("{out} = {input}.orderBy(functions.rand({seed})).limit("
+                    "{limit})".format(out=self.output, input=input_data,
+                                      seed=self.seed, limit=self.value))
             pass
         elif self.type == self.TYPE_HEAD:
             code = "{out} = {input}.limit({limit})" \
