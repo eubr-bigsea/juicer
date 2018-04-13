@@ -296,7 +296,7 @@ def test_get_windows_function_success():
 
     expected_code = ("functions.window("
                      "functions.col('created_at'),"
-                     "'10 seconds').start.cast('timestamp')")
+                     "str('10 seconds')).start.cast('timestamp')")
     result, msg = compare_ast(ast.parse(expr.parsed_expression), ast.parse(
         expected_code))
     assert result, msg + format_code_comparison(expr.parsed_expression,
