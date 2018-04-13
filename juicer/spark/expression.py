@@ -90,6 +90,20 @@ class Expression:
             start_or_end=field_name)
         return result
 
+    def get_column_function(self, spec, params, arg_count=0):
+        """
+        Functions that are not available at pyspark.sql.functions, but are
+        implemented in pyspark.sql.Column class
+        """
+        arguments = [self.parse(x, params) for x in spec['arguments']]
+        if len(arguments) != arg_count + 1:
+            raise ValueError(_("Invalid parameters for function: {}()").format(
+                spec['callee']['name']))
+
+        return '{col}.{f}({args})'.format(
+            col=arguments[0], f=spec['callee']['name'],
+            args=', '.join(arguments[1:]))
+
     def get_set_function(self, spec, params, data_type):
         """
         Removes duplicates from a list or vector column using set collection in
@@ -273,8 +287,27 @@ class Expression:
             'window': self.get_time_window_function,
         }
 
+        column_functions = {
+            'alias': functools.partial(self.get_column_function, arg_count=1),
+            'astype': functools.partial(self.get_column_function, arg_count=1),
+            'between': functools.partial(self.get_column_function, arg_count=2),
+            'cast': functools.partial(self.get_column_function, arg_count=1),
+            'contains': functools.partial(self.get_column_function,
+                                          arg_count=1),
+            'endswith': functools.partial(self.get_column_function,
+                                          arg_count=1),
+            'isNotNull': functools.partial(self.get_column_function),
+            'isNull': functools.partial(self.get_column_function),
+            'like': functools.partial(self.get_column_function, arg_count=1),
+            'rlike': functools.partial(self.get_column_function, arg_count=1),
+            'startswith': functools.partial(self.get_column_function,
+                                            arg_count=1),
+            'substr': functools.partial(self.get_column_function, arg_count=1),
+        }
+
         self.functions.update(spark_sql_functions)
         self.functions.update(custom_functions)
+        self.functions.update(column_functions)
 
         if self.window:
             window_functions = {
