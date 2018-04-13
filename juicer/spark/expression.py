@@ -84,7 +84,7 @@ class Expression:
 
         # FIXME: add the word 'SECONDS' after parameter 'SEGUNDOS'
         result = (
-            "functions.window({value}, '{bin}')"
+            "functions.window({value}, str('{bin}'))"
             ".{start_or_end}.cast('timestamp')").format(
             value=', '.join(arguments[:-2]), bin=bins_size,
             start_or_end=field_name)
