@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
+
 import json
 from itertools import izip_longest
 from textwrap import dedent
@@ -45,38 +46,42 @@ class ReadShapefile(Operation):
         LAT,LON:
             points.append([point[1], point[0]])
         """
+        if self.metadata.get('status') == 'ERROR':
+            raise ValueError(_("Shapefile does not exist (id={}).".format(
+                self.parameters.get(self.DATA_SOURCE_ID_PARAM))))
+        else:
+            code = """
+                import shapefile
+                from io import BytesIO
+                # reload(sys)
+                # sys.setdefaultencoding('utf-8')
+                shp_file = '{url}'
+                dbf_file = re.sub('.shp$', '.dbf', shp_file)
+                shp_content = spark_session.sparkContext.binaryFiles(shp_file)\
+                    .collect()
+                dbf_content = spark_session.sparkContext.binaryFiles(dbf_file)\
+                    .collect()
+                shp_io = BytesIO(shp_content[0][1])
+                dbf_io = BytesIO(dbf_content[0][1])
 
-        code = """
-            import shapefile
-            from io import BytesIO
-            # reload(sys)
-            # sys.setdefaultencoding('utf-8')
-            shp_file = '{url}'
-            dbf_file = re.sub('.shp$', '.dbf', shp_file)
-            shp_content = spark_session.sparkContext.binaryFiles(shp_file)\
-                .collect()
-            dbf_content = spark_session.sparkContext.binaryFiles(dbf_file)\
-                .collect()
-            shp_io = BytesIO(shp_content[0][1])
-            dbf_io = BytesIO(dbf_content[0][1])
-
-            shp_object = shapefile.Reader(shp=shp_io, dbf=dbf_io)
-            records = shp_object.records()
-            records = shp_object.shapeRecords()
-            header = {attrs}
-            header = types.StructType(
-                [types.StructField(h, types.StringType(), False)
-                             for h in header])
-            header.add(types.StructField('points', types.ArrayType(
-                types.ArrayType(types.DoubleType()))))
-            data = []
-            for shape_record in records:
-                data.append(shape_record.record + [shape_record.shape.points])
-            {out} = spark_session.createDataFrame(data, header)
-        """.format(url=self.metadata['url'],
-                   attrs=json.dumps([a['name'] for a in
-                                     self.metadata.get('attributes', [])]),
-                   out=self.named_outputs['geodata'])
+                shp_object = shapefile.Reader(shp=shp_io, dbf=dbf_io)
+                records = shp_object.records()
+                records = shp_object.shapeRecords()
+                header = {attrs}
+                header = types.StructType(
+                    [types.StructField(h, types.StringType(), False)
+                                 for h in header])
+                header.add(types.StructField('points', types.ArrayType(
+                    types.ArrayType(types.DoubleType()))))
+                data = []
+                for shape_record in records:
+                    data.append(shape_record.record +
+                        [shape_record.shape.points])
+                {out} = spark_session.createDataFrame(data, header)
+            """.format(url=self.metadata['url'],
+                       attrs=json.dumps([a['name'] for a in
+                                         self.metadata.get('attributes', [])]),
+                       out=self.named_outputs['geodata'])
 
         return dedent(code)
 
