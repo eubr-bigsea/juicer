@@ -390,18 +390,17 @@ class ChartVisualization(VisualizationModel):
 
     @staticmethod
     def _get_attr_type(attr):
-        # @FIXME: Improve this code with other data types
         if attr.dataType.jsonValue() == 'date':
-            attr_type = 'date'
-        elif attr.dataType.jsonValue() == 'boolean':
-            attr_type = 'bool'
+            attr_type = 'time'
+        if attr.dataType.jsonValue() == 'datetime':
+            attr_type = 'time'
+        if attr.dataType.jsonValue() == 'time':
+            attr_type = 'time'
         elif attr.dataType.jsonValue() == 'timestamp':
             attr_type = 'timestamp'
-        elif attr.dataType.jsonValue() == 'string':
-            attr_type = 'string'
-        elif attr.dataType.jsonValue() == 'time':
-            attr_type = 'time'
         elif attr.dataType.jsonValue() == 'text':
+            attr_type = 'text'
+        elif attr.dataType.jsonValue() == 'character':
             attr_type = 'text'
         else:
             attr_type = 'number'
