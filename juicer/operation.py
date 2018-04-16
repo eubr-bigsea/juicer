@@ -82,6 +82,10 @@ class Operation(object):
         return []
 
     @property
+    def enabled(self):
+        return self.parameters.get('task', {}).get('enabled', True)
+
+    @property
     def is_stream_consumer(self):
         return False
 
@@ -111,7 +115,6 @@ class Operation(object):
     def must_be_executed(self, is_satisfied, ignore_out_degree=False,
                          ignore_has_code=False):
         consider_degree = self.out_degree == 0 or ignore_out_degree
-        forms = self.parameters['task']['forms']
         info_or_data = self.contains_results()
         return (((self.has_code or ignore_has_code) and is_satisfied and
                  consider_degree) or info_or_data)

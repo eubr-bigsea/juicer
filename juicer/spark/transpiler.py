@@ -256,6 +256,7 @@ class SparkTranspiler(object):
             env_setup['instances_by_task_id'][task['id']] = instance
             env_setup['execute_main'] = params.get('execute_main', False)
             env_setup['plain'] = params.get('plain', False)
+            env_setup['disabled_tasks'] = workflow['disabled_tasks']
 
         template_loader = jinja2.FileSystemLoader(
             searchpath=os.path.dirname(__file__))
