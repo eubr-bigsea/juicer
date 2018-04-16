@@ -484,6 +484,9 @@ class BarChartModel(ChartVisualization):
         result = {}
         result.update(self._get_title_legend_tootip())
 
+        # For barcharts this is right option
+        result['legend']['text'] = u'{{x}}'
+
         result.update({
             "x": {
                 "title": self.params.get("x_title"),
@@ -499,8 +502,8 @@ class BarChartModel(ChartVisualization):
                 "format": self.params.get("y_format", {}).get('key'),
             },
             "data": []
-
         })
+
         if x_type in ['number']:
             result['x']['format'] = self.params.get("x_format", {}).get('key')
         elif x_type in ['timestamp', 'date', 'time']:
