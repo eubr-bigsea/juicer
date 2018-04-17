@@ -793,8 +793,8 @@ class CleanMissingOperation(Operation):
 
             # Based on http://stackoverflow.com/a/35674589/1646932
             select_list = [
-                ("\n    (functions.count('{0}') / "
-                 "functions.count('*')).alias('{0}')").format(attr)
+                ("\n    (functions.avg(functions.col('{0}').isNull()."
+                 "cast('int'))).alias('{0}')").format(attr)
                 for attr in self.attributes]
             pre_code.extend([
                 "# Computes the ratio of missing values for each attribute",

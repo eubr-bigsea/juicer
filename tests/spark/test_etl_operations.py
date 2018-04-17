@@ -153,8 +153,8 @@ def test_clean_missing_minimal_params_success():
     code = instance.generate_code()
     expected_code = dedent("""
     ratio_{input_1} = {input_1}.select(
-        (functions.count('{attribute}') / functions.count('*')).alias(
-        '{attribute}')).collect()
+        (functions.avg(functions.col('{attribute}').isNull().cast(
+        'int'))).alias('{attribute}')).collect()
     attributes_{input_1} = [c for c in ["{attribute}"]
                  if 0.0 <= ratio_{input_1}[0][c] <= 1.0]
     if len(attributes_input_1) > 0:
@@ -203,8 +203,8 @@ def test_clean_missing_minimal_params_type_value_success():
     code = instance.generate_code()
     expected_code = dedent("""
     ratio_{input_1} = {input_1}.select(
-        (functions.count('{attribute}') / functions.count('*')).alias(
-        '{attribute}')).collect()
+        (functions.avg(functions.col('{attribute}').isNull().cast(
+        'int'))).alias('{attribute}')).collect()
     attributes_{input_1} = [c for c in ["{attribute}"]
                  if 0.0 <= ratio_{input_1}[0][c] <= 1.0]
     if len(attributes_input_1) > 0:
