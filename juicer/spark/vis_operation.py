@@ -395,9 +395,9 @@ class ChartVisualization(VisualizationModel):
         if attr.dataType.jsonValue() == 'datetime':
             attr_type = 'time'
         if attr.dataType.jsonValue() == 'time':
-            attr_type = 'time'
+            attr_type = 'text'
         elif attr.dataType.jsonValue() == 'timestamp':
-            attr_type = 'time'
+            attr_type = 'number'
         elif attr.dataType.jsonValue() == 'text':
             attr_type = 'text'
         elif attr.dataType.jsonValue() == 'character':
