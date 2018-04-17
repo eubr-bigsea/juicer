@@ -1708,16 +1708,7 @@ class LogisticRegressionModel(Operation):
 class RegressionModelOperation(Operation):
     FEATURES_PARAM = 'features'
     LABEL_PARAM = 'label'
-
-    MAX_ITER_PARAM = 'max_iter'
-    WEIGHT_COL_PARAM = 'weight'
     PREDICTION_COL_PARAM = 'prediction'
-    REG_PARAM = 'reg_param'
-    ELASTIC_NET_PARAM = 'elastic_net'
-
-    # RegType missing -  none (a.k.a. ordinary least squares),
-    # L2 (ridge regression)
-    #                    L1 (Lasso) and   L2 + L1 (elastic net)
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
