@@ -1211,8 +1211,8 @@ class ClusteringModelOperation(Operation):
                 {algorithm}.setPredictionCol('{prediction}')
             {model} = {algorithm}.fit({input})
             # There is no way to pass which attribute was used in clustering, so
-            # this information will be stored in uid (hack).
-            {model}.uid += '|{features}'
+            # information will be stored in a new attribute called features.
+            setattr({model}, 'features', '{features}')
 
             # Lazy execution in case of sampling the data in UI
             def call_transform(df):
@@ -1449,7 +1449,7 @@ class TopicReportOperation(ReportOperation):
             {output} = topic_df
 
             # See hack in ClusteringModelOperation
-            features = {model}.uid.split('|')[1]
+            features = {model}.features
 
             '''
             for row in topic_df.collect():

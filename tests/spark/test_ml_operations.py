@@ -984,9 +984,7 @@ def test_clustering_model_operation_success():
         if hasattr(df_1, 'setPredictionCol'):
             df_1.setPredictionCol('prediction')
         {model} = {algorithm}.fit({input})
-        # There is no way to pass which attribute was used in clustering, so
-        # this information will be stored in uid (hack).
-        {model}.uid += '|{features}'
+        setattr({model}, 'features', '{features}')
 
         # Lazy execution in case of sampling the data in UI
         def call_transform(df):
