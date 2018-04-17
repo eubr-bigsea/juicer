@@ -5,11 +5,12 @@ import json
 from itertools import izip_longest
 from textwrap import dedent
 
-from juicer.include.metadata import MetadataGet
 from juicer.operation import Operation
+from juicer.service import limonero_service
+from juicer.spark.data_operation import DataReaderOperation
 
 
-class ReadShapefile(Operation):
+class ReadShapefile(DataReaderOperation):
     """
     Reads a shapefile.
     Parameters:
@@ -22,15 +23,7 @@ class ReadShapefile(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
         if self.DATA_SOURCE_ID_PARAM in parameters:
-            self.database_id = parameters[self.DATA_SOURCE_ID_PARAM]
-
-            limonero_config = \
-                self.parameters['configuration']['juicer']['services'][
-                    'limonero']
-            url = limonero_config['url']
-            token = limonero_config['auth_token']
-            metadata_obj = MetadataGet(url, token)
-            self.metadata = metadata_obj.get_metadata(self.database_id)
+            self._set_data_source_parameters(parameters)
         else:
             raise ValueError(
                 _("Parameter '{}' must be informed for task {}".format(
@@ -46,42 +39,38 @@ class ReadShapefile(Operation):
         LAT,LON:
             points.append([point[1], point[0]])
         """
-        if self.metadata.get('status') == 'ERROR':
-            raise ValueError(_("Shapefile does not exist (id={}).".format(
-                self.parameters.get(self.DATA_SOURCE_ID_PARAM))))
-        else:
-            code = """
-                import shapefile
-                from io import BytesIO
-                # reload(sys)
-                # sys.setdefaultencoding('utf-8')
-                shp_file = '{url}'
-                dbf_file = re.sub('.shp$', '.dbf', shp_file)
-                shp_content = spark_session.sparkContext.binaryFiles(shp_file)\
-                    .collect()
-                dbf_content = spark_session.sparkContext.binaryFiles(dbf_file)\
-                    .collect()
-                shp_io = BytesIO(shp_content[0][1])
-                dbf_io = BytesIO(dbf_content[0][1])
+        code = """
+            import shapefile
+            from io import BytesIO
+            # reload(sys)
+            # sys.setdefaultencoding('utf-8')
+            shp_file = '{url}'
+            dbf_file = re.sub('.shp$', '.dbf', shp_file)
+            shp_content = spark_session.sparkContext.binaryFiles(
+                shp_file).collect()
+            dbf_content = spark_session.sparkContext.binaryFiles(
+                dbf_file).collect()
+            shp_io = BytesIO(shp_content[0][1])
+            dbf_io = BytesIO(dbf_content[0][1])
 
-                shp_object = shapefile.Reader(shp=shp_io, dbf=dbf_io)
-                records = shp_object.records()
-                records = shp_object.shapeRecords()
-                header = {attrs}
-                header = types.StructType(
-                    [types.StructField(h, types.StringType(), False)
-                                 for h in header])
-                header.add(types.StructField('points', types.ArrayType(
-                    types.ArrayType(types.DoubleType()))))
-                data = []
-                for shape_record in records:
-                    data.append(shape_record.record +
-                        [shape_record.shape.points])
-                {out} = spark_session.createDataFrame(data, header)
-            """.format(url=self.metadata['url'],
-                       attrs=json.dumps([a['name'] for a in
-                                         self.metadata.get('attributes', [])]),
-                       out=self.named_outputs['geodata'])
+            shp_object = shapefile.Reader(shp=shp_io, dbf=dbf_io)
+            records = shp_object.records()
+            records = shp_object.shapeRecords()
+            header = {attrs}
+            header = types.StructType(
+                [types.StructField(h, types.StringType(), False)
+                             for h in header])
+            header.add(types.StructField('points', types.ArrayType(
+                types.ArrayType(types.DoubleType()))))
+            data = []
+            for shape_record in records:
+                data.append(shape_record.record +
+                    [shape_record.shape.points])
+            {out} = spark_session.createDataFrame(data, header)
+        """.format(url=self.metadata['url'],
+                   attrs=json.dumps([a['name'] for a in
+                                     self.metadata.get('attributes', [])]),
+                   out=self.named_outputs['geodata'])
 
         return dedent(code)
 
