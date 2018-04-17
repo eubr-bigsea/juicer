@@ -23,8 +23,10 @@ RUN apt-key adv --keyserver keyserver.ubuntu.com --recv E56151BF \
   && echo "LC_ALL=en_US.UTF-8" >> /etc/default/locale \
   && rm -rf /var/lib/apt/lists/*
 
-ENV SPARK_HADOOP_PKG spark-2.2.0-bin-hadoop2.6
-ENV SPARK_HADOOP_URL http://www-eu.apache.org/dist/spark/spark-2.2.0/${SPARK_HADOOP_PKG}.tgz
+ENV SPARK_VERSION=2.3.0
+ENV HADOOP_VERSION=2.7
+ENV SPARK_HADOOP_PKG spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION}
+ENV SPARK_HADOOP_URL http://www-eu.apache.org/dist/spark/spark-${SPARK_VERSION}/${SPARK_HADOOP_PKG}.tgz
 RUN curl -s ${SPARK_HADOOP_URL} | tar -xz -C /usr/local/  \
   && mv /usr/local/$SPARK_HADOOP_PKG $SPARK_HOME
 
