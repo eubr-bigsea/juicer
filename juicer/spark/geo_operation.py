@@ -6,7 +6,6 @@ from itertools import izip_longest
 from textwrap import dedent
 
 from juicer.operation import Operation
-from juicer.service import limonero_service
 from juicer.spark.data_operation import DataReaderOperation
 
 
@@ -28,6 +27,8 @@ class ReadShapefile(DataReaderOperation):
             raise ValueError(
                 _("Parameter '{}' must be informed for task {}".format(
                     self.DATA_SOURCE_ID_PARAM, self.__class__)))
+        self.output = self.named_outputs.get('geodata',
+                                             'out_{}'.format(self.order))
 
     def generate_code(self):
         """ We still have to add a parameter to define whether the points are
@@ -70,7 +71,7 @@ class ReadShapefile(DataReaderOperation):
         """.format(url=self.metadata['url'],
                    attrs=json.dumps([a['name'] for a in
                                      self.metadata.get('attributes', [])]),
-                   out=self.named_outputs['geodata'])
+                   out=self.output)
 
         return dedent(code)
 
