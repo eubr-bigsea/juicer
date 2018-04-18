@@ -12,7 +12,7 @@ except ImportError:
 
 def remove_punctuation_udf(text):
     return functions.udf(lambda t: t.translate(
-        dict((ord(char), None) for char in string.punctuation)),
+        dict((ord(char), None) for char in string.punctuation)) if t else t,
                          types.StringType())(text)
 
 
