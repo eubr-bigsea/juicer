@@ -246,7 +246,7 @@ class WordToVectorOperation(Operation):
         self.vocab = self.named_outputs.get('vocabulary',
                                             'vocab_task_{}'.format(self.order))
         self.output_model = self.named_outputs.get(
-            'vector-model', 'model_{}'.format(self.order))
+            'vector-model', 'vector_model_{}'.format(self.order))
 
         if self.type not in [self.TYPE_HASHING_TF, self.TYPE_WORD2VEC,
                              self.TYPE_COUNT]:
