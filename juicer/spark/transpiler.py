@@ -116,7 +116,7 @@ class SparkTranspiler(object):
             name = name[:3]
         else:
             name = ''.join([p[0] for p in parts])
-        return '{}_{}'.format(name, seq)
+        return '{}{}'.format(name, seq)
 
     # noinspection SpellCheckingInspection
     def transpile(self, workflow, graph, params, out=None, job_id=None):
@@ -128,6 +128,7 @@ class SparkTranspiler(object):
 
         ports = {}
         sequential_ports = {}
+        counter = 0
         for source_id in graph.edge:
             for target_id in graph.edge[source_id]:
                 # Nodes accept multiple edges from same source
@@ -136,7 +137,8 @@ class SparkTranspiler(object):
 
                     if flow_id not in sequential_ports:
                         sequential_ports[flow_id] = self._gen_port_name(
-                            flow, len(sequential_ports))
+                            flow, counter)
+                        counter += 1
                     if source_id not in ports:
                         ports[source_id] = {'outputs': [], 'inputs': [],
                                             'named_inputs': {},

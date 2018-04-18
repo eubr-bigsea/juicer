@@ -175,6 +175,7 @@ class SequenceMiningOperation(Operation):
         code = dedent(u"""
             from pyspark.sql import DataFrame
             try:
+                # noinspection PyProtectedMember
                 ext_pkg = spark_session._jvm.br.ufmg.dcc.lemonade.ext.fpm
                 prefix_span_impl = ext_pkg.LemonadePrefixSpan()
             except TypeError as te:
@@ -183,6 +184,16 @@ class SequenceMiningOperation(Operation):
                 else:
                     raise
             sequences = {input}
+            meta = json.loads(sequences.schema[str('{attr}')].json())
+            if meta['type'] != 'array' and meta['type'][
+                'elementType'] != 'array':
+                elem_type = sequences.schema[str('{attr}')].dataType.elementType
+                sequences = sequences.select(functions.udf(
+                    lambda x: [[v] for v in x],
+                        types.ArrayType(types.ArrayType(elem_type)))(
+                        '{attr}').alias(
+                        '{attr}'))
+            # noinspection PyProtectedMember
             java_df = prefix_span_impl.run(spark_session._jsparkSession,
                 sequences._jdf, {min_support}, {max_length}, '{attr}',
                 '{freq}')

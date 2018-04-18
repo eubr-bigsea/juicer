@@ -1431,11 +1431,17 @@ class TopicReportOperation(ReportOperation):
 
         self.has_code = any(
             [len(self.named_inputs) == 3, self.contains_results()])
-        self.output = self.named_outputs.get('output data',
-                                             'out_task_{}'.format(self.order))
+        self.output = self.named_outputs.get('topics',
+                                             'topics_{}'.format(self.order))
 
-        self.vocabulary_input = self.named_outputs.get(
-            'vocabulary data', 'vocab_{}'.format(self.order))
+        self.vocabulary_input = self.named_inputs.get(
+            'vocabulary')
+
+    def get_output_names(self, sep=", "):
+        return self.output
+
+    def get_data_out_names(self, sep=','):
+        return self.output
 
     def generate_code(self):
         code = dedent("""
@@ -2508,7 +2514,7 @@ class LSHOperation(Operation):
                 _("Invalid type '{}' for class {}").format(
                     self.type, self.__class__))
 
-        self.bucket_length = parameters.get(self.BUCKET_LENGTH_PARAM)
+        self.bucket_length = parameters.get(self.BUCKET_LENGTH_PARAM) or 100
         self.seed = parameters.get(self.SEED_PARAM)
 
         self.output_attribute = parameters.get(self.OUTPUT_ATTRIBUTE_PARAM,
@@ -2518,23 +2524,29 @@ class LSHOperation(Operation):
         self.output = named_outputs.get('output data',
                                         'out_{}'.format(self.order))
 
+        self.output_model = named_outputs.get('model',
+                                              'model_{}'.format(self.order))
+
+    def get_output_names(self, sep=", "):
+        return sep.join([self.output, self.output_model])
+
     def generate_code(self):
         input_data = self.named_inputs['input data']
         code = dedent("""
-            type = '{type}'
-            if type == 'bucketed-random':
+            hash_type = '{type}'
+            if hash_type == 'bucketed-random':
                 lsh = BucketedRandomProjectionLSH(
                     inputCol='{inputAttr}',
                     outputCol='{outputAttr}',
-                    bucketLength={bucket_length}
+                    bucketLength={bucket_length},
                     numHashTables={num_hash_tables})
-            elif type == 'min-hash-lsh':
-                lsh = inputCol(
+            elif hash_type == 'min-hash-lsh':
+                lsh = MinHashLSH(
                     inputCol='{inputAttr}',
                     outputCol='{outputAttr}',
                     numHashTables={num_hash_tables})
-            model = lsh.fit({input})
-            {out} = model.transform({input})
+            {model} = lsh.fit({input})
+            {out} = {model}.transform({input})
         """.format(
             num_hash_tables=self.num_hash_tables,
             bucket_length=self.bucket_length,
@@ -2542,6 +2554,7 @@ class LSHOperation(Operation):
             outputAttr=self.output_attribute,
             input=input_data,
             out=self.output,
+            model=self.output_model,
             type=self.type,
 
         ))
