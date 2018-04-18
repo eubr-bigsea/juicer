@@ -214,14 +214,12 @@ class SampleOrPartitionOperation(Operation):
         self.output = self.named_outputs.get(
             'sampled data', 'sampled_data_{}'.format(self.order))
 
-
-
     def get_output_names(self, sep=", "):
         return self.output
 
     def generate_code(self):
         code = ''
-        input_data = self.named_inputs['input data']
+        input_data = self.named_inputs.get('input data')
 
         if self.type == self.TYPE_PERCENT:
             code = ("{out} = {input}.sample(withReplacement={wr}, "
@@ -700,15 +698,18 @@ class FilterOperation(Operation):
         - The expression (==, <, >)
     """
     FILTER_PARAM = 'filter'
+    ADVANCED_FILTER_PARAM = 'expression'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
-        if self.FILTER_PARAM not in parameters:
+        if self.FILTER_PARAM not in parameters and self.ADVANCED_FILTER_PARAM \
+                not in parameters:
             raise ValueError(
                 _("Parameter '{}' must be informed for task {}".format(
                     self.FILTER_PARAM, self.__class__)))
 
-        self.filter = parameters.get(self.FILTER_PARAM)
+        self.advanced_filter = parameters.get(self.ADVANCED_FILTER_PARAM) or []
+        self.filter = parameters.get(self.FILTER_PARAM) or []
 
         self.has_code = any(
             [len(self.named_inputs) == 1, self.contains_results()])
@@ -717,14 +718,24 @@ class FilterOperation(Operation):
 
     def generate_code(self):
         input_data = self.named_inputs['input data']
+        params = {'input': input_data}
 
         filters = [
             "(functions.col('{0}') {1} '{2}')".format(
                 f['attribute'], f['f'], f.get('value', f.get('alias')))
             for f in self.filter]
 
-        code = "{out} = {in1}.filter({f})".format(
-            out=self.output, in1=input_data, f=' & '.join(filters))
+        for expr in self.advanced_filter:
+            expression = Expression(expr['tree'], params)
+            filters.append('({})'.format(expression.parsed_expression))
+
+        indentation = ' & \n' + (17 * ' ')
+        code = """
+            {out} = {in1}.filter(
+                {f})
+            """.format(
+            out=self.output, in1=input_data, f=indentation.join(filters))
+
         return dedent(code)
 
 
@@ -999,15 +1010,18 @@ class ExecutePythonOperation(Operation):
 
         # Always execute
         self.has_code = True
+        self.out1 = self.named_outputs.get('output data 1',
+                                           'out_1_{}'.format(self.order))
+        self.out2 = self.named_outputs.get('output data 2',
+                                           'out_2_{}'.format(self.order))
+
+    def get_output_names(self, sep=", "):
+        return sep.join([self.out1, self.out2])
 
     def generate_code(self):
         in1 = self.named_inputs.get('input data 1', 'None')
-        out1 = self.named_outputs.get('output data 1',
-                                      'out_1_{}'.format(self.order))
 
         in2 = self.named_inputs.get('input data 2', 'None')
-        out2 = self.named_outputs.get('output data 2',
-                                      'out_2_{}'.format(self.order))
 
         code = dedent("""
         import json
@@ -1015,7 +1029,8 @@ class ExecutePythonOperation(Operation):
         from RestrictedPython.RCompile import compile_restricted
         from RestrictedPython.PrintCollector import PrintCollector
 
-
+        results = [r[1].result() for r in task_futures.items() if r[1].done()]
+        results = dict([(r['task_name'], r) for r in results])
         # Input data
         in1 = {in1}
         in2 = {in2}
@@ -1026,6 +1041,7 @@ class ExecutePythonOperation(Operation):
 
         # Variables and language supported
         ctx = {{
+            'wf_results': results,
             'in1': in1,
             'in2': in2,
             'out1': out1,
@@ -1046,10 +1062,10 @@ class ExecutePythonOperation(Operation):
 
         ctx['__builtins__']= safe_builtins
 
-        compiled_code = compile_restricted(user_code, 'python_execute_{order}',
-            'exec')
+        compiled_code = compile_restricted(user_code,
+        str('python_execute_{order}'), str('exec'))
         try:
-            exec(compiled_code) in ctx
+            exec compiled_code in ctx
 
             # Retrieve values changed in the context
             out1 = ctx['out1']
@@ -1074,7 +1090,7 @@ class ExecutePythonOperation(Operation):
         code += dedent("""
         {out1} = out1
         {out2} = out2
-        """.format(out1=out1, out2=out2))
+        """.format(out1=self.out1, out2=self.out2))
         return dedent(code)
 
 
