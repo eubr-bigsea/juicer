@@ -25,6 +25,7 @@ from textwrap import dedent
 from timeit import default_timer as timer
 
 from pyspark.ml import classification, evaluation, feature, tuning, clustering
+from pyspark.ml.linalg import Vectors
 from pyspark.sql import functions, types, Row, DataFrame
 from pyspark.sql.utils import IllegalArgumentException
 from pyspark.sql.window import Window
@@ -42,6 +43,7 @@ from pyspark.mllib.evaluation import *
 from juicer import privaaas
 from juicer.util import dataframe_util
 from juicer.spark.reports import *
+from juicer.spark.ml_operation import ModelsEvaluationResultList
 
 executor = ThreadPoolExecutor(max_workers={{instances|length}})
 submission_lock = threading.Lock()
