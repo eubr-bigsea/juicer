@@ -1338,13 +1338,14 @@ class LdaClusteringOperation(ClusteringOperation):
         if self.doc_concentration:
             try:
                 doc_concentration = [float(v) for v in
-                                     self.doc_concentration.split(',') if
+                                     str(self.doc_concentration).split(',') if
                                      v.strip()]
                 self.set_values.append(['DocConcentration', doc_concentration])
-            except:
+            except Exception as e:
                 raise ValueError(
-                    _('Invalid document concentration: {}. It must be a list '
-                      'of decimal numbers separated by comma.').format(
+                    _('Invalid document concentration: {}. It must be a single '
+                      'decimal value or a list of decimal numbers separated by '
+                      'comma.').format(
                         self.doc_concentration))
 
         if self.topic_concentration:

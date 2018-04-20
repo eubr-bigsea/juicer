@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
+
 import ast
 import json
 from textwrap import dedent
@@ -1122,7 +1123,7 @@ def test_lda_clustering_operation_optimizer_online_success():
         ['MaxIter', params[LdaClusteringOperation.MAX_ITERATIONS_PARAM]],
         ['Optimizer',
          "'{}'".format(params[LdaClusteringOperation.OPTIMIZER_PARAM])],
-        ['DocConcentration', 0.25],
+        ['DocConcentration', [0.25]],
         ['TopicConcentration',
          params[LdaClusteringOperation.TOPIC_CONCENTRATION_PARAM]]
     ]
@@ -1136,7 +1137,9 @@ def test_lda_clustering_operation_optimizer_online_success():
         output=named_outputs['algorithm'],
         name=name))
 
-    settings = (['{0}.set{1}({2})'.format(named_outputs['algorithm'], name, v)
+    settings = (['{0}.set{1}({2})'.format(
+        named_outputs['algorithm'], name,
+        v if not isinstance(v, list) else json.dumps(v))
                  for name, v in set_values])
     settings = "\n".join(settings)
 
