@@ -390,18 +390,17 @@ class ChartVisualization(VisualizationModel):
 
     @staticmethod
     def _get_attr_type(attr):
-        # @FIXME: Improve this code with other data types
         if attr.dataType.jsonValue() == 'date':
-            attr_type = 'date'
-        elif attr.dataType.jsonValue() == 'boolean':
-            attr_type = 'bool'
-        elif attr.dataType.jsonValue() == 'timestamp':
-            attr_type = 'timestamp'
-        elif attr.dataType.jsonValue() == 'string':
-            attr_type = 'string'
-        elif attr.dataType.jsonValue() == 'time':
             attr_type = 'time'
+        if attr.dataType.jsonValue() == 'datetime':
+            attr_type = 'time'
+        if attr.dataType.jsonValue() == 'time':
+            attr_type = 'text'
+        elif attr.dataType.jsonValue() == 'timestamp':
+            attr_type = 'number'
         elif attr.dataType.jsonValue() == 'text':
+            attr_type = 'text'
+        elif attr.dataType.jsonValue() == 'character':
             attr_type = 'text'
         else:
             attr_type = 'number'
@@ -485,6 +484,9 @@ class BarChartModel(ChartVisualization):
         result = {}
         result.update(self._get_title_legend_tootip())
 
+        # For barcharts this is right option
+        result['legend']['text'] = u'{{x}}'
+
         result.update({
             "x": {
                 "title": self.params.get("x_title"),
@@ -500,8 +502,8 @@ class BarChartModel(ChartVisualization):
                 "format": self.params.get("y_format", {}).get('key'),
             },
             "data": []
-
         })
+
         if x_type in ['number']:
             result['x']['format'] = self.params.get("x_format", {}).get('key')
         elif x_type in ['timestamp', 'date', 'time']:

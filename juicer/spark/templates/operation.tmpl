@@ -136,8 +136,7 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.ord
     {% if parent_instance.get_output_names(", ") %}
     parent_result = task_futures['{{parent}}'].result()
     {%- for port_name,out in zip(parent_instance.parameters.task.port_names, parent_instance.get_output_names(',').split(','))%}
-    {{out}}, pr_{{out}} = (parent_result['{{port_name}}']['output'],
-        parent_result['{{port_name}}']['sample'])
+    {{out}} = parent_result['{{port_name}}']
     {%- endfor %}
     {%- endif %}
     ts_{{parent_instance.output}} = parent_result['time']
@@ -214,10 +213,11 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.ord
         {%- endif %}
 
         results = {
+            'task_name': '{{instance.parameters.task.name}}',
           {%- set is_leaf = instance.out_degree == 0 %}
           {%- for port_name,out in zip(instance.parameters.task.port_names, instance.get_output_names(',').split(',')) %}
             {%- if port_name and out %}
-             '{{port_name}}': {'output': {{out}}, 'sample': {%- if is_leaf %} take_sample({{out}}) {%- else %} [] {%- endif %}},
+             '{{port_name}}': {{out}},
             {%- endif %}
           {%- endfor %}
         }
@@ -225,17 +225,15 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.ord
     df_types = (DataFrame, dataframe_util.LazySparkTransformationDataframe)
     {%- if instance.has_code and instance.enabled and instance.parameters.task.forms.get('display_sample', {}).get('value') in (1, '1') %}
     for name, out in results.items():
-        if (isinstance(out, dict) and 'output' in out
-                and isinstance(out['output'], df_types)):
+        if isinstance(out, df_types):
             dataframe_util.emit_sample(
-                '{{instance.parameters.task.id}}', out['output'], emit_event, name)
+                '{{instance.parameters.task.id}}', out, emit_event, name)
     {%- endif %}
     {%- if instance.has_code and instance.enabled and instance.parameters.task.forms.get('display_schema', {}).get('value') in (1, '1') %}
     for name, out in results.items():
-        if (isinstance(out, dict) and 'output' in out
-                and isinstance(out['output'], df_types)):
+        if isinstance(out, df_types):
             dataframe_util.emit_schema(
-                '{{instance.parameters.task.id}}', out['output'], emit_event, name)
+                '{{instance.parameters.task.id}}', out, emit_event, name)
     {%- endif %}
 
     {%- if not plain %}

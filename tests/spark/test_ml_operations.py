@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
+
 import ast
 import json
 from textwrap import dedent
@@ -984,9 +985,7 @@ def test_clustering_model_operation_success():
         if hasattr(df_1, 'setPredictionCol'):
             df_1.setPredictionCol('prediction')
         {model} = {algorithm}.fit({input})
-        # There is no way to pass which attribute was used in clustering, so
-        # this information will be stored in uid (hack).
-        {model}.uid += '|{features}'
+        setattr({model}, 'features', '{features}')
 
         # Lazy execution in case of sampling the data in UI
         def call_transform(df):
@@ -1124,7 +1123,7 @@ def test_lda_clustering_operation_optimizer_online_success():
         ['MaxIter', params[LdaClusteringOperation.MAX_ITERATIONS_PARAM]],
         ['Optimizer',
          "'{}'".format(params[LdaClusteringOperation.OPTIMIZER_PARAM])],
-        ['DocConcentration', 0.25],
+        ['DocConcentration', [0.25]],
         ['TopicConcentration',
          params[LdaClusteringOperation.TOPIC_CONCENTRATION_PARAM]]
     ]
@@ -1138,7 +1137,9 @@ def test_lda_clustering_operation_optimizer_online_success():
         output=named_outputs['algorithm'],
         name=name))
 
-    settings = (['{0}.set{1}({2})'.format(named_outputs['algorithm'], name, v)
+    settings = (['{0}.set{1}({2})'.format(
+        named_outputs['algorithm'], name,
+        v if not isinstance(v, list) else json.dumps(v))
                  for name, v in set_values])
     settings = "\n".join(settings)
 
