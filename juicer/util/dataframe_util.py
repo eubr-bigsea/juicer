@@ -3,6 +3,7 @@ import decimal
 import json
 
 import datetime
+from pyspark.ml.linalg import DenseVector
 
 import re
 import types
@@ -14,6 +15,8 @@ class CustomEncoder(json.JSONEncoder):
             return str(obj)
         elif isinstance(obj, datetime.datetime):
             return obj.isoformat()
+        elif isinstance(obj, DenseVector):
+            return list(obj)
         else:
             return str(obj)
 
