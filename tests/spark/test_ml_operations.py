@@ -1512,18 +1512,8 @@ def test_als_operation_success():
                 # Build the recommendation model using ALS on the training data
                 {output} = ALS(maxIter={maxIter}, regParam={regParam},
                         userCol='{userCol}', itemCol='{itemCol}',
-                        ratingCol='{ratingCol}')
-
-                ##model = als.fit({input})
-                #predictions = model.transform(test)
-
-                # Evaluate the model not support YET
-                # evaluator = RegressionEvaluator(metricName="rmse",
-                #                labelCol={ratingCol},
-                #                predictionCol="prediction")
-
-                # rmse = evaluator.evaluate(predictions)
-                # print("Root-mean-square error = " + str(rmse))
+                        ratingCol='{ratingCol}',
+                        coldStartStrategy='drop')
                 """.format(
         output=named_outputs['algorithm'],
         input=named_inputs['input data'],
