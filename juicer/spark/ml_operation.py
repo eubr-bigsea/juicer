@@ -3,6 +3,7 @@ from __future__ import unicode_literals
 
 import json
 import logging
+import string
 from itertools import izip_longest
 from textwrap import dedent
 
@@ -12,6 +13,12 @@ from juicer.service.limonero_service import query_limonero
 
 log = logging.getLogger()
 log.setLevel(logging.DEBUG)
+
+
+class SafeDict(dict):
+    # noinspection PyMethodMayBeStatic
+    def __missing__(self, key):
+        return '{' + key + '}'
 
 
 class FeatureIndexerOperation(Operation):
@@ -349,6 +356,7 @@ class EvaluateModelOperation(Operation):
         'rmse': ('evaluation.RegressionEvaluator', 'predictionCol'),
         'mse': ('evaluation.RegressionEvaluator', 'predictionCol'),
         'mae': ('evaluation.RegressionEvaluator', 'predictionCol'),
+        'r2': ('evaluation.RegressionEvaluator', 'predictionCol'),
     }
 
     def __init__(self, parameters, named_inputs,
@@ -405,136 +413,273 @@ class EvaluateModelOperation(Operation):
         return ''
 
     def generate_code(self):
-
-        if self.has_code:
+        if not self.has_code:
+            return ''
+        else:
             display_text = self.parameters['task']['forms'].get(
                 'display_text', {'value': 1}).get('value', 1) in (1, '1')
             display_image = self.parameters['task']['forms'].get(
                 'display_image', {'value': 1}).get('value', 1) in (1, '1')
 
-            code = dedent("""
+            code = [dedent("""
                 metric_value = 0.0
                 display_text = {display_text}
                 display_image = {display_image}
-
                 metric = '{metric}'
-                if metric in ['areaUnderROC', 'areaUnderPR']:
-                    # scoreAndPrediction = {input}.select('prediction',
-                    #     'survived')
-                    # evaluator = BinaryClassificationMetrics(
-                    #     scoreAndPrediction.rdd)
-                    # roc =  [[a._1(), a._2()] for a
-                    #     in m2._java_model.roc().collect()]
+                label_col = '{label_attr}'
+                prediction_col = str('{prediction_attr}')
+                """)]
+            if self.metric in ['areaUnderROC', 'areaUnderPR']:
+                self._get_code_for_area_metric(code)
+            elif self.metric in ['f1', 'weightedPrecision', 'weightedRecall',
+                                 'accuracy']:
+                self._get_code_for_classification_metrics(code)
+            elif self.metric in ['rmse', 'mae', 'mse']:
+                self._get_code_for_regression_metrics(code)
 
-                    evaluator = evaluation.BinaryClassificationEvaluator(
-                        {prediction_arg}='{prediction_attr}',
-                        labelCol='{label_attr}',
-                        metricName=metric)
-                    metric_value = evaluator.evaluate({input})
-                    if display_text:
-                        result = '<h4>{{}}: {{}}</h4>'.format('{metric}',
-                            metric_value)
+            self._get_code_for_summary(code)
 
-                        emit_event(
-                            'update task', status='COMPLETED',
-                            identifier='{task_id}',
-                            message=result,
-                            type='HTML', title='{title}',
-                            task={{'id': '{task_id}'}},
-                            operation={{'id': {operation_id}}},
-                            operation_id={operation_id})
-
-                elif metric in ['f1', 'weightedPrecision', 'weightedRecall',
-                        'accuracy']:
-                    label_prediction = {input}.select(
-                        functions.col('{prediction_attr}').cast('Double'),
-                        functions.col('{label_attr}').cast('Double'))
-                    evaluator = MulticlassMetrics(label_prediction.rdd)
-                    if metric == 'f1':
-                        metric_value = evaluator.weightedFMeasure()
-                    elif metric == 'weightedPrecision':
-                        metric_value = evaluator.weightedPrecision
-                    elif metric == 'weightedRecall':
-                        metric_value = evaluator.weightedRecall
-                    elif metric == 'accuracy':
-                        metric_value = evaluator.accuracy
-
-                    if display_image:
-
-                        # Test if feature indexer is in global cache, because
-                        # strings must be converted into numbers in order tho
-                        # run algorithms, but they are cooler when displaying
-                        # results.
-                        indexer = cached_state.get('indexers', {{}}).get(
-                            '{label_attr}')
-                        if indexer:
-                            classes = indexer.labels
-                        else:
-                            classes = sorted(
-                                [x[0] for x in label_prediction.select(
-                                        '{label_attr}').distinct().collect()])
-
-                        content = ConfusionMatrixImageReport(
-                            cm=evaluator.confusionMatrix().toArray(),
-                            classes=classes,)
-
-                        emit_event(
-                            'update task', status='COMPLETED',
-                            identifier='{task_id}',
-                            message=content.generate(),
-                            type='IMAGE', title='{title}',
-                            task={{'id': '{task_id}'}},
-                            operation={{'id': {operation_id}}},
-                            operation_id={operation_id})
-
-                    if display_text:
-                        headers = {headers}
-                        rows = [
-                            ['F1', evaluator.weightedFMeasure()],
-                            ['Weighted Precision', evaluator.weightedPrecision],
-                            ['Weighted Recall', evaluator.weightedRecall],
-                            ['Accuracy', evaluator.accuracy],
-                        ]
-
-                        content = SimpleTableReport(
-                                'table table-striped table-bordered table-sm',
-                                headers, rows,
-                                title='{title}')
-
-                        emit_event(
-                            'update task', status='COMPLETED',
-                            identifier='{task_id}',
-                            message=content.generate(),
-                            type='HTML', title='{title}',
-                            task={{'id': '{task_id}'}},
-                            operation={{'id': {operation_id}}},
-                            operation_id={operation_id})
-
-                from juicer.spark.ml_operation import ModelsEvaluationResultList
-                {model_output} = ModelsEvaluationResultList(
+            # Common for all metrics!
+            code.append(dedent("""
+            {model_output} = ModelsEvaluationResultList(
                     [{model}], {model}, '{metric}', metric_value)
 
-                {metric} = metric_value
-                {model_output} = None
+            {metric} = metric_value
+            {model_output} = None
+            """))
 
-                """.format(model_output=self.model_out,
-                           model=self.model,
-                           input=self.named_inputs['input data'],
-                           metric=self.metric,
-                           evaluator_out=self.evaluator_out,
-                           task_id=self.parameters['task_id'],
-                           operation_id=self.parameters['operation_id'],
-                           title=_('Evaluation result'),
-                           display_text=display_text,
-                           display_image=display_image,
-                           prediction_attr=self.prediction_attribute,
-                           label_attr=self.label_attribute,
-                           headers=[_('Metric'), _('Value')],
-                           evaluator=self.evaluator,
-                           prediction_arg=self.param_prediction_arg,
-                           ))
-
+            code = "\n".join(code).format(
+                model_output=self.model_out,
+                model=self.model,
+                input=self.named_inputs['input data'],
+                metric=self.metric,
+                evaluator_out=self.evaluator_out,
+                task_id=self.parameters['task_id'],
+                operation_id=self.parameters['operation_id'],
+                title=_('Evaluation result'),
+                display_text=display_text,
+                display_image=display_image,
+                prediction_attr=self.prediction_attribute,
+                label_attr=self.label_attribute,
+                headers=[_('Metric'), _('Value')],
+                evaluator=self.evaluator,
+                prediction_arg=self.param_prediction_arg,
+            )
             return dedent(code)
+
+    @staticmethod
+    def _get_code_for_classification_metrics(code):
+        """
+        Generate code for other classification metrics besides those related to
+        area.
+        """
+        code.append(dedent("""
+            label_prediction = {input}.select(
+                functions.col(prediction_col).cast('Double'),
+                functions.col('{label_attr}').cast('Double'))
+            evaluator = MulticlassMetrics(label_prediction.rdd)
+            if metric == 'f1':
+                metric_value = evaluator.weightedFMeasure()
+            elif metric == 'weightedPrecision':
+                metric_value = evaluator.weightedPrecision
+            elif metric == 'weightedRecall':
+                metric_value = evaluator.weightedRecall
+            elif metric == 'accuracy':
+                metric_value = evaluator.accuracy
+
+            if display_image:
+                # Test if feature indexer is in global cache, because
+                # strings must be converted into numbers in order tho
+                # run algorithms, but they are cooler when displaying
+                # results.
+                indexer = cached_state.get('indexers', {{}}).get(
+                    '{label_attr}')
+                if indexer:
+                    classes = indexer.labels
+                else:
+                    classes = sorted(
+                        [x[0] for x in label_prediction.select(
+                                '{label_attr}').distinct().collect()])
+
+                content = ConfusionMatrixImageReport(
+                    cm=evaluator.confusionMatrix().toArray(),
+                    classes=classes,)
+
+                emit_event(
+                    'update task', status='COMPLETED',
+                    identifier='{task_id}',
+                    message=content.generate(),
+                    type='IMAGE', title='{title}',
+                    task={{'id': '{task_id}'}},
+                    operation={{'id': {operation_id}}},
+                    operation_id={operation_id})
+
+            if display_text:
+                headers = {headers}
+                rows = [
+                    ['F1', evaluator.weightedFMeasure()],
+                    ['Weighted Precision', evaluator.weightedPrecision],
+                    ['Weighted Recall', evaluator.weightedRecall],
+                    ['Accuracy', evaluator.accuracy],
+                ]
+
+                content = SimpleTableReport(
+                        'table table-striped table-bordered table-sm',
+                        headers, rows,
+                        title='{title}')
+
+                emit_event(
+                    'update task', status='COMPLETED',
+                    identifier='{task_id}',
+                    message=content.generate(),
+                    type='HTML', title='{title}',
+                    task={{'id': '{task_id}'}},
+                    operation={{'id': {operation_id}}},
+                    operation_id={operation_id})
+        """))
+
+    @staticmethod
+    def _get_code_for_area_metric(code):
+        """
+        Code for the evaluator when metric is related to the area
+        """
+        code.append(dedent("""
+            evaluator = evaluation.BinaryClassificationEvaluator(
+                {prediction_arg}=prediction_col,
+                labelCol=label_col,
+                metricName=metric)
+            metric_value = evaluator.evaluate({input})
+            if display_text:
+                result = '<h4>{{}}: {{}}</h4>'.format('{metric}',
+                    metric_value)
+
+                emit_event(
+                    'update task', status='COMPLETED',
+                    identifier='{task_id}',
+                    message=result,
+                    type='HTML', title='{title}',
+                    task={{'id': '{task_id}'}},
+                    operation={{'id': {operation_id}}},
+                    operation_id={operation_id})
+        """))
+
+    @staticmethod
+    def _get_code_for_regression_metrics(code):
+        """
+        Code for the evaluator when metric is related to regression
+        """
+        code.append(dedent("""
+            df = {input}
+            if not isinstance({input}.schema[prediction_col].dataType,
+                (types.DoubleType, types.FloatType)):
+                df = {input}.withColumn(prediction_col,
+                    {input}[prediction_col].cast('double'))
+
+            evaluator = evaluation.RegressionEvaluator(
+                {prediction_arg}=prediction_col,
+                labelCol='{label_attr}',
+                metricName=metric)
+            metric_value = evaluator.evaluate(df)
+            if display_text:
+                result = '<h4>{{}}: {{}}</h4>'.format('{metric}',
+                    metric_value)
+
+                emit_event(
+                    'update task', status='COMPLETED',
+                    identifier='{task_id}',
+                    message=result,
+                    type='HTML', title='{title}',
+                    task={{'id': '{task_id}'}},
+                    operation={{'id': {operation_id}}},
+                    operation_id={operation_id})
+        """))
+
+    @staticmethod
+    def _get_code_for_summary(code):
+        """
+        Return code for model's summary (test if it is present)
+        """
+        i18n_dict = SafeDict(
+            join_plot_title=_('Prediction versus Residual'),
+            join_plot_x_title=_('Prediction'),
+            join_plot_y_title=_('Residual'),
+
+            plot_title=_('Actual versus Prediction'),
+            plot_x_title=_('Actual'),
+            plot_y_title=_('Prediction'),
+            )
+        partial_code = """
+            summary = getattr({model}, 'summary', None)
+            if summary:
+                if summary.numInstances < 2000 and display_image:
+                    predictions = [r[prediction_col] for r in
+                        summary.predictions.collect()]
+                    residuals = [r['devianceResiduals'] for r in
+                        summary.residuals().collect()]
+                    pandas_df = pd.DataFrame.from_records(
+                        [
+                            dict(prediction=x[0], residual=x[1])
+                                for x in zip(predictions, residuals)
+                        ]
+                    )
+
+                    report = SeabornChartReport()
+                    emit_event(
+                        'update task', status='COMPLETED',
+                        identifier='{task_id}',
+                        message=report.jointplot(pandas_df, 'prediction',
+                            'residual', '{join_plot_title}',
+                            '{join_plot_x_title}', '{join_plot_y_title}'),
+                        type='IMAGE', title='{join_plot_title}',
+                        task=dict(id='{task_id}'),
+                        operation=dict(id={operation_id}),
+                        operation_id={operation_id})
+
+                    report2 = MatplotlibChartReport()
+
+                    actual = []
+                    predicted = []
+                    for r in df.select([label_col, prediction_col]).collect():
+                        actual.append(r[label_col])
+                        predicted.append(r[prediction_col])
+
+                    identity = range(int(max(actual[-1], predicted[-1])))
+                    emit_event(
+                         'update task', status='COMPLETED',
+                        identifier='{task_id}',
+                        message=report2.plot(
+                            '{plot_title}',
+                            '{plot_x_title}',
+                            '{plot_y_title}',
+                            identity, identity, 'r.',
+                            actual, predicted,'b.',),
+                        type='IMAGE', title='{join_plot_title}',
+                        task=dict(id='{task_id}'),
+                        operation=dict(id={operation_id}),
+                        operation_id={operation_id})
+
+                summary_rows = []
+                for p in dir(summary):
+                    if not p.startswith('_') and p != "cluster":
+                        try:
+                            summary_rows.append(
+                                [p, getattr(summary, p)])
+                        except Exception as e:
+                            summary_rows.append([p, e.message])
+                summary_content = SimpleTableReport(
+                    'table table-striped table-bordered', [],
+                    summary_rows,
+                    title='Summary')
+                emit_event('update task', status='COMPLETED',
+                    identifier='{task_id}',
+                    message=summary_content.generate(),
+                    type='HTML', title='{title}',
+                    task=dict(id='{task_id}'),
+                    operation=dict(id={operation_id}),
+                    operation_id={operation_id})
+        """
+        code.append(
+            dedent(string.Formatter().vformat(partial_code, (), i18n_dict)))
 
 
 class ModelsEvaluationResultList:
@@ -1725,16 +1870,7 @@ class LogisticRegressionModel(Operation):
 class RegressionModelOperation(Operation):
     FEATURES_PARAM = 'features'
     LABEL_PARAM = 'label'
-
-    MAX_ITER_PARAM = 'max_iter'
-    WEIGHT_COL_PARAM = 'weight'
     PREDICTION_COL_PARAM = 'prediction'
-    REG_PARAM = 'reg_param'
-    ELASTIC_NET_PARAM = 'elastic_net'
-
-    # RegType missing -  none (a.k.a. ordinary least squares),
-    # L2 (ridge regression)
-    #                    L1 (Lasso) and   L2 + L1 (elastic net)
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
@@ -1776,9 +1912,6 @@ class RegressionModelOperation(Operation):
     def generate_code(self):
         if self.has_code:
             code = """
-            from pyspark.ml.linalg import Vectors
-            from juicer.spark.reports import SimpleTableReport, HtmlImageReport
-
             algorithm = {algorithm}
             algorithm.setPredictionCol('{prediction}')
             algorithm.setLabelCol('{label}')
