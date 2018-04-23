@@ -607,7 +607,7 @@ class EvaluateModelOperation(Operation):
             plot_title=_('Actual versus Prediction'),
             plot_x_title=_('Actual'),
             plot_y_title=_('Prediction'),
-            )
+        )
         partial_code = """
             summary = getattr({model}, 'summary', None)
             if summary:
@@ -1638,29 +1638,30 @@ class TopicReportOperation(ReportOperation):
 
 
 class RecommendationModel(Operation):
-    RANK_PARAM = 'rank'
-    MAX_ITER_PARAM = 'max_iter'
-    USER_COL_PARAM = 'user_col'
-    ITEM_COL_PARAM = 'item_col'
-    RATING_COL_PARAM = 'rating_col'
+    # RANK_PARAM = 'rank'
+    # MAX_ITER_PARAM = 'max_iter'
+    # USER_COL_PARAM = 'user_col'
+    # ITEM_COL_PARAM = 'item_col'
+    # RATING_COL_PARAM = 'rating_col'
 
     def __init__(self, parameters, named_inputs,
                  named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-        self.inputs = None
-        self.has_code = any([len(named_outputs) > 0 and len(self.inputs) == 2,
+        self.has_code = any([len(named_outputs) > 0 and len(named_inputs) == 2,
                              self.contains_results()])
 
-        if not all([self.RANK_PARAM in parameters['workflow_json'],
-                    self.RATING_COL_PARAM in parameters['workflow_json']]):
-            msg = _("Parameters '{}' and '{}' must be informed for task {}")
-            raise ValueError(msg.format(
-                self.RANK_PARAM, self.RATING_COL_PARAM,
-                self.__class__.__name__))
+        # if not all([self.RANK_PARAM in parameters,
+        #             self.RATING_COL_PARAM in parameters]):
+        #     msg = _("Parameters '{}' and '{}' must be informed for task {}")
+        #     raise ValueError(msg.format(
+        #         self.RANK_PARAM, self.RATING_COL_PARAM,
+        #         self.__class__.__name__))
 
-        self.model = self.named_outputs.get('model')
-        self.output = self.named_outputs.get('output data')
+        self.model = self.named_outputs.get(
+            'model', 'model_{}'.format(self.order))
+        self.output = self.named_outputs.get(
+            'output data', 'data_{}'.format(self.order))
         # self.ratingCol = parameters.get(self.RATING_COL_PARAM)
 
     @property
@@ -1669,30 +1670,20 @@ class RecommendationModel(Operation):
                           self.named_inputs['algorithm']])
 
     def get_data_out_names(self, sep=','):
-        return ''
+        return self.output
 
     def get_output_names(self, sep=', '):
         return sep.join([self.output, self.model])
 
     def generate_code(self):
-        if self.has_code:
+        code = """
+        {0} = {1}.fit({2})
+        {output_data} = {0}.transform({2})
+        """.format(self.model, self.named_inputs['algorithm'],
+                   self.named_inputs['input data'],
+                   output_data=self.output)
 
-            code = """
-            # {1}.setRank('{3}').setRatingCol('{4}')
-            {0} = {1}.fit({2})
-
-            {output_data} = {0}.transform({2})
-            """.format(self.model, self.named_inputs['algorithm'],
-                       self.named_inputs['input data'],
-                       self.RANK_PARAM, self.RATING_COL_PARAM,
-                       output_data=self.output)
-
-            return dedent(code)
-        else:
-            msg = _("Parameters '{}' and '{}' must be informed for task {}")
-            raise ValueError(msg.format('[]inputs',
-                                        '[]outputs',
-                                        self.__class__))
+        return dedent(code)
 
 
 class CollaborativeOperation(Operation):
@@ -1777,9 +1768,12 @@ class AlternatingLeastSquaresOperation(Operation):
     def generate_code(self):
         code = dedent("""
                 # Build the recommendation model using ALS on the training data
+                # Strategy for dealing with unknown or new users/items at
+                # prediction time is drop. See SPARK-14489 and SPARK-19345.
                 {algorithm} = ALS(maxIter={maxIter}, regParam={regParam},
                         userCol='{userCol}', itemCol='{itemCol}',
-                        ratingCol='{ratingCol}')
+                        ratingCol='{ratingCol}',
+                        coldStartStrategy='drop')
                 """.format(
             algorithm=self.named_outputs['algorithm'],
             maxIter=self.maxIter,
