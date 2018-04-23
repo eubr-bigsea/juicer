@@ -30,23 +30,26 @@ class HtmlImageReport(BaseHtmlReport):
 
 class MatplotlibChartReport(BaseHtmlReport):
     @staticmethod
-    def plot(*args, **kwargs):
-        # plt.style.use("seaborn-whitegrid")
-        # data_df = pd.DataFrame.from_records(data)
-        # sns.set(rc={'figure.figsize': (1, 1)})
-        # g = sns.jointplot(x=x, y=y, data=data_df)
-        # g.fig.subplots_adjust(top=.9, left=.15)
-        # fig_file = BytesIO()
-        # plt.savefig(fig_file, format='png', dpi=75)
-        # plt.close('all')
-        # return base64.b64encode(fig_file.getvalue())
-        return ''
+    def plot(title, x_label, y_label, *args, **kwargs):
+        plt.rcParams["figure.figsize"] = (6, 6)
+        plt.title(title)
+        plt.xlabel(x_label)
+        plt.ylabel(y_label)
+        plt.style.use('seaborn-whitegrid')
+        plt.plot(*args, **kwargs)
+        fig_file = BytesIO()
+        plt.savefig(fig_file, format='png', dpi=75)
+        plt.close('all')
+        return base64.b64encode(fig_file.getvalue())
 
 
 class SeabornChartReport(BaseHtmlReport):
     @staticmethod
-    def jointplot(data, x, y):
+    def jointplot(data, x, y, title, x_label, y_label):
         plt.style.use("seaborn-whitegrid")
+        plt.title(title)
+        plt.xlabel(x_label)
+        plt.ylabel(y_label)
         data_df = pd.DataFrame.from_records(data)
         sns.set(rc={'figure.figsize': (1, 1)})
         g = sns.jointplot(x=x, y=y, data=data_df)

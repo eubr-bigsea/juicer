@@ -3,6 +3,7 @@ from __future__ import unicode_literals
 
 import json
 import logging
+import string
 from itertools import izip_longest
 from textwrap import dedent
 
@@ -12,6 +13,12 @@ from juicer.service.limonero_service import query_limonero
 
 log = logging.getLogger()
 log.setLevel(logging.DEBUG)
+
+
+class SafeDict(dict):
+    # noinspection PyMethodMayBeStatic
+    def __missing__(self, key):
+        return '{' + key + '}'
 
 
 class FeatureIndexerOperation(Operation):
@@ -419,6 +426,8 @@ class EvaluateModelOperation(Operation):
                 display_text = {display_text}
                 display_image = {display_image}
                 metric = '{metric}'
+                label_col = '{label_attr}'
+                prediction_col = str('{prediction_attr}')
                 """)]
             if self.metric in ['areaUnderROC', 'areaUnderPR']:
                 self._get_code_for_area_metric(code)
@@ -456,7 +465,6 @@ class EvaluateModelOperation(Operation):
                 evaluator=self.evaluator,
                 prediction_arg=self.param_prediction_arg,
             )
-
             return dedent(code)
 
     @staticmethod
@@ -467,7 +475,7 @@ class EvaluateModelOperation(Operation):
         """
         code.append(dedent("""
             label_prediction = {input}.select(
-                functions.col('{prediction_attr}').cast('Double'),
+                functions.col(prediction_col).cast('Double'),
                 functions.col('{label_attr}').cast('Double'))
             evaluator = MulticlassMetrics(label_prediction.rdd)
             if metric == 'f1':
@@ -537,8 +545,8 @@ class EvaluateModelOperation(Operation):
         """
         code.append(dedent("""
             evaluator = evaluation.BinaryClassificationEvaluator(
-                {prediction_arg}='{prediction_attr}',
-                labelCol='{label_attr}',
+                {prediction_arg}=prediction_col,
+                labelCol=label_col,
                 metricName=metric)
             metric_value = evaluator.evaluate({input})
             if display_text:
@@ -562,13 +570,13 @@ class EvaluateModelOperation(Operation):
         """
         code.append(dedent("""
             df = {input}
-            if not isinstance({input}.schema[str('{prediction_attr}')].dataType,
+            if not isinstance({input}.schema[prediction_col].dataType,
                 (types.DoubleType, types.FloatType)):
-                df = {input}.withColumn('{prediction_attr}',
-                    {input}[str('{prediction_attr}')].cast('double'))
+                df = {input}.withColumn(prediction_col,
+                    {input}[prediction_col].cast('double'))
 
             evaluator = evaluation.RegressionEvaluator(
-                {prediction_arg}='{prediction_attr}',
+                {prediction_arg}=prediction_col,
                 labelCol='{label_attr}',
                 metricName=metric)
             metric_value = evaluator.evaluate(df)
@@ -591,49 +599,87 @@ class EvaluateModelOperation(Operation):
         """
         Return code for model's summary (test if it is present)
         """
-        code.append(dedent("""
-        summary = getattr({model}, 'summary', None)
-        if summary:
-            if summary.numInstances < 2000 and display_image:
-                predictions = [r['{prediction_attr}'] for r in
-                    summary.predictions.collect()]
-                residuals = [r['devianceResiduals'] for r in
-                    summary.residuals().collect()]
-                pandas_df = pd.DataFrame.from_records([
-                    {{'prediction': x[0], 'residual': x[1]}} for x in
-                        zip(predictions, residuals)])
+        i18n_dict = SafeDict(
+            join_plot_title=_('Prediction versus Residual'),
+            join_plot_x_title=_('Prediction'),
+            join_plot_y_title=_('Residual'),
 
-                report = SeabornChartReport()
-                emit_event(
-                    'update task', status='COMPLETED',
+            plot_title=_('Actual versus Prediction'),
+            plot_x_title=_('Actual'),
+            plot_y_title=_('Prediction'),
+            )
+        partial_code = """
+            summary = getattr({model}, 'summary', None)
+            if summary:
+                if summary.numInstances < 2000 and display_image:
+                    predictions = [r[prediction_col] for r in
+                        summary.predictions.collect()]
+                    residuals = [r['devianceResiduals'] for r in
+                        summary.residuals().collect()]
+                    pandas_df = pd.DataFrame.from_records(
+                        [
+                            dict(prediction=x[0], residual=x[1])
+                                for x in zip(predictions, residuals)
+                        ]
+                    )
+
+                    report = SeabornChartReport()
+                    emit_event(
+                        'update task', status='COMPLETED',
+                        identifier='{task_id}',
+                        message=report.jointplot(pandas_df, 'prediction',
+                            'residual', '{join_plot_title}',
+                            '{join_plot_x_title}', '{join_plot_y_title}'),
+                        type='IMAGE', title='{join_plot_title}',
+                        task=dict(id='{task_id}'),
+                        operation=dict(id={operation_id}),
+                        operation_id={operation_id})
+
+                    report2 = MatplotlibChartReport()
+
+                    actual = []
+                    predicted = []
+                    for r in df.select([label_col, prediction_col]).collect():
+                        actual.append(r[label_col])
+                        predicted.append(r[prediction_col])
+
+                    identity = range(int(max(actual[-1], predicted[-1])))
+                    emit_event(
+                         'update task', status='COMPLETED',
+                        identifier='{task_id}',
+                        message=report2.plot(
+                            '{plot_title}',
+                            '{plot_x_title}',
+                            '{plot_y_title}',
+                            identity, identity, 'r.',
+                            actual, predicted,'b.',),
+                        type='IMAGE', title='{join_plot_title}',
+                        task=dict(id='{task_id}'),
+                        operation=dict(id={operation_id}),
+                        operation_id={operation_id})
+
+                summary_rows = []
+                for p in dir(summary):
+                    if not p.startswith('_') and p != "cluster":
+                        try:
+                            summary_rows.append(
+                                [p, getattr(summary, p)])
+                        except Exception as e:
+                            summary_rows.append([p, e.message])
+                summary_content = SimpleTableReport(
+                    'table table-striped table-bordered', [],
+                    summary_rows,
+                    title='Summary')
+                emit_event('update task', status='COMPLETED',
                     identifier='{task_id}',
-                    message=report.jointplot(pandas_df, 'prediction',
-                        'residual'),
-                    type='IMAGE', title='{title}',
-                    task={{'id': '{task_id}'}},
-                    operation={{'id': {operation_id}}},
+                    message=summary_content.generate(),
+                    type='HTML', title='{title}',
+                    task=dict(id='{task_id}'),
+                    operation=dict(id={operation_id}),
                     operation_id={operation_id})
-
-            summary_rows = []
-            for p in dir(summary):
-                if not p.startswith('_') and p != "cluster":
-                    try:
-                        summary_rows.append(
-                            [p, getattr(summary, p)])
-                    except Exception as e:
-                        summary_rows.append([p, e.message])
-            summary_content = SimpleTableReport(
-                'table table-striped table-bordered', [],
-                summary_rows,
-                title='Summary')
-            emit_event('update task', status='COMPLETED',
-                identifier='{task_id}',
-                message=summary_content.generate(),
-                type='HTML', title='{title}',
-                task={{'id': '{task_id}' }},
-                operation={{'id': {operation_id} }},
-                operation_id={operation_id})
-        """))
+        """
+        code.append(
+            dedent(string.Formatter().vformat(partial_code, (), i18n_dict)))
 
 
 class ModelsEvaluationResultList:
