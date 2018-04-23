@@ -1,11 +1,14 @@
 # coding=utf-8
 from __future__ import unicode_literals
+
 import base64
 import itertools
 from io import BytesIO
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
+import seaborn as sns
 
 try:
     from html import escape  # python 3.x
@@ -23,6 +26,38 @@ class HtmlImageReport(BaseHtmlReport):
 
     def generate(self):
         return base64.encodestring(self.image)
+
+
+class MatplotlibChartReport(BaseHtmlReport):
+    @staticmethod
+    def plot(title, x_label, y_label, *args, **kwargs):
+        plt.rcParams["figure.figsize"] = (6, 6)
+        plt.title(title)
+        plt.xlabel(x_label)
+        plt.ylabel(y_label)
+        plt.style.use('seaborn-whitegrid')
+        plt.plot(*args, **kwargs)
+        fig_file = BytesIO()
+        plt.savefig(fig_file, format='png', dpi=75)
+        plt.close('all')
+        return base64.b64encode(fig_file.getvalue())
+
+
+class SeabornChartReport(BaseHtmlReport):
+    @staticmethod
+    def jointplot(data, x, y, title, x_label, y_label):
+        plt.style.use("seaborn-whitegrid")
+        plt.title(title)
+        plt.xlabel(x_label)
+        plt.ylabel(y_label)
+        data_df = pd.DataFrame.from_records(data)
+        sns.set(rc={'figure.figsize': (1, 1)})
+        g = sns.jointplot(x=x, y=y, data=data_df)
+        g.fig.subplots_adjust(top=.9, left=.15)
+        fig_file = BytesIO()
+        plt.savefig(fig_file, format='png', dpi=75)
+        plt.close('all')
+        return base64.b64encode(fig_file.getvalue())
 
 
 class ConfusionMatrixImageReport(BaseHtmlReport):
