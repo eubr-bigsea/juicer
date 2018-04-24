@@ -60,6 +60,7 @@ class SparkMinion(Minion):
         self.terminate_proc_queue = multiprocessing.Queue()
         self.execute_process = None
         self.ping_process = None
+        self.reload_code_process = None
         self.module = None
 
         self._state = {}
@@ -837,14 +838,21 @@ class SparkMinion(Minion):
             args=(self.terminate_proc_queue,))
         self.ping_process.daemon = False
 
+        self.reload_code_process = multiprocessing.Process(
+            name="reload code process", target=self.reload_code,
+            args=(self.terminate_proc_queue,))
+        self.reload_code_process.daemon = False
+
         self.execute_process.start()
         self.ping_process.start()
+        # self.reload_code_process.start()
 
         # We join the following processes because this script only terminates by
         # explicitly receiving a SIGKILL signal.
         self.execute_process.join()
         self.ping_process.join()
-        # https://stackoverflow.com/questions/29703063/python-multhttps://stackoverflow.com/questions/29703063/python-multiprocessing-queue-is-emptyiprocessing-queue-is-empty
+        # self.reload_code_process.join()
+        # https://stackoverflow.com/questions/29703063/python-multiprocessing-queue-is-emptyiprocessing-queue-is-empty
         self.terminate_proc_queue.close()
         self.terminate_proc_queue.join_thread()
         sys.exit(0)
