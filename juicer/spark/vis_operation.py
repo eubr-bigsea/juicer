@@ -1,4 +1,5 @@
-# -*- coding: utf-8 -*-
+# coding=utf-8
+from __future__ import unicode_literals
 import decimal
 import itertools
 import json
@@ -126,7 +127,7 @@ class PublishVisualizationOperation(Operation):
         code_lines.append(get_caipirinha_config(self.config))
         code_lines.append(dedent(u"""
             caipirinha_service.new_dashboard(config, '{title}', {user},
-                {workflow_id}, '{workflow_name}',
+                {workflow_id}, u'{workflow_name}',
                 {job_id}, '{task_id}', visualizations, emit_event)
             """.format(
             title=self.title or 'Result for job ' + str(
@@ -182,7 +183,8 @@ class VisualizationMethodOperation(Operation):
                  't_axis_attribute', 't_title', 't_prefix', 't_suffix',
                  't_format',
                  'latitude', 'longitude', 'value', 'label',
-                 'y_axis_attribute', 'z_axis_attribute', 't_axis_attribute']
+                 'y_axis_attribute', 'z_axis_attribute', 't_axis_attribute',
+                 'series_attribute']
         for k, v in self.parameters.items():
             if k in valid:
                 result[k] = v
@@ -360,6 +362,7 @@ class VisualizationModel(object):
         self.column_names = column_names
         self.orientation = orientation
         self.params = params
+        self.default_time_format = '%Y-%m-%d'
 
         if len(id_attribute) > 0 and isinstance(id_attribute, list):
             self.id_attribute = id_attribute[0]
@@ -387,15 +390,18 @@ class ChartVisualization(VisualizationModel):
 
     @staticmethod
     def _get_attr_type(attr):
-        # @FIXME: Improve this code with other data types
         if attr.dataType.jsonValue() == 'date':
-            attr_type = 'date'
-        elif attr.dataType.jsonValue() == 'boolean':
-            attr_type = 'bool'
+            attr_type = 'time'
+        if attr.dataType.jsonValue() == 'datetime':
+            attr_type = 'time'
+        if attr.dataType.jsonValue() == 'time':
+            attr_type = 'text'
         elif attr.dataType.jsonValue() == 'timestamp':
-            attr_type = 'timestamp'
-        elif attr.dataType.jsonValue() == 'string':
-            attr_type = 'string'
+            attr_type = 'number'
+        elif attr.dataType.jsonValue() == 'text':
+            attr_type = 'text'
+        elif attr.dataType.jsonValue() == 'character':
+            attr_type = 'text'
         else:
             attr_type = 'number'
 
@@ -414,8 +420,7 @@ class ChartVisualization(VisualizationModel):
                     "{{name}}"
                 ],
                 "body": [
-                    "<span class='metric'></span>"
-                    "<span class='number'>{{name}}</span>"
+                    "<span class='metric'>{{x}}</span><span class='number'>{{y}}</span>"
                 ]
             },
         }
@@ -434,10 +439,9 @@ class ChartVisualization(VisualizationModel):
                 _('Attribute {} for X-axis does not exist in ({})').format(
                     x, ', '.join([c.name for c in schema])))
         if len(y_attrs) == 0:
-            raise ValueError(
-                _(
-                    'At least one attribute for Y-axis does not exist: {}').format(
-                    ', '.join(self.params.get('column_names'))))
+            raise ValueError(_(
+                'At least one attribute for Y-axis does not exist: {}').format(
+                ', '.join(self.params.get('column_names', []))))
 
         x_type = ChartVisualization._get_attr_type(x_attr)
         return x_attr, x_type, y_attrs
@@ -480,6 +484,9 @@ class BarChartModel(ChartVisualization):
         result = {}
         result.update(self._get_title_legend_tootip())
 
+        # For barcharts this is right option
+        result['legend']['text'] = u'{{x}}'
+
         result.update({
             "x": {
                 "title": self.params.get("x_title"),
@@ -495,14 +502,18 @@ class BarChartModel(ChartVisualization):
                 "format": self.params.get("y_format", {}).get('key'),
             },
             "data": []
-
         })
+
         if x_type in ['number']:
             result['x']['format'] = self.params.get("x_format", {}).get('key')
-        elif x_type in ['timestamp', 'date']:
-            result['x']["outFormat"] = self.params.get("x_format", {}).get(
-                'key')
-            result['x']["inFormat"] = self.params.get("x_format", {}).get('key')
+        elif x_type in ['timestamp', 'date', 'time']:
+            # lets have this hardcoded for now
+            result['x']["inFormat"] = self.default_time_format
+            result['x']["outFormat"] = self.default_time_format
+
+            # result['x']["outFormat"] = self.params.get("x_format", {}).get(
+            #     'key')
+            # result['x']["inFormat"] = self.params.get("x_format", {}).get('key')
 
         for inx_row, row in enumerate(rows):
             x_value = row[x_attr.name]
@@ -529,7 +540,7 @@ class BarChartModel(ChartVisualization):
                 data['values'].append(
                     {
                         'x': attr.name,
-                        'name': attr.name,
+                        'name': LineChartModel._format(x_value),
                         'y': LineChartModel._format(row[attr.name]),
                     }
                 )
@@ -648,7 +659,7 @@ class LineChartModel(ChartVisualization):
                 "color": COLORS_PALETTE[(i % 6) * 5 + ((i / 6) % 5)],
                 "pointColor": COLORS_PALETTE[(i % 6) * 5 + ((i / 6) % 5)],
                 "pointShape": SHAPES[i % len(SHAPES)],
-                "pointSize": 8,
+                "pointSize": 3,
                 "values": []
             })
 
@@ -670,12 +681,17 @@ class LineChartModel(ChartVisualization):
             },
             "data": data
         })
+
         if x_type in ['number']:
             result['x']['format'] = self.params.get("x_format", {}).get('key')
-        elif x_type in ['timestamp', 'date']:
-            result['x']["outFormat"] = self.params.get("x_format", {}).get(
-                'key')
-            result['x']["inFormat"] = self.params.get("x_format", {}).get('key')
+        elif x_type in ['timestamp', 'date', 'time']:
+            # Lets have this hardcoded for now
+            result['x']["inFormat"] = self.default_time_format
+            result['x']["outFormat"] = self.default_time_format
+
+            # old code
+            # result['x']["inFormat"] = self.params.get("x_format", {}).get('key')
+            # result['x']["outFormat"] = self.params.get("x_format", {}).get('key')
 
         for row in rows:
             for i, attr in enumerate(y_attrs):
@@ -784,6 +800,12 @@ class ScatterPlotModel(ChartVisualization):
             attrs[axis] = next((c for c in schema if c.name == name), None)
             if attrs[axis]:
                 axis_type = ChartVisualization._get_attr_type(attrs[axis])
+
+                # this way we don't bind x_axis and y_axis types. Y is only
+                # going to be number for now
+                if axis == u'y':
+                  axis_type = 'number'
+
                 result[axis] = {
                     "title": self.params.get("{}_title".format(axis)),
                     "prefix": self.params.get("{}_prefix".format(axis)),
@@ -791,12 +813,16 @@ class ScatterPlotModel(ChartVisualization):
                     "type": axis_type
                 }
                 axis_format = self.params.get('{}_format'.format(axis), {})
+
                 if axis_type in ['number']:
-                    result[axis]['format'] = axis_format.get(
-                        'key')
-                elif axis_type in ['timestamp', 'date']:
-                    result[axis]["outFormat"] = axis_format.get('key')
-                    result[axis]["inFormat"] = axis_format.get('key')
+                    result[axis]['format'] = axis_format.get('key')
+
+                elif axis_type in ['timestamp', 'date', 'time']:
+                    result[axis]["inFormat"] = self.default_time_format
+                    result[axis]["outFormat"] = self.default_time_format
+
+                    # result[axis]["outFormat"] = axis_format.get('key')
+                    # result[axis]["inFormat"] = axis_format.get('key')
 
         result.update(self._get_title_legend_tootip())
 
@@ -808,7 +834,7 @@ class ScatterPlotModel(ChartVisualization):
             series_attr = None
 
         series = {}
-        series_key = '@_ \UNIQUE KEY/ :P_ @'
+        series_key = '@_ \\UNIQUE KEY/ :P_ @'
         if not series_attr:
             series[series_key] = {
                 "id": result['title'],
@@ -834,7 +860,7 @@ class ScatterPlotModel(ChartVisualization):
                         "values": []
                     }
                     current_color += 1
-                data = series[series_value]
+                data = series[series_value]['values']
             else:
                 data = series[series_key]['values']
 
@@ -853,14 +879,21 @@ class ScatterPlotModel(ChartVisualization):
         else:
             return default_value
 
-
 class HtmlVisualizationModel(VisualizationModel):
     # noinspection PyUnusedLocal
-    def __init__(self, data, task_id, type_id, type_name, title,
-                 column_names,
-                 orientation, id_attribute, value_attribute, params):
-        # type_id = 1
-        # type_name = 'html'
+    def __init__(self, data=None, task_id=None, type_id=1, type_name=None,
+                 title=None,
+                 column_names=None,
+                 orientation=None, id_attribute=None,
+                 value_attribute=None, params=None):
+        type_id = 1
+        type_name = 'html'
+        if id_attribute is None:
+            id_attribute = []
+        if value_attribute is None:
+            value_attribute = []
+        if column_names is None:
+            column_names = []
         VisualizationModel.__init__(self, data, task_id, type_id, type_name,
                                     title, column_names, orientation,
                                     id_attribute, value_attribute, params)
@@ -939,12 +972,14 @@ class SummaryStatisticsModel(TableVisualizationModel):
         else:
             self.attrs = [attr for attr in all_attr if
                           attr in self.params['attributes']]
-        self.names = ['attribute', 'max', 'min', 'stddev', 'count', 'avg',
-                      'approx. distinct', 'missing']
+        self.names = [_('attribute'), _('max'), _('min'), _('std. dev.'),
+                      _('count'), _('avg'),
+                      _('approx. distinct'), _('missing'), _('skewness'),
+                      _('kurtosis')]
 
         self.names.extend(
-            ['correlation to {}'.format(attr) for attr in self.attrs])
-
+            [_('correlation to {} (Pearson)').format(attr) for attr in
+             self.attrs])
         self.column_names = self.names
 
     def get_icon(self):
@@ -995,6 +1030,12 @@ class SummaryStatisticsModel(TableVisualizationModel):
                 'distinct_{}'.format(name)))
             stats.append((df_count - functions.count(df_col)).alias(
                 'missing_{}'.format(name)))
+
+            stats.append(functions.round(functions.skewness(df_col), 2).alias(
+                'skewness_{}'.format(name)))
+            stats.append(functions.round(functions.kurtosis(df_col), 2).alias(
+                'kurtosis_{}'.format(name)))
+
             for pair in corr_pairs[i]:
                 if all([pair[0] in self.numeric_attrs,
                         pair[1] in self.numeric_attrs]):
@@ -1004,9 +1045,9 @@ class SummaryStatisticsModel(TableVisualizationModel):
                 else:
                     stats.append(functions.lit('-'))
 
-        aggregated = self.data.agg(*stats).take(1)[0]
+        self.data = self.data.agg(*stats)
+        aggregated = self.data.take(1)[0]
         n = len(self.names)
         rows = [aggregated[i:i + n] for i in range(0, len(aggregated), n)]
 
-        return {"rows": rows, "attributes": self.get_column_names().split(','),
-                "schema": self.get_schema()}
+        return {"rows": rows, "attributes": self.get_column_names().split(',')}

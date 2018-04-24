@@ -1,4 +1,6 @@
 # coding=utf-8
+from __future__ import unicode_literals
+
 import gc
 import gettext
 import imp
@@ -58,6 +60,7 @@ class SparkMinion(Minion):
         self.terminate_proc_queue = multiprocessing.Queue()
         self.execute_process = None
         self.ping_process = None
+        self.reload_code_process = None
         self.module = None
 
         self._state = {}
@@ -78,7 +81,6 @@ class SparkMinion(Minion):
             log.warn(_('SPARK_HOME environment variable is not defined'))
 
         self.spark_session = None
-        signal.signal(signal.SIGTERM, self._terminate)
 
         self.mgr = socketio.RedisManager(
             config['juicer']['servers']['redis_url'],
@@ -111,6 +113,22 @@ class SparkMinion(Minion):
         ]
         self.current_lang = lang
         # self._build_dist_file()
+        signal.signal(signal.SIGTERM, self._terminate)
+        signal.signal(signal.SIGINT, self._cleanup)
+        self.last_job_id = 0
+        self.new_session = False
+
+        self.cluster_options = {}
+        self.last_cluster_id = None
+
+    def _cleanup(self, pid, flag):
+        log.warn(_('Finishing minion'))
+        msg = _('Pressed CTRL+C / SIGINT. Minion canceled the job.')
+        self._emit_event(room=self.last_job_id, namespace='/stand')(
+            name='update job', message=msg,
+            status='ERROR', identifier=self.last_job_id)
+        self.terminate()
+        sys.exit(0)
 
     def _build_dist_file(self):
         """
@@ -250,9 +268,68 @@ class SparkMinion(Minion):
 
         # Forward the message according to its purpose
         if msg_type == juicer_protocol.EXECUTE:
+
+            # Checks if it's a valid cluster
+            job_id = msg_info['job_id']
+            cluster_info = msg_info.get('cluster', {})
+            if cluster_info.get('type', 'SPARK_LOCAL') not in (
+                    'SPARK_LOCAL', 'MESOS', 'YARN'):
+                self._emit_event(room=job_id, namespace='/stand')(
+                    name='update job',
+                    message=_('Unsupported cluster type, '
+                              'it cannot run Spark applications.'),
+                    status='ERROR', identifier=job_id)
+                return
+
+            if all([self.last_cluster_id,
+                    self.last_cluster_id != cluster_info['id']]):
+                if self.spark_session:
+                    self._emit_event(room=job_id, namespace='/stand')(
+                        name='update job',
+                        message=_('Cluster configuration changed. '
+                                  'Stopping previous cluster.'),
+                        status='RUNNING', identifier=job_id)
+                    # Requires finish Spark Context
+                    self.spark_session.stop()
+                    self._state = {}
+                    self.spark_session = None
+
+            self.cluster_options = {}
+
+            # Add general parameters in the form param1=value1,param2=value2
+            try:
+                if cluster_info.get('general_parameters'):
+                    parameters = cluster_info['general_parameters'].split(',')
+                    for parameter in parameters:
+                        key, value = parameter.split('=')
+                        self.cluster_options[key.strip()] = value.strip()
+            except Exception as ex:
+                msg = _("Error in general cluster parameters: {}").format(ex)
+                self._emit_event(room=job_id, namespace='/stand')(
+                    name='update job',
+                    message=msg,
+                    status='CANCELED', identifier=job_id)
+                log.warn(msg)
+                return
+
+                # Spark mapping for cluster properties
+            options = {'address': 'spark.master',
+                       'executors': 'spark.cores.max',
+                       'executor_cores': 'spark.executor.cores',
+                       'executor_memory': 'spark.executor.memory',
+                       }
+
+            for option, spark_name in options.items():
+                self.cluster_options[spark_name] = cluster_info[option]
+
+            log.info("Cluster options: %s",
+                     json.dumps(self.cluster_options, indent=0))
+
+            self.last_cluster_id = cluster_info['id']
+
             self.active_messages += 1
             log.info('Execute message received')
-            job_id = msg_info['job_id']
+            self.last_job_id = job_id
             workflow = msg_info['workflow']
 
             lang = workflow.get('locale', self.current_lang)
@@ -331,14 +408,21 @@ class SparkMinion(Minion):
         start = timer()
         try:
             loader = Workflow(workflow, self.config)
-
             # force the spark context creation
-            self.get_or_create_spark_session(loader, app_configs)
+            self.get_or_create_spark_session(loader, app_configs, job_id)
 
             # Mark job as running
-            self._emit_event(room=job_id, namespace='/stand')(
-                name='update job', message=_('Running job'),
-                status='RUNNING', identifier=job_id)
+            if self.new_session:
+                self._emit_event(room=job_id, namespace='/stand')(
+                    name='update job',
+                    message=_('Running job, but it requires allocation'
+                              ' of '
+                              'cluster computers first and it takes time.'),
+                    status='RUNNING', identifier=job_id)
+            else:
+                self._emit_event(room=job_id, namespace='/stand')(
+                    name='update job', message=_('Running job'),
+                    status='RUNNING', identifier=job_id)
 
             module_name = 'juicer_app_{}_{}_{}'.format(
                 self.workflow_id,
@@ -369,7 +453,8 @@ class SparkMinion(Minion):
             # of several partial workflow executions.
             try:
                 new_state = self.module.main(
-                    self.get_or_create_spark_session(loader, app_configs),
+                    self.get_or_create_spark_session(loader, app_configs,
+                                                     job_id),
                     self._state,
                     self._emit_event(room=job_id, namespace='/stand'))
             except:
@@ -456,8 +541,8 @@ class SparkMinion(Minion):
                 self.spark_session.sparkContext._jsc and
                 not self.spark_session.sparkContext._jsc.sc().isStopped())
 
-    # noinspection PyUnresolvedReferences
-    def get_or_create_spark_session(self, loader, app_configs):
+    # noinspection PyUnresolvedReferences,PyProtectedMember
+    def get_or_create_spark_session(self, loader, app_configs, job_id):
         """
         Get an existing spark session (context) for this minion or create a new
         one. Ideally the spark session instantiation is done only once, in order
@@ -489,6 +574,17 @@ class SparkMinion(Minion):
             # Default options from configuration file
             app_configs.update(self.config['juicer'].get('spark', {}))
 
+            environment_settings = {
+                'SPARK_DRIVER_PORT': 'spark.driver.port',
+                'SPARK_DRIVER_BLOCKMANAGER_PORT':
+                    'spark.driver.blockManager.port'}
+            # print os.environ.get('SPARK_DRIVER_PORT')
+            # print os.environ.get('SPARK_DRIVER_BLOCKMANAGER_PORT')
+            for k, v in environment_settings.items():
+                if k in os.environ:
+                    spark_builder = spark_builder.config(
+                        environment_settings[k], os.environ.get(k))
+
             # Juicer listeners configuration.
             listeners = self.config['juicer'].get('listeners', [])
 
@@ -519,8 +615,13 @@ class SparkMinion(Minion):
 
             log.info('JAVA CLASSPATH: %s',
                      app_configs['spark.driver.extraClassPath'])
+
             # All options passed by application are sent to Spark
             for option, value in app_configs.items():
+                spark_builder = spark_builder.config(option, value)
+
+            # All options passed by the client during job execution
+            for option, value in self.cluster_options.items():
                 spark_builder = spark_builder.config(option, value)
 
             self.spark_session = spark_builder.getOrCreate()
@@ -534,6 +635,18 @@ class SparkMinion(Minion):
 
             self._build_dist_file()
             self.spark_session.sparkContext.addPyFile(self.DIST_ZIP_FILE)
+            self.new_session = True
+
+            def _send_listener_log(data):
+                self._emit_event(room=job_id, namespace='/stand')(
+                    name='update job', message=data, status='RUNNING',
+                    identifier=job_id)
+
+                # self.listener = SparkListener(_send_listener_log)
+                #
+                # sc = self.spark_session.sparkContext
+                # sc._gateway.start_callback_server()
+                # sc._jsc.toSparkContext(sc._jsc).addSparkListener(self.listener)
 
         log.info(_("Minion is using '%s' as Spark master"),
                  self.spark_session.sparkContext.master)
@@ -679,6 +792,7 @@ class SparkMinion(Minion):
     def _terminate(self, _signal, _frame):
         self.terminate()
 
+    # noinspection PyProtectedMember
     def terminate(self):
         """
         This is a handler that reacts to a sigkill signal. The most feasible
@@ -687,9 +801,12 @@ class SparkMinion(Minion):
         (spark_session) and kill the subprocess managed in here.
         """
         if self.spark_session:
+            sc = self.spark_session.sparkContext
+
             self.spark_session.stop()
             self.spark_session.sparkContext.stop()
             self.spark_session = None
+            sc._gateway.shutdown_callback_server()
 
         log.info('Post terminate message in queue')
         self.terminate_proc_queue.put({'terminate': True})
@@ -721,14 +838,21 @@ class SparkMinion(Minion):
             args=(self.terminate_proc_queue,))
         self.ping_process.daemon = False
 
+        self.reload_code_process = multiprocessing.Process(
+            name="reload code process", target=self.reload_code,
+            args=(self.terminate_proc_queue,))
+        self.reload_code_process.daemon = False
+
         self.execute_process.start()
         self.ping_process.start()
+        # self.reload_code_process.start()
 
         # We join the following processes because this script only terminates by
         # explicitly receiving a SIGKILL signal.
         self.execute_process.join()
         self.ping_process.join()
-        # https://stackoverflow.com/questions/29703063/python-multhttps://stackoverflow.com/questions/29703063/python-multiprocessing-queue-is-emptyiprocessing-queue-is-empty
+        # self.reload_code_process.join()
+        # https://stackoverflow.com/questions/29703063/python-multiprocessing-queue-is-emptyiprocessing-queue-is-empty
         self.terminate_proc_queue.close()
         self.terminate_proc_queue.join_thread()
         sys.exit(0)

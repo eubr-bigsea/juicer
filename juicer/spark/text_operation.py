@@ -1,4 +1,5 @@
 # coding=utf-8
+from __future__ import unicode_literals
 import json
 from itertools import izip_longest
 from textwrap import dedent
@@ -209,6 +210,7 @@ class WordToVectorOperation(Operation):
 
     TYPE_COUNT = 'count'
     TYPE_WORD2VEC = 'word2vec'
+    TYPE_HASHING_TF = 'hashing_tf'
 
     def __init__(self, parameters, named_inputs,
                  named_outputs):
@@ -243,40 +245,64 @@ class WordToVectorOperation(Operation):
                                              'out_{}'.format(self.order))
         self.vocab = self.named_outputs.get('vocabulary',
                                             'vocab_task_{}'.format(self.order))
+        self.output_model = self.named_outputs.get(
+            'vector-model', 'vector_model_{}'.format(self.order))
+
+        if self.type not in [self.TYPE_HASHING_TF, self.TYPE_WORD2VEC,
+                             self.TYPE_COUNT]:
+            raise ValueError(
+                _("Invalid type '{}' for task {}").format(self.type,
+                                                          self.__class__))
 
     def get_data_out_names(self, sep=','):
         return self.output
 
     def get_output_names(self, sep=", "):
-        return sep.join([self.output, self.vocab])
+        return sep.join([self.output, self.vocab, self.output_model])
 
     def generate_code(self):
         input_data = self.named_inputs['input data']
-
         if self.type == self.TYPE_COUNT:
             code = dedent("""
-                col_alias = {3}
-                vectorizers = [CountVectorizer(minTF={4}, minDF={5},
-                               vocabSize={6}, binary=False, inputCol=col,
-                               outputCol=alias) for col, alias in col_alias]""")
+                col_alias = {alias}
+                vectorizers = [
+                    CountVectorizer(minTF={min_tf}, minDF={min_df},
+                        vocabSize={vocab_size}, binary=False, inputCol=col,
+                        outputCol=alias) for col, alias in col_alias]
 
-            code += dedent("""
-            # Use Pipeline to process all attributes once
-            pipeline = Pipeline(stages=vectorizers)
-            model = pipeline.fit({1})
-            {2} = model.transform({1})
-            """)
-            code += dedent("""
-                {} = dict([(col_alias[i][1], v.vocabulary)
-                        for i, v in enumerate(model.stages)])""".format(
-                self.vocab))
+                # Use Pipeline to process all attributes once
+                pipeline = Pipeline(stages=vectorizers)
+                {model} = pipeline.fit({input})
+                {out} = {model}.transform({input})
+                {vocab} = dict([(col_alias[i][1], v.vocabulary)
+                        for i, v in enumerate({model}.stages)])""".format(
+                input=input_data,
+                out=self.output,
+                alias=json.dumps(zip(self.attributes, self.alias)),
+                min_tf=self.minimum_tf, min_df=self.minimum_df,
+                vocab_size=self.vocab_size,
+                model=self.output_model,
+                vocab=self.vocab))
+        elif self.type == self.TYPE_HASHING_TF:
+            code = dedent("""
+                col_alias = {alias}
+                hashing_transformers = [
+                    HashingTF(numFeatures={vocab_size}, binary=False,
+                    inputCol=col, outputCol=alias) for col, alias in col_alias]
 
-            code = code.format(self.attributes, input_data,
-                               self.output,
-                               json.dumps(zip(self.attributes, self.alias)),
-                               self.minimum_tf, self.minimum_df,
-                               self.vocab_size)
+                # Use Pipeline to process all attributes once
+                pipeline = Pipeline(stages=hashing_transformers)
+                {model} = pipeline.fit({input})
+                {out} = {model}.transform({input})
 
+                # There is no vocabulary in this type of transformer
+                {vocab} = {{}}""".format(
+                input=input_data,
+                out=self.output,
+                alias=json.dumps(zip(self.attributes, self.alias)),
+                vocab_size=self.vocab_size,
+                model=self.output_model,
+                vocab=self.vocab))
         elif self.type == self.TYPE_WORD2VEC:
             # @FIXME Check
             code = dedent("""
@@ -291,16 +317,17 @@ class WordToVectorOperation(Operation):
                             outputCol=alias) for col, alias in col_alias]
                 # Use Pipeline to process all attributes once
                 pipeline = Pipeline(stages=vectorizers)
-                model = pipeline.fit({input})
-                {out} = model.transform({input})
+                {model} = pipeline.fit({input})
+                {out} = {model}.transform({input})
                 {vocab} = dict([(col_alias[i][1], v.getVectors())
-                             for i, v in enumerate(model.stages)])""".format(
+                             for i, v in enumerate({model}.stages)])""".format(
                 self.attributes,
                 input=input_data,
                 out=self.output,
                 aliases=json.dumps(zip(self.attributes, self.alias)),
                 size=self.minimum_size, count=self.minimum_count,
-                vocab=self.vocab
+                vocab=self.vocab,
+                model=self.output_model
             ))
 
         else:

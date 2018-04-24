@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+from __future__ import unicode_literals
+
 import hashlib
 import sys
 
@@ -96,6 +98,15 @@ class SparkTranspiler(object):
                             self.operations, params)
 
     @staticmethod
+    def _escape_chars(text):
+        if isinstance(text, str):
+            return text.encode('string-escape').replace('"', '\\"').replace(
+                "'", "\\'")
+        else:
+            return text.encode('unicode-escape').replace('"', '\\"').replace(
+                "'", "\\'")
+
+    @staticmethod
     def _gen_port_name(flow, seq):
         name = flow.get('source_port_name', 'data')
         parts = name.split()
@@ -105,7 +116,7 @@ class SparkTranspiler(object):
             name = name[:3]
         else:
             name = ''.join([p[0] for p in parts])
-        return '{}_{}'.format(name, seq)
+        return '{}{}'.format(name, seq)
 
     # noinspection SpellCheckingInspection
     def transpile(self, workflow, graph, params, out=None, job_id=None):
@@ -117,6 +128,7 @@ class SparkTranspiler(object):
 
         ports = {}
         sequential_ports = {}
+        counter = 0
         for source_id in graph.edge:
             for target_id in graph.edge[source_id]:
                 # Nodes accept multiple edges from same source
@@ -125,7 +137,8 @@ class SparkTranspiler(object):
 
                     if flow_id not in sequential_ports:
                         sequential_ports[flow_id] = self._gen_port_name(
-                            flow, len(sequential_ports))
+                            flow, counter)
+                        counter += 1
                     if source_id not in ports:
                         ports[source_id] = {'outputs': [], 'inputs': [],
                                             'named_inputs': {},
@@ -173,6 +186,9 @@ class SparkTranspiler(object):
             class_name = self.operations[task['operation']['slug']]
 
             parameters = {}
+            not_empty_params = [(k, d) for k, d in task['forms'].items() if
+                                d['value'] != '' and d['value'] is not None]
+            task['forms'] = dict(not_empty_params)
             for parameter, definition in task['forms'].items():
                 # @FIXME: Fix wrong name of form category
                 # (using name instead of category)
@@ -187,13 +203,22 @@ class SparkTranspiler(object):
                                 'execution logging', 'logging'],
                         definition['value'] is not None]):
 
-                    task_hash.update(str(definition['value']))
+                    task_hash.update(unicode(definition['value']).encode(
+                        'utf8', errors='ignore'))
                     if cat in ['paramgrid', 'logging']:
                         if cat not in parameters:
                             parameters[cat] = {}
                         parameters[cat][parameter] = definition['value']
                     else:
                         parameters[parameter] = definition['value']
+                # escape invalid characters for code generation
+                # except JSON (starting with {)
+                if definition['value'] is not None and not isinstance(
+                        definition['value'], bool):
+                    if '"' in definition['value'] or "'" in definition['value']:
+                        if definition['value'][0] != '{':
+                            definition['value'] = SparkTranspiler._escape_chars(
+                                definition['value'])
 
             # Hash is used in order to avoid re-run task.
             parameters['hash'] = task_hash.hexdigest()
@@ -211,7 +236,8 @@ class SparkTranspiler(object):
             parameters['workflow'] = workflow
             parameters['user'] = workflow['user']
             parameters['workflow_id'] = workflow['id']
-            parameters['workflow_name'] = workflow['name']
+            parameters['workflow_name'] = SparkTranspiler._escape_chars(
+                workflow['name'])
             parameters['operation_id'] = task['operation']['id']
             parameters['task_id'] = task['id']
             parameters['operation_slug'] = task['operation']['slug']
@@ -232,6 +258,7 @@ class SparkTranspiler(object):
             env_setup['instances_by_task_id'][task['id']] = instance
             env_setup['execute_main'] = params.get('execute_main', False)
             env_setup['plain'] = params.get('plain', False)
+            env_setup['disabled_tasks'] = workflow['disabled_tasks']
 
         template_loader = jinja2.FileSystemLoader(
             searchpath=os.path.dirname(__file__))
@@ -289,6 +316,8 @@ class SparkTranspiler(object):
             'split': juicer.spark.etl_operation.SplitOperation,
             'transformation':
                 juicer.spark.etl_operation.TransformationOperation,
+            'window-transformation':
+                juicer.spark.etl_operation.WindowTransformationOperation,
         }
         dm_ops = {
             'frequent-item-set':
@@ -331,8 +360,6 @@ class SparkTranspiler(object):
             'one-hot-encoder':
                 juicer.spark.ml_operation.OneHotEncoderOperation,
             'pca': juicer.spark.ml_operation.PCAOperation,
-            'pearson-correlation':
-                juicer.spark.statistic_operation.PearsonCorrelation,
             'perceptron-classifier':
                 juicer.spark.ml_operation.PerceptronClassifier,
             'random-forest-classifier':
@@ -361,8 +388,11 @@ class SparkTranspiler(object):
 
             'save-model': juicer.spark.ml_operation.SaveModelOperation,
             'load-model': juicer.spark.ml_operation.LoadModelOperation,
+            'voting-classifier':
+                juicer.spark.ml_operation.VotingClassifierOperation,
 
         }
+
         data_ops = {
             'change-attribute':
                 juicer.spark.data_operation.ChangeAttributeOperation,
@@ -376,6 +406,12 @@ class SparkTranspiler(object):
         data_quality_ops = {
             'entity-matching':
                 juicer.spark.data_quality_operation.EntityMatchingOperation,
+        }
+        statistics_ops = {
+            'kaplan-meier-survival':
+                juicer.spark.statistic_operation.KaplanMeierSurvivalOperation,
+            'cox-proportional-hazards':
+                juicer.spark.statistic_operation.CoxProportionalHazardsOperation
         }
         other_ops = {
             'comment': operation.NoOp,
@@ -424,7 +460,9 @@ class SparkTranspiler(object):
                 juicer.spark.feature_operation.MinMaxScalerOperation,
 
         }
+
         self.operations = {}
         for ops in [data_ops, etl_ops, geo_ops, ml_ops, other_ops, text_ops,
+                    statistics_ops,
                     ws_ops, vis_ops, dm_ops, data_quality_ops, feature_ops]:
             self.operations.update(ops)
