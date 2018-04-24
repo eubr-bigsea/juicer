@@ -1,3 +1,4 @@
+import importlib
 import json
 import logging.config
 import time
@@ -5,10 +6,41 @@ import time
 import datetime
 
 import os
+import pyinotify
 from juicer.runner.control import StateControlRedis
 
 logging.config.fileConfig('logging_config.ini')
 log = logging.getLogger('juicer.spark.spark_minion')
+
+_watch_dir = os.path.abspath(
+    os.path.join(__file__, os.pardir, os.pardir, os.pardir))
+
+
+# noinspection PyPep8Naming,PyMethodMayBeStatic
+class EventHandler(pyinotify.ProcessEvent):
+    allowed_extensions = ["py"]
+
+    def is_allowed_path(self, filename, is_dir):
+        # Don't check the extension for directories
+        if not is_dir:
+            ext = os.path.splitext(filename)[1][1:].lower()
+            if ext not in self.allowed_extensions:
+                return False
+        return True
+
+    def _reload(self, event):
+        if self.is_allowed_path(event.pathname, event.dir):
+            module = importlib.import_module(
+                event.pathname.replace(_watch_dir, '')[1:-3].replace('/', '.'))
+            reload(module)
+            log.warn(_('Reloading {}'.format(module)))
+
+    def process_IN_MODIFY(self, event):
+        self._reload(event)
+
+    def process_IN_MOVED_TO(self, event):
+
+        self._reload(event)
 
 
 class Minion:
@@ -64,6 +96,13 @@ class Minion:
         }
         self.state_control.set_minion_status(
             self.app_id, json.dumps(status), ex=10, nx=False)
+
+    @staticmethod
+    def reload_code(q):
+        wm = pyinotify.WatchManager()
+        notifier = pyinotify.Notifier(wm, EventHandler())
+        wm.add_watch(_watch_dir, pyinotify.ALL_EVENTS, rec=True)
+        notifier.loop()
 
     def ping(self, q):
         """ Pings redis to inform master this minion is online """
