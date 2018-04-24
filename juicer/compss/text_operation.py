@@ -13,8 +13,6 @@ class TokenizerOperation(Operation):
     breaking it into individual terms (usually words). A simple Tokenizer
     class provides this functionality.
 
-    REVIEW: 2017-10-20
-    OK - Juicer / Tahiti / implementation
     """
 
     TYPE_PARAM = 'type'
@@ -28,7 +26,6 @@ class TokenizerOperation(Operation):
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
-
         self.type = self.parameters.get(self.TYPE_PARAM, self.TYPE_SIMPLE)
         if self.type not in [self.TYPE_REGEX, self.TYPE_SIMPLE]:
             raise ValueError(_('Invalid type for operation Tokenizer: {}')
@@ -56,39 +53,68 @@ class TokenizerOperation(Operation):
         self.has_code = len(self.named_inputs) == 1
         if self.has_code:
             self.has_import = \
-                "from functions.text.Tokenizer import TokenizerOperation\n"
+                "from functions.text.tokenizer import TokenizerOperation\n"
 
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
 
+    def get_otm_info(self):
+        return 'one_stage'
+
     def generate_code(self):
         """Generate code."""
-        if self.type == self.TYPE_SIMPLE:
-            code = """
-                settings = dict()
-                settings['min_token_length'] = {min_token}
-                settings['type'] = 'simple'
-                settings['attributes'] = {att}
-                settings['alias'] = {alias}
-                {OUT} = TokenizerOperation({IN}, settings, numFrag)
-            """.format(OUT=self.output, min_token=self.min_token_lenght,
-                       IN=self.named_inputs['input data'],
-                       att=self.attributes, alias=self.alias)
-        else:
-            code = """
-                settings = dict()
-                settings['min_token_length'] = {min_token}
-                settings['type'] = 'regex'
-                setting['expression'] = '{expression}'
-                settings['attributes'] = {att}
-                settings['alias'] = {alias}
-                {OUT} = TokenizerOperation({IN}, settings, numFrag)
-            """.format(OUT=self.output,
-                       min_token=self.min_token_lenght,
-                       expression=self.expression_param,
-                       IN=self.named_inputs['input data'],
-                       att=self.attributes, alias=self.alias)
+        code = """
+            settings = dict()
+            settings['min_token_length'] = {min_token}
+            settings['attributes'] = {att}
+            settings['alias'] = {alias}"""\
+            .format(min_token=self.min_token_lenght, att=self.attributes,
+                    alias=self.alias)
 
+        if self.type == self.TYPE_SIMPLE:
+            code += """
+                settings['type'] = 'simple'
+            """
+        else:
+            code += """
+                setting['expression'] = '{expression}'
+                settings['type'] = 'regex'
+            """.format(expression=self.expression_param)
+
+        code += """
+                {OUT} = TokenizerOperation().transform({IN}, settings, numFrag)
+            """.format(OUT=self.output, IN=self.named_inputs['input data'])
+
+        return dedent(code)
+
+    def generate_code_otm_pre(self):
+        """Generate code for optimization task."""
+        code = """
+        settings = dict()
+        settings['min_token_length'] = {min_token}
+        settings['attributes'] = {att}
+        settings['alias'] = {alias}""" \
+        .format(min_token=self.min_token_lenght, att=self.attributes,
+                alias=self.alias)
+
+        if self.type == self.TYPE_SIMPLE:
+            code += """
+        settings['type'] = 'simple'"""
+        else:
+            code += """
+        setting['expression'] = '{expression}'
+        settings['type'] = 'regex'""".format(expression=self.expression_param)
+        code += """
+        conf.append(TokenizerOperation().preprocessing(settings))
+        """
+        return code
+
+    def generate_code_otm(self):
+        """Generate code."""
+        code = """
+        {output} = TokenizerOperation().transform_serial({input}, conf_X)
+        """.format(output=self.output,
+                   input=self.named_inputs['input data'])
         return dedent(code)
 
 

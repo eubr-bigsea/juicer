@@ -13,6 +13,7 @@ import juicer.compss.feature_operation
 import juicer.compss.model_operation
 import juicer.compss.text_operation
 import juicer.compss.classification_operation
+import juicer.compss.optimizated_operation
 
 import networkx as nx
 import os
@@ -20,6 +21,8 @@ from juicer import operation
 from juicer.service import stand_service
 from juicer.util.jinja2_custom import AutoPep8Extension
 from juicer.util.template_util import HandleExceptionExtension
+
+from optimizated_operation import OptimizatedOperation
 
 
 class DependencyController:
@@ -50,7 +53,15 @@ class COMPSsTranspiler(object):
         self._assign_operations()
         self.numFrag = self.configuration.get('juicer', {}).get(
             'compss', {}).get('numFrag')
-        self.candidates_to_otm = []
+        self.enable_optimization = self.configuration.get('juicer', {}).get(
+            'compss', {}).get('optimization')
+
+        # self.otm = {'data-reader': 'two_stage',
+        #             'filter-selection': 'one_stage',
+        #             'drop': 'one_stage',
+        #             'projection': 'one_stage',
+        #             'difference': 'many_stages'}
+
         # self.graph = graph
         # self.params = params if params is not None else {}
         #
@@ -68,6 +79,138 @@ class COMPSsTranspiler(object):
 
         self.execute_main = False
 
+    def get_otm_info(self, id_task, task, workflow, ports):
+        class_name = self.operations[id_task]
+        parameters = self.get_init_parameters(task, workflow, 0)
+        port = ports.get(task['id'], {})
+        instance = class_name(parameters,
+                              port.get('named_inputs', {}),
+                              port.get('named_outputs', {}))
+
+        return instance.get_otm_info()
+
+    def get_init_parameters(self, task, workflow, i):
+        parameters = {}
+
+        for parameter, definition in task['forms'].iteritems():
+            # @FIXME: Fix wrong name of form category
+            # (using name instead of category)
+            # print definition.get('category')
+            # raw_input()
+            cat = definition.get('category',
+                                 'execution').lower()  # FIXME!!!
+            cat = 'paramgrid' if cat == 'param grid' else cat
+            cat = 'logging' if cat == 'execution logging' else cat
+
+            if all([cat in ["execution", 'paramgrid', 'param grid',
+                            'execution logging', 'logging'],
+                    definition['value'] is not None]):
+
+                if cat in ['paramgrid', 'logging']:
+                    if cat not in parameters:
+                        parameters[cat] = {}
+                    parameters[cat][parameter] = definition['value']
+                else:
+                    parameters[parameter] = definition['value']
+
+        # Operation SAVE requires the complete workflow
+        if task['operation']['name'] == 'SAVE':
+            parameters['workflow'] = workflow
+
+        parameters['workflow_json'] = json.dumps(workflow)
+        parameters['user'] = workflow['user']
+        parameters['workflow_id'] = workflow['id']
+        parameters['workflow_name'] = workflow['name']
+        # Some temporary variables need to be identified by a sequential
+        # number, so it will be stored in this field
+        task['order'] = i
+
+        parameters['task'] = task
+        parameters['task_id'] = task['id']
+        parameters['operation_id'] = task['operation']['id']
+        parameters['operation_slug'] = task['operation']['slug']
+
+
+
+        return parameters
+
+    def check_optimization(self, sorted_tasks_id, graph, workflow, port):
+        """Check optimizations."""
+
+        otm_candidate = {}
+        new_sorted_tasks_id = []
+        map_candidates = {}
+
+        for i, task_id in enumerate(sorted_tasks_id):
+            task_source = graph.node[task_id]
+            target = graph.edge[task_id]
+            has_single_edge = len(target.keys()) == 1
+            source_candidate = task_source['operation']['slug']
+            source_otm_info = self.get_otm_info(source_candidate,
+                                                task_source, workflow, port)
+
+            # Optimize only if source has a single edge
+            # Optimize = merge with the next function
+            if not has_single_edge:
+                # add to sorted list if if task is not already in one group
+                if not task_id in map_candidates:
+                    new_sorted_tasks_id.append(task_id)
+            else:
+                target = target[target.keys()[0]][0]['target_id']
+                target_candidate = graph.node[target]['operation']['slug']
+                task_target = graph.node[target]
+                target_otm_info = self.get_otm_info(target_candidate,
+                                                    task_target,
+                                                    workflow, port)
+                condition1 = source_otm_info == 'one_stage' and\
+                             target_otm_info == 'one_stage'
+
+                print "condition1:", condition1
+
+                if condition1:
+                    # add the task in the its existent group
+                    found = task_id in map_candidates
+                    if found:
+                        id_group = map_candidates[task_id]
+                        otm_candidate[id_group].append(target)
+                        map_candidates[task_id] = id_group
+                        map_candidates[target] = id_group
+
+                    # if does not have, create a new one
+                    if not found:
+                        new_sorted_tasks_id.append(task_id)
+                        otm_candidate[task_id] = [task_id, target]
+                        map_candidates[task_id] = task_id
+                        map_candidates[target] = task_id
+                else:
+                    # if cant be merged, check if the source is already merged
+                    # with a previous function, if not, add in the sorted list
+                    found = False
+                    for k, v in otm_candidate.items():
+                        if task_id in v:
+                            found = True
+
+                            break
+                    if not found:
+                        new_sorted_tasks_id.append(task_id)
+
+        print "*" * 20
+        print otm_candidate
+        print "sorted_tasks_id: ", sorted_tasks_id
+        print "MAP_Groups:", map_candidates
+        print "*" * 20
+
+        return otm_candidate, new_sorted_tasks_id, map_candidates
+
+    def check_parents(self, parameters, conv_parents):
+        old_parents = parameters['task']['parents']
+        for i, old_one in enumerate(old_parents):
+            if old_one in conv_parents:
+                print "updating parents"
+                parameters['task']['parents'][i] = conv_parents[old_one]
+
+        return parameters
+
     def transpile(self, workflow, graph, params, out=None, job_id=None):
         """ Transpile the tasks from Lemonade's workflow into COMPSs code """
 
@@ -75,8 +218,6 @@ class COMPSsTranspiler(object):
         sequential_ports = {}
 
         for source_id in graph.edge:
-            if len(graph.edge[source_id]) == 1:
-                self.candidates_to_otm.append(source_id)
             for target_id in graph.edge[source_id]:
                 # Nodes accept multiple edges from same source
                 for flow in graph.edge[source_id][target_id].values():
@@ -122,65 +263,115 @@ class COMPSsTranspiler(object):
                             target_port['named_inputs'][flow_name] = sequence
                         target_port['inputs'].append(sequence)
 
-        env_setup = {'instances': [], 'instances_by_task_id': {},
-                     'workflow_name': workflow['name']}
 
         sorted_tasks_id = nx.topological_sort(graph)
 
+        env_setup = {'instances': [], 'instances_by_task_id': {},
+                     'workflow_name': workflow['name']}
+
+        if self.enable_optimization:
+            otm, sorted_tasks_id, conversion_parents = \
+                self.check_optimization(sorted_tasks_id, graph, workflow, ports)
+        else:
+            conversion_parents = {}
+            otm = {}
+
         for i, task_id in enumerate(sorted_tasks_id):
             task = graph.node[task_id]
-            class_name = self.operations[task['operation']['slug']]
-            parameters = {}
-            for parameter, definition in task['forms'].iteritems():
-                # @FIXME: Fix wrong name of form category
-                # (using name instead of category)
-                # print definition.get('category')
-                # raw_input()
-                cat = definition.get('category',
-                                     'execution').lower()  # FIXME!!!
-                cat = 'paramgrid' if cat == 'param grid' else cat
-                cat = 'logging' if cat == 'execution logging' else cat
+            print "idx: {} - task_id: {}".format(i, task_id)
 
-                if all([cat in ["execution", 'paramgrid', 'param grid',
-                                'execution logging', 'logging'],
-                        definition['value'] is not None]):
+            if task_id in otm:
+                otm_group = otm[task_id]
+                print "task: '{}' will be merged with: {}".format(task_id,
+                                                                  otm_group)
+                code_0 = ""
+                code_1 = []
+                for j, task_idd in enumerate(otm_group):
+                    task = graph.node[task_idd]
 
-                    if cat in ['paramgrid', 'logging']:
-                        if cat not in parameters:
-                            parameters[cat] = {}
-                        parameters[cat][parameter] = definition['value']
-                    else:
-                        parameters[parameter] = definition['value']
+                    port = ports.get(task['id'], {})
+                    parameters = self.get_init_parameters(task, workflow, j)
+                    parameters['configuration'] = self.configuration
+                    parameters['job_id'] = job_id
+                    parameters['numFrag'] = self.numFrag
 
-            # Operation SAVE requires the complete workflow
-            if task['operation']['name'] == 'SAVE':
-                parameters['workflow'] = workflow
+                    if j == 0:
+                        first_task_id_group = parameters['task_id']
+                        first_operation_group = parameters['operation_id']
+                        first_slug_group = 'otm'
+                        first_id = i
+                        print "first_id", i
+                        first_parents = task['parents']
+                        first_slug = parameters['operation_slug']
+                        first_task = task
+                        first_port_input = port.get('named_inputs', {})
 
-            # Some temporary variables need to be identified by a sequential
-            # number, so it will be stored in this field
-            task['order'] = i
 
-            parameters['task'] = task
-            parameters['configuration'] = self.configuration
-            parameters['workflow_json'] = json.dumps(workflow)
-            parameters['user'] = workflow['user']
-            parameters['workflow_id'] = workflow['id']
-            parameters['workflow_name'] = workflow['name']
-            parameters['operation_id'] = task['operation']['id']
-            parameters['task_id'] = task['id']
-            parameters['operation_slug'] = task['operation']['slug']
-            parameters['job_id'] = job_id
-            parameters['numFrag'] = self.numFrag
-            port = ports.get(task['id'], {})
+                    class_name = self.operations[task['operation']['slug']]
+                    print "task_idd: {}  - class_name: {}".format(task_idd, class_name)
+                    instance = class_name(parameters,
+                                          port.get('named_inputs', {}),
+                                          port.get('named_outputs', {}))
 
-            instance = class_name(parameters, port.get('named_inputs', {}),
-                                  port.get('named_outputs', {}))
+                    code_0 += instance.generate_code_otm_pre()
+                    code_1.append(instance.generate_code_otm())
 
-            env_setup['dependency_controller'] = DependencyController(
-                params.get('requires_info', False))
 
-            env_setup['instances'].append(instance)
-            env_setup['instances_by_task_id'][task['id']] = instance
+
+                parameters['task'] = first_task
+                #task['order'] = first_id
+                print  task['order']
+                #raw_input()
+                parameters['first_slug'] = first_slug
+                parameters['task']['order'] = first_id
+                #parameters['order'] = first_id
+                parameters['task']['operation']['slug'] = first_slug_group
+                parameters['task']['id'] = first_task_id_group
+                parameters['task']['parents'] = first_parents
+                parameters['task_id'] = first_task_id_group
+                parameters['operation_id'] = first_operation_group
+                parameters['operation_slug'] = first_slug_group
+                parameters['code_0'] = code_0
+                parameters['code_1'] = code_1
+                parameters['number_tasks'] = len(otm_group)
+                parameters['fist_id'] = i
+                task['id'] = first_task_id_group
+
+                instance = OptimizatedOperation(parameters,
+                                                first_port_input,
+                                                port.get('named_outputs', {}))
+
+                env_setup['dependency_controller'] = DependencyController(
+                         params.get('requires_info', False))
+                env_setup['instances'].append(instance)
+                env_setup['instances_by_task_id'][task['id']] = instance
+                env_setup['execute_main'] = params.get('execute_main', False)
+                env_setup['plain'] = params.get('plain', False)
+
+                print "**** FINISHED OTM GROUP ****"
+            else:
+                port = ports.get(task['id'], {})
+
+                parameters = self.get_init_parameters(task, workflow, i)
+                parameters['configuration'] = self.configuration
+                parameters['job_id'] = job_id
+                parameters['numFrag'] = self.numFrag
+
+                class_name = self.operations[task['operation']['slug']]
+                print "task_id: {}  - class_name: {}".format(task_id,
+                                                             class_name)
+
+                parameters = self.check_parents(parameters, conversion_parents)
+                instance = class_name(parameters,
+                                      port.get('named_inputs', {}),
+                                      port.get('named_outputs', {}))
+
+                env_setup['dependency_controller'] = DependencyController(
+                    params.get('requires_info', False))
+
+                env_setup['instances'].append(instance)
+                env_setup['instances_by_task_id'][task['id']] = instance
+
             env_setup['execute_main'] = params.get('execute_main', False)
             env_setup['plain'] = params.get('plain', False)
 
@@ -206,6 +397,10 @@ class COMPSsTranspiler(object):
                                                 HandleExceptionExtension])
         template_env.globals.update(zip=zip)
         template = template_env.get_template("operation.tmpl")
+        print "*" * 20
+        print env_setup
+        print "sorted_tasks_id", sorted_tasks_id
+        print "*" * 20
         v = template.render(env_setup)
 
         if out is None:

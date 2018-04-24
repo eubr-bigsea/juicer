@@ -37,6 +37,7 @@ class DataReaderOperation(Operation):
         self.schema = parameters.get(self.SCHEMA, "FROM_VALUES")
         self.mode = parameters.get(self.MODE_PARAM, 'FAILFAST')
         null_values = parameters.get(self.NULL_VALUES_PARAM, '')
+
         if null_values == '':
             self.null_values = []
         else:
@@ -44,9 +45,11 @@ class DataReaderOperation(Operation):
                 list(set(v.strip() for v in null_values.split(",")))
 
         self.has_code = len(named_outputs) > 0
-        self.onestage = True
         self.has_import = "from functions.data.ReadData import "\
                           "ReadCSVFromHDFSOperation\n"
+
+    def get_otm_info(self):
+        return 'one_stage'
 
     def generate_code(self):
         """Generate code."""
@@ -66,10 +69,43 @@ class DataReaderOperation(Operation):
                     settings['mode'] = '{mode}'
                     {null}
 
-                    {output} = ReadCSVFromHDFSOperation(settings, numFrag)
+                    {output} = ReadCSVFromHDFSOperation()
+                                .transform(settings, numFrag)
                 """.format(output=self.output, input=self.name_file,
                            separator=self.separator, header=self.header,
                            mode=self.mode, schema=self.schema, null=null)
+        return dedent(code)
+
+    def generate_code_otm_pre(self):
+        """Generate code for optimization task."""
+        if len(self.null_values) > 0:
+            null = "settings['na_values'] = {}".format(self.null_values)
+        else:
+            null = ""
+
+        code = """
+        settings = dict()
+        settings['port'] = 9000
+        settings['host'] = 'localhost'
+        settings['path'] = '{input}'
+        settings['header'] = {header}
+        settings['separator'] = '{separator}'
+        settings['infer'] = '{schema}'
+        settings['mode'] = '{mode}'
+        {null}
+        
+        conf.append([])
+        hdfs_blocks = ReadCSVFromHDFSOperation().preprocessing(settings)
+        """.format(input=self.name_file, separator=self.separator,
+                   header=self.header, mode=self.mode,
+                   schema=self.schema, null=null, n=self.order)
+        return code
+
+    def generate_code_otm(self):
+        """Generate code."""
+        code = """
+        {output} = ReadCSVFromHDFSOperation().transform_serial(hdfs_blk)
+        """.format(output=self.output)
         return dedent(code)
 
 
@@ -173,7 +209,6 @@ class SaveOperation(Operation):
     MODE_OVERWRITE = 'overwrite'
     MODE_IGNORE = 'ignore'
 
-    FORMAT_PICKLE = 'PICKLE'
     FORMAT_CSV = 'CSV'
     FORMAT_JSON = 'JSON'
 
@@ -216,9 +251,9 @@ class SaveOperation(Operation):
             code_save = """
                 settings = dict()
                 settings['filename'] = '{output}'
-                settings['mode']     = '{mode}'
-                settings['header']   = {header}
-                settings['format']   = '{format}'
+                settings['mode'] = '{mode}'
+                settings['header'] = {header}
+                settings['format'] = '{format}'
                 {tmp} = SaveOperation({input}, settings,numFrag)
                 """.format(tmp=self.output_tmp, output=self.filename,
                            input=self.named_inputs['input data'],
@@ -229,6 +264,7 @@ class SaveOperation(Operation):
 
 
 class WorkloadBalancerOperation(Operation):
+
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
         if (len(self.named_inputs) == 1) and (len(self.named_outputs) > 0):
@@ -279,8 +315,11 @@ class ChangeAttributesOperation(Operation):
         self.has_code = len(named_inputs) == 1
 
         if self.has_code:
-            self.has_import = "from functions.data.AttributesChanger " \
+            self.has_import = "from functions.data.attributes_changer " \
                               "import AttributesChangerOperation\n"
+
+    def get_otm_info(self):
+        return 'one_stage'
 
     def generate_code(self):
         """Generate code."""
@@ -289,9 +328,30 @@ class ChangeAttributesOperation(Operation):
         settings['new_data_type'] = '{newtype}'
         settings['attributes'] = {att}
         settings['new_name'] = {newname}
-        {out} = AttributesChangerOperation({inputData}, settings, numFrag)
+        {out} = AttributesChangerOperation()
+                    .transform({inputData}, settings, numFrag)
         """.format(out=self.output, att=self.attributes,
                    inputData=self.named_inputs['input data'],
                    newname=self.name, newtype=self.new_type)
+        return dedent(code)
 
+    def generate_code_otm_pre(self):
+        """Generate code for optimization task."""
+        code = """
+        settings = dict()
+        settings['new_data_type'] = '{newtype}'
+        settings['attributes'] = {att}
+        settings['new_name'] = {newname}
+        conf.append(AttributesChangerOperation().preprocessing(settings))
+        """.format(att=self.attributes, newname=self.name,
+                   newtype=self.new_type)
+        return code
+
+    def generate_code_otm(self):
+        """Generate code."""
+        code = """
+        {output} = AttributesChangerOperation()
+                        .transform_serial({input}, conf_X)
+        """.format(output=self.output,
+                   input=self.named_inputs['input data'])
         return dedent(code)

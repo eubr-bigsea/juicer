@@ -34,6 +34,9 @@ class AddColumnsOperation(Operation):
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
 
+    def get_otm_info(self):
+        return 'many_stages'
+
     def generate_code(self):
         """Generate code."""
         code = """
@@ -96,6 +99,9 @@ class AggregationOperation(Operation):
         tmp = 'output_data_{}'.format(self.order)
         self.output = self.named_outputs.get('output data', tmp)
 
+    def get_otm_info(self):
+        return '-----'
+
     def generate_code(self):
         """Generate code."""
         code = """
@@ -127,8 +133,6 @@ class CleanMissingOperation(Operation):
           * "REMOVE_COLUMN": remove entire column
         - value: optional, used to replace missing values
 
-    REVIEW: 2017-10-20
-    OK - Juicer / Tahiti / implementation
     """
 
     def __init__(self, parameters, named_inputs, named_outputs):
@@ -156,6 +160,12 @@ class CleanMissingOperation(Operation):
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
 
+    def get_otm_info(self):
+        if self.mode_CM in ['REMOVE_ROW', 'VALUE']:
+            return 'one_stage'
+        else:
+            return 'many_stages'
+
     def generate_code(self):
         code = """
             settings = dict()
@@ -168,10 +178,38 @@ class CleanMissingOperation(Operation):
             settings['value'] = {value}
             """.format(value=self.value_CM)
         code += """
-            {output} = CleanMissingOperation({input}, settings, numFrag)
+            {output} = CleanMissingOperation()
+                        .transform({input}, settings, numFrag)
             """.format(output=self.output,
                        input=self.named_inputs['input data'])
 
+        return dedent(code)
+
+    def generate_code_otm_pre(self):
+        """Generate code for optimization task."""
+        code = """
+        settings = dict()
+        settings['attributes'] = {attributes}
+        settings['cleaning_mode'] = '{cleaning_mode}'
+        """.format(attributes=self.attributes_CM,
+                   cleaning_mode=self.mode_CM)
+
+        if self.mode_CM == "VALUE":
+            code += """
+        settings['value'] = {value}
+        """.format(value=self.value_CM)
+
+        code +="""
+        conf.append(CleanMissingOperation().preprocessing(settings))
+        """
+        return code
+
+    def generate_code_otm(self):
+        """Generate code."""
+        code = """
+        {output} = CleanMissingOperation().transform_serial({input}, conf_X)
+        """.format(output=self.output,
+                   input=self.named_inputs['input data'])
         return dedent(code)
 
 
@@ -193,6 +231,9 @@ class DifferenceOperation(Operation):
                 "from functions.etl.Difference import DifferenceOperation\n"
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
+
+    def get_otm_info(self):
+        return 'many_stages'
 
     def generate_code(self):
         code = """
@@ -222,8 +263,12 @@ class DistinctOperation(Operation):
                 "from functions.etl.Distinct import DistinctOperation\n"
 
         self.attributes = parameters.get('attributes', [])
+        self.attributes = [] if len(self.attributes) == 0 else self.attributes
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
+
+    def get_otm_info(self):
+        return 'many_stages'
 
     def generate_code(self):
         """Generate code."""
@@ -242,41 +287,56 @@ class DropOperation(Operation):
     Returns a new DataFrame that drops the specified column.
     Nothing is done if schema doesn't contain the given column name(s).
     The only parameters is the name of the columns to be removed.
-
-    REVIEW: 2017-10-20
-    OK - Juicer / Tahiti / implementation
     """
 
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
         self.has_code = len(named_inputs) == 1
-        self.onestage = True
         if self.has_code:
             self.has_import = "from functions.etl.Drop import DropOperation\n"
 
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
+        self.output_pre = 'conf_{}'.format(parameters['task']['order'])
+
+    def get_otm_info(self):
+        return 'one_stage'
 
     def generate_code(self):
         """Generate code."""
         code = """
         columns = {columns}
-        {output} = DropOperation({input}, columns, numFrag)
+        {output} = DropOperation().transform({input}, columns, numFrag)
         """.format(output=self.output,
                    input=self.named_inputs['input data'],
                    columns=self.parameters['attributes'])
         return dedent(code)
 
+    def generate_code_otm_pre(self):
+        """Generate code for optimization task."""
+        code = """
+        columns = {columns}
+        conf.append(DropOperation().preprocessing(columns))
+        """.format(columns=self.parameters['attributes'])
+        return code
+
+    def generate_code_otm(self):
+        """Generate code."""
+        code = """
+        {output} = DropOperation().transform_serial({input}, conf_X)
+        """.format(output=self.output,
+                   input=self.named_inputs['input data'])
+        return dedent(code)
+
 
 class FilterOperation(Operation):
-    """
+    """FilterOperation.
+
     Filters rows using the given condition.
     Parameters:
         - The expression (==, <, >)
-
-    REVIEW: 2017-10-20
-    OK - Juicer / Tahiti / implementation
     """
+
     FILTER_PARAM = 'filter'
 
     def __init__(self, parameters,  named_inputs, named_outputs):
@@ -287,11 +347,13 @@ class FilterOperation(Operation):
                 _("Parameters '{}' must be informed for task {}").
                 format(self.FILTER_PARAM, self.__class__))
 
+        self.output = self.named_outputs.get(
+                'output data', 'output_data_{}'.format(self.order))
+        self.output_pre = 'conf_{}'.format(parameters['task']['order'])
         self.has_code = (len(named_inputs) == 1)
-        self.onestage = True
         if self.has_code:
             self.has_import = \
-                "from functions.etl.Filter import FilterOperation\n"
+                "from functions.etl.filter import FilterOperation\n"
 
         self.query = ""
         for dict in parameters.get(self.FILTER_PARAM):
@@ -299,18 +361,36 @@ class FilterOperation(Operation):
                                                    dict['f'],
                                                    dict['alias'])
         self.query = self.query[:-4]
-        self.output = self.named_outputs.get(
-            'output data', 'output_data_{}'.format(self.order))
+
+
+    def get_otm_info(self):
+        return 'one_stage'
 
     def generate_code(self):
         """Generate code."""
         code = """
         settings = dict()
         settings['query'] = "{query}"
-        {out} = FilterOperation({input}, settings, numFrag)
+        {out} = FilterOperation().transform({input}, settings, numFrag)
         """.format(out=self.output,
                    input=self.named_inputs['input data'],
                    query=self.query)
+        return dedent(code)
+
+    def generate_code_otm_pre(self):
+        """Generate code for optimization task."""
+        code = """
+        query = "{query}"
+        conf.append(FilterOperation().preprocessing(query))
+        """.format(query=self.query)
+        return code
+
+    def generate_code_otm(self):
+        """Generate code for optimization task."""
+        code = """
+        {out} = FilterOperation().transform_serial({input}, conf_X)
+        """.format(out=self.output,
+                   input=self.named_inputs['input data'])
         return dedent(code)
 
 
@@ -339,6 +419,9 @@ class Intersection(Operation):
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
 
+    def get_otm_info(self):
+        return 'many_stages'
+
     def generate_code(self):
         """Generate code."""
         code = "{} = IntersectionOperation({},{})".format(
@@ -364,9 +447,10 @@ class JoinOperation(Operation):
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
-        self.keep_right_keys = parameters.get(self.KEEP_RIGHT_KEYS_PARAM, False)
-        self.match_case = parameters.get(self.MATCH_CASE_PARAM, False) \
-                          in (1, '1', True)
+        self.keep_right_keys = parameters.get(self.KEEP_RIGHT_KEYS_PARAM,
+                                              False) in (1, '1', True)
+        self.match_case = parameters.get(self.MATCH_CASE_PARAM,
+                                         False) in (1, '1', True)
         self.join_type = parameters.get(self.JOIN_TYPE_PARAM, 'inner')
 
         if not all([self.LEFT_ATTRIBUTES_PARAM in parameters,
@@ -392,6 +476,9 @@ class JoinOperation(Operation):
         self.suffixes = [s for s in self.suffixes.split(',')]
         tmp = 'output_data_{}'.format(self.order)
         self.output = self.named_outputs.get('output data', tmp)
+
+    def get_otm_info(self):
+        return 'many_stages'
 
     def generate_code(self):
         """Generate code."""
@@ -447,6 +534,9 @@ class NormalizeOperation(Operation):
         if self.has_code:
             self.has_import = "from functions.etl.Normalize " \
                               "import NormalizeOperation\n"
+
+    def get_otm_info(self):
+        return 'many_stages'
 
     def generate_code(self):
         """Generate code."""
@@ -511,16 +601,38 @@ class ReplaceValuesOperation(Operation):
         tmp = 'output_data_{}'.format(self.order)
         self.output = self.named_outputs.get('output data', tmp)
 
+    def get_otm_info(self):
+        return 'one_stage'
+
     def generate_code(self):
         """Generate code."""
         code = """
             settings = dict()
             settings['replaces'] = {replaces}
             settings['regex'] = {regex}
-            {output} = ReplaceValuesOperation({input}, settings, numFrag)
+            {output} = ReplaceValuesOperation()
+                        .transform({input}, settings, numFrag)
             """.format(output=self.output, replaces=self.replaces,
                        input=self.named_inputs['input data'],
                        regex=self.input_regex)
+        return dedent(code)
+
+    def generate_code_otm_pre(self):
+        """Generate code for optimization task."""
+        code = """
+        settings = dict()
+        settings['replaces'] = {replaces}
+        settings['regex'] = {regex}
+        conf.append(ReplaceValuesOperation().preprocessing(settings))
+        """.format(replaces=self.replaces, regex=self.input_regex)
+        return code
+
+    def generate_code_otm(self):
+        """Generate code for optimization task."""
+        code = """
+        {output} = ReplaceValuesOperation().transform_serial({input}, conf_X)
+        """.format(output=self.output,
+                   input=self.named_inputs['input data'])
         return dedent(code)
 
 
@@ -559,6 +671,9 @@ class SampleOrPartition(Operation):
             self.has_import = "from functions.etl.Sample "\
                               "import SampleOperation\n"
 
+    def get_otm_info(self):
+        return 'many_stages'
+
     def generate_code(self):
         """Generate code."""
         code = """
@@ -579,8 +694,6 @@ class SelectOperation(Operation):
     Parameters:
     - The list of columns selected.
 
-    REVIEW: 2017-10-20
-    OK - Juicer / Tahiti / implementation
     """
 
     ATTRIBUTES_PARAM = 'attributes'
@@ -597,12 +710,16 @@ class SelectOperation(Operation):
                 .format(self.ATTRIBUTES_PARAM, self.__class__))
 
         self.has_code = len(named_inputs) == 1
-        self.onestage = True
         self.output = self.named_outputs.get(
             'output projected data', 'projection_data_{}'.format(self.order))
+
+        self.output_pre = 'conf_{}'.format(parameters['task']['order'])
         if self.has_code:
             self.has_import = \
                 "from functions.etl.Select import SelectOperation\n"
+
+    def get_otm_info(self):
+        return 'one_stage'
 
     def generate_code(self):
         """Generate code."""
@@ -610,6 +727,22 @@ class SelectOperation(Operation):
         columns = [{column}]
         {output} = SelectOperation({input}, columns, numFrag)
         """.format(output=self.output, column=self.cols,
+                   input=self.named_inputs['input data'])
+        return dedent(code)
+
+    def generate_code_otm_pre(self):
+        """Generate code for optimization task."""
+        code = """
+        columns = [{column}]
+        conf.append(SelectOperation().preprocessing(columns))
+        """.format(column=self.cols)
+        return code
+
+    def generate_code_otm(self):
+        """Generate code for optimization task."""
+        code = """
+        {output} = SelectOperation().transform_serial({input}, conf_X)
+        """.format(output=self.output,
                    input=self.named_inputs['input data'])
         return dedent(code)
 
@@ -659,6 +792,9 @@ class SortOperation(Operation):
 
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
+
+    def get_otm_info(self):
+        return 'many_stages'
 
     def generate_code(self):
         """Generate code."""
@@ -713,6 +849,9 @@ class SplitOperation(Operation):
     def get_output_names(self, sep=', '):
         return sep.join([self.out1, self.out2])
 
+    def get_otm_info(self):
+        return 'many_stage'
+
     def generate_code(self):
         """Generate code."""
         code = """
@@ -746,7 +885,7 @@ class TransformationOperation(Operation):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
         self.has_code = any(
             [len(self.named_inputs) > 0, self.contains_results()])
-        self.onestage = True
+
         if self.has_code:
             if 'expression' in parameters:
                 self.expressions = parameters['expression']
@@ -758,6 +897,9 @@ class TransformationOperation(Operation):
                 "from functions.etl.Transform import TransformOperation\n"
             self.output = self.named_outputs.get(
                 'output data', 'sampled_data_{}'.format(self.order))
+
+    def get_otm_info(self):
+        return 'one_stage'
 
     def generate_code(self):
         """Generate code."""
@@ -773,7 +915,7 @@ class TransformationOperation(Operation):
 
         code = """
         settings = dict()
-        settings['functions']   = {expr}
+        settings['functions'] = {expr}
         {out} = TransformOperation({input}, settings, numFrag)
         """.format(out=self.output,
                    input=self.named_inputs['input data'],
@@ -803,6 +945,9 @@ class UnionOperation(Operation):
 
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
+
+    def get_otm_info(self):
+        return 'many_stage'
 
     def generate_code(self):
         """Generate code."""
