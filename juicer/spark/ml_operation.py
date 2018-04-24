@@ -614,8 +614,16 @@ class EvaluateModelOperation(Operation):
                 if summary.numInstances < 2000 and display_image:
                     predictions = [r[prediction_col] for r in
                         summary.predictions.collect()]
-                    residuals = [r['devianceResiduals'] for r in
-                        summary.residuals().collect()]
+
+                    if isinstance({model}, LinearRegressionModel):
+                        residuals_col = 'residuals'
+                        df_residual = summary.residuals
+                    else:
+                        residuals_col = 'devianceResiduals'
+                        df_residual = summary.residuals()
+                        
+                    residuals = [r[residuals_col] for r in
+                        df_residual.collect()]
                     pandas_df = pd.DataFrame.from_records(
                         [
                             dict(prediction=x[0], residual=x[1])
