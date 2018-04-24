@@ -388,6 +388,8 @@ class SparkTranspiler(object):
 
             'save-model': juicer.spark.ml_operation.SaveModelOperation,
             'load-model': juicer.spark.ml_operation.LoadModelOperation,
+            'voting-classifier':
+                juicer.spark.ml_operation.VotingClassifierOperation,
 
         }
 

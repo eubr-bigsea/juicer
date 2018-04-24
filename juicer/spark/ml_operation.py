@@ -390,7 +390,7 @@ class EvaluateModelOperation(Operation):
         self.has_code = any([(
             (len(self.named_inputs) > 0 and len(self.named_outputs) > 0) or
             (self.named_outputs.get('evaluator') is not None) or
-            (len(self.named_inputs) == 2)
+            ('input data' in self.named_inputs)
         ), self.contains_results()])
 
         self.model = self.named_inputs.get('model')
@@ -863,6 +863,7 @@ class ClassificationModelOperation(Operation):
     FEATURES_ATTRIBUTE_PARAM = 'features'
     LABEL_ATTRIBUTE_PARAM = 'label'
     PREDICTION_ATTRIBUTE_PARAM = 'prediction'
+    WEIGHTS_PARAM = 'weights'
 
     def __init__(self, parameters, named_inputs,
                  named_outputs):
@@ -886,6 +887,8 @@ class ClassificationModelOperation(Operation):
             self.features = parameters.get(self.FEATURES_ATTRIBUTE_PARAM)[0]
             self.prediction = parameters.get(self.PREDICTION_ATTRIBUTE_PARAM,
                                              'prediction')
+            self.ensemble_weights = parameters.get(self.WEIGHTS_PARAM,
+                                                   '1') or '1'
 
             self.model = named_outputs.get('model',
                                            'model_task_{}'.format(self.order))
@@ -912,6 +915,11 @@ class ClassificationModelOperation(Operation):
             # and this may cause concurrency problems
             params = dict([(p.name, v) for p, v in
                 alg.extractParamMap().items()])
+
+            # Perceptron does not support some parameters
+            if isinstance(alg, MultilayerPerceptronClassifier):
+                del params['rawPredictionCol']
+
             algorithm_cls = globals()[alg.__class__.__name__]
             algorithm = algorithm_cls()
             algorithm.setParams(**params)
@@ -921,6 +929,9 @@ class ClassificationModelOperation(Operation):
             algorithm.setFeaturesCol('{feat}')
             {model} = algorithm.fit({train})
 
+            # Used in ensembles, e.g. VotingClassifierOperation
+            setattr({model}, 'ensemble_weights', {weights})
+
             # Lazy execution in case of sampling the data in UI
             def call_transform(df):
                 return {model}.transform(df)
@@ -928,7 +939,6 @@ class ClassificationModelOperation(Operation):
                 {model}, {train}, call_transform)
             display_text = {display_text}
             if display_text:
-                from juicer.spark.reports import SimpleTableReport
                 rows = [[m, getattr({model}, m)] for m in metrics
                     if hasattr({model}, m)]
                 headers = {headers}
@@ -959,7 +969,9 @@ class ClassificationModelOperation(Operation):
                 headers=[_('Parameter'), _('Value'), ],
                 task_id=self.parameters['task_id'],
                 operation_id=self.parameters['operation_id'],
-            )
+                weights=repr(
+                    [float(w) for w in self.ensemble_weights.split(',')]
+                ))
 
             return dedent(code)
 
@@ -1282,6 +1294,88 @@ class OneVsRestClassifier(ClassifierOperation):
             c=self.named_inputs.get('algorithm'), k=ctor_params)
 
 
+class VotingClassifierOperation(Operation):
+    PREDICTION_ATTRIBUTE_PARAM = 'prediction_attribute'
+
+    def __init__(self, parameters, named_inputs,
+                 named_outputs):
+        Operation.__init__(self, parameters, named_inputs,
+                           named_outputs)
+
+        self.models = named_inputs.get('models')
+        self.prediction = parameters.get(
+            self.PREDICTION_ATTRIBUTE_PARAM,
+            'voting_prediction') or 'voting_prediction'
+        self.has_code = self.has_code = all(
+            [any(['output data' in self.named_outputs,
+                  self.contains_results()]),
+             len(self.models) > 0], )
+
+    def generate_code(self):
+        input_data = self.named_inputs.get('input data')
+        code = dedent("""
+            evaluators = [m.copy() for m in [{models}]]
+            weights_count = len(evaluators)
+
+            prediction_col = '{prediction}'
+            conflict_names = ['rawPredictionCol', 'predictionCol',
+                'probabilityCol']
+            predictions = []
+            weights = []
+            rows = []
+            for i, evaluator in enumerate(evaluators):
+                weights.append(evaluator.ensemble_weights[0]
+                    if hasattr(evaluator, 'ensemble_weights') else 1)
+                # noinspection PyProtectedMember
+                params = evaluator._paramMap
+                rows.append([evaluator.__class__.__name__ , i + 1, weights[i]])
+                for conflict in conflict_names:
+                    k = [p for p in params.keys() if p.name == conflict]
+                    if k:
+                        params[k[0]] = '{{}}{{}}'.format(conflict, i)
+                    if conflict == 'predictionCol':
+                        predictions.append(params[k[0]])
+
+            headers = ['{name}', '{order}', '{weight}']
+
+            content = SimpleTableReport(
+                    'table table-striped table-bordered table-sm',
+                    headers, rows,
+                    title='{title}')
+
+            emit_event(
+                'update task', status='COMPLETED',
+                identifier='{task_id}',
+                message=content.generate(),
+                type='HTML', title='{title}',
+                task={{'id': '{task_id}'}},
+                operation={{'id': {operation_id}}},
+                operation_id={operation_id})
+
+            pipeline = Pipeline(stages=evaluators)
+            model = pipeline.fit({input})
+
+            def summarize(arr):
+                acc= collections.defaultdict(int)
+                for j, v in enumerate(arr):
+                    acc[v] += weights[j]
+                return max(acc.items(), key=lambda x: x[1])[0]
+
+            {out} = model.transform({input}).withColumn('all_predictions',
+                functions.array(*predictions)).withColumn(prediction_col,
+                    functions.udf(summarize, types.DoubleType())(
+                        'all_predictions'))
+
+        """.format(models=', '.join(self.models), input=input_data,
+                   out=self.output, prediction=self.prediction,
+                   title=_('Models used in ensemble classification'),
+                   task_id=self.parameters['task_id'],
+                   operation_id=self.parameters['operation_id'],
+                   name=_('name'), order=_('order'), weight=_('weight'),
+                   ))
+        return code
+
+
 class ClassificationReport(ReportOperation):
     def __init__(self, parameters, named_inputs,
                  named_outputs):
@@ -1349,8 +1443,6 @@ class ClusteringModelOperation(Operation):
 
         if self.has_code:
             code = """
-            from juicer.spark.reports import SimpleTableReport
-
             {algorithm}.setFeaturesCol('{features}')
             if hasattr({algorithm}, 'setPredictionCol'):
                 {algorithm}.setPredictionCol('{prediction}')
