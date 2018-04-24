@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+from __future__ import unicode_literals
+
 import json
 import time
 from random import random
@@ -22,7 +24,7 @@ class SplitOperation(Operation):
     def __init__(self, parameters, named_inputs,
                  named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
-        value = float(parameters.get(self.WEIGHTS_PARAM, 50))
+        value = float(parameters.get(self.WEIGHTS_PARAM, 50) or 50)
 
         self.weights = [value, 100 - value]
         self.seed = parameters.get(self.SEED_PARAM, int(random() * time.time()))
@@ -130,19 +132,26 @@ class RemoveDuplicatedOperation(Operation):
 
         self.has_code = any(
             [len(self.named_inputs) == 1, self.contains_results()])
+        self.output = self.named_outputs.get('output data',
+                                             'dedup_data_{}'.format(
+                                                 self.order))
+
+    def get_output_names(self, sep=", "):
+        return self.output
+
+    def get_data_out_names(self, sep=','):
+        return self.output
 
     def generate_code(self):
-        output = self.named_outputs.get('output data', 'dedup_data_{}'.format(
-            self.order))
         input_data = self.named_inputs['input data']
 
         if self.attributes:
             code = "{output} = {input}.dropDuplicates(subset={attrs})".format(
-                output=output, input=input_data,
+                output=self.output, input=input_data,
                 attrs=json.dumps(self.attributes))
         else:
             code = "{out} = {input}.dropDuplicates()".format(
-                out=output, input=input_data)
+                out=self.output, input=input_data)
         return dedent(code)
 
 
@@ -174,6 +183,7 @@ class SampleOrPartitionOperation(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
+        self.supports_cache = (self.parameters.get(self.SEED_PARAM) is not None)
         self.seed = parameters.get(self.SEED_PARAM,
                                    int(random() * time.time()))
         self.fold_count = parameters.get(self.FOLD_COUNT_PARAM, 10)
@@ -209,7 +219,7 @@ class SampleOrPartitionOperation(Operation):
 
     def generate_code(self):
         code = ''
-        input_data = self.named_inputs['input data']
+        input_data = self.named_inputs.get('input data')
 
         if self.type == self.TYPE_PERCENT:
             code = ("{out} = {input}.sample(withReplacement={wr}, "
@@ -221,11 +231,9 @@ class SampleOrPartitionOperation(Operation):
             # Spark 2.0.2 DataFrame API does not have takeSample implemented
             # See [SPARK-15324]
             # This implementation may be inefficient!
-            code = ("{out} = {input}.sample(withReplacement={wr}, "
-                    "fraction={fr}, seed={seed}).limit({limit})"
-                    .format(out=self.output, input=input_data,
-                            wr=self.withReplacement, fr=1.0, seed=self.seed,
-                            limit=self.value))
+            code = ("{out} = {input}.orderBy(functions.rand({seed})).limit("
+                    "{limit})".format(out=self.output, input=input_data,
+                                      seed=self.seed, limit=self.value))
             pass
         elif self.type == self.TYPE_HEAD:
             code = "{out} = {input}.limit({limit})" \
@@ -245,16 +253,29 @@ class IntersectionOperation(Operation):
         self.parameters = parameters
         self.has_code = any(
             [len(self.named_inputs) == 2, self.contains_results()])
+        self.output = self.named_outputs.get(
+            'output data', 'out_{}'.format(self.order))
+
+    def get_output_names(self, sep=", "):
+        return self.output
+
+    def get_data_out_names(self, sep=','):
+        return self.output
 
     def generate_code(self):
-        output = self.named_outputs.get(
-            'output data', 'intersected_data_{}'.format(self.order))
-
         input_data1 = self.named_inputs['input data 1']
         input_data2 = self.named_inputs['input data 2']
 
-        code = "{out} = {in1}.intersect({in2})".format(
-            out=output, in1=input_data1, in2=input_data2)
+        code = dedent(
+            """
+            if len({in1}.columns) != len({in2}.columns):
+                raise ValueError('{error}')
+            {out} = {in1}.intersect({in2})
+            """.format(out=self.output, in1=input_data1, in2=input_data2,
+                       error=_(
+                           'For intersection operation, both input data '
+                           'sources must have the same number of attributes '
+                           'and types.')))
         return dedent(code)
 
 
@@ -269,15 +290,18 @@ class DifferenceOperation(Operation):
         self.has_code = any(
             [len(self.named_inputs) == 2, self.contains_results()])
 
-    def generate_code(self):
-        output = self.named_outputs.get(
+        self.output = self.named_outputs.get(
             'output data', 'intersected_data_{}'.format(self.order))
 
+    def get_output_names(self, sep=", "):
+        return self.output
+
+    def generate_code(self):
         input_data1 = self.named_inputs['input data 1']
         input_data2 = self.named_inputs['input data 2']
 
         code = "{out} = {in1}.subtract({in2})".format(
-            out=output, in1=input_data1, in2=input_data2)
+            out=self.output, in1=input_data1, in2=input_data2)
         return dedent(code)
 
 
@@ -396,35 +420,50 @@ class TransformationOperation(Operation):
         replace it.
         - Expression: json describing the transformation expression
     """
-    ALIAS_PARAM = 'alias'
     EXPRESSION_PARAM = 'expression'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
-        if all(['alias' in parameters, 'expression' in parameters]):
-            self.alias = parameters['alias']
-            self.json_expression = json.loads(parameters['expression'])['tree']
-        else:
-            raise ValueError(
-                _("Parameters '{}' and {} must be informed for task {}").format(
-                    self.ALIAS_PARAM, self.EXPRESSION_PARAM, self.__class__))
         self.has_code = any(
             [len(self.named_inputs) > 0, self.contains_results()])
-        self.output = self.named_outputs.get(
-            'output data', 'sampled_data_{}'.format(self.order))
+        if self.has_code:
+            if 'expression' in parameters:
+                self.expressions = parameters['expression']
+            else:
+                msg = _("Parameter must be informed for task {}.")
+                raise ValueError(
+                    msg.format(self.EXPRESSION_PARAM, self.__class__))
+            self.output = self.named_outputs.get(
+                'output data', 'sampled_data_{}'.format(self.order))
+
+    def supports_pipeline(self):
+        return True
 
     def generate_code(self):
         input_data = self.named_inputs['input data']
         params = {'input': input_data}
 
-        # Builds the expression and identify the target column
-        expression = Expression(self.json_expression, params)
-        built_expression = expression.parsed_expression
+        expr_alias = []
+        for expr in self.expressions:
+            # Builds the expression and identify the target column
+            expression = Expression(expr['tree'], params)
+            expr_alias.append("                [{}, '{}']".format(
+                expression.parsed_expression, expr['alias']))
 
         code = dedent("""
-        {out} = {in1}.withColumn('{alias}',
-            {expr})""".format(out=self.output, in1=input_data, alias=self.alias,
-                              expr=built_expression))
+            from juicer.spark.ext import CustomExpressionTransformer
+            expr_alias = [
+                {expr_alias}
+            ]
+            tmp_out = {in1}
+            for expr, alias in expr_alias:
+                transformer = CustomExpressionTransformer(outputCol=alias,
+                                                          expression=expr)
+                tmp_out = transformer.transform(tmp_out)
+            {out} = tmp_out
+        """.format(out=self.output, in1=input_data,
+                   expr_alias=',\n'.join(expr_alias).strip()))
+
         return dedent(code)
 
 
@@ -573,8 +612,8 @@ class AggregationOperation(Operation):
             if not all([f.get('attribute'), f.get('f'), f.get('alias')]):
                 raise ValueError(_('Missing parameter in aggregation function'))
 
-        self.has_code = any(
-            [len(self.named_inputs) == 1, self.contains_results()])
+        self.has_code = len(self.named_inputs) == 1 and any(
+            [len(self.named_outputs) == 1, self.contains_results()])
         # noinspection PyArgumentEqualDefault
         self.pivot = next(iter(parameters.get(self.PIVOT_ATTRIBUTE) or []),
                           None)
@@ -659,30 +698,44 @@ class FilterOperation(Operation):
         - The expression (==, <, >)
     """
     FILTER_PARAM = 'filter'
+    ADVANCED_FILTER_PARAM = 'expression'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
-        if self.FILTER_PARAM not in parameters:
+        if self.FILTER_PARAM not in parameters and self.ADVANCED_FILTER_PARAM \
+                not in parameters:
             raise ValueError(
                 _("Parameter '{}' must be informed for task {}".format(
                     self.FILTER_PARAM, self.__class__)))
 
-        self.filter = parameters.get(self.FILTER_PARAM)
+        self.advanced_filter = parameters.get(self.ADVANCED_FILTER_PARAM) or []
+        self.filter = parameters.get(self.FILTER_PARAM) or []
 
         self.has_code = any(
             [len(self.named_inputs) == 1, self.contains_results()])
+        self.output = self.named_outputs.get('output data',
+                                             'out_{}'.format(self.order))
 
     def generate_code(self):
         input_data = self.named_inputs['input data']
-        output = self.named_outputs['output data']
+        params = {'input': input_data}
 
         filters = [
             "(functions.col('{0}') {1} '{2}')".format(
                 f['attribute'], f['f'], f.get('value', f.get('alias')))
             for f in self.filter]
 
-        code = "{out} = {in1}.filter({f})".format(
-            out=output, in1=input_data, f=' & '.join(filters))
+        for expr in self.advanced_filter:
+            expression = Expression(expr['tree'], params)
+            filters.append('({})'.format(expression.parsed_expression))
+
+        indentation = ' & \n' + (17 * ' ')
+        code = """
+            {out} = {in1}.filter(
+                {f})
+            """.format(
+            out=self.output, in1=input_data, f=indentation.join(filters))
+
         return dedent(code)
 
 
@@ -751,8 +804,8 @@ class CleanMissingOperation(Operation):
 
             # Based on http://stackoverflow.com/a/35674589/1646932
             select_list = [
-                ("\n    (functions.count('{0}') / "
-                 "functions.count('*')).alias('{0}')").format(attr)
+                ("\n    (functions.avg(functions.col('{0}').isNull()."
+                 "cast('int'))).alias('{0}')").format(attr)
                 for attr in self.attributes]
             pre_code.extend([
                 "# Computes the ratio of missing values for each attribute",
@@ -788,13 +841,22 @@ class CleanMissingOperation(Operation):
 
         elif self.cleaning_mode == self.MODE:
             # Based on http://stackoverflow.com/a/36695251/1646932
+            # But null values cause exception, so it needs to remove them
             partial.append("""
+                import decimal
                 md_replace_{1} = dict()
                 for md_attr_{1} in attributes_{1}:
-                    md_count_{1} = {0}.groupBy(md_attr_{1}).count()\\
-                        .orderBy(desc('count')).limit(1)
-                    md_replace_{1}[md_attr_{1}] = md_count_{1}.collect()[0][0]
-             {0} = {1}.fillna(value=md_replace_{1})""".format(
+                    md_count_{1} = {1}.na.drop(subset=[md_attr_{1}]).groupBy(
+                        md_attr_{1}).count().orderBy(
+                            functions.desc('count')).limit(1)
+                    # Spark does not support BigDecimal!
+                    if isinstance(md_count_{1}.collect()[0][0],
+                        decimal.Decimal):
+                        replacement = float(md_count_{1}.collect()[0][0])
+                    else:
+                        replacement = md_count_{1}.collect()[0][0]
+                    md_replace_{1}[md_attr_{1}] = replacement
+                {0} = {1}.fillna(value=md_replace_{1})""".format(
                 self.output, input_data)
             )
 
@@ -806,8 +868,8 @@ class CleanMissingOperation(Operation):
                 for mdn_attr_{1} in attributes_{1}:
                     # Computes median value for column with relat. error=10%
                     mdn_{1} = {1}.na.drop(subset=[mdn_attr_{1}])\\
-                        .approxQuantile(mdn_attr_{1}, [.5], .1)
-                    md_replace_{1}[mdn_attr_{1}] = mdn_{1}[0]
+                        .approxQuantile(str(mdn_attr_{1}), [.5], .1)
+                    mdn_replace_{1}[mdn_attr_{1}] = mdn_{1}[0]
                 {0} = {1}.fillna(value=mdn_replace_{1})""".format(
                 self.output, input_data))
 
@@ -815,7 +877,9 @@ class CleanMissingOperation(Operation):
             partial.append("""
                 avg_{1} = {1}.select([functions.avg(c).alias(c)
                                         for c in attributes_{1}]).collect()
-                values_{1} = dict([(c, avg_{1}[0][c]) for c in attributes_{1}])
+                # Convert to float because Spark complains about Decimal
+                values_{1} = dict([(c, float(avg_{1}[0][c]))
+                    for c in attributes_{1}])
                 {0} = {1}.na.fill(value=values_{1})""".format(self.output,
                                                               input_data))
         else:
@@ -906,6 +970,8 @@ class PivotTableOperation(Operation):
 
         self.has_code = any(
             [len(self.named_inputs) == 1, self.contains_results()])
+        self.output = self.named_outputs.get('output data',
+                                             'out_{}'.format(self.order))
 
     def generate_code(self):
         elements = []
@@ -915,7 +981,6 @@ class PivotTableOperation(Operation):
                 function['alias']))
 
         input_data = self.named_inputs['input data']
-        output = self.named_outputs['output data']
 
         group_by = ', '.join(
             ["functions.col('{}')".format(attr)
@@ -924,7 +989,8 @@ class PivotTableOperation(Operation):
 
         code = """
             {out} = {input}.groupBy({keys}).pivot({pivot}).agg({el})
-            """.format(out=output, input=input_data, keys=group_by, pivot=pivot,
+            """.format(out=self.output, input=input_data, keys=group_by,
+                       pivot=pivot,
                        el=', \n        '.join(elements))
 
         return dedent(code)
@@ -944,15 +1010,18 @@ class ExecutePythonOperation(Operation):
 
         # Always execute
         self.has_code = True
+        self.out1 = self.named_outputs.get('output data 1',
+                                           'out_1_{}'.format(self.order))
+        self.out2 = self.named_outputs.get('output data 2',
+                                           'out_2_{}'.format(self.order))
+
+    def get_output_names(self, sep=", "):
+        return sep.join([self.out1, self.out2])
 
     def generate_code(self):
         in1 = self.named_inputs.get('input data 1', 'None')
-        out1 = self.named_outputs.get('output data 1',
-                                      'out_1_{}'.format(self.order))
 
         in2 = self.named_inputs.get('input data 2', 'None')
-        out2 = self.named_outputs.get('output data 2',
-                                      'out_2_{}'.format(self.order))
 
         code = dedent("""
         import json
@@ -960,7 +1029,8 @@ class ExecutePythonOperation(Operation):
         from RestrictedPython.RCompile import compile_restricted
         from RestrictedPython.PrintCollector import PrintCollector
 
-
+        results = [r[1].result() for r in task_futures.items() if r[1].done()]
+        results = dict([(r['task_name'], r) for r in results])
         # Input data
         in1 = {in1}
         in2 = {in2}
@@ -971,6 +1041,7 @@ class ExecutePythonOperation(Operation):
 
         # Variables and language supported
         ctx = {{
+            'wf_results': results,
             'in1': in1,
             'in2': in2,
             'out1': out1,
@@ -991,10 +1062,10 @@ class ExecutePythonOperation(Operation):
 
         ctx['__builtins__']= safe_builtins
 
-        compiled_code = compile_restricted(user_code, 'python_execute_{order}',
-            'exec')
+        compiled_code = compile_restricted(user_code,
+        str('python_execute_{order}'), str('exec'))
         try:
-            exec(compiled_code) in ctx
+            exec compiled_code in ctx
 
             # Retrieve values changed in the context
             out1 = ctx['out1']
@@ -1019,7 +1090,7 @@ class ExecutePythonOperation(Operation):
         code += dedent("""
         {out1} = out1
         {out2} = out2
-        """.format(out1=out1, out2=out2))
+        """.format(out1=self.out1, out2=self.out2))
         return dedent(code)
 
 
@@ -1112,3 +1183,151 @@ class TableLookupOperation(Operation):
 
     def generate_code(self):
         pass
+
+
+class WindowTransformationOperation(Operation):
+    """
+    Returns a new DataFrame applying transformations over a window.
+    See documentation about window operations in Spark.
+    """
+
+    PARTITION_ATTRIBUTE_PARAM = 'partition_attribute'
+    ORDER_BY_PARAM = 'order_by'
+    ROWS_FROM_PARAM = 'rows_from'
+    ROWS_TO_PARAM = 'rows_to'
+    RANGE_FROM_PARAM = 'range_from'
+    RANGE_TO_PARAM = 'range_to'
+    EXPRESSIONS_PARAM = 'expressions'
+    TYPE_PARAM = 'type'
+
+    ROWS = 'rows'
+    RANGE = 'range'
+    NONE = 'none'
+    TYPES = (ROWS, RANGE, NONE)
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+        self.has_code = any(
+            [len(self.named_inputs) > 0, self.contains_results()])
+
+        self.partition_attribute = None
+        self.expressions = None
+        if self.has_code:
+            required_params = [self.EXPRESSIONS_PARAM,
+                               self.PARTITION_ATTRIBUTE_PARAM]
+            for required in required_params:
+                if required in parameters:
+                    setattr(self, required, parameters[required])
+                else:
+                    msg = _("Parameter '{}' must be informed for task {}")
+                    raise ValueError(msg.format(required, self.__class__))
+
+            if isinstance(self.partition_attribute, list):
+                self.partition_attribute = self.partition_attribute[0]
+            self.type = parameters.get(self.TYPE_PARAM, self.NONE)
+            if self.type not in self.TYPES:
+                msg = _('The value for parameter {} must be one of these: {}.')
+                raise ValueError(msg.format('type', ', '.join(self.TYPES)))
+
+            for expression in self.expressions:
+                if 'alias' not in expression:
+                    msg = _("Parameter '{}' must be informed in all "
+                            "expressions in task {}.")
+                    raise ValueError(msg.format('alias'), self.__class__)
+                if 'tree' not in expression:
+                    msg = _("Parameter '{}' must be informed in all "
+                            "expressions in task {}.")
+                    raise ValueError(msg.format('tree'), self.__class__)
+
+            self.order_by = parameters.get(self.ORDER_BY_PARAM)
+            self.rows_from = parameters.get(
+                self.ROWS_FROM_PARAM,
+                'Window.unboundedPreceding') or 'Window.unboundedPreceding'
+            self.rows_to = parameters.get(
+                self.ROWS_TO_PARAM,
+                'Window.unboundedFollowing') or 'Window.unboundedFollowing'
+
+            self.range_from = parameters.get(
+                self.RANGE_FROM_PARAM,
+                'Window.unboundedPreceding') or 'Window.unboundedPreceding'
+            self.range_to = parameters.get(
+                self.RANGE_TO_PARAM,
+                'Window.unboundedFollowing') or 'Window.unboundedFollowing'
+
+            self.output = self.named_outputs.get(
+                'output data', 'data_{}'.format(self.order))
+
+    def get_output_names(self, sep=", "):
+        return self.output
+
+    def generate_code(self):
+        input_data = self.named_inputs['input data']
+        params = {'input': input_data}
+
+        ascending = []
+        attributes = []
+        for attr in self.order_by:
+            if attr['f'] == 'asc':
+                attributes.append(
+                    "functions.asc('{}')".format(attr['attribute']))
+            else:
+                attributes.append(
+                    "functions.desc('{}')".format(attr['attribute']))
+
+        if attributes:
+            order_attrs = []
+            order_by_code = ".orderBy({attrs})".format(
+                attrs=', '.join(attributes))
+        else:
+            order_by_code = ''
+
+        rows_code = ''
+        range_code = ''
+        if self.type == self.ROWS:
+            from_int = None
+            if self.rows_from.isdigit():
+                from_int = int(self.rows_from)
+
+            to_int = None
+            if self.rows_to.isdigit():
+                to_int = int(self.rows_to)
+
+            if to_int and from_int and from_int > to_int:
+                raise ValueError(_(
+                    'Start of offset must be >= its end: [{}, {}]').format(
+                    self.rows_from, self.rows_to))
+            rows_code = ".rowsBetween({rows_from}, {rows_to})".format(
+                rows_from=self.rows_from, rows_to=self.rows_to)
+        elif self.type == self.RANGE:
+            range_code = ".rangeBetween({range_from}, {range_to})".format(
+                range_from=self.range_from, range_to=self.range_to)
+
+        new_attrs = []
+        aliases = []
+        params = {}
+        for expr in self.expressions:
+            expression = Expression(expr['tree'], params, window=True)
+            built_expr = expression.parsed_expression
+            new_attrs.append(built_expr)
+            aliases.append(expr['alias'])
+
+        code = dedent("""
+            from juicer.spark.ext import CustomExpressionTransformer
+
+            window = Window.partitionBy(
+                '{partition}'){order_by_code}{rows_code}{range_code}
+            specs = [{new_attrs}]
+            aliases = {aliases}
+
+            {out} = {in1}
+            for i, spec in enumerate(specs):
+                {out} = {out}.withColumn(aliases[i], spec)
+        """.format(out=self.output, in1=input_data,
+                   partition=self.partition_attribute,
+                   order_by_code=order_by_code,
+                   rows_code=rows_code,
+                   range_code=range_code,
+                   new_attrs=',\n                     '.join(new_attrs),
+                   aliases=json.dumps(aliases)))
+
+        return dedent(code)

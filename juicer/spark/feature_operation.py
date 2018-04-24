@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+from __future__ import unicode_literals
+
 from collections import namedtuple
 from textwrap import dedent
 
@@ -29,11 +31,18 @@ class ScalerOperation(Operation):
         self.scaled_attr = parameters.get(self.ALIAS_PARAM,
                                           'scaled_{}'.format(self.order))
 
-        self.has_code = 'input data' in self.named_inputs
+        self.has_code = any(
+            [len(self.named_inputs) > 0, self.contains_results()])
         self.output = self.named_outputs.get('output data',
                                              'out_task_{}'.format(self.order))
         self.model = self.named_outputs.get('transformation model',
                                             'model_task_{}'.format(self.order))
+
+    def get_output_names(self, sep=", "):
+        return sep.join([self.output, self.model])
+
+    def get_data_out_names(self, sep=','):
+        return self.output
 
     def _get_scaler_algorithm_and_parameters(self):
         raise NotImplementedError(_('Must be implemented in children classes'))
@@ -145,4 +154,4 @@ class MinMaxScalerOperation(ScalerOperation):
 
     def _get_scaler_algorithm_and_parameters(self):
         return ScalerNameAndParameters(
-            'MinMaxScaler', {'min': self.min, 'max': self.max}, ['min', 'max'])
+            'MinMaxScaler', {'min': self.min, 'max': self.max}, [])

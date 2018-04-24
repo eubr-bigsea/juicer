@@ -3,13 +3,10 @@ import decimal
 import json
 
 import datetime
-
-try:
-    from pyspark.sql.utils import AnalysisException, IllegalArgumentException
-except ImportError:
-    pass
+from pyspark.ml.linalg import DenseVector
 
 import re
+import types
 
 
 class CustomEncoder(json.JSONEncoder):
@@ -18,6 +15,8 @@ class CustomEncoder(json.JSONEncoder):
             return str(obj)
         elif isinstance(obj, datetime.datetime):
             return obj.isoformat()
+        elif isinstance(obj, DenseVector):
+            return list(obj)
         else:
             return str(obj)
 
@@ -113,14 +112,35 @@ def emit_schema(task_id, df, emit_event, name):
                identifier=task_id,
                message=content.generate(),
                type='HTML', title=_('Schema for {}').format(name),
-               task=task_id)
+               task={'id': task_id})
 
 
 def emit_sample(task_id, df, emit_event, name, size=50):
     from juicer.spark.reports import SimpleTableReport
     headers = [f.name for f in df.schema.fields]
-    rows = [[json.dumps(col, cls=CustomEncoder) for col in row] for row in
-            df.take(size)]
+
+    number_types = (types.IntType, types.LongType,
+                    types.FloatType, types.ComplexType, decimal.Decimal)
+
+    rows = []
+    for row in df.take(size):
+        new_row = []
+        rows.append(new_row)
+        for col in row:
+            if isinstance(col, str):
+                value = col
+            elif isinstance(col, unicode):
+                value = col
+            elif isinstance(col, (datetime.datetime, datetime.date)):
+                value = col.isoformat()
+            elif isinstance(col, number_types):
+                value = str(col)
+            else:
+                value = json.dumps(col, cls=CustomEncoder)
+            # truncate column if size is bigger than 200 chars.
+            if len(value) > 200:
+                value = value[:150] + ' ... ' + value[-50:]
+            new_row.append(value)
 
     content = SimpleTableReport(
         'table table-striped table-bordered', headers, rows,
@@ -131,7 +151,7 @@ def emit_sample(task_id, df, emit_event, name, size=50):
                identifier=task_id,
                message=content.generate(),
                type='HTML', title=_('Sample data for {}').format(name),
-               task=task_id)
+               task={'id': task_id})
 
 
 class LazySparkTransformationDataframe(object):
@@ -231,15 +251,30 @@ def merge_dicts(x, y):
 
 
 def handle_spark_exception(e):
+    from pyspark.sql.utils import AnalysisException, IllegalArgumentException
     result = False
     if isinstance(e, AnalysisException):
-        value_expr = re.compile(r'(`.+`).+\[(.+)\]')
-        found = value_expr.findall(unicode(e.message))
+        value_expr = re.compile(r'[`"](.+)[`"].+columns:\s(.+)$')
+        found = value_expr.findall(unicode(e.desc.split('\n')[0]))
         if found:
             field, fields = found[0]
             raise ValueError(
                 _('Attribute {} not found. Valid attributes: {}').format(
-                    field, fields))
+                    field, fields.replace(';', '')))
+        else:
+            value_expr = re.compile(r'The data type of the expression in the '
+                                    r'ORDER BY clause should be a numeric type')
+            found = value_expr.findall(unicode(e.desc.split('\n')[0]))
+            if found:
+                raise ValueError(
+                    _('When using Window Operation with range type, the order '
+                      'by attribute must be numeric.'))
+            found = 'This Range Window Frame only accepts ' \
+                    'at most one ORDER BY' in e.desc
+            if found:
+                raise ValueError(
+                    _('When using Window Operation with range type, the order '
+                      'option must include only one attribute.'))
     elif isinstance(e, IllegalArgumentException):
         # Invalid column type
         if 'must be of type equal' in unicode(e.message):
@@ -255,10 +290,14 @@ def handle_spark_exception(e):
                 ))
     elif hasattr(e, 'java_exception'):
         cause = e.java_exception.getCause()
+        while cause is not None and cause.getCause() is not None:
+            cause = cause.getCause()
+
         if cause is not None:
             nfe = 'java.lang.NumberFormatException'
             uoe = 'java.lang.UnsupportedOperationException'
             npe = 'java.lang.NullPointerException'
+            bme = 'org.apache.hadoop.hdfs.BlockMissingException'
 
             cause_msg = cause.getMessage()
             inner_cause = cause.getCause()
@@ -278,6 +317,13 @@ def handle_spark_exception(e):
                                        'Please, remove them before applying '
                                        'a data transformation.'))
                 pass
+            elif cause.getClass().getName() == bme:
+                raise ValueError(
+                    _('Cannot read data from the data source. In this case, '
+                      'it may be a configuration problem with HDFS. '
+                      'Please, check if HDFS namenode is up and you '
+                      'correctly configured the option '
+                      'dfs.client.use.datanode.hostname in Juicer\' config.'))
         elif e.java_exception.getMessage():
             value_expr = re.compile(r'CSV data source does not support '
                                     r'(.+?) data type')

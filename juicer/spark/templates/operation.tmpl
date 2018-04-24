@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+from __future__ import unicode_literals
 """
 Auto-generated Spark code from Lemonade Workflow
 (c) Speed Labs - Departamento de Ciência da Computação
@@ -16,14 +17,18 @@ import string
 import sys
 import time
 import threading
+import traceback
 import unicodedata
+import juicer.spark.ext as juicer_ext
 
 from textwrap import dedent
 from timeit import default_timer as timer
 
 from pyspark.ml import classification, evaluation, feature, tuning, clustering
+from pyspark.ml.linalg import Vectors
 from pyspark.sql import functions, types, Row, DataFrame
 from pyspark.sql.utils import IllegalArgumentException
+from pyspark.sql.window import Window
 from pyspark.ml.linalg import Vectors, VectorUDT
 
 from pyspark.ml import Pipeline
@@ -38,6 +43,7 @@ from pyspark.mllib.evaluation import *
 from juicer import privaaas
 from juicer.util import dataframe_util
 from juicer.spark.reports import *
+from juicer.spark.ml_operation import ModelsEvaluationResultList
 
 executor = ThreadPoolExecutor(max_workers={{instances|length}})
 submission_lock = threading.Lock()
@@ -86,7 +92,7 @@ def juicer_debug(spark_session, name, variable, data_frame):
 {#% autopep8 %#}
 {%- for instance in instances %}
 {%-  handleinstance instance %}
-{%- if instance.has_code %}
+{%- if instance.has_code and instance.enabled %}
 
 # noinspection PyUnusedLocal
 def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.order}}(spark_session, cached_state, emit_event):
@@ -130,8 +136,7 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.ord
     {% if parent_instance.get_output_names(", ") %}
     parent_result = task_futures['{{parent}}'].result()
     {%- for port_name,out in zip(parent_instance.parameters.task.port_names, parent_instance.get_output_names(',').split(','))%}
-    {{out}}, pr_{{out}} = (parent_result['{{port_name}}']['output'],
-        parent_result['{{port_name}}']['sample'])
+    {{out}} = parent_result['{{port_name}}']
     {%- endfor %}
     {%- endif %}
     ts_{{parent_instance.output}} = parent_result['time']
@@ -196,7 +201,9 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.ord
         {%- if out %}
             schema = {{trace.input}}.schema
             meta = {}
-            meta.update(schema['{{trace.derived_from}}'].metadata)
+            {%- if trace.derived_from != '*' %}
+            meta.update(schema[str('{{trace.derived_from}}')].metadata)
+            {%- endif %}
             {{out}} = {{out}}.withColumn('{{trace.attribute}}',
                 functions.col('{{trace.attribute}}').alias('', metadata=meta))
         {%- endif %}
@@ -206,28 +213,27 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.ord
         {%- endif %}
 
         results = {
+            'task_name': '{{instance.parameters.task.name}}',
           {%- set is_leaf = instance.out_degree == 0 %}
           {%- for port_name,out in zip(instance.parameters.task.port_names, instance.get_output_names(',').split(',')) %}
             {%- if port_name and out %}
-             '{{port_name}}': {'output': {{out}}, 'sample': {%- if is_leaf %} take_sample({{out}}) {%- else %} [] {%- endif %}},
+             '{{port_name}}': {{out}},
             {%- endif %}
           {%- endfor %}
         }
 
     df_types = (DataFrame, dataframe_util.LazySparkTransformationDataframe)
-    {%- if instance.has_code and instance.parameters.task.forms.get('display_sample', {}).get('value') in (1, '1') %}
+    {%- if instance.has_code and instance.enabled and instance.parameters.task.forms.get('display_sample', {}).get('value') in (1, '1') %}
     for name, out in results.items():
-        if (isinstance(out, dict) and 'output' in out
-                and isinstance(out['output'], df_types)):
+        if isinstance(out, df_types):
             dataframe_util.emit_sample(
-                '{{instance.parameters.task.id}}', out['output'], emit_event, name)
+                '{{instance.parameters.task.id}}', out, emit_event, name)
     {%- endif %}
-    {%- if instance.has_code and instance.parameters.task.forms.get('display_schema', {}).get('value') in (1, '1') %}
+    {%- if instance.has_code and instance.enabled and instance.parameters.task.forms.get('display_schema', {}).get('value') in (1, '1') %}
     for name, out in results.items():
-        if (isinstance(out, dict) and 'output' in out
-                and isinstance(out['output'], df_types)):
+        if isinstance(out, df_types):
             dataframe_util.emit_schema(
-                '{{instance.parameters.task.id}}', out['output'], emit_event, name)
+                '{{instance.parameters.task.id}}', out, emit_event, name)
     {%- endif %}
 
     {%- if not plain %}
@@ -258,7 +264,7 @@ def main(spark_session, cached_state, emit_event):
         session_start_time = time.time()
 
         {%- for instance in instances %}
-        {%- if instance.has_code %}
+        {%- if instance.has_code and instance.enabled %}
         {%- if instance.multiple_inputs %}
         {{instance.get_inputs_names.replace(',', '=') }} = None
         {% endif %}
@@ -267,7 +273,7 @@ def main(spark_session, cached_state, emit_event):
 
         {%- for instance in instances %}
         {%- set is_satisfied = dependency_controller.is_satisfied(instance.parameters.task.id) %}
-        {%- if instance.must_be_executed(is_satisfied) %}
+        {%- if instance.must_be_executed(is_satisfied) and instance.has_code and instance.enabled %}
         {%- set s = dependency_controller.satisfied(instance.parameters.task.id) %}
         task_futures['{{instance.parameters.task.id}}'] = executor.submit(
             lambda: {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.order}}(spark_session, cached_state, emit_event))
@@ -276,10 +282,20 @@ def main(spark_session, cached_state, emit_event):
 
         {%- for instance in instances %}
         {%- set is_satisfied = dependency_controller.is_satisfied(instance.parameters.task.id) %}
-        {%- if instance.must_be_executed(is_satisfied) %}
+        {%- if instance.must_be_executed(is_satisfied) and instance.has_code and instance.enabled%}
         {%- set s = dependency_controller.satisfied(instance.parameters.task.id) %}
         task_futures['{{instance.parameters.task.id}}'].result()
         {%- endif %}
+        {%- if not instance.has_code or not instance.enabled %}
+        emit_event(name='update task', message=_(
+            'Task completed, but not executed (not used in the workflow).'),
+            status='COMPLETED', identifier='{{instance.parameters.task.id}}')
+        {%- endif %}
+        {%- endfor %}
+        {%- for disabled in disabled_tasks %}
+        emit_event(name='update task', message=_(
+            'Task completed, but not executed (not used in the workflow).'),
+            status='COMPLETED', identifier='{{disabled}}')
         {%- endfor %}
 
         end = time.time()
@@ -294,7 +310,7 @@ def main(spark_session, cached_state, emit_event):
             },
             {%- for instance in instances %}
               {%- set is_satisfied = dependency_controller.is_satisfied(instance.parameters.task.id) %}
-              {%- if instance.has_code and is_satisfied %}
+              {%- if instance.has_code and is_satisfied and instance.enabled%}
                 '{{instance.parameters.task.id}}':
                     [get_results(task_futures, '{{instance.parameters.task.id}}'),
                     '{{instance.parameters.hash}}'],
@@ -302,6 +318,8 @@ def main(spark_session, cached_state, emit_event):
             {%- endfor %}
         }
     except Exception as e:
+        spark_session.sparkContext.cancelAllJobs()
+        traceback.print_exc(file=sys.stderr)
         if not dataframe_util.handle_spark_exception(e):
             raise
 

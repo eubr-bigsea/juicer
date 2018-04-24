@@ -35,10 +35,13 @@ def query_limonero(base_url, item_path, token, item_id):
     else:
         log.error(_('Error querying Limonero URL: %s (%s: %s)'), url,
                   r.status_code, r.text)
-        raise RuntimeError(_(
-            u"Error loading {} id {}: HTTP {} - {}").format(item_path, item_id,
-                                                            r.status_code,
-                                                            r.text))
+        if r.status_code == 404:
+            msg = _("not found")
+        else:
+            msg = r.text
+        raise ValueError(_(
+            u"Error loading {} id {}: HTTP {} - {}").format(
+            item_path, item_id, r.status_code, msg))
 
 
 def get_storage_info(base_url, token, storage_id):
