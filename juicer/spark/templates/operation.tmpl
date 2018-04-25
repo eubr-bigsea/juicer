@@ -49,50 +49,11 @@ executor = ThreadPoolExecutor(max_workers={{instances|length}})
 submission_lock = threading.Lock()
 task_futures = {}
 
-# We need the following code in order to integrate this application log with the
-# spark standard log4j. Thus, we set *__SPARK_LOG__* at most one time per
-# execution.
-__SPARK_LOG__ = None
 
-
-def spark_logging(spark_session):
-    global __SPARK_LOG__
-    if not __SPARK_LOG__:
-        # noinspection PyProtectedMember
-        logger = spark_session.sparkContext._jvm.org.apache.log4j
-        __SPARK_LOG__ = logger.LogManager.getLogger(__name__)
-    return __SPARK_LOG__
-
-
-
-def take_sample(df, size=100, default=None):
-    """
-    Takes a sample from data frame.
-    """
-    result = default or []
-    if hasattr(df, 'take'):
-        # result = df.limit(size).toJSON().collect()
-        header = ','.join([f.name for f in df.schema.fields])
-        result = [header]
-        result.extend(
-            df.limit(size).rdd.map(dataframe_util.convert_to_csv).collect())
-    return result
-
-
-def juicer_debug(spark_session, name, variable, data_frame):
-    """ Debug code """
-    spark_logging(spark_session).debug('#' * 20)
-    spark_logging(spark_session).debug('|| {} ||'.format(name))
-    spark_logging(spark_session).debug('== {} =='.format(variable))
-    data_frame.show()
-    schema = data_frame.schema
-    for attr in schema:
-        spark_logging(spark_session).debug('{} {} {} {}'.format(
-            attr.name, attr.dataType, attr.nullable, attr.metadata))
-{#% autopep8 %#}
 {%- for instance in instances %}
 {%-  handleinstance instance %}
 {%- if instance.has_code and instance.enabled %}
+{%- set task_id = instance.parameters.task.id %}
 
 # noinspection PyUnusedLocal
 def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.order}}(spark_session, cached_state, emit_event):
@@ -100,15 +61,17 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.ord
     {%- if instance.parameters.task.forms.comment and instance.parameters.task.forms.comment.value %}
     {{instance.parameters.task.forms.comment.value.strip().replace('"', '')}}
     {%- else %}
-    Operation {{instance.parameters.task.id }}
+    Operation {{task_id }}
     {%- endif %}
     Task hash: {{instance.parameters.hash}}.
     """
+    task_id = '{{task_id}}'
     {%- if instance.parameters.task.parents %}
-    spark_logging(spark_session).info(
+    juicer_ext.spark_logging(spark_session).info(
         "Submitting parent task(s)"
         "{{instance.parameters.task.parents|join(', ')}}"
         "before {{instance.parameters.task.id}}")
+
     # If the task's result is not cached, we submit its dependencies first
     {%- for parent in instance.parameters.task.parents %}
     {%- set parent_instance = instances_by_task_id[parent] %}
@@ -143,17 +106,17 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.ord
     {%- endif %}
     {%- endfor %}
     
-    spark_logging(spark_session).info(
-        'Parents completed, submitting {{instance.parameters.task.id}}')
+    juicer_ext.spark_logging(spark_session).info(
+        'Parents completed, submitting {}.'.format(task_id))
 
 
     {%- if not plain %}
     emit_event(name='update task', message=_('Task running'),
                status='RUNNING',
-               identifier='{{instance.parameters.task.id}}')
+               identifier='task_id')
     {%- endif %}
-    spark_logging(spark_session).info(
-        'Lemonade task {{instance.parameters.task.id}} started')
+    juicer_ext.spark_logging(spark_session).info(
+        'Lemonade task {{task_id}} started')
 
     start = timer()
 
@@ -161,32 +124,24 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.ord
     supports_cache = {{instance.supports_cache}}
     results = None
 
-    if supports_cache and '{{instance.parameters.task.id}}' in cached_state:
-        cached, _hash = cached_state.get('{{instance.parameters.task.id}}')
+    if supports_cache and task_id in cached_state:
+        cached, _hash = cached_state.get(task_id)
         if _hash == '{{instance.parameters.hash}}':
             emit_event(name='update task', message=_('Task running (cached data)'),
                        status='RUNNING',
-                       identifier='{{instance.parameters.task.id}}')
-            spark_logging(spark_session).info (
+                       identifier=task_id)
+            juicer_ext.spark_logging(spark_session).info (
                 'Cache hit for operation {}'.format(
-                '{{instance.parameters.task.id}}'))
+                task_id))
             results = cached
     if results is None:
         {{instance.generate_code().strip() | indent(width=8, indentfirst=False)}}
-        {%- set outputs = instance.get_data_out_names('|').split('|') %}
-        {%- if instance.parameters.get('logging', {}).get('log_level') == 'DEBUG' %}
-        {%- if outputs %}
-        {%- for variable in outputs %}
-        juicer_debug(spark_session, '{{instance.__class__.__name__}}', '{{variable}}', {{variable}})
-        {%- endfor %}
-        {%- endif %}
-        {%- endif %}
 
         {%- if not plain %}
         {%- for gen_result in instance.get_generated_results() %}
         emit_event(name='task result', message=_('{{gen_result.type}}'),
                    status='COMPLETED',
-                   identifier='{{instance.parameters.task.operation.id}}/{{instance.parameters.task.id}}')
+                   identifier='{{instance.parameters.task.operation.id}}/{{task_id}}')
         {%- endfor %}
         {%- endif %}
 
@@ -222,28 +177,30 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.ord
           {%- endfor %}
         }
 
+    {%- if instance.contains_results %}
     df_types = (DataFrame, dataframe_util.LazySparkTransformationDataframe)
     {%- if instance.has_code and instance.enabled and instance.parameters.task.forms.get('display_sample', {}).get('value') in (1, '1') %}
     for name, out in results.items():
         if isinstance(out, df_types):
             dataframe_util.emit_sample(
-                '{{instance.parameters.task.id}}', out, emit_event, name)
+                task_id, out, emit_event, name)
     {%- endif %}
     {%- if instance.has_code and instance.enabled and instance.parameters.task.forms.get('display_schema', {}).get('value') in (1, '1') %}
     for name, out in results.items():
         if isinstance(out, df_types):
             dataframe_util.emit_schema(
-                '{{instance.parameters.task.id}}', out, emit_event, name)
+                task_id, out, emit_event, name)
+    {%- endif %}
     {%- endif %}
 
     {%- if not plain %}
     emit_event(name='update task', message=_('Task completed'),
                status='COMPLETED',
-               identifier='{{instance.parameters.task.id}}')
+               identifier=task_id)
     {%- endif %}
 
-    spark_logging(spark_session).info(
-        'Lemonade task {{instance.parameters.task.id}} completed')
+    juicer_ext.spark_logging(spark_session).info(
+        'Lemonade task {{task_id}} completed')
     time_elapsed = timer() - start
     results['time'] = time_elapsed
     return results
@@ -261,60 +218,42 @@ def main(spark_session, cached_state, emit_event):
     try:
         start = time.time()
 
-        session_start_time = time.time()
-
         {%- for instance in instances %}
-        {%- if instance.has_code and instance.enabled %}
-        {%- if instance.multiple_inputs %}
+        {%- if instance.has_code and instance.enabled and instance.multiple_inputs %}
         {{instance.get_inputs_names.replace(',', '=') }} = None
-        {% endif %}
         {%- endif %}
         {%- endfor %}
 
-        {%- for instance in instances %}
-        {%- set is_satisfied = dependency_controller.is_satisfied(instance.parameters.task.id) %}
-        {%- if instance.must_be_executed(is_satisfied) and instance.has_code and instance.enabled %}
-        {%- set s = dependency_controller.satisfied(instance.parameters.task.id) %}
-        task_futures['{{instance.parameters.task.id}}'] = executor.submit(
-            lambda: {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.order}}(spark_session, cached_state, emit_event))
-        {%- endif %}
+        {%- set ids_and_methods = transpiler.get_ids_and_methods(instances) %}
+        {%- for task_id, method in ids_and_methods.items() %}
+        task_futures['{{task_id}}'] = executor.submit(
+            lambda: {{method}}(spark_session, cached_state, emit_event))
         {%- endfor %}
 
-        {%- for instance in instances %}
-        {%- set is_satisfied = dependency_controller.is_satisfied(instance.parameters.task.id) %}
-        {%- if instance.must_be_executed(is_satisfied) and instance.has_code and instance.enabled%}
-        {%- set s = dependency_controller.satisfied(instance.parameters.task.id) %}
-        task_futures['{{instance.parameters.task.id}}'].result()
-        {%- endif %}
-        {%- if not instance.has_code or not instance.enabled %}
+        {%- for task_id in ids_and_methods.keys() %}
+        {%- set s = dependency_controller.satisfied(task_id) %}
+        task_futures['{{task_id}}'].result()
+        {%- endfor %}
+        {%- for disabled in transpiler.get_disabled_tasks(instances) %}
         emit_event(name='update task', message=_(
             'Task completed, but not executed (not used in the workflow).'),
-            status='COMPLETED', identifier='{{instance.parameters.task.id}}')
-        {%- endif %}
+            status='COMPLETED',
+            identifier='{{disabled.parameters.task.id}}')
         {%- endfor %}
+
         {%- for disabled in disabled_tasks %}
         emit_event(name='update task', message=_(
             'Task completed, but not executed (not used in the workflow).'),
             status='COMPLETED', identifier='{{disabled}}')
         {%- endfor %}
 
-        end = time.time()
-        print(end - start)
         return {
             'status': 'OK',
             'message': 'Execution defined',
-            'hashes': {
-                {%- for instance in instances %}
-                    '{{instance.parameters.task.id}}': '{{instance.parameters.hash}}',
-                {%-endfor %}
-            },
-            {%- for instance in instances %}
-              {%- set is_satisfied = dependency_controller.is_satisfied(instance.parameters.task.id) %}
-              {%- if instance.has_code and is_satisfied and instance.enabled%}
+            {%- for instance in transpiler._get_enabled_tasks(instances) %}
                 '{{instance.parameters.task.id}}':
                     [get_results(task_futures, '{{instance.parameters.task.id}}'),
                     '{{instance.parameters.hash}}'],
-              {%- endif %}
             {%- endfor %}
         }
     except Exception as e:
@@ -336,4 +275,3 @@ spark_session.sparkContext.setLogLevel('INFO')
 main(spark_session, {}, dummy_emit_event(room=-1, namespace='/none'))
 
 {%- endif %}
-{#% endautopep8 %#}

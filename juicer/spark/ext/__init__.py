@@ -1,6 +1,8 @@
 import string
 import unicodedata
 
+from juicer.util import dataframe_util
+
 try:
     from pyspark import keyword_only
     from pyspark.ml import Transformer
@@ -54,3 +56,43 @@ class CustomExpressionTransformer(Transformer, HasOutputCol):
         out_col = self.getOutputCol()
 
         return dataset.withColumn(out_col, expression)
+
+
+# We need the following code in order to integrate this application log with the
+# spark standard log4j. Thus, we set *__SPARK_LOG__* at most one time per
+# execution.
+__SPARK_LOG__ = None
+
+
+def spark_logging(spark_session):
+    global __SPARK_LOG__
+    if not __SPARK_LOG__:
+        # noinspection PyProtectedMember
+        logger = spark_session.sparkContext._jvm.org.apache.log4j
+        __SPARK_LOG__ = logger.LogManager.getLogger(__name__)
+    return __SPARK_LOG__
+
+
+def take_sample(df, size=100, default=None):
+    """
+    Takes a sample from data frame.
+    """
+    result = default or []
+    if hasattr(df, 'take'):
+        header = ','.join([f.name for f in df.schema.fields])
+        result = [header]
+        result.extend(
+            df.limit(size).rdd.map(dataframe_util.convert_to_csv).collect())
+    return result
+
+
+def juicer_debug(spark_session, name, variable, data_frame):
+    """ Debug code """
+    spark_logging(spark_session).debug('#' * 20)
+    spark_logging(spark_session).debug('|| {} ||'.format(name))
+    spark_logging(spark_session).debug('== {} =='.format(variable))
+    data_frame.show()
+    schema = data_frame.schema
+    for attr in schema:
+        spark_logging(spark_session).debug('{} {} {} {}'.format(
+            attr.name, attr.dataType, attr.nullable, attr.metadata))
