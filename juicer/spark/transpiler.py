@@ -45,6 +45,24 @@ class TranspilerUtils(object):
                 instance.has_code and instance.enabled]
 
     @staticmethod
+    def _get_parent_tasks(instances_map, instance, only_enabled=True):
+        if only_enabled:
+            dependency_controller = DependencyController([])
+            result = []
+            for parent_id in instance.parameters['task']['parents']:
+                parent = instances_map[parent_id]
+                is_satisfied = dependency_controller.is_satisfied(parent_id)
+                if is_satisfied and parent.has_code and parent.enabled:
+                    method = '{}_{}'.format(
+                        parent.parameters['task']['operation']['slug'].replace(
+                            '-', '_'), parent.order)
+                    result.append((parent_id, method))
+            return result
+        else:
+            return [instances_map[parent_id] for parent_id in
+                    instance.parameters['task']['parents']]
+
+    @staticmethod
     def get_ids_and_methods(instances):
         result = OrderedDict()
         for instance in TranspilerUtils._get_enabled_tasks_to_execute(
