@@ -892,7 +892,7 @@ class ClassificationModelOperation(Operation):
                     self.__class__.__name__))
 
             self.label = parameters.get(self.LABEL_ATTRIBUTE_PARAM)[0]
-            self.features = parameters.get(self.FEATURES_ATTRIBUTE_PARAM)[0]
+            self.features = parameters.get(self.FEATURES_ATTRIBUTE_PARAM)
             self.prediction = parameters.get(self.PREDICTION_ATTRIBUTE_PARAM,
                                              'prediction')
             self.ensemble_weights = parameters.get(self.WEIGHTS_PARAM,
@@ -917,6 +917,16 @@ class ClassificationModelOperation(Operation):
                 'display_text', {'value': 1}).get('value', 1) in (1, '1')
 
             code = """
+            emit = functools.partial(
+                emit_event, name='update task',
+                status='RUNNING', type='TEXT',
+                identifier='{task_id}',
+                operation={{'id': {operation_id}}}, operation_id={operation_id},
+                task={{'id': '{task_id}'}},
+                title='{title}')
+            def test_numeric(schema, col):
+                return isinstance(schema[str(col)].dataType, types.NumericType)
+
             alg, param_grid, metrics = {algorithm}
 
             # Clone the algorithm because it can be used more than once
@@ -933,9 +943,57 @@ class ClassificationModelOperation(Operation):
             algorithm.setParams(**params)
 
             algorithm.setPredictionCol('{prediction}')
-            algorithm.setLabelCol('{label}')
-            algorithm.setFeaturesCol('{feat}')
-            {model} = algorithm.fit({train})
+
+            requires_pipeline = False
+            stages = []
+            features = {feat}
+            drop_at_end = []
+            to_assemble = []
+            if len(features) > 1 and not isinstance(
+                {train}.schema[str(features[0])].dataType, VectorUDT):
+                emit(message=_('Features are not assembled as a vector. '
+                        'They will be implicitly assembled.'),)
+                for f in features:
+                    if not test_numeric({train}.schema, f):
+                        name = f + '_tmp'
+                        to_assemble.append(name)
+                        drop_at_end.append(name)
+                        stages.append(feature.StringIndexer(
+                            inputCol=f, outputCol=name, handleInvalid='skip'))
+                    else:
+                        to_assemble.append(f)
+
+                final_features = 'features_tmp'
+                stages.append(feature.VectorAssembler(
+                    inputCols=to_assemble, outputCol=final_features))
+                drop_at_end.append('features_tmp')
+                requires_pipeline = True
+            else:
+                final_features = features[0]
+
+            if not test_numeric({train}.schema, '{label}'):
+                emit(message=_('Label attribute is categorical, it will be '
+                        'implicitly indexed as string.'),)
+                final_label = '{label}_tmp'
+                stages.append(feature.StringIndexer(
+                            inputCol='{label}', outputCol=final_label,
+                            handleInvalid='skip'))
+                drop_at_end.append(final_label)
+                requires_pipeline = True
+            else:
+                final_label = '{label}'
+
+            if requires_pipeline:
+                algorithm.setLabelCol(final_label)
+                algorithm.setFeaturesCol(final_features)
+
+                stages.append(algorithm)
+                pipeline = Pipeline(stages=stages)
+                {model} = pipeline.fit({train})
+            else:
+                algorithm.setLabelCol(final_label)
+                algorithm.setFeaturesCol(final_features)
+                {model} = algorithm.fit({train})
 
             # Used in ensembles, e.g. VotingClassifierOperation
             setattr({model}, 'ensemble_weights', {weights})
@@ -956,20 +1014,14 @@ class ClassificationModelOperation(Operation):
 
                 result = '<h4>{title}</h4>'
 
-                emit_event(
-                    'update task', status='COMPLETED',
-                    identifier='{task_id}',
-                    message=result + content.generate(),
-                    type='HTML', title='{title}',
-                    task={{'id': '{task_id}'}},
-                    operation={{'id': {operation_id}}},
-                    operation_id={operation_id})
+                emit(status='COMPLETED', message=result + content.generate(),
+                    type='HTML', title='{title}')
 
             """.format(
                 model=self.model,
                 algorithm=self.named_inputs.get('algorithm'),
                 train=self.named_inputs['train input data'],
-                label=self.label, feat=self.features,
+                label=self.label, feat=repr(self.features),
                 prediction=self.prediction,
                 output=self.output,
                 display_text=display_text,
