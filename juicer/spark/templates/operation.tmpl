@@ -74,57 +74,37 @@ def {{task.operation.slug.replace('-', '_')}}_{{instance.order}}(spark_session, 
         before {{task.id}}""")
 
     # If the task's result is not cached, we submit its dependencies first
-    parents = [
     {%- set parents = transpiler._get_parent_tasks(instances_by_task_id, instance) %}
     {%- for parent_id, method in parents %}
-        ('{{parent_id}}', {{method}}),
-    {%- endfor %}
-    ]
-    {%- for parent in instance.parameters.task.parents %}
-    {%- set parent_instance = instances_by_task_id[parent] %}
-    {%- set is_satisfied = dependency_controller.is_satisfied(parent_instance.parameters.task.id) %}
-    {%- if parent_instance.has_code and is_satisfied %}
-    {%- set s = dependency_controller.satisfied(parent_instance.parameters.task.id) %}
+    parent_id = '{{parent_id}}'
     with submission_lock:
-        if '{{parent}}' not in task_futures:
-            task_futures['{{parent}}'] = executor.\
-                submit(
-                    lambda: {{parent_instance.parameters.task.operation.slug.replace('-', '_')}}_{{parent_instance.order}}(
-                        spark_session, cached_state, emit_event)
-                )
-
-    {%- endif %}
+        if parent_id not in task_futures:
+            task_futures[parent_id] = executor.submit(
+                lambda: {{method}}(spark_session, cached_state, emit_event))
     {%- endfor %}
     {%- endif %}
 
+    {%- if parents %}
     # Next we wait for the dependencies to complete
-    {%- for parent in instance.parameters.task.parents %}
-    {%- set parent_instance = instances_by_task_id[parent] %}
-    {%- set is_satisfied = dependency_controller.is_satisfied(parent_instance.parameters.task.id) %}
-    {%- if parent_instance.has_code and is_satisfied %}
-    {%- set s = dependency_controller.satisfied(parent_instance.parameters.task.id) %}
-    {% if parent_instance.get_output_names(", ") %}
-    parent_result = task_futures['{{parent}}'].result()
+    {%- for parent_id, method in parents %}
+    {%- set parent_instance = instances_by_task_id[parent_id] %}
+    {%- if parent_instance.get_output_names(", ") %}
+    parent_result = task_futures['{{parent_id}}'].result()
     {%- for port_name,out in zip(parent_instance.parameters.task.port_names, parent_instance.get_output_names(',').split(','))%}
     {{out}} = parent_result['{{port_name}}']
     {%- endfor %}
-    {%- endif %}
     ts_{{parent_instance.output}} = parent_result['time']
     {% endif %}
     {%- endfor %}
     juicer_ext.spark_logging(spark_session).info(
         'Parents completed, submitting {}.'.format(task_id))
+    {%- endif %}
 
     {%- if not plain %}
-    emit_event(name='update task', message=_('Task running'),
-               status='RUNNING',
-               identifier='task_id')
+    emit_task_running(task_id, spark_session, emit_event)
     {%- endif %}
-    juicer_ext.spark_logging(spark_session).info(
-        'Lemonade task {{task_id}} started')
 
     start = timer()
-
     # First we verify whether this task's result is cached
     results = {% if instance.supports_cache -%}
     get_cached_state(
@@ -191,19 +171,28 @@ def {{task.operation.slug.replace('-', '_')}}_{{instance.order}}(spark_session, 
     {%- endif %}
 
     {%- if not plain %}
-    emit_event(name='update task', message=_('Task completed'),
-               status='COMPLETED', identifier=task_id)
+    emit_task_completed(task_id, spark_session, emit_event)
     {%- endif %}
 
-    juicer_ext.spark_logging(spark_session).info(
-        'Lemonade task {{task_id}} completed')
-    time_elapsed = timer() - start
-    results['time'] = time_elapsed
+    results['time'] = timer() - start
     return results
 
 {%- endif %}
 {%- endhandleinstance %}
 {% endfor %}
+
+def emit_task_running(task_id, spark_session, emit_event):
+    emit_event(name='update task', message=_('Task running'), status='RUNNING',
+               identifier=task_id)
+    juicer_ext.spark_logging(spark_session).info(
+        'Lemonade task {} started'.format(task_id))
+
+def emit_task_completed(task_id, spark_session, emit_event):
+    emit_event(name='update task', message=_('Task completed'),
+               status='COMPLETED', identifier=task_id)
+    juicer_ext.spark_logging(spark_session).info(
+        'Lemonade task {} completed'.format(task_id))
+
 
 def get_results(_task_futures, task_id):
     return _task_futures[task_id].result() if task_id in _task_futures else None
