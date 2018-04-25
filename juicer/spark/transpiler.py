@@ -3,6 +3,7 @@ from __future__ import unicode_literals
 
 import hashlib
 import sys
+from collections import OrderedDict
 
 import jinja2
 import juicer.spark.data_operation
@@ -24,6 +25,41 @@ from juicer.util.jinja2_custom import AutoPep8Extension
 from juicer.util.template_util import HandleExceptionExtension
 
 
+class TranspilerUtils(object):
+    """ Utilities for using in Jinja2 related to transpiling """
+
+    @staticmethod
+    def _get_enabled_tasks_to_execute(instances):
+        dependency_controller = DependencyController([])
+        result = []
+        for instance in TranspilerUtils._get_enabled_tasks(instances):
+            task = instance.parameters['task']
+            is_satisfied = dependency_controller.is_satisfied(task['id'])
+            if instance.must_be_executed(is_satisfied):
+                result.append(instance)
+        return result
+
+    @staticmethod
+    def _get_enabled_tasks(instances):
+        return [instance for instance in instances if
+                instance.has_code and instance.enabled]
+
+    @staticmethod
+    def get_ids_and_methods(instances):
+        result = OrderedDict()
+        for instance in TranspilerUtils._get_enabled_tasks_to_execute(
+                instances):
+            task = instance.parameters['task']
+            result[task['id']] = '{}_{}'.format(
+                task['operation']['slug'].replace('-', '_'), instance.order)
+        return result
+
+    @staticmethod
+    def get_disabled_tasks(instances):
+        return [instance for instance in instances if
+                not instance.has_code or not instance.enabled]
+
+
 class DependencyController:
     """ Evaluates if a dependency is met when generating code. """
 
@@ -34,7 +70,7 @@ class DependencyController:
     def satisfied(self, _id):
         self._satisfied.add(_id)
 
-    # noinspection PyUnusedLocal
+    # noinspection PyUnusedLocal,PyMethodMayBeStatic
     def is_satisfied(self, _id):
         return True  # len(self.requires[_id].difference(self._satisfied)) == 0
 
@@ -251,6 +287,7 @@ class SparkTranspiler(object):
             instance = class_name(parameters, port.get('named_inputs', {}),
                                   port.get('named_outputs', {}))
             instance.out_degree = graph.out_degree(task_id)
+            env_setup['transpiler'] = TranspilerUtils()
             env_setup['dependency_controller'] = DependencyController(
                 params.get('requires_info', False))
 
