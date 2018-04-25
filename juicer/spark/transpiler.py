@@ -305,15 +305,9 @@ class SparkTranspiler(object):
             instance = class_name(parameters, port.get('named_inputs', {}),
                                   port.get('named_outputs', {}))
             instance.out_degree = graph.out_degree(task_id)
-            env_setup['transpiler'] = TranspilerUtils()
-            env_setup['dependency_controller'] = DependencyController(
-                params.get('requires_info', False))
 
             env_setup['instances'].append(instance)
             env_setup['instances_by_task_id'][task['id']] = instance
-            env_setup['execute_main'] = params.get('execute_main', False)
-            env_setup['plain'] = params.get('plain', False)
-            env_setup['disabled_tasks'] = workflow['disabled_tasks']
 
         template_loader = jinja2.FileSystemLoader(
             searchpath=os.path.dirname(__file__))
@@ -322,6 +316,13 @@ class SparkTranspiler(object):
                                                       HandleExceptionExtension])
         template_env.globals.update(zip=zip)
         template = template_env.get_template("templates/operation.tmpl")
+
+        env_setup['disabled_tasks'] = workflow['disabled_tasks']
+        env_setup['plain'] = params.get('plain', False)
+        env_setup['execute_main'] = params.get('execute_main', False)
+        env_setup['dependency_controller'] = DependencyController(
+            params.get('requires_info', False))
+        env_setup['transpiler'] = TranspilerUtils()
         v = template.render(env_setup)
 
         if using_stdout:
