@@ -71,7 +71,7 @@ class Operation(object):
 
     def generate_code(self):
         raise NotImplementedError(
-            _("Method generate_code should be implemented " \
+            _("Method generate_code should be implemented "
               "in {} subclass").format(self.__class__))
 
     def get_generated_results(self):
@@ -106,11 +106,18 @@ class Operation(object):
     def get_data_out_names(self, sep=','):
         return self.get_output_names(sep)
 
-    def contains_results(self):
+    @property
+    def contains_sample(self):
         forms = self.parameters.get('task', {}).get('forms', {})
-        return (
-            forms.get('display_sample', {}).get('value') in (1, '1') or
-            forms.get('display_schema', {}).get('value') in (1, '1'))
+        return forms.get('display_sample', {}).get('value') in (1, '1')
+
+    @property
+    def contains_schema(self):
+        forms = self.parameters.get('task', {}).get('forms', {})
+        return forms.get('display_sample', {}).get('value') in (1, '1')
+
+    def contains_results(self):
+        return self.contains_sample or self.contains_schema
 
     def must_be_executed(self, is_satisfied, ignore_out_degree=False,
                          ignore_has_code=False):

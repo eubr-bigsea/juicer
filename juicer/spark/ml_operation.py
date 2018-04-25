@@ -72,7 +72,7 @@ class FeatureIndexerOperation(Operation):
                                         'models_task_{}'.format(self.order))
         if self.type == self.TYPE_STRING:
             code = dedent("""
-                col_alias = dict({alias})
+                col_alias = dict(tuple({alias}))
                 indexers = [feature.StringIndexer(
                     inputCol=col, outputCol=alias, handleInvalid='skip')
                              for col, alias in col_alias.items()]
