@@ -3,10 +3,14 @@ import decimal
 import json
 
 import datetime
+import pyspark.sql.types as spark_types
 from pyspark.ml.linalg import DenseVector
-
 import re
 import types
+
+
+def is_numeric(schema, col):
+    return isinstance(schema[str(col)].dataType, spark_types.NumericType)
 
 
 class CustomEncoder(json.JSONEncoder):

@@ -74,7 +74,7 @@ class FeatureIndexerOperation(Operation):
             code = dedent("""
                 col_alias = dict(tuple({alias}))
                 indexers = [feature.StringIndexer(
-                    inputCol=col, outputCol=alias, handleInvalid='skip')
+                    inputCol=col, outputCol=alias, handleInvalid='keep')
                              for col, alias in col_alias.items()]
 
                 # Use Pipeline to process all attributes once
@@ -422,12 +422,43 @@ class EvaluateModelOperation(Operation):
                 'display_image', {'value': 1}).get('value', 1) in (1, '1')
 
             code = [dedent("""
+                emit = functools.partial(
+                    emit_event, name='update task',
+                    status='RUNNING', type='TEXT',
+                    identifier='{task_id}',
+                    operation={{'id': {operation_id}}},
+                    operation_id={operation_id},
+                    task={{'id': '{task_id}'}},
+                    title='{title}')
                 metric_value = 0.0
                 display_text = {display_text}
                 display_image = {display_image}
                 metric = '{metric}'
                 label_col = '{label_attr}'
                 prediction_col = str('{prediction_attr}')
+
+                stages = []
+                requires_pipeline = False
+                if not dataframe_util.is_numeric({input}.schema, label_col):
+                    emit(message=_('Label attribute is categorical, it will be '
+                            'implicitly indexed as string.'),)
+                    final_label = '{{}}_tmp'.format(label_col)
+                    final_prediction = '{{}}_tmp'.format(prediction_col)
+
+                    indexer = feature.StringIndexer(
+                                inputCol=label_col, outputCol=final_label,
+                                handleInvalid='keep')
+                    label_indexer = indexer.fit({input})
+                    {input} = label_indexer.transform({input})
+
+                    {input} = label_indexer.transform({input},{{
+                        label_indexer.inputCol: prediction_col,
+                        label_indexer.outputCol: final_prediction
+                    }})
+
+                    label_col =  final_label
+                    prediction_col = final_prediction
+
                 """)]
             if self.metric in ['areaUnderROC', 'areaUnderPR']:
                 self._get_code_for_area_metric(code)
@@ -476,7 +507,7 @@ class EvaluateModelOperation(Operation):
         code.append(dedent("""
             label_prediction = {input}.select(
                 functions.col(prediction_col).cast('Double'),
-                functions.col('{label_attr}').cast('Double'))
+                functions.col(label_col).cast('Double'))
             evaluator = MulticlassMetrics(label_prediction.rdd)
             if metric == 'f1':
                 metric_value = evaluator.weightedFMeasure()
@@ -492,18 +523,18 @@ class EvaluateModelOperation(Operation):
                 # strings must be converted into numbers in order tho
                 # run algorithms, but they are cooler when displaying
                 # results.
-                indexer = cached_state.get('indexers', {{}}).get(
-                    '{label_attr}')
-                if indexer:
-                    classes = indexer.labels
-                else:
-                    classes = sorted(
+                all_labels = [l for l in {input}.schema[
+                    str(label_col)].metadata.get(
+                        'ml_attr', {{}}).get('vals', {{}}) if l[0] != '_']
+
+                if not all_labels:
+                    all_labels = sorted(
                         [x[0] for x in label_prediction.select(
-                                '{label_attr}').distinct().collect()])
+                                label_col).distinct().collect()])
 
                 content = ConfusionMatrixImageReport(
                     cm=evaluator.confusionMatrix().toArray(),
-                    classes=classes,)
+                    classes=all_labels,)
 
                 emit_event(
                     'update task', status='COMPLETED',
@@ -570,14 +601,14 @@ class EvaluateModelOperation(Operation):
         """
         code.append(dedent("""
             df = {input}
-            if not isinstance({input}.schema[prediction_col].dataType,
+            if not isinstance({input}.schema[str(prediction_col)].dataType,
                 (types.DoubleType, types.FloatType)):
                 df = {input}.withColumn(prediction_col,
                     {input}[prediction_col].cast('double'))
 
             evaluator = evaluation.RegressionEvaluator(
                 {prediction_arg}=prediction_col,
-                labelCol='{label_attr}',
+                labelCol=label_col,
                 metricName=metric)
             metric_value = evaluator.evaluate(df)
             if display_text:
@@ -795,10 +826,10 @@ class CrossValidationOperation(Operation):
 
                 evaluator = {evaluator}(
                     {prediction_arg}='{prediction_attr}',
-                    labelCol='{label_attr}',
+                    labelCol=label_col,
                     metricName='{metric}')
 
-                estimator.setLabelCol('{label_attr}')
+                estimator.setLabelCol(label_col)
                 estimator.setPredictionCol('{prediction_attr}')
 
                 cross_validator = tuning.CrossValidator(
@@ -924,8 +955,6 @@ class ClassificationModelOperation(Operation):
                 operation={{'id': {operation_id}}}, operation_id={operation_id},
                 task={{'id': '{task_id}'}},
                 title='{title}')
-            def test_numeric(schema, col):
-                return isinstance(schema[str(col)].dataType, types.NumericType)
 
             alg, param_grid, metrics = {algorithm}
 
@@ -947,48 +976,75 @@ class ClassificationModelOperation(Operation):
             requires_pipeline = False
             stages = []
             features = {feat}
-            drop_at_end = []
+            keep_at_end = [c.name for c in {train}.schema]
+            keep_at_end.append('{prediction}')
+
             to_assemble = []
             if len(features) > 1 and not isinstance(
                 {train}.schema[str(features[0])].dataType, VectorUDT):
-                emit(message=_('Features are not assembled as a vector. '
-                        'They will be implicitly assembled.'),)
+                emit(message=_(
+                    'Features are not assembled as a vector. They will be '
+                    'implicitly assembled and  rows with null values will be '
+                    'discarded. If this is undesirable, explicitly add a '
+                    'feature assembler in the workflow.'),)
                 for f in features:
-                    if not test_numeric({train}.schema, f):
+                    if not dataframe_util.is_numeric({train}.schema, f):
                         name = f + '_tmp'
                         to_assemble.append(name)
-                        drop_at_end.append(name)
                         stages.append(feature.StringIndexer(
-                            inputCol=f, outputCol=name, handleInvalid='skip'))
+                            inputCol=f, outputCol=name, handleInvalid='keep'))
                     else:
                         to_assemble.append(f)
+
+                # Remove rows with null (VectorAssembler doesn't support it)
+                cond = ' AND '.join(['{{}} IS NOT NULL '.format(c)
+                    for c in to_assemble])
+                stages.append(SQLTransformer(
+                    statement='SELECT * FROM __THIS__ WHERE {{}}'.format(cond)))
 
                 final_features = 'features_tmp'
                 stages.append(feature.VectorAssembler(
                     inputCols=to_assemble, outputCol=final_features))
-                drop_at_end.append('features_tmp')
                 requires_pipeline = True
             else:
                 final_features = features[0]
 
-            if not test_numeric({train}.schema, '{label}'):
+            requires_revert_label = False
+            if not dataframe_util.is_numeric({train}.schema, '{label}'):
                 emit(message=_('Label attribute is categorical, it will be '
                         'implicitly indexed as string.'),)
                 final_label = '{label}_tmp'
                 stages.append(feature.StringIndexer(
                             inputCol='{label}', outputCol=final_label,
-                            handleInvalid='skip'))
-                drop_at_end.append(final_label)
+                            handleInvalid='keep'))
                 requires_pipeline = True
+                requires_revert_label = True
             else:
                 final_label = '{label}'
 
             if requires_pipeline:
                 algorithm.setLabelCol(final_label)
                 algorithm.setFeaturesCol(final_features)
+                if requires_revert_label:
+                    algorithm.setPredictionCol('{prediction}_tmp')
 
                 stages.append(algorithm)
+
                 pipeline = Pipeline(stages=stages)
+                {model} = pipeline.fit({train})
+
+                last_stages = [{model}]
+                if requires_revert_label:
+                    # Map indexed label to original value
+                    last_stages.append(IndexToString(inputCol='{prediction}_tmp',
+                        outputCol='{prediction}',
+                        labels={model}.stages[-2].labels))
+
+                # Remove temporary columns
+                sql = 'SELECT {{}} FROM __THIS__'.format(', '.join(keep_at_end))
+                last_stages.append(SQLTransformer(statement=sql))
+
+                pipeline = Pipeline(stages=last_stages)
                 {model} = pipeline.fit({train})
             else:
                 algorithm.setLabelCol(final_label)
