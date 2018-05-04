@@ -7,7 +7,7 @@ from textwrap import dedent
 from juicer.util import group
 
 
-class Expression:
+class Expression(object):
     def __init__(self, json_code, params, window=False):
         self.window = window
         self.code = json_code
