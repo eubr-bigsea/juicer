@@ -1190,7 +1190,8 @@ class WindowTransformationOperation(Operation):
     Returns a new DataFrame applying transformations over a window.
     See documentation about window operations in Spark.
     """
-
+    RANKING_FUNCTIONS = ['rank', 'dense_rank', 'percent_rank', 'ntile',
+                         'row_number']
     PARTITION_ATTRIBUTE_PARAM = 'partition_attribute'
     ORDER_BY_PARAM = 'order_by'
     ROWS_FROM_PARAM = 'rows_from'
@@ -1285,8 +1286,10 @@ class WindowTransformationOperation(Operation):
         range_code = ''
         if self.type == self.ROWS:
             from_int = None
+            # noinspection PyUnresolvedReferences
             if self.rows_from.isdigit():
-                from_int = int(self.rows_from)
+                from_int = -abs(int(self.rows_from))
+                self.rows_from = from_int
 
             to_int = None
             if self.rows_to.isdigit():
@@ -1306,6 +1309,12 @@ class WindowTransformationOperation(Operation):
         aliases = []
         params = {}
         for expr in self.expressions:
+            if expr['tree'].get('callee', {}).get(
+                    'name') not in self.RANKING_FUNCTIONS:
+                params['window'] = 'window'
+            else:
+                params['window'] = 'rank_window'
+
             expression = Expression(expr['tree'], params, window=True)
             built_expr = expression.parsed_expression
             new_attrs.append(built_expr)
@@ -1314,6 +1323,7 @@ class WindowTransformationOperation(Operation):
         code = dedent("""
             from juicer.spark.ext import CustomExpressionTransformer
 
+            rank_window = Window.partitionBy('{partition}'){order_by_code}
             window = Window.partitionBy(
                 '{partition}'){order_by_code}{rows_code}{range_code}
             specs = [{new_attrs}]
