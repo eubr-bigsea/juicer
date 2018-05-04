@@ -363,6 +363,11 @@ class EvaluateModelOperation(Operation):
                  named_outputs):
         Operation.__init__(self, parameters, named_inputs,
                            named_outputs)
+        self.has_code = any([(
+            (len(self.named_inputs) > 0 and len(self.named_outputs) > 0) or
+            (self.named_outputs.get('evaluator') is not None) or
+            ('input data' in self.named_inputs)
+        ), self.contains_results()])
 
         # @FIXME: validate if metric is compatible with Model using workflow
 
@@ -370,12 +375,13 @@ class EvaluateModelOperation(Operation):
             self.PREDICTION_ATTRIBUTE_PARAM) or [''])[0]
         self.label_attribute = (parameters.get(
             self.LABEL_ATTRIBUTE_PARAM) or [''])[0]
+
         self.metric = parameters.get(self.METRIC_PARAM) or ''
 
         if all([self.prediction_attribute != '', self.label_attribute != '',
                 self.metric != '']):
             pass
-        else:
+        elif self.has_code:
             msg = \
                 _("Parameters '{}', '{}' and '{}' must be informed for task {}")
             raise ValueError(msg.format(
@@ -386,12 +392,6 @@ class EvaluateModelOperation(Operation):
             self.param_prediction_arg = self.METRIC_TO_EVALUATOR[self.metric][1]
         else:
             raise ValueError(_('Invalid metric value {}').format(self.metric))
-
-        self.has_code = any([(
-            (len(self.named_inputs) > 0 and len(self.named_outputs) > 0) or
-            (self.named_outputs.get('evaluator') is not None) or
-            ('input data' in self.named_inputs)
-        ), self.contains_results()])
 
         self.model = self.named_inputs.get('model')
         self.model_out = self.named_outputs.get(
@@ -710,6 +710,7 @@ class CrossValidationOperation(Operation):
     SEED_PARAM = 'seed'
     PREDICTION_ATTRIBUTE_PARAM = 'prediction_attribute'
     LABEL_ATTRIBUTE_PARAM = 'label_attribute'
+    FEATURES_ATTRIBUTE_PARAM = 'features'
 
     METRIC_TO_EVALUATOR = {
         'areaUnderROC': (
@@ -748,6 +749,8 @@ class CrossValidationOperation(Operation):
 
         self.prediction_attr = parameters.get(self.PREDICTION_ATTRIBUTE_PARAM,
                                               'prediction')
+        self.features = (parameters.get(
+            self.FEATURES_ATTRIBUTE_PARAM) or ['features'])[0]
 
         if self.LABEL_ATTRIBUTE_PARAM not in parameters:
             raise ValueError(
@@ -770,13 +773,13 @@ class CrossValidationOperation(Operation):
             'algorithm', 'algo_{}'.format(self.order))
         self.input_port = self.named_inputs.get(
             'input data', 'in_{}'.format(self.order))
-        self.evaluator_port = self.named_inputs.get(
-            'evaluator', 'eval_{}'.format(self.order))
+
+        self.supports_cache = False
 
     @property
     def get_inputs_names(self):
         return ', '.join(
-            [self.algorithm_port, self.input_port, self.evaluator_port])
+            [self.algorithm_port, self.input_port])
 
     def get_output_names(self, sep=", "):
         return sep.join([self.output, self.best_model, self.models])
@@ -786,42 +789,74 @@ class CrossValidationOperation(Operation):
 
     def generate_code(self):
         code = dedent("""
-                grid_builder = tuning.ParamGridBuilder()
-                estimator, param_grid, metric = {algorithm}
+        # If you don't need all models info, you can use original CrossValidator
+        from juicer.spark.ext.tuning import CustomCrossValidator
+        grid_builder = tuning.ParamGridBuilder()
+        estimator, param_grid, metric = {algorithm}
 
-                for param_name, values in param_grid.items():
-                    param = getattr(estimator, param_name)
-                    grid_builder.addGrid(param, values)
+        estimator.setFeaturesCol('{features}')
+        for param_name, values in param_grid.items():
+            param = getattr(estimator, param_name)
+            grid_builder.addGrid(param, values)
 
-                evaluator = {evaluator}(
-                    {prediction_arg}='{prediction_attr}',
-                    labelCol='{label_attr}',
-                    metricName='{metric}')
+        final_grid = grid_builder.build()
+        evaluator = {evaluator}(
+            {prediction_arg}='{prediction_attr}',
+            labelCol='{label_attr}',
+            metricName='{metric}')
 
-                estimator.setLabelCol('{label_attr}')
-                estimator.setPredictionCol('{prediction_attr}')
+        estimator.setLabelCol('{label_attr}')
+        estimator.setPredictionCol('{prediction_attr}')
 
-                cross_validator = tuning.CrossValidator(
-                    estimator=estimator,
-                    estimatorParamMaps=grid_builder.build(),
-                    evaluator=evaluator, numFolds={folds})
-                cv_model = cross_validator.fit({input_data})
-                fit_data = cv_model.transform({input_data})
-                {best_model} = cv_model.bestModel
-                metric_result = evaluator.evaluate(fit_data)
-                {output} = fit_data
-                {models} = None
-                """.format(algorithm=self.algorithm_port,
-                           input_data=self.input_port,
-                           evaluator=self.evaluator,
-                           output=self.output,
-                           best_model=self.best_model,
-                           models=self.models,
-                           prediction_arg=self.param_prediction_arg,
-                           prediction_attr=self.prediction_attr,
-                           label_attr=self.label_attr[0],
-                           folds=self.num_folds,
-                           metric=self.metric))
+        cross_validator = CustomCrossValidator(
+            estimator=estimator,
+            estimatorParamMaps=final_grid,
+            evaluator=evaluator, numFolds={folds})
+        cv_model = cross_validator.fit({input_data})
+        fit_data = cv_model.transform({input_data})
+        {best_model} = cv_model.bestModel
+        metric_result = evaluator.evaluate(fit_data)
+        {output} = fit_data
+        {models} = None
+
+        scores = zip([[(p.name, v) for p, v in g.items()] for g in final_grid],
+            cv_model.avgMetrics, cross_validator.variance)
+
+        headers = {headers}
+        rows = [[i + 1, ' = '.join(r[0]), r[1], r[2]] for i, r in
+            enumerate(scores)]
+
+        content = SimpleTableReport(
+                'table table-striped table-bordered table-sm',
+                headers, rows,
+                title='{title}')
+
+        emit_event(
+            'update task', status='COMPLETED',
+            identifier='{task_id}',
+            message=content.generate(),
+            type='HTML', title='{title}',
+            task={{'id': '{task_id}'}},
+            operation={{'id': {operation_id}}},
+            operation_id={operation_id})
+
+        """.format(algorithm=self.algorithm_port,
+                   input_data=self.input_port,
+                   evaluator=self.evaluator,
+                   output=self.output,
+                   best_model=self.best_model,
+                   models=self.models,
+                   prediction_arg=self.param_prediction_arg,
+                   prediction_attr=self.prediction_attr,
+                   label_attr=self.label_attr[0],
+                   folds=self.num_folds,
+                   features=self.features,
+                   headers=[_('Experiment'), _('Parameters (Param grid)'),
+                            _('Metric average'), _('Metric variance')],
+                   task_id=self.parameters['task_id'],
+                   operation_id=self.parameters['operation_id'],
+                   title=_('Cross validation result'),
+                   metric=self.metric))
 
         # If there is an output needing the evaluation result, it must be
         # processed here (summarization of data results)
