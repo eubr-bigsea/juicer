@@ -28,7 +28,7 @@ from concurrent.futures import ThreadPoolExecutor
 # noinspection PyCompatibility
 from concurrent.futures import TimeoutError
 from juicer.runner import configuration
-from juicer.runner import juicer_protocol
+from juicer.runner import protocol as juicer_protocol
 
 from juicer.runner.minion_base import Minion
 from juicer.spark.transpiler import SparkTranspiler
