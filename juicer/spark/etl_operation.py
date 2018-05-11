@@ -1041,6 +1041,7 @@ class ExecutePythonOperation(Operation):
 
         # Variables and language supported
         ctx = {{
+            'createDataFrame': spark_session.createDataFrame,
             'wf_results': results,
             'in1': in1,
             'in2': in2,
