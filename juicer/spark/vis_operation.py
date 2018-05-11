@@ -1,5 +1,6 @@
 # coding=utf-8
 from __future__ import unicode_literals
+
 import decimal
 import itertools
 import json
@@ -8,6 +9,7 @@ from textwrap import dedent
 import datetime
 
 from juicer.operation import Operation
+from juicer.service import limonero_service
 from juicer.util import chunks
 from juicer.util import dataframe_util
 from juicer.util.dataframe_util import get_csv_schema
@@ -184,7 +186,7 @@ class VisualizationMethodOperation(Operation):
                  't_format',
                  'latitude', 'longitude', 'value', 'label',
                  'y_axis_attribute', 'z_axis_attribute', 't_axis_attribute',
-                 'series_attribute']
+                 'series_attribute', 'extra_data', 'polygon']
         for k, v in self.parameters.items():
             if k in valid:
                 result[k] = v
@@ -322,11 +324,27 @@ class ScatterPlotOperation(VisualizationMethodOperation):
 
 class MapOperation(VisualizationMethodOperation):
     def __init__(self, parameters, named_inputs, named_outputs):
+
+        limonero_config = parameters['configuration']['juicer']['services'][
+                'limonero']
+        url = limonero_config['url']
+        token = str(limonero_config['auth_token'])
+
+        # Is data source information cached?
+        metadata = limonero_service.get_data_source_info(
+            url, token, parameters.get('polygon'))
+        if not metadata.get('url') or metadata.get('format') != 'GEO_JSON':
+            raise ValueError(
+                _('Incorrect data source configuration (empty url or '
+                  'not GEOJSON)'))
+        else:
+            parameters['polygon'] = metadata['url']
+
         VisualizationMethodOperation.__init__(self, parameters, named_inputs,
                                               named_outputs)
 
     def get_model_name(self):
-        return 'MapModel'
+        return MapModel.__name__
 
 
 class SummaryStatisticsOperation(VisualizationMethodOperation):
@@ -720,58 +738,79 @@ class MapModel(ChartVisualization):
         else:
             value_type = 'number'
 
+        param_map_type = self.params.get('type', 'heatmap')
+
         map_type = {
             'heatmap': 'heat',
             'bars': 'bars',
             'bar': 'bars',
-            'points': 'points'
-        }[self.params.get('type', 'heatmap')]
+            'points': 'points',
+            'polygon': 'polygon'
+        }[param_map_type]
 
-        result["bars"] = {
-            "mapColor": "#8BC3D2",
-            "mapStrokeColor": "#FFF",
-            "mapOpacity": "0.7",
-            "barWidth": "2",
-            "barMaxHeight": 40,
-            "bottomBarHeight": 4,
-            "bottomBarColor": "#596A6D",
-            "barColor": "#428DA1",
-            "prefix": "$",
-            "suffix": "",
-            "format": "",
-            "type": value_type
-        }
-        result["heat"] = {
-            "colors": ["#47d8c7", "#e3c170", "#fe492b"],
-            "shapeId": "abbr",
-            "prefix": "",
-            "suffix": "",
-            "format": "locale",
-            "type": value_type
-        }
+        if param_map_type == 'bars':
+            result["bars"] = {
+                "mapColor": "#8BC3D2",
+                "mapStrokeColor": "#FFF",
+                "mapOpacity": "0.7",
+                "barWidth": "2",
+                "barMaxHeight": 40,
+                "bottomBarHeight": 4,
+                "bottomBarColor": "#596A6D",
+                "barColor": "#428DA1",
+                "prefix": "$",
+                "suffix": "",
+                "format": "",
+                "type": value_type
+            }
+        if param_map_type == 'heatmap':
+            result["heat"] = {
+                "colors": ["#47d8c7", "#e3c170", "#fe492b"],
+                "shapeId": "abbr",
+                "prefix": "",
+                "suffix": "",
+                "format": "locale",
+                "type": value_type
+            }
 
         result['mode'] = {
             map_type: True
         }
+        if param_map_type == 'polygon':
+            result['geojson'] = {
+                'url': self.params.get('polygon')
+            }
 
         data = []
         result['data'] = data
+
+        lat = self.params.get('latitude', [None])[0]
+        lng = self.params.get('longitude', [None])[0]
+        label = self.params.get('label', [None])[0]
 
         for i, row in enumerate(rows):
             if self.params.get('value'):
                 value = row[self.params.get('value')[0]]
             else:
                 value = 0
-            data.append(
-                {
-                    "id": str(i),
-                    "name": row[self.params.get('label')[0]] if self.params.get(
-                        'label') else None,
-                    "lat": row[self.params['latitude'][0]],
-                    "lon": row[self.params['longitude'][0]],
-                    "value": value
+            if param_map_type == 'polygon':
+
+                info = {"id": row[label], "value": value}
+                extra = self.params.get('extra_data', [])
+                for f in extra:
+                    info[f] = row[f]
+
+            else:
+                info = {
+                    "id": str(i), "value": value,
+                    "name": row[label] if label else None,
                 }
-            )
+                if lat and lng:
+                    info["lat"] = row[lat]
+                    info["lon"] = row[lng]
+
+            data.append(info)
+
         return result
 
 
@@ -804,7 +843,7 @@ class ScatterPlotModel(ChartVisualization):
                 # this way we don't bind x_axis and y_axis types. Y is only
                 # going to be number for now
                 if axis == u'y':
-                  axis_type = 'number'
+                    axis_type = 'number'
 
                 result[axis] = {
                     "title": self.params.get("{}_title".format(axis)),
@@ -878,6 +917,7 @@ class ScatterPlotModel(ChartVisualization):
             return ChartVisualization._format(row[attr.name])
         else:
             return default_value
+
 
 class HtmlVisualizationModel(VisualizationModel):
     # noinspection PyUnusedLocal
