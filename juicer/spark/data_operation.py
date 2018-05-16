@@ -33,6 +33,7 @@ class DataReaderOperation(Operation):
     LIMONERO_TO_SPARK_DATA_TYPES = {
         "CHARACTER": 'types.StringType',
         "DATETIME": 'types.TimestampType',
+        "DATE": 'types.DateType',
         "DOUBLE": 'types.DoubleType',
         "DECIMAL": 'types.DecimalType',
         "FLOAT": 'types.FloatType',
