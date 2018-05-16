@@ -186,7 +186,7 @@ class VisualizationMethodOperation(Operation):
                  't_format',
                  'latitude', 'longitude', 'value', 'label',
                  'y_axis_attribute', 'z_axis_attribute', 't_axis_attribute',
-                 'series_attribute', 'extra_data', 'polygon', 'geojson_id']
+                 'series_attribute', 'extra_data', 'polygon', 'geojson_id', ]
         for k, v in self.parameters.items():
             if k in valid:
                 result[k] = v
@@ -326,7 +326,7 @@ class MapOperation(VisualizationMethodOperation):
     def __init__(self, parameters, named_inputs, named_outputs):
 
         limonero_config = parameters['configuration']['juicer']['services'][
-                'limonero']
+            'limonero']
         url = limonero_config['url']
         token = str(limonero_config['auth_token'])
 
@@ -409,13 +409,13 @@ class ChartVisualization(VisualizationModel):
     @staticmethod
     def _get_attr_type(attr):
         if attr.dataType.jsonValue() == 'date':
-            attr_type = 'time'
+            attr_type = 'date'
         elif attr.dataType.jsonValue() == 'datetime':
             attr_type = 'time'
         elif attr.dataType.jsonValue() == 'time':
             attr_type = 'text'
         elif attr.dataType.jsonValue() == 'timestamp':
-            attr_type = 'timestamp'
+            attr_type = 'time'
         elif attr.dataType.jsonValue() == 'text':
             attr_type = 'text'
         elif attr.dataType.jsonValue() == 'character':
@@ -702,14 +702,14 @@ class LineChartModel(ChartVisualization):
 
         if x_type in ['number']:
             result['x']['format'] = self.params.get("x_format", {}).get('key')
-        elif x_type in ['timestamp', 'date', 'time']:
-            # Lets have this hardcoded for now
+        elif x_type == 'time':
+            # FIXME: gViz does not handles datetime correctly
+            result['x']['inFormat'] = '%Y-%m-%dT%H:%M:%S'
+            result['x']['outFormat'] = '%Y-%m-%d'
+        elif x_type in ['date']:
             result['x']["inFormat"] = self.default_time_format
             result['x']["outFormat"] = self.default_time_format
-
-            # old code
-            # result['x']["inFormat"] = self.params.get("x_format", {}).get('key')
-            # result['x']["outFormat"] = self.params.get("x_format", {}).get('key')
+            result['x']["type"] = 'time'  # FIXME
 
         for row in rows:
             for i, attr in enumerate(y_attrs):
