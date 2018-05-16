@@ -186,7 +186,7 @@ class VisualizationMethodOperation(Operation):
                  't_format',
                  'latitude', 'longitude', 'value', 'label',
                  'y_axis_attribute', 'z_axis_attribute', 't_axis_attribute',
-                 'series_attribute', 'extra_data', 'polygon']
+                 'series_attribute', 'extra_data', 'polygon', 'geojson_id']
         for k, v in self.parameters.items():
             if k in valid:
                 result[k] = v
@@ -410,12 +410,12 @@ class ChartVisualization(VisualizationModel):
     def _get_attr_type(attr):
         if attr.dataType.jsonValue() == 'date':
             attr_type = 'time'
-        if attr.dataType.jsonValue() == 'datetime':
+        elif attr.dataType.jsonValue() == 'datetime':
             attr_type = 'time'
-        if attr.dataType.jsonValue() == 'time':
+        elif attr.dataType.jsonValue() == 'time':
             attr_type = 'text'
         elif attr.dataType.jsonValue() == 'timestamp':
-            attr_type = 'number'
+            attr_type = 'timestamp'
         elif attr.dataType.jsonValue() == 'text':
             attr_type = 'text'
         elif attr.dataType.jsonValue() == 'character':
@@ -425,7 +425,7 @@ class ChartVisualization(VisualizationModel):
 
         return attr_type
 
-    def _get_title_legend_tootip(self):
+    def _get_title_legend_tooltip(self):
         """ Common title and legend """
         return {
             "title": self.title,
@@ -500,7 +500,7 @@ class BarChartModel(ChartVisualization):
             color_counter = i
 
         result = {}
-        result.update(self._get_title_legend_tootip())
+        result.update(self._get_title_legend_tooltip())
 
         # For barcharts this is right option
         result['legend']['text'] = u'{{x}}'
@@ -619,7 +619,7 @@ class PieChartModel(ChartVisualization):
         # is called directly when the output port is used multiple times.
         self.data.count()
         rows = self.data.collect()
-        result = self._get_title_legend_tootip()
+        result = self._get_title_legend_tooltip()
         result['legend']['isVisible'] = self.params.get('legend') in ('1', 1)
 
         x_format = self.params.get("x_format", {})
@@ -682,7 +682,7 @@ class LineChartModel(ChartVisualization):
             })
 
         result = {}
-        result.update(self._get_title_legend_tootip())
+        result.update(self._get_title_legend_tooltip())
 
         result.update({
             "y": {
@@ -728,7 +728,7 @@ class MapModel(ChartVisualization):
 
     def get_data(self):
         result = {}
-        result.update(self._get_title_legend_tootip())
+        result.update(self._get_title_legend_tooltip())
         rows = self.data.collect()
 
         if self.params.get('value'):
@@ -778,7 +778,8 @@ class MapModel(ChartVisualization):
         }
         if param_map_type == 'polygon':
             result['geojson'] = {
-                'url': self.params.get('polygon')
+                'url': self.params.get('polygon'),
+                'idProperty': self.params.get('geojson_id', 'id') or 'id'
             }
 
         data = []
@@ -798,7 +799,8 @@ class MapModel(ChartVisualization):
                 info = {"id": row[label], "value": value}
                 extra = self.params.get('extra_data', [])
                 for f in extra:
-                    info[f] = row[f]
+                    if f in row:
+                        info[f] = row[f]
 
             else:
                 info = {
@@ -863,7 +865,7 @@ class ScatterPlotModel(ChartVisualization):
                     # result[axis]["outFormat"] = axis_format.get('key')
                     # result[axis]["inFormat"] = axis_format.get('key')
 
-        result.update(self._get_title_legend_tootip())
+        result.update(self._get_title_legend_tooltip())
 
         series_attr_name = self.params.get('series_attribute', [None])[0]
         if series_attr_name:
