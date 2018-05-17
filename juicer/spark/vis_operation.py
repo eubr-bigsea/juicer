@@ -330,16 +330,16 @@ class MapOperation(VisualizationMethodOperation):
         url = limonero_config['url']
         token = str(limonero_config['auth_token'])
 
-        # Is data source information cached?
-        metadata = limonero_service.get_data_source_info(
-            url, token, parameters.get('polygon'))
-        if not metadata.get('url') or metadata.get('format') != 'GEO_JSON':
-            raise ValueError(
-                _('Incorrect data source configuration (empty url or '
-                  'not GEOJSON)'))
-        else:
-            parameters['polygon'] = metadata['url']
-
+        if metadata.get('format') != 'GEO_JSON':
+            metadata = limonero_service.get_data_source_info(
+                url, token, parameters.get('polygon'))
+            if not metadata.get('url'):
+                raise ValueError(
+                    _('Incorrect data source configuration (empty url or '
+                      'not GEOJSON)'))
+            else:
+                parameters['polygon'] = metadata['url']
+    
         VisualizationMethodOperation.__init__(self, parameters, named_inputs,
                                               named_outputs)
 
