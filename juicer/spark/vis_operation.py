@@ -325,7 +325,7 @@ class ScatterPlotOperation(VisualizationMethodOperation):
 class MapOperation(VisualizationMethodOperation):
     def __init__(self, parameters, named_inputs, named_outputs):
 
-        if parameters.get('type') != 'geojson':
+        if parameters.get('type') == 'geojson':
             limonero_config = parameters['configuration']['juicer']['services'][
                 'limonero']
             url = limonero_config['url']
