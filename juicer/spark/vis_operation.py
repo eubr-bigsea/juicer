@@ -186,7 +186,7 @@ class VisualizationMethodOperation(Operation):
                  't_format',
                  'latitude', 'longitude', 'value', 'label',
                  'y_axis_attribute', 'z_axis_attribute', 't_axis_attribute',
-                 'series_attribute', 'extra_data', 'polygon', 'geojson_id', 
+                 'series_attribute', 'extra_data', 'polygon', 'geojson_id',
                  'polygon_url' ]
         for k, v in self.parameters.items():
             if k in valid:
@@ -741,37 +741,10 @@ class MapModel(ChartVisualization):
         param_map_type = self.params.get('type', 'heatmap')
 
         map_type = {
-            'heatmap': 'heat',
-            'bars': 'bars',
-            'bar': 'bars',
+            'heatmap': 'heatmap',
             'points': 'points',
             'polygon': 'polygon'
         }[param_map_type]
-
-        if param_map_type == 'bars':
-            result["bars"] = {
-                "mapColor": "#8BC3D2",
-                "mapStrokeColor": "#FFF",
-                "mapOpacity": "0.7",
-                "barWidth": "2",
-                "barMaxHeight": 40,
-                "bottomBarHeight": 4,
-                "bottomBarColor": "#596A6D",
-                "barColor": "#428DA1",
-                "prefix": "$",
-                "suffix": "",
-                "format": "",
-                "type": value_type
-            }
-        if param_map_type == 'heatmap':
-            result["heat"] = {
-                "colors": ["#47d8c7", "#e3c170", "#fe492b"],
-                "shapeId": "abbr",
-                "prefix": "",
-                "suffix": "",
-                "format": "locale",
-                "type": value_type
-            }
 
         result['mode'] = {
             map_type: True
