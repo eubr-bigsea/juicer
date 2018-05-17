@@ -186,7 +186,8 @@ class VisualizationMethodOperation(Operation):
                  't_format',
                  'latitude', 'longitude', 'value', 'label',
                  'y_axis_attribute', 'z_axis_attribute', 't_axis_attribute',
-                 'series_attribute', 'extra_data', 'polygon', 'geojson_id', ]
+                 'series_attribute', 'extra_data', 'polygon', 'geojson_id', 
+                 'polygon_url' ]
         for k, v in self.parameters.items():
             if k in valid:
                 result[k] = v
@@ -325,7 +326,7 @@ class ScatterPlotOperation(VisualizationMethodOperation):
 class MapOperation(VisualizationMethodOperation):
     def __init__(self, parameters, named_inputs, named_outputs):
 
-        if parameters.get('type') == 'geojson':
+        if parameters.get('type') in ['polygon', 'geojson']:
             limonero_config = parameters['configuration']['juicer']['services'][
                 'limonero']
             url = limonero_config['url']
@@ -338,8 +339,7 @@ class MapOperation(VisualizationMethodOperation):
                     _('Incorrect data source configuration (empty url or '
                       'not GEOJSON)'))
             else:
-                parameters['polygon'] = metadata['url']
-    
+                parameters['polygon_url'] = metadata['url']
         VisualizationMethodOperation.__init__(self, parameters, named_inputs,
                                               named_outputs)
 
@@ -778,7 +778,7 @@ class MapModel(ChartVisualization):
         }
         if param_map_type == 'polygon':
             result['geojson'] = {
-                'url': self.params.get('polygon'),
+                'url': self.params.get('polygon_url'),
                 'idProperty': self.params.get('geojson_id', 'id') or 'id'
             }
 
