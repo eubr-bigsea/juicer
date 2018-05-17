@@ -325,12 +325,12 @@ class ScatterPlotOperation(VisualizationMethodOperation):
 class MapOperation(VisualizationMethodOperation):
     def __init__(self, parameters, named_inputs, named_outputs):
 
-        limonero_config = parameters['configuration']['juicer']['services'][
-            'limonero']
-        url = limonero_config['url']
-        token = str(limonero_config['auth_token'])
+        if parameters.get('type') != 'geojson':
+            limonero_config = parameters['configuration']['juicer']['services'][
+                'limonero']
+            url = limonero_config['url']
+            token = str(limonero_config['auth_token'])
 
-        if metadata.get('format') != 'GEO_JSON':
             metadata = limonero_service.get_data_source_info(
                 url, token, parameters.get('polygon'))
             if not metadata.get('url'):
