@@ -3,7 +3,6 @@ from __future__ import unicode_literals
 
 import json
 from collections import namedtuple
-from itertools import izip_longest
 from textwrap import dedent
 
 from juicer.operation import Operation, TransformModelOperation
@@ -213,7 +212,7 @@ class BucketizerOperation(TransformModelOperation):
                     splits.append(float(split))
                 except Exception as e:
                     raise ValueError(_('Invalid value for {}: "{}".').format(
-                            _('splits'), split))
+                        _('splits'), split))
         if len(splits) < 3:
             raise ValueError(
                 _('You must inform at least {} '
@@ -227,9 +226,18 @@ class BucketizerOperation(TransformModelOperation):
 
     def generate_code(self):
         input_data = self.named_inputs['input data']
+        splits = []
+        for v in self.splits:
+            if v == float('inf'):
+                splits.append('float("inf")')
+            elif v == -float('inf'):
+                splits.append('-float("inf")')
+            else:
+                splits.append(str(v))
+
         code = dedent("""
             col_alias = dict(tuple({alias}))
-            splits = {splits}
+            splits = [{splits}]
             bucketizers = [feature.Bucketizer(
                 splits=splits, handleInvalid='{handle_invalid}', inputCol=col,
                 outputCol=alias, ) for col, alias in col_alias.items()]
@@ -240,7 +248,7 @@ class BucketizerOperation(TransformModelOperation):
         """.format(
             alias=json.dumps(zip(self.attributes, self.aliases)),
             handle_invalid=self.handle_invalid,
-            splits=repr(self.splits),
+            splits=', '.join(splits),
             input=input_data,
             output=self.output,
             model=self.model,
@@ -307,7 +315,7 @@ class QuantileDiscretizerOperation(TransformModelOperation):
         code = dedent("""
                 col_alias = dict(tuple({alias}))
                 qds = [feature.QuantileDiscretizer(
-                    numBuckets={buckets}, relativeError='{relative_error}',
+                    numBuckets={buckets}, relativeError={relative_error},
                     inputCol=col, outputCol=alias, )
                     for col, alias in col_alias.items()]
                 pipeline = Pipeline(stages=qds)
