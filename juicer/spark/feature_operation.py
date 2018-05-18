@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
 
+import json
 from collections import namedtuple
+from itertools import izip_longest
 from textwrap import dedent
 
-from juicer.operation import Operation
+from juicer.operation import Operation, TransformModelOperation
 
 ScalerNameAndParameters = namedtuple("ScalerNameAndParameters",
                                      "name, parameters, metrics")
@@ -91,7 +93,7 @@ class ScalerOperation(Operation):
             metrics=name_and_params.metrics,
             task_id=self.parameters['task_id'],
             operation_id=self.parameters['operation_id'],
-            title="Metrics for task",
+            title=_("Metrics for task"),
         ))
 
         return code
@@ -155,3 +157,168 @@ class MinMaxScalerOperation(ScalerOperation):
     def _get_scaler_algorithm_and_parameters(self):
         return ScalerNameAndParameters(
             'MinMaxScaler', {'min': self.min, 'max': self.max}, [])
+
+
+class BucketizerOperation(TransformModelOperation):
+    """
+    From Spark documentation:
+    Maps a column of continuous features to a column of feature buckets.
+    """
+    __slots__ = ['handle_invalid', 'attributes', 'aliases', 'splits', 'model']
+    HANDLE_INVALID_PARAM = 'handle_invalid'
+    ATTRIBUTES_PARAM = 'attributes'
+    ALIASES_PARAM = 'aliases'
+    SPLITS_PARAM = 'splits'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs,
+                           named_outputs)
+
+        if self.ATTRIBUTES_PARAM in parameters:
+            self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
+        else:
+            raise ValueError(
+                _("Parameter '{}' must be informed for task {}").format(
+                    self.ATTRIBUTES_PARAM, self.__class__))
+
+        self.handle_invalid = self.parameters.get(self.HANDLE_INVALID_PARAM)
+        if self.handle_invalid is not None:
+            if self.handle_invalid not in ['skip', 'keep', 'error']:
+                raise ValueError(
+                    _('Parameter {} must be one of these: {}').format(
+                        _('type'), ','.join([_('keep'), _('skip'), _('error')])
+                    )
+                )
+        self.aliases = self._get_aliases(
+            self.attributes, parameters.get(self.ALIASES_PARAM, '').split(','),
+            'bucketed')
+
+        self.splits = self._get_splits(parameters)
+        self.model = self.named_outputs.get(
+            'model', 'model_task_{}'.format(self.order))
+
+        self.output = self.named_outputs.get('output data',
+                                             'out_task_{}'.format(self.order))
+        self.has_code = [len(self.named_inputs) > 0, self.contains_results()]
+
+    def _get_splits(self, parameters):
+        splits = []
+        for split in parameters.get(self.SPLITS_PARAM, '').split(','):
+            if split == '-INF':
+                splits.append(-float("inf"))
+            elif split == 'INF':
+                splits.append(float("inf"))
+            else:
+                try:
+                    splits.append(float(split))
+                except Exception as e:
+                    raise ValueError(_('Invalid value for {}: "{}".').format(
+                            _('splits'), split))
+        if len(splits) < 3:
+            raise ValueError(
+                _('You must inform at least {} '
+                  'values for parameter {}.').format(3, _('splits')))
+        if not all(splits[i] < splits[i + 1] for i in
+                   xrange(len(splits) - 1)):
+            raise ValueError(
+                _('Values for {} must be sorted in ascending order.').format(
+                    _('splits')))
+        return splits
+
+    def generate_code(self):
+        input_data = self.named_inputs['input data']
+        code = dedent("""
+            col_alias = dict(tuple({alias}))
+            splits = {splits}
+            bucketizers = [feature.Bucketizer(
+                splits=splits, handleInvalid='{handle_invalid}', inputCol=col,
+                outputCol=alias, ) for col, alias in col_alias.items()]
+            pipeline = Pipeline(stages=bucketizers)
+
+            {model} = pipeline.fit({input})
+            {output} = {model}.transform({input})
+        """.format(
+            alias=json.dumps(zip(self.attributes, self.aliases)),
+            handle_invalid=self.handle_invalid,
+            splits=repr(self.splits),
+            input=input_data,
+            output=self.output,
+            model=self.model,
+        ))
+        return code
+
+
+class QuantileDiscretizerOperation(TransformModelOperation):
+    """
+    From Spark documentation:
+    QuantileDiscretizer takes a column with continuous features and outputs a
+    column with binned categorical features. The number of bins can be set
+    using the numBuckets parameter. It is possible that the number of buckets
+    used will be less than this value, for example, if there are too few
+    distinct values of the input to create enough distinct quantiles.
+    """
+    __slots__ = ['relative_error', 'attributes', 'aliases', 'buckets', 'model']
+    RELATIVE_ERROR_PARAM = 'relative_error'
+    ATTRIBUTES_PARAM = 'attributes'
+    ALIASES_PARAM = 'aliases'
+    BUCKETS_PARAM = 'buckets'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs,
+                           named_outputs)
+
+        if self.ATTRIBUTES_PARAM in parameters:
+            self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
+        else:
+            raise ValueError(
+                _("Parameter '{}' must be informed for task {}").format(
+                    self.ATTRIBUTES_PARAM, self.__class__))
+
+        try:
+            self.relative_error = float(self.parameters.get(
+                self.RELATIVE_ERROR_PARAM, '0.001'))
+        except:
+            raise ValueError(
+                _('Invalid value for {}: {}').format(
+                    _('relative_error'), self.parameters.get(
+                        self.RELATIVE_ERROR_PARAM)))
+
+        self.aliases = self._get_aliases(
+            self.attributes, parameters.get(self.ALIASES_PARAM, '').split(','),
+            'quantile')
+
+        try:
+            self.buckets = int(parameters.get(self.BUCKETS_PARAM, 2))
+        except:
+            raise ValueError(
+                _('Invalid value for {}: {}').format(
+                    _('buckets'), self.parameters.get(
+                        self.RELATIVE_ERROR_PARAM)))
+
+        self.model = self.named_outputs.get(
+            'model', 'model_task_{}'.format(self.order))
+
+        self.output = self.named_outputs.get('output data',
+                                             'out_task_{}'.format(self.order))
+        self.has_code = [len(self.named_inputs) > 0, self.contains_results()]
+
+    def generate_code(self):
+        input_data = self.named_inputs['input data']
+        code = dedent("""
+                col_alias = dict(tuple({alias}))
+                qds = [feature.QuantileDiscretizer(
+                    numBuckets={buckets}, relativeError='{relative_error}',
+                    inputCol=col, outputCol=alias, )
+                    for col, alias in col_alias.items()]
+                pipeline = Pipeline(stages=qds)
+                {model} = pipeline.fit({input})
+                {output} = {model}.transform({input})
+            """.format(
+            alias=json.dumps(zip(self.attributes, self.aliases)),
+            relative_error=self.relative_error,
+            buckets=repr(self.buckets),
+            input=input_data,
+            output=self.output,
+            model=self.model,
+        ))
+        return code
