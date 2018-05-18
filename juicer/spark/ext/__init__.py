@@ -24,6 +24,13 @@ def strip_accents_udf(text):
         unicodedata.category(c) != 'Mn'), types.StringType())(text)
 
 
+def ith_function_udf(v, i):
+    def ith(v_, i_):
+        return v_.values.item(i_)
+
+    return functions.udf(ith, types.FloatType())(v, i)
+
+
 # noinspection PyPep8Naming
 class CustomExpressionTransformer(Transformer, HasOutputCol):
     """

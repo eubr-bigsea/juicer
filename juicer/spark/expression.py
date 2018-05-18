@@ -135,6 +135,15 @@ class Expression(object):
 
         return '.'.join(code)
 
+    def get_ith_function(self, spec, params):
+        """
+        """
+        arguments = [self.parse(x, params) for x in spec['arguments']]
+        f = 'juicer_ext.ith_function_udf'
+        result = '{}({}, functions.lit({}))'.format(f, arguments[0],
+                                                    arguments[1])
+        return result
+
     def get_strip_accents_function(self, spec, params):
         callee = spec['arguments'][0].get('callee', {})
         # Evaluates if column name is wrapped in a col() function call
@@ -285,6 +294,7 @@ class Expression(object):
             'strip_punctuation': self.get_strip_punctuation_function,
             'when': self.get_when_function,
             'window': self.get_time_window_function,
+            'ith': self.get_ith_function
         }
 
         column_functions = {
@@ -303,6 +313,7 @@ class Expression(object):
             'startswith': functools.partial(self.get_column_function,
                                             arg_count=1),
             'substr': functools.partial(self.get_column_function, arg_count=1),
+
         }
 
         self.functions.update(spark_sql_functions)
