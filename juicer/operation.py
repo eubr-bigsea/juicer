@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import logging
 from collections import namedtuple
+from itertools import izip_longest
 
 from juicer.runner import configuration
 
@@ -147,3 +148,18 @@ class NoOp(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
         self.has_code = False
+
+
+# noinspection PyAbstractClass
+class TransformModelOperation(Operation):
+    """
+    Base class for operations that produce a transform model.
+    """
+
+    @staticmethod
+    def _get_aliases(attributes, aliases, suffix):
+        aliases = [alias.strip() for alias in aliases]
+        # Adjust alias in order to have the same number of aliases as attributes
+        # by filling missing alias with the attribute name suffixed by _indexed.
+        return [x[1] or '{}_{}'.format(x[0], suffix) for x in
+                izip_longest(attributes, aliases[:len(attributes)])]

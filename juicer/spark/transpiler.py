@@ -446,6 +446,8 @@ class SparkTranspiler(object):
             'load-model': juicer.spark.ml_operation.LoadModelOperation,
             'voting-classifier':
                 juicer.spark.ml_operation.VotingClassifierOperation,
+            'outlier-detection':
+                juicer.spark.ml_operation.OutlierDetectionOperation,
 
         }
 
@@ -508,6 +510,10 @@ class SparkTranspiler(object):
             'map': juicer.spark.vis_operation.MapOperation
         }
         feature_ops = {
+            'bucketizer':
+                juicer.spark.feature_operation.BucketizerOperation,
+            'quantile-discretizer':
+                juicer.spark.feature_operation.QuantileDiscretizerOperation,
             'standard-scaler':
                 juicer.spark.feature_operation.StandardScalerOperation,
             'max-abs-scaler':
