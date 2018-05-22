@@ -1,12 +1,16 @@
 import string
 import unicodedata
 
+from pyspark.ml.util import JavaMLWritable, JavaMLReadable
+from pyspark.ml.wrapper import JavaTransformer
+
 from juicer.util import dataframe_util
 
 try:
     from pyspark import keyword_only
     from pyspark.ml import Transformer
-    from pyspark.ml.param.shared import Param, HasOutputCol
+    from pyspark.ml.param.shared import Param, HasOutputCol, HasFeaturesCol, \
+        HasPredictionCol, Params, TypeConverters
     from pyspark.sql import functions, types
 except ImportError:
     pass
@@ -96,3 +100,45 @@ def juicer_debug(spark_session, name, variable, data_frame):
     for attr in schema:
         spark_logging(spark_session).debug('{} {} {} {}'.format(
             attr.name, attr.dataType, attr.nullable, attr.metadata))
+
+
+# noinspection PyPep8Naming
+# noinspection PyUnusedLocal,PyProtectedMember
+class LocalOutlierFactor(JavaTransformer, HasFeaturesCol, HasOutputCol,
+                         JavaMLWritable, JavaMLReadable):
+    """
+    Wrapper for Spark-LOF implementation
+    """
+    minPts = Param(Params._dummy(), "minPts", "number of points",
+                   typeConverter=TypeConverters.toInt)
+
+    @keyword_only
+    def __init__(self, featuresCol="features", outputCol="outliers",
+                 minPts=2):
+        super(LocalOutlierFactor, self).__init__()
+        self._java_obj = self._new_java_obj("org.apache.spark.ml.outlier.LOF",
+                                            self.uid)
+        self._setDefault(minPts=5, featuresCol="features",
+                         outputCol="outliers")
+        kwargs = self._input_kwargs
+        self.setParams(**kwargs)
+
+    @keyword_only
+    def setParams(self, minPts=5):
+        """
+        setParams(self, minPts=5)
+        Sets params for this LocalOutlierFactor.
+        """
+        return self._set(minPts=minPts)
+
+    def setMinPts(self, value):
+        """
+        Sets the value of :py:attr:`minPts`.
+        """
+        return self._set(minPts=value)
+
+    def getMinPts(self):
+        """
+        Gets the value of minPts or its default value.
+        """
+        return self.getOrDefault(self.minPts)
