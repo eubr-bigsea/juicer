@@ -3,10 +3,15 @@ import decimal
 import json
 
 import datetime
+import pyspark.sql.types as spark_types
 from pyspark.ml.linalg import DenseVector
 
 import re
 import types
+
+
+def is_numeric(schema, col):
+    return isinstance(schema[str(col)].dataType, spark_types.NumericType)
 
 
 class CustomEncoder(json.JSONEncoder):
@@ -34,6 +39,13 @@ def get_schema_fmt(df, only_name=False):
 
 def get_dict_schema(df):
     return [dict(type=f.dataType, name=f.name) for f in df.schema.fields]
+
+
+def with_column_index(sdf, name):
+    new_schema = spark_types.StructType(sdf.schema.fields + [
+        spark_types.StructField(name, spark_types.LongType(), False), ])
+    return sdf.rdd.zipWithIndex().map(lambda row: row[0] + (row[1],)).toDF(
+        schema=new_schema)
 
 
 def convert_to_csv(row):

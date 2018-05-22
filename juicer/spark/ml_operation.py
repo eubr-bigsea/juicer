@@ -2797,3 +2797,103 @@ class LSHOperation(Operation):
 
         ))
         return code
+
+
+class OutlierDetectionOperation(Operation):
+    FEATURES_PARAM = 'features'
+    ALIAS_PARAM = 'alias'
+    MIN_POINTS_PARAM = 'min_points'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+
+        self.has_code = any([len(named_outputs) > 0 and len(named_inputs) == 1,
+                             self.contains_results()])
+
+        if self.FEATURES_PARAM not in parameters:
+            msg = _("Parameter '{}' must be informed for task {}")
+            raise ValueError(msg.format(
+                self.FEATURES_PARAM, self.__class__))
+
+        self.features = parameters.get(self.FEATURES_PARAM)
+        self.min_points = parameters.get(self.MIN_POINTS_PARAM, 5)
+        self.alias = parameters.get(self.ALIAS_PARAM, 'outlier')
+
+        self.output = self.named_outputs.get('output data',
+                                             'out_task_{}'.format(self.order))
+
+    def generate_code(self):
+        input_data = self.named_inputs.get('input data')
+
+        code = dedent("""
+        emit = get_emitter(emit_event, {operation_id},
+                           '{task_id}')
+
+        from juicer.spark.ext import LocalOutlierFactor
+        algorithm = LocalOutlierFactor(minPts={min_pts})
+
+        features = [{features}]
+        stages = []
+
+        if isinstance({input}.schema[str(features[0])].dataType, VectorUDT):
+            if len(features) > 1 :
+                emit(message=_(
+                'Features are assembled as a vector, but there are other '
+                'attributes in the list of features. They will be ignored'),)
+
+            algorithm.setFeaturesCol(features[0])
+            algorithm.setOutputCol('{prediction}')
+            stages.append(algorithm)
+        else:
+            emit(message=_(
+                'Features are not assembled as a vector. They will be '
+                'implicitly assembled and rows with null values will be '
+                'discarded. If this is undesirable, explicitly add a feature '
+                'assembler in the workflow.'),)
+            to_assemble = []
+            for f in features:
+                if not dataframe_util.is_numeric({input}.schema, f):
+                    name = f + '_tmp'
+                    to_assemble.append(name)
+                    stages.append(feature.StringIndexer(
+                        inputCol=f, outputCol=name, handleInvalid='keep'))
+                else:
+                    to_assemble.append(f)
+
+            # Remove rows with null (VectorAssembler doesn't support it)
+            cond = ' AND '.join(['{{}} IS NOT NULL '.format(c)
+                for c in to_assemble])
+            stages.append(SQLTransformer(
+                statement='SELECT * FROM __THIS__ WHERE {{}}'.format(cond)))
+
+            final_features = 'features_tmp'
+            stages.append(feature.VectorAssembler(
+                inputCols=to_assemble, outputCol=final_features))
+
+            algorithm.setFeaturesCol(final_features)
+            algorithm.setOutputCol('{prediction}')
+            stages.append(algorithm)
+
+
+        pipeline = Pipeline(stages=stages)
+        model = pipeline.fit({input})
+
+        # Join between original dataset and results
+        indexed_df = dataframe_util.with_column_index({input}, 'tmp_inx')
+        lof_result = model.transform({input})
+        {output} = indexed_df.join(
+            lof_result, lof_result['index'] == indexed_df['tmp_inx'], 'left')
+        {output} = {output}.drop(
+            'tmp_inx', 'index', 'vector').withColumnRenamed(
+            'lof', '{prediction}')
+
+        """.format(
+            input=input_data,
+            features=', '.join(["'{}'".format(f) for f in self.features]),
+            prediction=self.alias,
+            min_pts=self.min_points,
+            output=self.output,
+            task_id=self.parameters['task_id'],
+            operation_id=self.parameters['operation_id'],
+        ))
+        return code
