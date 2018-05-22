@@ -446,8 +446,8 @@ class SparkTranspiler(object):
             'load-model': juicer.spark.ml_operation.LoadModelOperation,
             'voting-classifier':
                 juicer.spark.ml_operation.VotingClassifierOperation,
-            # 'outlier-detection':
-            #     juicer.spark.ml_operation.OutlierDetectionOperation,
+            'outlier-detection':
+                juicer.spark.ml_operation.OutlierDetectionOperation,
 
         }
 
