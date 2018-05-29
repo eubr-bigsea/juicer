@@ -115,7 +115,7 @@ class Operation(object):
     @property
     def contains_schema(self):
         forms = self.parameters.get('task', {}).get('forms', {})
-        return forms.get('display_sample', {}).get('value') in (1, '1')
+        return forms.get('display_schema', {}).get('value') in (1, '1')
 
     def contains_results(self):
         return self.contains_sample or self.contains_schema
