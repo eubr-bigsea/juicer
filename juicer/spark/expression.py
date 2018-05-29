@@ -2,6 +2,7 @@
 from __future__ import unicode_literals
 
 import functools
+import json
 from textwrap import dedent
 
 from juicer.util import group
@@ -66,6 +67,14 @@ class Expression(object):
             raise ValueError(
                 _("Transformation has an invalid expression. "
                   "Maybe variables are using spaces in their names."))
+        elif tree['type'] == 'ArrayExpression':
+            array = []
+            for elem in tree['elements']:
+                if elem['type'] == 'Literal':
+                    array.append(elem['value'])
+                else:
+                    array.append(self.parse(elem, params))
+            result = array
         else:
             raise ValueError(_("Unknown type: {}").format(tree['type']))
         return result
@@ -202,6 +211,17 @@ class Expression(object):
             spec['callee']['name'], arguments, params.get('window', 'window'))
         return result
 
+    def get_translate_function(self, spec, params):
+        """
+        """
+        arguments = [self.parse(x, params) for x in spec['arguments']]
+        f = 'juicer_ext.translate_function_udf'
+        result = dedent('''{}(
+                    {}, {}, {},
+                    {})'''.format(f, arguments[0], arguments[1], arguments[2],
+                                  json.dumps(arguments[3])))
+        return result
+
     def build_functions_dict(self):
         spark_sql_functions = {
             'add_months': self.get_function_call,
@@ -292,7 +312,8 @@ class Expression(object):
             'strip_punctuation': self.get_strip_punctuation_function,
             'when': self.get_when_function,
             'window': self.get_time_window_function,
-            'ith': self.get_ith_function
+            'ith': self.get_ith_function,
+            'translate': self.get_translate_function,
         }
 
         column_functions = {
