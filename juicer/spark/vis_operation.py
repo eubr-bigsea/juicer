@@ -24,10 +24,10 @@ COLORS_PALETTE = list(reversed([
 SHAPES = ['diamond', 'point', 'circle']
 
 
-def get_caipirinha_config(config):
+def get_caipirinha_config(config, indentation=0):
     limonero_conf = config['juicer']['services']['limonero']
     caipirinha_conf = config['juicer']['services']['caipirinha']
-    return dedent("""
+    result = dedent("""
     # Basic information to connect to other services
     config = {{
         'juicer': {{
@@ -50,6 +50,11 @@ def get_caipirinha_config(config):
         caipirinha_token=caipirinha_conf['auth_token'],
         storage_id=caipirinha_conf['storage_id'], )
     )
+    if indentation:
+        return '\n'.join(
+            ['{}{}'.format(' ' * indentation, r) for r in result.split('\n')])
+    else:
+        return result
 
 
 class PublishVisualizationOperation(Operation):
@@ -187,7 +192,7 @@ class VisualizationMethodOperation(Operation):
                  'latitude', 'longitude', 'value', 'label',
                  'y_axis_attribute', 'z_axis_attribute', 't_axis_attribute',
                  'series_attribute', 'extra_data', 'polygon', 'geojson_id',
-                 'polygon_url' ]
+                 'polygon_url']
         for k, v in self.parameters.items():
             if k in valid:
                 result[k] = v
@@ -266,7 +271,7 @@ class BarChartOperation(VisualizationMethodOperation):
                                               named_outputs)
 
     def get_model_name(self):
-        return 'BarChartModel'
+        return BarChartModel.__name__
 
 
 class PieChartOperation(VisualizationMethodOperation):
@@ -275,7 +280,7 @@ class PieChartOperation(VisualizationMethodOperation):
                                               named_outputs)
 
     def get_model_name(self):
-        return 'PieChartModel'
+        return PieChartModel.__name__
 
 
 class DonutChartOperation(VisualizationMethodOperation):
@@ -284,7 +289,7 @@ class DonutChartOperation(VisualizationMethodOperation):
                                               named_outputs)
 
     def get_model_name(self):
-        return 'DonutChartModel'
+        return DonutChartModel.__name__
 
 
 class LineChartOperation(VisualizationMethodOperation):
@@ -293,7 +298,7 @@ class LineChartOperation(VisualizationMethodOperation):
                                               named_outputs)
 
     def get_model_name(self):
-        return 'LineChartModel'
+        return LineChartModel.__name__
 
 
 class AreaChartOperation(VisualizationMethodOperation):
@@ -302,7 +307,7 @@ class AreaChartOperation(VisualizationMethodOperation):
                                               named_outputs)
 
     def get_model_name(self):
-        return 'AreaChartModel'
+        return AreaChartModel.__name__
 
 
 class TableVisualizationOperation(VisualizationMethodOperation):
@@ -311,7 +316,7 @@ class TableVisualizationOperation(VisualizationMethodOperation):
                                               named_outputs)
 
     def get_model_name(self):
-        return 'TableVisualizationModel'
+        return TableVisualizationModel.__name__
 
 
 class ScatterPlotOperation(VisualizationMethodOperation):
@@ -320,7 +325,7 @@ class ScatterPlotOperation(VisualizationMethodOperation):
                                               named_outputs)
 
     def get_model_name(self):
-        return 'ScatterPlotModel'
+        return ScatterPlotModel.__name__
 
 
 class MapOperation(VisualizationMethodOperation):
@@ -361,7 +366,7 @@ class SummaryStatisticsOperation(VisualizationMethodOperation):
         return {self.ATTRIBUTES_PARAM: self.attributes or []}
 
     def get_model_name(self):
-        return 'SummaryStatisticsModel'
+        return SummaryStatisticsModel.__name__
 
 
 #######################################################
