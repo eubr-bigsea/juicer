@@ -631,20 +631,28 @@ class AggregationOperation(Operation):
     def attribute_traceability(self):
         result = []
         for i, function in enumerate(self.functions):
-            result.append(TraceabilityData(
-                input=self.named_inputs.values()[0],
-                attribute=function.get('alias', function.get('value')),
-                derived_from=function['attribute'],
-                was_value=False)
-            )
+            if self.pivot:
+                # FIXME (how to add this when columns are dynamically generated?
+                pass
+            else:
+                result.append(TraceabilityData(
+                    input=self.named_inputs.values()[0],
+                    attribute=function.get('alias', function.get('value')),
+                    derived_from=function['attribute'],
+                    was_value=False))
         return result
 
     def generate_code(self):
         elements = []
         for i, function in enumerate(self.functions):
-            elements.append('''functions.{}('{}').alias('{}')'''.format(
-                function['f'].lower(), function['attribute'],
-                function.get('alias', function.get('value'))))
+            if self.pivot:
+                # no alias
+                elements.append('''functions.{}('{}')'''.format(
+                    function['f'].lower(), function['attribute']))
+            else:
+                elements.append('''functions.{}('{}').alias('{}')'''.format(
+                    function['f'].lower(), function['attribute'],
+                    function.get('alias', function.get('value'))))
 
         input_data = self.named_inputs['input data']
 

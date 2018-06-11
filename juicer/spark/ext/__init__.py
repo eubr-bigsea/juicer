@@ -35,6 +35,33 @@ def ith_function_udf(v, i):
     return functions.udf(ith, types.FloatType())(v, i)
 
 
+def translate_function_udf(v, missing='null', _type='string', pairs=None):
+    if pairs is None:
+        pairs = [[]]
+
+    lookup = dict(pairs)
+    if _type == 'float':
+        t = types.FloatType
+    elif _type == 'int':
+        t = types.IntegerType
+    elif _type == 'long':
+        t = types.LongType
+    elif _type == 'timestamp':
+        t = types.TimestampType
+    elif _type == 'string':
+        t = types.StringType
+    else:
+        raise ValueError('Invalid type: {}'.format(_type))
+
+    def translate(v_):
+        if missing == 'null':
+            return lookup.get(v_)
+        else:
+            return lookup.get(v_, v_)
+
+    return functions.udf(translate, t())(v)
+
+
 # noinspection PyPep8Naming
 class CustomExpressionTransformer(Transformer, HasOutputCol):
     """
