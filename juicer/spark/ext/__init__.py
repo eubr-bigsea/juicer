@@ -176,3 +176,60 @@ class LocalOutlierFactor(JavaTransformer, HasFeaturesCol, HasOutputCol,
         Gets the value of minPts or its default value.
         """
         return self.getOrDefault(self.minPts)
+
+
+# noinspection PyPep8Naming
+# noinspection PyUnusedLocal,PyProtectedMember
+class FairnessEvaluatorTransformer(JavaTransformer, JavaMLWritable,
+                                   JavaMLReadable):
+    """
+    Wrapper for Spark-LOF implementation
+    """
+    tau = Param(Params._dummy(), "tau", "tau",
+                typeConverter=TypeConverters.toFloat)
+
+    sensitiveColumn = Param(Params._dummy(), "sensitiveColumn",
+                            "sensitiveColumn",
+                            typeConverter=TypeConverters.toString)
+
+    labelColumn = Param(Params._dummy(), "labelColumn", "labelColumn",
+                        typeConverter=TypeConverters.toString)
+
+    scoreColumn = Param(Params._dummy(), "scoreColumn", "scoreColumn",
+                        typeConverter=TypeConverters.toString)
+
+    baselineValue = Param(Params._dummy(), "baselineValue", "baselineValue",
+                          typeConverter=TypeConverters.toString)
+
+    @keyword_only
+    def __init__(self, tau=.8, sensitiveColumn='sensitive', labelColumn='label',
+                 scoreColumn='score', baselineValue=None):
+        super(FairnessEvaluatorTransformer, self).__init__()
+        self._java_obj = self._new_java_obj(
+            "br.ufmg.dcc.speed.lemonade.fairness.FairnessEvaluatorTransformer",
+            self.uid)
+        self._setDefault(tau=.8, sensitiveColumn='sensitive',
+                         labelColumn='label',
+                         scoreColumn='score', baselineValue=None)
+        kwargs = self._input_kwargs
+        self.setParams(**kwargs)
+
+    @keyword_only
+    def setParams(self, tau=.8, sensitiveColumn='sensitive',
+                  labelColumn='label',
+                  scoreColumn='score', baselineValue=None):
+        return self._set(tau=tau, sensitiveColumn=sensitiveColumn,
+                         labelColumn=labelColumn, scoreColumn=scoreColumn,
+                         baselineValue=baselineValue)
+
+    def setMinPts(self, value):
+        """
+        Sets the value of :py:attr:`minPts`.
+        """
+        return self._set(minPts=value)
+
+    def getMinPts(self):
+        """
+        Gets the value of minPts or its default value.
+        """
+        return self.getOrDefault(self.minPts)
