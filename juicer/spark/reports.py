@@ -2,11 +2,16 @@
 from __future__ import unicode_literals
 
 import base64
+import gettext
 import itertools
 from io import BytesIO
 
+import datetime
+
+import jinja2
 import matplotlib.pyplot as plt
 import numpy as np
+import os
 import pandas as pd
 import seaborn as sns
 
@@ -154,3 +159,108 @@ class SimpleTableReport(BaseHtmlReport):
         code.append('</tbody>')
         code.append('</table>')
         return ''.join(code)
+
+
+class FairnessBiasReport(BaseHtmlReport):
+    explanations = {
+        'pred_pos_ratio_k_parity': {
+            'title': 'Equal Parity',
+            'description':
+                """This criteria considers an attribute to have equal parity is
+                every group is equally represented in the selected set.
+                For example, if race (with possible values of white, black,
+                other) has equal parity, it implies that all three races are
+                equally represented (33% each)in the selected/intervention
+                set. """,
+            'usage':
+                """If your desired outcome is to intervene equally on people
+                from all races, then you care about this criteria. """},
+        'pred_pos_ratio_g_parity': {
+            'title': 'Proportional Parity',
+            'description':
+                """This criteria considers an attribute to have proportional
+                parity if every group is represented proportionally to their
+                share of the population. For example, if race with possible
+                values of white, black, other being 50%, 30%, 20% of the
+                population respectively) has proportional parity, it implies
+                that all three races are represented in the same proportions
+                (50%, 30%, 20%) in the selected set. """,
+            'usage': """If your desired outcome is to intervene proportionally
+            on people from all races, then you care about this criteria."""},
+        'fpr_parity': {
+            'title': 'False Positive Rate Parity',
+            'description': """This criteria considers an attribute to have
+            False Positive parity if every group has the same False Positive
+            Error Rate. For example, if race has false positive parity, it
+            implies that all three races have the same False Positive Error
+            Rate. """,
+            'usage': """If your desired outcome is to intervene proportionally
+            on people from all races, then you care about this criteria. """},
+        'fdr_parity': {
+            'title': 'False Discovery Rate Parity',
+            'description': """This criteria considers an attribute to have False
+             Discovery Rate parity if every group has the same False Discovery
+             Error Rate. For example, if race has false discovery parity, it
+             implies that all three races have the same False Discvery Error
+             Rate. """,
+            'usage': """If your desired outcome is to make false
+             positive errors equally on people from all races, then you care
+             about this criteria. This is important in cases where your
+             intervention is punitive and can hurt individuals and where
+             you are selecting a very small group for interventions. """},
+        'fnr_parity': {
+            'title': 'False Positive Rate Parity',
+            'description': """This criteria considers an attribute to have False
+             Positive parity if every group has the same False Positive Error
+             Rate. For example, if race has false positive parity, it implies
+             that all three races have the same False Positive Error Rate. """,
+            'usage': """If your desired outcome is to make false positive errors
+             equally on people from all races, then you care about this
+             criteria. This is important in cases where your intervention is
+             punitive and has a risk of adverse outcomes for individuals.
+             Using this criteria allows you to make sure that you are not
+             making false positive mistakes about any single group
+             disproportionately. """},
+        'for_parity': {
+            'title': 'False Omission Rate Parity',
+            'description': """This criteria considers an attribute to have False
+             Omission Rate parity if every group has the same False Omission
+             Error Rate. For example, if race has false omission parity, it
+             implies that all three races have the same False Omission
+             Error Rate.""",
+            'usage': """If your desired outcome is to make false negative errors
+             equally on people from all races, then you care about this
+             criteria. This is important in cases where your intervention is
+             assistive (providing help social services for example) and missing
+              an individual could lead to adverse outcomes for them , and where
+               you are selecting a very small group for interventions. Using
+               this criteria allows you to make sure that you're not missing
+               people from certain groups disproportionately."""}
+    }
+
+    def __init__(self, df, sensitive, baseline_value):
+        self.df = df
+        self.sensitive = sensitive
+        self.baseline_value = baseline_value
+
+    def generate(self):
+        data = [row1.asDict() for row1 in self.df.collect()]
+        order = ['pred_pos_ratio_k_parity', 'pred_pos_ratio_g_parity',
+                 'fpr_parity', 'fdr_parity', 'fnr_parity', 'for_parity']
+        summary = [[v, all([row[v] for row in data]),
+                    [[row[self.sensitive], row[v],
+                      row[v.replace('parity', 'disparity')]]
+                     for row in data]] for v in order]
+
+        template_loader = jinja2.FileSystemLoader(
+            searchpath=os.path.dirname(__file__))
+
+        template_env = jinja2.Environment(loader=template_loader)
+        template = template_env.get_template("templates/bias-report.html")
+
+        ctx = {'date': datetime.datetime.now().isoformat(),
+               '_': gettext.gettext,
+               'data': data, 'tau': .8, 'reference': self.baseline_value,
+               'summary': summary, 'explanations': self.explanations,
+               'attributes': ', '.join(['race'])}
+        return template.render(ctx)
