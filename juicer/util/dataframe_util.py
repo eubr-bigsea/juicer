@@ -7,6 +7,7 @@ import pyspark.sql.types as spark_types
 from pyspark.ml.linalg import DenseVector
 
 import re
+import simplejson
 import types
 
 
@@ -14,16 +15,25 @@ def is_numeric(schema, col):
     return isinstance(schema[str(col)].dataType, spark_types.NumericType)
 
 
+def default_encoder(obj):
+    if isinstance(obj, decimal.Decimal):
+        return str(obj)
+    elif isinstance(obj, datetime.datetime):
+        return obj.isoformat()
+    elif isinstance(obj, DenseVector):
+        return list(obj)
+    else:
+        return str(obj)
+
+
+class SimpleJsonEncoder(simplejson.JSONEncoder):
+    def default(self, obj):
+        return default_encoder(obj)
+
+
 class CustomEncoder(json.JSONEncoder):
     def default(self, obj):
-        if isinstance(obj, decimal.Decimal):
-            return str(obj)
-        elif isinstance(obj, datetime.datetime):
-            return obj.isoformat()
-        elif isinstance(obj, DenseVector):
-            return list(obj)
-        else:
-            return str(obj)
+        return default_encoder(obj)
 
 
 def get_csv_schema(df, only_name=False):

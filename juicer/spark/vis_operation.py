@@ -101,7 +101,7 @@ class PublishVisualizationOperation(Operation):
         # list for visualizations metadata
         code_lines = [
             "from juicer.service import caipirinha_service",
-            "from juicer.util.dataframe_util import CustomEncoder",
+            "from juicer.util.dataframe_util import SimpleJsonEncoder as enc",
             "visualizations = []"
         ]
         if isinstance(self.named_inputs['visualizations'], (list, tuple)):
@@ -119,8 +119,8 @@ class PublishVisualizationOperation(Operation):
                     'id': {vis_model}.type_id,
                     'name': {vis_model}.type_name
                 }},
-                'data': json.dumps({vis_model}.get_data(),
-                               cls=CustomEncoder),
+                'data': simplejson.dumps(
+                    {vis_model}.get_data(), cls=enc, ignore_nan=True),
                 'model': {vis_model}
             }})
             """).format(job_id=self.parameters['job_id'], vis_model=vis_model))
@@ -187,7 +187,7 @@ class VisualizationMethodOperation(Operation):
                  'latitude', 'longitude', 'value', 'label',
                  'y_axis_attribute', 'z_axis_attribute', 't_axis_attribute',
                  'series_attribute', 'extra_data', 'polygon', 'geojson_id',
-                 'polygon_url' ]
+                 'polygon_url']
         for k, v in self.parameters.items():
             if k in valid:
                 result[k] = v
@@ -204,7 +204,7 @@ class VisualizationMethodOperation(Operation):
         code_lines = [dedent(
             u"""
             from juicer.spark.vis_operation import {model}
-            from juicer.util.dataframe_util import CustomEncoder
+            from juicer.util.dataframe_util import SimpleJsonEncoder as enc
 
             params = '{params}'
             {out} = {model}(
@@ -240,8 +240,7 @@ class VisualizationMethodOperation(Operation):
                     'name': {out}.type_name
                 }},
                 'model': {out},
-                'data': json.dumps({out}.get_data(),
-                               cls=CustomEncoder),
+                'data': json.dumps({out}.get_data(), cls=enc, ignore_nan=True),
             }}""").format(job_id=self.parameters['job_id'],
                           out=self.output))
 
@@ -361,7 +360,7 @@ class SummaryStatisticsOperation(VisualizationMethodOperation):
         return {self.ATTRIBUTES_PARAM: self.attributes or []}
 
     def get_model_name(self):
-        return 'SummaryStatisticsModel'
+        return SummaryStatisticsModel.__name__
 
 
 #######################################################
@@ -1046,10 +1045,16 @@ class SummaryStatisticsModel(TableVisualizationModel):
             stats.append((df_count - functions.count(df_col)).alias(
                 'missing_{}'.format(name)))
 
-            stats.append(functions.round(functions.skewness(df_col), 2).alias(
-                'skewness_{}'.format(name)))
-            stats.append(functions.round(functions.kurtosis(df_col), 2).alias(
-                'kurtosis_{}'.format(name)))
+            if name in self.numeric_attrs:
+                stats.append(
+                    functions.round(functions.skewness(df_col), 2).alias(
+                        'skewness_{}'.format(name)))
+                stats.append(
+                    functions.round(functions.kurtosis(df_col), 2).alias(
+                        'kurtosis_{}'.format(name)))
+            else:
+                stats.append(functions.lit('-'))
+                stats.append(functions.lit('-'))
 
             for pair in corr_pairs[i]:
                 if all([pair[0] in self.numeric_attrs,
