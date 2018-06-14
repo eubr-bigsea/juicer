@@ -631,20 +631,28 @@ class AggregationOperation(Operation):
     def attribute_traceability(self):
         result = []
         for i, function in enumerate(self.functions):
-            result.append(TraceabilityData(
-                input=self.named_inputs.values()[0],
-                attribute=function.get('alias', function.get('value')),
-                derived_from=function['attribute'],
-                was_value=False)
-            )
+            if self.pivot:
+                # FIXME (how to add this when columns are dynamically generated?
+                pass
+            else:
+                result.append(TraceabilityData(
+                    input=self.named_inputs.values()[0],
+                    attribute=function.get('alias', function.get('value')),
+                    derived_from=function['attribute'],
+                    was_value=False))
         return result
 
     def generate_code(self):
         elements = []
         for i, function in enumerate(self.functions):
-            elements.append('''functions.{}('{}').alias('{}')'''.format(
-                function['f'].lower(), function['attribute'],
-                function.get('alias', function.get('value'))))
+            if self.pivot:
+                # no alias
+                elements.append('''functions.{}('{}')'''.format(
+                    function['f'].lower(), function['attribute']))
+            else:
+                elements.append('''functions.{}('{}').alias('{}')'''.format(
+                    function['f'].lower(), function['attribute'],
+                    function.get('alias', function.get('value'))))
 
         input_data = self.named_inputs['input data']
 
@@ -1041,6 +1049,7 @@ class ExecutePythonOperation(Operation):
 
         # Variables and language supported
         ctx = {{
+            'createDataFrame': spark_session.createDataFrame,
             'wf_results': results,
             'in1': in1,
             'in2': in2,
@@ -1190,7 +1199,8 @@ class WindowTransformationOperation(Operation):
     Returns a new DataFrame applying transformations over a window.
     See documentation about window operations in Spark.
     """
-
+    RANKING_FUNCTIONS = ['rank', 'dense_rank', 'percent_rank', 'ntile',
+                         'row_number']
     PARTITION_ATTRIBUTE_PARAM = 'partition_attribute'
     ORDER_BY_PARAM = 'order_by'
     ROWS_FROM_PARAM = 'rows_from'
@@ -1285,8 +1295,10 @@ class WindowTransformationOperation(Operation):
         range_code = ''
         if self.type == self.ROWS:
             from_int = None
+            # noinspection PyUnresolvedReferences
             if self.rows_from.isdigit():
-                from_int = int(self.rows_from)
+                from_int = -abs(int(self.rows_from))
+                self.rows_from = from_int
 
             to_int = None
             if self.rows_to.isdigit():
@@ -1306,6 +1318,12 @@ class WindowTransformationOperation(Operation):
         aliases = []
         params = {}
         for expr in self.expressions:
+            if expr['tree'].get('callee', {}).get(
+                    'name') not in self.RANKING_FUNCTIONS:
+                params['window'] = 'window'
+            else:
+                params['window'] = 'rank_window'
+
             expression = Expression(expr['tree'], params, window=True)
             built_expr = expression.parsed_expression
             new_attrs.append(built_expr)
@@ -1314,6 +1332,7 @@ class WindowTransformationOperation(Operation):
         code = dedent("""
             from juicer.spark.ext import CustomExpressionTransformer
 
+            rank_window = Window.partitionBy('{partition}'){order_by_code}
             window = Window.partitionBy(
                 '{partition}'){order_by_code}{rows_code}{range_code}
             specs = [{new_attrs}]
