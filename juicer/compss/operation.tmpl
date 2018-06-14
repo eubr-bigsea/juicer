@@ -15,8 +15,14 @@ from timeit import default_timer as timer
 {% set _ = list_imports.append(instance.has_import) %}
 {% endif %}
 {% endfor %}
+{% for imp in imports_list %}
+{% if imp  not in list_imports %}
+{% set _ = list_imports.append(imp) %}
+{% endif %}
+{% endfor %}
 
 {% for imps in list_imports %}{{imps}}{% endfor %}
+
 
 def compss_logging(msg):
     print msg
@@ -35,14 +41,19 @@ task_futures = {}
 {%-  handleinstance instance %}
 {%- if instance.has_code %}
 
+
 {%- if instance.has_code_otm %}
 
 
-@task(returns=list)
+
+
+
 {% if instance.parameters.task.parents | length > 0 %}
-def {{instance.parameters.task.operation.slug.replace('-', '_')}}_call_{{instance.parameters.task.order}}({% for parent in instance.parameters.task.parents %}{{ instances_by_task_id[parent].get_output_names(',')}}{% endfor %}, settings):
+@task(returns=list)
+def {{instance.parameters.task.operation.slug.replace('-', '_')}}_call_{{instance.parameters.task.order}}({{instance.get_inputs_names}}, settings, idfrag):
 {% else %}
-def {{instance.parameters.task.operation.slug.replace('-', '_')}}_call_{{instance.parameters.task.order}}(hdfs_blk, settings):
+@task(returns=list)
+def {{instance.parameters.task.operation.slug.replace('-', '_')}}_call_{{instance.parameters.task.order}}(input_data, settings, idfrag):
 {%- endif %}
     {%- if instance.parameters.task.forms.comment and instance.parameters.task.forms.comment.value %}
     """
@@ -52,7 +63,7 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_call_{{instanc
     """ Operation {{instance.parameters.task.id }} """
     {%- endif %}
 
-    {{instance.generate_code_otm().strip() | indent(width=4, indentfirst=False)}}
+    {{instance.generate_optimization_code().strip() | indent(width=4, indentfirst=False)}}
     {%- set outputs = instance.get_data_out_names('|') %}
     return {{outputs}}
 
@@ -160,9 +171,9 @@ def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.par
 def main(compss_session, cached_state, emit_event):
     """ Run generated code """
 
-    start = time.time()
+    start = timer()
 
-    session_start_time = time.time()
+    session_start_time = timer()
 
     {%- for instance in instances %}
     {%- if instance.has_code %}
@@ -180,7 +191,7 @@ def main(compss_session, cached_state, emit_event):
     {%- endif %}
     {%- endfor %}
 
-    end = time.time()
+    end = timer()
     print("{}\t{}".format(end - start, end - session_start_time))
     return {
         'status': 'OK',
