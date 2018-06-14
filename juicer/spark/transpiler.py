@@ -3,25 +3,80 @@ from __future__ import unicode_literals
 
 import hashlib
 import sys
+from collections import OrderedDict
 
 import jinja2
-import juicer.spark.data_operation
-import juicer.spark.data_quality_operation
-import juicer.spark.dm_operation
-import juicer.spark.etl_operation
-import juicer.spark.feature_operation
-import juicer.spark.geo_operation
-import juicer.spark.ml_operation
-import juicer.spark.statistic_operation
-import juicer.spark.text_operation
-import juicer.spark.vis_operation
-import juicer.spark.ws_operation
+import juicer.spark.data_operation as data_operation
+import juicer.spark.data_quality_operation as data_quality_operation
+import juicer.spark.dm_operation as dm_operation
+import juicer.spark.etl_operation as etl_operation
+import juicer.spark.feature_operation as feature_operation
+import juicer.spark.geo_operation as geo_operation
+import juicer.spark.ml_operation as ml_operation
+import juicer.spark.statistic_operation as statistic_operation
+import juicer.spark.text_operation as text_operation
+import juicer.spark.trustworthy_operation as trustworthy_operation
+import juicer.spark.vis_operation as vis_operation
+import juicer.spark.ws_operation as ws_operation
 import networkx as nx
 import os
 from juicer import operation
 from juicer.service import stand_service
 from juicer.util.jinja2_custom import AutoPep8Extension
 from juicer.util.template_util import HandleExceptionExtension
+
+
+class TranspilerUtils(object):
+    """ Utilities for using in Jinja2 related to transpiling """
+
+    @staticmethod
+    def _get_enabled_tasks_to_execute(instances):
+        dependency_controller = DependencyController([])
+        result = []
+        for instance in TranspilerUtils._get_enabled_tasks(instances):
+            task = instance.parameters['task']
+            is_satisfied = dependency_controller.is_satisfied(task['id'])
+            if instance.must_be_executed(is_satisfied):
+                result.append(instance)
+        return result
+
+    @staticmethod
+    def _get_enabled_tasks(instances):
+        return [instance for instance in instances if
+                instance.has_code and instance.enabled]
+
+    @staticmethod
+    def _get_parent_tasks(instances_map, instance, only_enabled=True):
+        if only_enabled:
+            dependency_controller = DependencyController([])
+            result = []
+            for parent_id in instance.parameters['task']['parents']:
+                parent = instances_map[parent_id]
+                is_satisfied = dependency_controller.is_satisfied(parent_id)
+                if is_satisfied and parent.has_code and parent.enabled:
+                    method = '{}_{}'.format(
+                        parent.parameters['task']['operation']['slug'].replace(
+                            '-', '_'), parent.order)
+                    result.append((parent_id, method))
+            return result
+        else:
+            return [instances_map[parent_id] for parent_id in
+                    instance.parameters['task']['parents']]
+
+    @staticmethod
+    def get_ids_and_methods(instances):
+        result = OrderedDict()
+        for instance in TranspilerUtils._get_enabled_tasks_to_execute(
+                instances):
+            task = instance.parameters['task']
+            result[task['id']] = '{}_{}'.format(
+                task['operation']['slug'].replace('-', '_'), instance.order)
+        return result
+
+    @staticmethod
+    def get_disabled_tasks(instances):
+        return [instance for instance in instances if
+                not instance.has_code or not instance.enabled]
 
 
 class DependencyController:
@@ -34,7 +89,7 @@ class DependencyController:
     def satisfied(self, _id):
         self._satisfied.add(_id)
 
-    # noinspection PyUnusedLocal
+    # noinspection PyUnusedLocal,PyMethodMayBeStatic
     def is_satisfied(self, _id):
         return True  # len(self.requires[_id].difference(self._satisfied)) == 0
 
@@ -251,14 +306,9 @@ class SparkTranspiler(object):
             instance = class_name(parameters, port.get('named_inputs', {}),
                                   port.get('named_outputs', {}))
             instance.out_degree = graph.out_degree(task_id)
-            env_setup['dependency_controller'] = DependencyController(
-                params.get('requires_info', False))
 
             env_setup['instances'].append(instance)
             env_setup['instances_by_task_id'][task['id']] = instance
-            env_setup['execute_main'] = params.get('execute_main', False)
-            env_setup['plain'] = params.get('plain', False)
-            env_setup['disabled_tasks'] = workflow['disabled_tasks']
 
         template_loader = jinja2.FileSystemLoader(
             searchpath=os.path.dirname(__file__))
@@ -267,6 +317,13 @@ class SparkTranspiler(object):
                                                       HandleExceptionExtension])
         template_env.globals.update(zip=zip)
         template = template_env.get_template("templates/operation.tmpl")
+
+        env_setup['disabled_tasks'] = workflow['disabled_tasks']
+        env_setup['plain'] = params.get('plain', False)
+        env_setup['execute_main'] = params.get('execute_main', False)
+        env_setup['dependency_controller'] = DependencyController(
+            params.get('requires_info', False))
+        env_setup['transpiler'] = TranspilerUtils()
         v = template.render(env_setup)
 
         if using_stdout:
@@ -286,183 +343,153 @@ class SparkTranspiler(object):
 
     def _assign_operations(self):
         etl_ops = {
-            'add-columns': juicer.spark.etl_operation.AddColumnsOperation,
-            'add-rows': juicer.spark.etl_operation.AddRowsOperation,
-            'aggregation': juicer.spark.etl_operation.AggregationOperation,
-            'clean-missing': juicer.spark.etl_operation.CleanMissingOperation,
-            'difference': juicer.spark.etl_operation.DifferenceOperation,
-            'distinct': juicer.spark.etl_operation.RemoveDuplicatedOperation,
-            'drop': juicer.spark.etl_operation.DropOperation,
-            'execute-python': juicer.spark.etl_operation.ExecutePythonOperation,
-            'execute-sql': juicer.spark.etl_operation.ExecuteSQLOperation,
-            'filter': juicer.spark.etl_operation.FilterOperation,
+            'add-columns': etl_operation.AddColumnsOperation,
+            'add-rows': etl_operation.AddRowsOperation,
+            'aggregation': etl_operation.AggregationOperation,
+            'clean-missing': etl_operation.CleanMissingOperation,
+            'difference': etl_operation.DifferenceOperation,
+            'distinct': etl_operation.RemoveDuplicatedOperation,
+            'drop': etl_operation.DropOperation,
+            'execute-python': etl_operation.ExecutePythonOperation,
+            'execute-sql': etl_operation.ExecuteSQLOperation,
+            'filter': etl_operation.FilterOperation,
             # Alias for filter
-            'filter-selection': juicer.spark.etl_operation.FilterOperation,
-            'intersection': juicer.spark.etl_operation.IntersectionOperation,
-            'join': juicer.spark.etl_operation.JoinOperation,
+            'filter-selection': etl_operation.FilterOperation,
+            'intersection': etl_operation.IntersectionOperation,
+            'join': etl_operation.JoinOperation,
             # synonym for select
-            'projection': juicer.spark.etl_operation.SelectOperation,
+            'projection': etl_operation.SelectOperation,
             # synonym for distinct
-            'remove-duplicated-rows':
-                juicer.spark.etl_operation.RemoveDuplicatedOperation,
-            'replace-value':
-                juicer.spark.etl_operation.ReplaceValueOperation,
-            'sample': juicer.spark.etl_operation.SampleOrPartitionOperation,
-            'select': juicer.spark.etl_operation.SelectOperation,
+            'remove-duplicated-rows': etl_operation.RemoveDuplicatedOperation,
+            'replace-value': etl_operation.ReplaceValueOperation,
+            'sample': etl_operation.SampleOrPartitionOperation,
+            'select': etl_operation.SelectOperation,
             # synonym of intersection'
-            'set-intersection':
-                juicer.spark.etl_operation.IntersectionOperation,
-            'sort': juicer.spark.etl_operation.SortOperation,
-            'split': juicer.spark.etl_operation.SplitOperation,
-            'transformation':
-                juicer.spark.etl_operation.TransformationOperation,
+            'set-intersection': etl_operation.IntersectionOperation,
+            'sort': etl_operation.SortOperation,
+            'split': etl_operation.SplitOperation,
+            'transformation': etl_operation.TransformationOperation,
             'window-transformation':
-                juicer.spark.etl_operation.WindowTransformationOperation,
+                etl_operation.WindowTransformationOperation,
         }
         dm_ops = {
-            'frequent-item-set':
-                juicer.spark.dm_operation.FrequentItemSetOperation,
-            'association-rules':
-                juicer.spark.dm_operation.AssociationRulesOperation,
-            'sequence-mining':
-                juicer.spark.dm_operation.SequenceMiningOperation,
+            'frequent-item-set': dm_operation.FrequentItemSetOperation,
+            'association-rules': dm_operation.AssociationRulesOperation,
+            'sequence-mining': dm_operation.SequenceMiningOperation,
         }
         ml_ops = {
-            'apply-model': juicer.spark.ml_operation.ApplyModelOperation,
-            'classification-model':
-                juicer.spark.ml_operation.ClassificationModelOperation,
-            'classification-report':
-                juicer.spark.ml_operation.ClassificationReport,
-            'clustering-model':
-                juicer.spark.ml_operation.ClusteringModelOperation,
-            'cross-validation':
-                juicer.spark.ml_operation.CrossValidationOperation,
+            'apply-model': ml_operation.ApplyModelOperation,
+            'classification-model': ml_operation.ClassificationModelOperation,
+            'classification-report': ml_operation.ClassificationReport,
+            'clustering-model': ml_operation.ClusteringModelOperation,
+            'cross-validation': ml_operation.CrossValidationOperation,
             'decision-tree-classifier':
-                juicer.spark.ml_operation.DecisionTreeClassifierOperation,
-            'one-vs-rest-classifier':
-                juicer.spark.ml_operation.OneVsRestClassifier,
-            'evaluate-model': juicer.spark.ml_operation.EvaluateModelOperation,
-            'feature-assembler':
-                juicer.spark.ml_operation.FeatureAssemblerOperation,
-            'feature-indexer':
-                juicer.spark.ml_operation.FeatureIndexerOperation,
+                ml_operation.DecisionTreeClassifierOperation,
+            'one-vs-rest-classifier': ml_operation.OneVsRestClassifier,
+            'evaluate-model': ml_operation.EvaluateModelOperation,
+            'feature-assembler': ml_operation.FeatureAssemblerOperation,
+            'feature-indexer': ml_operation.FeatureIndexerOperation,
             'gaussian-mixture-clustering':
-                juicer.spark.ml_operation.GaussianMixtureClusteringOperation,
-            'gbt-classifier': juicer.spark.ml_operation.GBTClassifierOperation,
-            'isotonic-regression':
-                juicer.spark.ml_operation.IsotonicRegressionOperation,
-            'k-means-clustering':
-                juicer.spark.ml_operation.KMeansClusteringOperation,
-            'lda-clustering': juicer.spark.ml_operation.LdaClusteringOperation,
-            'lsh': juicer.spark.ml_operation.LSHOperation,
+                ml_operation.GaussianMixtureClusteringOperation,
+            'gbt-classifier': ml_operation.GBTClassifierOperation,
+            'isotonic-regression': ml_operation.IsotonicRegressionOperation,
+            'k-means-clustering': ml_operation.KMeansClusteringOperation,
+            'lda-clustering': ml_operation.LdaClusteringOperation,
+            'lsh': ml_operation.LSHOperation,
             'naive-bayes-classifier':
-                juicer.spark.ml_operation.NaiveBayesClassifierOperation,
-            'one-hot-encoder':
-                juicer.spark.ml_operation.OneHotEncoderOperation,
-            'pca': juicer.spark.ml_operation.PCAOperation,
-            'perceptron-classifier':
-                juicer.spark.ml_operation.PerceptronClassifier,
+                ml_operation.NaiveBayesClassifierOperation,
+            'one-hot-encoder': ml_operation.OneHotEncoderOperation,
+            'pca': ml_operation.PCAOperation,
+            'perceptron-classifier': ml_operation.PerceptronClassifier,
             'random-forest-classifier':
-                juicer.spark.ml_operation.RandomForestClassifierOperation,
-            'svm-classification':
-                juicer.spark.ml_operation.SvmClassifierOperation,
-            'topic-report': juicer.spark.ml_operation.TopicReportOperation,
-            'recommendation-model':
-                juicer.spark.ml_operation.RecommendationModel,
-            'als-recommender':
-                juicer.spark.ml_operation.AlternatingLeastSquaresOperation,
+                ml_operation.RandomForestClassifierOperation,
+            'svm-classification': ml_operation.SvmClassifierOperation,
+            'topic-report': ml_operation.TopicReportOperation,
+            'recommendation-model': ml_operation.RecommendationModel,
+            'als-recommender': ml_operation.AlternatingLeastSquaresOperation,
             'logistic-regression':
-                juicer.spark.ml_operation.LogisticRegressionClassifierOperation,
-            'linear-regression':
-                juicer.spark.ml_operation.LinearRegressionOperation,
-            'regression-model':
-                juicer.spark.ml_operation.RegressionModelOperation,
-            'index-to-string': juicer.spark.ml_operation.IndexToStringOperation,
+                ml_operation.LogisticRegressionClassifierOperation,
+            'linear-regression': ml_operation.LinearRegressionOperation,
+            'regression-model': ml_operation.RegressionModelOperation,
+            'index-to-string': ml_operation.IndexToStringOperation,
             'random-forest-regressor':
-                juicer.spark.ml_operation.RandomForestRegressorOperation,
-            'gbt-regressor': juicer.spark.ml_operation.GBTRegressorOperation,
+                ml_operation.RandomForestRegressorOperation,
+            'gbt-regressor': ml_operation.GBTRegressorOperation,
             'generalized-linear-regressor':
-                juicer.spark.ml_operation.GeneralizedLinearRegressionOperation,
+                ml_operation.GeneralizedLinearRegressionOperation,
             'aft-survival-regression':
-                juicer.spark.ml_operation.AFTSurvivalRegressionOperation,
-
-            'save-model': juicer.spark.ml_operation.SaveModelOperation,
-            'load-model': juicer.spark.ml_operation.LoadModelOperation,
-            'voting-classifier':
-                juicer.spark.ml_operation.VotingClassifierOperation,
-
+                ml_operation.AFTSurvivalRegressionOperation,
+            'save-model': ml_operation.SaveModelOperation,
+            'load-model': ml_operation.LoadModelOperation,
+            'voting-classifier': ml_operation.VotingClassifierOperation,
+            'outlier-detection': ml_operation.OutlierDetectionOperation,
         }
 
         data_ops = {
-            'change-attribute':
-                juicer.spark.data_operation.ChangeAttributeOperation,
-            'data-reader': juicer.spark.data_operation.DataReaderOperation,
-            'data-writer': juicer.spark.data_operation.SaveOperation,
-            'external-input':
-                juicer.spark.data_operation.ExternalInputOperation,
-            'read-csv': juicer.spark.data_operation.ReadCSVOperation,
-            'save': juicer.spark.data_operation.SaveOperation,
+            'change-attribute': data_operation.ChangeAttributeOperation,
+            'data-reader': data_operation.DataReaderOperation,
+            'data-writer': data_operation.SaveOperation,
+            'external-input': data_operation.ExternalInputOperation,
+            'read-csv': data_operation.ReadCSVOperation,
+            'save': data_operation.SaveOperation,
         }
         data_quality_ops = {
-            'entity-matching':
-                juicer.spark.data_quality_operation.EntityMatchingOperation,
+            'entity-matching': data_quality_operation.EntityMatchingOperation,
         }
         statistics_ops = {
             'kaplan-meier-survival':
-                juicer.spark.statistic_operation.KaplanMeierSurvivalOperation,
+                statistic_operation.KaplanMeierSurvivalOperation,
             'cox-proportional-hazards':
-                juicer.spark.statistic_operation.CoxProportionalHazardsOperation
+                statistic_operation.CoxProportionalHazardsOperation
         }
         other_ops = {
             'comment': operation.NoOp,
         }
         geo_ops = {
-            'read-shapefile': juicer.spark.geo_operation.ReadShapefile,
-            'within': juicer.spark.geo_operation.GeoWithin,
+            'read-shapefile': geo_operation.ReadShapefile,
+            'within': geo_operation.GeoWithin,
         }
         text_ops = {
-            'generate-n-grams':
-                juicer.spark.text_operation.GenerateNGramsOperation,
-
-            'remove-stop-words':
-                juicer.spark.text_operation.RemoveStopWordsOperation,
-            'tokenizer': juicer.spark.text_operation.TokenizerOperation,
-            'word-to-vector': juicer.spark.text_operation.WordToVectorOperation
+            'generate-n-grams': text_operation.GenerateNGramsOperation,
+            'remove-stop-words': text_operation.RemoveStopWordsOperation,
+            'tokenizer': text_operation.TokenizerOperation,
+            'word-to-vector': text_operation.WordToVectorOperation
         }
         ws_ops = {
-            'multiplexer': juicer.spark.ws_operation.MultiplexerOperation,
-            'service-output': juicer.spark.ws_operation.ServiceOutputOperation,
+            'multiplexer': ws_operation.MultiplexerOperation,
+            'service-output': ws_operation.ServiceOutputOperation,
 
         }
         vis_ops = {
             'publish-as-visualization':
-                juicer.spark.vis_operation.PublishVisualizationOperation,
-            'bar-chart': juicer.spark.vis_operation.BarChartOperation,
-            'donut-chart': juicer.spark.vis_operation.DonutChartOperation,
-            'pie-chart': juicer.spark.vis_operation.PieChartOperation,
-            'area-chart': juicer.spark.vis_operation.AreaChartOperation,
-            'line-chart': juicer.spark.vis_operation.LineChartOperation,
-            'table-visualization':
-                juicer.spark.vis_operation.TableVisualizationOperation,
-            'summary-statistics':
-                juicer.spark.vis_operation.SummaryStatisticsOperation,
-            'plot-chart': juicer.spark.vis_operation.ScatterPlotOperation,
-            'scatter-plot': juicer.spark.vis_operation.ScatterPlotOperation,
-            'map-chart': juicer.spark.vis_operation.MapOperation,
-            'map': juicer.spark.vis_operation.MapOperation
+                vis_operation.PublishVisualizationOperation,
+            'bar-chart': vis_operation.BarChartOperation,
+            'donut-chart': vis_operation.DonutChartOperation,
+            'pie-chart': vis_operation.PieChartOperation,
+            'area-chart': vis_operation.AreaChartOperation,
+            'line-chart': vis_operation.LineChartOperation,
+            'table-visualization': vis_operation.TableVisualizationOperation,
+            'summary-statistics': vis_operation.SummaryStatisticsOperation,
+            'plot-chart': vis_operation.ScatterPlotOperation,
+            'scatter-plot': vis_operation.ScatterPlotOperation,
+            'map-chart': vis_operation.MapOperation,
+            'map': vis_operation.MapOperation
         }
         feature_ops = {
-            'standard-scaler':
-                juicer.spark.feature_operation.StandardScalerOperation,
-            'max-abs-scaler':
-                juicer.spark.feature_operation.MaxAbsScalerOperation,
-            'min-max-scaler':
-                juicer.spark.feature_operation.MinMaxScalerOperation,
+            'bucketizer': feature_operation.BucketizerOperation,
+            'quantile-discretizer':
+                feature_operation.QuantileDiscretizerOperation,
+            'standard-scaler': feature_operation.StandardScalerOperation,
+            'max-abs-scaler': feature_operation.MaxAbsScalerOperation,
+            'min-max-scaler': feature_operation.MinMaxScalerOperation,
 
         }
-
+        trustworthy_operations = {
+            'fairness-evaluator':
+                trustworthy_operation.FairnessEvaluationOperation
+        }
         self.operations = {}
         for ops in [data_ops, etl_ops, geo_ops, ml_ops, other_ops, text_ops,
-                    statistics_ops,
-                    ws_ops, vis_ops, dm_ops, data_quality_ops, feature_ops]:
+                    statistics_ops, ws_ops, vis_ops, dm_ops, data_quality_ops,
+                    feature_ops, trustworthy_operations]:
             self.operations.update(ops)

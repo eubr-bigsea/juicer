@@ -1,5 +1,6 @@
 # coding=utf-8
 from __future__ import unicode_literals
+
 import decimal
 import itertools
 import json
@@ -8,6 +9,7 @@ from textwrap import dedent
 import datetime
 
 from juicer.operation import Operation
+from juicer.service import limonero_service
 from juicer.util import chunks
 from juicer.util import dataframe_util
 from juicer.util.dataframe_util import get_csv_schema
@@ -22,10 +24,10 @@ COLORS_PALETTE = list(reversed([
 SHAPES = ['diamond', 'point', 'circle']
 
 
-def get_caipirinha_config(config):
+def get_caipirinha_config(config, indentation=0):
     limonero_conf = config['juicer']['services']['limonero']
     caipirinha_conf = config['juicer']['services']['caipirinha']
-    return dedent("""
+    result = dedent("""
     # Basic information to connect to other services
     config = {{
         'juicer': {{
@@ -48,6 +50,11 @@ def get_caipirinha_config(config):
         caipirinha_token=caipirinha_conf['auth_token'],
         storage_id=caipirinha_conf['storage_id'], )
     )
+    if indentation:
+        return '\n'.join(
+            ['{}{}'.format(' ' * indentation, r) for r in result.split('\n')])
+    else:
+        return result
 
 
 class PublishVisualizationOperation(Operation):
@@ -99,7 +106,7 @@ class PublishVisualizationOperation(Operation):
         # list for visualizations metadata
         code_lines = [
             "from juicer.service import caipirinha_service",
-            "from juicer.util.dataframe_util import CustomEncoder",
+            "from juicer.util.dataframe_util import SimpleJsonEncoder as enc",
             "visualizations = []"
         ]
         if isinstance(self.named_inputs['visualizations'], (list, tuple)):
@@ -117,8 +124,8 @@ class PublishVisualizationOperation(Operation):
                     'id': {vis_model}.type_id,
                     'name': {vis_model}.type_name
                 }},
-                'data': json.dumps({vis_model}.get_data(),
-                               cls=CustomEncoder),
+                'data': simplejson.dumps(
+                    {vis_model}.get_data(), cls=enc, ignore_nan=True),
                 'model': {vis_model}
             }})
             """).format(job_id=self.parameters['job_id'], vis_model=vis_model))
@@ -184,7 +191,8 @@ class VisualizationMethodOperation(Operation):
                  't_format',
                  'latitude', 'longitude', 'value', 'label',
                  'y_axis_attribute', 'z_axis_attribute', 't_axis_attribute',
-                 'series_attribute']
+                 'series_attribute', 'extra_data', 'polygon', 'geojson_id',
+                 'polygon_url']
         for k, v in self.parameters.items():
             if k in valid:
                 result[k] = v
@@ -201,7 +209,7 @@ class VisualizationMethodOperation(Operation):
         code_lines = [dedent(
             u"""
             from juicer.spark.vis_operation import {model}
-            from juicer.util.dataframe_util import CustomEncoder
+            from juicer.util.dataframe_util import SimpleJsonEncoder as enc
 
             params = '{params}'
             {out} = {model}(
@@ -237,8 +245,7 @@ class VisualizationMethodOperation(Operation):
                     'name': {out}.type_name
                 }},
                 'model': {out},
-                'data': json.dumps({out}.get_data(),
-                               cls=CustomEncoder),
+                'data': json.dumps({out}.get_data(), cls=enc, ignore_nan=True),
             }}""").format(job_id=self.parameters['job_id'],
                           out=self.output))
 
@@ -263,7 +270,7 @@ class BarChartOperation(VisualizationMethodOperation):
                                               named_outputs)
 
     def get_model_name(self):
-        return 'BarChartModel'
+        return BarChartModel.__name__
 
 
 class PieChartOperation(VisualizationMethodOperation):
@@ -272,7 +279,7 @@ class PieChartOperation(VisualizationMethodOperation):
                                               named_outputs)
 
     def get_model_name(self):
-        return 'PieChartModel'
+        return PieChartModel.__name__
 
 
 class DonutChartOperation(VisualizationMethodOperation):
@@ -281,7 +288,7 @@ class DonutChartOperation(VisualizationMethodOperation):
                                               named_outputs)
 
     def get_model_name(self):
-        return 'DonutChartModel'
+        return DonutChartModel.__name__
 
 
 class LineChartOperation(VisualizationMethodOperation):
@@ -290,7 +297,7 @@ class LineChartOperation(VisualizationMethodOperation):
                                               named_outputs)
 
     def get_model_name(self):
-        return 'LineChartModel'
+        return LineChartModel.__name__
 
 
 class AreaChartOperation(VisualizationMethodOperation):
@@ -299,7 +306,7 @@ class AreaChartOperation(VisualizationMethodOperation):
                                               named_outputs)
 
     def get_model_name(self):
-        return 'AreaChartModel'
+        return AreaChartModel.__name__
 
 
 class TableVisualizationOperation(VisualizationMethodOperation):
@@ -308,7 +315,7 @@ class TableVisualizationOperation(VisualizationMethodOperation):
                                               named_outputs)
 
     def get_model_name(self):
-        return 'TableVisualizationModel'
+        return TableVisualizationModel.__name__
 
 
 class ScatterPlotOperation(VisualizationMethodOperation):
@@ -317,16 +324,31 @@ class ScatterPlotOperation(VisualizationMethodOperation):
                                               named_outputs)
 
     def get_model_name(self):
-        return 'ScatterPlotModel'
+        return ScatterPlotModel.__name__
 
 
 class MapOperation(VisualizationMethodOperation):
     def __init__(self, parameters, named_inputs, named_outputs):
+
+        if parameters.get('type') in ['polygon', 'geojson']:
+            limonero_config = parameters['configuration']['juicer']['services'][
+                'limonero']
+            url = limonero_config['url']
+            token = str(limonero_config['auth_token'])
+
+            metadata = limonero_service.get_data_source_info(
+                url, token, parameters.get('polygon'))
+            if not metadata.get('url'):
+                raise ValueError(
+                    _('Incorrect data source configuration (empty url or '
+                      'not GEOJSON)'))
+            else:
+                parameters['polygon_url'] = metadata['url']
         VisualizationMethodOperation.__init__(self, parameters, named_inputs,
                                               named_outputs)
 
     def get_model_name(self):
-        return 'MapModel'
+        return MapModel.__name__
 
 
 class SummaryStatisticsOperation(VisualizationMethodOperation):
@@ -343,7 +365,7 @@ class SummaryStatisticsOperation(VisualizationMethodOperation):
         return {self.ATTRIBUTES_PARAM: self.attributes or []}
 
     def get_model_name(self):
-        return 'SummaryStatisticsModel'
+        return SummaryStatisticsModel.__name__
 
 
 #######################################################
@@ -391,13 +413,13 @@ class ChartVisualization(VisualizationModel):
     @staticmethod
     def _get_attr_type(attr):
         if attr.dataType.jsonValue() == 'date':
+            attr_type = 'date'
+        elif attr.dataType.jsonValue() == 'datetime':
             attr_type = 'time'
-        if attr.dataType.jsonValue() == 'datetime':
-            attr_type = 'time'
-        if attr.dataType.jsonValue() == 'time':
+        elif attr.dataType.jsonValue() == 'time':
             attr_type = 'text'
         elif attr.dataType.jsonValue() == 'timestamp':
-            attr_type = 'number'
+            attr_type = 'time'
         elif attr.dataType.jsonValue() == 'text':
             attr_type = 'text'
         elif attr.dataType.jsonValue() == 'character':
@@ -407,7 +429,7 @@ class ChartVisualization(VisualizationModel):
 
         return attr_type
 
-    def _get_title_legend_tootip(self):
+    def _get_title_legend_tooltip(self):
         """ Common title and legend """
         return {
             "title": self.title,
@@ -482,7 +504,7 @@ class BarChartModel(ChartVisualization):
             color_counter = i
 
         result = {}
-        result.update(self._get_title_legend_tootip())
+        result.update(self._get_title_legend_tooltip())
 
         # For barcharts this is right option
         result['legend']['text'] = u'{{x}}'
@@ -601,7 +623,7 @@ class PieChartModel(ChartVisualization):
         # is called directly when the output port is used multiple times.
         self.data.count()
         rows = self.data.collect()
-        result = self._get_title_legend_tootip()
+        result = self._get_title_legend_tooltip()
         result['legend']['isVisible'] = self.params.get('legend') in ('1', 1)
 
         x_format = self.params.get("x_format", {})
@@ -664,7 +686,7 @@ class LineChartModel(ChartVisualization):
             })
 
         result = {}
-        result.update(self._get_title_legend_tootip())
+        result.update(self._get_title_legend_tooltip())
 
         result.update({
             "y": {
@@ -684,14 +706,14 @@ class LineChartModel(ChartVisualization):
 
         if x_type in ['number']:
             result['x']['format'] = self.params.get("x_format", {}).get('key')
-        elif x_type in ['timestamp', 'date', 'time']:
-            # Lets have this hardcoded for now
+        elif x_type == 'time':
+            # FIXME: gViz does not handles datetime correctly
+            result['x']['inFormat'] = '%Y-%m-%dT%H:%M:%S'
+            result['x']['outFormat'] = '%Y-%m-%d'
+        elif x_type in ['date']:
             result['x']["inFormat"] = self.default_time_format
             result['x']["outFormat"] = self.default_time_format
-
-            # old code
-            # result['x']["inFormat"] = self.params.get("x_format", {}).get('key')
-            # result['x']["outFormat"] = self.params.get("x_format", {}).get('key')
+            result['x']["type"] = 'time'  # FIXME
 
         for row in rows:
             for i, attr in enumerate(y_attrs):
@@ -710,7 +732,7 @@ class MapModel(ChartVisualization):
 
     def get_data(self):
         result = {}
-        result.update(self._get_title_legend_tootip())
+        result.update(self._get_title_legend_tooltip())
         rows = self.data.collect()
 
         if self.params.get('value'):
@@ -720,58 +742,54 @@ class MapModel(ChartVisualization):
         else:
             value_type = 'number'
 
-        map_type = {
-            'heatmap': 'heat',
-            'bars': 'bars',
-            'bar': 'bars',
-            'points': 'points'
-        }[self.params.get('type', 'heatmap')]
+        param_map_type = self.params.get('type', 'heatmap')
 
-        result["bars"] = {
-            "mapColor": "#8BC3D2",
-            "mapStrokeColor": "#FFF",
-            "mapOpacity": "0.7",
-            "barWidth": "2",
-            "barMaxHeight": 40,
-            "bottomBarHeight": 4,
-            "bottomBarColor": "#596A6D",
-            "barColor": "#428DA1",
-            "prefix": "$",
-            "suffix": "",
-            "format": "",
-            "type": value_type
-        }
-        result["heat"] = {
-            "colors": ["#47d8c7", "#e3c170", "#fe492b"],
-            "shapeId": "abbr",
-            "prefix": "",
-            "suffix": "",
-            "format": "locale",
-            "type": value_type
-        }
+        map_type = {
+            'heatmap': 'heatmap',
+            'points': 'points',
+            'polygon': 'polygon'
+        }[param_map_type]
 
         result['mode'] = {
             map_type: True
         }
+        if param_map_type == 'polygon':
+            result['geojson'] = {
+                'url': self.params.get('polygon_url'),
+                'idProperty': self.params.get('geojson_id', 'id') or 'id'
+            }
 
         data = []
         result['data'] = data
+
+        lat = self.params.get('latitude', [None])[0]
+        lng = self.params.get('longitude', [None])[0]
+        label = self.params.get('label', [None])[0]
 
         for i, row in enumerate(rows):
             if self.params.get('value'):
                 value = row[self.params.get('value')[0]]
             else:
                 value = 0
-            data.append(
-                {
-                    "id": str(i),
-                    "name": row[self.params.get('label')[0]] if self.params.get(
-                        'label') else None,
-                    "lat": row[self.params['latitude'][0]],
-                    "lon": row[self.params['longitude'][0]],
-                    "value": value
+            if param_map_type == 'polygon':
+
+                info = {"id": row[label], "value": value}
+                extra = self.params.get('extra_data', [])
+                for f in extra:
+                    if f in row:
+                        info[f] = row[f]
+
+            else:
+                info = {
+                    "id": str(i), "value": value,
+                    "name": row[label] if label else None,
                 }
-            )
+                if lat and lng:
+                    info["lat"] = row[lat]
+                    info["lon"] = row[lng]
+
+            data.append(info)
+
         return result
 
 
@@ -804,7 +822,7 @@ class ScatterPlotModel(ChartVisualization):
                 # this way we don't bind x_axis and y_axis types. Y is only
                 # going to be number for now
                 if axis == u'y':
-                  axis_type = 'number'
+                    axis_type = 'number'
 
                 result[axis] = {
                     "title": self.params.get("{}_title".format(axis)),
@@ -824,7 +842,7 @@ class ScatterPlotModel(ChartVisualization):
                     # result[axis]["outFormat"] = axis_format.get('key')
                     # result[axis]["inFormat"] = axis_format.get('key')
 
-        result.update(self._get_title_legend_tootip())
+        result.update(self._get_title_legend_tooltip())
 
         series_attr_name = self.params.get('series_attribute', [None])[0]
         if series_attr_name:
@@ -878,6 +896,7 @@ class ScatterPlotModel(ChartVisualization):
             return ChartVisualization._format(row[attr.name])
         else:
             return default_value
+
 
 class HtmlVisualizationModel(VisualizationModel):
     # noinspection PyUnusedLocal
@@ -1031,10 +1050,16 @@ class SummaryStatisticsModel(TableVisualizationModel):
             stats.append((df_count - functions.count(df_col)).alias(
                 'missing_{}'.format(name)))
 
-            stats.append(functions.round(functions.skewness(df_col), 2).alias(
-                'skewness_{}'.format(name)))
-            stats.append(functions.round(functions.kurtosis(df_col), 2).alias(
-                'kurtosis_{}'.format(name)))
+            if name in self.numeric_attrs:
+                stats.append(
+                    functions.round(functions.skewness(df_col), 2).alias(
+                        'skewness_{}'.format(name)))
+                stats.append(
+                    functions.round(functions.kurtosis(df_col), 2).alias(
+                        'kurtosis_{}'.format(name)))
+            else:
+                stats.append(functions.lit('-'))
+                stats.append(functions.lit('-'))
 
             for pair in corr_pairs[i]:
                 if all([pair[0] in self.numeric_attrs,
