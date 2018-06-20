@@ -1,11 +1,16 @@
+# coding=utf-8
+from __future__ import unicode_literals
+
 import functools
+import json
 from textwrap import dedent
 
 from juicer.util import group
 
 
-class Expression:
-    def __init__(self, json_code, params):
+class Expression(object):
+    def __init__(self, json_code, params, window=False):
+        self.window = window
         self.code = json_code
         self.functions = {}
         self.build_functions_dict()
@@ -58,11 +63,23 @@ class Expression:
                 tree['test'], tree['consequent'], tree['alternate']
             ]}
             result = self.get_when_function(spec, params)
+        elif tree['type'] == 'Compound':
+            raise ValueError(
+                _("Transformation has an invalid expression. "
+                  "Maybe variables are using spaces in their names."))
+        elif tree['type'] == 'ArrayExpression':
+            array = []
+            for elem in tree['elements']:
+                if elem['type'] == 'Literal':
+                    array.append(elem['value'])
+                else:
+                    array.append(self.parse(elem, params))
+            result = array
         else:
             raise ValueError(_("Unknown type: {}").format(tree['type']))
         return result
 
-    def get_window_function(self, spec, params):
+    def get_time_window_function(self, spec, params):
         """
         Window function is slightly different from the Spark counterpart: the
         last parameter indicates if it is using the start or end field in
@@ -76,11 +93,25 @@ class Expression:
 
         # FIXME: add the word 'SECONDS' after parameter 'SEGUNDOS'
         result = (
-            "functions.window({value}, '{bin}')"
+            "functions.window({value}, str('{bin}'))"
             ".{start_or_end}.cast('timestamp')").format(
             value=', '.join(arguments[:-2]), bin=bins_size,
             start_or_end=field_name)
         return result
+
+    def get_column_function(self, spec, params, arg_count=0):
+        """
+        Functions that are not available at pyspark.sql.functions, but are
+        implemented in pyspark.sql.Column class
+        """
+        arguments = [self.parse(x, params) for x in spec['arguments']]
+        if len(arguments) != arg_count + 1:
+            raise ValueError(_("Invalid parameters for function: {}()").format(
+                spec['callee']['name']))
+
+        return '{col}.{f}({args})'.format(
+            col=arguments[0], f=spec['callee']['name'],
+            args=', '.join(arguments[1:]))
 
     def get_set_function(self, spec, params, data_type):
         """
@@ -113,18 +144,28 @@ class Expression:
 
         return '.'.join(code)
 
+    def get_ith_function(self, spec, params):
+        """
+        """
+        arguments = [self.parse(x, params) for x in spec['arguments']]
+        f = 'juicer_ext.ith_function_udf'
+        result = '{}({}, functions.lit({}))'.format(f, arguments[0],
+                                                    arguments[1])
+        return result
+
     def get_strip_accents_function(self, spec, params):
         callee = spec['arguments'][0].get('callee', {})
         # Evaluates if column name is wrapped in a col() function call
         arguments = ', '.join(
             [self.parse(x, params) for x in spec['arguments']])
 
-        strip_accents = (
-            "functions.udf("
-            "lambda text: ''.join(c for c in unicodedata.normalize('NFD', text) "
-            "if unicodedata.category(c) != 'Mn'), "
-            "types.StringType())"
-        )
+        # strip_accents = (
+        #     "functions.udf("
+        #     "lambda text: ''.join(c for c in unicodedata.normalize('NFD', text) "
+        #     "if unicodedata.category(c) != 'Mn'), "
+        #     "types.StringType())"
+        # )
+        strip_accents = 'juicer_ext.strip_accents_udf'
 
         result = '{}({})'.format(strip_accents, arguments)
 
@@ -136,12 +177,13 @@ class Expression:
         arguments = ', '.join(
             [self.parse(x, params) for x in spec['arguments']])
 
-        strip_punctuation = (
-            "functions.udf("
-            "lambda text: text.translate("
-            "dict((ord(char), None) for char in string.punctuation)), "
-            "types.StringType())"
-        )
+        # strip_punctuation = (
+        #     "functions.udf("
+        #     "lambda text: text.translate("
+        #     "dict((ord(char), None) for char in string.punctuation)), "
+        #     "types.StringType())"
+        # )
+        strip_punctuation = 'juicer_ext.remove_punctuation_udf'
 
         result = '{}({})'.format(strip_punctuation, arguments)
 
@@ -158,6 +200,26 @@ class Expression:
 
         result = 'functions.{}({})'.format(spec['callee']['name'],
                                            arguments)
+        return result
+
+    def get_window_function(self, spec, params):
+        """ """
+        arguments = ', '.join(
+            [self.parse(x, params) for x in spec['arguments']])
+
+        result = 'functions.{}({}).over({})'.format(
+            spec['callee']['name'], arguments, params.get('window', 'window'))
+        return result
+
+    def get_translate_function(self, spec, params):
+        """
+        """
+        arguments = [self.parse(x, params) for x in spec['arguments']]
+        f = 'juicer_ext.translate_function_udf'
+        result = dedent('''{}(
+                    {}, {}, {},
+                    {})'''.format(f, arguments[0], arguments[1], arguments[2],
+                                  json.dumps(arguments[3])))
         return result
 
     def build_functions_dict(self):
@@ -181,7 +243,6 @@ class Expression:
             'floor': self.get_function_call,
             'format_number': self.get_function_call,
             'format_string': self.get_function_call,
-            'from_json': self.get_function_call,
             'from_unixtime': self.get_function_call,
             'from_utc_timestamp': self.get_function_call,
             'greatest': self.get_function_call,
@@ -225,7 +286,6 @@ class Expression:
             'toDegrees': self.get_function_call,
             'toRadians': self.get_function_call,
             'to_date': self.get_function_call,
-            'to_json': self.get_function_call,
             'to_utc_timestamp': self.get_function_call,
             'translate': self.get_function_call,
             'trim': self.get_function_call,
@@ -241,7 +301,7 @@ class Expression:
         # custom function is necessarily defined here. Also, we
         # should not use 'get_function_call' for code generation in this case.
         custom_functions = {
-            'group_datetime': self.get_window_function,
+            'group_datetime': self.get_time_window_function,
             'set_of_ints': functools.partial(self.get_set_function,
                                              data_type='IntegerType'),
             'set_of_strings': functools.partial(self.get_set_function,
@@ -251,8 +311,51 @@ class Expression:
             'strip_accents': self.get_strip_accents_function,
             'strip_punctuation': self.get_strip_punctuation_function,
             'when': self.get_when_function,
-            'window': self.get_window_function,
+            'window': self.get_time_window_function,
+            'ith': self.get_ith_function,
+            'translate': self.get_translate_function,
+        }
+
+        column_functions = {
+            'alias': functools.partial(self.get_column_function, arg_count=1),
+            'astype': functools.partial(self.get_column_function, arg_count=1),
+            'between': functools.partial(self.get_column_function, arg_count=2),
+            'cast': functools.partial(self.get_column_function, arg_count=1),
+            'contains': functools.partial(self.get_column_function,
+                                          arg_count=1),
+            'endswith': functools.partial(self.get_column_function,
+                                          arg_count=1),
+            'isNotNull': functools.partial(self.get_column_function),
+            'isNull': functools.partial(self.get_column_function),
+            'like': functools.partial(self.get_column_function, arg_count=1),
+            'rlike': functools.partial(self.get_column_function, arg_count=1),
+            'startswith': functools.partial(self.get_column_function,
+                                            arg_count=1),
+            'substr': functools.partial(self.get_column_function, arg_count=1),
+
         }
 
         self.functions.update(spark_sql_functions)
         self.functions.update(custom_functions)
+        self.functions.update(column_functions)
+
+        if self.window:
+            window_functions = {
+                'max': self.get_window_function,
+                'min': self.get_window_function,
+                'count': self.get_window_function,
+                'avg': self.get_window_function,
+                'sum': self.get_window_function,
+                'std': self.get_window_function,
+                'lag': self.get_window_function,
+                'lead': self.get_window_function,
+                'first': self.get_window_function,
+                'last': self.get_window_function,
+                'ntile': self.get_window_function,
+                'cume_dist': self.get_window_function,
+                'percent_rank': self.get_window_function,
+                'rank': self.get_window_function,
+                'dense_rank': self.get_window_function,
+                'row_number': self.get_window_function,
+            }
+            self.functions.update(window_functions)

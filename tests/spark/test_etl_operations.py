@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 import ast
-import json
 from textwrap import dedent
 
 import pytest
@@ -154,8 +153,8 @@ def test_clean_missing_minimal_params_success():
     code = instance.generate_code()
     expected_code = dedent("""
     ratio_{input_1} = {input_1}.select(
-        (functions.count('{attribute}') / functions.count('*')).alias(
-        '{attribute}')).collect()
+        (functions.avg(functions.col('{attribute}').isNull().cast(
+        'int'))).alias('{attribute}')).collect()
     attributes_{input_1} = [c for c in ["{attribute}"]
                  if 0.0 <= ratio_{input_1}[0][c] <= 1.0]
     if len(attributes_input_1) > 0:
@@ -204,8 +203,8 @@ def test_clean_missing_minimal_params_type_value_success():
     code = instance.generate_code()
     expected_code = dedent("""
     ratio_{input_1} = {input_1}.select(
-        (functions.count('{attribute}') / functions.count('*')).alias(
-        '{attribute}')).collect()
+        (functions.avg(functions.col('{attribute}').isNull().cast(
+        'int'))).alias('{attribute}')).collect()
     attributes_{input_1} = [c for c in ["{attribute}"]
                  if 0.0 <= ratio_{input_1}[0][c] <= 1.0]
     if len(attributes_input_1) > 0:
@@ -339,9 +338,18 @@ def test_intersection_minimal_params_success():
                                      named_outputs=n_out)
 
     code = instance.generate_code()
-    expected_code = "{out} = {in1}.intersect({in2})".format(
-        out=n_out['output data'], in1=n_in['input data 1'],
-        in2=n_in['input data 2'])
+    expected_code = dedent(
+        """
+        if len(df1.columns) != len(df2.columns):
+            raise ValueError('{error}')
+        {out} = {in1}.intersect({in2})
+        """.format(
+            out=n_out['output data'], in1=n_in['input data 1'],
+            in2=n_in['input data 2'],
+            error=(
+                'For intersection operation, both input data '
+                'sources must have the same number of attributes '
+                'and types.')))
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
     assert result, msg + format_code_comparison(code, expected_code)
 
@@ -411,7 +419,7 @@ def test_join_left_join_keep_columns_minimal_params_success():
         """.format(
         out=n_out['output data'], in0=n_in['input data 1'],
         a0='left_', a1='right_',
-        in1=n_in['input data 2'], type=params[JoinOperation.JOIN_TYPE_PARAM],))
+        in1=n_in['input data 2'], type=params[JoinOperation.JOIN_TYPE_PARAM], ))
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
     assert result, msg + format_code_comparison(code, expected_code)
@@ -515,8 +523,8 @@ def test_sample_or_partition_type_value_success():
     instance = SampleOrPartitionOperation(params, named_inputs=n_in,
                                           named_outputs=n_out)
     code = instance.generate_code()
-    expected_code = """output_1 = input_1.sample(withReplacement=False,
-        fraction=1.0, seed=0).limit({})""".format(params['value'])
+    expected_code = """output_1 = input_1.orderBy(
+        functions.rand(0)).limit({})""".format(params['value'])
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
     assert result, msg
 
@@ -631,14 +639,15 @@ def test_sort_minimal_params_success():
 
 def test_sort_missing_attributes_failure():
     params = {}
-    with pytest.raises(ValueError) as excinfo:
+    with pytest.raises(ValueError):
         n_in = {'input data': 'df1'}
         n_out = {'output data': 'out'}
         SortOperation(params, named_inputs=n_in, named_outputs=n_out)
 
 
 def test_transformation_minumum_params_success():
-    expr = {'tree': {
+    alias = 'result_1'
+    expr = [{'tree': {
         "type": "CallExpression",
         "arguments": [
             {
@@ -650,11 +659,10 @@ def test_transformation_minumum_params_success():
         "callee": {
             "type": "Identifier",
             "name": "lower"
-        }
-    }, 'expression': "lower(attr_name)"}
+        },
+    }, 'alias': alias, 'expression': "lower(attr_name)"}]
     params = {
-        TransformationOperation.EXPRESSION_PARAM: json.dumps(expr),
-        TransformationOperation.ALIAS_PARAM: 'new_column',
+        TransformationOperation.EXPRESSION_PARAM: expr,
         'input': 'input_x',
     }
     n_in = {'input data': 'df1'}
@@ -662,19 +670,31 @@ def test_transformation_minumum_params_success():
     instance = TransformationOperation(params, named_inputs=n_in,
                                        named_outputs=n_out)
     code = instance.generate_code()
-    expected_code = "{out} = {in1}.withColumn('{alias}'" \
-                    ", functions.lower('attr_name'))"
+
+    expected_code = dedent(
+        """
+        from juicer.spark.ext import CustomExpressionTransformer
+        expr_alias = [
+            [functions.lower('attr_name'), '{alias}']
+        ]
+        tmp_out = {in1}
+        for expr, alias in expr_alias:
+            transformer = CustomExpressionTransformer(
+                outputCol=alias, expression=expr)
+            tmp_out = transformer.transform(tmp_out)
+        {out} = tmp_out
+        """)
 
     expected_code = expected_code.format(
-        out=n_out['output data'], in1=n_in['input data'],
-        alias=params[TransformationOperation.ALIAS_PARAM])
+        out=n_out['output data'], in1=n_in['input data'], alias=alias)
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
     assert result, msg + format_code_comparison(code, expected_code)
 
 
 def test_transformation_math_expression_success():
-    expr = {'tree': {
+    alias = 'result_2'
+    expr = [{'tree': {
         "type": "BinaryExpression",
         "operator": "*",
         "left": {
@@ -686,30 +706,41 @@ def test_transformation_math_expression_success():
             "value": 100,
             "raw": "100"
         }
-    }, 'expression': "lower(a)"}
+    }, 'alias': alias, 'expression': "lower(a)"}]
 
     params = {
-        TransformationOperation.EXPRESSION_PARAM: json.dumps(expr),
-        TransformationOperation.ALIAS_PARAM: 'new_column'
+        TransformationOperation.EXPRESSION_PARAM: expr,
     }
     n_in = {'input data': 'df1'}
     n_out = {'output data': 'out'}
     instance = TransformationOperation(params, named_inputs=n_in,
                                        named_outputs=n_out)
     code = instance.generate_code()
-    expected_code = "{out} = {in1}.withColumn('{alias}'" \
-                    ", {in1}['a'] * 100)"
+
+    expected_code = dedent(
+        """
+        from juicer.spark.ext import CustomExpressionTransformer
+        expr_alias = [
+            [{in1}['a'] * 100, '{alias}']
+        ]
+        tmp_out = {in1}
+        for expr, alias in expr_alias:
+            transformer = CustomExpressionTransformer(
+                outputCol=alias, expression=expr)
+            tmp_out = transformer.transform(tmp_out)
+        {out} = tmp_out
+        """)
 
     expected_code = expected_code.format(
-        out=n_out['output data'], in1=n_in['input data'],
-        alias=params[TransformationOperation.ALIAS_PARAM])
+        out=n_out['output data'], in1=n_in['input data'], alias=alias)
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
     assert result, msg + format_code_comparison(code, expected_code)
 
 
 def test_transformation_complex_expression_success():
-    expr = {'tree': {
+    alias = 'result_3'
+    expr = [{'tree': {
         "type": "BinaryExpression",
         "operator": "+",
         "left": {
@@ -725,23 +756,32 @@ def test_transformation_complex_expression_success():
             "type": "Identifier",
             "name": "b"
         }
-    }, 'expression': "a + b "}
+    }, 'alias': alias, 'expression': "a + b "}]
 
     params = {
-        TransformationOperation.EXPRESSION_PARAM: json.dumps(expr),
-        TransformationOperation.ALIAS_PARAM: 'new_column'
+        TransformationOperation.EXPRESSION_PARAM: expr,
     }
     n_in = {'input data': 'df1'}
     n_out = {'output data': 'out'}
     instance = TransformationOperation(params, named_inputs=n_in,
                                        named_outputs=n_out)
     code = instance.generate_code()
-    expected_code = "{out} = {in1}.withColumn('{alias}', " \
-                    "- {in1}['a'] + {in1}['b'])"
+    expected_code = dedent(
+        """
+        from juicer.spark.ext import CustomExpressionTransformer
+        expr_alias = [
+            [(- {in1}['a'] + {in1}['b']), '{alias}']
+        ]
+        tmp_out = {in1}
+        for expr, alias in expr_alias:
+            transformer = CustomExpressionTransformer(
+                outputCol=alias, expression=expr)
+            tmp_out = transformer.transform(tmp_out)
+        {out} = tmp_out
+        """)
 
     expected_code = expected_code.format(
-        out=n_out['output data'], in1=n_in['input data'],
-        alias=params[TransformationOperation.ALIAS_PARAM])
+        out=n_out['output data'], in1=n_in['input data'], alias=alias)
 
     debug_ast(code, expected_code)
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
@@ -750,18 +790,6 @@ def test_transformation_complex_expression_success():
 
 def test_transformation_missing_expr_failure():
     params = {
-        TransformationOperation.ALIAS_PARAM: 'new_column2'
-    }
-    with pytest.raises(ValueError):
-        n_in = {'input data': 'df1'}
-        n_out = {'output data': 'out'}
-        TransformationOperation(params, named_inputs=n_in,
-                                named_outputs=n_out)
-
-
-def test_transformation_missing_alias_failure():
-    params = {
-        TransformationOperation.EXPRESSION_PARAM: '{}'
     }
     with pytest.raises(ValueError):
         n_in = {'input data': 'df1'}

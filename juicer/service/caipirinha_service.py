@@ -1,12 +1,8 @@
 # -*- coding: utf-8 -*-
 import json
 import logging
-import time
-import urlparse
 
 import requests
-from juicer.service import limonero_service
-from juicer.util.dataframe_util import CustomEncoder
 
 log = logging.getLogger()
 log.setLevel(logging.DEBUG)
@@ -64,27 +60,6 @@ def _emit_completed(emit_event_fn, task_id):
             type='STATUS')
 
 
-def _get_hbsase_visualization_format(user, visualization, workflow_id):
-    return
-    # vis_value = {
-    #     b'cf:user': json.dumps(user, indent=4),
-    #     b'cf:workflow': json.dumps({'id': workflow_id}),
-    #     b'cf:title': visualization['title'],
-    #     b'cf:column_names': visualization['model'].get_column_names(),
-    #     b'cf:orientation': visualization['model'].orientation,
-    #     b'cf:attributes': json.dumps({
-    #         'id': visualization['model'].id_attribute,
-    #         'value': visualization['model'].value_attribute
-    #     }),
-    #     b'cf:data': json.dumps(visualization['model'].get_data(),
-    #                            cls=CustomEncoder),
-    #     b'cf:schema': visualization['model'].get_schema()
-    # }
-    # return vis_value
-
-
-
-
 def new_dashboard(config, title, user, workflow_id, workflow_name, job_id,
                   task_id, visualizations, emit_event_fn=None,
                   _type='VISUALIZATION'):
@@ -123,7 +98,6 @@ def new_visualization(config, user, workflow_id, job_id,
     _emit_saved_visualization(_type, emit_event_fn, visualization)
 
     del visualization['model']
-
     r = _update_caipirinha(
         caipirinha_config['url'], 'visualizations',
         caipirinha_config['auth_token'], '', json.dumps(visualization))

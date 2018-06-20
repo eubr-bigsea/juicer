@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import logging
 from collections import namedtuple
+from itertools import izip_longest
 
 from juicer.runner import configuration
 
@@ -71,7 +72,7 @@ class Operation(object):
 
     def generate_code(self):
         raise NotImplementedError(
-            _("Method generate_code should be implemented " \
+            _("Method generate_code should be implemented "
               "in {} subclass").format(self.__class__))
 
     def get_generated_results(self):
@@ -80,6 +81,18 @@ class Operation(object):
          Results can be models and visualizations (for while).
         """
         return []
+
+    @property
+    def enabled(self):
+        return self.parameters.get('task', {}).get('enabled', True)
+
+    @property
+    def is_stream_consumer(self):
+        return False
+
+    @property
+    def supports_pipeline(self):
+        return False
 
     @property
     def get_inputs_names(self):
@@ -94,16 +107,22 @@ class Operation(object):
     def get_data_out_names(self, sep=','):
         return self.get_output_names(sep)
 
-    def contains_results(self):
+    @property
+    def contains_sample(self):
         forms = self.parameters.get('task', {}).get('forms', {})
-        return (
-            forms.get('display_sample', {}).get('value') in (1, '1') or
-            forms.get('display_schema', {}).get('value') in (1, '1'))
+        return forms.get('display_sample', {}).get('value') in (1, '1')
+
+    @property
+    def contains_schema(self):
+        forms = self.parameters.get('task', {}).get('forms', {})
+        return forms.get('display_schema', {}).get('value') in (1, '1')
+
+    def contains_results(self):
+        return self.contains_sample or self.contains_schema
 
     def must_be_executed(self, is_satisfied, ignore_out_degree=False,
                          ignore_has_code=False):
         consider_degree = self.out_degree == 0 or ignore_out_degree
-        forms = self.parameters['task']['forms']
         info_or_data = self.contains_results()
         return (((self.has_code or ignore_has_code) and is_satisfied and
                  consider_degree) or info_or_data)
@@ -129,3 +148,18 @@ class NoOp(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
         self.has_code = False
+
+
+# noinspection PyAbstractClass
+class TransformModelOperation(Operation):
+    """
+    Base class for operations that produce a transform model.
+    """
+
+    @staticmethod
+    def _get_aliases(attributes, aliases, suffix):
+        aliases = [alias.strip() for alias in aliases]
+        # Adjust alias in order to have the same number of aliases as attributes
+        # by filling missing alias with the attribute name suffixed by _indexed.
+        return [x[1] or '{}_{}'.format(x[0], suffix) for x in
+                izip_longest(attributes, aliases[:len(attributes)])]
