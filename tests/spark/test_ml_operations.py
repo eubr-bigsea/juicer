@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+from __future__ import unicode_literals
+
 import ast
 import json
 from textwrap import dedent
@@ -47,7 +49,7 @@ def test_feature_indexer_operation_success():
     code = instance.generate_code()
 
     expected_code = dedent("""
-        col_alias = dict({alias})
+        col_alias = dict(tuple({alias}))
         indexers = [feature.StringIndexer(inputCol=col, outputCol=alias,
                             handleInvalid='skip')
                     for col, alias in col_alias.items()]
@@ -78,8 +80,7 @@ def test_feature_indexer_operation_success():
                            params[FeatureIndexerOperation.ALIAS_PARAM]))))
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
-
-    assert result, msg
+    assert result, msg + format_code_comparison(code, expected_code)
 
 
 def test_feature_indexer_string_type_param_operation_failure():
@@ -667,6 +668,9 @@ def test_classification_model_operation_success():
 
         params = dict([(p.name, v) for p, v in
             alg.extractParamMap().items()])
+
+        if isinstance(alg, MultilayerPerceptronClassifier):
+            del params['rawPredictionCol']
         algorithm_cls = globals()[alg.__class__.__name__]
         algorithm = algorithm_cls()
         algorithm.setParams(**params)
@@ -677,6 +681,8 @@ def test_classification_model_operation_success():
         algorithm.setFeaturesCol('{features}')
         {output} = algorithm.fit({train})
 
+        setattr(model_1, 'ensemble_weights', [1.0])
+
         # Lazy execution in case of sampling the data in UI
         def call_transform(df):
             return model_1.transform(df)
@@ -685,10 +691,9 @@ def test_classification_model_operation_success():
 
         display_text = True
         if display_text:
-            from juicer.spark.reports import SimpleTableReport
             rows = [[m, getattr(model_1, m)] for m in metrics
                 if hasattr(model_1, m)]
-            headers = ['Parameter', 'Value']
+            headers = [u'Parameter', u'Value']
             content = SimpleTableReport(
                 'table table-striped table-bordered table-sm',
                 headers, rows)
@@ -737,8 +742,8 @@ def test_classification_model_operation_missing_features_failure():
     params = {
         ClassificationModelOperation.LABEL_ATTRIBUTE_PARAM: 'label'
     }
-    n_in = {}
-    n_out = {}
+    n_in = {'a': 'a', 'b': 'b'}
+    n_out = {'c': 'c'}
 
     with pytest.raises(ValueError):
         ClassificationModelOperation(
@@ -977,15 +982,11 @@ def test_clustering_model_operation_success():
     code = instance.generate_code()
 
     expected_code = dedent("""
-        from juicer.spark.reports import SimpleTableReport
-
         {algorithm}.setFeaturesCol('{features}')
         if hasattr(df_1, 'setPredictionCol'):
             df_1.setPredictionCol('prediction')
         {model} = {algorithm}.fit({input})
-        # There is no way to pass which attribute was used in clustering, so
-        # this information will be stored in uid (hack).
-        {model}.uid += '|{features}'
+        setattr({model}, 'features', '{features}')
 
         # Lazy execution in case of sampling the data in UI
         def call_transform(df):
@@ -1123,7 +1124,7 @@ def test_lda_clustering_operation_optimizer_online_success():
         ['MaxIter', params[LdaClusteringOperation.MAX_ITERATIONS_PARAM]],
         ['Optimizer',
          "'{}'".format(params[LdaClusteringOperation.OPTIMIZER_PARAM])],
-        ['DocConcentration', 0.25],
+        ['DocConcentration', [0.25]],
         ['TopicConcentration',
          params[LdaClusteringOperation.TOPIC_CONCENTRATION_PARAM]]
     ]
@@ -1137,7 +1138,9 @@ def test_lda_clustering_operation_optimizer_online_success():
         output=named_outputs['algorithm'],
         name=name))
 
-    settings = (['{0}.set{1}({2})'.format(named_outputs['algorithm'], name, v)
+    settings = (['{0}.set{1}({2})'.format(
+        named_outputs['algorithm'], name,
+        v if not isinstance(v, list) else json.dumps(v))
                  for name, v in set_values])
     settings = "\n".join(settings)
 
@@ -1510,18 +1513,8 @@ def test_als_operation_success():
                 # Build the recommendation model using ALS on the training data
                 {output} = ALS(maxIter={maxIter}, regParam={regParam},
                         userCol='{userCol}', itemCol='{itemCol}',
-                        ratingCol='{ratingCol}')
-
-                ##model = als.fit({input})
-                #predictions = model.transform(test)
-
-                # Evaluate the model not support YET
-                # evaluator = RegressionEvaluator(metricName="rmse",
-                #                labelCol={ratingCol},
-                #                predictionCol="prediction")
-
-                # rmse = evaluator.evaluate(predictions)
-                # print("Root-mean-square error = " + str(rmse))
+                        ratingCol='{ratingCol}',
+                        coldStartStrategy='drop')
                 """.format(
         output=named_outputs['algorithm'],
         input=named_inputs['input data'],

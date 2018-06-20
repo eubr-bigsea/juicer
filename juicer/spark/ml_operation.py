@@ -1,6 +1,9 @@
 # coding=utf-8
+from __future__ import unicode_literals
+
 import json
 import logging
+import string
 from itertools import izip_longest
 from textwrap import dedent
 
@@ -10,6 +13,12 @@ from juicer.service.limonero_service import query_limonero
 
 log = logging.getLogger()
 log.setLevel(logging.DEBUG)
+
+
+class SafeDict(dict):
+    # noinspection PyMethodMayBeStatic
+    def __missing__(self, key):
+        return '{' + key + '}'
 
 
 class FeatureIndexerOperation(Operation):
@@ -40,7 +49,8 @@ class FeatureIndexerOperation(Operation):
         self.alias = [alias.strip() for alias in
                       parameters.get(self.ALIAS_PARAM, '').split(',')]
 
-        self.max_categories = int(parameters.get(self.MAX_CATEGORIES_PARAM, 0))
+        self.max_categories = int(
+            parameters.get(self.MAX_CATEGORIES_PARAM, 0) or 20)
         if not (self.max_categories >= 0):
             msg = _(
                 "Parameter '{}' must be in range [x>=0] for task {}").format(
@@ -62,7 +72,7 @@ class FeatureIndexerOperation(Operation):
                                         'models_task_{}'.format(self.order))
         if self.type == self.TYPE_STRING:
             code = dedent("""
-                col_alias = dict({alias})
+                col_alias = dict(tuple({alias}))
                 indexers = [feature.StringIndexer(
                     inputCol=col, outputCol=alias, handleInvalid='skip')
                              for col, alias in col_alias.items()]
@@ -346,6 +356,7 @@ class EvaluateModelOperation(Operation):
         'rmse': ('evaluation.RegressionEvaluator', 'predictionCol'),
         'mse': ('evaluation.RegressionEvaluator', 'predictionCol'),
         'mae': ('evaluation.RegressionEvaluator', 'predictionCol'),
+        'r2': ('evaluation.RegressionEvaluator', 'predictionCol'),
     }
 
     def __init__(self, parameters, named_inputs,
@@ -379,7 +390,7 @@ class EvaluateModelOperation(Operation):
         self.has_code = any([(
             (len(self.named_inputs) > 0 and len(self.named_outputs) > 0) or
             (self.named_outputs.get('evaluator') is not None) or
-            (len(self.named_inputs) == 2)
+            ('input data' in self.named_inputs)
         ), self.contains_results()])
 
         self.model = self.named_inputs.get('model')
@@ -402,136 +413,281 @@ class EvaluateModelOperation(Operation):
         return ''
 
     def generate_code(self):
-
-        if self.has_code:
+        if not self.has_code:
+            return ''
+        else:
             display_text = self.parameters['task']['forms'].get(
                 'display_text', {'value': 1}).get('value', 1) in (1, '1')
             display_image = self.parameters['task']['forms'].get(
                 'display_image', {'value': 1}).get('value', 1) in (1, '1')
 
-            code = dedent("""
+            code = [dedent("""
                 metric_value = 0.0
                 display_text = {display_text}
                 display_image = {display_image}
-
                 metric = '{metric}'
-                if metric in ['areaUnderROC', 'areaUnderPR']:
-                    # scoreAndPrediction = {input}.select('prediction',
-                    #     'survived')
-                    # evaluator = BinaryClassificationMetrics(
-                    #     scoreAndPrediction.rdd)
-                    # roc =  [[a._1(), a._2()] for a
-                    #     in m2._java_model.roc().collect()]
+                label_col = '{label_attr}'
+                prediction_col = str('{prediction_attr}')
+                """)]
+            if self.metric in ['areaUnderROC', 'areaUnderPR']:
+                self._get_code_for_area_metric(code)
+            elif self.metric in ['f1', 'weightedPrecision', 'weightedRecall',
+                                 'accuracy']:
+                self._get_code_for_classification_metrics(code)
+            elif self.metric in ['rmse', 'mae', 'mse']:
+                self._get_code_for_regression_metrics(code)
 
-                    evaluator = evaluation.BinaryClassificationEvaluator(
-                        {prediction_arg}='{prediction_attr}',
-                        labelCol='{label_attr}',
-                        metricName=metric)
-                    metric_value = evaluator.evaluate({input})
-                    if display_text:
-                        result = '<h4>{{}}: {{}}</h4>'.format('{metric}',
-                            metric_value)
+            self._get_code_for_summary(code)
 
-                        emit_event(
-                            'update task', status='COMPLETED',
-                            identifier='{task_id}',
-                            message=result,
-                            type='HTML', title='{title}',
-                            task={{'id': '{task_id}'}},
-                            operation={{'id': {operation_id}}},
-                            operation_id={operation_id})
-
-                elif metric in ['f1', 'weightedPrecision', 'weightedRecall',
-                        'accuracy']:
-                    label_prediction = {input}.select(
-                        functions.col('{prediction_attr}').cast('Double'),
-                        functions.col('{label_attr}').cast('Double'))
-                    evaluator = MulticlassMetrics(label_prediction.rdd)
-                    if metric == 'f1':
-                        metric_value = evaluator.weightedFMeasure()
-                    elif metric == 'weightedPrecision':
-                        metric_value = evaluator.weightedPrecision
-                    elif metric == 'weightedRecall':
-                        metric_value = evaluator.weightedRecall
-                    elif metric == 'accuracy':
-                        metric_value = evaluator.accuracy
-
-                    if display_image:
-
-                        # Test if feature indexer is in global cache, because
-                        # strings must be converted into numbers in order tho
-                        # run algorithms, but they are cooler when displaying
-                        # results.
-                        indexer = cached_state.get('indexers', {{}}).get(
-                            '{label_attr}')
-                        if indexer:
-                            classes = indexer.labels
-                        else:
-                            classes = sorted(
-                                [x[0] for x in label_prediction.select(
-                                        '{label_attr}').distinct().collect()])
-
-                        content = ConfusionMatrixImageReport(
-                            cm=evaluator.confusionMatrix().toArray(),
-                            classes=classes,)
-
-                        emit_event(
-                            'update task', status='COMPLETED',
-                            identifier='{task_id}',
-                            message=content.generate(),
-                            type='IMAGE', title='{title}',
-                            task={{'id': '{task_id}'}},
-                            operation={{'id': {operation_id}}},
-                            operation_id={operation_id})
-
-                    if display_text:
-                        headers = {headers}
-                        rows = [
-                            ['F1', evaluator.weightedFMeasure()],
-                            ['Weighted Precision', evaluator.weightedPrecision],
-                            ['Weighted Recall', evaluator.weightedRecall],
-                            ['Accuracy', evaluator.accuracy],
-                        ]
-
-                        content = SimpleTableReport(
-                                'table table-striped table-bordered table-sm',
-                                headers, rows,
-                                title='{title}')
-
-                        emit_event(
-                            'update task', status='COMPLETED',
-                            identifier='{task_id}',
-                            message=content.generate(),
-                            type='HTML', title='{title}',
-                            task={{'id': '{task_id}'}},
-                            operation={{'id': {operation_id}}},
-                            operation_id={operation_id})
-
-                from juicer.spark.ml_operation import ModelsEvaluationResultList
-                {model_output} = ModelsEvaluationResultList(
+            # Common for all metrics!
+            code.append(dedent("""
+            {model_output} = ModelsEvaluationResultList(
                     [{model}], {model}, '{metric}', metric_value)
 
-                {metric} = metric_value
-                {model_output} = None
+            {metric} = metric_value
+            {model_output} = None
+            """))
 
-                """.format(model_output=self.model_out,
-                           model=self.model,
-                           input=self.named_inputs['input data'],
-                           metric=self.metric,
-                           evaluator_out=self.evaluator_out,
-                           task_id=self.parameters['task_id'],
-                           operation_id=self.parameters['operation_id'],
-                           title=_('Evaluation result'),
-                           display_text=display_text,
-                           display_image=display_image,
-                           prediction_attr=self.prediction_attribute,
-                           label_attr=self.label_attribute,
-                           headers=[_('Metric'), _('Value')],
-                           evaluator=self.evaluator,
-                           prediction_arg=self.param_prediction_arg,
-                           ))
-
+            code = "\n".join(code).format(
+                model_output=self.model_out,
+                model=self.model,
+                input=self.named_inputs['input data'],
+                metric=self.metric,
+                evaluator_out=self.evaluator_out,
+                task_id=self.parameters['task_id'],
+                operation_id=self.parameters['operation_id'],
+                title=_('Evaluation result'),
+                display_text=display_text,
+                display_image=display_image,
+                prediction_attr=self.prediction_attribute,
+                label_attr=self.label_attribute,
+                headers=[_('Metric'), _('Value')],
+                evaluator=self.evaluator,
+                prediction_arg=self.param_prediction_arg,
+            )
             return dedent(code)
+
+    @staticmethod
+    def _get_code_for_classification_metrics(code):
+        """
+        Generate code for other classification metrics besides those related to
+        area.
+        """
+        code.append(dedent("""
+            label_prediction = {input}.select(
+                functions.col(prediction_col).cast('Double'),
+                functions.col('{label_attr}').cast('Double'))
+            evaluator = MulticlassMetrics(label_prediction.rdd)
+            if metric == 'f1':
+                metric_value = evaluator.weightedFMeasure()
+            elif metric == 'weightedPrecision':
+                metric_value = evaluator.weightedPrecision
+            elif metric == 'weightedRecall':
+                metric_value = evaluator.weightedRecall
+            elif metric == 'accuracy':
+                metric_value = evaluator.accuracy
+
+            if display_image:
+                # Test if feature indexer is in global cache, because
+                # strings must be converted into numbers in order tho
+                # run algorithms, but they are cooler when displaying
+                # results.
+                indexer = cached_state.get('indexers', {{}}).get(
+                    '{label_attr}')
+                if indexer:
+                    classes = indexer.labels
+                else:
+                    classes = sorted(
+                        [x[0] for x in label_prediction.select(
+                                '{label_attr}').distinct().collect()])
+
+                content = ConfusionMatrixImageReport(
+                    cm=evaluator.confusionMatrix().toArray(),
+                    classes=classes,)
+
+                emit_event(
+                    'update task', status='COMPLETED',
+                    identifier='{task_id}',
+                    message=content.generate(),
+                    type='IMAGE', title='{title}',
+                    task={{'id': '{task_id}'}},
+                    operation={{'id': {operation_id}}},
+                    operation_id={operation_id})
+
+            if display_text:
+                headers = {headers}
+                rows = [
+                    ['F1', evaluator.weightedFMeasure()],
+                    ['Weighted Precision', evaluator.weightedPrecision],
+                    ['Weighted Recall', evaluator.weightedRecall],
+                    ['Accuracy', evaluator.accuracy],
+                ]
+
+                content = SimpleTableReport(
+                        'table table-striped table-bordered table-sm',
+                        headers, rows,
+                        title='{title}')
+
+                emit_event(
+                    'update task', status='COMPLETED',
+                    identifier='{task_id}',
+                    message=content.generate(),
+                    type='HTML', title='{title}',
+                    task={{'id': '{task_id}'}},
+                    operation={{'id': {operation_id}}},
+                    operation_id={operation_id})
+        """))
+
+    @staticmethod
+    def _get_code_for_area_metric(code):
+        """
+        Code for the evaluator when metric is related to the area
+        """
+        code.append(dedent("""
+            evaluator = evaluation.BinaryClassificationEvaluator(
+                {prediction_arg}=prediction_col,
+                labelCol=label_col,
+                metricName=metric)
+            metric_value = evaluator.evaluate({input})
+            if display_text:
+                result = '<h4>{{}}: {{}}</h4>'.format('{metric}',
+                    metric_value)
+
+                emit_event(
+                    'update task', status='COMPLETED',
+                    identifier='{task_id}',
+                    message=result,
+                    type='HTML', title='{title}',
+                    task={{'id': '{task_id}'}},
+                    operation={{'id': {operation_id}}},
+                    operation_id={operation_id})
+        """))
+
+    @staticmethod
+    def _get_code_for_regression_metrics(code):
+        """
+        Code for the evaluator when metric is related to regression
+        """
+        code.append(dedent("""
+            df = {input}
+            if not isinstance({input}.schema[prediction_col].dataType,
+                (types.DoubleType, types.FloatType)):
+                df = {input}.withColumn(prediction_col,
+                    {input}[prediction_col].cast('double'))
+
+            evaluator = evaluation.RegressionEvaluator(
+                {prediction_arg}=prediction_col,
+                labelCol='{label_attr}',
+                metricName=metric)
+            metric_value = evaluator.evaluate(df)
+            if display_text:
+                result = '<h4>{{}}: {{}}</h4>'.format('{metric}',
+                    metric_value)
+
+                emit_event(
+                    'update task', status='COMPLETED',
+                    identifier='{task_id}',
+                    message=result,
+                    type='HTML', title='{title}',
+                    task={{'id': '{task_id}'}},
+                    operation={{'id': {operation_id}}},
+                    operation_id={operation_id})
+        """))
+
+    @staticmethod
+    def _get_code_for_summary(code):
+        """
+        Return code for model's summary (test if it is present)
+        """
+        i18n_dict = SafeDict(
+            join_plot_title=_('Prediction versus Residual'),
+            join_plot_x_title=_('Prediction'),
+            join_plot_y_title=_('Residual'),
+
+            plot_title=_('Actual versus Prediction'),
+            plot_x_title=_('Actual'),
+            plot_y_title=_('Prediction'),
+        )
+        partial_code = """
+            summary = getattr({model}, 'summary', None)
+            if summary:
+                if summary.numInstances < 2000 and display_image:
+                    predictions = [r[prediction_col] for r in
+                        summary.predictions.collect()]
+
+                    if isinstance({model}, LinearRegressionModel):
+                        residuals_col = 'residuals'
+                        df_residual = summary.residuals
+                    else:
+                        residuals_col = 'devianceResiduals'
+                        df_residual = summary.residuals()
+                        
+                    residuals = [r[residuals_col] for r in
+                        df_residual.collect()]
+                    pandas_df = pd.DataFrame.from_records(
+                        [
+                            dict(prediction=x[0], residual=x[1])
+                                for x in zip(predictions, residuals)
+                        ]
+                    )
+
+                    report = SeabornChartReport()
+                    emit_event(
+                        'update task', status='COMPLETED',
+                        identifier='{task_id}',
+                        message=report.jointplot(pandas_df, 'prediction',
+                            'residual', '{join_plot_title}',
+                            '{join_plot_x_title}', '{join_plot_y_title}'),
+                        type='IMAGE', title='{join_plot_title}',
+                        task=dict(id='{task_id}'),
+                        operation=dict(id={operation_id}),
+                        operation_id={operation_id})
+
+                    report2 = MatplotlibChartReport()
+
+                    actual = []
+                    predicted = []
+                    for r in df.select([label_col, prediction_col]).collect():
+                        actual.append(r[label_col])
+                        predicted.append(r[prediction_col])
+
+                    identity = range(int(max(actual[-1], predicted[-1])))
+                    emit_event(
+                         'update task', status='COMPLETED',
+                        identifier='{task_id}',
+                        message=report2.plot(
+                            '{plot_title}',
+                            '{plot_x_title}',
+                            '{plot_y_title}',
+                            identity, identity, 'r.',
+                            actual, predicted,'b.',),
+                        type='IMAGE', title='{join_plot_title}',
+                        task=dict(id='{task_id}'),
+                        operation=dict(id={operation_id}),
+                        operation_id={operation_id})
+
+                summary_rows = []
+                for p in dir(summary):
+                    if not p.startswith('_') and p != "cluster":
+                        try:
+                            summary_rows.append(
+                                [p, getattr(summary, p)])
+                        except Exception as e:
+                            summary_rows.append([p, e.message])
+                summary_content = SimpleTableReport(
+                    'table table-striped table-bordered', [],
+                    summary_rows,
+                    title='Summary')
+                emit_event('update task', status='COMPLETED',
+                    identifier='{task_id}',
+                    message=summary_content.generate(),
+                    type='HTML', title='{title}',
+                    task=dict(id='{task_id}'),
+                    operation=dict(id={operation_id}),
+                    operation_id={operation_id})
+        """
+        code.append(
+            dedent(string.Formatter().vformat(partial_code, (), i18n_dict)))
 
 
 class ModelsEvaluationResultList:
@@ -715,6 +871,7 @@ class ClassificationModelOperation(Operation):
     FEATURES_ATTRIBUTE_PARAM = 'features'
     LABEL_ATTRIBUTE_PARAM = 'label'
     PREDICTION_ATTRIBUTE_PARAM = 'prediction'
+    WEIGHTS_PARAM = 'weights'
 
     def __init__(self, parameters, named_inputs,
                  named_outputs):
@@ -725,20 +882,24 @@ class ClassificationModelOperation(Operation):
                              self.contains_results()])
         self.has_code = self.has_code and 'algorithm' in self.named_inputs
 
-        if not all([self.FEATURES_ATTRIBUTE_PARAM in parameters,
-                    self.LABEL_ATTRIBUTE_PARAM in parameters]):
-            msg = _("Parameters '{}' and '{}' must be informed for task {}")
-            raise ValueError(msg.format(
-                self.FEATURES_ATTRIBUTE_PARAM, self.LABEL_ATTRIBUTE_PARAM,
-                self.__class__.__name__))
+        if self.has_code:
+            if not all(
+                    [self.FEATURES_ATTRIBUTE_PARAM in parameters,
+                     self.LABEL_ATTRIBUTE_PARAM in parameters]):
+                msg = _("Parameters '{}' and '{}' must be informed for task {}")
+                raise ValueError(msg.format(
+                    self.FEATURES_ATTRIBUTE_PARAM, self.LABEL_ATTRIBUTE_PARAM,
+                    self.__class__.__name__))
 
-        self.label = parameters.get(self.LABEL_ATTRIBUTE_PARAM)[0]
-        self.features = parameters.get(self.FEATURES_ATTRIBUTE_PARAM)[0]
-        self.prediction = parameters.get(self.PREDICTION_ATTRIBUTE_PARAM,
-                                         'prediction')
+            self.label = parameters.get(self.LABEL_ATTRIBUTE_PARAM)[0]
+            self.features = parameters.get(self.FEATURES_ATTRIBUTE_PARAM)[0]
+            self.prediction = parameters.get(self.PREDICTION_ATTRIBUTE_PARAM,
+                                             'prediction')
+            self.ensemble_weights = parameters.get(self.WEIGHTS_PARAM,
+                                                   '1') or '1'
 
-        self.model = named_outputs.get('model',
-                                       'model_task_{}'.format(self.order))
+            self.model = named_outputs.get('model',
+                                           'model_task_{}'.format(self.order))
         if not self.has_code and len(self.named_outputs) > 0:
             raise ValueError(
                 _('Model is being used, but at least one input is missing'))
@@ -762,6 +923,11 @@ class ClassificationModelOperation(Operation):
             # and this may cause concurrency problems
             params = dict([(p.name, v) for p, v in
                 alg.extractParamMap().items()])
+
+            # Perceptron does not support some parameters
+            if isinstance(alg, MultilayerPerceptronClassifier):
+                del params['rawPredictionCol']
+
             algorithm_cls = globals()[alg.__class__.__name__]
             algorithm = algorithm_cls()
             algorithm.setParams(**params)
@@ -771,6 +937,9 @@ class ClassificationModelOperation(Operation):
             algorithm.setFeaturesCol('{feat}')
             {model} = algorithm.fit({train})
 
+            # Used in ensembles, e.g. VotingClassifierOperation
+            setattr({model}, 'ensemble_weights', {weights})
+
             # Lazy execution in case of sampling the data in UI
             def call_transform(df):
                 return {model}.transform(df)
@@ -778,7 +947,6 @@ class ClassificationModelOperation(Operation):
                 {model}, {train}, call_transform)
             display_text = {display_text}
             if display_text:
-                from juicer.spark.reports import SimpleTableReport
                 rows = [[m, getattr({model}, m)] for m in metrics
                     if hasattr({model}, m)]
                 headers = {headers}
@@ -809,7 +977,9 @@ class ClassificationModelOperation(Operation):
                 headers=[_('Parameter'), _('Value'), ],
                 task_id=self.parameters['task_id'],
                 operation_id=self.parameters['operation_id'],
-            )
+                weights=repr(
+                    [float(w) for w in self.ensemble_weights.split(',')]
+                ))
 
             return dedent(code)
 
@@ -928,7 +1098,7 @@ class LogisticRegressionClassifierOperation(ClassifierOperation):
             ['family', self.FAMILY_PARAM, str],
             ['aggregationDepth', self.AGGREGATION_DEPTH_PARAM, int],
             ['elasticNetParam', self.ELASTIC_NET_PARAM_PARAM, float],
-            ['fitIntercept', self.FIT_INTERCEPT_PARAM, int],
+            ['fitIntercept', self.FIT_INTERCEPT_PARAM, bool],
             ['maxIter', self.MAX_ITER_PARAM, int],
             ['regParam', self.REG_PARAM_PARAM, float],
             ['tol', self.TOL_PARAM, float],
@@ -1132,6 +1302,88 @@ class OneVsRestClassifier(ClassifierOperation):
             c=self.named_inputs.get('algorithm'), k=ctor_params)
 
 
+class VotingClassifierOperation(Operation):
+    PREDICTION_ATTRIBUTE_PARAM = 'prediction_attribute'
+
+    def __init__(self, parameters, named_inputs,
+                 named_outputs):
+        Operation.__init__(self, parameters, named_inputs,
+                           named_outputs)
+
+        self.models = named_inputs.get('models')
+        self.prediction = parameters.get(
+            self.PREDICTION_ATTRIBUTE_PARAM,
+            'voting_prediction') or 'voting_prediction'
+        self.has_code = self.has_code = all(
+            [any(['output data' in self.named_outputs,
+                  self.contains_results()]),
+             len(self.models) > 0], )
+
+    def generate_code(self):
+        input_data = self.named_inputs.get('input data')
+        code = dedent("""
+            evaluators = [m.copy() for m in [{models}]]
+            weights_count = len(evaluators)
+
+            prediction_col = '{prediction}'
+            conflict_names = ['rawPredictionCol', 'predictionCol',
+                'probabilityCol']
+            predictions = []
+            weights = []
+            rows = []
+            for i, evaluator in enumerate(evaluators):
+                weights.append(evaluator.ensemble_weights[0]
+                    if hasattr(evaluator, 'ensemble_weights') else 1)
+                # noinspection PyProtectedMember
+                params = evaluator._paramMap
+                rows.append([evaluator.__class__.__name__ , i + 1, weights[i]])
+                for conflict in conflict_names:
+                    k = [p for p in params.keys() if p.name == conflict]
+                    if k:
+                        params[k[0]] = '{{}}{{}}'.format(conflict, i)
+                    if conflict == 'predictionCol':
+                        predictions.append(params[k[0]])
+
+            headers = ['{name}', '{order}', '{weight}']
+
+            content = SimpleTableReport(
+                    'table table-striped table-bordered table-sm',
+                    headers, rows,
+                    title='{title}')
+
+            emit_event(
+                'update task', status='COMPLETED',
+                identifier='{task_id}',
+                message=content.generate(),
+                type='HTML', title='{title}',
+                task={{'id': '{task_id}'}},
+                operation={{'id': {operation_id}}},
+                operation_id={operation_id})
+
+            pipeline = Pipeline(stages=evaluators)
+            model = pipeline.fit({input})
+
+            def summarize(arr):
+                acc= collections.defaultdict(int)
+                for j, v in enumerate(arr):
+                    acc[v] += weights[j]
+                return max(acc.items(), key=lambda x: x[1])[0]
+
+            {out} = model.transform({input}).withColumn('all_predictions',
+                functions.array(*predictions)).withColumn(prediction_col,
+                    functions.udf(summarize, types.DoubleType())(
+                        'all_predictions'))
+
+        """.format(models=', '.join(self.models), input=input_data,
+                   out=self.output, prediction=self.prediction,
+                   title=_('Models used in ensemble classification'),
+                   task_id=self.parameters['task_id'],
+                   operation_id=self.parameters['operation_id'],
+                   name=_('name'), order=_('order'), weight=_('weight'),
+                   ))
+        return code
+
+
 class ClassificationReport(ReportOperation):
     def __init__(self, parameters, named_inputs,
                  named_outputs):
@@ -1199,15 +1451,13 @@ class ClusteringModelOperation(Operation):
 
         if self.has_code:
             code = """
-            from juicer.spark.reports import SimpleTableReport
-
             {algorithm}.setFeaturesCol('{features}')
             if hasattr({algorithm}, 'setPredictionCol'):
                 {algorithm}.setPredictionCol('{prediction}')
             {model} = {algorithm}.fit({input})
             # There is no way to pass which attribute was used in clustering, so
-            # this information will be stored in uid (hack).
-            {model}.uid += '|{features}'
+            # information will be stored in a new attribute called features.
+            setattr({model}, 'features', '{features}')
 
             # Lazy execution in case of sampling the data in UI
             def call_transform(df):
@@ -1331,7 +1581,18 @@ class LdaClusteringOperation(ClusteringOperation):
             ['Optimizer', "'{}'".format(self.optimizer)],
         ]
         if self.doc_concentration:
-            self.set_values.append(['DocConcentration', self.doc_concentration])
+            try:
+                doc_concentration = [float(v) for v in
+                                     str(self.doc_concentration).split(',') if
+                                     v.strip()]
+                self.set_values.append(['DocConcentration', doc_concentration])
+            except Exception as e:
+                raise ValueError(
+                    _('Invalid document concentration: {}. It must be a single '
+                      'decimal value or a list of decimal numbers separated by '
+                      'comma.').format(
+                        self.doc_concentration))
+
         if self.topic_concentration:
             self.set_values.append(
                 ['TopicConcentration', self.topic_concentration])
@@ -1426,11 +1687,17 @@ class TopicReportOperation(ReportOperation):
 
         self.has_code = any(
             [len(self.named_inputs) == 3, self.contains_results()])
-        self.output = self.named_outputs.get('output data',
-                                             'out_task_{}'.format(self.order))
+        self.output = self.named_outputs.get('topics',
+                                             'topics_{}'.format(self.order))
 
-        self.vocabulary_input = self.named_outputs.get(
-            'vocabulary data', 'vocab_{}'.format(self.order))
+        self.vocabulary_input = self.named_inputs.get(
+            'vocabulary')
+
+    def get_output_names(self, sep=", "):
+        return self.output
+
+    def get_data_out_names(self, sep=','):
+        return self.output
 
     def generate_code(self):
         code = dedent("""
@@ -1444,7 +1711,7 @@ class TopicReportOperation(ReportOperation):
             {output} = topic_df
 
             # See hack in ClusteringModelOperation
-            features = {model}.uid.split('|')[1]
+            features = {model}.features
 
             '''
             for row in topic_df.collect():
@@ -1471,29 +1738,30 @@ class TopicReportOperation(ReportOperation):
 
 
 class RecommendationModel(Operation):
-    RANK_PARAM = 'rank'
-    MAX_ITER_PARAM = 'max_iter'
-    USER_COL_PARAM = 'user_col'
-    ITEM_COL_PARAM = 'item_col'
-    RATING_COL_PARAM = 'rating_col'
+    # RANK_PARAM = 'rank'
+    # MAX_ITER_PARAM = 'max_iter'
+    # USER_COL_PARAM = 'user_col'
+    # ITEM_COL_PARAM = 'item_col'
+    # RATING_COL_PARAM = 'rating_col'
 
     def __init__(self, parameters, named_inputs,
                  named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-        self.inputs = None
-        self.has_code = any([len(named_outputs) > 0 and len(self.inputs) == 2,
+        self.has_code = any([len(named_outputs) > 0 and len(named_inputs) == 2,
                              self.contains_results()])
 
-        if not all([self.RANK_PARAM in parameters['workflow_json'],
-                    self.RATING_COL_PARAM in parameters['workflow_json']]):
-            msg = _("Parameters '{}' and '{}' must be informed for task {}")
-            raise ValueError(msg.format(
-                self.RANK_PARAM, self.RATING_COL_PARAM,
-                self.__class__.__name__))
+        # if not all([self.RANK_PARAM in parameters,
+        #             self.RATING_COL_PARAM in parameters]):
+        #     msg = _("Parameters '{}' and '{}' must be informed for task {}")
+        #     raise ValueError(msg.format(
+        #         self.RANK_PARAM, self.RATING_COL_PARAM,
+        #         self.__class__.__name__))
 
-        self.model = self.named_outputs.get('model')
-        self.output = self.named_outputs.get('output data')
+        self.model = self.named_outputs.get(
+            'model', 'model_{}'.format(self.order))
+        self.output = self.named_outputs.get(
+            'output data', 'data_{}'.format(self.order))
         # self.ratingCol = parameters.get(self.RATING_COL_PARAM)
 
     @property
@@ -1502,30 +1770,20 @@ class RecommendationModel(Operation):
                           self.named_inputs['algorithm']])
 
     def get_data_out_names(self, sep=','):
-        return ''
+        return self.output
 
     def get_output_names(self, sep=', '):
         return sep.join([self.output, self.model])
 
     def generate_code(self):
-        if self.has_code:
+        code = """
+        {0} = {1}.fit({2})
+        {output_data} = {0}.transform({2})
+        """.format(self.model, self.named_inputs['algorithm'],
+                   self.named_inputs['input data'],
+                   output_data=self.output)
 
-            code = """
-            # {1}.setRank('{3}').setRatingCol('{4}')
-            {0} = {1}.fit({2})
-
-            {output_data} = {0}.transform({2})
-            """.format(self.model, self.named_inputs['algorithm'],
-                       self.named_inputs['input data'],
-                       self.RANK_PARAM, self.RATING_COL_PARAM,
-                       output_data=self.output)
-
-            return dedent(code)
-        else:
-            msg = _("Parameters '{}' and '{}' must be informed for task {}")
-            raise ValueError(msg.format('[]inputs',
-                                        '[]outputs',
-                                        self.__class__))
+        return dedent(code)
 
 
 class CollaborativeOperation(Operation):
@@ -1610,9 +1868,12 @@ class AlternatingLeastSquaresOperation(Operation):
     def generate_code(self):
         code = dedent("""
                 # Build the recommendation model using ALS on the training data
+                # Strategy for dealing with unknown or new users/items at
+                # prediction time is drop. See SPARK-14489 and SPARK-19345.
                 {algorithm} = ALS(maxIter={maxIter}, regParam={regParam},
                         userCol='{userCol}', itemCol='{itemCol}',
-                        ratingCol='{ratingCol}')
+                        ratingCol='{ratingCol}',
+                        coldStartStrategy='drop')
                 """.format(
             algorithm=self.named_outputs['algorithm'],
             maxIter=self.maxIter,
@@ -1703,16 +1964,7 @@ class LogisticRegressionModel(Operation):
 class RegressionModelOperation(Operation):
     FEATURES_PARAM = 'features'
     LABEL_PARAM = 'label'
-
-    MAX_ITER_PARAM = 'max_iter'
-    WEIGHT_COL_PARAM = 'weight'
     PREDICTION_COL_PARAM = 'prediction'
-    REG_PARAM = 'reg_param'
-    ELASTIC_NET_PARAM = 'elastic_net'
-
-    # RegType missing -  none (a.k.a. ordinary least squares),
-    # L2 (ridge regression)
-    #                    L1 (Lasso) and   L2 + L1 (elastic net)
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
@@ -1754,9 +2006,6 @@ class RegressionModelOperation(Operation):
     def generate_code(self):
         if self.has_code:
             code = """
-            from pyspark.ml.linalg import Vectors
-            from juicer.spark.reports import SimpleTableReport, HtmlImageReport
-
             algorithm = {algorithm}
             algorithm.setPredictionCol('{prediction}')
             algorithm.setLabelCol('{label}')
@@ -2503,7 +2752,7 @@ class LSHOperation(Operation):
                 _("Invalid type '{}' for class {}").format(
                     self.type, self.__class__))
 
-        self.bucket_length = parameters.get(self.BUCKET_LENGTH_PARAM)
+        self.bucket_length = parameters.get(self.BUCKET_LENGTH_PARAM) or 100
         self.seed = parameters.get(self.SEED_PARAM)
 
         self.output_attribute = parameters.get(self.OUTPUT_ATTRIBUTE_PARAM,
@@ -2513,23 +2762,29 @@ class LSHOperation(Operation):
         self.output = named_outputs.get('output data',
                                         'out_{}'.format(self.order))
 
+        self.output_model = named_outputs.get('model',
+                                              'model_{}'.format(self.order))
+
+    def get_output_names(self, sep=", "):
+        return sep.join([self.output, self.output_model])
+
     def generate_code(self):
         input_data = self.named_inputs['input data']
         code = dedent("""
-            type = '{type}'
-            if type == 'bucketed-random':
+            hash_type = '{type}'
+            if hash_type == 'bucketed-random':
                 lsh = BucketedRandomProjectionLSH(
                     inputCol='{inputAttr}',
                     outputCol='{outputAttr}',
-                    bucketLength={bucket_length}
+                    bucketLength={bucket_length},
                     numHashTables={num_hash_tables})
-            elif type == 'min-hash-lsh':
-                lsh = inputCol(
+            elif hash_type == 'min-hash-lsh':
+                lsh = MinHashLSH(
                     inputCol='{inputAttr}',
                     outputCol='{outputAttr}',
                     numHashTables={num_hash_tables})
-            model = lsh.fit({input})
-            {out} = model.transform({input})
+            {model} = lsh.fit({input})
+            {out} = {model}.transform({input})
         """.format(
             num_hash_tables=self.num_hash_tables,
             bucket_length=self.bucket_length,
@@ -2537,7 +2792,108 @@ class LSHOperation(Operation):
             outputAttr=self.output_attribute,
             input=input_data,
             out=self.output,
+            model=self.output_model,
             type=self.type,
 
+        ))
+        return code
+
+
+class OutlierDetectionOperation(Operation):
+    FEATURES_PARAM = 'features'
+    ALIAS_PARAM = 'alias'
+    MIN_POINTS_PARAM = 'min_points'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+
+        self.has_code = any([len(named_outputs) > 0 and len(named_inputs) == 1,
+                             self.contains_results()])
+
+        if self.FEATURES_PARAM not in parameters:
+            msg = _("Parameter '{}' must be informed for task {}")
+            raise ValueError(msg.format(
+                self.FEATURES_PARAM, self.__class__))
+
+        self.features = parameters.get(self.FEATURES_PARAM)
+        self.min_points = parameters.get(self.MIN_POINTS_PARAM, 5)
+        self.alias = parameters.get(self.ALIAS_PARAM, 'outlier')
+
+        self.output = self.named_outputs.get('output data',
+                                             'out_task_{}'.format(self.order))
+
+    def generate_code(self):
+        input_data = self.named_inputs.get('input data')
+
+        code = dedent("""
+        emit = get_emitter(emit_event, {operation_id},
+                           '{task_id}')
+
+        from juicer.spark.ext import LocalOutlierFactor
+        algorithm = LocalOutlierFactor(minPts={min_pts})
+
+        features = [{features}]
+        stages = []
+
+        if isinstance({input}.schema[str(features[0])].dataType, VectorUDT):
+            if len(features) > 1 :
+                emit(message=_(
+                'Features are assembled as a vector, but there are other '
+                'attributes in the list of features. They will be ignored'),)
+
+            algorithm.setFeaturesCol(features[0])
+            algorithm.setOutputCol('{prediction}')
+            stages.append(algorithm)
+        else:
+            emit(message=_(
+                'Features are not assembled as a vector. They will be '
+                'implicitly assembled and rows with null values will be '
+                'discarded. If this is undesirable, explicitly add a feature '
+                'assembler in the workflow.'),)
+            to_assemble = []
+            for f in features:
+                if not dataframe_util.is_numeric({input}.schema, f):
+                    name = f + '_tmp'
+                    to_assemble.append(name)
+                    stages.append(feature.StringIndexer(
+                        inputCol=f, outputCol=name, handleInvalid='keep'))
+                else:
+                    to_assemble.append(f)
+
+            # Remove rows with null (VectorAssembler doesn't support it)
+            cond = ' AND '.join(['{{}} IS NOT NULL '.format(c)
+                for c in to_assemble])
+            stages.append(SQLTransformer(
+                statement='SELECT * FROM __THIS__ WHERE {{}}'.format(cond)))
+
+            final_features = 'features_tmp'
+            stages.append(feature.VectorAssembler(
+                inputCols=to_assemble, outputCol=final_features))
+
+            algorithm.setFeaturesCol(final_features)
+            algorithm.setOutputCol('{prediction}')
+            stages.append(algorithm)
+
+
+        pipeline = Pipeline(stages=stages)
+        model = pipeline.fit({input})
+
+        # Join between original dataset and results
+        indexed_df = dataframe_util.with_column_index({input}, 'tmp_inx')
+        lof_result = model.transform({input})
+        {output} = indexed_df.join(
+            lof_result, lof_result['index'] == indexed_df['tmp_inx'], 'left')
+        {output} = {output}.drop(
+            'tmp_inx', 'index', 'vector').withColumnRenamed(
+            'lof', '{prediction}')
+
+        """.format(
+            input=input_data,
+            features=', '.join(["'{}'".format(f) for f in self.features]),
+            prediction=self.alias,
+            min_pts=self.min_points,
+            output=self.output,
+            task_id=self.parameters['task_id'],
+            operation_id=self.parameters['operation_id'],
         ))
         return code
