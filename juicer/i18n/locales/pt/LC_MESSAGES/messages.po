@@ -8,7 +8,7 @@ msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
 "POT-Creation-Date: 2018-06-20 16:50-0300\n"
-"PO-Revision-Date: 2018-06-20 16:54-0300\n"
+"PO-Revision-Date: 2018-06-20 17:01-0300\n"
 "Last-Translator: \n"
 "Language-Team: pt_BR <LL@li.org>\n"
 "Language: pt_BR\n"
@@ -1026,61 +1026,61 @@ msgstr "Relatório de viés"
 
 #: juicer/spark/templates/bias-report.html:16
 msgid "Audit Date"
-msgstr ""
+msgstr "Data da auditoria"
 
 #: juicer/spark/templates/bias-report.html:20
 msgid "Data Audited"
-msgstr ""
+msgstr "Dados auditados"
 
 #: juicer/spark/templates/bias-report.html:21
 msgid "rows"
-msgstr ""
+msgstr "linhas"
 
 #: juicer/spark/templates/bias-report.html:24
 msgid "Attribute(s) Audited"
-msgstr ""
+msgstr "Atributo(s) auditado(s)"
 
 #: juicer/spark/templates/bias-report.html:28
 msgid "Audit Goal(s)"
-msgstr ""
+msgstr "Meta(s) da auditoria"
 
 #: juicer/spark/templates/bias-report.html:30
 #: juicer/spark/templates/bias-report.html:61
 msgid "Equal Parity"
-msgstr ""
+msgstr "Paridade equalitária"
 
 #: juicer/spark/templates/bias-report.html:31
 #: juicer/spark/templates/bias-report.html:65
 msgid "Proportional Parity"
-msgstr ""
+msgstr "Paridade proporcional"
 
 #: juicer/spark/templates/bias-report.html:32
 #: juicer/spark/templates/bias-report.html:70
 msgid "False Positive Rate Parity"
-msgstr ""
+msgstr "Paridade baseada em taxa de falso-positivos"
 
 #: juicer/spark/templates/bias-report.html:33
 #: juicer/spark/templates/bias-report.html:74
 msgid "False Discovery Rate Parity"
-msgstr ""
+msgstr "Paridade baseada em taxa de falsa descoberta"
 
 #: juicer/spark/templates/bias-report.html:34
 #: juicer/spark/templates/bias-report.html:78
 msgid "False Negative Rate Parity"
-msgstr ""
+msgstr "Paridade baseada em taxa de falso-negative"
 
 #: juicer/spark/templates/bias-report.html:35
 #: juicer/spark/templates/bias-report.html:82
 msgid "False Omission Rate Parity"
-msgstr ""
+msgstr "Paridade baseada em taxa de falsa-omissão"
 
 #: juicer/spark/templates/bias-report.html:44
 msgid "Reference Groups"
-msgstr ""
+msgstr "Grupos de referência"
 
 #: juicer/spark/templates/bias-report.html:48
 msgid "Fairness Threshold"
-msgstr ""
+msgstr "Limiar de justiça"
 
 #: juicer/spark/templates/bias-report.html:49
 #, python-format
@@ -1089,28 +1089,37 @@ msgid ""
 "the value of the reference group on a group metric (e.g. False Positive "
 "Rate), this audit will pass."
 msgstr ""
+"Se a disparidade para o grupo está entre  {tau:,.2f}% e "
+"{inverse_tau:,.2f}% do valor do grupo de referência em uma métrica de grupo "
+"(ex. taxa de falso-positivos), este item passará na auditoria."
 
 #: juicer/spark/templates/bias-report.html:55
 msgid "Audit Summary"
-msgstr ""
+msgstr "Resumido da auditoria"
 
 #: juicer/spark/templates/bias-report.html:62
 msgid ""
 "Ensure all protected groups are have equal representation in the selected "
 "set."
 msgstr ""
+"Garantir que todos os grupos protegidos têm representação igual no conjunto "
+"selecionado."
 
 #: juicer/spark/templates/bias-report.html:66
 msgid ""
 "Ensure all protected groups are selected proportional to their percentage of "
 "the population."
 msgstr ""
+"Garantir que todos os grupos são selecionados de forma proporcional ao "
+"respectivo percentual da população."
 
 #: juicer/spark/templates/bias-report.html:71
 msgid ""
 "Ensure all protected groups have the same false positive rates as the "
 "reference group)."
 msgstr ""
+"Garantir que todos os grupos tenham a mesma taxa de falso-positivos como o "
+"grupo de referência."
 
 #: juicer/spark/templates/bias-report.html:75
 msgid ""
@@ -1132,28 +1141,28 @@ msgstr ""
 
 #: juicer/spark/templates/bias-report.html:87
 msgid "Passed"
-msgstr ""
+msgstr "Passou"
 
 #: juicer/spark/templates/bias-report.html:87
 #: juicer/spark/templates/bias-report.html:105
 msgid "Failed"
-msgstr ""
+msgstr "Falhou"
 
 #: juicer/spark/templates/bias-report.html:90
 msgid "Details"
-msgstr ""
+msgstr "Detalhes"
 
 #: juicer/spark/templates/bias-report.html:98
 msgid "Audit Results: Details by Fairness Measures"
-msgstr ""
+msgstr "Resultado de auditoria: detalhes por medidas de justiça"
 
 #: juicer/spark/templates/bias-report.html:105
 msgid "Success"
-msgstr ""
+msgstr "Sucesso"
 
 #: juicer/spark/templates/bias-report.html:116
 msgid "When does it matter?"
-msgstr ""
+msgstr "Quando é relevante?"
 
 #: juicer/spark/templates/bias-report.html:170
 #: juicer/spark/templates/bias-report.html:171
@@ -1162,7 +1171,7 @@ msgstr ""
 #: juicer/spark/templates/bias-report.html:174
 #: juicer/spark/templates/bias-report.html:175
 msgid "Ref"
-msgstr ""
+msgstr "Referência"
 
 #: juicer/util/dataframe_util.py:98 juicer/util/dataframe_util.py:117
 msgid ""
