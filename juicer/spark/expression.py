@@ -225,6 +225,7 @@ class Expression(object):
     def build_functions_dict(self):
         spark_sql_functions = {
             'add_months': self.get_function_call,
+            'array': self.get_function_call,
             'ceil': self.get_function_call,
             'coalesce': self.get_function_call,
             'col': self.get_function_call,
