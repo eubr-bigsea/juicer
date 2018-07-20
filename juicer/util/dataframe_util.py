@@ -315,11 +315,12 @@ def handle_spark_exception(e):
         while cause is not None and cause.getCause() is not None:
             cause = cause.getCause()
 
+        myse = 'com.mysql.jdbc.exceptions.jdbc4.MySQLSyntaxErrorException'
         if cause is not None:
             nfe = 'java.lang.NumberFormatException'
-            uoe = 'java.lang.UnsupportedOperationException'
             npe = 'java.lang.NullPointerException'
             bme = 'org.apache.hadoop.hdfs.BlockMissingException'
+            myce = 'com.mysql.jdbc.exceptions.jdbc4.CommunicationsException'
 
             cause_msg = cause.getMessage()
             inner_cause = cause.getCause()
@@ -339,6 +340,9 @@ def handle_spark_exception(e):
                                        'Please, remove them before applying '
                                        'a data transformation.'))
                 pass
+            elif e.java_exception.getClass().getName() == myce:
+                raise ValueError(
+                    _('Unable to connect to MySQL while reading data source.'))
             elif cause.getClass().getName() == bme:
                 raise ValueError(
                     _('Cannot read data from the data source. In this case, '
@@ -346,6 +350,10 @@ def handle_spark_exception(e):
                       'Please, check if HDFS namenode is up and you '
                       'correctly configured the option '
                       'dfs.client.use.datanode.hostname in Juicer\' config.'))
+        elif e.java_exception.getClass().getName() == myse:
+            raise ValueError(
+                _('Syntax error querying data in MySQL: {}').format(
+                    e.java_exception.getMessage()))
         elif e.java_exception.getMessage():
             value_expr = re.compile(r'CSV data source does not support '
                                     r'(.+?) data type')
