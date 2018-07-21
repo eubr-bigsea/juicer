@@ -78,7 +78,7 @@ class DataReaderOperation(Operation):
                 data_source_updated = datetime.datetime.strptime(
                     data_source_updated[0:19], '%Y-%m-%dT%H:%M:%S')
             self.supports_cache = (
-                parameters['execution_date'] is not None and
+                parameters.get('execution_date') is not None and
                 data_source_updated < parameters['execution_date'])
 
         self.output = named_outputs.get('output data',
