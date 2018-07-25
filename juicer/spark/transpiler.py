@@ -174,7 +174,8 @@ class SparkTranspiler(object):
         return '{}{}'.format(name, seq)
 
     # noinspection SpellCheckingInspection
-    def transpile(self, workflow, graph, params, out=None, job_id=None):
+    def transpile(self, workflow, graph, params, out=None, job_id=None,
+                  state=None):
         """ Transpile the tasks from Lemonade's workflow into Spark code """
 
         using_stdout = out is None
@@ -287,6 +288,11 @@ class SparkTranspiler(object):
             parameters['order'] = i
 
             parameters['task'] = task
+            if state is None:
+                parameters['execution_date'] = None
+            else:
+                parameters['execution_date'] = state.get(task_id, [{}])[0].get(
+                    'execution_date')
             parameters['configuration'] = self.configuration
             parameters['workflow'] = workflow
             parameters['user'] = workflow['user']
