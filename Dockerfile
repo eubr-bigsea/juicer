@@ -1,27 +1,28 @@
 FROM ubuntu:16.04
-MAINTAINER Vinicius Dias <viniciusvdias@dcc.ufmg.br>
+label maintainer="Vinicius Dias <viniciusvdias@dcc.ufmg.br>, Guilherme Maluf <guimaluf@dcc.ufmg.br>"
 
 ENV SPARK_HOME /usr/local/spark
 ENV JUICER_HOME /usr/local/juicer
 ENV PYTHONPATH $PYTHONPATH:$JUICER_HOME:$SPARK_HOME/python
 
 RUN apt-key adv --keyserver keyserver.ubuntu.com --recv E56151BF \
-  && echo deb http://repos.mesosphere.io/ubuntu trusty main > /etc/apt/sources.list.d/mesosphere.list \
+  && echo deb http://repos.mesosphere.io/ubuntu trusty main > /etc/apt/sources.list.d/mesosphere.list
 
-  && apt-get update && apt-get install -y  \
+RUN apt-get update && apt-get install -y  \
       python-pip \
       python-tk \
       openjdk-8-jdk \
       curl \
       locales \
       mesos \
-  && sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen \
-  && locale-gen \ 
+  && rm -rf /var/lib/apt/lists/*
+
+RUN sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen \
+  && locale-gen \
   && update-locale LANG=en_US.UTF-8 \
   && echo "LANG=en_US.UTF-8" >> /etc/default/locale \
   && echo "LANGUAGE=en_US.UTF-8" >> /etc/default/locale \
-  && echo "LC_ALL=en_US.UTF-8" >> /etc/default/locale \
-  && rm -rf /var/lib/apt/lists/*
+  && echo "LC_ALL=en_US.UTF-8" >> /etc/default/locale
 
 ENV SPARK_VERSION=2.3.0
 ENV HADOOP_VERSION=2.7
@@ -42,4 +43,4 @@ ENV LANGUAGE en_US.UTF-8
 COPY . $JUICER_HOME
 RUN pybabel compile -d $JUICER_HOME/juicer/i18n/locales
 
-CMD ["/usr/local/juicer/sbin/juicer-daemon.sh", "startf"]
+CMD ["/usr/local/juicer/sbin/juicer-daemon.sh", "docker"]
