@@ -288,7 +288,7 @@ class SparkTranspiler(object):
             parameters['order'] = i
 
             parameters['task'] = task
-            if state is None:
+            if state is None or state.get(task_id) is None:
                 parameters['execution_date'] = None
             else:
                 parameters['execution_date'] = state.get(task_id, [{}])[0].get(
