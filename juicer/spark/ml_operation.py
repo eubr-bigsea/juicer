@@ -982,11 +982,7 @@ class ClassificationModelOperation(Operation):
             to_assemble = []
             if len(features) > 1 and not isinstance(
                 {train}.schema[str(features[0])].dataType, VectorUDT):
-                emit(message=_(
-                    'Features are not assembled as a vector. They will be '
-                    'implicitly assembled and  rows with null values will be '
-                    'discarded. If this is undesirable, explicitly add a '
-                    'feature assembler in the workflow.'),)
+                emit(message='{msg0}')
                 for f in features:
                     if not dataframe_util.is_numeric({train}.schema, f):
                         name = f + '_tmp'
@@ -1011,8 +1007,7 @@ class ClassificationModelOperation(Operation):
 
             requires_revert_label = False
             if not dataframe_util.is_numeric({train}.schema, '{label}'):
-                emit(message=_('Label attribute is categorical, it will be '
-                        'implicitly indexed as string.'),)
+                emit(message='{msg1}')
                 final_label = '{label}_tmp'
                 stages.append(feature.StringIndexer(
                             inputCol='{label}', outputCol=final_label,
@@ -1080,6 +1075,12 @@ class ClassificationModelOperation(Operation):
                 label=self.label, feat=repr(self.features),
                 prediction=self.prediction,
                 output=self.output,
+                msg0=_('Features are not assembled as a vector. They will be '
+                       'implicitly assembled and rows with null values will be '
+                       'discarded. If this is undesirable, explicitly add a '
+                       'feature assembler in the workflow.'),
+                msg1=_('Label attribute is categorical, it will be '
+                       'implicitly indexed as string.'),
                 display_text=display_text,
                 title=_('Generated classification model parameters'),
                 headers=[_('Parameter'), _('Value'), ],
@@ -1529,7 +1530,7 @@ class ClusteringModelOperation(Operation):
             raise ValueError(msg.format(
                 self.FEATURES_ATTRIBUTE_PARAM, self.__class__))
 
-        self.features = parameters.get(self.FEATURES_ATTRIBUTE_PARAM)[0]
+        self.features = parameters.get(self.FEATURES_ATTRIBUTE_PARAM)
 
         self.output = self.named_outputs.get('output data',
                                              'out_task_{}'.format(self.order))
@@ -1559,17 +1560,67 @@ class ClusteringModelOperation(Operation):
 
         if self.has_code:
             code = """
-            {algorithm}.setFeaturesCol('{features}')
-            if hasattr({algorithm}, 'setPredictionCol'):
-                {algorithm}.setPredictionCol('{prediction}')
-            {model} = {algorithm}.fit({input})
+            emit = functools.partial(
+                emit_event, name='update task',
+                status='RUNNING', type='TEXT',
+                identifier='{task_id}',
+                operation={{'id': {operation_id}}}, operation_id={operation_id},
+                task={{'id': '{task_id}'}},
+                title='{title}')
+            alg = {algorithm}
+
+            # Clone the algorithm because it can be used more than once
+            # and this may cause concurrency problems
+            params = dict([(p.name, v) for p, v in
+                alg.extractParamMap().items()])
+            algorithm_cls = globals()[alg.__class__.__name__]
+            algorithm = algorithm_cls()
+            algorithm.setParams(**params)
+            features = {features}
+            requires_pipeline = False
+
+            stages = [] # record pipeline stages
+            if len(features) > 1 and not isinstance(
+                {input}.schema[str(features[0])].dataType, VectorUDT):
+                emit(message='{msg2}')
+                for f in features:
+                    if not dataframe_util.is_numeric({input}.schema, f):
+                        raise ValueError('{msg1}')
+
+                # Remove rows with null (VectorAssembler doesn't support it)
+                cond = ' AND '.join(['{{}} IS NOT NULL '.format(c)
+                    for c in features])
+                stages.append(SQLTransformer(
+                    statement='SELECT * FROM __THIS__ WHERE {{}}'.format(cond)))
+                final_features = 'features_tmp'
+                stages.append(feature.VectorAssembler(
+                    inputCols=features, outputCol=final_features))
+                requires_pipeline = True
+
+            else:
+                # If more than 1 vector is passed, use only the first
+                final_features = features[0]
+
+            algorithm.setFeaturesCol(final_features)
+
+            if hasattr(algorithm, 'setPredictionCol'):
+                algorithm.setPredictionCol('{prediction}')
+            stages.append(algorithm)
+            pipeline = Pipeline(stages=stages)
+
+            pipeline_model = pipeline.fit({input})
+            {model} = pipeline_model.stages[-1]
+
             # There is no way to pass which attribute was used in clustering, so
             # information will be stored in a new attribute called features.
-            setattr({model}, 'features', '{features}')
+            setattr({model}, 'features', {features})
 
             # Lazy execution in case of sampling the data in UI
             def call_transform(df):
-                return {model}.transform(df)
+                if requires_pipeline:
+                    return pipeline_model.transform(df).drop(final_features)
+                else:
+                    return pipeline_model.transform(df)
             {output} = dataframe_util.LazySparkTransformationDataframe(
                 {model}, {input}, call_transform)
 
@@ -1612,12 +1663,18 @@ class ClusteringModelOperation(Operation):
                        algorithm=self.named_inputs['algorithm'],
                        input=self.named_inputs['train input data'],
                        output=self.output,
-                       features=self.features,
+                       features=repr(self.features),
                        prediction=self.prediction,
                        task_id=self.parameters['task_id'],
                        operation_id=self.parameters['operation_id'],
                        title="Clustering result",
-                       centroids=self.centroids)
+                       centroids=self.centroids,
+                       msg1=_('Regression only support numerical features.'),
+                       msg2=_('Features are not assembled as a vector. '
+                              'They will be implicitly assembled and rows with '
+                              'null values will be discarded. If this is '
+                              'undesirable, explicitly add a feature assembler '
+                              'in the workflow.'),)
 
             return dedent(code)
 
@@ -2114,16 +2171,67 @@ class RegressionModelOperation(Operation):
     def generate_code(self):
         if self.has_code:
             code = """
-            algorithm = {algorithm}
+            emit = functools.partial(
+                emit_event, name='update task',
+                status='RUNNING', type='TEXT',
+                identifier='{task_id}',
+                operation={{'id': {operation_id}}}, operation_id={operation_id},
+                task={{'id': '{task_id}'}},
+                title='{title}')
+            alg = {algorithm}
+
+            # Clone the algorithm because it can be used more than once
+            # and this may cause concurrency problems
+            params = dict([(p.name, v) for p, v in
+                alg.extractParamMap().items()])
+
+            algorithm_cls = globals()[alg.__class__.__name__]
+            algorithm = algorithm_cls()
+            algorithm.setParams(**params)
             algorithm.setPredictionCol('{prediction}')
             algorithm.setLabelCol('{label}')
-            algorithm.setFeaturesCol('{features}')
+
+            features = {features}
+            requires_pipeline = False
+
+            stages = [] # record pipeline stages
+            if len(features) > 1 and not isinstance(
+                {input}.schema[str(features[0])].dataType, VectorUDT):
+                emit(message='{msg2}')
+                for f in features:
+                    if not dataframe_util.is_numeric({input}.schema, f):
+                        raise ValueError('{msg1}')
+
+                # Remove rows with null (VectorAssembler doesn't support it)
+                cond = ' AND '.join(['{{}} IS NOT NULL '.format(c)
+                    for c in features])
+                stages.append(SQLTransformer(
+                    statement='SELECT * FROM __THIS__ WHERE {{}}'.format(cond)))
+                final_features = 'features_tmp'
+                stages.append(feature.VectorAssembler(
+                    inputCols=features, outputCol=final_features))
+                requires_pipeline = True
+
+            else:
+                # If more than 1 vector is passed, use only the first
+                final_features = features[0]
+
+            algorithm.setFeaturesCol(final_features)
+            stages.append(algorithm)
+            pipeline = Pipeline(stages=stages)
+
             try:
-                {model} = algorithm.fit({input})
+
+                pipeline_model = pipeline.fit({input})
                 def call_transform(df):
-                    return {model}.transform(df)
+                    if requires_pipeline:
+                        return pipeline_model.transform(df).drop(final_features)
+                    else:
+                        return pipeline_model.transform(df)
                 {output_data} = dataframe_util.LazySparkTransformationDataframe(
-                    {model}, {input}, call_transform)
+                    pipeline_model, {input}, call_transform)
+
+                {model} = pipeline_model.stages[-1] # Regression is the last
 
                 display_text = {display_text}
                 if display_text:
@@ -2173,18 +2281,24 @@ class RegressionModelOperation(Operation):
 
             except IllegalArgumentException as iae:
                 if 'org.apache.spark.ml.linalg.Vector' in iae:
-                    msg = (_('Assemble features in a vector before using a '
-                        'regression model'))
-                    raise ValueError(msg)
+                    raise ValueError('{msg0}')
                 else:
                     raise
             """.format(model=self.model, algorithm=self.algorithm,
                        input=self.named_inputs['train input data'],
                        output_data=self.output, prediction=self.prediction,
-                       label=self.label[0], features=self.features[0],
+                       label=self.label[0], features=repr(self.features),
                        task_id=self.parameters['task_id'],
                        operation_id=self.parameters['operation_id'],
                        title="Regression result",
+                       msg0=_('Assemble features in a vector before using a '
+                              'regression model'),
+                       msg1=_('Regression only support numerical features.'),
+                       msg2=_('Features are not assembled as a vector. '
+                              'They will be implicitly assembled and rows with '
+                              'null values will be discarded. If this is '
+                              'undesirable, explicitly add a feature assembler '
+                              'in the workflow.'),
                        display_text=self.parameters['task']['forms'].get(
                            'display_text', {}).get('value') in (1, '1'))
 
@@ -2678,9 +2792,7 @@ class SaveModelOperation(Operation):
             criteria = '{criteria}'
 
             if criteria != 'ALL' and len(with_evaluation) != len(all_models):
-                raise ValueError(_('You cannot mix models with and without '
-                    'evaluation (e.g. indexers) when saving models '
-                    'and criteria is different from ALL'))
+                raise ValueError('{msg0}')
             if criteria == 'ALL':
                 models_to_save = list(itertools.chain.from_iterable(
                     map(lambda m: m.models if isinstance(m,
@@ -2688,8 +2800,7 @@ class SaveModelOperation(Operation):
             elif criteria == 'BEST':
                 metrics_used = set([m.metric_name for m in all_models])
                 if len(metrics_used) > 1:
-                    msg = _('You cannot mix models built using with '
-                            'different metrics ({{}}).')
+                    msg = '{msg1}'
                     raise ValueError(msg.format(', '.join(metrics_used)))
 
                 models_to_save = [m.best for m in all_models]
@@ -2732,6 +2843,11 @@ class SaveModelOperation(Operation):
                    storage_id=self.storage_id,
                    name=self.name.replace(' ', '_'),
                    criteria=self.criteria,
+                   msg0=_('You cannot mix models with and without '
+                          'evaluation (e.g. indexers) when saving models '
+                          'and criteria is different from ALL'),
+                   msg1=_('You cannot mix models built using with '
+                          'different metrics ({}).'),
                    user_id=user.get('id'),
                    user_name=user.get('name'),
                    user_login=user.get('login')))
