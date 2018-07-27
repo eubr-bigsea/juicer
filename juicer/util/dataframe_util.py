@@ -6,6 +6,7 @@ import datetime
 import pyspark.sql.types as spark_types
 from pyspark.ml.linalg import DenseVector
 import re
+import simplejson
 import types
 
 
@@ -13,16 +14,25 @@ def is_numeric(schema, col):
     return isinstance(schema[str(col)].dataType, spark_types.NumericType)
 
 
+def default_encoder(obj):
+    if isinstance(obj, decimal.Decimal):
+        return str(obj)
+    elif isinstance(obj, datetime.datetime):
+        return obj.isoformat()
+    elif isinstance(obj, DenseVector):
+        return list(obj)
+    else:
+        return str(obj)
+
+
+class SimpleJsonEncoder(simplejson.JSONEncoder):
+    def default(self, obj):
+        return default_encoder(obj)
+
+
 class CustomEncoder(json.JSONEncoder):
     def default(self, obj):
-        if isinstance(obj, decimal.Decimal):
-            return str(obj)
-        elif isinstance(obj, datetime.datetime):
-            return obj.isoformat()
-        elif isinstance(obj, DenseVector):
-            return list(obj)
-        else:
-            return str(obj)
+        return default_encoder(obj)
 
 
 def get_csv_schema(df, only_name=False):
@@ -38,6 +48,13 @@ def get_schema_fmt(df, only_name=False):
 
 def get_dict_schema(df):
     return [dict(type=f.dataType, name=f.name) for f in df.schema.fields]
+
+
+def with_column_index(sdf, name):
+    new_schema = spark_types.StructType(sdf.schema.fields + [
+        spark_types.StructField(name, spark_types.LongType(), False), ])
+    return sdf.rdd.zipWithIndex().map(lambda row: row[0] + (row[1],)).toDF(
+        schema=new_schema)
 
 
 def convert_to_csv(row):
@@ -297,11 +314,12 @@ def handle_spark_exception(e):
         while cause is not None and cause.getCause() is not None:
             cause = cause.getCause()
 
+        myse = 'com.mysql.jdbc.exceptions.jdbc4.MySQLSyntaxErrorException'
         if cause is not None:
             nfe = 'java.lang.NumberFormatException'
-            uoe = 'java.lang.UnsupportedOperationException'
             npe = 'java.lang.NullPointerException'
             bme = 'org.apache.hadoop.hdfs.BlockMissingException'
+            myce = 'com.mysql.jdbc.exceptions.jdbc4.CommunicationsException'
 
             cause_msg = cause.getMessage()
             inner_cause = cause.getCause()
@@ -321,6 +339,9 @@ def handle_spark_exception(e):
                                        'Please, remove them before applying '
                                        'a data transformation.'))
                 pass
+            elif e.java_exception.getClass().getName() == myce:
+                raise ValueError(
+                    _('Unable to connect to MySQL while reading data source.'))
             elif cause.getClass().getName() == bme:
                 raise ValueError(
                     _('Cannot read data from the data source. In this case, '
@@ -328,6 +349,10 @@ def handle_spark_exception(e):
                       'Please, check if HDFS namenode is up and you '
                       'correctly configured the option '
                       'dfs.client.use.datanode.hostname in Juicer\' config.'))
+        elif e.java_exception.getClass().getName() == myse:
+            raise ValueError(
+                _('Syntax error querying data in MySQL: {}').format(
+                    e.java_exception.getMessage()))
         elif e.java_exception.getMessage():
             value_expr = re.compile(r'CSV data source does not support '
                                     r'(.+?) data type')

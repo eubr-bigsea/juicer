@@ -2,12 +2,13 @@
 from __future__ import unicode_literals
 
 import functools
+import json
 from textwrap import dedent
 
 from juicer.util import group
 
 
-class Expression:
+class Expression(object):
     def __init__(self, json_code, params, window=False):
         self.window = window
         self.code = json_code
@@ -66,6 +67,14 @@ class Expression:
             raise ValueError(
                 _("Transformation has an invalid expression. "
                   "Maybe variables are using spaces in their names."))
+        elif tree['type'] == 'ArrayExpression':
+            array = []
+            for elem in tree['elements']:
+                if elem['type'] == 'Literal':
+                    array.append(elem['value'])
+                else:
+                    array.append(self.parse(elem, params))
+            result = array
         else:
             raise ValueError(_("Unknown type: {}").format(tree['type']))
         return result
@@ -135,6 +144,15 @@ class Expression:
 
         return '.'.join(code)
 
+    def get_ith_function(self, spec, params):
+        """
+        """
+        arguments = [self.parse(x, params) for x in spec['arguments']]
+        f = 'juicer_ext.ith_function_udf'
+        result = '{}({}, functions.lit({}))'.format(f, arguments[0],
+                                                    arguments[1])
+        return result
+
     def get_strip_accents_function(self, spec, params):
         callee = spec['arguments'][0].get('callee', {})
         # Evaluates if column name is wrapped in a col() function call
@@ -193,9 +211,21 @@ class Expression:
             spec['callee']['name'], arguments, params.get('window', 'window'))
         return result
 
+    def get_translate_function(self, spec, params):
+        """
+        """
+        arguments = [self.parse(x, params) for x in spec['arguments']]
+        f = 'juicer_ext.translate_function_udf'
+        result = dedent('''{}(
+                    {}, {}, {},
+                    {})'''.format(f, arguments[0], arguments[1], arguments[2],
+                                  json.dumps(arguments[3])))
+        return result
+
     def build_functions_dict(self):
         spark_sql_functions = {
             'add_months': self.get_function_call,
+            'array': self.get_function_call,
             'ceil': self.get_function_call,
             'coalesce': self.get_function_call,
             'col': self.get_function_call,
@@ -214,7 +244,6 @@ class Expression:
             'floor': self.get_function_call,
             'format_number': self.get_function_call,
             'format_string': self.get_function_call,
-            'from_json': self.get_function_call,
             'from_unixtime': self.get_function_call,
             'from_utc_timestamp': self.get_function_call,
             'greatest': self.get_function_call,
@@ -258,7 +287,6 @@ class Expression:
             'toDegrees': self.get_function_call,
             'toRadians': self.get_function_call,
             'to_date': self.get_function_call,
-            'to_json': self.get_function_call,
             'to_utc_timestamp': self.get_function_call,
             'translate': self.get_function_call,
             'trim': self.get_function_call,
@@ -285,6 +313,8 @@ class Expression:
             'strip_punctuation': self.get_strip_punctuation_function,
             'when': self.get_when_function,
             'window': self.get_time_window_function,
+            'ith': self.get_ith_function,
+            'translate': self.get_translate_function,
         }
 
         column_functions = {
@@ -303,6 +333,7 @@ class Expression:
             'startswith': functools.partial(self.get_column_function,
                                             arg_count=1),
             'substr': functools.partial(self.get_column_function, arg_count=1),
+
         }
 
         self.functions.update(spark_sql_functions)
