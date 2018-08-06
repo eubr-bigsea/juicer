@@ -1,10 +1,14 @@
 # coding=utf-8
-from __future__ import unicode_literals
+from __future__ import unicode_literals, absolute_import
 
 import json
 import logging
 import string
-from itertools import izip_longest
+
+try:
+    from itertools import zip_longest as zip_longest
+except ImportError:
+    from itertools import izip_longest as zip_longest
 from textwrap import dedent
 
 from juicer.operation import Operation, ReportOperation
@@ -60,8 +64,8 @@ class FeatureIndexerOperation(Operation):
         # Adjust alias in order to have the same number of aliases as attributes
         # by filling missing alias with the attribute name suffixed by _indexed.
         self.alias = [x[1] or '{}_indexed'.format(x[0]) for x in
-                      izip_longest(self.attributes,
-                                   self.alias[:len(self.attributes)])]
+                      zip_longest(self.attributes,
+                                  self.alias[:len(self.attributes)])]
 
     def generate_code(self):
         input_data = self.named_inputs['input data']
@@ -90,7 +94,7 @@ class FeatureIndexerOperation(Operation):
                 {out} = pipeline.fit({input}_without_null)\\
                     .transform({input}_without_null)
             """.format(input=input_data, out=output, models=models,
-                       alias=json.dumps(zip(self.attributes, self.alias),
+                       alias=json.dumps(list(zip(self.attributes, self.alias)),
                                         indent=None)))
         elif self.type == self.TYPE_VECTOR:
             code = dedent("""
@@ -113,7 +117,7 @@ class FeatureIndexerOperation(Operation):
                 {out} = pipeline.fit({input}_without_null).transform(
                     {input}_without_null)
             """.format(input=input_data, out=output,
-                       alias=json.dumps(zip(self.attributes, self.alias)),
+                       alias=json.dumps(list(zip(self.attributes, self.alias))),
                        max_categ=self.max_categories,
                        models=models))
         else:
@@ -174,8 +178,8 @@ class IndexToStringOperation(Operation):
         # Adjust alias in order to have the same number of aliases as attributes
         # by filling missing alias with the attribute name sufixed by _indexed.
         self.alias = [x[1] or '{}_str'.format(x[0]) for x in
-                      izip_longest(self.attributes,
-                                   self.alias[:len(self.attributes)])]
+                      zip_longest(self.attributes,
+                                  self.alias[:len(self.attributes)])]
         self.has_code = any(
             ['input data' in self.named_inputs, self.contains_results()])
 
@@ -203,7 +207,7 @@ class IndexToStringOperation(Operation):
         """.format(input=input_data, out=output, labels=labels,
                    original_names=json.dumps(
                        [n.strip() for n in self.original_names]),
-                   alias=json.dumps(zip(self.attributes, self.alias),
+                   alias=json.dumps(list(zip(self.attributes, self.alias)),
                                     indent=None))
         return dedent(code)
 
@@ -231,8 +235,8 @@ class OneHotEncoderOperation(Operation):
         # Adjust alias in order to have the same number of aliases as attributes
         # by filling missing alias with the attribute name sufixed by _indexed.
         self.alias = [x[1] or '{}_onehotenc'.format(x[0]) for x in
-                      izip_longest(self.attributes,
-                                   self.alias[:len(self.attributes)])]
+                      zip_longest(self.attributes,
+                                  self.alias[:len(self.attributes)])]
 
     def generate_code(self):
         input_data = self.named_inputs['input data']
@@ -248,9 +252,10 @@ class OneHotEncoderOperation(Operation):
             # Use Pipeline to process all attributes once
             pipeline = Pipeline(stages=encoders)
             {out} = pipeline.fit({input}).transform({input})
-            """.format(input=input_data, out=output,
-                       aliases=json.dumps(zip(self.attributes, self.alias),
-                                          indent=None))
+            """.format(
+            input=input_data, out=output,
+            aliases=json.dumps(list(zip(self.attributes, self.alias)),
+                               indent=None))
         return dedent(code)
 
     def get_output_names(self, sep=','):

@@ -1,3 +1,5 @@
+# coding=utf-8
+from __future__ import absolute_import
 from __future__ import print_function
 
 import logging
@@ -11,6 +13,7 @@ from six import reraise as raise_
 
 log = logging.getLogger(__name__)
 
+
 class HandleExceptionExtension(Extension):
     # a set of names that trigger the extension.
     tags = {'handleinstance'}
@@ -20,7 +23,7 @@ class HandleExceptionExtension(Extension):
         environment.extend()
 
     def parse(self, parser):
-        lineno = parser.stream.next().lineno
+        lineno = next(parser.stream).lineno
 
         # Retrieves instance
         args = [parser.parse_expression()]

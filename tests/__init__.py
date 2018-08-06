@@ -1,12 +1,14 @@
 # -*- coding: utf-8 -*-
+from __future__ import absolute_import
+
 import ast
-import os
 import gettext
 
+import os
 
 locales_path = os.path.join(os.path.dirname(__file__), 'i18n', 'locales')
 t = gettext.translation('messages', locales_path, ["pt"],
-	fallback=True)
+                        fallback=True)
 t.install()
 
 
@@ -28,7 +30,7 @@ def compare_ast(node1, node2):
                 current_line = vars(node2)['lineno']
             elif kind == 'col_offset':
                 current_offset = vars(node2)['col_offset']
-            elif kind not in ('ctx', ):
+            elif kind not in ('ctx',):
                 var2 = vars(node2).get(kind)
                 result, msg = compare_ast(var, var2)
                 if not result:

@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+from __future__ import absolute_import
+
 from juicer.util import get_tasks_sorted_topologically, group
 
 
@@ -106,5 +108,5 @@ def test_get_tasks_sorted_topologically_success():
 def test_group_success():
     assert sorted(group([0, 3, 4, 10, 2, 3], 2)) == sorted(
         [(0, 3), (4, 10), (2, 3)])
-    assert sorted(group(range(10), 3)) == sorted(
+    assert sorted(group(list(range(10)), 3)) == sorted(
         [(0, 1, 2), (3, 4, 5), (6, 7, 8)])

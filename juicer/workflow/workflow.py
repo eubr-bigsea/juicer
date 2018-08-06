@@ -1,3 +1,5 @@
+# coding=utf-8
+from __future__ import absolute_import, print_function
 import collections
 import logging
 
@@ -202,13 +204,13 @@ class Workflow(object):
                     flow['target_id'] not in self.disabled_tasks]):
                 # Updates the source_port_name and target_port_name. They are
                 # used in the transpiler part instead of the id of the port.
-                source_port = filter(
+                source_port = list(filter(
                     lambda p: int(p['id']) == int(flow['source_port']),
-                    task_map[flow['source_id']]['operation']['ports'])
+                    task_map[flow['source_id']]['operation']['ports']))
 
-                target_port = filter(
+                target_port = list(filter(
                     lambda p: int(p['id']) == int(flow['target_port']),
-                    task_map[flow['target_id']]['operation']['ports'])
+                    task_map[flow['target_id']]['operation']['ports']))
 
                 if all([source_port, target_port]):
                     # Compatibility assertion, may be removed in future
@@ -434,7 +436,6 @@ class Workflow(object):
         topological_sort = self.get_topological_sorted_tasks()
 
         for node_obj in topological_sort:
-            # print self.workflow_graph.node[node]
             print (nx.ancestors(self.graph, node_obj),
                    self.graph.predecessors(node_obj),
                    node_obj,

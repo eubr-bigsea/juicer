@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals
+from __future__ import unicode_literals, absolute_import
 
 import hashlib
 import sys
@@ -259,7 +259,7 @@ class SparkTranspiler(object):
                                 'execution logging', 'logging'],
                         definition['value'] is not None]):
 
-                    task_hash.update(unicode(definition['value']).encode(
+                    task_hash.update(definition['value'].encode(
                         'utf8', errors='ignore'))
                     if cat in ['paramgrid', 'logging']:
                         if cat not in parameters:

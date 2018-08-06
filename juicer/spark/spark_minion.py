@@ -1,5 +1,5 @@
 # coding=utf-8
-from __future__ import unicode_literals
+from __future__ import unicode_literals, absolute_import
 
 import gc
 import gettext
@@ -227,7 +227,7 @@ class SparkMinion(Minion):
             except Exception as ee:
                 tb = traceback.format_exception(*sys.exc_info())
                 log.exception(_('Unhandled error (%s) \n>%s'),
-                              ee.message, '>\n'.join(tb))
+                              str(ee), '>\n'.join(tb))
 
     def _process_message(self):
         self._process_message_nb()
@@ -485,7 +485,7 @@ class SparkMinion(Minion):
             result = False
 
         except ValueError as ve:
-            msg = ve.message
+            msg = str(ve)
             txt = msg.decode('utf8') if isinstance(msg, str) else msg
             message = _('Invalid or missing parameters: {}').format(txt)
             log.exception(message)
@@ -515,7 +515,7 @@ class SparkMinion(Minion):
             self._emit_event(room=job_id, namespace='/stand')(
                 name='update job', message='\n'.join(tb),
                 status='ERROR', identifier=job_id)
-            self._generate_output(ee.message, 'ERROR', code=1000)
+            self._generate_output(str(ee), 'ERROR', code=1000)
             result = False
 
         self.message_processed('execute')

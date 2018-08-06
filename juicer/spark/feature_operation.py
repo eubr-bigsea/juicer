@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals
+from __future__ import unicode_literals, absolute_import
 
 import json
 from collections import namedtuple
@@ -218,7 +218,7 @@ class BucketizerOperation(TransformModelOperation):
                 _('You must inform at least {} '
                   'values for parameter {}.').format(3, _('splits')))
         if not all(splits[i] < splits[i + 1] for i in
-                   xrange(len(splits) - 1)):
+                   range(len(splits) - 1)):
             raise ValueError(
                 _('Values for {} must be sorted in ascending order.').format(
                     _('splits')))
@@ -246,7 +246,7 @@ class BucketizerOperation(TransformModelOperation):
             {model} = pipeline.fit({input})
             {output} = {model}.transform({input})
         """.format(
-            alias=json.dumps(zip(self.attributes, self.aliases)),
+            alias=json.dumps(list(zip(self.attributes, self.aliases))),
             handle_invalid=self.handle_invalid,
             splits=', '.join(splits),
             input=input_data,
@@ -322,7 +322,7 @@ class QuantileDiscretizerOperation(TransformModelOperation):
                 {model} = pipeline.fit({input})
                 {output} = {model}.transform({input})
             """.format(
-            alias=json.dumps(zip(self.attributes, self.aliases)),
+            alias=json.dumps(list(zip(self.attributes, self.aliases))),
             relative_error=self.relative_error,
             buckets=repr(self.buckets),
             input=input_data,

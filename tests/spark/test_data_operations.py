@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+from __future__ import absolute_import
+
 import ast
 from textwrap import dedent
 
@@ -23,7 +25,8 @@ def test_data_reader_minimal_parameters_no_attributes_success():
     }
     n_out = {'output data': 'output_1'}
 
-    instance = DataReaderOperation(parameters, named_inputs={}, named_outputs=n_out)
+    instance = DataReaderOperation(parameters, named_inputs={},
+                                   named_outputs=n_out)
     code = instance.generate_code()
     generated_tree = ast.parse(code)
 
