@@ -3,6 +3,8 @@ import logging
 from collections import namedtuple
 from itertools import izip_longest
 
+from juicer.deploy import Deployment, DeploymentFlow
+from juicer.deploy import DeploymentTask
 from juicer.runner import configuration
 
 log = logging.getLogger()
@@ -24,7 +26,7 @@ class Operation(object):
     __slots__ = ('parameters', 'named_inputs', 'output',
                  'named_outputs', 'multiple_inputs', 'has_code',
                  'expected_output_ports', 'out_degree', 'order',
-                 'supports_cache', 'config')
+                 'supports_cache', 'config', 'deployable')
 
     def __init__(self, parameters, named_inputs, named_outputs):
         self.parameters = parameters
@@ -37,7 +39,7 @@ class Operation(object):
         # Assume default as 1, useful for testing.
         self.order = parameters.get('order', 1)
 
-        # Shoud data be cached between job executions?
+        # Should data be cached between job executions?
         # Exception to this rule includes visualization operations.
         self.supports_cache = True
 
@@ -45,6 +47,7 @@ class Operation(object):
         self.has_code = len(self.named_inputs) > 0 or len(
             self.named_outputs) > 0
 
+        self.deployable = False
         # How many output ports the operation has
         self.expected_output_ports = 1
 
@@ -133,6 +136,57 @@ class Operation(object):
         Handle attribute traceability. This is the default implementation.
         """
         return []
+
+    def to_deploy_format(self, id_mapping):
+        params = self.parameters['task']['forms']
+        result = Deployment()
+
+        forms = [(k, v['category'], v['value']) for k, v in params.items() if v]
+        task = self.parameters['task']
+        task_id = task['id']
+
+        deploy = DeploymentTask(task_id) \
+            .set_operation(slug=task['operation']['slug']) \
+            .set_properties(forms) \
+            .set_pos(task['top'], task['left'], task['z_index'])
+        result.add_task(deploy)
+
+        id_mapping[task_id] = deploy.id
+        for flow in self.parameters['workflow']['flows']:
+            if flow['source_id'] == task_id:
+                flow['source_id'] = deploy.id
+                result.add_flow(DeploymentFlow(**flow))
+            elif flow['target_id'] == task_id:
+                flow['target_id'] = deploy.id
+                result.add_flow(DeploymentFlow(**flow))
+
+        # All leaf output port with interface Data defined is considered
+        # an output
+        candidates = [p for p in
+                      self.parameters['task']['operation']['ports'].values()
+                      if 'Data' in p['interfaces'] and p[
+                          'slug'] not in self.named_outputs and p[
+                          'type'] == 'OUTPUT']
+        # for p in self.parameters['task']['operation']['ports'].values():
+        #     import sys
+        #     print >> sys.stderr, self.parameters['task']['operation']['slug'],
+        #     print >> sys.stderr, 'Data' in p['interfaces'],
+        #     print >> sys.stderr, p['slug'] not in self.named_outputs,
+        #     print >> sys.stderr, p['type']
+        for i, candidate in enumerate(candidates):
+            # FIXME Evaluate form
+            service_out = DeploymentTask(task_id) \
+                .set_operation(slug="service-output") \
+                .set_properties(forms) \
+                .set_pos(task['top'] + 140 * i + 140, task['left'],
+                         task['z_index'])
+            result.add_task(service_out)
+            result.add_flow(DeploymentFlow(
+                deploy.id, candidate['id'], candidate['slug'],
+                service_out.id, 40,
+                'input data'))
+
+        return result
 
 
 # noinspection PyAbstractClass

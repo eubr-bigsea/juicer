@@ -7,6 +7,7 @@ import string
 from itertools import izip_longest
 from textwrap import dedent
 
+from juicer.deploy import Deployment, DeploymentTask, DeploymentFlow
 from juicer.operation import Operation, ReportOperation
 from juicer.service import limonero_service
 from juicer.service.limonero_service import query_limonero
@@ -19,6 +20,116 @@ class SafeDict(dict):
     # noinspection PyMethodMayBeStatic
     def __missing__(self, key):
         return '{' + key + '}'  # pragma: no cover
+
+
+# noinspection PyUnresolvedReferences
+class DeployModelMixin(object):
+    def to_deploy_format(self, id_mapping):
+        """
+        Generate a deployment format.
+
+        This operation requires a connection with SaveModelOperation for the
+        generated model, otherwise, an error will be thrown.
+        """
+        result = Deployment()
+        task = self.parameters['task']
+        task_id = task['id']
+
+        params = self.parameters['task']['forms']
+        forms = [(k, v['category'], v['value']) for k, v in params.items() if v]
+
+        ids_to_tasks = dict(
+            [(t['id'], t) for t in self.parameters['workflow']['tasks']])
+
+        save_model = None
+        data_flow = None
+        model_usage_flows = []
+        for flow in self.parameters['workflow']['flows']:
+            if flow['source_id'] == task_id:
+                target = ids_to_tasks.get(flow['target_id'])
+                if target and target['operation']['slug'] == 'save-model':
+                    if save_model is not None:
+                        raise ValueError(
+                            _('Model is being saved twice (unsupported).'))
+                    else:
+                        save_model = target
+                else:
+                    model_usage_flows.append(flow)
+            elif flow['target_id'] == task_id:
+                if flow['target_port_name'] == 'train input data':
+                    data_flow = flow
+
+        if not save_model:
+            raise ValueError(_('If a workflow generates a model, '
+                               'it must save such model in order '
+                               'to be deployed'))
+
+        limonero_config = self.parameters.get('configuration') \
+            .get('juicer').get('services').get('limonero')
+        url = limonero_config['url']
+        token = str(limonero_config['auth_token'])
+
+        storage_id = save_model['forms'].get(SaveModelOperation.STORAGE_PARAM,
+                                             {}).get('value')
+        path = save_model['forms'].get(SaveModelOperation.PATH_PARAM, {}).get(
+            'value', '/limonero/models')  # FIXME Hard coded
+        name = save_model['forms'].get(SaveModelOperation.NAME_PARAM, {}).get(
+            'value')
+
+        if not all([name, path, storage_id]):
+            raise ValueError(_('Storage for save model operation '
+                               '(required for deployment) '
+                               'is not correctly configured.'))
+        storage = limonero_service.get_storage_info(url, token, storage_id)
+        final_url = '{}/{}/{}'.format(storage['url'], path, name)
+        load_model_forms = [
+            (LoadModelOperation.MODEL_PARAM, 'execution', final_url)
+        ]
+        load_model = DeploymentTask(task_id) \
+            .set_operation(slug="load-model") \
+            .set_properties(load_model_forms) \
+            .set_pos(task['top'], task['left'], task['z_index'])
+
+        result.add_task(load_model)
+
+        # Replaces the save model with apply
+        apply_model = DeploymentTask(task_id) \
+            .set_operation(slug="apply-model") \
+            .set_properties(forms) \
+            .set_pos(task['top'] + 140, task['left'], task['z_index'])
+        result.add_task(apply_model)
+
+        # Service output
+        # FIXME Evaluate form
+        service_out = DeploymentTask(task_id) \
+            .set_operation(slug="service-output") \
+            .set_properties(forms) \
+            .set_pos(task['top'] + 280, task['left'], task['z_index'])
+        result.add_task(service_out)
+
+        if data_flow:
+            data_flow['target_id'] = apply_model.id
+            data_flow['target_port_name'] = 'input data'
+            data_flow['target_port'] = 92  # FIXME Hard coded
+            result.add_flow(DeploymentFlow(**data_flow))
+
+            result.add_flow(DeploymentFlow(load_model.id, 46, 'model',
+                                           apply_model.id, 93, 'model'))
+        else:
+            raise ValueError(_('No training data was informed for '
+                               'model building.'))
+        # other model's usage in workflow
+        for flow in model_usage_flows:
+            result.add_flow(DeploymentFlow(
+                load_model.id, 46, 'model', flow['target_id'],
+                flow['target_port'], flow['target_port_name']))
+
+        # FIXME Hard coded
+        result.add_flow(DeploymentFlow(
+            apply_model.id, 94, 'output data', service_out.id, 40,
+            'input data'))
+
+        return result
 
 
 class FeatureIndexerOperation(Operation):
@@ -120,18 +231,6 @@ class FeatureIndexerOperation(Operation):
             # Only if the field be open to type
             raise ValueError(
                 _("Parameter type has an invalid value {}").format(self.type))
-
-        code += dedent(
-            """
-            # Store indexer models in cache. Some operations may need to use
-            # them. If an indexer is created more than once for attributes with
-            # the same name, the last executed will overwrite the previous one.
-            # FIXME: evaluate how to handle this conflict.
-            if 'indexer' not in cached_state:
-                cached_state['indexers'] = {{}}
-            for name, model in {models}.items():
-                cached_state['indexers'][name] = model
-        """.format(models=models))
 
         return code
 
@@ -355,45 +454,47 @@ class EvaluateModelOperation(Operation):
         Operation.__init__(self, parameters, named_inputs,
                            named_outputs)
 
-        # @FIXME: validate if metric is compatible with Model using workflow
-
-        self.prediction_attribute = (parameters.get(
-            self.PREDICTION_ATTRIBUTE_PARAM) or [''])[0]
-        self.label_attribute = (parameters.get(
-            self.LABEL_ATTRIBUTE_PARAM) or [''])[0]
-        self.metric = parameters.get(self.METRIC_PARAM) or ''
-
-        if all([self.prediction_attribute != '', self.label_attribute != '',
-                self.metric != '']):
-            pass
-        else:
-            msg = \
-                _("Parameters '{}', '{}' and '{}' must be informed for task {}")
-            raise ValueError(msg.format(
-                self.PREDICTION_ATTRIBUTE_PARAM, self.LABEL_ATTRIBUTE_PARAM,
-                self.METRIC_PARAM, self.__class__))
-        if self.metric in self.METRIC_TO_EVALUATOR:
-            self.evaluator = self.METRIC_TO_EVALUATOR[self.metric][0]
-            self.param_prediction_arg = self.METRIC_TO_EVALUATOR[self.metric][1]
-        else:
-            raise ValueError(_('Invalid metric value {}').format(self.metric))
-
         self.has_code = any([(
             (len(self.named_inputs) > 0 and len(self.named_outputs) > 0) or
             (self.named_outputs.get('evaluator') is not None) or
             ('input data' in self.named_inputs)
         ), self.contains_results()])
+        # @FIXME: validate if metric is compatible with Model using workflow
 
-        self.model = self.named_inputs.get('model')
-        self.model_out = self.named_outputs.get(
-            'evaluated model', 'model_task_{}'.format(self.order))
+        if self.has_code:
+            self.prediction_attribute = (parameters.get(
+                self.PREDICTION_ATTRIBUTE_PARAM) or [''])[0]
+            self.label_attribute = (parameters.get(
+                self.LABEL_ATTRIBUTE_PARAM) or [''])[0]
+            self.metric = parameters.get(self.METRIC_PARAM) or ''
 
-        self.evaluator_out = self.named_outputs.get(
-            'evaluator', 'evaluator_task_{}'.format(self.order))
-        if not self.has_code and self.named_outputs.get(
-                'evaluated model') is not None:
-            raise ValueError(
-                _('Model is being used, but at least one input is missing'))
+            if all([self.prediction_attribute != '', self.label_attribute != '',
+                    self.metric != '']):
+                pass
+            else:
+                msg = _("Parameters '{}', '{}' and '{}' "
+                        "must be informed for task {}")
+                raise ValueError(msg.format(
+                    self.PREDICTION_ATTRIBUTE_PARAM, self.LABEL_ATTRIBUTE_PARAM,
+                    self.METRIC_PARAM, self.__class__))
+            if self.metric in self.METRIC_TO_EVALUATOR:
+                self.evaluator = self.METRIC_TO_EVALUATOR[self.metric][0]
+                self.param_prediction_arg = \
+                    self.METRIC_TO_EVALUATOR[self.metric][1]
+            else:
+                raise ValueError(
+                    _('Invalid metric value {}').format(self.metric))
+
+            self.model = self.named_inputs.get('model')
+            self.model_out = self.named_outputs.get(
+                'evaluated model', 'model_task_{}'.format(self.order))
+
+            self.evaluator_out = self.named_outputs.get(
+                'evaluator', 'evaluator_task_{}'.format(self.order))
+            if not self.has_code and self.named_outputs.get(
+                    'evaluated model') is not None:
+                raise ValueError(
+                    _('Model is being used, but at least one input is missing'))
 
         self.supports_cache = False
 
@@ -451,6 +552,7 @@ class EvaluateModelOperation(Operation):
                     prediction_col = final_prediction
 
                 """)]
+
             if self.metric in ['areaUnderROC', 'areaUnderPR']:
                 self._get_code_for_area_metric(code)
             elif self.metric in ['f1', 'weightedPrecision', 'weightedRecall',
@@ -488,6 +590,9 @@ class EvaluateModelOperation(Operation):
                 prediction_arg=self.param_prediction_arg,
             )
             return dedent(code)
+
+    def to_deploy_format(self, id_mapping):
+        return []
 
     @staticmethod
     def _get_code_for_classification_metrics(code):
@@ -764,12 +869,15 @@ class CrossValidationOperation(Operation):
 
         if self.metric in self.METRIC_TO_EVALUATOR:
             self.evaluator = self.METRIC_TO_EVALUATOR[self.metric][0]
-            self.param_prediction_arg = self.METRIC_TO_EVALUATOR[self.metric][1]
+            self.param_prediction_arg = \
+                self.METRIC_TO_EVALUATOR[self.metric][1]
         else:
-            raise ValueError(_('Invalid metric value {}').format(self.metric))
+            raise ValueError(
+                _('Invalid metric value {}').format(self.metric))
 
-        self.prediction_attr = parameters.get(self.PREDICTION_ATTRIBUTE_PARAM,
-                                              'prediction')
+        self.prediction_attr = parameters.get(
+            self.PREDICTION_ATTRIBUTE_PARAM,
+            'prediction')
 
         if self.LABEL_ATTRIBUTE_PARAM not in parameters:
             raise ValueError(
@@ -889,7 +997,7 @@ class CrossValidationOperation(Operation):
         return code
 
 
-class ClassificationModelOperation(Operation):
+class ClassificationModelOperation(DeployModelMixin, Operation):
     FEATURES_ATTRIBUTE_PARAM = 'features'
     LABEL_ATTRIBUTE_PARAM = 'label'
     PREDICTION_ATTRIBUTE_PARAM = 'prediction'
@@ -1132,6 +1240,9 @@ class ClassifierOperation(Operation):
             raise ValueError(
                 _('Parameter output must be informed for classifier {}').format(
                     self.__class__))
+
+    def to_deploy_format(self, id_mapping):
+        return []
 
 
 class SvmClassifierOperation(ClassifierOperation):
@@ -2117,7 +2228,7 @@ class LogisticRegressionModel(Operation):
 '''
 
 
-class RegressionModelOperation(Operation):
+class RegressionModelOperation(DeployModelMixin, Operation):
     FEATURES_PARAM = 'features'
     LABEL_PARAM = 'label'
     PREDICTION_COL_PARAM = 'prediction'
@@ -2329,6 +2440,9 @@ class RegressionOperation(Operation):
 
     def get_data_out_names(self, sep=','):
         return ''
+
+    def to_deploy_format(self, id_mapping):
+        return []
 
 
 class LinearRegressionOperation(RegressionOperation):
@@ -2843,6 +2957,9 @@ class SaveModelOperation(Operation):
                    user_name=user.get('name'),
                    user_login=user.get('login')))
         return code
+
+    def to_deploy_format(self, id_mapping):
+        return []
 
 
 class LoadModelOperation(Operation):
