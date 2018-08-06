@@ -11,6 +11,7 @@ from textwrap import dedent
 import datetime
 
 from future.backports.urllib.parse import urlparse, parse_qs
+from juicer.deploy import Deployment, DeploymentFlow, DeploymentTask
 from juicer.operation import Operation
 from juicer.privaaas import PrivacyPreservingDecorator
 from juicer.service import limonero_service
@@ -132,6 +133,7 @@ class DataReaderOperation(Operation):
         code = []
         infer_from_data = self.infer_schema == self.INFER_FROM_DATA
         infer_from_limonero = self.infer_schema == self.INFER_FROM_LIMONERO
+
         if self.has_code:
             if infer_from_limonero:
                 if 'attributes' in self.metadata:
@@ -153,9 +155,14 @@ class DataReaderOperation(Operation):
             else:
                 code.append('schema_{0} = None'.format(self.output))
 
+            url = self.metadata['url']
+            if self.parameters.get('export_notebook', False) and False:
+                # Protect URL
+                url = 'hdfs://xxxxx:0000/path/name'
+                code.append("# URL is protected, please update it")
             if self.metadata['format'] in ['CSV', 'TEXT']:
                 # Multiple values not supported yet! See SPARK-17878
-                code.append("url = '{url}'".format(url=self.metadata['url']))
+                code.append("url = '{url}'".format(url=url))
                 null_values = self.null_values
                 if self.metadata.get('treat_as_missing'):
                     null_values.extend([x.strip() for x in self.metadata.get(
@@ -213,7 +220,7 @@ class DataReaderOperation(Operation):
                     {output} = spark_session.read.option(
                         'treatEmptyValuesAsNulls', 'true').json(
                         '{url}')""".format(output=self.output,
-                                           url=self.metadata['url']))
+                                           url=url))
                 code.append(code_json)
                 # FIXME: Evaluate if it is good idea to always use cache
                 code.append('{}.cache()'.format(self.output))
@@ -328,21 +335,47 @@ class DataReaderOperation(Operation):
         # metadata = {k: attr[k] for k in
         #             ['nullable', 'type', 'size', 'precision', 'enumeration',
         #              'missing_representation'] if attr[k]}
+        if self.metadata.get('privacy_aware', False):
+            metadata = {'sources': [
+                '{}/{}'.format(self.data_source_id, attr['name'])
+            ]}
 
-        metadata = {'sources': [
-            '{}/{}'.format(self.data_source_id, attr['name'])
-        ]}
-
-        code.append("schema_{0}.add('{1}', {2}, {3},\n{5}{4})".format(
-            self.output, attr['name'], data_type, attr['nullable'],
-            pprint.pformat(metadata, indent=0), ' ' * 20
-        ))
+            code.append("schema_{0}.add('{1}', {2}, {3},\n{5}{4})".format(
+                self.output, attr['name'], data_type, attr['nullable'],
+                pprint.pformat(metadata, indent=0), ' ' * 20
+            ))
+        else:
+            code.append("schema_{0}.add('{1}', {2}, {3})".format(
+                self.output, attr['name'], data_type, attr['nullable']))
 
     def get_output_names(self, sep=", "):
         return self.output
 
     def get_data_out_names(self, sep=','):
         return self.output
+
+    def to_deploy_format(self, id_mapping):
+        params = self.parameters['task']['forms']
+        result = Deployment()
+
+        forms = [(k, v['category'], v['value']) for k, v in params.items() if v]
+
+        task = self.parameters['task']
+        task_id = task['id']
+
+        deploy = DeploymentTask(task_id) \
+            .set_operation(slug="external-input") \
+            .set_properties(forms) \
+            .set_pos(task['top'], task['left'], task['z_index'])
+
+        result.add_task(deploy)
+        id_mapping[task_id] = deploy.id
+        for flow in self.parameters['workflow']['flows']:
+            if flow['source_id'] == task_id:
+                flow['source_port'] = 129  # FIXME how to avoid hard coding ?
+                flow['source_id'] = deploy.id
+                result.add_flow(DeploymentFlow(**flow))
+        return result
 
 
 class SaveOperation(Operation):

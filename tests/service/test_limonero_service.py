@@ -2,7 +2,7 @@
 import json
 
 import pytest
-from juicer.service import tahiti_service
+from juicer.service import limonero_service
 from mock import patch
 from . import fake_req
 
@@ -16,15 +16,15 @@ def test_get_storage_info_success(mocked_get):
         'url': 'hdfs://test.com'
     }
     mocked_get.side_effect = fake_req(200, json.dumps(text))()
-    url = 'http://tahiti'
+    url = 'http://limonero'
     token = '00000'
 
-    resp = tahiti_service.get_storage_info(url, token, storage_id)
+    resp = limonero_service.get_storage_info(url, token, storage_id)
     for k, v in resp.items():
         assert v == text[k]
 
     mocked_get.assert_called_with(
-        'http://tahiti/storages/{}'.format(storage_id),
+        'http://limonero/storages/{}'.format(storage_id),
         headers={'X-Auth-Token': '00000'})
 
 
@@ -37,12 +37,12 @@ def test_get_storage_info_failure(mocked_get):
         'url': 'hdfs://test.com'
     }
     mocked_get.side_effect = fake_req(201, json.dumps(text))()
-    url = 'http://tahiti'
+    url = 'http://limonero'
     token = '00000'
-    with pytest.raises(RuntimeError):
-        resp = tahiti_service.get_storage_info(url, token, storage_id)
+    with pytest.raises(ValueError):
+        resp = limonero_service.get_storage_info(url, token, storage_id)
         mocked_get.assert_called_with(
-            'http://tahiti/storages/{}'.format(storage_id),
+            'http://limonero/storages/{}'.format(storage_id),
             headers={'X-Auth-Token': '00000'})
         for k, v in resp.items():
             assert v == text[k]
@@ -57,15 +57,15 @@ def test_get_data_source_info_success(mocked_get):
         'url': 'hdfs://test.com/testing.csv'
     }
     mocked_get.side_effect = fake_req(200, json.dumps(text))()
-    url = 'http://tahiti/datasources'
+    url = 'http://limonero'
     token = '00000'
 
-    resp = tahiti_service.get_data_source_info(url, token, data_source_id)
+    resp = limonero_service.get_data_source_info(url, token, data_source_id)
     for k, v in resp.items():
         assert v == text[k]
 
     mocked_get.assert_called_with(
-        'http://tahiti/datasources//{}'.format(data_source_id),
+        'http://limonero/datasources/{}'.format(data_source_id),
         headers={'X-Auth-Token': '00000'})
 
 
@@ -78,15 +78,15 @@ def test_get_all_data_sources_success(mocked_get):
         'url': 'hdfs://test.com/testing.csv'
     }
     mocked_get.side_effect = fake_req(200, json.dumps(text))()
-    url = 'http://tahiti/datasources'
+    url = 'http://limonero/'
     token = '00000'
 
-    resp = tahiti_service.get_data_source_info(url, token, '')
+    resp = limonero_service.get_data_source_info(url, token, '')
     for k, v in resp.items():
         assert v == text[k]
 
     mocked_get.assert_called_with(
-        'http://tahiti/datasources/',
+        'http://limonero/datasources/',
         headers={'X-Auth-Token': '00000'})
 
 
@@ -99,12 +99,13 @@ def test_get_data_source_info_failure(mocked_get):
         'url': 'hdfs://test.com/testing.csv'
     }
     mocked_get.side_effect = fake_req(201, json.dumps(text))()
-    url = 'http://tahiti/datasources'
+    url = 'http://limonero/datasources'
     token = '00000'
-    with pytest.raises(RuntimeError):
-        resp = tahiti_service.get_data_source_info(url, token, data_source_id)
+    with pytest.raises(ValueError):
+        resp = limonero_service.get_data_source_info(url, token, data_source_id)
+
         mocked_get.assert_called_with(
-            'http://tahiti/datasources/{}'.format(data_source_id),
+            'http://limonero/datasources/{}'.format(data_source_id),
             headers={'X-Auth-Token': '00000'})
         for k, v in resp.items():
             assert v == text[k]

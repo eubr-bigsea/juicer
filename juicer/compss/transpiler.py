@@ -244,7 +244,8 @@ class COMPSsTranspiler(object):
 
         return parameters
 
-    def transpile(self, workflow, graph, params, out=None, job_id=None):
+    def transpile(self, workflow, graph, params, out=None, job_id=None,
+                  deploy=False, export_notebook=False):
         """ Transpile the tasks from Lemonade's workflow into COMPSs code """
 
         ports = {}

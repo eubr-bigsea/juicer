@@ -77,6 +77,8 @@ class Workflow(object):
             return
         limonero_config = self.config['juicer']['services']['limonero']
         data_sources = []
+        if self.workflow['platform']['slug'] != 'spark':
+            return
         for t in self.workflow['tasks']:
             if t['operation'].get('slug') == 'data-reader':
                 if self.query_data_sources:
@@ -155,7 +157,19 @@ class Workflow(object):
                     # operation will be executed
                     task['operation']['slug'] = operation['slug']
                     task['operation']['name'] = operation['name']
-
+                    task['operation']['ports'] = dict(
+                        [
+                            (
+                                port['id'],
+                                {
+                                    'id': port['id'],
+                                    'type': port['type'],
+                                    'slug': port['slug'],
+                                    'multiplicity': port['multiplicity'],
+                                    'interfaces': [pi['name'] for pi in port[
+                                        'interfaces']]
+                                }) for port in
+                            operation['ports']])
                     ports_list = operation['ports']
                     # Get operation requirements in tahiti
                     result = {

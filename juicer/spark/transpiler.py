@@ -3,7 +3,10 @@ from __future__ import unicode_literals
 
 import hashlib
 import sys
+import uuid
 from collections import OrderedDict
+
+import datetime
 
 import jinja2
 import juicer.spark.data_operation as data_operation
@@ -78,6 +81,10 @@ class TranspilerUtils(object):
         return [instance for instance in instances if
                 not instance.has_code or not instance.enabled]
 
+    @staticmethod
+    def get_new_task_id():
+        return uuid.uuid1()
+
 
 class DependencyController:
     """ Evaluates if a dependency is met when generating code. """
@@ -96,22 +103,24 @@ class DependencyController:
 
 class SparkTranspiler(object):
     """
-    Convert Lemonada workflow representation (JSON) into code to be run in
+    Convert Lemonade workflow representation (JSON) into code to be run in
     Apache Spark.
     """
     VISITORS = []
+    DATA_SOURCE_OPS = ['data-reader']
 
-    def __init__(self, configuration):
+    def __init__(self, configuration, slug_to_op_id=None, port_id_to_port=None):
+        if slug_to_op_id is None:
+            self.slug_to_op_id = {}
+        else:
+            self.slug_to_op_id = slug_to_op_id
+        if port_id_to_port is None:
+            self.port_id_to_port = {}
+        else:
+            self.port_id_to_port = port_id_to_port
         self.operations = {}
         self._assign_operations()
-        self.current_task_id = None
         self.configuration = configuration
-
-    def pre_transpile(self, workflow, graph, params=None):
-        params = params or {}
-        for visitor in self.VISITORS:
-            visitor().visit(workflow, nx.topological_sort(graph),
-                            self.operations, params)
 
     @staticmethod
     def _escape_chars(text):
@@ -136,7 +145,7 @@ class SparkTranspiler(object):
 
     # noinspection SpellCheckingInspection
     def transpile(self, workflow, graph, params, out=None, job_id=None,
-                  state=None):
+                  state=None, deploy=False, export_notebook=False):
         """ Transpile the tasks from Lemonade's workflow into Spark code """
 
         using_stdout = out is None
@@ -197,20 +206,50 @@ class SparkTranspiler(object):
 
         sorted_tasks_id = nx.topological_sort(graph)
         task_hash = hashlib.sha1()
-        for i, task_id in enumerate(sorted_tasks_id):
-            self.current_task_id = task_id
+        self.generate_code(env_setup, graph, job_id, out, params,
+                           ports, sorted_tasks_id, state, task_hash,
+                           using_stdout, workflow, deploy, export_notebook)
+
+    def get_data_sources(self, workflow):
+        return len(
+            [t['slug'] in self.DATA_SOURCE_OPS for t in workflow['tasks']]) == 1
+
+    def generate_code(self, env_setup, graph, job_id, out, params, ports,
+                      sorted_tasks_id, state, task_hash, using_stdout,
+                      workflow, deploy=False, export_notebook=False):
+
+        if deploy:
+            # To be able to convert, workflow must obey all these rules:
+            # - 1 and exactly 1 data source;
+            # - Data source must be defined in Limonero with its attributes in
+            # order to define the schema for data input;
+            # - For ML models, it is required to have a Save Model operation;
+            total_ds = 0
+            for task in workflow['tasks']:
+                if not task.get('enabled', False):
+                    continue
+                if task['operation']['slug'] in self.DATA_SOURCE_OPS:
+                    total_ds += 1
+
+            if total_ds < 1:
+                raise ValueError(_(
+                    'Workflow must have at least 1 data source to be deployed.'))
+        tasks_ids = sorted_tasks_id
+        if deploy:
+            tasks_ids = reversed(tasks_ids)
+
+        for i, task_id in enumerate(tasks_ids):
             task = graph.node[task_id]
             class_name = self.operations[task['operation']['slug']]
 
             parameters = {}
             not_empty_params = [(k, d) for k, d in task['forms'].items() if
-                                d['value'] != '' and d['value'] is not None]
+                                d['value']]
+
             task['forms'] = dict(not_empty_params)
             for parameter, definition in task['forms'].items():
                 # @FIXME: Fix wrong name of form category
                 # (using name instead of category)
-                # print definition.get('category')
-                # raw_input()
                 cat = definition.get('category',
                                      'execution').lower()  # FIXME!!!
                 cat = 'paramgrid' if cat == 'param grid' else cat
@@ -258,11 +297,6 @@ class SparkTranspiler(object):
                 else:
                     parameters['execution_date'] = None
             parameters['configuration'] = self.configuration
-            parameters['workflow'] = workflow
-            parameters['user'] = workflow['user']
-            parameters['workflow_id'] = workflow['id']
-            parameters['workflow_name'] = SparkTranspiler._escape_chars(
-                workflow['name'])
             parameters['operation_id'] = task['operation']['id']
             parameters['task_id'] = task['id']
             parameters['operation_slug'] = task['operation']['slug']
@@ -271,6 +305,14 @@ class SparkTranspiler(object):
                 'display_sample', {}).get('value') in (1, '1', True, 'true')
             parameters['display_schema'] = parameters['task']['forms'].get(
                 'display_schema', {}).get('value') in (1, '1', True, 'true')
+            parameters['user'] = workflow['user']
+            parameters['workflow'] = workflow
+            parameters['workflow_id'] = workflow['id']
+            parameters['workflow_name'] = SparkTranspiler._escape_chars(
+                workflow['name'])
+            parameters['export_notebook'] = export_notebook
+            # parameters['port_id_to_port'] = self.port_id_to_port
+
             port = ports.get(task['id'], {})
 
             instance = class_name(parameters, port.get('named_inputs', {}),
@@ -279,37 +321,52 @@ class SparkTranspiler(object):
 
             env_setup['instances'].append(instance)
             env_setup['instances_by_task_id'][task['id']] = instance
+        env_setup['disabled_tasks'] = workflow['disabled_tasks']
+        env_setup['plain'] = params.get('plain', False)
+        env_setup['now'] = datetime.datetime.now()
+        env_setup['user'] = workflow['user']
+        env_setup['execute_main'] = params.get('execute_main', False)
+        env_setup['dependency_controller'] = DependencyController(
+            params.get('requires_info', False))
+        env_setup['transpiler'] = TranspilerUtils()
 
         template_loader = jinja2.FileSystemLoader(
             searchpath=os.path.dirname(__file__))
         template_env = jinja2.Environment(loader=template_loader,
                                           extensions=[AutoPep8Extension,
-                                                      HandleExceptionExtension])
+                                                      HandleExceptionExtension,
+                                                      'jinja2.ext.do'])
         template_env.globals.update(zip=zip)
-        template = template_env.get_template("templates/operation.tmpl")
 
-        env_setup['disabled_tasks'] = workflow['disabled_tasks']
-        env_setup['plain'] = params.get('plain', False)
-        env_setup['execute_main'] = params.get('execute_main', False)
-        env_setup['dependency_controller'] = DependencyController(
-            params.get('requires_info', False))
-        env_setup['transpiler'] = TranspilerUtils()
-        v = template.render(env_setup)
-
-        if using_stdout:
+        if deploy:
+            env_setup['slug_to_op_id'] = self.slug_to_op_id
+            # env_setup['slug_to_port_id'] = self.slug_to_port_id
+            env_setup['id_mapping'] = {}
+            template = template_env.get_template("templates/deploy.tmpl")
+            v = template.render(env_setup)
+            out.write(v.encode('utf8'))
+        elif export_notebook:
+            template = template_env.get_template("templates/notebook.tmpl")
+            v = template.render(env_setup)
             out.write(v.encode('utf8'))
         else:
-            out.write(v)
-        stand_config = self.configuration.get('juicer', {}).get(
-            'services', {}).get('stand')
-        if stand_config and job_id:
-            # noinspection PyBroadException
-            try:
-                stand_service.save_job_source_code(stand_config['url'],
-                                                   stand_config['auth_token'],
-                                                   job_id, v.encode('utf8'))
-            except:
-                pass
+            template = template_env.get_template("templates/operation.tmpl")
+            v = template.render(env_setup)
+            if using_stdout:
+                out.write(v.encode('utf8'))
+            else:
+                out.write(v)
+            stand_config = self.configuration.get('juicer', {}).get(
+                'services', {}).get('stand')
+            if stand_config and job_id:
+                # noinspection PyBroadException
+                try:
+                    stand_service.save_job_source_code(stand_config['url'],
+                                                       stand_config[
+                                                           'auth_token'],
+                                                       job_id, v.encode('utf8'))
+                except:
+                    pass
 
     def _assign_operations(self):
         etl_ops = {
