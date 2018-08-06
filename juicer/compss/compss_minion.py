@@ -1,4 +1,5 @@
 # coding=utf-8
+from __future__ import absolute_import, print_function
 import gc
 import gettext
 import json
@@ -101,7 +102,7 @@ class COMPSsMinion(Minion):
             except Exception as ee:
                 tb = traceback.format_exception(*sys.exc_info())
                 log.exception(_('Unhandled error (%s) \n>%s'),
-                              ee.message, '>\n'.join(tb))
+                              str(ee), '>\n'.join(tb))
 
     def _process_message(self):
         self._process_message_nb()
@@ -318,7 +319,7 @@ class COMPSsMinion(Minion):
             result = False
 
         except ValueError as ve:
-            message = _('Invalid or missing parameters: {}').format(ve.message)
+            message = _('Invalid or missing parameters: {}').format(str(ve))
             print('#' * 30)
             import traceback
             traceback.print_exc(file=sys.stdout)
@@ -350,7 +351,7 @@ class COMPSsMinion(Minion):
             self._emit_event(room=job_id, namespace='/stand')(
                 name='update job', message='\n'.join(tb),
                 status='ERROR', identifier=job_id)
-            self._generate_output(ee.message, 'ERROR', code=1000)
+            self._generate_output(str(ee), 'ERROR', code=1000)
             result = False
 
         self.message_processed('execute')

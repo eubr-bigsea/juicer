@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+from __future__ import absolute_import
+
 import ast
 import json
 from textwrap import dedent
@@ -43,8 +45,9 @@ def test_tokenizer_operation_type_simple_success():
         """.format(params[TokenizerOperation.ATTRIBUTES_PARAM],
                    n_in['input data'],
                    n_out['output data'],
-                   json.dumps(zip(params[TokenizerOperation.ATTRIBUTES_PARAM],
-                                  params[TokenizerOperation.ALIAS_PARAM]))))
+                   json.dumps(
+                       list(zip(params[TokenizerOperation.ATTRIBUTES_PARAM],
+                            params[TokenizerOperation.ALIAS_PARAM])))))
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
 
@@ -83,8 +86,9 @@ def test_tokenizer_operation_type_regexp_success():
             {2} = pipeline.fit({1}).transform({1})
         """.format(params[TokenizerOperation.TYPE_PARAM], n_in['input data'],
                    n_out['output data'],
-                   json.dumps(zip(params[TokenizerOperation.ATTRIBUTES_PARAM],
-                                  params[TokenizerOperation.ALIAS_PARAM])),
+                   json.dumps(
+                       list(zip(params[TokenizerOperation.ATTRIBUTES_PARAM],
+                                params[TokenizerOperation.ALIAS_PARAM]))),
                    params[TokenizerOperation.EXPRESSION_PARAM],
                    params[TokenizerOperation.MINIMUM_SIZE]))
 
@@ -130,8 +134,9 @@ def test_remove_stopwords_operations_2_params_success():
                     n_in['input data'],
                     n_out['output data'],
                     json.dumps(
-                        zip(params[RemoveStopWordsOperation.ATTRIBUTES_PARAM],
-                            params[RemoveStopWordsOperation.ALIAS_PARAM])),
+                        list(zip(
+                            params[RemoveStopWordsOperation.ATTRIBUTES_PARAM],
+                            params[RemoveStopWordsOperation.ALIAS_PARAM]))),
                     case_sensitive
                     )
 
@@ -174,8 +179,8 @@ def test_remove_stopwords_operations_1_params_success():
         n_in['input data'],
         n_out['output data'],
         json.dumps(
-            zip(params[RemoveStopWordsOperation.ATTRIBUTES_PARAM],
-                params[RemoveStopWordsOperation.ALIAS_PARAM])),
+            list(zip(params[RemoveStopWordsOperation.ATTRIBUTES_PARAM],
+                     params[RemoveStopWordsOperation.ALIAS_PARAM]))),
         params[RemoveStopWordsOperation.STOP_WORD_CASE_SENSITIVE_PARAM]))
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
@@ -219,9 +224,9 @@ def test_word_to_vector_count_operation_success():
                 """.format(params[WordToVectorOperation.ATTRIBUTES_PARAM],
                            n_in['input data'],
                            n_out['output data'],
-                           json.dumps(zip(
+                           json.dumps(list(zip(
                                params[WordToVectorOperation.ATTRIBUTES_PARAM],
-                               params[WordToVectorOperation.ALIAS_PARAM])),
+                               params[WordToVectorOperation.ALIAS_PARAM]))),
                            params[WordToVectorOperation.MINIMUM_TF_PARAM],
                            params[WordToVectorOperation.MINIMUM_DF_PARAM],
                            params[WordToVectorOperation.VOCAB_SIZE_PARAM],
@@ -272,9 +277,9 @@ def test_word_to_vector_word2vec_operation_success():
         params[WordToVectorOperation.ATTRIBUTES_PARAM],
         n_in['input data'],
         n_out['output data'],
-        json.dumps(zip(
+        json.dumps(list(zip(
             params[WordToVectorOperation.ATTRIBUTES_PARAM],
-            params[WordToVectorOperation.ALIAS_PARAM])),
+            params[WordToVectorOperation.ALIAS_PARAM]))),
         params[
             WordToVectorOperation.MINIMUM_VECTOR_SIZE_PARAM],
         params[WordToVectorOperation.MINIMUM_COUNT_PARAM],
@@ -311,8 +316,9 @@ def test_n_gram_operations_success():
             """.format(params[GenerateNGramsOperation.N_PARAM],
                        n_in['input data'], n_out['output data'],
                        json.dumps(
-                           zip(params[GenerateNGramsOperation.ATTRIBUTES_PARAM],
-                               params[GenerateNGramsOperation.ALIAS_PARAM]))))
+                           list(zip(
+                               params[GenerateNGramsOperation.ATTRIBUTES_PARAM],
+                               params[GenerateNGramsOperation.ALIAS_PARAM])))))
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
     assert result, msg + format_code_comparison(code, expected_code)

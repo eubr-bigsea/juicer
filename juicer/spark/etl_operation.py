@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals
+from __future__ import unicode_literals, absolute_import
 
 import json
 import time
@@ -351,7 +351,7 @@ class JoinOperation(Operation):
         input_data1 = self.named_inputs['input data 1']
         input_data2 = self.named_inputs['input data 2']
 
-        on_clause = zip(self.left_attributes, self.right_attributes)
+        on_clause = list(zip(self.left_attributes, self.right_attributes))
         if self.match_case:
             join_condition = ', '.join(
                 [("functions.lower(in0_renamed['{a0}{p0}']) == "

@@ -1,12 +1,15 @@
+# coding=utf-8
+from __future__ import absolute_import
+
 import argparse
 import gettext
 import logging.config
-import urlparse
 
 import matplotlib
 import os
 import redis
 import yaml
+from future.moves.urllib.parse import urlparse
 from juicer.compss.compss_minion import COMPSsMinion
 from juicer.spark.spark_minion import SparkMinion
 
