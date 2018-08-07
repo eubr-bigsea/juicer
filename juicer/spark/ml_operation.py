@@ -18,7 +18,7 @@ log.setLevel(logging.DEBUG)
 class SafeDict(dict):
     # noinspection PyMethodMayBeStatic
     def __missing__(self, key):
-        return '{' + key + '}'
+        return '{' + key + '}'  # pragma: no cover
 
 
 class FeatureIndexerOperation(Operation):
@@ -229,7 +229,7 @@ class OneHotEncoderOperation(Operation):
                       parameters.get(self.ALIAS_PARAM, '').split(',')]
 
         # Adjust alias in order to have the same number of aliases as attributes
-        # by filling missing alias with the attribute name sufixed by _indexed.
+        # by filling missing alias with the attribute name suffixed by _indexed.
         self.alias = [x[1] or '{}_onehotenc'.format(x[0]) for x in
                       izip_longest(self.attributes,
                                    self.alias[:len(self.attributes)])]
@@ -252,15 +252,6 @@ class OneHotEncoderOperation(Operation):
                        aliases=json.dumps(zip(self.attributes, self.alias),
                                           indent=None))
         return dedent(code)
-
-    def get_output_names(self, sep=','):
-        output = self.named_outputs.get('output data',
-                                        'out_task_{}'.format(self.order))
-        return output
-
-    def get_data_out_names(self, sep=','):
-        return self.named_outputs.get('output data',
-                                      'out_task_{}'.format(self.order))
 
 
 class FeatureAssemblerOperation(Operation):
@@ -1586,7 +1577,7 @@ class LdaClusteringOperation(ClusteringOperation):
                                      str(self.doc_concentration).split(',') if
                                      v.strip()]
                 self.set_values.append(['DocConcentration', doc_concentration])
-            except Exception as e:
+            except Exception:
                 raise ValueError(
                     _('Invalid document concentration: {}. It must be a single '
                       'decimal value or a list of decimal numbers separated by '
