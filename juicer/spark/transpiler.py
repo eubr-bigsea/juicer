@@ -291,8 +291,11 @@ class SparkTranspiler(object):
             if state is None or state.get(task_id) is None:
                 parameters['execution_date'] = None
             else:
-                parameters['execution_date'] = state.get(task_id, [{}])[0].get(
-                    'execution_date')
+                v = state.get(task_id, [{}])[0]
+                if v:
+                    parameters['execution_date'] = v.get('execution_date')
+                else:
+                    parameters['execution_date'] = None
             parameters['configuration'] = self.configuration
             parameters['workflow'] = workflow
             parameters['user'] = workflow['user']
