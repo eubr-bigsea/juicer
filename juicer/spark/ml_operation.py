@@ -2231,7 +2231,7 @@ class RegressionModelOperation(Operation):
                 {output_data} = dataframe_util.LazySparkTransformationDataframe(
                     pipeline_model, {input}, call_transform)
 
-                {model} = pipeline_model.stages[-1] # Regression is the last
+                {model} = pipeline_model
 
                 display_text = {display_text}
                 if display_text:
