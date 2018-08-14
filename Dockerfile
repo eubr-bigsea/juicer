@@ -91,8 +91,8 @@ COPY --from=pip_build /usr/local/* /usr/local/
 ARG HADOOP_VERSION=2.7
 ARG SPARK_VERSION=2.3.1
 ARG SPARK_HADOOP_PKG=spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION}
-ARG SPARK_HADOOP_URL=https://www.apache.org/dist/spark/spark-${SPARK_VERSION}/${SPARK_HADOOP_PKG}.tgz
-ARG SPARK_HOME=/usr/local/spark
+ARG SPARK_HADOOP_URL=https://archive.apache.org/dist/spark/spark-${SPARK_VERSION}/${SPARK_HADOOP_PKG}.tgz
+ENV SPARK_HOME=/usr/local/spark
 
 RUN wget ${SPARK_HADOOP_URL} -O- | tar xz -C /usr/local/  \
   && ln -s /usr/local/$SPARK_HADOOP_PKG $SPARK_HOME
