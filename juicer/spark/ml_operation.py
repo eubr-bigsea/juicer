@@ -1609,7 +1609,7 @@ class ClusteringModelOperation(Operation):
             pipeline = Pipeline(stages=stages)
 
             pipeline_model = pipeline.fit({input})
-            {model} = pipeline_model.stages[-1]
+            {model} = pipeline_model
 
             # There is no way to pass which attribute was used in clustering, so
             # information will be stored in a new attribute called features.
@@ -1667,7 +1667,7 @@ class ClusteringModelOperation(Operation):
                        prediction=self.prediction,
                        task_id=self.parameters['task_id'],
                        operation_id=self.parameters['operation_id'],
-                       title="Clustering result",
+                       title=_("Clustering result"),
                        centroids=self.centroids,
                        msg1=_('Regression only support numerical features.'),
                        msg2=_('Features are not assembled as a vector. '
