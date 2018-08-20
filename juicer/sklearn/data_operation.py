@@ -25,7 +25,7 @@ class DataReaderOperation(Operation):
                 _("Parameter '{}' must be informed for task {}")
                     .format(self.FILE, self.__class__))
 
-        self.name_file = "./"+parameters[self.FILE]
+        self.name_file = parameters[self.FILE]
         self.separator = parameters.get(self.SEPARATOR, ',')
         self.header = parameters.get(self.HEADER_PARAM, False) in (1, '1', True)
         self.schema = parameters.get(self.SCHEMA, "FROM_VALUES")
@@ -43,7 +43,7 @@ class DataReaderOperation(Operation):
 
         code = "{output} = pd.read_csv('{input}', sep='{sep}', " \
                "encoding='utf-8'".format(output=self.output,
-                                         input=self.name_file,
+                                         input= "/home/lucasmsp/workspace/BigSea/testes_juicer/sklearn/transactions_Apriori.txt",  #self.name_file,
                                          sep=self.separator)
 
         if not self.header:

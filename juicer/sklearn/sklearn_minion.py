@@ -8,6 +8,8 @@ import signal
 import sys
 import time
 import traceback
+import imp
+import importlib
 
 # noinspection PyUnresolvedReferences
 import datetime
@@ -218,8 +220,29 @@ class SklearnMinion(Minion):
             if os.path.isfile('{}c'.format(generated_code_path)):
                 os.remove('{}c'.format(generated_code_path))
 
-            # Launch the sklearn docker container
+            # Launch the sklearn
+            #command = 'python {}'.format(generated_code_path)
+            #os.system(command)
 
+            self.module = importlib.import_module(module_name)
+            self.module = imp.reload(self.module)
+            if log.isEnabledFor(logging.debug):
+                log.debug('Objects in memory after loading module: %s',
+                          len(gc.get_objects()))
+
+            # Starting execution. At this point, the transpiler have created a
+            # module with a main function that receives a spark_session and the
+            # current state (if any). We pass the current state to the execution
+            # to avoid re-computing the same tasks over and over again, in case
+            # of several partial workflow executions.
+            try:
+                new_state = self.module.main(
+                        self.get_or_create_sklearn_session(loader, app_configs,
+                                                           job_id),
+                        self._state,
+                        self._emit_event(room=job_id, namespace='/stand'))
+            except:
+                raise
 
             end = timer()
             # Mark job as completed
@@ -283,7 +306,7 @@ class SklearnMinion(Minion):
         return result
 
     # noinspection PyUnresolvedReferences
-    def get_or_create_sklearn_session(self, loader, app_configs):
+    def get_or_create_sklearn_session(self, loader, app_configs, job_id):
         """
         """
         pass
@@ -337,13 +360,6 @@ class SklearnMinion(Minion):
     def cancel_job(self, job_id):
         if self.job_future:
             while True:
-                # if self.is_spark_session_available():
-                #     self.spark_session.sparkContext.cancelAllJobs()
-                # try:
-                #     self.job_future.result(timeout=1)
-                #     break
-                # except TimeoutError as te:
-                #     pass
                 pass
 
         message = self.MNN007[1].format(self.app_id)
