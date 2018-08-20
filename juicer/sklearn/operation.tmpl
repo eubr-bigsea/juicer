@@ -1,0 +1,188 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+#
+# Auto-generated Sklearn code from Lemonade Workflow
+# (c) Speed Labs - Departamento de Ciência da Computação
+#     Universidade Federal de Minas Gerais
+# More information about Lemonade to be provided
+#
+import json
+import os
+import re
+import string
+import sys
+import time
+import unicodedata
+import csv
+import numpy as np
+from timeit import default_timer as timer
+import pandas as pd
+
+{% autopep8 %}
+
+
+def sklearn_logging(msg):
+    print msg
+
+def take_sample(data):
+    pass
+
+def emit_event(name=None, message=None, status=None, identifier=None):
+    pass
+
+task_futures = {}
+
+{%- for instance in instances %}
+{%-  handleinstance instance %}
+{%- if instance.has_code %}
+
+
+
+
+def {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.parameters.task.order}}(sklearn_session, cached_state, emit_event):
+    {%- if instance.parameters.task.forms.comment and instance.parameters.task.forms.comment.value %}
+    """
+    {{instance.parameters.task.forms.comment.value.strip().replace('"', '')}}
+    """
+    {%- else %}
+    """ Operation {{instance.parameters.task.id }} """
+    {%- endif %}
+
+    {% set msg = dict_msgs['lemonade_task_afterbefore'].format(instance.parameters.task.parents, instance.parameters.task.id) %}
+    sklearn_logging("{{msg}}")
+
+    # Next we wait for the dependencies to complete
+    {%- for parent in instance.parameters.task.parents %}
+    {%- set parent_instance = instances_by_task_id[parent] %}
+    {%- set is_satisfied = dependency_controller.is_satisfied(parent_instance.parameters.task.id) %}
+    {%- if parent_instance.has_code and is_satisfied %}
+    {%- set s = dependency_controller.satisfied(parent_instance.parameters.task.id) %}
+    {% if parent_instance.get_output_names(", ") %}
+    parent_result = task_futures['{{parent}}']
+    {%- for port_name,out in zip(parent_instance.parameters.task.port_names, parent_instance.get_output_names(',').split(','))%}
+    {{out}}, pr_{{out}} = (parent_result['{{port_name}}']['output'], parent_result['{{port_name}}']['sample']){% endfor %}{% endif %}
+    ts_{{parent_instance.output}} = parent_result['time']
+    {%- endif %}
+    {%- endfor %}
+
+    {% set msg = dict_msgs['lemonade_task_parents'] % instance.parameters.task.id %}
+    sklearn_logging("{{msg}}")
+
+    {%- if not plain %}
+    emit_event(name='update task', message='{{dict_msgs['task_running']}}',
+               status='RUNNING',
+               identifier='{{instance.parameters.task.id}}')
+    {%- endif %}
+    {% set msg = dict_msgs['lemonade_task_started'] % instance.parameters.task.id %}
+    sklearn_logging("{{msg}}")
+
+    start = timer()
+    {{instance.generate_code().strip() | indent(width=4, indentfirst=False)}}
+    {%- set outputs = instance.get_data_out_names('|').split('|') %}
+    {%- if instance.parameters.get('logging', {}).get('log_level') == 'DEBUG' %}
+    {%- if outputs %}
+    {%- for variable in outputs %}
+    juicer_debug(sklearn_session, '{{instance.__class__.__name__}}', '{{variable}}', {{variable}})
+    {%- endfor %}
+    {%- endif %}
+    {%- endif %}
+
+    {%- if not plain %}
+    {%- for gen_result in instance.get_generated_results() %}
+    emit_event(name='task result', message=_('{{gen_result.type}}'),
+               status='COMPLETED',
+               identifier='{{instance.parameters.task.operation.id}}/{{instance.parameters.task.id}}')
+    {%- endfor %}
+    {%- endif %}
+
+    {%- if instance.parameters.task.forms.get('display_sample', {}).get('value') in (1, '1') %}
+    # Outputs' samples
+    {%- for out in instance.get_data_out_names(',').split(',') %}
+    {%- if out %}
+    dataframe_util.emit_sample('{{instance.parameters.task.id}}', {{out}}, emit_event, '{{out}}')
+    {%- endif %}
+    {%- endfor %}
+    {%- endif %}
+
+    {%- if instance.parameters.task.forms.get('display_schema', {}).get('value') in (1, '1') %}
+    # Outputs' schemas
+    {%- for out in instance.get_data_out_names(',').split(',') %}
+    {%- if out %}
+    dataframe_util.emit_schema('{{instance.parameters.task.id}}', {{out}}, emit_event, '{{out}}')
+    {%- endif %}
+    {%- endfor %}
+    {%- endif %}
+
+    results = {
+      {%- set is_leaf = instance.out_degree == 0 %}
+      {%- for port_name,out in zip(instance.parameters.task.port_names, instance.get_output_names(',').split(',')) %}
+        {%- if port_name and out %}
+         '{{port_name}}': {'output': {{out}}, 'sample': {%- if is_leaf %} take_sample({{out}}) {%- else %} [] {%- endif %}},
+        {%- endif %}
+      {%- endfor %}
+    }
+    {%- if not plain %}
+    emit_event(name='update task', message='{{dict_msgs['task_completed']}}',
+               status='COMPLETED',
+               identifier='{{instance.parameters.task.id}}')
+    {%- endif %}
+
+    {% set msg = dict_msgs['lemonade_task_completed'] % instance.parameters.task.id %}
+    sklearn_logging("{{msg}}")
+    time_elapsed = timer() - start
+    results['time'] = time_elapsed
+    return results
+
+{%- endif %}
+{%- endhandleinstance %}
+{% endfor %}
+
+def main(sklearn_session, cached_state, emit_event):
+    """ Run generated code """
+
+    start = time.time()
+
+    session_start_time = time.time()
+
+    {%- for instance in instances %}
+    {%- if instance.has_code %}
+    {%- if instance.multiple_inputs %}
+    {{instance.get_inputs_names.replace(',', '=') }} = None
+    {% endif %}
+    {%- endif %}
+    {%- endfor %}
+
+    {%- for instance in instances %}
+    {%- set is_satisfied = dependency_controller.is_satisfied(instance.parameters.task.id) %}
+    {%- if instance.has_code and is_satisfied and instance.out_degree == 0 %}
+    {%- set s = dependency_controller.satisfied(instance.parameters.task.id) %}
+    task_futures['{{instance.parameters.task.id}}'] = {{instance.parameters.task.operation.slug.replace('-', '_')}}_{{instance.parameters.task.order}}(sklearn_session, cached_state, emit_event)
+    {%- endif %}
+    {%- endfor %}
+
+    end = time.time()
+    print("{}\t{}".format(end - start, end - session_start_time))
+    return {
+        'status': 'OK',
+        'message': 'Execution defined',
+        {%- for instance in instances %}
+          {%- set is_satisfied = dependency_controller.is_satisfied(instance.parameters.task.id) %}
+          {%- if instance.has_code and is_satisfied %}
+            '{{instance.parameters.task.id}}':
+                task_futures['{{instance.parameters.task.id}}'],
+          {%- endif %}
+        {%- endfor %}
+    }
+
+
+def dummy_emit_event(room, namespace):
+    def _dummy_emit_event(name, message, status, identifier, **kwargs):
+        return None
+    return _dummy_emit_event
+
+sklearn_session = "COMPSs"
+
+main(sklearn_session, {}, dummy_emit_event(room=-1, namespace='/none'))
+
+
+{% endautopep8 %}
