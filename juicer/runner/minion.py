@@ -40,7 +40,7 @@ if __name__ == '__main__':
     t = gettext.translation('messages', locales_path, [args.lang],
                             fallback=True)
     t.install(unicode=True)
-
+    print (args.type)
     log.info(_("Starting minion"))
     log.debug(_('(c) Lemonade - DCC UFMG'))
     try:
@@ -65,7 +65,7 @@ if __name__ == '__main__':
                                   args.app_id or args.workflow_id,
                                   juicer_config,
                                   args.lang)
-        elif args.type == 'scikit-learn':
+        elif args.type == 'sklearn':
             # log.info('Starting Sklearn Minion')
             minion = SklearnMinion(redis_conn,
                                    args.workflow_id,
