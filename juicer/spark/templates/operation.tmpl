@@ -9,6 +9,7 @@ More information about Lemonade to be provided
 """
 from concurrent.futures import ThreadPoolExecutor
 import collections
+import functools
 import datetime
 import itertools
 import json
@@ -27,7 +28,6 @@ from textwrap import dedent
 from timeit import default_timer as timer
 
 from pyspark.ml import classification, evaluation, feature, tuning, clustering
-from pyspark.ml.linalg import Vectors
 from pyspark.sql import functions, types, Row, DataFrame
 from pyspark.sql.utils import IllegalArgumentException
 from pyspark.sql.window import Window
