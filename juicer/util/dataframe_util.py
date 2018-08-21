@@ -5,7 +5,6 @@ import json
 import datetime
 import pyspark.sql.types as spark_types
 from pyspark.ml.linalg import DenseVector
-
 import re
 import simplejson
 import types
@@ -274,6 +273,7 @@ def merge_dicts(x, y):
 
 def handle_spark_exception(e):
     from pyspark.sql.utils import AnalysisException, IllegalArgumentException
+
     result = False
     if isinstance(e, AnalysisException):
         value_expr = re.compile(r'[`"](.+)[`"].+columns:\s(.+)$')
@@ -311,8 +311,8 @@ def handle_spark_exception(e):
                     attr=attr, used=used, correct=correct
                 ))
     elif hasattr(e, 'java_exception'):
-        cause = e.java_exception.getCause()
-        while cause is not None and cause.getCause() is not None:
+        cause = e.java_exception
+        while cause.getCause() is not None:
             cause = cause.getCause()
 
         myse = 'com.mysql.jdbc.exceptions.jdbc4.MySQLSyntaxErrorException'
@@ -321,7 +321,7 @@ def handle_spark_exception(e):
             npe = 'java.lang.NullPointerException'
             bme = 'org.apache.hadoop.hdfs.BlockMissingException'
             myce = 'com.mysql.jdbc.exceptions.jdbc4.CommunicationsException'
-
+            faee = 'org.apache.hadoop.mapred.FileAlreadyExistsException'
             cause_msg = cause.getMessage()
             inner_cause = cause.getCause()
             if cause.getClass().getName() == nfe and cause_msg:
@@ -343,6 +343,10 @@ def handle_spark_exception(e):
             elif e.java_exception.getClass().getName() == myce:
                 raise ValueError(
                     _('Unable to connect to MySQL while reading data source.'))
+            elif cause.getClass().getName() == faee:
+                raise ValueError(_('File already exist. Use an option to '
+                                   'override it (if it is possible) and if you '
+                                   'want to replace it.'))
             elif cause.getClass().getName() == bme:
                 raise ValueError(
                     _('Cannot read data from the data source. In this case, '
@@ -350,17 +354,17 @@ def handle_spark_exception(e):
                       'Please, check if HDFS namenode is up and you '
                       'correctly configured the option '
                       'dfs.client.use.datanode.hostname in Juicer\' config.'))
-        elif e.java_exception.getClass().getName() == myse:
-            raise ValueError(
-                _('Syntax error querying data in MySQL: {}').format(
-                    e.java_exception.getMessage()))
-        elif e.java_exception.getMessage():
-            value_expr = re.compile(r'CSV data source does not support '
-                                    r'(.+?) data type')
-            value = value_expr.findall(e.java_exception.getMessage())
-            if value:
+            elif cause.getClass().getName() == myse:
                 raise ValueError(
-                    _('CSV format does not support the data type {}. '
-                      'Try to convert the attribute to string (see to_json()) '
-                      'before saving.'.format(value[0])))
+                    _('Syntax error querying data in MySQL: {}').format(
+                        e.java_exception.getMessage()))
+            elif cause.getMessage():
+                value_expr = re.compile(r'CSV data source does not support '
+                                        r'(.+?) data type')
+                value = value_expr.findall(e.java_exception.getMessage())
+                if value:
+                    raise ValueError(
+                        _('CSV format does not support the data type {}. '
+                          'Try to convert the attribute to string '
+                          '(see to_json()) before saving.'.format(value[0])))
     return result
