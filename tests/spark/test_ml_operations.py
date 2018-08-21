@@ -10,6 +10,8 @@ import pytest
 from juicer.runner import configuration
 from juicer.spark.ml_operation import FeatureIndexerOperation, \
     FeatureAssemblerOperation, \
+    OneHotEncoderOperation, \
+    IndexToStringOperation, \
     ApplyModelOperation, EvaluateModelOperation, \
     CrossValidationOperation, ClassificationModelOperation, \
     ClassifierOperation, SvmClassifierOperation, \
@@ -127,6 +129,40 @@ def test_feature_indexer_vector_missing_attribute_param_operation_failure():
                                 named_outputs=n_out)
 
 
+def test_feature_indexer_missing_attribute_failure():
+    params = {
+        FeatureIndexerOperation.TYPE_PARAM: 'vector',
+        FeatureIndexerOperation.ALIAS_PARAM: 'c',
+        FeatureIndexerOperation.MAX_CATEGORIES_PARAM: 20,
+    }
+
+    n_in = {'input data': 'input_1'}
+    n_out = {'output data': 'output_1', 'indexer models': 'models'}
+
+    with pytest.raises(ValueError):
+        instance = FeatureIndexerOperation(params, named_inputs=n_in,
+                                           named_outputs=n_out)
+
+
+def test_feature_indexer_output_names_success():
+    params = {
+
+        FeatureIndexerOperation.TYPE_PARAM: 'vector',
+        FeatureIndexerOperation.ATTRIBUTES_PARAM: ['col'],
+        FeatureIndexerOperation.ALIAS_PARAM: 'c',
+        FeatureIndexerOperation.MAX_CATEGORIES_PARAM: 20,
+    }
+
+    n_in = {'input data': 'input_1'}
+    n_out = {'output data': 'output_1', 'indexer models': 'models'}
+
+    instance = FeatureIndexerOperation(params, named_inputs=n_in,
+                                       named_outputs=n_out)
+    assert instance.get_data_out_names() == n_out['output data']
+    assert instance.get_output_names() == ','.join([n_out['output data'],
+                                                    n_out['indexer models']])
+
+
 def test_feature_indexer_vector_operation_success():
     params = {
 
@@ -204,6 +240,129 @@ def test_feature_indexer_operation_failure():
         n_out = {'output data': 'output_1'}
         FeatureIndexerOperation(params, named_inputs=n_in,
                                 named_outputs=n_out)
+
+
+'''
+IndexToStringOperation tests
+'''
+
+
+def test_index_to_string_missing_required_failure():
+    params = {}
+    with pytest.raises(ValueError) as e:
+        n_in = {'input data': 'input_1'}
+        n_out = {'output data': 'output_1'}
+        IndexToStringOperation(params, named_inputs=n_in,
+                               named_outputs=n_out)
+    assert IndexToStringOperation.ATTRIBUTES_PARAM in str(e)
+
+    params[IndexToStringOperation.ATTRIBUTES_PARAM] = 'name'
+    with pytest.raises(ValueError) as e:
+        n_in = {'input data': 'input_1'}
+        n_out = {'output data': 'output_1'}
+        IndexToStringOperation(params, named_inputs=n_in,
+                               named_outputs=n_out)
+    assert IndexToStringOperation.ORIGINAL_NAMES_PARAM in str(e)
+
+
+def test_index_to_string_success():
+    params = {
+        IndexToStringOperation.ATTRIBUTES_PARAM: ['name'],
+        IndexToStringOperation.ORIGINAL_NAMES_PARAM: ['original'],
+        IndexToStringOperation.ALIAS_PARAM: 'new_name',
+    }
+    n_in = {'input data': 'input_1'}
+    n_out = {'output data': 'output_1'}
+    instance = IndexToStringOperation(params, named_inputs=n_in,
+                                      named_outputs=n_out)
+    code = instance.generate_code()
+    expected_code = dedent("""
+            original_names = {original}
+            col_alias = dict([["{features}", "{alias}"]])
+            converter = [feature.IndexToString(
+                inputCol=col, outputCol=alias, labels=[])
+                     for i, (col, alias) in enumerate(col_alias.items())]
+            pipeline = Pipeline(stages=converter)
+
+            {output_1} = pipeline.fit({input_1}).transform({input_1})
+            """.format(
+        features=params[IndexToStringOperation.ATTRIBUTES_PARAM][0],
+        output_1=n_out['output data'],
+        input_1=n_in['input data'],
+        original=json.dumps(
+            params[IndexToStringOperation.ORIGINAL_NAMES_PARAM]),
+        alias=params[IndexToStringOperation.ALIAS_PARAM],
+    ))
+
+    result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
+
+    assert result, msg + format_code_comparison(code, expected_code)
+
+
+'''
+OneHotEncoderOperation tests
+'''
+
+
+def test_one_hot_encoder_missing_required_failure():
+    params = {}
+    with pytest.raises(ValueError) as e:
+        n_in = {'input data': 'input_1'}
+        n_out = {'output data': 'output_1'}
+        OneHotEncoderOperation(params, named_inputs=n_in,
+                               named_outputs=n_out)
+    assert OneHotEncoderOperation.ATTRIBUTES_PARAM in str(e)
+
+
+def test_one_hot_encoder_success():
+    params = {
+        OneHotEncoderOperation.ATTRIBUTES_PARAM: ['name'],
+        OneHotEncoderOperation.ALIAS_PARAM: 'new_name',
+    }
+    n_in = {'input data': 'input_1'}
+    n_out = {'output data': 'output_1'}
+    instance = OneHotEncoderOperation(params, named_inputs=n_in,
+                                      named_outputs=n_out)
+    code = instance.generate_code()
+    expected_code = dedent("""
+            col_alias = dict([["{features}", "{alias}"]])
+            encoders = [feature.OneHotEncoder(
+                inputCol=col, outputCol=alias, dropLast=True)
+                     for (col, alias) in col_alias.items()]
+            pipeline = Pipeline(stages=encoders)
+
+            {output_1} = pipeline.fit({input_1}).transform({input_1})
+            """.format(
+        features=params[OneHotEncoderOperation.ATTRIBUTES_PARAM][0],
+        output_1=n_out['output data'],
+        input_1=n_in['input data'],
+        alias=params[OneHotEncoderOperation.ALIAS_PARAM],
+    ))
+
+    result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
+
+    assert result, msg + format_code_comparison(code, expected_code)
+
+
+def test_one_hot_encoder_output_names_success():
+    params = {
+
+        OneHotEncoderOperation.ATTRIBUTES_PARAM: ['col'],
+        OneHotEncoderOperation.ALIAS_PARAM: 'c',
+    }
+
+    n_in = {'input data': 'input_1'}
+    n_out = {'output data': 'output_1'}
+
+    instance = OneHotEncoderOperation(params, named_inputs=n_in,
+                                      named_outputs=n_out)
+    assert instance.get_data_out_names() == n_out['output data']
+    assert instance.get_output_names() == n_out['output data']
+
+    instance = OneHotEncoderOperation(params, named_inputs={},
+                                      named_outputs={})
+    assert instance.get_data_out_names() == 'out_task_1'
+    assert instance.get_output_names() == 'out_task_1'
 
 
 '''
