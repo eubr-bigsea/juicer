@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 import json
 import sys
-
+import hashlib
+from collections import OrderedDict
 import jinja2
 import juicer.sklearn.data_operation as io
 import juicer.sklearn.etl_operation as etl
@@ -15,13 +16,66 @@ import juicer.sklearn.regression_operation
 import juicer.sklearn.text_operation
 import juicer.sklearn.clustering_operation as clustering
 import juicer.sklearn.classification_operation
-
+import juicer.sklearn.vis_operation as vis_operation
 import networkx as nx
 import os
 from juicer import operation
 from juicer.service import stand_service
 from juicer.util.jinja2_custom import AutoPep8Extension
 from juicer.util.template_util import HandleExceptionExtension
+
+
+class TranspilerUtils(object):
+    """ Utilities for using in Jinja2 related to transpiling """
+
+    @staticmethod
+    def _get_enabled_tasks_to_execute(instances):
+        dependency_controller = DependencyController([])
+        result = []
+        for instance in TranspilerUtils._get_enabled_tasks(instances):
+            task = instance.parameters['task']
+            is_satisfied = dependency_controller.is_satisfied(task['id'])
+            if instance.must_be_executed(is_satisfied):
+                result.append(instance)
+        return result
+
+    @staticmethod
+    def _get_enabled_tasks(instances):
+        return [instance for instance in instances if
+                instance.has_code and instance.enabled]
+
+    @staticmethod
+    def _get_parent_tasks(instances_map, instance, only_enabled=True):
+        if only_enabled:
+            dependency_controller = DependencyController([])
+            result = []
+            for parent_id in instance.parameters['task']['parents']:
+                parent = instances_map[parent_id]
+                is_satisfied = dependency_controller.is_satisfied(parent_id)
+                if is_satisfied and parent.has_code and parent.enabled:
+                    method = '{}_{}'.format(
+                        parent.parameters['task']['operation']['slug'].replace(
+                            '-', '_'), parent.order)
+                    result.append((parent_id, method))
+            return result
+        else:
+            return [instances_map[parent_id] for parent_id in
+                    instance.parameters['task']['parents']]
+
+    @staticmethod
+    def get_ids_and_methods(instances):
+        result = OrderedDict()
+        for instance in TranspilerUtils._get_enabled_tasks_to_execute(
+                instances):
+            task = instance.parameters['task']
+            result[task['id']] = '{}_{}'.format(
+                task['operation']['slug'].replace('-', '_'), instance.order)
+        return result
+
+    @staticmethod
+    def get_disabled_tasks(instances):
+        return [instance for instance in instances if
+                not instance.has_code or not instance.enabled]
 
 
 class DependencyController:
@@ -124,7 +178,7 @@ class SklearnTranspiler(object):
                      'workflow_name': workflow['name']}
 
         sorted_tasks_id = nx.topological_sort(graph)
-
+        task_hash = hashlib.sha1()
         for i, task_id in enumerate(sorted_tasks_id):
             task = graph.node[task_id]
             class_name = self.operations[task['operation']['slug']]
@@ -142,13 +196,17 @@ class SklearnTranspiler(object):
                 if all([cat in ["execution", 'paramgrid', 'param grid',
                                 'execution logging', 'logging'],
                         definition['value'] is not None]):
-
+                    task_hash.update(unicode(definition['value']).encode(
+                            'utf8', errors='ignore'))
                     if cat in ['paramgrid', 'logging']:
                         if cat not in parameters:
                             parameters[cat] = {}
                         parameters[cat][parameter] = definition['value']
                     else:
                         parameters[parameter] = definition['value']
+
+            # Hash is used in order to avoid re-run task.
+            parameters['hash'] = task_hash.hexdigest()
 
             # Operation SAVE requires the complete workflow
             if task['operation']['name'] == 'SAVE':
@@ -196,7 +254,7 @@ class SklearnTranspiler(object):
               "before {}")
 
             env_setup['dict_msgs'] = dict_msgs
-            env_setup['numFrag'] = self.numFrag
+            env_setup['transpiler'] = TranspilerUtils()
 
         template_loader = jinja2.FileSystemLoader(
             searchpath=os.path.dirname(__file__))
@@ -220,7 +278,7 @@ class SklearnTranspiler(object):
                 stand_service.save_job_source_code(stand_config['url'],
                                                    stand_config['auth_token'],
                                                    job_id, v.encode('utf8'))
-            except:
+            except Exception as e:
                 pass
 
     def _assign_operations(self):
@@ -348,7 +406,22 @@ class SklearnTranspiler(object):
         }
 
         ws_ops = {}
-        vis_ops = {}
+
+        vis_ops = {
+            'publish-as-visualization':
+                vis_operation.PublishVisualizationOperation,
+            'bar-chart': vis_operation.BarChartOperation,
+            'donut-chart': vis_operation.DonutChartOperation,
+            'pie-chart': vis_operation.PieChartOperation,
+            'area-chart': vis_operation.AreaChartOperation,
+            'line-chart': vis_operation.LineChartOperation,
+            'table-visualization': vis_operation.TableVisualizationOperation,
+            'summary-statistics': vis_operation.SummaryStatisticsOperation,
+            'plot-chart': vis_operation.ScatterPlotOperation,
+            'scatter-plot': vis_operation.ScatterPlotOperation,
+            'map-chart': vis_operation.MapOperation,
+            'map': vis_operation.MapOperation
+        }
 
         self.operations = {}
         for ops in [data_ops, etl_ops, geo_ops, ml_ops,

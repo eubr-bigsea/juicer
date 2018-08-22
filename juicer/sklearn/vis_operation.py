@@ -12,7 +12,7 @@ from juicer.operation import Operation
 from juicer.service import limonero_service
 from juicer.util import chunks
 from juicer.util import dataframe_util
-from juicer.util.dataframe_util import get_csv_schema
+from juicer.util.dataframe_util import get_csv_schema_sklearn
 
 COLORS_PALETTE = list(reversed([
     '#590400', '#720601', '#8F0701', '#9C241E', '#AD443F',  # red
@@ -208,7 +208,7 @@ class VisualizationMethodOperation(Operation):
     def generate_code(self):
         code_lines = [dedent(
             u"""
-            from juicer.spark.vis_operation import {model}
+            from juicer.sklearn.vis_operation import {model}
             from juicer.util.dataframe_util import SimpleJsonEncoder as enc
 
             params = '{params}'
@@ -412,17 +412,9 @@ class ChartVisualization(VisualizationModel):
 
     @staticmethod
     def _get_attr_type(attr):
-        if attr.dataType.jsonValue() == 'date':
-            attr_type = 'date'
-        elif attr.dataType.jsonValue() == 'datetime':
-            attr_type = 'time'
-        elif attr.dataType.jsonValue() == 'time':
+        if attr == 'object':
             attr_type = 'text'
-        elif attr.dataType.jsonValue() == 'timestamp':
-            attr_type = 'time'
-        elif attr.dataType.jsonValue() == 'text':
-            attr_type = 'text'
-        elif attr.dataType.jsonValue() == 'character':
+        elif attr == 'str':
             attr_type = 'text'
         else:
             attr_type = 'number'
@@ -448,24 +440,25 @@ class ChartVisualization(VisualizationModel):
         }
 
     def _get_axis_info(self):
-        schema = self.data.schema
+        schema = self.data.columns
         if not self.params.get('x_axis_attribute'):
             raise ValueError(_('X-axis attribute not specified'))
         x = self.params.get('x_axis_attribute')[0]
-        x_attr = [c for c in schema if c.name == x]
-        y_attrs = [c for c in schema if c.name in self.column_names]
+        x_attr = [c for c in schema if c == x]
+        y_attrs = [c for c in schema if c in self.column_names]
         if len(x_attr):
             x_attr = x_attr[0]
         else:
             raise ValueError(
                 _('Attribute {} for X-axis does not exist in ({})').format(
-                    x, ', '.join([c.name for c in schema])))
+                    x, ', '.join([c for c in schema])))
         if len(y_attrs) == 0:
             raise ValueError(_(
                 'At least one attribute for Y-axis does not exist: {}').format(
                 ', '.join(self.params.get('column_names', []))))
 
-        x_type = ChartVisualization._get_attr_type(x_attr)
+        x_type = str(self.data[x_attr].dtype)
+        x_type = ChartVisualization._get_attr_type(x_type)
         return x_attr, x_type, y_attrs
 
     @staticmethod
@@ -490,13 +483,11 @@ class BarChartModel(ChartVisualization):
     def get_data(self):
         x_attr, x_type, y_attrs = self._get_axis_info()
 
-        rows = self.data.collect()
-
         colors = {}
         color_counter = 0
         for i, attr in enumerate(y_attrs):
             color = COLORS_PALETTE[(i % 6) * 5 + ((i / 6) % 5)]
-            colors[attr.name] = {
+            colors[attr] = {
                 'fill': color,
                 'gradient': color,
                 'stroke': color,
@@ -533,12 +524,11 @@ class BarChartModel(ChartVisualization):
             result['x']["inFormat"] = self.default_time_format
             result['x']["outFormat"] = self.default_time_format
 
-            # result['x']["outFormat"] = self.params.get("x_format", {}).get(
-            #     'key')
-            # result['x']["inFormat"] = self.params.get("x_format", {}).get('key')
+        rows_x = self.data[x_attr].values.tolist()
+        rows_y = self.data[y_attrs].values.tolist()
 
-        for inx_row, row in enumerate(rows):
-            x_value = row[x_attr.name]
+        for inx_row, (row_x, row_y) in enumerate(zip(rows_x, rows_y)):
+            x_value = row_x
             if x_value not in colors:
                 inx_row += 1
                 color = COLORS_PALETTE[(color_counter % 6) * 5 +
@@ -551,19 +541,19 @@ class BarChartModel(ChartVisualization):
 
             data = {
                 'x': LineChartModel._format(x_value),
-                'name': row[x_attr.name],
-                'key': row[x_attr.name],
+                'name': row_x,
+                'key': row_x,
                 'color': COLORS_PALETTE[
                     (inx_row % 6) * 5 + ((inx_row / 6) % 5)],
                 'values': []
             }
             result['data'].append(data)
-            for i, attr in enumerate(y_attrs):
+            for i, (attr, row) in enumerate(zip(y_attrs, row_y)):
                 data['values'].append(
                     {
-                        'x': attr.name,
+                        'x': attr,
                         'name': LineChartModel._format(x_value),
-                        'y': LineChartModel._format(row[attr.name]),
+                        'y': LineChartModel._format(row),
                     }
                 )
                 if i >= 100:
@@ -590,7 +580,7 @@ class PieChartModel(ChartVisualization):
         return 'fa-pie-chart'
 
     def _get_axis_info(self):
-        schema = self.data.schema
+        schema = self.data.columns
 
         if self.id_attribute:
             label = self.id_attribute
@@ -598,31 +588,29 @@ class PieChartModel(ChartVisualization):
             # Important to use only first item!
             label = self.value_attribute[0]
 
-        value_attr = [c for c in schema if c.name == self.value_attribute[0]]
+        value_attr = [c for c in schema if c == self.value_attribute[0]]
         if len(value_attr):
             value_attr = value_attr[0]
         else:
             raise ValueError(
                 _('Attribute {} does not exist in ({})').format(
-                    label, ', '.join([c.name for c in schema])))
+                    label, ', '.join([c for c in schema])))
 
-        label_attr = [c for c in schema if c.name == label]
+        label_attr = [c for c in schema if c == label]
         if len(label_attr):
             label_attr = label_attr[0]
         else:
             raise ValueError(
                 _('Attribute {} for label does not exist in ({})').format(
-                    label, ', '.join([c.name for c in schema])))
+                    label, ', '.join([c for c in schema])))
 
         return label_attr, None, value_attr
 
     def get_data(self):
         label_attr, _, value_attr = self._get_axis_info()
 
-        # @FIXME Spark 2.2.0 is raising an exception if self.data.collect()
-        # is called directly when the output port is used multiple times.
-        self.data.count()
-        rows = self.data.collect()
+        rows_x = self.data[value_attr].values
+        rows_y = self.data[label_attr].values
         result = self._get_title_legend_tooltip()
         result['legend']['isVisible'] = self.params.get('legend') in ('1', 1)
 
@@ -642,13 +630,13 @@ class PieChartModel(ChartVisualization):
             "data": []
 
         })
-        for i, row in enumerate(rows):
+        for i, (row_x, row_y) in enumerate(zip(rows_x, rows_y)):
             data = {
-                'x': float(row[value_attr.name]),
-                'value': float(row[value_attr.name]),
-                'id': '{}_{}'.format(label_attr.name, i),
-                'name': row[label_attr.name],
-                'label': row[label_attr.name],
+                'x': float(row_x),
+                'value': float(row_x),
+                'id': '{}_{}'.format(label_attr, i),
+                'name': row_y,
+                'label': row_y,
                 'color': COLORS_PALETTE[(i % 6) * 5 + ((i / 6) % 5)],
             }
             result['data'].append(data)
@@ -671,13 +659,11 @@ class LineChartModel(ChartVisualization):
     def get_data(self):
         x_attr, x_type, y_attrs = self._get_axis_info()
 
-        rows = self.data.collect()
-
         data = []
         for i, attr in enumerate(y_attrs):
             data.append({
-                "id": attr.name,
-                "name": attr.name,
+                "id": attr,
+                "name": attr,
                 "color": COLORS_PALETTE[(i % 6) * 5 + ((i / 6) % 5)],
                 "pointColor": COLORS_PALETTE[(i % 6) * 5 + ((i / 6) % 5)],
                 "pointShape": SHAPES[i % len(SHAPES)],
@@ -715,14 +701,18 @@ class LineChartModel(ChartVisualization):
             result['x']["outFormat"] = self.default_time_format
             result['x']["type"] = 'time'  # FIXME
 
-        for row in rows:
-            for i, attr in enumerate(y_attrs):
+        rows_x = self.data[x_attr].values.tolist()
+        rows_y = self.data[y_attrs].values.tolist()
+
+        for row_x, row_y in zip(rows_x, rows_y):
+            for i, y in enumerate(row_y):
                 data[i]['values'].append(
                     {
-                        "x": LineChartModel._format(row[x_attr.name]),
-                        "y": LineChartModel._format(row[attr.name]),
+                        "x": LineChartModel._format(row_x),
+                        "y": LineChartModel._format(y),
                     }
                 )
+
         return result
 
 
@@ -947,26 +937,25 @@ class TableVisualizationModel(VisualizationModel):
         Returns data as tabular (list of lists in Python).
         """
         if self.column_names:
-            rows = self.data.limit(50).select(*self.column_names).rdd.map(
-                dataframe_util.convert_to_python).collect()
+            rows = self.data.head(50)[self.column_names].values.tolist()
         else:
-            rows = self.data.limit(50).rdd.map(
-                dataframe_util.convert_to_python).collect()
+            rows = self.data.head(50).values.tolist()
 
         return {"rows": rows,
                 "attributes": self.get_column_names().split(',')}
 
-    def get_schema(self):
-        if self.column_names:
-            return self.data.select(*self.column_names).schema.json()
-        else:
-            return self.data.schema.json()
+    # def get_schema(self):
+    #
+    #     if self.column_names:
+    #         return self.data[self.column_names].schema.json()
+    #     else:
+    #         return self.data.schema.json()
 
     def get_column_names(self):
         if self.column_names:
             return ','.join(self.column_names)
         else:
-            return get_csv_schema(self.data, only_name=True)
+            return get_csv_schema_sklearn(self.data, only_name=True)
 
 
 class SummaryStatisticsModel(TableVisualizationModel):
