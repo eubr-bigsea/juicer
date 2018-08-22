@@ -40,11 +40,23 @@ def get_csv_schema(df, only_name=False):
     return ','.join(get_schema_fmt(df, only_name))
 
 
+def get_csv_schema_sklearn(df, only_name=False):
+    return ','.join(get_schema_fmt_sklearn(df, only_name))
+
+
 def get_schema_fmt(df, only_name=False):
     if only_name:
         return [f.name for f in df.schema.fields]
     else:
         return ['{}:{}'.format(f.dataType, f.name) for f in df.schema.fields]
+
+
+def get_schema_fmt_sklearn(df, only_name=False):
+    if only_name:
+        return list(df.columns)
+    else:
+        return ['{}:{}'.format(i, str(f))
+                for i, f in zip(df.columns, df.dtypes)]
 
 
 def get_dict_schema(df):
@@ -137,7 +149,24 @@ def emit_schema(task_id, df, emit_event, name):
                task={'id': task_id})
 
 
+def emit_schema_sklearn(task_id, df, emit_event, name):
+    from juicer.spark.reports import SimpleTableReport
+    headers = [_('Attribute'), _('Type')]
+    rows = [[i, str(f)] for i, f in zip(df.columns, df.dtypes)]
+    content = SimpleTableReport(
+        'table table-striped table-bordered', headers, rows,
+        _('Schema for {}').format(name),
+        numbered=True)
+
+    emit_event('update task', status='COMPLETED',
+               identifier=task_id,
+               message=content.generate(),
+               type='HTML', title=_('Schema for {}').format(name),
+               task={'id': task_id})
+
+
 def emit_sample(task_id, df, emit_event, name, size=50):
+
     from juicer.spark.reports import SimpleTableReport
     headers = [f.name for f in df.schema.fields]
 
@@ -168,6 +197,48 @@ def emit_sample(task_id, df, emit_event, name, size=50):
         'table table-striped table-bordered', headers, rows,
         _('Sample data for {}').format(name),
         numbered=True)
+
+    emit_event('update task', status='COMPLETED',
+               identifier=task_id,
+               message=content.generate(),
+               type='HTML', title=_('Sample data for {}').format(name),
+               task={'id': task_id})
+
+
+def emit_sample_sklearn(task_id, df, emit_event, name, size=50):
+    from juicer.spark.reports import SimpleTableReport
+    headers = list(df.columns)
+
+    number_types = (types.IntType, types.LongType,
+                    types.FloatType, types.ComplexType, decimal.Decimal)
+
+    rows = []
+
+    for row in df.head(size).values:
+        new_row = []
+        rows.append(new_row)
+        for col in row:
+            if isinstance(col, str):
+                value = col
+            elif isinstance(col, unicode):
+                value = col
+            elif isinstance(col, (datetime.datetime, datetime.date)):
+                value = col.isoformat()
+            elif isinstance(col, number_types):
+                value = str(col)
+            else:
+                value = json.dumps(col, cls=CustomEncoder)
+            # truncate column if size is bigger than 200 chars.
+            if len(value) > 200:
+                value = value[:150] + ' ... ' + value[-50:]
+            new_row.append(value)
+
+    #print (headers)
+    print (rows)
+    content = SimpleTableReport(
+            'table table-striped table-bordered', headers, rows,
+            _('Sample data for {}').format(name),
+            numbered=True)
 
     emit_event('update task', status='COMPLETED',
                identifier=task_id,

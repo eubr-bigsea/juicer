@@ -1007,9 +1007,6 @@ class SummaryStatisticsModel(TableVisualizationModel):
                 list(itertools.product(self.attrs, self.attrs)),
                 len(self.attrs)))
 
-        # Cache data
-        self.data.cache()
-
         df_count = self.data.count()
 
         # TODO: Implement median using df.approxQuantile('col', [.5], .25)
