@@ -40,7 +40,7 @@ if __name__ == '__main__':
     t = gettext.translation('messages', locales_path, [args.lang],
                             fallback=True)
     t.install(unicode=True)
-    print (args.type)
+
     log.info(_("Starting minion"))
     log.debug(_('(c) Lemonade - DCC UFMG'))
     try:

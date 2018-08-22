@@ -221,9 +221,6 @@ class SklearnMinion(Minion):
                 os.remove('{}c'.format(generated_code_path))
 
             # Launch the sklearn
-            #command = 'python {}'.format(generated_code_path)
-            #os.system(command)
-
             self.module = importlib.import_module(module_name)
             self.module = imp.reload(self.module)
             if log.isEnabledFor(logging.debug):
