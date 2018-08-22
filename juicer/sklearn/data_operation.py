@@ -43,7 +43,7 @@ class DataReaderOperation(Operation):
 
         code = "{output} = pd.read_csv('{input}', sep='{sep}', " \
                "encoding='utf-8'".format(output=self.output,
-                                         input= "/home/lucasmsp/workspace/BigSea/testes_juicer/sklearn/transactions_Apriori.txt",  #self.name_file,
+                                         input= self.name_file,
                                          sep=self.separator)
 
         if not self.header:

@@ -197,7 +197,7 @@ class SklearnMinion(Minion):
             loader = Workflow(workflow, self.config)
 
             # force the sklearn context creation
-            self.get_or_create_sklearn_session(loader, app_configs)
+            self.get_or_create_sklearn_session(loader, app_configs, job_id)
 
             # Mark job as running
             self._emit_event(room=job_id, namespace='/stand')(
