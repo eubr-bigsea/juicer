@@ -289,7 +289,7 @@ class SklearnTranspiler(object):
             'clean-missing': etl.CleanMissingOperation,  # OK --> add threshold
             'difference': etl.DifferenceOperation,
             'drop': etl.DropOperation,  # OK
-            'filter-selection': etl.FilterOperation,  # OK - Todo: o advanced
+            'filter-selection': etl.FilterOperation,  # OK - Todo:  advanced
             'join': etl.JoinOperation,  # OK +- --> sufixes problem
             'projection': etl.SelectOperation,  # OK
             'remove-duplicated-rows': etl.DistinctOperation,  # OK
@@ -387,7 +387,7 @@ class SklearnTranspiler(object):
                 RandomForestRegressorOperation,  # OK
             'isotonic-regression':
                 juicer.sklearn.regression_operation
-                    .IsotonicRegressionOperation, #  OK - TODO: 1D
+                    .IsotonicRegressionOperation,  # OK - TODO: 1D
         }
 
         text_ops = {
