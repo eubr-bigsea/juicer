@@ -24,10 +24,10 @@ RUN sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen \
   && echo "LANGUAGE=en_US.UTF-8" >> /etc/default/locale \
   && echo "LC_ALL=en_US.UTF-8" >> /etc/default/locale
 
-ENV SPARK_VERSION=2.3.0
+ENV SPARK_VERSION=2.3.1
 ENV HADOOP_VERSION=2.7
 ENV SPARK_HADOOP_PKG spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION}
-ENV SPARK_HADOOP_URL http://www-eu.apache.org/dist/spark/spark-${SPARK_VERSION}/${SPARK_HADOOP_PKG}.tgz
+ENV SPARK_HADOOP_URL https://archive.apache.org/dist/spark/spark-${SPARK_VERSION}/${SPARK_HADOOP_PKG}.tgz
 RUN curl -s ${SPARK_HADOOP_URL} | tar -xz -C /usr/local/  \
   && mv /usr/local/$SPARK_HADOOP_PKG $SPARK_HOME
 
