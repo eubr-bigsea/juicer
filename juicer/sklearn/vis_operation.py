@@ -723,11 +723,11 @@ class MapModel(ChartVisualization):
     def get_data(self):
         result = {}
         result.update(self._get_title_legend_tooltip())
-        rows = self.data.collect()
+        rows = self.data.values.tolist()
 
         if self.params.get('value'):
-            value_attr = next((c for c in self.data.schema if
-                               c.name == self.params['value'][0]), None)
+            value_attr = next((c for c in self.data.columns if
+                               c == self.params['value'][0]), None)
             value_type = ChartVisualization._get_attr_type(value_attr)
         else:
             value_type = 'number'
@@ -968,26 +968,28 @@ class SummaryStatisticsModel(TableVisualizationModel):
                                          title, column_names, orientation,
                                          id_attribute, value_attribute,
                                          params)
-        self.names = ''
-        self.numeric_attrs = [
-            t[0] for t in self.data.dtypes
-            if t[1] in ['int', 'double', 'tinyint',
-                        'bigint', 'smallint'] or t[1][:7] == 'decimal']
+        from pandas.api.types import is_numeric_dtype
 
-        all_attr = [t[0] for t in self.data.dtypes]
+        self.names = ''
+
+        all_attr = [t for t in self.data.columns]
         if len(self.params['attributes']) == 0:
             self.attrs = all_attr
         else:
             self.attrs = [attr for attr in all_attr if
                           attr in self.params['attributes']]
-        self.names = [_('attribute'), _('max'), _('min'), _('std. dev.'),
-                      _('count'), _('avg'),
-                      _('approx. distinct'), _('missing'), _('skewness'),
-                      _('kurtosis')]
+
+        self.numeric_attrs = [
+            t for t in self.attrs if is_numeric_dtype(self.data[t])]
+
+        self.names = [_('attribute'), _('count'),
+                      _('approx. distinct'), _('missing'),
+                      _('min'),  _('max'), _('avg'),  _('std. dev.'),
+                      _('skewness'), _('kurtosis')]
 
         self.names.extend(
             [_('correlation to {} (Pearson)').format(attr) for attr in
-             self.attrs])
+             self.numeric_attrs])
         self.column_names = self.names
 
     def get_icon(self):
@@ -998,67 +1000,51 @@ class SummaryStatisticsModel(TableVisualizationModel):
         """
         Returns statistics about attributes in a data frame
         """
+        import pandas as pd
 
-        from pyspark.sql import functions
+        data = self.data[self.attrs]
+        non_numerical = [s for s in self.attrs if s not in self.numeric_attrs]
 
-        # Correlation pairs
-        corr_pairs = list(
-            chunks(
-                list(itertools.product(self.attrs, self.attrs)),
-                len(self.attrs)))
+        # only numerical
+        rows = data.describe().transpose()
+        rows = rows.drop(columns=['25%', '50%', '75%'])
+        skewness = [data[c].skew(skipna=True) for c in self.numeric_attrs]
+        kurtosis = [data[c].kurtosis(skipna=True) for c in self.numeric_attrs]
 
-        df_count = self.data.count()
+        rows['skewness'] = skewness
+        rows['kurtosis'] = kurtosis
 
-        # TODO: Implement median using df.approxQuantile('col', [.5], .25)
+        corr = data[self.numeric_attrs].corr()
+        corr_cols = ["to_{}".format(c) for c in self.numeric_attrs]
+        corr.columns = corr_cols
+        rows = pd.concat([rows, corr], axis=1, sort=False)
+        rows.insert(loc=0, column='attribute', value=self.numeric_attrs)
 
-        stats = []
-        for i, name in enumerate(self.attrs):
-            df_col = functions.col(name)
-            stats.append(functions.lit(name))
-            stats.append(functions.max(df_col).alias('max_{}'.format(name)))
-            stats.append(functions.min(df_col).alias('min_{}'.format(name)))
-            if name in self.numeric_attrs:
-                stats.append(functions.round(
-                    functions.stddev(df_col), 4).alias(
-                    'stddev_{}'.format(name)))
-            else:
-                stats.append(functions.lit('-'))
-            stats.append(
-                functions.count(df_col).alias('count_{}'.format(name)))
-            if name in self.numeric_attrs:
-                stats.append(functions.round(
-                    functions.avg(df_col), 4).alias('avg_{}'.format(name)))
-            else:
-                stats.append(functions.lit('-'))
+        size = len(data)
+        new_rows = []
+        for i, col in enumerate(non_numerical):
+            row = ['-' for _ in range(len(rows.columns))]
+            row[0] = col
+            row[1] = size
+            row[4] = data[col].min()
+            row[5] = data[col].max()
+            new_rows.append(row)
 
-            stats.append(functions.approx_count_distinct(df_col).alias(
-                'distinct_{}'.format(name)))
-            stats.append((df_count - functions.count(df_col)).alias(
-                'missing_{}'.format(name)))
+        new_rows = pd.DataFrame(new_rows, columns=rows.columns)
+        rows = rows.append(new_rows,  ignore_index=True)
 
-            if name in self.numeric_attrs:
-                stats.append(
-                    functions.round(functions.skewness(df_col), 2).alias(
-                        'skewness_{}'.format(name)))
-                stats.append(
-                    functions.round(functions.kurtosis(df_col), 2).alias(
-                        'kurtosis_{}'.format(name)))
-            else:
-                stats.append(functions.lit('-'))
-                stats.append(functions.lit('-'))
+        nunique = [data[c].nunique()
+                   for c in self.numeric_attrs+non_numerical]
+        missing = [data[c].isnull().sum()
+                   for c in self.numeric_attrs+non_numerical]
 
-            for pair in corr_pairs[i]:
-                if all([pair[0] in self.numeric_attrs,
-                        pair[1] in self.numeric_attrs]):
-                    stats.append(
-                        functions.round(functions.corr(*pair), 4).alias(
-                            'corr_{}'.format(i)))
-                else:
-                    stats.append(functions.lit('-'))
+        rows['missing'] = missing
+        rows['unique'] = nunique
 
-        self.data = self.data.agg(*stats)
-        aggregated = self.data.take(1)[0]
-        n = len(self.names)
-        rows = [aggregated[i:i + n] for i in range(0, len(aggregated), n)]
+        cols = ['attribute', 'count', 'unique', 'missing',
+                'min', 'max', 'mean', 'std',  'skewness',
+                'kurtosis'] + corr_cols
+
+        rows = rows[cols].values.tolist()
 
         return {"rows": rows, "attributes": self.get_column_names().split(',')}
