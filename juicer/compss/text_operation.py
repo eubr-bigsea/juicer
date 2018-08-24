@@ -13,8 +13,6 @@ class TokenizerOperation(Operation):
     breaking it into individual terms (usually words). A simple Tokenizer
     class provides this functionality.
 
-    REVIEW: 2017-10-20
-    OK - Juicer / Tahiti / implementation
     """
 
     TYPE_PARAM = 'type'
@@ -26,14 +24,12 @@ class TokenizerOperation(Operation):
     TYPE_SIMPLE = 'simple'
     TYPE_REGEX = 'regex'
 
-
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
-
         self.type = self.parameters.get(self.TYPE_PARAM, self.TYPE_SIMPLE)
         if self.type not in [self.TYPE_REGEX, self.TYPE_SIMPLE]:
-            raise ValueError(_('Invalid type for '
-                               'operation Tokenizer: {}').format(self.type))
+            raise ValueError(_('Invalid type for operation Tokenizer: {}')
+                             .format(self.type))
 
         self.expression_param = parameters.get(self.EXPRESSION_PARAM, '\s+')
 
@@ -57,38 +53,72 @@ class TokenizerOperation(Operation):
         self.has_code = len(self.named_inputs) == 1
         if self.has_code:
             self.has_import = \
-                "from functions.text.Tokenizer import TokenizerOperation\n"
+                "from functions.text.tokenizer import TokenizerOperation\n"
 
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
 
+    def get_optimization_information(self):
+        flags = {'one_stage': True,  # if has only one stage
+                 'keep_balance': True,  # if number of rows doesnt change
+                 'bifurcation': False,  # if has two inputs
+                 'if_first': True,  # if need to be executed as a first task
+                 }
+        return flags
+
+    def generate_preoptimization_code(self):
+        """Generate code for optimization task."""
+        code = """
+        settings = dict()
+        settings['min_token_length'] = {min_token}
+        settings['attributes'] = {att}
+        settings['alias'] = {alias}""" \
+        .format(min_token=self.min_token_lenght, att=self.attributes,
+                alias=self.alias)
+
+        if self.type == self.TYPE_SIMPLE:
+            code += """
+        settings['type'] = 'simple'"""
+        else:
+            code += """
+        setting['expression'] = '{expression}'
+        settings['type'] = 'regex'""".format(expression=self.expression_param)
+        code += """
+        conf.append(TokenizerOperation().preprocessing(settings))
+        """
+        return code
+
+    def generate_optimization_code(self):
+        """Generate code."""
+        code = """
+        {output} = TokenizerOperation().transform_serial({input}, conf_X)
+        """.format(output=self.output,
+                   input=self.named_inputs['input data'])
+        return dedent(code)
+
     def generate_code(self):
         """Generate code."""
+        code = """
+            settings = dict()
+            settings['min_token_length'] = {min_token}
+            settings['attributes'] = {att}
+            settings['alias'] = {alias}"""\
+            .format(min_token=self.min_token_lenght, att=self.attributes,
+                    alias=self.alias)
+
         if self.type == self.TYPE_SIMPLE:
-            code = """
-                settings = dict()
-                settings['min_token_length'] = {min_token}
+            code += """
                 settings['type'] = 'simple'
-                settings['attributes'] = {att}
-                settings['alias'] = {alias}
-                {OUT} = TokenizerOperation({IN}, settings, numFrag)
-            """.format(OUT=self.output, min_token=self.min_token_lenght,
-                       IN=self.named_inputs['input data'],
-                       att=self.attributes, alias=self.alias)
+            """
         else:
-            code = """
-                settings = dict()
-                settings['min_token_length'] = {min_token}
-                settings['type'] = 'regex'
+            code += """
                 setting['expression'] = '{expression}'
-                settings['attributes'] = {att}
-                settings['alias'] = {alias}
-                {OUT} = TokenizerOperation({IN}, settings, numFrag)
-            """.format(OUT=self.output,
-                       min_token=self.min_token_lenght,
-                       expression=self.expression_param,
-                       IN=self.named_inputs['input data'],
-                       att=self.attributes, alias=self.alias)
+                settings['type'] = 'regex'
+            """.format(expression=self.expression_param)
+
+        code += """
+                {OUT} = TokenizerOperation().transform({IN}, settings, numFrag)
+            """.format(OUT=self.output, IN=self.named_inputs['input data'])
 
         return dedent(code)
 
@@ -99,9 +129,6 @@ class RemoveStopWordsOperation(Operation):
     Stop words are words which should be excluded from the input,
     typically because the words appear frequently and don't carry
     as much meaning.
-
-    REVIEW: 2017-10-20
-    OK - Juicer / Tahiti / implementation
     """
 
     ATTRIBUTES_PARAM = 'attributes'
@@ -121,7 +148,7 @@ class RemoveStopWordsOperation(Operation):
                 .format(self.ATTRIBUTES_PARAM, self.__class__))
 
         self.stop_word_attribute = self.parameters.get(
-            self.STOP_WORD_ATTRIBUTE_PARAM, '')
+            self.STOP_WORD_ATTRIBUTE_PARAM, "")
 
         self.stop_word_list = [s.strip() for s in
                                self.parameters.get(self.STOP_WORD_LIST_PARAM,
@@ -139,8 +166,43 @@ class RemoveStopWordsOperation(Operation):
 
         self.has_code = 'input data' in self.named_inputs
         if self.has_code:
-            self.has_import = "from functions.text.RemoveStopWords "\
+            self.has_import = "from functions.text.remove_stopwords "\
                               "import RemoveStopWordsOperation\n"
+
+    def get_optimization_information(self):
+        flags = {'one_stage': False,  # if has only one stage
+                 'keep_balance': True,  # if number of rows doesnt change
+                 'bifurcation': False,  # if has two inputs
+                 'if_first': True,  # if need to be executed as a first task
+                 }
+        return flags
+
+    def generate_preoptimization_code(self):
+        """Generate code for optimization task."""
+        code = """
+        settings = dict()
+        settings['attribute'] = {att}
+        settings['alias'] = '{alias}'
+        settings['col_words'] = '{att_stop}'
+        settings['case-sensitive'] = {case}
+        settings['news-stops-words'] = {stoplist}
+
+        conf.append(RemoveStopWordsOperation().preprocessing({sw}, settings))
+        """.format(att=self.attributes,
+                   att_stop=self.stop_word_attribute,
+                   alias=self.alias, case=self.sw_case_sensitive,
+                   stoplist=self.stop_word_list,
+                   sw=self.stopwords_input)
+        return code
+
+    def generate_optimization_code(self):
+        """Generate code."""
+        code = """
+        {OUT} = RemoveStopWordsOperation().transform_serial(
+        {IN}, settings, {sw})
+        """.format(output=self.output,
+                   input=self.named_inputs['input data'])
+        return dedent(code)
 
     def generate_code(self):
         """Generate code."""
@@ -148,11 +210,12 @@ class RemoveStopWordsOperation(Operation):
             settings = dict()
             settings['attribute'] = {att}
             settings['alias'] = '{alias}'
-            settings['attribute-stopwords'] = {att_stop}
+            settings['col_words'] = '{att_stop}'
             settings['case-sensitive'] = {case}
             settings['news-stops-words'] = {stoplist}
 
-            {OUT} = RemoveStopWordsOperation({IN}, settings, {sw}, numFrag)
+            {OUT} = RemoveStopWordsOperation().transform(
+            {IN}, settings, {sw}, numFrag)
             """.format(att=self.attributes,
                        att_stop=self.stop_word_attribute,
                        alias=self.alias, case=self.sw_case_sensitive,
@@ -166,9 +229,6 @@ class WordToVectorOperation(Operation):
     """WordToVectorOperation.
 
     Can be used Bag of Words transformation or TF-IDF.
-
-    REVIEW: 2017-10-20
-    OK - Juicer / Tahiti / implementation
     """
     TYPE_PARAM = 'type'
     ATTRIBUTES_PARAM = 'attributes'
@@ -217,8 +277,45 @@ class WordToVectorOperation(Operation):
 
         self.has_code = len(self.named_inputs) == 1
         if self.has_code:
-            self.has_import = "from functions.text.ConvertWordstoVector " \
+            self.has_import = "from functions.text.convert_words_to_vector " \
                               "import ConvertWordstoVectorOperation\n"
+
+    def get_optimization_information(self):
+        flags = {'one_stage': False,  # if has only one stage
+                 'keep_balance': True,  # if number of rows doesnt change
+                 'bifurcation': False,  # if has two inputs
+                 'if_first': True,  # if need to be executed as a first task
+                 }
+        return flags
+
+    def generate_preoptimization_code(self):
+        """Generate code for optimization task."""
+        code = """
+        params = dict()
+        params['attributes'] = {attrib}
+        params['alias'] = '{alias}'
+        params['minimum_tf'] = {tf}
+        params['minimum_df'] = {df}
+        params['size'] = {size}
+        params['mode'] = '{mode}'
+        
+        params, vocabulary = ConvertWordstoVectorOperation().preprocessing(
+        {IN}, params, numFrag)
+        conf.append([params, vocabulary])
+        """.format(IN=self.input_data, size=self.vocab_size,
+                   df=self.minimum_df, tf=self.minimum_tf,
+                   attrib=self.attributes, alias=self.alias, mode=self.type)
+        return code
+
+    def generate_optimization_code(self):
+        """Generate code."""
+        code = """
+        settings, vocabulary = conf_X
+        {output} = ConvertWordstoVectorOperation()
+        .transform_serial({input}, vocabulary, settings)
+        """.format(output=self.output,
+                   input=self.named_inputs['input data'])
+        return dedent(code)
 
     def generate_code(self):
         """Generate code."""
@@ -230,7 +327,10 @@ class WordToVectorOperation(Operation):
             params['minimum_df'] = {df}
             params['size'] = {size}
             params['mode'] = '{mode}'
-            {OUT}, {voc} = ConvertWordstoVectorOperation({IN}, params, numFrag)
+            params, {voc} = ConvertWordstoVectorOperation().preprocessing(
+            {IN}, params, numFrag)
+            {OUT} = ConvertWordstoVectorOperation().transform(
+            {IN}, {voc}, params, numFrag)
             """.format(OUT=self.output, voc=self.vocab, IN=self.input_data,
                        size=self.vocab_size, df=self.minimum_df,
                        tf=self.minimum_tf, attrib=self.attributes,

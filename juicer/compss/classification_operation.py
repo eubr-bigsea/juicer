@@ -2,8 +2,6 @@ from textwrap import dedent
 from juicer.operation import Operation
 
 
-# Classification Operations
-
 class ClassificationModelOperation(Operation):
 
     def __init__(self, parameters,  named_inputs, named_outputs):
@@ -18,6 +16,7 @@ class ClassificationModelOperation(Operation):
         self.features = parameters['features'][0]
         self.predCol = parameters.get('prediction', 'prediction')
         self.has_code = len(self.named_inputs) == 2
+        self.has_import = ""
         if not self.has_code:
             raise ValueError(
                 _("Parameters '{}' and '{}' must be informed for task {}")
@@ -39,6 +38,30 @@ class ClassificationModelOperation(Operation):
     def get_output_names(self, sep=', '):
         return sep.join([self.output, self.model])
 
+    def get_optimization_information(self):
+        # optimization problemn: iteration over others fragments
+        flags = {'one_stage': False,  # if has only one stage
+                 'keep_balance': False,  # if number of rows doesnt change
+                 'bifurcation': True,  # if has two inputs
+                 'if_first': False,  # if need to be executed as a first task
+                 'ml_algorithm': False,  # if its a machine learning algorithm
+                 'ml_model': True
+                 }
+
+        return flags
+
+    def generate_preoptimization_code(self):
+        """Generate code for optimization task."""
+        code = """
+        """
+        return code
+
+    def generate_optimization_code(self):
+        """Generate code for optimization task."""
+        code = """
+        """
+        return dedent(code)
+
     def generate_code(self):
         """Generate code."""
         code = """
@@ -55,7 +78,7 @@ class ClassificationModelOperation(Operation):
         if self.perform_transformation:
             code += """
             settings['predCol'] = '{predCol}'
-            {OUT} = ClassifModel.transform({IN}, model, settings, numFrag)
+            {OUT} = ClassifModel.transform_serial({IN}, model, settings)
             """.format(predCol=self.predCol, OUT=self.output,
                        IN=self.named_inputs['train input data'])
         else:
@@ -80,6 +103,33 @@ class KNNClassifierOperation(Operation):
                                         'algorithm_tmp{}'.format(self.order))
         self.has_import = "from functions.ml.classification.Knn.knn "\
                           "import KNN\n"
+
+    def get_optimization_information(self):
+        # optimization problemn: iteration over others fragments
+        flags = {'one_stage': False,  # if has only one stage
+                 'keep_balance': False,  # if number of rows doesnt change
+                 'bifurcation': False,  # if has two inputs
+                 'if_first': False,  # if need to be executed as a first task
+                 'ml_algorithm': True,  # if its a machine learning algorithm
+                 }
+
+        return flags
+
+    def generate_preoptimization_code(self):
+        """Generate code for optimization task."""
+        code = """
+        ClassifModel = KNN()
+        settings = dict()
+        settings['K'] = {K}
+        {output} = [ClassifModel, settings]
+        """.format(K=self.parameters['k'], output=self.output)
+        return code
+
+    def generate_optimization_code(self):
+        """Generate code for optimization task."""
+        code = """
+        """
+        return dedent(code)
 
     def generate_code(self):
         """Generate code."""
@@ -110,6 +160,30 @@ class LogisticRegressionOperation(Operation):
                           "LogisticRegression.logisticRegression " \
                           "import logisticRegression\n"
 
+    def get_optimization_information(self):
+        # optimization problemn: iteration over others fragments
+        flags = {'one_stage': False,  # if has only one stage
+                 'keep_balance': False,  # if number of rows doesnt change
+                 'bifurcation': False,  # if has two inputs
+                 'if_first': False,  # if need to be executed as a first task
+                 'ml_algorithm': True,  # if its a machine learning algorithm
+                 }
+
+        return flags
+
+    def generate_preoptimization_code(self):
+        """Generate code for optimization task."""
+        code = """
+        """
+        return code
+
+    def generate_optimization_code(self):
+        """Generate code for optimization task."""
+        code = """
+        """
+        return dedent(code)
+
+
     def generate_code(self):
         """Generate code."""
         code = """
@@ -138,6 +212,30 @@ class NaiveBayesClassifierOperation(Operation):
         self.has_import = "from functions.ml.classification.NaiveBayes." \
                           "naivebayes import GaussianNB\n"
 
+    def get_optimization_information(self):
+        # optimization problemn: iteration over others fragments
+        flags = {'one_stage': False,  # if has only one stage
+                 'keep_balance': False,  # if number of rows doesnt change
+                 'bifurcation': False,  # if has two inputs
+                 'if_first': False,  # if need to be executed as a first task
+                 'ml_algorithm': True,  # if its a machine learning algorithm
+                 }
+
+        return flags
+
+    def generate_preoptimization_code(self):
+        """Generate code for optimization task."""
+        code = """
+        """
+        return code
+
+    def generate_optimization_code(self):
+        """Generate code for optimization task."""
+        code = """
+        """
+        return dedent(code)
+
+
     def generate_code(self):
         """Generate code."""
         code = """
@@ -148,7 +246,6 @@ class NaiveBayesClassifierOperation(Operation):
 
 
 class SvmClassifierOperation(Operation):
-
 
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
@@ -164,6 +261,30 @@ class SvmClassifierOperation(Operation):
                                         'algorithm_tmp{}'.format(self.order))
         self.has_import = "from functions.ml.classification.Svm.svm "\
                           "import SVM\n"
+
+    def get_optimization_information(self):
+        # optimization problemn: iteration over others fragments
+        flags = {'one_stage': False,  # if has only one stage
+                 'keep_balance': False,  # if number of rows doesnt change
+                 'bifurcation': False,  # if has two inputs
+                 'if_first': False,  # if need to be executed as a first task
+                 'ml_algorithm': True,  # if its a machine learning algorithm
+                 }
+
+        return flags
+
+    def generate_preoptimization_code(self):
+        """Generate code for optimization task."""
+        code = """
+        """
+        return code
+
+    def generate_optimization_code(self):
+        """Generate code for optimization task."""
+        code = """
+        """
+        return dedent(code)
+
 
     def generate_code(self):
         """Generate code."""
