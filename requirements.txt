@@ -40,7 +40,7 @@ mockredispy==2.9.3
 networkx==1.9
 numpy==1.14.0
 packaging==16.8
-pandas==0.22.0
+pandas==0.23.4
 pbr==3.1.1
 pep8==1.7.1
 pluggy==0.6.0
