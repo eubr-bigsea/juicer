@@ -62,25 +62,27 @@ RUN pip install --no-build-isolation $(grep pandas requirements.txt) \
 FROM base
 LABEL maintainer="Vinicius Dias <viniciusvdias@dcc.ufmg.br>, Guilherme Maluf <guimaluf@dcc.ufmg.br>, Walter Santos <walter@dcc.ufmg.br>"
 
-ENV PYTHONPATH=${PYTHONPATH}:${JUICER_HOME}:${SPARK_HOME}/python \
-    LC_ALL=en_US.UTF-8 \
+ENV LC_ALL=en_US.UTF-8 \
     LANGUAGE=en_US.UTF-8 \
-    JUICER_HOME=/usr/local/juicer
+    JUICER_HOME=/usr/local/juicer \
+    SPARK_HOME=/usr/local/spark
+ENV PYTHONPATH=${PYTHONPATH}:${JUICER_HOME}:${SPARK_HOME}/python
 
 COPY --from=pip_build /etc/apk/repositories /etc/apk/repositories
 COPY --from=pip_build /usr/lib /usr/lib
 RUN apk --no-cache add \
       apr \
+      bash \
       curl \
       cyrus-sasl \
       cython \
       freetype \
+      fts \
       hdf5 \
       musl \
       openblas \
       openjdk8-jre \
       subversion \
-      fts \
       tcl \
       tk \
       zlib
@@ -92,7 +94,6 @@ ARG HADOOP_VERSION=2.7
 ARG SPARK_VERSION=2.3.1
 ARG SPARK_HADOOP_PKG=spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION}
 ARG SPARK_HADOOP_URL=https://archive.apache.org/dist/spark/spark-${SPARK_VERSION}/${SPARK_HADOOP_PKG}.tgz
-ENV SPARK_HOME=/usr/local/spark
 
 RUN wget ${SPARK_HADOOP_URL} -O- | tar xz -C /usr/local/  \
   && ln -s /usr/local/$SPARK_HADOOP_PKG $SPARK_HOME
