@@ -1,4 +1,4 @@
-#!/usr/bin/env sh
+#!/usr/bin/env bash
 
 # This script controls the juicer server daemon initialization, status reporting
 # and termination
@@ -30,8 +30,6 @@ export JUICER_LOG_DIR=${JUICER_LOG_DIR:-${JUICER_HOME}/logs}
 # get pid directory
 export JUICER_PID_DIR=${JUICER_PID_DIR:-/var/run/}
 
-export PYTHONPATH=${JUICER_HOME}:/usr/lib/python2.7/site-packages:/usr/local/python2.7/site-packages/:${PYTHONPATH}
-
 # ensure directory exists
 mkdir -p ${JUICER_PID_DIR} ${JUICER_LOG_DIR}
 
@@ -39,14 +37,16 @@ mkdir -p ${JUICER_PID_DIR} ${JUICER_LOG_DIR}
 log=${JUICER_LOG_DIR}/juicer-server-${USER}-${HOSTNAME}.out
 pid=${JUICER_PID_DIR}/juicer-server-${USER}.pid
 
+wait_for_it=`dirname $0`/wait-for-it.sh
+
 case $cmd_option in
 
    (start)
       # set python path
-      nohup -- \
+      PYTHONPATH=${JUICER_HOME}:${PYTHONPATH} nohup -- \
         python ${JUICER_HOME}/juicer/runner/server.py \
-          -c ${JUICER_HOME}/conf/juicer-config.yaml \
-          >> $log 2>&1 < /dev/null &
+         -c ${JUICER_HOME}/conf/juicer-config.yaml \
+         >> $log 2>&1 < /dev/null &
       juicer_server_pid=$!
       # persist the pid
       echo $juicer_server_pid > $pid
@@ -57,9 +57,12 @@ case $cmd_option in
    (docker)
       trap "$0 stop" SIGINT SIGTERM
 
+      $wait_for_it -t 60 ${REDIS} || exit 1
+
       # set python path
-      python ${JUICER_HOME}/juicer/runner/server.py \
-        -c ${JUICER_HOME}/conf/juicer-config.yaml &
+      PYTHONPATH=${JUICER_HOME}:${PYTHONPATH} \
+        python ${JUICER_HOME}/juicer/runner/server.py \
+         -c ${JUICER_HOME}/conf/juicer-config.yaml &
       juicer_server_pid=$!
 
       # persist the pid
