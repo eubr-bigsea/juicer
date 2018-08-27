@@ -100,8 +100,8 @@ class GeoWithin(Operation):
         # Adjust alias in order to have the same number of aliases as attributes
         # by filling missing alias with the attribute name sufixed by _indexed.
         self.alias = [x[1] or '{}_alias'.format(x[0]) for x in
-                      izip_longest(self.attributes,
-                                   self.alias[:len(self.attributes)])]
+                      zip_longest(self.attributes,
+                                  self.alias[:len(self.attributes)])]
 
         self.lat_column = parameters[self.TARGET_LAT_COLUMN_PARAM]
         self.lon_column = parameters[self.TARGET_LON_COLUMN_PARAM]

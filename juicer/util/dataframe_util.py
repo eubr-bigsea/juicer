@@ -5,11 +5,14 @@ import decimal
 import json
 
 import datetime
-import pyspark.sql.types as spark_types
-from pyspark.ml.linalg import DenseVector
 from six import text_type
 import re
 import simplejson
+try:
+    import pyspark.sql.types as spark_types
+    from pyspark.ml.linalg import DenseVector
+except ImportError:
+    pass
 
 
 def is_numeric(schema, col):
