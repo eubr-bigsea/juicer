@@ -204,6 +204,22 @@ class Expression(object):
                                            arguments)
         return result
 
+    def get_log_call(self, spec, params):
+        """
+        Handle log function, converting the base (if informed) to double type.
+        JS library used to parse expressions converts double with no value
+        after separator to int (e.g. 2.0 = 2) and this causes an error in Spark.
+        """
+        if len(spec) == 2:
+            spec[0] = str(float(spec[0]))
+
+        arguments = ', '.join(
+            [self.parse(x, params) for x in spec['arguments']])
+
+        result = 'functions.{}({})'.format(spec['callee']['name'],
+                                           arguments)
+        return result
+
     def get_window_function(self, spec, params):
         """ """
         arguments = ', '.join(
@@ -259,7 +275,7 @@ class Expression(object):
             'levenshtein': self.get_function_call,
             'lit': self.get_function_call,
             'locate': self.get_function_call,
-            'log': self.get_function_call,
+            'log': self.get_log_call,
             'log10': self.get_function_call,
             'log2': self.get_function_call,
             'lower': self.get_function_call,

@@ -110,10 +110,10 @@ class JuicerServer:
             app_id = str(msg_info['app_id'])
 
             if msg_type in (juicer_protocol.EXECUTE, juicer_protocol.DELIVER):
+                self.platform = msg_info['workflow'].get('platform', {}).get(
+                        'slug', 'spark')
                 self._forward_to_minion(msg_type, workflow_id, app_id, msg,
                                         self.platform)
-                self.platform = msg_info['workflow'].get('platform', {}).get(
-                    'slug', 'spark')
 
             elif msg_type == juicer_protocol.TERMINATE:
                 self._forward_to_minion(msg_type, workflow_id, app_id, msg,
@@ -190,7 +190,6 @@ class JuicerServer:
         # created as part of an active minion.
         # spark.driver.port and spark.driver.blockManager.port are required
         # when running the driver inside a docker container.
-
         open_opts = ['nohup', sys.executable, self.minion_executable,
                      '-w', str(workflow_id), '-a', str(app_id), '-t', platform,
                      '-c',
