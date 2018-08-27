@@ -1,5 +1,1 @@
 .git
-venv
-*.jar
-libs
-tests
