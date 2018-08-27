@@ -375,7 +375,6 @@ class Workflow(object):
             'token': str(tahiti_conf['auth_token']),
             'item_id': ''
         }
-<<<<<<< HEAD
 
         # Querying tahiti operations to get number of inputs and outputs
         return tahiti_service.query_tahiti(params['base_url'],
@@ -446,8 +445,6 @@ class Workflow(object):
                     self.graph.node[atr]['in_degree_required'],
                     self.graph.node[atr]['out_degree_required']
                     )
-||||||| merged common ancestors
-
         # Querying tahiti operations to get number of inputs and outputs
         return tahiti_service.query_tahiti(params['base_url'],
                                            params['item_path'],
