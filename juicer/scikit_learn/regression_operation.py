@@ -105,47 +105,39 @@ class LinearRegressionOperation(RegressionOperation):
     WEIGHT_COL_PARAM = 'weight'
     REG_PARAM = 'reg_param'
     ELASTIC_NET_PARAM = 'elastic_net'
-
     SOLVER_PARAM = 'solver'
-
     TYPE_SOLVER_AUTO = 'auto'
     TYPE_SOLVER_NORMAL = 'normal'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         RegressionOperation.__init__(self, parameters, named_inputs,
                                      named_outputs)
-        self.parameters = parameters
+
         self.name = 'regression.LinearRegression'
-        self.has_code = any([len(named_outputs) > 0, self.contains_results()])
+        self.has_code = len(named_outputs) > 0
 
         if self.has_code:
-            # self.read_common_params(parameters)
-
             self.max_iter = parameters.get(self.MAX_ITER_PARAM, 10) or 10
             self.reg_param = parameters.get(self.REG_PARAM, 0.1) or 0.0
             self.weight_col = parameters.get(self.WEIGHT_COL_PARAM, None)
 
-            self.solver = self.parameters.get(self.SOLVER_PARAM,
-                                              self.TYPE_SOLVER_AUTO)
-            self.elastic = self.parameters.get(self.ELASTIC_NET_PARAM,
-                                               0.0) or 0.0
+            self.solver = parameters.get(self.SOLVER_PARAM,
+                                         self.TYPE_SOLVER_AUTO)
+            self.elastic = parameters.get(self.ELASTIC_NET_PARAM,
+                                          0.0) or 0.0
 
     def generate_code(self):
-        if self.has_code:
-            code = dedent("""
-            from sklearn.linear_model import ElasticNet
-            {output} = ElasticNet(alpha={reg_param}, l1_ratio={elastic},
-             max_iter={max_iter})""").format(
-                output=self.output,
-                max_iter=self.max_iter,
-                reg_param=self.reg_param,
-                elastic=self.elastic,
-            )
-            return code
-        else:
-            raise ValueError(
-                _('Parameter output must be informed for classifier {}').format(
-                    self.__class__))
+        code = dedent("""
+        from sklearn.linear_model import ElasticNet
+        {output} = ElasticNet(alpha={reg_param}, l1_ratio={elastic},
+         max_iter={max_iter})""").format(
+            output=self.output,
+            max_iter=self.max_iter,
+            reg_param=self.reg_param,
+            elastic=self.elastic,
+        )
+        return code
+
 
 
 class RandomForestRegressorOperation(RegressionOperation):
