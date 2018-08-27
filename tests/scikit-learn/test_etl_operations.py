@@ -3,18 +3,14 @@ import ast
 from textwrap import dedent
 
 import pytest
-from juicer.sklearn.etl_operation import AddColumnsOperation, \
-    SplitOperation, SortOperation, \
-    DifferenceOperation, DistinctOperation, IntersectionOperation, \
-    JoinOperation, DropOperation, \
-    TransformationOperation, SelectOperation, AggregationOperation, \
-    FilterOperation, \
-    CleanMissingOperation, \
-    UnionOperation, \
-    SampleOrPartitionOperation, ReplaceValuesOperation
-
-
 from tests import compare_ast, format_code_comparison
+from juicer.sklearn.etl_operation import AddColumnsOperation, \
+    AggregationOperation, CleanMissingOperation, \
+    DifferenceOperation, DistinctOperation, DropOperation, \
+    FilterOperation, IntersectionOperation, JoinOperation, \
+    ReplaceValuesOperation,  SampleOrPartitionOperation, \
+    SelectOperation, SortOperation, SplitOperation, \
+    TransformationOperation,  UnionOperation
 
 
 def debug_ast(code, expected_code):
@@ -29,6 +25,8 @@ def debug_ast(code, expected_code):
     """.format(code=code, sep='-' * 20, expected=expected_code))
 
 
+#############################################################################
+#   Add Columns Operation
 def test_add_columns_minimum_params_success():
     params = {}
     n_in = {'input data 1': 'df1', 'input data 2': 'df2'}
@@ -39,7 +37,6 @@ def test_add_columns_minimum_params_success():
                                    named_outputs=n_out)
 
     code = instance.generate_code()
-    print (code)
     expected_code = dedent("""
     out = pd.merge(df1, df2, left_index=True, 
         right_index=True, suffixes=('ds0_', 'ds0_'))
@@ -47,6 +44,111 @@ def test_add_columns_minimum_params_success():
         out=n_out['output data'],
         in0=n_in['input data 1'],
         in1=n_in['input data 2']))
+    result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
+    assert result, msg + format_code_comparison(code, expected_code)
+
+
+#############################################################################
+#   Clean Missing Operation
+def test_clean_missing_minimal_params_success():
+    params = {
+        CleanMissingOperation.ATTRIBUTES_PARAM: ['col1', 'col2'],
+        CleanMissingOperation.MIN_MISSING_RATIO_PARAM: 0.0,
+        CleanMissingOperation.MAX_MISSING_RATIO_PARAM: 1.0,
+    }
+    n_in = {'input data': 'input_1'}
+    n_out = {'output result': 'output_1'}
+    instance = CleanMissingOperation(params, named_inputs=n_in,
+                                     named_outputs=n_out)
+    code = instance.generate_code()
+    expected_code = dedent("""
+     min_missing_ratio = 0.0
+     max_missing_ratio = 1.0
+     output_1 = input_1
+     for col in ['col1', 'col2']:
+        ratio = input_1[col].isnull().sum()
+        if ratio >= min_missing_ratio and ratio <= max_missing_ratio:
+            output_1.dropna(subset=col, axis='index', inplace=True)
+    """)
+    result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
+    assert result, msg + format_code_comparison(code, expected_code)
+
+
+def test_clean_missing_value_param_failure():
+    params = {
+        CleanMissingOperation.CLEANING_MODE_PARAM: "VALUE"
+    }
+    n_in = {'input data': 'input_1'}
+    n_out = {'output data': 'output_1'}
+    with pytest.raises(ValueError):
+        CleanMissingOperation(params, named_inputs=n_in, named_outputs=n_out)
+
+
+def test_clean_wrong_ratio_param_failure():
+    params = {
+        CleanMissingOperation.MIN_MISSING_RATIO_PARAM: 1.7,
+        CleanMissingOperation.MAX_MISSING_RATIO_PARAM: -1.0,
+    }
+    n_in = {'input data': 'input_1'}
+    n_out = {'output data': 'output_1'}
+    with pytest.raises(ValueError):
+        CleanMissingOperation(params, named_inputs=n_in, named_outputs=n_out)
+
+
+def test_clean_missing_without_missing_rating_params_success():
+    params = {
+        CleanMissingOperation.ATTRIBUTES_PARAM: ['name'],
+    }
+    n_in = {'input data': 'input_1'}
+    n_out = {'output result': 'output_1'}
+    instance = CleanMissingOperation(params, named_inputs=n_in,
+                                     named_outputs=n_out)
+    code = instance.generate_code()
+    expected_code = dedent("""
+        min_missing_ratio = 0.0
+        max_missing_ratio = 1.0
+        {output_1} = {input_1}
+        for col in {attribute}:
+            ratio = {input_1}[col].isnull().sum()
+            if ratio >= min_missing_ratio and ratio <= max_missing_ratio:
+                {output_1}.dropna(subset=col, axis='index', inplace=True)
+    """.format(input_1=n_in['input data'], attribute=params['attributes'],
+               output_1=n_out['output result']))
+    result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
+    assert result, msg + format_code_comparison(code, expected_code)
+
+
+def test_clean_missing_minimal_params_type_value_success():
+    params = {
+        CleanMissingOperation.ATTRIBUTES_PARAM: ['name'],
+        CleanMissingOperation.MIN_MISSING_RATIO_PARAM: 0.0,
+        CleanMissingOperation.MAX_MISSING_RATIO_PARAM: 1.0,
+        CleanMissingOperation.VALUE_PARAMETER: 200,
+        CleanMissingOperation.CLEANING_MODE_PARAM: 'VALUE'
+    }
+    n_in = {'input data': 'input_1'}
+    n_out = {'output result': 'output_1'}
+    instance = CleanMissingOperation(params, named_inputs=n_in,
+                                     named_outputs=n_out)
+    code = instance.generate_code()
+    expected_code = dedent("""
+        min_missing_ratio = 0.0
+        max_missing_ratio = 1.0
+        output_1 = input_1
+        for col in ['name']:
+            ratio = input_1[col].isnull().sum()
+            if ratio >= min_missing_ratio and ratio <= max_missing_ratio:
+                output_1[col].fillna(value=200, inplace=True)
+    """)
+    result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
+    assert result, msg + format_code_comparison(code, expected_code)
+
+    # Test with value being number
+    params[CleanMissingOperation.VALUE_PARAMETER] = 1200
+    instance = CleanMissingOperation(params, named_inputs=n_in,
+                                     named_outputs=n_out)
+    code = instance.generate_code()
+    expected_code = expected_code.replace('200', '1200')
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
     assert result, msg + format_code_comparison(code, expected_code)
 
@@ -146,6 +248,107 @@ def test_intersection_minimal_params_success():
                 'and types.')))
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
     assert result, msg + format_code_comparison(code, expected_code)
+
+
+#############################################################################
+# Join Operation
+def test_join_inner_join_minimal_with_remove_right_columns_success():
+    params = {
+        'left_attributes': ['id', 'cod'],
+        'right_attributes': ['id', 'cod'],
+        'aliases': '_left,_right'
+    }
+    n_in = {'input data 1': 'df1', 'input data 2': 'df2'}
+    n_out = {'output data': 'out'}
+    instance = JoinOperation(params, named_inputs=n_in, named_outputs=n_out)
+
+    code = instance.generate_code()
+    expected_code = dedent("""
+        cols_to_remove = [c+'_right' for c in df2.columns if c in df1.columns]
+
+        out = pd.merge(df1, df2, how='inner', suffixes=['_left', '_right'],
+                left_on=['id', 'cod'], right_on=['id', 'cod'])
+
+        out.drop(cols_to_remove, axis=1, inplace=True)""")
+
+    result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
+    assert result, msg + format_code_comparison(code, expected_code)
+
+
+def test_join_left_join_keep_columns_minimal_params_success():
+    params = {
+        'left_attributes': ['id', 'cod'],
+        'right_attributes': ['id', 'cod'],
+        JoinOperation.JOIN_TYPE_PARAM: 'left',
+        JoinOperation.KEEP_RIGHT_KEYS_PARAM: True,
+        'aliases': '_left,_right'
+    }
+    n_in = {'input data 1': 'df1', 'input data 2': 'df2'}
+    n_out = {'output data': 'out'}
+    instance = JoinOperation(params, named_inputs=n_in, named_outputs=n_out)
+
+    code = instance.generate_code()
+    expected_code = dedent("""
+        {out} = pd.merge({in0}, {in1}, how='{type}', 
+            suffixes=['_left', '_right'], left_on=['id', 'cod'],
+            right_on=['id', 'cod'])
+        """.format(
+            out=n_out['output data'], in0=n_in['input data 1'],
+            in1=n_in['input data 2'],
+            type=params[JoinOperation.JOIN_TYPE_PARAM], ))
+
+    result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
+    assert result, msg + format_code_comparison(code, expected_code)
+
+
+def test_join_remove_right_with_case_columns_success():
+    params = {
+        'left_attributes': ['id', 'cod'],
+        'right_attributes': ['id2', 'cod2'],
+        JoinOperation.KEEP_RIGHT_KEYS_PARAM: False,
+        JoinOperation.MATCH_CASE_PARAM: True,
+        'aliases': '_left,_right'
+    }
+    n_in = {'input data 1': 'df1', 'input data 2': 'df2'}
+    n_out = {'output data': 'out'}
+    instance = JoinOperation(params, named_inputs=n_in, named_outputs=n_out)
+
+    code = instance.generate_code()
+    expected_code = dedent("""
+        cols_to_remove = [c+'_right' for c in df2.columns if c in df1.columns]
+
+        data1_tmp = df1[['id', 'cod']].applymap(lambda col: str(col).lower())
+        data1_tmp.columns = [c+"_lower" for c in data1_tmp.columns]
+        data1_tmp = pd.concat([df1, data1_tmp], axis=1, sort=False)
+
+        data2_tmp = df2[['id2', 'cod2']].applymap(lambda col: str(col).lower())
+        data2_tmp.columns = [c+"_lower" for c in data2_tmp.columns]
+        data2_tmp = pd.concat([df2, data2_tmp], axis=1, sort=False)
+
+        out = pd.merge(data1_tmp, data2_tmp, left_on=col1, right_on=col2,
+            copy=False, suffixes=['_left', '_right'], how='inner')
+        out.drop(col1+col2, axis=1, inplace=True)
+
+        out.drop(cols_to_remove, axis=1, inplace=True)""")
+
+    result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
+    assert result, msg + format_code_comparison(code, expected_code)
+
+
+def test_join_missing_left_or_right_param_failure():
+    params = {
+        'right_attributes': ['id', 'cod']
+    }
+    with pytest.raises(ValueError):
+        n_in = {'input data 1': 'df1', 'input data 2': 'df2'}
+        n_out = {'output data': 'out'}
+        JoinOperation(params, named_inputs=n_in, named_outputs=n_out)
+
+    params = {
+        'left_attributes': ['id', 'cod']
+    }
+    with pytest.raises(ValueError):
+        JoinOperation(params, named_inputs=n_in, named_outputs=n_out)
 
 
 #############################################################################
@@ -566,252 +769,72 @@ def test_union_minimal_params_success():
 #                              named_outputs=n_out)
 #
 #
-# def test_clean_missing_minimal_params_success():
-#     params = {
-#         CleanMissingOperation.ATTRIBUTES_PARAM: ['name'],
-#         CleanMissingOperation.MIN_MISSING_RATIO_PARAM: "0.0",
-#         CleanMissingOperation.MAX_MISSING_RATIO_PARAM: "1.0",
-#     }
-#     n_in = {'input data': 'input_1'}
-#     n_out = {'output result': 'output_1'}
-#     instance = CleanMissingOperation(params, named_inputs=n_in,
-#                                      named_outputs=n_out)
-#     code = instance.generate_code()
-#     expected_code = dedent("""
-#     ratio_{input_1} = {input_1}.select(
-#         (functions.avg(functions.col('{attribute}').isNull().cast(
-#         'int'))).alias('{attribute}')).collect()
-#     attributes_{input_1} = [c for c in ["{attribute}"]
-#                  if 0.0 <= ratio_{input_1}[0][c] <= 1.0]
-#     if len(attributes_input_1) > 0:
-#         {output_1} = {input_1}.na.drop(how='any', subset=attributes_{input_1})
-#     else:
-#         {output_1} = {input_1}
-#     """.format(input_1=n_in['input data'], attribute=params['attributes'][0],
-#                output_1=n_out['output result']))
-#     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
-#     assert result, msg + format_code_comparison(code, expected_code)
-#
-#
-# def test_clean_missing_without_missing_rating_params_success():
-#     params = {
-#         CleanMissingOperation.ATTRIBUTES_PARAM: ['name'],
-#     }
-#     n_in = {'input data': 'input_1'}
-#     n_out = {'output result': 'output_1'}
-#     instance = CleanMissingOperation(params, named_inputs=n_in,
-#                                      named_outputs=n_out)
-#     code = instance.generate_code()
-#     expected_code = dedent("""
-#     attributes_{input_1} = ['{attribute}']
-#     if len(attributes_input_1) > 0:
-#         {output_1} = {input_1}.na.drop(how='any', subset=attributes_{input_1})
-#     else:
-#         {output_1} = {input_1}
-#     """.format(input_1=n_in['input data'], attribute=params['attributes'][0],
-#                output_1=n_out['output result']))
-#     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
-#     assert result, msg + format_code_comparison(code, expected_code)
-#
-#
-# def test_clean_missing_minimal_params_type_value_success():
-#     params = {
-#         CleanMissingOperation.ATTRIBUTES_PARAM: ['name'],
-#         CleanMissingOperation.MIN_MISSING_RATIO_PARAM: "0.0",
-#         CleanMissingOperation.MAX_MISSING_RATIO_PARAM: "1.0",
-#         CleanMissingOperation.VALUE_PARAMETER: "200",
-#         CleanMissingOperation.CLEANING_MODE_PARAM: CleanMissingOperation.VALUE
-#     }
-#     n_in = {'input data': 'input_1'}
-#     n_out = {'output result': 'output_1'}
-#     instance = CleanMissingOperation(params, named_inputs=n_in,
-#                                      named_outputs=n_out)
-#     code = instance.generate_code()
-#     expected_code = dedent("""
-#     ratio_{input_1} = {input_1}.select(
-#         (functions.avg(functions.col('{attribute}').isNull().cast(
-#         'int'))).alias('{attribute}')).collect()
-#     attributes_{input_1} = [c for c in ["{attribute}"]
-#                  if 0.0 <= ratio_{input_1}[0][c] <= 1.0]
-#     if len(attributes_input_1) > 0:
-#         {output_1} = {input_1}.na.fill(value={value},
-#                 subset=attributes_{input_1})
-#     else:
-#         {output_1} = {input_1}
-#     """.format(input_1=n_in['input data'], attribute=params['attributes'][0],
-#                output_1=n_out['output result'],
-#                value=params[CleanMissingOperation.VALUE_PARAMETER]))
-#     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
-#     assert result, msg + format_code_comparison(code, expected_code)
-#
-#     # Test with value being number
-#     params[CleanMissingOperation.VALUE_PARAMETER] = 1200
-#     instance = CleanMissingOperation(params, named_inputs=n_in,
-#                                      named_outputs=n_out)
-#     code = instance.generate_code()
-#     expected_code = expected_code.replace('200', '1200')
-#     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
-#     assert result, msg + format_code_comparison(code, expected_code)
-#
-#
-# def test_clean_missing_missing_attribute_param_failure():
-#     params = {}
-#     with pytest.raises(ValueError):
-#         n_in = {'input data': 'input_1'}
-#         n_out = {'output data': 'output_1'}
-#         CleanMissingOperation(params, named_inputs=n_in,
-#                               named_outputs=n_out)
-#
 
-# def test_filter_minimum_params_success():
-#     params = {
-#         FilterOperation.FILTER_PARAM: [{
-#             'attribute': 'code',
-#             'f': '>',
-#             'value': '201'
-#         }],
-#         'config': {
-#
-#         }
-#     }
-#     n_in = {'input data': 'input_1'}
-#     n_out = {'output data': 'output_1'}
-#     instance = FilterOperation(params, named_inputs=n_in, named_outputs=n_out)
-#
-#     code = instance.generate_code()
-#     expected_code = ("{out} = {in1}.filter("
-#                      "functions.col('{attribute}') {f} '{value}')").format(
-#         out=n_out['output data'], in1=n_in['input data'],
-#         **params[FilterOperation.FILTER_PARAM][0])
-#     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
-#     assert result, msg + format_code_comparison(code, expected_code)
-#
-#
-# def test_filter_missing_parameter_filter_failure():
-#     params = {
-#     }
-#     with pytest.raises(ValueError):
-#         n_in = {'input data': 'input_1'}
-#         n_out = {'output data': 'output_1'}
-#         FilterOperation(params, named_inputs=n_in, named_outputs=n_out)
-#
-#
+def test_filter_minimum_params_success():
+    params = {
+        FilterOperation.FILTER_PARAM: [{
+            'attribute': 'code',
+            'f': '>',
+            'value': '201'
+        },
+            {
+                'attribute': 'code2',
+                'f': '<',
+                'value': '200'
+            }
+        ]
+    }
+    n_in = {'input data': 'input_1'}
+    n_out = {'output data': 'output_1'}
+    instance = FilterOperation(params, named_inputs=n_in, named_outputs=n_out)
 
-# def test_join_inner_join_minimal_params_success():
-#     params = {
-#         'left_attributes': ['id', 'cod'],
-#         'right_attributes': ['id', 'cod'],
-#         'aliases': 'left_, right_  '
-#     }
-#     n_in = {'input data 1': 'df1', 'input data 2': 'df2'}
-#     n_out = {'output data': 'out'}
-#     instance = JoinOperation(params, named_inputs=n_in, named_outputs=n_out)
-#
-#     code = instance.generate_code()
-#     expected_code = dedent("""
-#         def _rename_attributes(df, prefix):
-#             result = df
-#             for col in df.columns:
-#                 result = result.withColumnRenamed(col, '{{}}{{}}'.format(
-#                     prefix, col))
-#             return result
-#
-#         in0_renamed = _rename_attributes({in0}, '{a0}')
-#         in1_renamed = _rename_attributes({in1}, '{a1}')
-#
-#         condition = [in0_renamed['{a0}id'] == in1_renamed['{a1}id'],
-#             in0_renamed['{a0}cod'] == in1_renamed['{a1}cod']]
-#
-#         {out} = in0_renamed.join(in1_renamed, on=condition, how='{how}').drop(
-#             in1_renamed['{a1}id']).drop(in1_renamed['{a1}cod'])""".format(
-#         out=n_out['output data'], in0=n_in['input data 1'],
-#         a0='left_', a1='right_',
-#         in1=n_in['input data 2'], how="inner"))
-#
-#     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
-#     assert result, msg + format_code_comparison(code, expected_code)
-#
-#
-# def test_join_left_join_keep_columns_minimal_params_success():
-#     params = {
-#         'left_attributes': ['id', 'cod'],
-#         'right_attributes': ['id', 'cod'],
-#         JoinOperation.JOIN_TYPE_PARAM: 'left',
-#         JoinOperation.KEEP_RIGHT_KEYS_PARAM: True,
-#         'aliases': 'left_, right_  '
-#     }
-#     n_in = {'input data 1': 'df1', 'input data 2': 'df2'}
-#     n_out = {'output data': 'out'}
-#     instance = JoinOperation(params, named_inputs=n_in, named_outputs=n_out)
-#
-#     code = instance.generate_code()
-#     expected_code = dedent("""
-#         def _rename_attributes(df, prefix):
-#             result = df
-#             for col in df.columns:
-#                 result = result.withColumnRenamed(col, '{{}}{{}}'.format(
-#                     prefix, col))
-#             return result
-#
-#         in0_renamed = _rename_attributes({in0}, '{a0}')
-#         in1_renamed = _rename_attributes({in1}, '{a1}')
-#
-#         condition = [in0_renamed['{a0}id'] == in1_renamed['{a1}id'],
-#             in0_renamed['{a0}cod'] == in1_renamed['{a1}cod']]
-#         {out} = in0_renamed.join(in1_renamed, on=condition, how='left')
-#         """.format(
-#         out=n_out['output data'], in0=n_in['input data 1'],
-#         a0='left_', a1='right_',
-#         in1=n_in['input data 2'], type=params[JoinOperation.JOIN_TYPE_PARAM], ))
-#
-#     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
-#     assert result, msg + format_code_comparison(code, expected_code)
-#
-#
-# def test_join_remove_right_columns_success():
-#     params = {
-#         'left_attributes': ['id', 'cod'],
-#         'right_attributes': ['id2', 'cod2'],
-#         JoinOperation.KEEP_RIGHT_KEYS_PARAM: 'False',
-#         'aliases': 'left_, right_  '
-#     }
-#     n_in = {'input data 1': 'df1', 'input data 2': 'df2'}
-#     n_out = {'output data': 'out'}
-#     instance = JoinOperation(params, named_inputs=n_in, named_outputs=n_out)
-#
-#     code = instance.generate_code()
-#     expected_code = dedent("""
-#         def _rename_attributes(df, prefix):
-#             result = df
-#             for col in df.columns:
-#                 result = result.withColumnRenamed(col, '{{}}{{}}'.format(
-#                     prefix, col))
-#             return result
-#         in0_renamed = _rename_attributes({in0}, '{a0}')
-#         in1_renamed = _rename_attributes({in1}, '{a1}')
-#
-#         condition = [in0_renamed['{a0}id'] == in1_renamed['{a1}id2'],
-#             in0_renamed['{a0}cod'] == in1_renamed['{a1}cod2']]
-#         {out} = in0_renamed.join(in1_renamed, on=condition, how='inner')\\
-#           .drop(in1_renamed['{a1}id2']).drop(in1_renamed['{a1}cod2'])""".format(
-#         out=n_out['output data'], in0=n_in['input data 1'],
-#         in1=n_in['input data 2'], a0='left_', a1='right_'))
-#
-#     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
-#     assert result, msg + format_code_comparison(code, expected_code)
-#
-#
-# def test_join_missing_left_or_right_param_failure():
-#     params = {
-#         'right_attributes': ['id', 'cod']
-#     }
-#     with pytest.raises(ValueError):
-#         n_in = {'input data 1': 'df1', 'input data 2': 'df2'}
-#         n_out = {'output data': 'out'}
-#         JoinOperation(params, named_inputs=n_in, named_outputs=n_out)
-#
-#     params = {
-#         'left_attributes': ['id', 'cod']
-#     }
-#     with pytest.raises(ValueError):
-#         JoinOperation(params, named_inputs=n_in, named_outputs=n_out)
+    code = instance.generate_code()
+    expected_code = "output_1 = input_1.query(" \
+                    "'(code > 201) and (code2 < 200)')"
+    result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
+    assert result, msg + format_code_comparison(code, expected_code)
+
+
+def test_filter_advanced_params_success():
+    params = {
+        FilterOperation.FILTER_PARAM: [{
+            'attribute': 'code',
+            'f': '>',
+            'value': '201'
+        }],
+        FilterOperation.ADVANCED_FILTER_PARAM: [{
+            "alias": "result",
+            "expression": "len(col1) == 3",
+            "tree": {"operator": "==",
+                      "right": {"raw": "3", "type": "Literal", "value": 3},
+                      "type": "BinaryExpression",
+                     "left": {"type": "CallExpression",
+                               "callee": {
+                                   "type": "Identifier",
+                                   "name": "len"},
+                               "arguments": [{
+                                                 "type": "Identifier",
+                                                 "name": "col1"}]}},
+            "error": 'null'}]
+    }
+    n_in = {'input data': 'input_1'}
+    n_out = {'output data': 'output_1'}
+    instance = FilterOperation(params, named_inputs=n_in, named_outputs=n_out)
+
+    code = instance.generate_code()
+    expected_code = "output_1 = input_1.query(" \
+                    "'(code > 201) and (code2 < 200)')"
+    result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
+    assert result, msg + format_code_comparison(code, expected_code)
+
+
+def test_filter_missing_parameter_filter_failure():
+    params = {
+    }
+    with pytest.raises(ValueError):
+        n_in = {'input data': 'input_1'}
+        n_out = {'output data': 'output_1'}
+        FilterOperation(params, named_inputs=n_in, named_outputs=n_out)
+
+
+

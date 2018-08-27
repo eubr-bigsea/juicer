@@ -8,14 +8,13 @@ import juicer.sklearn.data_operation as io
 import juicer.sklearn.etl_operation as etl
 import juicer.sklearn.feature_operation as feature_extraction
 import juicer.sklearn.geo_operation as geo
-# import juicer.compss.ml_operation
 import juicer.sklearn.associative_operation as associative
 
 import juicer.sklearn.model_operation as model
-import juicer.sklearn.regression_operation
-import juicer.sklearn.text_operation
+import juicer.sklearn.regression_operation as regression
+import juicer.sklearn.text_operation as text_operations
 import juicer.sklearn.clustering_operation as clustering
-import juicer.sklearn.classification_operation
+import juicer.sklearn.classification_operation as classifiers
 import juicer.sklearn.vis_operation as vis_operation
 import networkx as nx
 import os
@@ -279,41 +278,40 @@ class SklearnTranspiler(object):
                                                    stand_config['auth_token'],
                                                    job_id, v.encode('utf8'))
             except Exception as e:
+                print (e)
                 pass
 
     def _assign_operations(self):
         etl_ops = {
-            'add-columns': etl.AddColumnsOperation,  # OK
-            'add-rows': etl.UnionOperation,  # OK
-            'aggregation': etl.AggregationOperation,  # OK
-            'clean-missing': etl.CleanMissingOperation,  # OK --> add threshold
+            'add-columns': etl.AddColumnsOperation,
+            'add-rows': etl.UnionOperation,
+            'aggregation': etl.AggregationOperation,  # TODO: pivot
+            'clean-missing': etl.CleanMissingOperation,
             'difference': etl.DifferenceOperation,
-            'drop': etl.DropOperation,  # OK
-            'filter-selection': etl.FilterOperation,  # OK - Todo:  advanced
-            'join': etl.JoinOperation,  # OK +- --> sufixes problem
-            'projection': etl.SelectOperation,  # OK
-            'remove-duplicated-rows': etl.DistinctOperation,  # OK
-            'replace-value': etl.ReplaceValuesOperation,  # infer type
-            'sample': etl.SampleOrPartition,  # OK
-            'set-intersection': etl.Intersection,  # OK
-            'sort': etl.SortOperation,  # OK
-            'split': etl.SplitOperation,  # OK
-            'transformation': etl.TransformationOperation,  # ERROR --> tahiti
-
+            'drop': etl.DropOperation,
+            'filter-selection': etl.FilterOperation,  # TODO:  advanced
+            'join': etl.JoinOperation,
+            'projection': etl.SelectOperation,
+            'remove-duplicated-rows': etl.DistinctOperation,
+            'replace-value': etl.ReplaceValuesOperation,
+            'sample': etl.SampleOrPartitionOperation,
+            'set-intersection': etl.IntersectionOperation,
+            'sort': etl.SortOperation,
+            'split': etl.SplitOperation,
+            'transformation': etl.TransformationOperation,
+            # TODO in 'transformation': test others functions
         }
 
         data_ops = {
             'data-reader': io.DataReaderOperation,
             'data-writer': io.SaveOperation,
             'save': io.SaveOperation,
-            # 'change-attribute':
-            #     juicer.compss.data_operation.ChangeAttributesOperation,
+            # 'change-attribute': io.ChangeAttributesOperation,
         }
 
         geo_ops = {
-            'read-shapefile': geo.ReadShapefileOperation, # OK
-            'within': geo.GeoWithinOperation, # OK
-
+            'read-shapefile': geo.ReadShapefileOperation,
+            'within': geo.GeoWithinOperation,
         }
 
         ml_ops = {
@@ -342,63 +340,37 @@ class SklearnTranspiler(object):
             # ------ Clustering      -----#
             'clustering-model': clustering.ClusteringModelOperation,  # OK
             'gaussian-mixture-clustering':
-                clustering.GaussianMixtureClusteringOperation,    # OK
+                clustering.GaussianMixtureClusteringOperation,  # OK
             'k-means-clustering': clustering.KMeansClusteringOperation,  # OK
             'lda-clustering': clustering.LdaClusteringOperation,  # OK
 
             # ------ Classification  -----#
-            'classification-model':
-                juicer.sklearn.classification_operation
-                    .ClassificationModelOperation,  # OK
+            'classification-model': classifiers.ClassificationModelOperation,  # OK
             'decision-tree-classifier':
-                juicer.sklearn.classification_operation
-                    .DecisionTreeClassifierOperation,   # OK
-            'gbt-classifier':
-                juicer.sklearn.classification_operation
-                    .GBTClassifierOperation,    # OK
-            'knn-classifier':
-                juicer.sklearn.classification_operation
-                    .KNNClassifierOperation,    # OK
-            'logistic-regression':
-                juicer.sklearn.classification_operation
-                    .LogisticRegressionOperation,   # OK
-            'naive-bayes-classifier':
-                juicer.sklearn.classification_operation
-                    .NaiveBayesClassifierOperation,  # OK
-            'perceptron-classifier':
-                juicer.sklearn.classification_operation
-                    .PerceptronClassifierOperation,  # OK
+                classifiers.DecisionTreeClassifierOperation,   # OK
+            'gbt-classifier': classifiers.GBTClassifierOperation,    # OK
+            'knn-classifier': classifiers.KNNClassifierOperation,    # OK
+            'logistic-regression': classifiers.LogisticRegressionOperation,   # OK
+            'naive-bayes-classifier': classifiers.NaiveBayesClassifierOperation,  # OK
+            'perceptron-classifier': classifiers.PerceptronClassifierOperation,  # OK
             'random-forest-classifier':
-                juicer.sklearn.classification_operation
-                    .RandomForestClassifierOperation,   # OK
-            'svm-classification':
-                juicer.sklearn.classification_operation
-                    .SvmClassifierOperation,    # OK
+                classifiers.RandomForestClassifierOperation,   # OK
+            'svm-classification': classifiers.SvmClassifierOperation,    # OK
 
             # ------ Regression  -----#
-            'regression-model':
-                juicer.sklearn.regression_operation
-                    .RegressionModelOperation,  # OK
-            'linear-regression':
-                juicer.sklearn.regression_operation
-                    .LinearRegressionOperation,  # OK
+            'regression-model': regression.RegressionModelOperation,  # OK
+            'linear-regression': regression.LinearRegressionOperation,  # OK
             'random-forest-regressor':
-                juicer.sklearn.regression_operation.
-                RandomForestRegressorOperation,  # OK
+                regression.RandomForestRegressorOperation,  # OK
             'isotonic-regression':
-                juicer.sklearn.regression_operation
-                    .IsotonicRegressionOperation,  # OK - TODO: 1D
+                regression.IsotonicRegressionOperation,  # OK - TODO: 1D
         }
 
         text_ops = {
-            'generate-n-grams':
-                juicer.sklearn.text_operation.GenerateNGramsOperation,
-            'remove-stop-words':
-                juicer.sklearn.text_operation.RemoveStopWordsOperation,
-            'tokenizer':
-                juicer.sklearn.text_operation.TokenizerOperation,
-            'word-to-vector':
-                juicer.sklearn.text_operation.WordToVectorOperation
+            'generate-n-grams': text_operations.GenerateNGramsOperation,
+            'remove-stop-words': text_operations.RemoveStopWordsOperation,
+            'tokenizer': text_operations.TokenizerOperation,
+            'word-to-vector': text_operations.WordToVectorOperation
         }
 
         other_ops = {

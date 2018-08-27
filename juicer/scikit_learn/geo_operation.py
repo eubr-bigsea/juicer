@@ -30,7 +30,7 @@ class ReadShapefileOperation(Operation):
         self.dbf_file = re.sub('.shp$', '.dbf', self.shp_file)
         self.alias = parameters.get('polygon', 'points')
         self.lat_long = True
-        self.attributes = []
+        self.attributes = parameters.get('attributes', [])
         self.output = self.named_outputs.get(
                 'geo data', 'output_data_{}'.format(self.order))
 
@@ -45,8 +45,8 @@ class ReadShapefileOperation(Operation):
         lat_long = {lat_long}
         header = {header}
 
-        shp_content = open('{shp}', "rb")
-        dbf_content = open('{dbf}', "rb")
+        shp_content = open({shp}, "rb")
+        dbf_content = open({dbf}, "rb")
     
         # shp_io = BytesIO(shp_path)
         # dbf_io = BytesIO(dbf_path)
@@ -106,34 +106,31 @@ class GeoWithinOperation(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-        attributes = [self.TARGET_LAT_COLUMN_PARAM,
-                      self.TARGET_LON_COLUMN_PARAM,
-                      self.POLYGON_POINTS_COLUMN_PARAM]
-
-        for att in attributes:
-            if att not in parameters:
-                raise ValueError(
-                    _("Parameter '{}' must be informed for task {}")
-                    .format(att, self.__class__))
-
-        self.lat_column = parameters[self.TARGET_LAT_COLUMN_PARAM]
-        self.lon_column = parameters[self.TARGET_LON_COLUMN_PARAM]
-        self.polygon_column = parameters.get(self.POLYGON_POINTS_COLUMN_PARAM, 'points')
-        self.attributes = parameters.get(self.POLYGON_ATTR_COLUMN_PARAM, [])
-        if len(self.attributes) == 0:
-            self.attributes = []
-
-        self.alias = parameters.get('alias', 'sector_position')
-
         if len(named_inputs) == 2:
             self.has_code = True
-        else:
-            raise ValueError(
-                _("Parameter '{}' and '{}' must be informed for task {}")
-                .format('input data',  'geo data', self.__class__))
 
-        self.output = self.named_outputs.get(
-            'output data', 'output_data_{}'.format(self.order))
+            attributes = [self.TARGET_LAT_COLUMN_PARAM,
+                          self.TARGET_LON_COLUMN_PARAM,
+                          self.POLYGON_POINTS_COLUMN_PARAM]
+
+            for att in attributes:
+                if att not in parameters:
+                    raise ValueError(
+                        _("Parameter '{}' must be informed for task {}")
+                        .format(att, self.__class__))
+
+            self.lat_column = parameters[self.TARGET_LAT_COLUMN_PARAM]
+            self.lon_column = parameters[self.TARGET_LON_COLUMN_PARAM]
+            self.polygon_column = parameters.get(
+                    self.POLYGON_POINTS_COLUMN_PARAM, 'points')
+            self.attributes = parameters.get(self.POLYGON_ATTR_COLUMN_PARAM, [])
+            if len(self.attributes) == 0:
+                self.attributes = []
+
+            self.alias = parameters.get('alias', '_shp')
+
+            self.output = self.named_outputs.get(
+                'output data', 'output_data_{}'.format(self.order))
 
     def generate_code(self):
         """Generate code."""
