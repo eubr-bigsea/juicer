@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import, print_function
-
+import gzip
 import json
 
 import pytest
@@ -19,30 +18,30 @@ fake_conf = {
 
 
 def debug_instance(instance_wf):
-    print('*' * 20)
-    print(instance_wf.graph.nodes(data=False))
-    print('*' * 21)
-    print(instance_wf.graph.edges())
-    print('*' * 22)
-    print(instance_wf.graph.is_multigraph())
-    print('*' * 23)
-    print(instance_wf.graph.number_of_edges())
-    print('*' * 24)
-    print(instance_wf.sorted_tasks)
-    print('*' * 25)
+    print '*' * 20
+    print instance_wf.graph.nodes(data=False)
+    print '*' * 21
+    print instance_wf.graph.edges()
+    print '*' * 22
+    print instance_wf.graph.is_multigraph()
+    print '*' * 23
+    print instance_wf.graph.number_of_edges()
+    print '*' * 24
+    print instance_wf.sorted_tasks
+    print '*' * 25
     test = instance_wf.graph.reverse()
-    print(test.edges())
-    print('*' * 26)
-    print(instance_wf.graph.in_degree())
-    print(instance_wf.check_in_degree_edges())
-    print('*' * 27)
-    print(instance_wf.graph.out_degree())
-    print(instance_wf.check_out_degree_edges())
-    print('*' * 28)
-    x = instance_wf.get_operations()[0]
-    print(x['ports'])
+    print test.edges()
+    print '*' * 26
+    print instance_wf.graph.in_degree()
+    print instance_wf.check_in_degree_edges()
+    print '*' * 27
+    print instance_wf.graph.out_degree()
+    print instance_wf.check_out_degree_edges()
+    print '*' * 28
+    x = instance_wf._get_operations()[0]
+    print x['ports']
 
-    # print(instance_wf.get_ports_from_operation_tasks(''))
+    # print instance_wf.get_ports_from_operation_tasks('')
     # Show image
     # pos = nx.spring_layout(instance_wf.graph)
     # pos = nx.fruchterman_reingold_layout(instance_wf.graph)
@@ -57,62 +56,39 @@ def debug_instance(instance_wf):
     # bbox_inches=None, pad_inches=0.1)
 
 
-@pytest.mark.skip(reason="Not working")
-def test_workflow_sequence_missing_outdegree_edge_failure():
-    workflow_test = json.load(
-        open("./tests/workflow/fixtures/workflow_missing_out_degree_edge.txt"),
-        encoding='utf-8')
+def fake_query_operations(operations):
+    def q():
+        return operations
 
-    instance_wf = Workflow(workflow_test, fake_conf)
-
-    with pytest.raises(AttributeError):
-        instance_wf.check_out_degree_edges()
+    return q
 
 
-@pytest.mark.skip(reason="Not working")
-def test_workflow_sequence_outdegree_edge_success():
-    workflow_test = json.load(
-        open("./tests/workflow/fixtures/workflow_out_degree_edge_success.txt"),
-        encoding='utf-8')
+def fake_query_data_sources(data_sources):
+    def q():
+        for v in data_sources:
+            yield v
 
-    instance_wf = Workflow(workflow_test, fake_conf)
-
-    assert True == instance_wf.check_out_degree_edges()
-
-
-@pytest.mark.skip(reason="Not working")
-def test_workflow_sequence_indegree_edge_success():
-    workflow_test = json.load(
-        open("./tests/workflow/fixtures/workflow_in_degree_edge_success.txt"),
-        encoding='utf-8')
-    instance_wf = Workflow(workflow_test, fake_conf)
-
-    # print(debug_instance(instance_wf))
-    assert True == instance_wf.check_in_degree_edges()
-
-
-@pytest.mark.skip(reason="Not working")
-def test_workflow_sequence_missing_indegree_edge_failure():
-    workflow_test = json.load(
-        open("./tests/workflow/fixtures/workflow_missing_in_degree_edge.txt"),
-        encoding='utf-8')
-
-    instance_wf = Workflow(workflow_test, fake_conf)
-
-    with pytest.raises(AttributeError):
-        instance_wf.check_in_degree_edges()
+    return q
 
 
 @pytest.mark.skip(reason="Not working")
 def test_workflow_sequence_success():
-    # workflow_completo
-    workflow_test = json.load(
-        open("./tests/workflow/fixtures/workflow_correct_changedid.txt"),
-        encoding='utf-8')
+    # Complete workflow
+    fixture = "./tests/workflow/fixtures/"
+    with open(fixture + 'workflow_correct_changedid.txt') as f:
+        workflow_test = json.load(f, encoding='utf-8')
 
-    instance_wf = Workflow(workflow_test, fake_conf)
+    with gzip.open(fixture + 'operations.json.gz') as g:
+        ops = json.load(g, encoding='utf-8')
 
-    # print(debug_instance(instance_wf))
+    instance_wf = Workflow(
+        workflow_test, fake_conf,
+        query_operations=fake_query_operations(ops),
+        query_data_sources=fake_query_data_sources(
+            [
+                {"id": 1, 'attributes': []}
+            ])
+    )
     assert instance_wf
 
 
@@ -146,16 +122,6 @@ def test_workflow_parcial_execution_success():
         # open("./tests/workflow/fixtures/workflow_parcial_execution_missing_1_input.txt"),
         encoding='utf-8')
 
-    Workflow.get_operations = lambda s, conf: {}
+    Workflow._get_operations = lambda s, conf: {}
     instance_wf = Workflow(workflow_test, fake_conf)
     assert instance_wf
-
-
-# @CHECK requirements
-def test_workflow_sequence_multiplicity_many_success():
-    return 0
-
-
-# @CHECK requirements
-def test_workflow_sequence_multiplicity_one_success():
-    return 0
