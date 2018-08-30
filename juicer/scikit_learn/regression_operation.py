@@ -99,15 +99,140 @@ class RegressionModelOperation(Operation):
 
             return dedent(code)
 
+#TODO: ZIP
+class GradientBoostingRegressorOperation(RegressionOperation):
+    LEARNING_RATE_PARAM = 'learning_rate'
+    N_ESTIMATORS_PARAM = 'n_estimators'
+    MAX_DEPTH_PARAM = 'max_depth'
+    MIN_SPLIT_PARAM = 'min_samples_split'
+    MIN_LEAF_PARAM = 'min_samples_leaf'
+    SEED_PARAM = 'seed'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        RegressionOperation.__init__(self, parameters, named_inputs,
+                                     named_outputs)
+
+        self.name = 'regression.GradientBoostingRegressor'
+        self.has_code = len(named_outputs) > 0
+
+        if self.has_code:
+            self.learning_rate = parameters.get(
+                    self.LEARNING_RATE_PARAM, 0.1) or 0.1
+            self.n_estimators = parameters.get(
+                    self.N_ESTIMATORS_PARAM, 100) or 100
+            self.max_depth = parameters.get(
+                    self.MAX_DEPTH_PARAM, 3) or 3
+            self.min_samples_split = parameters.get(
+                    self.MIN_SPLIT_PARAM, 2) or 2
+            self.min_samples_leaf = parameters.get(
+                    self.MIN_LEAF_PARAM, 1) or 1
+            self.seed = parameters.get(self.SEED_PARAM, 'None')
+
+            for var in [self.learning_rate, self.n_estimators,
+                        self.max_depth, self.min_samples_leaf,
+                        self.min_samples_split]:
+                if var <= 0:
+                    raise ValueError(
+                            _("Parameter '{}' must be x>0 for task {}").format(
+                                    var, self.__class__))
+
+    def generate_code(self):
+        code = dedent("""
+        from sklearn.ensemble import GradientBoostingRegressor
+        {output} = GradientBoostingRegressor(learning_rate={learning_rate},
+        n_estimators={n_estimators}, max_depth={max_depth}, 
+        min_samples_split={min_samples_split}, 
+        min_samples_leaf={min_samples_leaf}, random_state={seed})""".format(
+                output=self.output, learning_rate=self.learning_rate,
+                n_estimators=self.n_estimators, max_depth=self.max_depth,
+                seed=self.seed, min_samples_split=self.min_samples_split,
+                min_samples_leaf=self.min_samples_leaf))
+        return code
+
+
+class HuberRegressorOperation(RegressionOperation):
+
+    """
+    Linear regression model that is robust to outliers.
+    """
+
+    EPSILON_PARAM = 'epsilon'
+    MAX_ITER_PARAM = 'max_iter'
+    ALPHA_PARAM = 'alpha'
+    TOLERANCE_PARAM = 'tol'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        RegressionOperation.__init__(self, parameters, named_inputs,
+                                     named_outputs)
+        self.parameters = parameters
+        self.name = 'regression.HuberRegressor'
+        self.has_code = len(self.named_outputs) > 0
+
+        if self.has_code:
+            self.epsilon = parameters.get(self.EPSILON_PARAM, 1.35) or 1.35
+            self.max_iter = parameters.get(self.MAX_ITER_PARAM, 100) or 100
+            self.alpha = parameters.get(self.ALPHA_PARAM, 0.0001) or 0.0001
+            self.tol = parameters.get(self.TOLERANCE_PARAM, 0.00001) or 0.00001
+
+            for var in [self.max_iter, self.alpha, self.tol]:
+                if var <= 0:
+                    raise ValueError(
+                            _("Parameter '{}' must be x>0 for task {}").format(
+                                    var, self.__class__))
+
+            if self.epsilon <= 1.0:
+                raise ValueError(
+                        _("Parameter '{}' must be x>1.0 for task {}").format(
+                                var, self.__class__))
+
+    def generate_code(self):
+        code = dedent("""
+            from sklearn.linear_model import HuberRegressor
+            {output} = HuberRegressor(epsilon={epsilon},
+                max_iter={max_iter}, alpha={alpha},
+                tol={tol})
+            """).format(output=self.output,
+                        epsilon=self.epsilon,
+                        alpha=self.alpha,
+                        max_iter=self.max_iter,
+                        tol=self.tol)
+
+        return code
+
+
+class IsotonicRegressionOperation(RegressionOperation):
+    """
+        Only univariate (single feature) algorithm supported
+    """
+    ISOTONIC_PARAM = 'isotonic'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        RegressionOperation.__init__(self, parameters, named_inputs,
+                                     named_outputs)
+        self.parameters = parameters
+        self.name = 'regression.IsotonicRegression'
+        self.has_code = len(self.named_outputs) > 0
+
+        if self.has_code:
+            self.isotonic = parameters.get(
+                self.ISOTONIC_PARAM, True) in (1, '1', 'true', True)
+
+    def generate_code(self):
+        code = dedent("""
+        from sklearn.isotonic import IsotonicRegression
+        {output} = IsotonicRegression(increasing={isotonic})
+        """).format(output=self.output, isotonic=self.isotonic)
+        return code
+
 
 class LinearRegressionOperation(RegressionOperation):
+
+    ALPHA_PARAM = 'alpha'
+    ELASTIC_NET_PARAM = 'l1_ratio'
+    NORMALIZE_PARAM = 'normalize'
     MAX_ITER_PARAM = 'max_iter'
-    WEIGHT_COL_PARAM = 'weight'
-    REG_PARAM = 'reg_param'
-    ELASTIC_NET_PARAM = 'elastic_net'
-    SOLVER_PARAM = 'solver'
-    TYPE_SOLVER_AUTO = 'auto'
-    TYPE_SOLVER_NORMAL = 'normal'
+    TOLERANCE_PARAM = 'tol'
+    SEED_PARAM = 'seed'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         RegressionOperation.__init__(self, parameters, named_inputs,
@@ -117,99 +242,153 @@ class LinearRegressionOperation(RegressionOperation):
         self.has_code = len(named_outputs) > 0
 
         if self.has_code:
-            self.max_iter = parameters.get(self.MAX_ITER_PARAM, 10) or 10
-            self.reg_param = parameters.get(self.REG_PARAM, 0.1) or 0.0
-            self.weight_col = parameters.get(self.WEIGHT_COL_PARAM, None)
-
-            self.solver = parameters.get(self.SOLVER_PARAM,
-                                         self.TYPE_SOLVER_AUTO)
+            self.alpha = parameters.get(self.ALPHA_PARAM, 1.0) or 1.0
             self.elastic = parameters.get(self.ELASTIC_NET_PARAM,
-                                          0.0) or 0.0
+                                          0.5) or 0.5
+            self.normalize = self.parameters.get(self.NORMALIZE_PARAM,
+                                                 True) in (1, '1', 'true', True)
+            self.max_iter = parameters.get(self.MAX_ITER_PARAM, 1000) or 1000
+            self.tol = self.parameters.get(
+                    self.TOLERANCE_PARAM, 0.0001) or 0.0001
+            self.seed = self.parameters.get(self.SEED_PARAM, 'None')
+
+            for var in [self.alpha, self.max_iter, self.tol]:
+                if var <= 0:
+                    raise ValueError(
+                            _("Parameter '{}' must be x>0 for task {}").format(
+                                    var, self.__class__))
+
+            if 0 > self.elastic > 1:
+                raise ValueError(
+                        _("Parameter '{}' must be 0<=x<=1 for task {}").format(
+                                self.ELASTIC_NET_PARAM, self.__class__))
 
     def generate_code(self):
         code = dedent("""
         from sklearn.linear_model import ElasticNet
-        {output} = ElasticNet(alpha={reg_param}, l1_ratio={elastic},
-         max_iter={max_iter})""").format(
-            output=self.output,
-            max_iter=self.max_iter,
-            reg_param=self.reg_param,
-            elastic=self.elastic,
-        )
+        {output} = ElasticNet(alpha={alpha}, l1_ratio={elastic}, tol={tol},
+                              max_iter={max_iter}, random_state={seed},
+                              normalize={normalize})""".format(
+                output=self.output, max_iter=self.max_iter,
+                alpha=self.alpha, elastic=self.elastic,
+                seed=self.seed, tol=self.tol, normalize=self.normalize))
         return code
-
 
 
 class RandomForestRegressorOperation(RegressionOperation):
 
+    """
+    A random forest is a meta estimator that fits a number of classifying
+    decision trees on various sub-samples of the dataset and use averaging
+    to improve the predictive accuracy and control over-fitting.
+    """
+
+    N_ESTIMATORS_PARAM = 'n_estimators'
+    MAX_FEATURES_PARAM = 'max_features'
     MAX_DEPTH_PARAM = 'max_depth'
-    MAX_BINS_PARAM = 'max_bins'
-    MIN_INFO_GAIN_PARAM = 'min_info_gain'
-    NUM_TREES_PARAM = 'num_trees'
-    FEATURE_SUBSET_STRATEGY_PARAM = 'feature_subset_strategy'
+    MIN_SPLIT_PARAM = 'min_samples_split'
+    MIN_LEAF_PARAM = 'min_samples_leaf'
+    SEED_PARAM = 'seed'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         RegressionOperation.__init__(self, parameters, named_inputs,
                                      named_outputs)
         self.parameters = parameters
         self.name = 'regression.RandomForestRegressor'
-        self.has_code = any(
-            [len(self.named_outputs) > 0, self.contains_results()])
+        self.has_code = len(self.named_outputs) > 0
 
         if self.has_code:
-            self.max_depth = parameters.get(self.MAX_DEPTH_PARAM, 5) or 5
-            self.max_bins = parameters.get(self.MAX_BINS_PARAM, 32) or 32
-            self.min_info_gain = parameters.get(self.MIN_INFO_GAIN_PARAM,
-                                                0.0) or 0.0
-            self.num_trees = parameters.get(self.NUM_TREES_PARAM, 20) or 20
-            self.feature_subset_strategy = parameters.get(
-                self.FEATURE_SUBSET_STRATEGY_PARAM, 'auto')
-            # self.feature_subset_strategy = 'auto', 'sqrt', log2', None
+            self.n_estimators = parameters.get(
+                    self.N_ESTIMATORS_PARAM, 10) or 10
+            self.max_features = parameters.get(
+                    self.MAX_FEATURES_PARAM, 'auto') or 'auto'
+            self.max_depth = parameters.get(self.MAX_DEPTH_PARAM, 3) or 3
+            self.min_samples_split = parameters.get(
+                    self.MIN_SPLIT_PARAM, 2) or 2
+            self.min_samples_leaf = parameters.get(
+                    self.MIN_LEAF_PARAM, 1) or 1
+            self.seed = parameters.get(self.SEED_PARAM, 'None')
+
+            for var in [self.max_depth, self.n_estimators,
+                        self.min_samples_split, self.min_samples_leaf]:
+                if var <= 0:
+                    raise ValueError(
+                            _("Parameter '{}' must be x>0 for task {}").format(
+                                    var, self.__class__))
 
     def generate_code(self):
         code = dedent("""
             from sklearn.ensemble import RandomForestRegressor
-            {output} = RandomForestRegressor(
+            {output} = RandomForestRegressor(n_estimators={n_estimators},
+                max_features='{max_features}',
                 max_depth={max_depth},
-                min_samples_split={max_bins},
-                min_impurity_decrease={min_info_gain},
-                n_estimators={num_trees},
-                max_features='{feature_subset_strategy}')
+                min_samples_split={min_samples_split},
+                min_samples_leaf={min_samples_leaf},
+                random_state={seed})
             """).format(output=self.output,
+                        n_estimators=self.n_estimators,
+                        max_features=self.max_features,
                         max_depth=self.max_depth,
-                        max_bins=self.max_bins,
-                        min_info_gain=self.min_info_gain,
-                        num_trees=self.num_trees,
-                        feature_subset_strategy=self.feature_subset_strategy)
+                        min_samples_split=self.min_samples_split,
+                        min_samples_leaf=self.min_samples_leaf,
+                        seed=self.seed)
+
         return code
 
 
-class IsotonicRegressionOperation(RegressionOperation):
+class SGDRegressorOperation(RegressionOperation):
+
     """
-        Only univariate (single feature) algorithm supported
+    Linear model fitted by minimizing a regularized empirical loss with
+    Stochastic Gradient Descent.
     """
-    WEIGHT_COL_PARAM = 'weight'
-    ISOTONIC_PARAM = 'isotonic'
+
+    ALPHA_PARAM = 'alpha'
+    ELASTIC_PARAM = 'l1_ratio'
+    MAX_ITER_PARAM = 'max_iter'
+    TOLERANCE_PARAM = 'tol'
+    SEED_PARAM = 'seed'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         RegressionOperation.__init__(self, parameters, named_inputs,
                                      named_outputs)
         self.parameters = parameters
-        self.name = 'regression.IsotonicRegression'
-        self.has_code = any(
-            [len(self.named_outputs) > 0, self.contains_results()])
+        self.name = 'regression.SGDRegressor'
+        self.has_code = len(self.named_outputs) > 0
 
         if self.has_code:
-            self.weight_col = parameters.get(self.WEIGHT_COL_PARAM, None)
-            self.isotonic = parameters.get(
-                self.ISOTONIC_PARAM, True) in (1, '1', 'true', True)
+            self.alpha = parameters.get(
+                    self.ALPHA_PARAM, 0.0001) or 0.0001
+            self.l1_ratio = parameters.get(
+                    self.ELASTIC_PARAM, 0.15) or 0.15
+            self.max_iter = parameters.get(self.MAX_ITER_PARAM, 1000) or 1000
+            self.tol = parameters.get(
+                    self.TOLERANCE_PARAM, 0.001) or 0.001
+            self.seed = parameters.get(self.SEED_PARAM, 'None')
+
+            for var in [self.alpha, self.max_iter, self.tol]:
+                if var <= 0:
+                    raise ValueError(
+                            _("Parameter '{}' must be x>0 for task {}").format(
+                                    var, self.__class__))
+
+            if 0 > self.l1_ratio > 1:
+                raise ValueError(
+                        _("Parameter '{}' must be 0<=x<=1 for task {}").format(
+                                self.ELASTIC_PARAM, self.__class__))
 
     def generate_code(self):
         code = dedent("""
-        from sklearn.isotonic import IsotonicRegression
-        {output} = IsotonicRegression(increasing={isotonic})
-        """).format(output=self.output,
-                    isotonic=self.isotonic, )
-        return code
+            from sklearn.linear_model import SGDRegressor
+            {output} = SGDRegressor(alpha={alpha},
+                l1_ratio={l1_ratio}, max_iter={max_iter},
+                tol={tol}, random_state={seed})
+            """).format(output=self.output,
+                        alpha=self.alpha,
+                        l1_ratio=self.l1_ratio,
+                        max_iter=self.max_iter,
+                        tol=self.tol,
+                        seed=self.seed)
 
+        return code
 
