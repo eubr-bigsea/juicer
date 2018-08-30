@@ -236,6 +236,7 @@ class LogisticRegressionOperation(Operation):
 
             self.tol = self.parameters.get(self.TOLERANCE_PARAM,
                                            0.0001) or 0.0001
+            self.tol = abs(self.tol)
             self.regularization = self.parameters.get(self.REGULARIZATION_PARAM,
                                                       1.0) or 1.0
             self.max_iter = self.parameters.get(self.MAX_ITER_PARAM,
@@ -245,9 +246,8 @@ class LogisticRegressionOperation(Operation):
                     self.SOLVER_PARAM, self.SOLVER_PARAM_LINEAR)\
                 or self.SOLVER_PARAM_LINEAR
 
-            vals = [self.regularization, self.max_iter, self.tol]
-            atts = [self.REGULARIZATION_PARAM, self.MAX_ITER_PARAM,
-                    self.TOLERANCE_PARAM]
+            vals = [self.regularization, self.max_iter]
+            atts = [self.REGULARIZATION_PARAM, self.MAX_ITER_PARAM]
             for var, att in zip(vals, atts):
                 if var <= 0:
                     raise ValueError(
@@ -349,14 +349,15 @@ class PerceptronClassifierOperation(Operation):
             self.max_iter = parameters.get(self.MAX_ITER_PARAM, 1000) or 1000
             self.alpha = parameters.get(self.ALPHA_PARAM, 0.0001) or 0.0001
             self.tol = parameters.get(self.TOLERANCE_PARAM, 0.001) or 0.001
+            self.tol = abs(self.tol)
             self.shuffle = parameters.get(self.SHUFFLE_PARAM, False) or False
             self.seed = parameters.get(self.SEED_PARAM, 'None') or 'None'
             self.penalty = parameters.get(
                     self.PENALTY_PARAM,
                     self.PENALTY_PARAM_NONE) or self.PENALTY_PARAM_NONE
 
-            vals = [self.max_iter, self.alpha, self.tol]
-            atts = [self.MAX_ITER_PARAM, self.ALPHA_PARAM, self.TOLERANCE_PARAM]
+            vals = [self.max_iter, self.alpha]
+            atts = [self.MAX_ITER_PARAM, self.ALPHA_PARAM]
             for var, att in zip(vals, atts):
                 if var <= 0:
                     raise ValueError(
@@ -446,7 +447,6 @@ class SvmClassifierOperation(Operation):
     KERNEL_PARAM_POLY = 'poly'
     KERNEL_PARAM_SIG = 'sigmoid'
 
-
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
 
@@ -457,8 +457,8 @@ class SvmClassifierOperation(Operation):
                                   'algorithm_tmp_{}'.format(self.order))
 
             self.max_iter = parameters.get(self.MAX_ITER_PARAM, -1)
-            self.tolerance = parameters.get(self.TOLERANCE_PARAM,
-                                            0.001) or 0.001
+            self.tol = parameters.get(self.TOLERANCE_PARAM, 0.001) or 0.001
+            self.tol = abs(self.tol)
             self.seed = parameters.get(self.SEED_PARAM, 'None') or 'None'
             self.degree = parameters.get(self.DEGREE_PARAM, 3) or 3
             self.kernel = parameters.get(
@@ -466,8 +466,8 @@ class SvmClassifierOperation(Operation):
                     self.KERNEL_PARAM_RBF) or self.KERNEL_PARAM_RBF
             self.c = parameters.get(self.PENALTY_PARAM, 1.0) or 1.0
 
-            vals = [self.tolerance, self.degree, self.c]
-            atts = [self.TOLERANCE_PARAM, self.DEGREE_PARAM, self.PENALTY_PARAM]
+            vals = [self.degree, self.c]
+            atts = [self.DEGREE_PARAM, self.PENALTY_PARAM]
             for var, att in zip(vals, atts):
                 if var <= 0:
                     raise ValueError(
@@ -478,9 +478,9 @@ class SvmClassifierOperation(Operation):
         """Generate code."""
         code = """
         from sklearn.svm import SVC
-        {output} = SVC(tol={tolerance}, C={c}, max_iter={max_iter}, 
+        {output} = SVC(tol={tol}, C={c}, max_iter={max_iter}, 
                        degree={degree}, kernel='{kernel}', random_state={seed})
-        """.format(tolerance=self.tolerance, c=self.c, max_iter=self.max_iter,
+        """.format(tol=self.tol, c=self.c, max_iter=self.max_iter,
                    degree=self.degree, kernel=self.kernel, seed=self.seed,
                    output=self.output)
         return dedent(code)

@@ -66,21 +66,122 @@ class ClusteringModelOperation(Operation):
         return dedent(code)
 
 
-class GaussianMixtureClusteringOperation(Operation):
-    K_PARAM = 'number_of_clusters'
-    MAX_ITERATIONS_PARAM = 'max_iterations'
-    TOLERANCE_PARAMETER = 'tolerance'
+class AgglomerativeClusteringOperation(Operation):
+    N_CLUSTERS_PARAM = 'number_of_clusters'
+    LINKAGE_PARAM = 'linkage'
+    AFFINITY_PARAM = 'affinity'
+
+    AFFINITY_PARAM_EUCL = 'euclidean'
+    AFFINITY_PARAM_L1 = 'l1'
+    AFFINITY_PARAM_L2 = 'l2'
+    AFFINITY_PARAM_MA = 'manhattan'
+    AFFINITY_PARAM_COS = 'cosine'
+
+    LINKAGE_PARAM_WARD = 'ward'
+    LINKAGE_PARAM_COMP = 'complete'
+    LINKAGE_PARAM_AVG = 'average'
 
     def __init__(self, parameters, named_inputs,
                  named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
-        self.number_of_clusters = parameters.get(self.K_PARAM, 10)
-        self.max_iterations = parameters.get(self.MAX_ITERATIONS_PARAM, 10)
-        self.tolerance = float(parameters.get(self.TOLERANCE_PARAMETER, 0.001))
 
         self.has_code = len(named_outputs) > 0
+        if self.has_code:
+            self.output = named_outputs.get(
+                    'algorithm', 'clustering_algorithm_{}'.format(self.order))
+            self.n_clusters = parameters.get(self.N_CLUSTERS_PARAM, 2) or 2
+            self.linkage = parameters.get(
+                    self.LINKAGE_PARAM,
+                    self.LINKAGE_PARAM_WARD) or self.LINKAGE_PARAM_WARD
+            self.affinity = parameters.get(
+                    self.AFFINITY_PARAM,
+                    self.AFFINITY_PARAM_EUCL) or self.AFFINITY_PARAM_EUCL
 
-        self.output = named_outputs.get('algorithm')
+            if self.n_clusters <= 0:
+                raise ValueError(
+                        _("Parameter '{}' must be x>0 for task {}").format(
+                                self.N_CLUSTERS_PARAM, self.__class__))
+
+    def generate_code(self):
+        """Generate code."""
+        code = """
+        from sklearn.cluster import AgglomerativeClustering
+        {output} = AgglomerativeClustering(n_clusters={n_clusters},
+            affinity='{affinity}', linkage='{linkage}')
+        """.format(n_clusters=self.n_clusters,
+                   affinity=self.affinity, linkage=self.linkage,
+                   output=self.output)
+
+        return dedent(code)
+
+
+class DBSCANClusteringOperation(Operation):
+    EPS_PARAM = 'eps'
+    MIN_SAMPLES_PARAM = 'min_samples'
+
+    def __init__(self, parameters, named_inputs,
+                 named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+
+        self.has_code = len(named_outputs) > 0
+        if self.has_code:
+            self.output = named_outputs.get(
+                    'algorithm', 'clustering_algorithm_{}'.format(self.order))
+            self.eps = parameters.get(
+                    self.EPS_PARAM, 0.5) or 0.5
+            self.min_samples = parameters.get(self.MIN_SAMPLES_PARAM, 5) or 5
+
+            vals = [self.eps, self.min_samples]
+            atts = [self.EPS_PARAM, self.MIN_SAMPLES_PARAM]
+            for var, att in zip(vals, atts):
+                if var <= 0:
+                    raise ValueError(
+                            _("Parameter '{}' must be x>0 for task {}").format(
+                                    att, self.__class__))
+
+    def generate_code(self):
+        """Generate code."""
+        code = """
+        from sklearn.cluster import DBSCAN
+        {output} = DBSCAN(eps={eps}, min_samples={min_samples})
+        """.format(eps=self.eps, min_samples=self.min_samples,
+                   output=self.output)
+
+        return dedent(code)
+
+
+class GaussianMixtureClusteringOperation(Operation):
+    N_CLUSTERS_PARAM = 'number_of_clusters'
+    MAX_ITER_PARAM = 'max_iterations'
+    TOLERANCE_PARAM = 'tolerance'
+
+    def __init__(self, parameters, named_inputs,
+                 named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+
+        self.has_code = len(named_outputs) > 0
+        if self.has_code:
+            self.output = named_outputs.get(
+                    'algorithm', 'clustering_algorithm_{}'.format(self.order))
+            self.number_of_clusters = parameters.get(
+                    self.N_CLUSTERS_PARAM, 1) or 1
+            self.max_iterations = parameters.get(self.MAX_ITER_PARAM,
+                                                 100) or 100
+            self.tolerance = parameters.get(self.TOLERANCE_PARAM,
+                                            0.001) or 0.001
+
+            vals = [self.number_of_clusters, self.max_iterations]
+            atts = [self.N_CLUSTERS_PARAM, self.MAX_ITER_PARAM]
+            for var, att in zip(vals, atts):
+                if var <= 0:
+                    raise ValueError(
+                            _("Parameter '{}' must be x>0 for task {}").format(
+                                    att, self.__class__))
+
+            if self.tolerance < 0:
+                raise ValueError(
+                        _("Parameter '{}' must be x>=0 for task {}").format(
+                                self.TOLERANCE_PARAM, self.__class__))
 
     def generate_code(self):
         """Generate code."""
@@ -96,103 +197,128 @@ class GaussianMixtureClusteringOperation(Operation):
 
 class KMeansClusteringOperation(Operation):
 
+    N_CLUSTERS_PARAM = 'n_clusters'
+    INIT_PARAM = 'init'
+    MAX_ITER_PARAM = 'max_iter'
+    TOLERANCE_PARAM = 'tolerance'
+    TYPE_PARAM = 'type'
+    SEED_PARAM = 'seed'
+
+    INIT_PARAM_RANDOM = 'random'
+    INIT_PARAM_KM = 'k-means++'
+    TYPE_PARAM_KMEANS = 'K-Means'
+    TYPE_PARAM_MB = 'Mini-Batch K-Means'
+
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
 
-        attributes = ['number_of_clusters', 'max_iterations', 'init_mode']
-        for att in attributes:
-            if att not in parameters:
+        self.has_code = len(named_outputs) > 0
+        if self.has_code:
+            self.output = named_outputs.get(
+                    'algorithm', 'clustering_algorithm_{}'.format(self.order))
+
+            self.n_clusters = parameters.get(self.N_CLUSTERS_PARAM, 8) or 8
+            self.max_iter = parameters.get(self.MAX_ITER_PARAM, 300) or 300
+            self.init_mode = parameters.get(
+                    self.INIT_PARAM, self.INIT_PARAM_KM) or self.INIT_PARAM_KM
+            self.tolerance = parameters.get(self.TOLERANCE_PARAM, 0.001)
+            self.tolerance = abs(self.tolerance)
+            self.seed = parameters.get(self.SEED_PARAM, 'None') or 'None'
+            self.type = parameters.get(
+                    self.TYPE_PARAM,
+                    self.TYPE_PARAM_KMEANS) or self.TYPE_PARAM_KMEANS
+
+            vals = [self.n_clusters, self.max_iter]
+            atts = [self.N_CLUSTERS_PARAM, self.MAX_ITER_PARAM]
+            for var, att in zip(vals, atts):
+                if var <= 0:
+                    raise ValueError(
+                            _("Parameter '{}' must be x>0 for task {}").format(
+                                    att, self.__class__))
+
+            if self.tolerance < 0:
                 raise ValueError(
-                    _("Parameter '{}' must be informed for task {}")
-                    .format(att, self.__class__))
-
-        self.K = parameters['number_of_clusters']
-        self.maxIters = parameters['max_iterations']
-        self.init_mode = parameters.get('init_mode', 'k-means++')
-        if self.init_mode == "k-means||":
-            self.init_mode = "k-means++"
-        self.epsilon = parameters.get('tolerance', 0.001)
-        self.type = parameters.get('type', "kmeans")
-        self.has_code = len(named_outputs) >= 1
-
-        self.output = named_outputs.get('algorithm')
+                        _("Parameter '{}' must be x>=0 for task {}").format(
+                                self.TOLERANCE_PARAM, self.__class__))
 
     def generate_code(self):
         """Generate code."""
-        if self.type == "kmeans":
+        if self.type.lower() == "k-means":
             code = """
             from sklearn.cluster import KMeans
             {output} = KMeans(n_clusters={k}, init='{init}',
-                max_iter={it}, tol={ep})
-            """.format(k=self.K, it=self.maxIters, ep=self.epsilon,
-                       init=self.init_mode, output=self.output)
-        elif self.type == 'bisecting':
-            code = ""
+                max_iter={max_iter}, tol={tol}, random_state={seed})
+            """.format(k=self.n_clusters, max_iter=self.max_iter,
+                       tol=self.tolerance, init=self.init_mode,
+                       output=self.output, seed=self.seed)
+        else:
+            code = """
+            from sklearn.cluster import MiniBatchKMeans
+            {output} = MiniBatchKMeans(n_clusters={k}, init='{init}',
+                max_iter={max_iter}, tol={tol}, random_state={seed})
+            """.format(k=self.n_clusters, max_iter=self.max_iter,
+                       tol=self.tolerance, init=self.init_mode,
+                       output=self.output, seed=self.seed)
         return dedent(code)
 
 
 class LdaClusteringOperation(Operation):
-    NUMBER_OF_TOPICS_PARAM = 'number_of_topics'
-    OPTIMIZER_PARAM = 'optimizer'
-    MAX_ITERATIONS_PARAM = 'max_iterations'
-    DOC_CONCENTRATION_PARAM = 'doc_concentration'
-    TOPIC_CONCENTRATION_PARAM = 'topic_concentration'
+    N_COMPONENTES_PARAM = 'n_components'
+    ALPHA_PARAM = 'doc_topic_pior'
+    ETA_PARAM = 'topic_word_prior'
+    LEARNING_METHOD_PARAM = 'learning_method'
+    MAX_ITER_PARAM = 'max_iter'
+    SEED_PARAM = 'seed'
 
-    ONLINE_OPTIMIZER = 'online'
-    EM_OPTIMIZER = 'em'
+    LEARNING_METHOD_ON = 'online'
+    LEARNING_METHOD_BA = 'batch'
 
     def __init__(self, parameters, named_inputs, named_outputs):
-        Operation.__init__(self, parameters, named_inputs,
-                                     named_outputs)
-        self.output = named_outputs.get('algorithm')
-        self.number_of_clusters = int(parameters.get(
-            self.NUMBER_OF_TOPICS_PARAM, 10))
-        self.optimizer = parameters.get(self.OPTIMIZER_PARAM,
-                                        self.ONLINE_OPTIMIZER)
-        if self.optimizer not in [self.ONLINE_OPTIMIZER, self.EM_OPTIMIZER]:
-            raise ValueError(
-                _('Invalid optimizer value {} for class {}').format(
-                    self.optimizer, self.__class__))
-        if self.optimizer == 'em':
-            self.optimizer = 'batch'
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-        self.max_iterations = parameters.get(self.MAX_ITERATIONS_PARAM, 10)
-
-        self.doc_concentration = parameters.get(self.DOC_CONCENTRATION_PARAM)
-        if len(self.doc_concentration) == 0:
-            self.doc_concentration = None
-
-        self.topic_concentration = parameters.get(
-            self.TOPIC_CONCENTRATION_PARAM)
-
-        if len(self.topic_concentration) == 0:
-            self.topic_concentration = None
-
-        if self.doc_concentration:
-            try:
-                doc_concentration = [float(v) for v in
-                                     str(self.doc_concentration).split(',') if
-                                     v.strip()]
-                print (doc_concentration)
-            except Exception as e:
-                raise ValueError(
-                    _('Invalid document concentration: {}. It must be a single '
-                      'decimal value or a list of decimal numbers separated by '
-                      'comma.').format(
-                        self.doc_concentration))
         self.has_code = len(named_outputs) > 0
+        if self.has_code:
+            self.output = named_outputs.get(
+                    'algorithm', 'clustering_algorithm_{}'.format(self.order))
+            self.n_clusters = parameters.get(
+                    self.N_COMPONENTES_PARAM, 10) or self.N_COMPONENTES_PARAM
+            self.learning_method = parameters.get(
+                    self.LEARNING_METHOD_PARAM,
+                    self.LEARNING_METHOD_ON) or self.LEARNING_METHOD_ON
+            self.max_iter = parameters.get(self.MAX_ITER_PARAM, 10) or 10
+
+            self.doc_topic_pior = \
+                parameters.get(self.ALPHA_PARAM, 'None') or 'None'
+            self.topic_word_prior = parameters.get(self.ETA_PARAM,
+                                                   'None') or 'None'
+
+            self.seed = parameters.get(self.SEED_PARAM, 'None') or 'None'
+
+            if self.learning_method not in [self.LEARNING_METHOD_ON,
+                                            self.LEARNING_METHOD_BA]:
+                raise ValueError(
+                    _('Invalid optimizer value {} for class {}').format(
+                        self.learning_method, self.__class__))
+
+            vals = [self.n_clusters, self.max_iter]
+            atts = [self.N_COMPONENTES_PARAM, self.MAX_ITER_PARAM]
+            for var, att in zip(vals, atts):
+                if var <= 0:
+                    raise ValueError(
+                            _("Parameter '{}' must be x>0 for task {}").format(
+                                    att, self.__class__))
 
     def generate_code(self):
         """Generate code."""
         code = """
         from sklearn.decomposition import LatentDirichletAllocation
-        {output} = LatentDirichletAllocation(n_components={k}, 
-        doc_topic_prior={doc}, topic_word_prior={topic}, 
-        learning_method='{learning_method}', max_iter={iter})
-        """.format(k=self.number_of_clusters, iter=self.max_iterations,
-                   topic=self.topic_concentration,
-                   doc=self.doc_concentration,
-                   learning_method=self.optimizer,
+        {output} = LatentDirichletAllocation(n_components={n_components}, 
+        doc_topic_prior={doc_topic_prior}, topic_word_prior={topic_word_prior}, 
+        learning_method='{learning_method}', max_iter={max_iter})
+        """.format(n_components=self.n_clusters, max_iter=self.max_iter,
+                   doc_topic_prior=self.doc_topic_pior,
+                   topic_word_prior=self.topic_word_prior,
+                   learning_method=self.learning_method,
                    output=self.output)
 
         return dedent(code)

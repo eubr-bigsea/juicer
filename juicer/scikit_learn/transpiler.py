@@ -323,31 +323,37 @@ class ScikitLearnTranspiler(object):
 
             # ------ Clustering      -----#
             'clustering-model': clustering.ClusteringModelOperation,  # OK
+            'agglomerative-clustering':
+                clustering.AgglomerativeClusteringOperation,
+            'dbscan-clustering': clustering.DBSCANClusteringOperation,
             'gaussian-mixture-clustering':
-                clustering.GaussianMixtureClusteringOperation,  # OK
-            'k-means-clustering': clustering.KMeansClusteringOperation,  # OK
-            'lda-clustering': clustering.LdaClusteringOperation,  # OK
+                clustering.GaussianMixtureClusteringOperation,
+            'k-means-clustering': clustering.KMeansClusteringOperation,
+            'lda-clustering': clustering.LdaClusteringOperation,
 
             # ------ Classification  -----#
-            'classification-model': classifiers.ClassificationModelOperation,  # OK
+            'classification-model': classifiers.ClassificationModelOperation,
             'decision-tree-classifier':
-                classifiers.DecisionTreeClassifierOperation,   # OK
-            'gbt-classifier': classifiers.GBTClassifierOperation,    # OK
-            'knn-classifier': classifiers.KNNClassifierOperation,    # OK
-            'logistic-regression': classifiers.LogisticRegressionOperation,   # OK
-            'naive-bayes-classifier': classifiers.NaiveBayesClassifierOperation,  # OK
-            'perceptron-classifier': classifiers.PerceptronClassifierOperation,  # OK
+                classifiers.DecisionTreeClassifierOperation,
+            'gbt-classifier': classifiers.GBTClassifierOperation,
+            'knn-classifier': classifiers.KNNClassifierOperation,
+            'logistic-regression': classifiers.LogisticRegressionOperation,
+            'naive-bayes-classifier': classifiers.NaiveBayesClassifierOperation,
+            'perceptron-classifier': classifiers.PerceptronClassifierOperation,
             'random-forest-classifier':
-                classifiers.RandomForestClassifierOperation,   # OK
-            'svm-classification': classifiers.SvmClassifierOperation,    # OK
+                classifiers.RandomForestClassifierOperation,
+            'svm-classification': classifiers.SvmClassifierOperation,
 
             # ------ Regression  -----#
             'regression-model': regression.RegressionModelOperation,  # OK
-            'linear-regression': regression.LinearRegressionOperation,  # OK
-            'random-forest-regressor':
-                regression.RandomForestRegressorOperation,  # OK
+            'gbt-regressor': regression.GradientBoostingRegressorOperation,
+            'huber-regressor': regression.HuberRegressorOperation,
             'isotonic-regression':
                 regression.IsotonicRegressionOperation,  # OK - TODO: 1D
+            'linear-regression': regression.LinearRegressionOperation,
+            'random-forest-regressor':
+                regression.RandomForestRegressorOperation,
+            'sgd-regressor': regression.SGDRegressorOperation,
         }
 
         text_ops = {
