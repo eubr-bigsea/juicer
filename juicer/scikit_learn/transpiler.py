@@ -4,18 +4,18 @@ import sys
 import hashlib
 from collections import OrderedDict
 import jinja2
-import juicer.sklearn.data_operation as io
-import juicer.sklearn.etl_operation as etl
-import juicer.sklearn.feature_operation as feature_extraction
-import juicer.sklearn.geo_operation as geo
-import juicer.sklearn.associative_operation as associative
+import juicer.scikit_learn.data_operation as io
+import juicer.scikit_learn.etl_operation as etl
+import juicer.scikit_learn.feature_operation as feature_extraction
+import juicer.scikit_learn.geo_operation as geo
+import juicer.scikit_learn.associative_operation as associative
 
-import juicer.sklearn.model_operation as model
-import juicer.sklearn.regression_operation as regression
-import juicer.sklearn.text_operation as text_operations
-import juicer.sklearn.clustering_operation as clustering
-import juicer.sklearn.classification_operation as classifiers
-import juicer.sklearn.vis_operation as vis_operation
+import juicer.scikit_learn.model_operation as model
+import juicer.scikit_learn.regression_operation as regression
+import juicer.scikit_learn.text_operation as text_operations
+import juicer.scikit_learn.clustering_operation as clustering
+import juicer.scikit_learn.classification_operation as classifiers
+import juicer.scikit_learn.vis_operation as vis_operation
 import networkx as nx
 import os
 from juicer import operation
@@ -93,32 +93,16 @@ class DependencyController:
 
 
 # noinspection SpellCheckingInspection
-class SklearnTranspiler(object):
+class ScikitLearnTranspiler(object):
     """
     Convert Lemonade workflow representation (JSON) into code to be run in
-    Sklearn.
+    Scikit-Learn.
     """
 
     def __init__(self, configuration):
         self.configuration = configuration
         self.operations = {}
         self._assign_operations()
-        self.numFrag = 4
-        # self.graph = graph
-        # self.params = params if params is not None else {}
-        #
-        # self.using_stdout = out is None
-        # if self.using_stdout:
-        #     self.out = sys.stdout
-        # else:
-        #     self.out = out
-        #
-        # self.job_id = job_id
-        # workflow_json = json.dumps(workflow)
-        # workflow_name = workflow['name']
-        # workflow_id = workflow['id']
-        # workflow_user = workflow.get('user', {})
-
         self.execute_main = False
 
     def transpile(self, workflow, graph, params, out=None, job_id=None):
@@ -285,11 +269,11 @@ class SklearnTranspiler(object):
         etl_ops = {
             'add-columns': etl.AddColumnsOperation,
             'add-rows': etl.UnionOperation,
-            'aggregation': etl.AggregationOperation,  # TODO: pivot
+            'aggregation': etl.AggregationOperation,  # TODO: agg sem groupby
             'clean-missing': etl.CleanMissingOperation,
             'difference': etl.DifferenceOperation,
             'drop': etl.DropOperation,
-            'filter-selection': etl.FilterOperation,  # TODO:  advanced
+            'filter-selection': etl.FilterOperation,
             'join': etl.JoinOperation,
             'projection': etl.SelectOperation,
             'remove-duplicated-rows': etl.DistinctOperation,

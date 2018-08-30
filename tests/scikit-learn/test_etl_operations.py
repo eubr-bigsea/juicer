@@ -4,7 +4,7 @@ from textwrap import dedent
 
 import pytest
 from tests import compare_ast, format_code_comparison
-from juicer.sklearn.etl_operation import AddColumnsOperation, \
+from juicer.scikit_learn.etl_operation import AddColumnsOperation, \
     AggregationOperation, CleanMissingOperation, \
     DifferenceOperation, DistinctOperation, DropOperation, \
     FilterOperation, IntersectionOperation, JoinOperation, \
@@ -217,6 +217,81 @@ def test_drop_minimal_params_success():
                 columns=params['attributes'])
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
     assert result, msg
+
+
+#############################################################################
+#   Filter Operation
+def test_filter_minimum_params_success():
+    params = {
+        FilterOperation.FILTER_PARAM: [{
+            'attribute': 'code',
+            'f': '>',
+            'value': '201'
+        },
+            {
+                'attribute': 'code2',
+                'f': '<',
+                'value': '200'
+            }
+        ]
+    }
+    n_in = {'input data': 'input_1'}
+    n_out = {'output data': 'output_1'}
+    instance = FilterOperation(params, named_inputs=n_in, named_outputs=n_out)
+
+    code = instance.generate_code()
+    expected_code = dedent("""
+    output_1 = input_1
+    output_1 = output_1.query('(code > 201) and (code2 < 200)')
+    """)
+
+    result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
+    assert result, msg + format_code_comparison(code, expected_code)
+
+
+def test_filter_advanced_params_success():
+    params = {
+        FilterOperation.FILTER_PARAM: [{
+            'attribute': 'code',
+            'f': '>',
+            'value': '201'
+        }],
+        FilterOperation.ADVANCED_FILTER_PARAM: [{
+            "alias": "result",
+            "expression": "len(col1) == 3",
+            "tree": {"operator": "==",
+                      "right": {"raw": "3", "type": "Literal", "value": 3},
+                      "type": "BinaryExpression",
+                     "left": {"type": "CallExpression",
+                               "callee": {
+                                   "type": "Identifier",
+                                   "name": "len"},
+                               "arguments": [{
+                                                 "type": "Identifier",
+                                                 "name": "col1"}]}},
+            "error": 'null'}]
+    }
+    n_in = {'input data': 'input_1'}
+    n_out = {'output data': 'output_1'}
+    instance = FilterOperation(params, named_inputs=n_in, named_outputs=n_out)
+
+    code = instance.generate_code()
+    expected_code = dedent("""
+        output_1 = input_1
+        output_1 = output_1[output_1.apply(lambda row: 
+        len(row['col1']) == 3, axis=1)]
+        output_1 = output_1.query('(code > 201)')""")
+    result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
+    assert result, msg + format_code_comparison(code, expected_code)
+
+
+def test_filter_missing_parameter_filter_failure():
+    params = {
+    }
+    with pytest.raises(ValueError):
+        n_in = {'input data': 'input_1'}
+        n_out = {'output data': 'output_1'}
+        FilterOperation(params, named_inputs=n_in, named_outputs=n_out)
 
 
 #############################################################################
@@ -543,7 +618,6 @@ def test_sort_minimal_params_success():
     assert result, msg
 
 
-@pytest.mark.xfail(raises=UnboundLocalError)
 def test_sort_missing_attributes_failure():
     params = {}
     with pytest.raises(ValueError):
@@ -615,14 +689,14 @@ def test_transformation_minumum_params_success():
 
     expected_code = dedent(
         """
-        functions = [{expr}]
+        functions = {expr}
         {out} = {in1}
         for col, function, imp in functions:
             exec(imp)
             function = eval(function)
             {out}[col] = {out}[col].apply(function, axis=1)
         """.format(out=n_out['output data'],
-                   in1=n_in['input data'], alias='result_1',
+                   in1=n_in['input data'],
                    expr=[
                        ['new_col1', "lambda row: row['col1'] + 2 * 9", ''],
                        ['new_col2', "lambda row: len(row['col2'], 3)", ''],
@@ -661,15 +735,14 @@ def test_transformation_math_expression_success():
 
     expected_code = dedent(
         """
-        functions = [{expr}]
+        functions = {expr}
         {out} = {in1}
         for col, function, imp in functions:
             exec(imp)
             function = eval(function)
             {out}[col] = {out}[col].apply(function, axis=1)
         """.format(out=n_out['output data'],
-                   in1=n_in['input data'], alias='result_2',
-                   expr=[
+                   in1=n_in['input data'], expr=[
                        ['result_2', "lambda row: row['a'] * 100", '']
                    ])
         )
@@ -706,135 +779,158 @@ def test_union_minimal_params_success():
     assert result, msg
 
 
-# def test_aggregation_rows_minimal_params_success():
-#     params = {
-#         AggregationOperation.FUNCTION_PARAM: [
-#             {'attribute': 'income', 'f': 'AVG', 'alias': 'avg_income'}],
-#         AggregationOperation.ATTRIBUTES_PARAM: ['country']
-#     }
-#     n_in = {'input data': 'input_1'}
-#     n_out = {'output data': 'output_1'}
-#
-#     instance = AggregationOperation(params, named_inputs=n_in,
-#                                     named_outputs=n_out)
-#     code = instance.generate_code()
-#
-#     expected_code = dedent("""
-#          pivot_values = None
-#          pivot_attr = ''
-#          if pivot_attr:
-#               {out} = {in0}.groupBy(
-#                  functions.col('{agg}')).pivot(
-#                      pivot_attr, pivot_values).agg(
-#                          functions.avg('income').alias('avg_income'))
-#          else:
-#               {out} = {in0}.groupBy(
-#                  functions.col('{agg}')).agg(
-#                      functions.avg('income').alias('avg_income'))
-#
-#         """.format(out=n_out['output data'], in0=n_in['input data'],
-#                    agg='country', ))
-#
-#     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
-#     assert result, msg + format_code_comparison(code, expected_code)
-#
-#
-# def test_aggregation_rows_group_all_missing_attributes_success():
-#     params = {
-#         AggregationOperation.FUNCTION_PARAM: [
-#             {'attribute': 'income', 'f': 'AVG', 'alias': 'avg_income'}],
-#     }
-#     n_in = {'input data': 'input_1'}
-#     n_out = {'output data': 'output_1'}
-#
-#     instance = AggregationOperation(params, named_inputs=n_in,
-#                                     named_outputs=n_out)
-#     code = instance.generate_code()
-#
-#     expected_code = """{out} = {in0}.agg(
-#                         functions.avg('income').alias('avg_income'))""".format(
-#         out=n_out['output data'], in0=n_in['input data'], agg='country', )
-#     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
-#     assert result, msg
-#
-#
-# def test_aggregation_missing_function_param_failure():
-#     params = {
-#         AggregationOperation.ATTRIBUTES_PARAM: ['country']
-#     }
-#     n_in = {'input data': 'input_1'}
-#     n_out = {'output data': 'output_1'}
-#     with pytest.raises(ValueError):
-#         AggregationOperation(params, named_inputs=n_in,
-#                              named_outputs=n_out)
-#
-#
-
-def test_filter_minimum_params_success():
+def test_aggregation_rows_minimal_params_success():
     params = {
-        FilterOperation.FILTER_PARAM: [{
-            'attribute': 'code',
-            'f': '>',
-            'value': '201'
-        },
-            {
-                'attribute': 'code2',
-                'f': '<',
-                'value': '200'
-            }
-        ]
+        AggregationOperation.FUNCTION_PARAM: [
+            {'attribute': 'income', 'f': 'AVG', 'alias': 'avg_income'}],
+        AggregationOperation.ATTRIBUTES_PARAM: ['country']
     }
     n_in = {'input data': 'input_1'}
     n_out = {'output data': 'output_1'}
-    instance = FilterOperation(params, named_inputs=n_in, named_outputs=n_out)
 
+    instance = AggregationOperation(params, named_inputs=n_in,
+                                    named_outputs=n_out)
     code = instance.generate_code()
-    expected_code = "output_1 = input_1.query(" \
-                    "'(code > 201) and (code2 < 200)')"
+
+    expected_code = dedent("""
+          def _collect_list(x):
+              return x.tolist()
+          
+          def _merge_set(x):
+              return set(x.tolist())
+          
+          
+          columns = ['country']
+          target = {'income': ['avg_income']}
+          operations = {'income': ['AVG']}
+          
+          output_1 = input_1.groupby(columns).agg(operations)
+          new_idx = []
+          i = 0
+          old = None
+          for (n1, n2) in output_1.columns.ravel():
+              if old != n1:
+                  old = n1
+                  i = 0
+              new_idx.append(target[n1][i])
+              i += 1
+          
+          output_1.columns = new_idx
+          output_1 = output_1.reset_index()
+          output_1.reset_index(drop=True, inplace=True)
+        """)
+
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
     assert result, msg + format_code_comparison(code, expected_code)
 
 
-def test_filter_advanced_params_success():
+def test_aggregation_rows_group_all_missing_attributes_success():
     params = {
-        FilterOperation.FILTER_PARAM: [{
-            'attribute': 'code',
-            'f': '>',
-            'value': '201'
-        }],
-        FilterOperation.ADVANCED_FILTER_PARAM: [{
-            "alias": "result",
-            "expression": "len(col1) == 3",
-            "tree": {"operator": "==",
-                      "right": {"raw": "3", "type": "Literal", "value": 3},
-                      "type": "BinaryExpression",
-                     "left": {"type": "CallExpression",
-                               "callee": {
-                                   "type": "Identifier",
-                                   "name": "len"},
-                               "arguments": [{
-                                                 "type": "Identifier",
-                                                 "name": "col1"}]}},
-            "error": 'null'}]
+        AggregationOperation.FUNCTION_PARAM: [
+            {'attribute': 'income', 'f': 'AVG', 'alias': 'avg_income'}],
     }
     n_in = {'input data': 'input_1'}
     n_out = {'output data': 'output_1'}
-    instance = FilterOperation(params, named_inputs=n_in, named_outputs=n_out)
 
+    instance = AggregationOperation(params, named_inputs=n_in,
+                                    named_outputs=n_out)
     code = instance.generate_code()
-    expected_code = "output_1 = input_1.query(" \
-                    "'(code > 201) and (code2 < 200)')"
+
+    expected_code = """{out} = {in0}.agg(
+                        functions.avg('income').alias('avg_income'))""".format(
+        out=n_out['output data'], in0=n_in['input data'], agg='country', )
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
-    assert result, msg + format_code_comparison(code, expected_code)
+    print (code)
+    assert result, msg
 
 
-def test_filter_missing_parameter_filter_failure():
+def test_aggregation_missing_function_param_failure():
     params = {
+        AggregationOperation.ATTRIBUTES_PARAM: ['country']
     }
+    n_in = {'input data': 'input_1'}
+    n_out = {'output data': 'output_1'}
     with pytest.raises(ValueError):
-        n_in = {'input data': 'input_1'}
-        n_out = {'output data': 'output_1'}
-        FilterOperation(params, named_inputs=n_in, named_outputs=n_out)
+        AggregationOperation(params, named_inputs=n_in,
+                             named_outputs=n_out)
 
 
+def test_aggregation_with_pivot_success():
+    params = {
+
+        AggregationOperation.ATTRIBUTES_PARAM: ["sex"],
+        AggregationOperation.FUNCTION_PARAM: [
+            {"attribute": "fare", "f": "max", "alias": "sex"}],
+        "pivot": ["class"],
+        "pivot_values":  "",
+    }
+    n_in = {'input data': 'input_1'}
+    n_out = {'output data': 'output_1'}
+
+    instance = AggregationOperation(params, named_inputs=n_in,
+                                    named_outputs=n_out)
+    code = instance.generate_code()
+
+    expected_code = dedent("""
+    def _collect_list(x):
+              return x.tolist()
+    def _merge_set(x):
+        return set(x.tolist())
+    
+    aggfunc = {'fare': ['max']}
+    output_1 = pd.pivot_table(input_1, index=['sex'], values=['fare'],
+                              columns=['class'], aggfunc=aggfunc)
+    # rename columns and convert to DataFrame
+    output_1.reset_index(inplace=True)
+    new_idx = [n[0] if n[1] is ''
+               else "%s_%s_%s" % (n[0],n[1], n[2])
+               for n in output_1.columns.ravel()]    
+    output_1 = pd.DataFrame(output_1.to_records())
+    output_1.reset_index(drop=True, inplace=True)
+    output_1 = output_1.drop(columns='index')
+    output_1.columns = new_idx
+    """)
+    result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
+    assert result, msg
+
+
+def test_aggregation_with_pivot_values_success():
+    params = {
+
+        AggregationOperation.ATTRIBUTES_PARAM: ["sex"],
+        AggregationOperation.FUNCTION_PARAM: [
+            {"attribute": "fare", "f": "max", "alias": "sex"}],
+        "pivot": ["class"],
+        "pivot_values": [1, 2],
+    }
+    n_in = {'input data': 'input_1'}
+    n_out = {'output data': 'output_1'}
+
+    instance = AggregationOperation(params, named_inputs=n_in,
+                                    named_outputs=n_out)
+    code = instance.generate_code()
+
+    expected_code = dedent("""
+    def _collect_list(x):
+              return x.tolist()
+    def _merge_set(x):
+        return set(x.tolist())
+
+    values = [1, 2]
+    input_1 = input_1[input_1['class'].isin(values)]
+    aggfunc = {'fare': ['max']}
+    output_1 = pd.pivot_table(input_1, index=['sex'], values=['fare'],
+                              columns=['class'], aggfunc=aggfunc)
+    # rename columns and convert to DataFrame
+    output_1.reset_index(inplace=True)
+    new_idx = [n[0] if n[1] is ''
+               else "%s_%s_%s" % (n[0],n[1], n[2])
+               for n in output_1.columns.ravel()]    
+    output_1 = pd.DataFrame(output_1.to_records())
+    output_1.reset_index(drop=True, inplace=True)
+    output_1 = output_1.drop(columns='index')
+    output_1.columns = new_idx
+    """)
+    result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
+    assert result, msg
 

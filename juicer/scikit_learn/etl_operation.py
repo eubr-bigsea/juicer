@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
+from gettext import gettext
 from textwrap import dedent
 from juicer.operation import Operation
-from juicer.sklearn.expression import Expression
+from juicer.scikit_learn.expression import Expression
 from itertools import izip_longest
 
 
@@ -79,25 +80,24 @@ class AggregationOperation(Operation):
 
         for dictionary in self.functions:
             att = dictionary['attribute']
-            f = dictionary['f']
-            a = dictionary['alias']
-            if (f is not None) and (a is not None):
-                if att in self.input_operations:
-                        self.input_operations[att].append(f)
-                        self.input_aliases[att].append(a)
-                else:
-                        self.input_operations[att] = [f]
-                        self.input_aliases[att] = [a]
+            agg = dictionary['f']
+            alias = dictionary['alias']
+            if att in self.input_operations:
+                    self.input_operations[att].append(agg)
+                    self.input_aliases[att].append(alias)
+            else:
+                    self.input_operations[att] = [agg]
+                    self.input_aliases[att] = [alias]
 
+        self.values = [agg for agg in self.input_operations]
         self.input_operations = str(self.input_operations)\
             .replace("u'collect_set'", '_merge_set')\
             .replace("u'collect_list'", '_collect_list')
 
         # noinspection PyArgumentEqualDefault
-        self.pivot = next(iter(parameters.get(self.PIVOT_ATTRIBUTE) or []),
-                          None)
+        self.pivot = parameters.get(self.PIVOT_ATTRIBUTE, None)
 
-        self.pivot_values = parameters.get(self.PIVOT_VALUE_ATTRIBUTE)
+        self.pivot_values = parameters.get(self.PIVOT_VALUE_ATTRIBUTE, None)
         self.output = self.named_outputs.get(
                 'output data', 'data_{}'.format(self.order))
 
@@ -110,36 +110,65 @@ class AggregationOperation(Operation):
     def generate_code(self):
 
         code = """
-        def _collect_list(x):
-            return x.tolist()
-        
-        def _merge_set(x):
-            return set(x.tolist())
-    
-    
-        columns = {columns}
-        target = {aliases}
-        operations = {operations}
+            def _collect_list(x):
+                return x.tolist()
+            
+            def _merge_set(x):
+                return set(x.tolist())
+            """
+        if self.pivot:
+            self.pivot = self.pivot[0]
 
-        {output} = {input}.groupby(columns).agg(operations)
-        new_idx = []
-        i = 0
-        old = None
-        for (n1, n2) in {output}.columns.ravel():
-            if old != n1:
-                old = n1
-                i = 0
-            new_idx.append(target[n1][i])
-            i += 1
+            if self.pivot_values:
+                code += """
+            values = {values}
+            {input} = {input}[{input}['{pivot}'].isin(values)]""".format(
+                        output=self.output, values=self.pivot_values,
+                        input=self.named_inputs['input data'],
+                        pivot=self.pivot)
+
+            code += """
+            aggfunc = {aggfunc}
+            {output} = pd.pivot_table({input}, index={index}, values={values},
+                                      columns=['{pivot}'], aggfunc=aggfunc)
+            # rename columns and convert to DataFrame
+            {output}.reset_index(inplace=True)
+            new_idx = [n[0] if n[1] is ''
+                       else "%s_%s_%s" % (n[0],n[1], n[2])
+                       for n in {output}.columns.ravel()]    
+            {output} = pd.DataFrame({output}.to_records())
+            {output}.reset_index(drop=True, inplace=True)
+            {output} = {output}.drop(columns='index')
+            {output}.columns = new_idx
+            """.format(pivot=self.pivot, values=self.values,
+                       index=self.attributes, output=self.output,
+                       input=self.named_inputs['input data'],
+                       aggfunc=self.input_operations)
+        else:
+            code += """
+            columns = {columns}
+            target = {aliases}
+            operations = {operations}
     
-        {output}.columns = new_idx
-        {output} = {output}.reset_index()
-        {output}.reset_index(drop=True, inplace=True)
-        """.format(output=self.output,
-                   input=self.named_inputs['input data'],
-                   columns=self.attributes,
-                   aliases=self.input_aliases,
-                   operations=self.input_operations)
+            {output} = {input}.groupby(columns).agg(operations)
+            new_idx = []
+            i = 0
+            old = None
+            for (n1, n2) in {output}.columns.ravel():
+                if old != n1:
+                    old = n1
+                    i = 0
+                new_idx.append(target[n1][i])
+                i += 1
+        
+            {output}.columns = new_idx
+            {output} = {output}.reset_index()
+            {output}.reset_index(drop=True, inplace=True)
+            """.format(output=self.output,
+                       input=self.named_inputs['input data'],
+                       columns=self.attributes,
+                       aliases=self.input_aliases,
+                       operations=self.input_operations)
         return dedent(code)
 
 
@@ -349,36 +378,29 @@ class FilterOperation(Operation):
 
         filters = [
             "({0} {1} {2})".format(f['attribute'], f['f'],
-                                        f.get('value', f.get('alias')))
+                                   f.get('value', f.get('alias')))
             for f in self.filter]
 
-        code = ""
-        expressions = ""
+        code = """
+        {out} = {input}""".format(out=self.output,
+                                  input=self.named_inputs['input data'])
+
+        expressions = []
         for i, expr in enumerate(self.advanced_filter):
             expression = Expression(expr['tree'], params)
-            if i > 0:
-                expressions += "and '{}'".format(
-                        expression.parsed_expression.replace("lambda row: "))
-            else:
-                expressions += "'{}'".format(expression.parsed_expression)
+            expressions.append(expression.parsed_expression)
 
         if len(expressions) > 0:
-            code += """
-            functions = [{expr}]
-            {out} = {input}
-            for col, function, imp in functions:
-                exec(imp)
-                function = eval(function)
-                {out}[col] = {out}[col].apply(function, axis=1)
-            """.format(out=self.output,
-                       input=self.named_inputs['input data'],
-                       expr=expressions)
+            for e in expressions:
+                code += """
+        {out} = {out}[{out}.apply({expr}, axis=1)]""".format(out=self.output,
+                                                             expr=e)
 
         indentation = " and "
         if len(filters) > 0:
-            code += "{out} = {input}.query('{f}')".format(
-                    out=self.output, input=self.named_inputs['input data'],
-                    f=indentation.join(filters))
+            code += """
+        {out} = {out}.query('{f}')""".format(out=self.output,
+                                             f=indentation.join(filters))
 
         return dedent(code)
 
@@ -667,7 +689,8 @@ class SortOperation(Operation):
         attributes = parameters.get(self.ATTRIBUTES_PARAM, '')
         if len(attributes) == 0:
             raise ValueError(
-                    _("Parameter '{}' must be informed for task {}").format(
+                    gettext("Parameter '{}' must be"
+                            " informed for task {}").format(
                             self.ATTRIBUTES_PARAM, self.__class__))
 
         self.columns = [att['attribute'] for att in attributes]
@@ -765,7 +788,7 @@ class TransformationOperation(Operation):
             expressions.append(row)
 
         code = """
-        functions = [{expr}]
+        functions = {expr}
         {out} = {input}
         for col, function, imp in functions:
             exec(imp)
