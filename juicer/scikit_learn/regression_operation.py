@@ -99,7 +99,7 @@ class RegressionModelOperation(Operation):
 
             return dedent(code)
 
-#TODO: ZIP
+
 class GradientBoostingRegressorOperation(RegressionOperation):
     LEARNING_RATE_PARAM = 'learning_rate'
     N_ESTIMATORS_PARAM = 'n_estimators'
@@ -128,13 +128,15 @@ class GradientBoostingRegressorOperation(RegressionOperation):
                     self.MIN_LEAF_PARAM, 1) or 1
             self.seed = parameters.get(self.SEED_PARAM, 'None')
 
-            for var in [self.learning_rate, self.n_estimators,
-                        self.max_depth, self.min_samples_leaf,
-                        self.min_samples_split]:
+            vals = [self.learning_rate, self.n_estimators,
+                    self.min_samples_split, self.min_samples_leaf]
+            atts = [self.LEARNING_RATE_PARAM, self.N_ESTIMATORS_PARAM,
+                    self.MIN_SPLIT_PARAM, self.MIN_LEAF_PARAM]
+            for var, att in zip(vals, atts):
                 if var <= 0:
                     raise ValueError(
                             _("Parameter '{}' must be x>0 for task {}").format(
-                                    var, self.__class__))
+                                    att, self.__class__))
 
     def generate_code(self):
         code = dedent("""
@@ -173,17 +175,20 @@ class HuberRegressorOperation(RegressionOperation):
             self.max_iter = parameters.get(self.MAX_ITER_PARAM, 100) or 100
             self.alpha = parameters.get(self.ALPHA_PARAM, 0.0001) or 0.0001
             self.tol = parameters.get(self.TOLERANCE_PARAM, 0.00001) or 0.00001
+            self.tol = abs(self.tol)
 
-            for var in [self.max_iter, self.alpha, self.tol]:
+            vals = [self.max_iter, self.alpha]
+            atts = [self.MAX_ITER_PARAM, self.ALPHA_PARAM]
+            for var, att in zip(vals, atts):
                 if var <= 0:
                     raise ValueError(
                             _("Parameter '{}' must be x>0 for task {}").format(
-                                    var, self.__class__))
+                                    att, self.__class__))
 
             if self.epsilon <= 1.0:
                 raise ValueError(
                         _("Parameter '{}' must be x>1.0 for task {}").format(
-                                var, self.__class__))
+                                self.EPSILON_PARAM, self.__class__))
 
     def generate_code(self):
         code = dedent("""
@@ -250,13 +255,16 @@ class LinearRegressionOperation(RegressionOperation):
             self.max_iter = parameters.get(self.MAX_ITER_PARAM, 1000) or 1000
             self.tol = self.parameters.get(
                     self.TOLERANCE_PARAM, 0.0001) or 0.0001
+            self.tol = abs(self.tol)
             self.seed = self.parameters.get(self.SEED_PARAM, 'None')
 
-            for var in [self.alpha, self.max_iter, self.tol]:
+            vals = [self.alpha, self.max_iter]
+            atts = [self.ALPHA_PARAM, self.MAX_ITER_PARAM]
+            for var, att in zip(vals, atts):
                 if var <= 0:
                     raise ValueError(
                             _("Parameter '{}' must be x>0 for task {}").format(
-                                    var, self.__class__))
+                                    att, self.__class__))
 
             if 0 > self.elastic > 1:
                 raise ValueError(
@@ -309,12 +317,15 @@ class RandomForestRegressorOperation(RegressionOperation):
                     self.MIN_LEAF_PARAM, 1) or 1
             self.seed = parameters.get(self.SEED_PARAM, 'None')
 
-            for var in [self.max_depth, self.n_estimators,
-                        self.min_samples_split, self.min_samples_leaf]:
+            vals = [self.max_depth, self.n_estimators, self.min_samples_split,
+                    self.min_samples_leaf]
+            atts = [self.MAX_DEPTH_PARAM, self.N_ESTIMATORS_PARAM,
+                    self.MIN_SPLIT_PARAM, self.MIN_LEAF_PARAM]
+            for var, att in zip(vals, atts):
                 if var <= 0:
                     raise ValueError(
                             _("Parameter '{}' must be x>0 for task {}").format(
-                                    var, self.__class__))
+                                    att, self.__class__))
 
     def generate_code(self):
         code = dedent("""
@@ -364,13 +375,16 @@ class SGDRegressorOperation(RegressionOperation):
             self.max_iter = parameters.get(self.MAX_ITER_PARAM, 1000) or 1000
             self.tol = parameters.get(
                     self.TOLERANCE_PARAM, 0.001) or 0.001
+            self.tol = abs(self.tol)
             self.seed = parameters.get(self.SEED_PARAM, 'None')
 
-            for var in [self.alpha, self.max_iter, self.tol]:
+            vals = [self.alpha, self.max_iter]
+            atts = [self.ALPHA_PARAM, self.MAX_ITER_PARAM]
+            for var, att in zip(vals, atts):
                 if var <= 0:
                     raise ValueError(
                             _("Parameter '{}' must be x>0 for task {}").format(
-                                    var, self.__class__))
+                                    att, self.__class__))
 
             if 0 > self.l1_ratio > 1:
                 raise ValueError(
