@@ -290,6 +290,9 @@ class NaiveBayesClassifierOperation(Operation):
 
             self.class_prior = parameters.get(self.CLASS_PRIOR_PARAM,
                                               'None') or 'None'
+            if self.class_prior != "None":
+                self.class_prior = [self.class_prior]
+
             self.smoothing = parameters.get(self.ALPHA_PARAM, 1.0) or 1.0
             self.model_type = parameters.get(
                     self.MODEL_TYPE_PARAM,

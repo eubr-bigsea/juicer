@@ -19,8 +19,11 @@ from juicer.scikit_learn.regression_operation import RegressionModelOperation, \
 from tests import compare_ast, format_code_comparison
 
 
-#############################################################################
-# Gradient Boosting Regressor Operation
+'''
+    Gradient Boosting Regressor Operation
+'''
+
+
 def test_gbt_regressor_minimum_params_success():
     params = {
     }
@@ -74,8 +77,11 @@ def test_gbt_regressor_wrong_value_param_failure():
                                            named_outputs=n_out)
 
 
-#############################################################################
-# Huber Regressor Operation
+'''
+    Huber Regressor Operation
+'''
+
+
 def test_huber_regressor_minimum_params_success():
     params = {
     }
@@ -124,8 +130,11 @@ def test_huber_regressor_wrong_value_param_failure():
         HuberRegressorOperation(params, named_inputs=n_in, named_outputs=n_out)
 
 
-#############################################################################
-# Isotonic Regressor Operation
+'''
+    Isotonic Regressor Operation
+'''
+
+
 def test_isotonic_regressor_minimum_params_success():
     params = {
     }
@@ -159,8 +168,11 @@ def test_isotonic_regressor_with_params_success():
     assert result, msg + format_code_comparison(code, expected_code)
 
 
-#############################################################################
-# Linear Regression Operation
+'''
+    Linear Regression Operation
+'''
+
+
 def test_linearegression_minimum_params_success():
     params = {
     }
@@ -214,8 +226,11 @@ def test_linearegression_wrong_value_param_failure():
                                   named_outputs=n_out)
 
 
-#############################################################################
-# Random Forest Regressor Operation
+'''
+    Random Forest Regressor Operation
+'''
+
+
 def test_randomforestregressor_minimum_params_success():
     params = {
     }
@@ -278,8 +293,11 @@ def test_randomforestregressor_wrong_value_param_failure():
                                        named_outputs=n_out)
 
 
-#############################################################################
-# Gradient Boosting Regressor Operation
+'''
+    Gradient Boosting Regressor Operation
+'''
+
+
 def test_sgd_regressor_minimum_params_success():
     params = {
     }
@@ -329,8 +347,11 @@ def test_sgd_regressor_wrong_value_param_failure():
         SGDRegressorOperation(params, named_inputs=n_in, named_outputs=n_out)
 
 
-#############################################################################
-# Regression Operation
+'''
+    Regression Operation
+'''
+
+
 def test_regressor_model_operation_missing_output_failure():
     params = {
         RegressionModelOperation.FEATURES_PARAM: 'f',
