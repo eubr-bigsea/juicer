@@ -18,8 +18,11 @@ from juicer.scikit_learn.classification_operation import \
 from tests import compare_ast, format_code_comparison
 
 
-#############################################################################
-# DecisionTreeClassifierOperation Operation
+'''
+    DecisionTreeClassifierOperation Operation
+'''
+
+
 def test_gbt_regressor_minimum_params_success():
     params = {
     }
@@ -71,8 +74,11 @@ def test_gbt_regressor_wrong_value_param_failure():
                                         named_outputs=n_out)
 
 
-#############################################################################
-# GBT Classifie rOperation
+'''
+    GBT Classifier Operation
+'''
+
+
 def test_gbt_classifier_minimum_params_success():
     params = {
     }
@@ -128,8 +134,11 @@ def test_gbt_classifier_wrong_value_param_failure():
         GBTClassifierOperation(params, named_inputs={}, named_outputs=n_out)
 
 
-#############################################################################
-# KNN Classifier Operation
+'''
+   KNN Classifier Operation
+'''
+
+
 def test_knn_classifier_minimum_params_success():
     params = {
         KNNClassifierOperation.K_PARAM: 3
@@ -156,8 +165,11 @@ def test_knn_classifier_wrong_value_param_failure():
         KNNClassifierOperation(params, named_inputs={}, named_outputs=n_out)
 
 
-#############################################################################
-# Logistic Regression Operation
+'''
+    Logistic Regression Operation
+'''
+
+
 def test_logisticregression_minimum_params_success():
     params = {
     }
@@ -209,8 +221,11 @@ def test_logisticregression_wrong_value_param_failure():
                                     named_outputs=n_out)
 
 
-#############################################################################
-# Naive Bayes Operation
+'''
+  Naive Bayes Operation
+'''
+
+
 def test_naive_bayes_minimum_params_success():
     params = {
     }
@@ -233,8 +248,8 @@ def test_naive_bayes_with_params_success():
 
         NaiveBayesClassifierOperation.ALPHA_PARAM: 2.0,
         NaiveBayesClassifierOperation.MODEL_TYPE_PARAM:
-            NaiveBayesClassifierOperation.MODEL_TYPE_PARAM_B
-
+            NaiveBayesClassifierOperation.MODEL_TYPE_PARAM_B,
+        NaiveBayesClassifierOperation.CLASS_PRIOR_PARAM: '1,2,3,4,5',
     }
     n_out = {'algorithm': 'classifier_1'}
 
@@ -260,8 +275,11 @@ def test_naive_bayes_wrong_value_param_failure():
                                       named_outputs=n_out)
 
 
-#############################################################################
-# Perceptron Classifier Operation
+'''
+    Perceptron Classifier Operation
+'''
+
+
 def test_perceptron_minimum_params_success():
     params = {
     }
@@ -314,8 +332,11 @@ def test_perceptron_wrong_value_param_failure():
                                       named_outputs=n_out)
 
 
-#############################################################################
-# RandomForestClassifierOperation
+'''
+  RandomForestClassifierOperation
+'''
+
+
 def test_random_forest_operation_minimum_success():
     params = {
     }
@@ -376,8 +397,10 @@ def test_random_forest_wrong_value_param_failure():
                                         named_outputs=n_out)
 
 
-#############################################################################
-# SVMClassifierOperation
+'''
+    SVMClassifierOperation
+'''
+
 def test_svm_operation_minimum_success():
     params = {
     }
@@ -401,12 +424,11 @@ def test_svm_operation_minimum_success():
 
 def test_svm_operation_params_success():
     params = {
-        SvmClassifierOperation.SEED_PARAM: 10,
         SvmClassifierOperation.PENALTY_PARAM: 10.0,
         SvmClassifierOperation.KERNEL_PARAM:
             SvmClassifierOperation.KERNEL_PARAM_POLY,
         SvmClassifierOperation.DEGREE_PARAM: 2,
-        SvmClassifierOperation.TOLERANCE_PARAM: 0.1,
+        SvmClassifierOperation.TOLERANCE_PARAM: -0.1,
         SvmClassifierOperation.MAX_ITER_PARAM: 13,
         SvmClassifierOperation.SEED_PARAM: 12
     }

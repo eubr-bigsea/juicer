@@ -26,58 +26,79 @@ class TokenizerOperation(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-        self.type = self.parameters.get(self.TYPE_PARAM, self.TYPE_SIMPLE)
-        if self.type not in [self.TYPE_REGEX, self.TYPE_SIMPLE]:
-            raise ValueError(_('Invalid type for '
-                               'operation Tokenizer: {}').format(self.type))
-
-        self.expression_param = parameters.get(self.EXPRESSION_PARAM, '\s+')
-
-        self.min_token_lenght = parameters.get(self.MINIMUM_SIZE, 3)
-        if self.ATTRIBUTES_PARAM in parameters:
-            self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
-        else:
-            raise ValueError(
-                _("Parameter '{}' must be informed for task {}")
-                .format(self.ATTRIBUTES_PARAM, self.__class__))
-
-        self.alias = [alias.strip() for alias in
-                      parameters.get(self.ALIAS_PARAM, '').split(',')]
-        # Adjust alias in order to have the same number of aliases as
-        # attributes by filling missing alias with the attribute name
-        # sufixed by _indexed.
-        self.alias = [x[1] or '{}_tok'.format(x[0]) for x in
-                      izip_longest(self.attributes,
-                                   self.alias[:len(self.attributes)])]
-
-        self.expression_param = parameters.get(self.EXPRESSION_PARAM, '\s+')
-        if len(self.expression_param) == 0:
-            self.expression_param =  '\s+'
-
         self.has_code = len(self.named_inputs) == 1
+        if self.has_code:
 
-        self.output = self.named_outputs.get(
-            'output data', 'output_data_{}'.format(self.order))
+            self.type = self.parameters.get(self.TYPE_PARAM, self.TYPE_SIMPLE)
+            if self.type not in [self.TYPE_REGEX, self.TYPE_SIMPLE]:
+                raise ValueError(_('Invalid type for '
+                                   'operation Tokenizer: {}').format(self.type))
+
+            self.expression_param = parameters.get(self.EXPRESSION_PARAM, '\s+')
+
+            self.min_token_lenght = parameters.get(self.MINIMUM_SIZE, 3)
+            if self.ATTRIBUTES_PARAM in parameters:
+                self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
+            else:
+                raise ValueError(
+                    _("Parameter '{}' must be informed for task {}")
+                    .format(self.ATTRIBUTES_PARAM, self.__class__))
+
+            self.alias = [alias.strip() for alias in
+                          parameters.get(self.ALIAS_PARAM, '').split(',')]
+            # Adjust alias in order to have the same number of aliases as
+            # attributes by filling missing alias with the attribute name
+            # sufixed by _indexed.
+            self.alias = [x[1] or '{}_tok'.format(x[0]) for x in
+                          izip_longest(self.attributes,
+                                       self.alias[:len(self.attributes)])]
+
+            self.expression_param = parameters.get(self.EXPRESSION_PARAM, '\s+')
+            if len(self.expression_param) == 0:
+                self.expression_param = '\s+'
+
+            self.output = self.named_outputs.get(
+                'output data', 'output_data_{}'.format(self.order))
 
     def generate_code(self):
         """Generate code."""
-        code = """
-            min_token_length = {min_token}
-            {OUT} = {IN}
+
+        if self.min_token_lenght is not None:
+            self.min_token_lenght = \
+                ' if len(word) > {}'.format(self.min_token_lenght)
+
+        if self.TYPE_PARAM == self.TYPE_SIMPLE:
+
+            code = """
+            {output} = {input}
             result = []
-            for field in {IN}['{att}'].values:
-                row = []
-                toks = re.split('{expression}', field)
-                for t in toks:
-                    if len(t) > min_token_length:
-                        row.append(t.lower())
-                result.append(row)
-                
-            {OUT}['{alias}'] = result
-            """.format(OUT=self.output, min_token=self.min_token_lenght,
-                       IN=self.named_inputs['input data'],
+            from nltk.tokenize import ToktokTokenizer
+            toktok = ToktokTokenizer()
+    
+            for row in {input}['{att}'].values:
+                result.append([word for word in toktok.tokenize(row){limit}])
+                               
+    
+            {output}['{alias}'] = result
+            """.format(output=self.output,
+                       input=self.named_inputs['input data'],
                        att=self.attributes[0], alias=self.alias[0],
-                       expression=self.expression_param)
+                       limit=self.min_token_lenght)
+        else:
+            code = """
+           {output} = {input}
+           result = []
+           from nltk.tokenize import regexp_tokenize
+
+           for row in {input}['{att}'].values:
+               result.append([word for word in 
+                              regexp_tokenize(word, pattern='{exp}'){limit}])
+
+           {output}['{alias}'] = result
+           """.format(output=self.output,
+                      input=self.named_inputs['input data'],
+                      att=self.attributes[0], alias=self.alias[0],
+                      exp=self.expression_param, limit=self.min_token_lenght)
 
         return dedent(code)
 
@@ -97,66 +118,80 @@ class RemoveStopWordsOperation(Operation):
     STOP_WORD_ATTRIBUTE_PARAM = 'stop_word_attribute'
     STOP_WORD_LANGUAGE_PARAM = 'stop_word_language'
     STOP_WORD_CASE_SENSITIVE_PARAM = 'sw_case_sensitive'
+    LANG_PARAM = 'language'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
-        if self.ATTRIBUTES_PARAM in parameters:
-            self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
-        else:
-            raise ValueError(
-                _("Parameter '{}' must be informed for task {}")
-                .format(self.ATTRIBUTES_PARAM, self.__class__))
-
-        self.stop_word_attribute = self.parameters.get(
-            self.STOP_WORD_ATTRIBUTE_PARAM, '')
-
-        self.stop_word_list = [s.strip() for s in
-                               self.parameters.get(self.STOP_WORD_LIST_PARAM,
-                                                   '').split(',')]
-
-        self.alias = parameters.get(self.ALIAS_PARAM, 'tokenized_rm')
-
-        self.sw_case_sensitive = self.parameters.get(
-            self.STOP_WORD_CASE_SENSITIVE_PARAM, 'False')
-
-        self.stopwords_input = self.named_inputs.get('stop words', [])
-
-        self.output = self.named_outputs.get(
-            'output data', 'output_data_{}'.format(self.order))
 
         self.has_code = 'input data' in self.named_inputs
-        self.lang = self.parameters.get('language', 'english')
+
+        if self.has_code:
+            self.output = self.named_outputs.get(
+                    'output data', 'output_data_{}'.format(self.order))
+
+            if self.ATTRIBUTES_PARAM in parameters:
+                self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
+            else:
+                raise ValueError(
+                    _("Parameter '{}' must be informed for task {}")
+                    .format(self.ATTRIBUTES_PARAM, self.__class__))
+
+            self.sw_case_sensitive = self.parameters.get(
+                    self.STOP_WORD_CASE_SENSITIVE_PARAM, False)
+            self.stop_word_list = [s.strip() for s in
+                                   self.parameters.get(
+                                           self.STOP_WORD_LIST_PARAM,
+                                           '').split(',')]
+
+            self.alias = parameters.get(self.ALIAS_PARAM, 'tokenized_rm')
+            self.stopwords_input = self.named_inputs.get('stop words', None)
+            self.stop_word_attribute = self.parameters.get(
+                    self.STOP_WORD_ATTRIBUTE_PARAM, '')
+            self.lang = self.parameters.get(self.LANG_PARAM, '') or ''
 
     def generate_code(self):
         """Generate code."""
         code = """
         stop_words = []
-        """
-        if len(self.lang)>0:
+        {OUT} = {IN}.copy()
+        """.format(OUT=self.output, IN=self.named_inputs['input data'])
+        if len(self.lang) > 0:
             code += """
         import nltk
         nltk.download('stopwords')
         from nltk.corpus import stopwords
-        stop_words = stopwords.words('{language}')
-        """.format(language=self.lang)
+        stop_words += stopwords.words('{language}')        
+        """.format(language=self.lang.lower())
 
-        code += """
-        {OUT} = {IN}
-        tokens = {IN}['{att}'].values
-        rows = []
-        for row in tokens:
-            filtered_sentence = []
-            for w in row:
-                if w not in stop_words:
-                    filtered_sentence.append(w)
-            rows.append(filtered_sentence)
-        
-        {OUT}['{alias}'] = rows
-        """.format(att=self.attributes[0],
-                   att_stop=self.stop_word_attribute,
-                   alias=self.alias[0], case=self.sw_case_sensitive,
-                   OUT=self.output, IN=self.named_inputs['input data'],
-                   stoplist=self.stop_word_list, sw=self.stopwords_input)
+        if len(self.named_inputs) == 2 and len(self.stop_word_attribute) > 0:
+            code += """
+            stop_words += {in2}['{att2}'].values   
+        """.format(in2=self.stopwords_input, att2=self.stop_word_attribute)
+        if len(self.stop_word_list) > 0:
+            code += """
+        stop_words += {stop_word_list}
+        """.format(stop_word_list=self.stop_word_list)
+
+        if self.sw_case_sensitive:
+            code += """
+            word_tokens = {OUT}['{att}'].values       
+            {OUT}['{alias}'] = [w for w in word_tokens if not w in stop_words]
+            """.format(att=self.attributes[0],
+                       att_stop=self.stop_word_attribute,
+                       alias=self.alias[0], case=self.sw_case_sensitive,
+                       OUT=self.output,
+                       stoplist=self.stop_word_list, sw=self.stopwords_input)
+        else:
+            code += """
+            stop_words = [w.lower() for w in stop_words]
+            word_tokens = {OUT}['{att}'].values       
+            {OUT}['{alias}'] = [w for w in word_tokens 
+                                if not w.lower() in stop_words]
+            """.format(att=self.attributes[0],
+                       att_stop=self.stop_word_attribute,
+                       alias=self.alias[0], case=self.sw_case_sensitive,
+                       OUT=self.output,
+                       stoplist=self.stop_word_list, sw=self.stopwords_input)
 
         return dedent(code)
 
@@ -206,7 +241,7 @@ class GenerateNGramsOperation(Operation):
     def generate_code(self):
         input_data = self.named_inputs['input data']
         code = dedent("""
-            {output} = {input}
+            {output} = {input}.copy()
             
             from nltk.util import ngrams
             def word_grams(words, min={n}):
@@ -217,7 +252,7 @@ class GenerateNGramsOperation(Operation):
                         s.append(' '.join(str(i.encode('utf-8')) for i in ngram))
                 return s
             
-            rows = {input}['{att}'].values
+            rows = {output}['{att}'].values
             grams = []
             for r in rows:
                 grams.append(word_grams(r))
@@ -227,6 +262,7 @@ class GenerateNGramsOperation(Operation):
                         n=self.n, input=input_data, output=self.output)
 
         return code
+
 
 class WordToVectorOperation(Operation):
     """
