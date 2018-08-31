@@ -308,10 +308,12 @@ class ScikitLearnTranspiler(object):
             'feature-assembler': feature_extraction.FeatureAssemblerOperation,
             'min-max-scaler': feature_extraction.MinMaxScalerOperation,
             'max-abs-scaler': feature_extraction.MaxAbsScalerOperation,
-            'standard-scaler': feature_extraction.StandardScalerOperation,
             'one-hot-encoder': feature_extraction.OneHotEncoderOperation,
             'pca': feature_extraction.PCAOperation,
-            # 'feature-indexer':
+            'quantile-discretizer':
+                feature_extraction.QuantileDiscretizerOperation,
+            'standard-scaler': feature_extraction.StandardScalerOperation,
+            # 'feature-indexer': #confirm vector and strings
             #     juicer.compss.feature_operation.FeatureIndexerOperation,
             #
             # ------ Model Operations  ------#
