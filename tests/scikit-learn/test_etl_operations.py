@@ -25,8 +25,11 @@ def debug_ast(code, expected_code):
     """.format(code=code, sep='-' * 20, expected=expected_code))
 
 
-#############################################################################
-#   Add Columns Operation
+'''
+    Add Columns Operation
+'''
+
+
 def test_add_columns_minimum_params_success():
     params = {}
     n_in = {'input data 1': 'df1', 'input data 2': 'df2'}
@@ -48,8 +51,11 @@ def test_add_columns_minimum_params_success():
     assert result, msg + format_code_comparison(code, expected_code)
 
 
-#############################################################################
-#   Clean Missing Operation
+'''
+    Clean Missing Operation
+'''
+
+
 def test_clean_missing_minimal_params_success():
     params = {
         CleanMissingOperation.ATTRIBUTES_PARAM: ['col1', 'col2'],
@@ -153,8 +159,11 @@ def test_clean_missing_minimal_params_type_value_success():
     assert result, msg + format_code_comparison(code, expected_code)
 
 
-#############################################################################
-#   Difference Operation
+'''
+    Difference Operation
+'''
+
+
 def test_difference_minimal_params_success():
     params = {}
     n_in = {'input data 1': 'df1', 'input data 2': 'df2'}
@@ -173,8 +182,11 @@ def test_difference_minimal_params_success():
     assert result, msg
 
 
-#############################################################################
-#   Distinct Operation
+'''
+    Distinct Operation
+'''
+
+
 def test_remove_duplicated_minimal_params_success():
     params = {}
     n_in = {'input data': 'df1'}
@@ -201,8 +213,11 @@ def test_remove_duplicated_by_attributes_success():
     assert result, msg + format_code_comparison(code, expected_code)
 
 
-#############################################################################
-#   Drop Operation
+'''
+    Drop Operation
+'''
+
+
 def test_drop_minimal_params_success():
     params = {
         'attributes': 'TEST'
@@ -219,8 +234,11 @@ def test_drop_minimal_params_success():
     assert result, msg
 
 
-#############################################################################
-#   Filter Operation
+'''
+    Filter Operation
+'''
+
+
 def test_filter_minimum_params_success():
     params = {
         FilterOperation.FILTER_PARAM: [{
@@ -294,8 +312,11 @@ def test_filter_missing_parameter_filter_failure():
         FilterOperation(params, named_inputs=n_in, named_outputs=n_out)
 
 
-#############################################################################
-#   Intersection Operation
+'''
+    Intersection Operation
+'''
+
+
 def test_intersection_minimal_params_success():
     params = {}
     n_in = {'input data 1': 'df1', 'input data 2': 'df2'}
@@ -325,8 +346,11 @@ def test_intersection_minimal_params_success():
     assert result, msg + format_code_comparison(code, expected_code)
 
 
-#############################################################################
-# Join Operation
+'''
+    Join Operation
+'''
+
+
 def test_join_inner_join_minimal_with_remove_right_columns_success():
     params = {
         'left_attributes': ['id', 'cod'],
@@ -426,8 +450,11 @@ def test_join_missing_left_or_right_param_failure():
         JoinOperation(params, named_inputs=n_in, named_outputs=n_out)
 
 
-#############################################################################
-# Replace Values Operation
+'''
+    Replace Values Operation
+'''
+
+
 def test_replace_value_minimal_params_success():
     params = {
         "attributes": ["col1", "col2"],
@@ -464,8 +491,10 @@ def test_replace_value_missing_attribute_param_failure():
         ReplaceValuesOperation(params, named_inputs=n_in, named_outputs=n_out)
 
 
-#############################################################################
-#   Sample Operation
+'''
+    Sample Operation
+'''
+
 def test_sample_or_partition_minimal_params_success():
     params = {
         'fraction': '3',
@@ -569,8 +598,11 @@ def test_sample_or_partition_fraction_missing_failure():
                                    named_outputs=n_out)
 
 
-#############################################################################
-# Select Operation
+'''
+    Select Operation
+'''
+
+
 def test_select_minimal_params_success():
     params = {
         SelectOperation.ATTRIBUTES_PARAM: ['name', 'class']
@@ -599,8 +631,11 @@ def test_select_missing_attribute_param_failure():
         SelectOperation(params, named_inputs=n_in, named_outputs=n_out)
 
 
-#############################################################################
-# Sort Operation
+'''
+    Sort Operation
+'''
+
+
 def test_sort_minimal_params_success():
     params = {
         'attributes': [{'attribute': 'name', 'f': 'asc'},
@@ -626,8 +661,11 @@ def test_sort_missing_attributes_failure():
         SortOperation(params, named_inputs=n_in, named_outputs=n_out)
 
 
-#############################################################################
-# Split Operation
+'''
+    Split Operation
+'''
+
+
 def test_random_split_params_success():
     params = {
         'weights': '40.0',
@@ -648,8 +686,11 @@ def test_random_split_params_success():
     assert result, msg + format_code_comparison(code, expected_code)
 
 
-#############################################################################
-# Transformation Operation
+'''
+    Transformation Operation
+'''
+
+
 def test_transformation_minumum_params_success():
 
     params = {
@@ -761,8 +802,11 @@ def test_transformation_missing_expr_failure():
                                 named_outputs=n_out)
 
 
-#############################################################################
-# Union (Add-Rows) Operation
+'''
+    Union (Add-Rows) Operation
+'''
+
+
 def test_union_minimal_params_success():
     params = {}
 
