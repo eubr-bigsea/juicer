@@ -227,3 +227,64 @@ class GeoWithinOperation(Operation):
                    LAT=self.lat_column[0], LON=self.lon_column[0],
                    out=self.output, lat_long=True)
         return dedent(code)
+
+
+class STDBSCANOperation(Operation):
+    """STDBSCANOperation.
+
+    Perform a ST-DBSCAN with the geospatial data
+    """
+
+    LAT_PARAM = 'LAT'
+    LON_PARAM = 'LON'
+    DATETIME_PARAM = 'DATETIME'
+    MIN_SAMPLE_PARAM = 'min_sample'
+    SPA_THRESHOLD_PARAM = 'spatial_threshold'
+    TMP_THRESHOLD_PARAM = 'thresold_temporal'
+    ALIAS_PARAM = 'alias'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+
+        self.has_code = len(named_inputs) == 1 and self.contains_results()
+        if self.has_code():
+
+            if any([self.LAT_PARAM not in parameters,
+                    self.LON_PARAM not in parameters,
+                    self.DATETIME_PARAM not in parameters]):
+                raise ValueError(
+                    _('Parameters {}, {} and {} must be informed for task {}.')
+                    .format('Latitude', 'Longitude', 'Datetime',
+                            self.__class__))
+
+            self.output = self.named_outputs.get(
+                    'output data', 'output_data_{}'.format(self.order))
+
+            self.lat_col = parameters.get(self.LAT_PARAM)[0]
+            self.lon_col = parameters.get(self.LON_PARAM)[0]
+            self.datetime_col = parameters.get(self.DATETIME_PARAM)[0]
+
+            self.alias = parameters.get(self.ALIAS_PARAM, 'Cluster')
+            self.min_pts = parameters.get(self.MIN_SAMPLE_PARAM, 5)
+            self.spatial_thr = parameters.get(self.SPA_THRESHOLD_PARAM, 500)
+            self.temporal_thr = parameters.get(self.TMP_THRESHOLD_PARAM, 60)
+
+            vals = [self.min_pts, self.spatial_thr, self.temporal_thr]
+            atts = [self.MIN_SAMPLE_PARAM, self.SPA_THRESHOLD_PARAM,
+                    self.TMP_THRESHOLD_PARAM]
+            for var, att in zip(vals, atts):
+                if var <= 0:
+                    raise ValueError(
+                            _("Parameter '{}' must be x>0 for task {}").format(
+                                    att, self.__class__))
+
+    def generate_code(self):
+        """Generate code."""
+        code = """
+            """.format(data_input=self.named_inputs['input data'],
+                       output=self.output, minPts=self.min_pts,
+                       spatial=self.spatial_thr, temporal=self.temporal_thr,
+                       LAT=self.lat_col, LON=self.lon_col,
+                       datetime=self.datetime_col, predCol=self.pred_col)
+
+        return dedent(code)

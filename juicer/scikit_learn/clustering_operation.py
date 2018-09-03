@@ -118,18 +118,23 @@ class AgglomerativeClusteringOperation(Operation):
 class DBSCANClusteringOperation(Operation):
     EPS_PARAM = 'eps'
     MIN_SAMPLES_PARAM = 'min_samples'
+    FEATURES_PARAM = 'features'
+    ALIAS_PARAM = 'alias'
 
     def __init__(self, parameters, named_inputs,
                  named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-        self.has_code = len(named_outputs) > 0
+        self.has_code = len(named_inputs) > 0 and self.contains_results()
         if self.has_code:
             self.output = named_outputs.get(
                     'algorithm', 'clustering_algorithm_{}'.format(self.order))
             self.eps = parameters.get(
                     self.EPS_PARAM, 0.5) or 0.5
             self.min_samples = parameters.get(self.MIN_SAMPLES_PARAM, 5) or 5
+
+            self.features = parameters.get(self.FEATURES_PARAM)
+            self.alias = parameters.get(self.ALIAS_PARAM, 'cluster')
 
             vals = [self.eps, self.min_samples]
             atts = [self.EPS_PARAM, self.MIN_SAMPLES_PARAM]
@@ -142,10 +147,13 @@ class DBSCANClusteringOperation(Operation):
     def generate_code(self):
         """Generate code."""
         code = """
+        {output} = {input}.copy()
         from sklearn.cluster import DBSCAN
+        X = {output}['{features}'].values.tolist()
         {output} = DBSCAN(eps={eps}, min_samples={min_samples})
         """.format(eps=self.eps, min_samples=self.min_samples,
-                   output=self.output)
+                   output=self.output, input=self.named_inputs['input data'],
+                   features=self.features)
 
         return dedent(code)
 
