@@ -26,7 +26,8 @@ class TokenizerOperation(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-        self.has_code = len(self.named_inputs) == 1
+        self.has_code = 'input data' in self.named_inputs \
+                        and self.contains_results()
         if self.has_code:
 
             self.type = self.parameters.get(self.TYPE_PARAM, self.TYPE_SIMPLE)
@@ -67,18 +68,16 @@ class TokenizerOperation(Operation):
             self.min_token_lenght = \
                 ' if len(word) > {}'.format(self.min_token_lenght)
 
-        if self.TYPE_PARAM == self.TYPE_SIMPLE:
-
+        if self.type == self.TYPE_SIMPLE:
             code = """
-            {output} = {input}
+            {output} = {input}.copy()
             result = []
             from nltk.tokenize import ToktokTokenizer
             toktok = ToktokTokenizer()
     
-            for row in {input}['{att}'].values:
-                result.append([word for word in toktok.tokenize(row){limit}])
-                               
-    
+            for row in {output}['{att}'].values:
+                result.append([word 
+                for word in toktok.tokenize(row){limit}])
             {output}['{alias}'] = result
             """.format(output=self.output,
                        input=self.named_inputs['input data'],
@@ -86,13 +85,13 @@ class TokenizerOperation(Operation):
                        limit=self.min_token_lenght)
         else:
             code = """
-           {output} = {input}
+           {output} = {input}.copy()
            result = []
            from nltk.tokenize import regexp_tokenize
 
-           for row in {input}['{att}'].values:
+           for row in {output}['{att}'].values:
                result.append([word for word in 
-                              regexp_tokenize(word, pattern='{exp}'){limit}])
+                              regexp_tokenize(row, pattern='{exp}'){limit}])
 
            {output}['{alias}'] = result
            """.format(output=self.output,
@@ -123,14 +122,15 @@ class RemoveStopWordsOperation(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-        self.has_code = 'input data' in self.named_inputs
+        self.has_code = 'input data' in self.named_inputs \
+                        and self.contains_results()
 
         if self.has_code:
             self.output = self.named_outputs.get(
                     'output data', 'output_data_{}'.format(self.order))
 
             if self.ATTRIBUTES_PARAM in parameters:
-                self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
+                self.attributes = parameters.get(self.ATTRIBUTES_PARAM)[0]
             else:
                 raise ValueError(
                     _("Parameter '{}' must be informed for task {}")
@@ -146,7 +146,7 @@ class RemoveStopWordsOperation(Operation):
             self.alias = parameters.get(self.ALIAS_PARAM, 'tokenized_rm')
             self.stopwords_input = self.named_inputs.get('stop words', None)
             self.stop_word_attribute = self.parameters.get(
-                    self.STOP_WORD_ATTRIBUTE_PARAM, '')
+                    self.STOP_WORD_ATTRIBUTE_PARAM, [''])[0]
             self.lang = self.parameters.get(self.LANG_PARAM, '') or ''
 
     def generate_code(self):
@@ -160,38 +160,44 @@ class RemoveStopWordsOperation(Operation):
         import nltk
         nltk.download('stopwords')
         from nltk.corpus import stopwords
-        stop_words += stopwords.words('{language}')        
-        """.format(language=self.lang.lower())
+        stop_words += stopwords.words('{language}')""".format(
+                    language=self.lang.lower())
 
         if len(self.named_inputs) == 2 and len(self.stop_word_attribute) > 0:
             code += """
-            stop_words += {in2}['{att2}'].values   
+        stop_words += {in2}['{att2}'].values.tolist()
+        print (stop_words)
         """.format(in2=self.stopwords_input, att2=self.stop_word_attribute)
-        if len(self.stop_word_list) > 0:
+        if len(self.stop_word_list) > 1:
             code += """
         stop_words += {stop_word_list}
         """.format(stop_word_list=self.stop_word_list)
 
         if self.sw_case_sensitive:
             code += """
-            word_tokens = {OUT}['{att}'].values       
-            {OUT}['{alias}'] = [w for w in word_tokens if not w in stop_words]
-            """.format(att=self.attributes[0],
-                       att_stop=self.stop_word_attribute,
-                       alias=self.alias[0], case=self.sw_case_sensitive,
-                       OUT=self.output,
-                       stoplist=self.stop_word_list, sw=self.stopwords_input)
+        word_tokens = {OUT}['{att}'].values       
+        result = []
+        for row in word_tokens:
+            result.append([w for w in row if not w in stop_words])
+        {OUT}['{alias}'] = result
+        """.format(att=self.attributes,
+                   att_stop=self.stop_word_attribute,
+                   alias=self.alias, case=self.sw_case_sensitive,
+                   OUT=self.output,
+                   stoplist=self.stop_word_list, sw=self.stopwords_input)
         else:
             code += """
-            stop_words = [w.lower() for w in stop_words]
-            word_tokens = {OUT}['{att}'].values       
-            {OUT}['{alias}'] = [w for w in word_tokens 
-                                if not w.lower() in stop_words]
-            """.format(att=self.attributes[0],
-                       att_stop=self.stop_word_attribute,
-                       alias=self.alias[0], case=self.sw_case_sensitive,
-                       OUT=self.output,
-                       stoplist=self.stop_word_list, sw=self.stopwords_input)
+        stop_words = [w.lower() for w in stop_words]
+        word_tokens = {OUT}['{att}'].values       
+        result = []
+        for row in word_tokens:
+            result.append([w for w in row if not w in stop_words])
+        {OUT}['{alias}'] = result
+        """.format(att=self.attributes,
+                   att_stop=self.stop_word_attribute,
+                   alias=self.alias, case=self.sw_case_sensitive,
+                   OUT=self.output,
+                   stoplist=self.stop_word_list, sw=self.stopwords_input)
 
         return dedent(code)
 
@@ -210,55 +216,41 @@ class GenerateNGramsOperation(Operation):
                  named_outputs):
         Operation.__init__(self, parameters, named_inputs,
                            named_outputs)
-        if self.N_PARAM in parameters:
-            self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
-        else:
-            raise ValueError(
-                _("Parameter '{}' must be informed for task {}").format(
-                    self.N_PARAM, self.__class__))
 
-        if self.ATTRIBUTES_PARAM in parameters:
-            self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
-        else:
-            raise ValueError(
-                _("Parameter '{}' must be informed for task {}").format(
-                    self.ATTRIBUTES_PARAM, self.__class__))
+        self.has_code = 'input data' in self.named_inputs \
+                        and self.contains_results()
+        if self.has_code:
+            self.output = self.named_outputs.get('output data',
+                                                 'out_{}'.format(self.order))
+            if self.N_PARAM in parameters:
+                self.n = abs(int(self.parameters.get(self.N_PARAM, 2)))
+            else:
+                raise ValueError(
+                    _("Parameter '{}' must be informed for task {}").format(
+                        self.N_PARAM, self.__class__))
 
-        self.n = int(self.parameters.get(self.N_PARAM, 2))
-        self.alias = [alias.strip() for alias in
-                      parameters.get(self.ALIAS_PARAM, '').split(',')]
-        # Adjust alias in order to have the same number of aliases as attributes
-        # by filling missing alias with the attribute name sufixed by _ngram.
-        self.alias = [x[1] or '{}_ngram'.format(x[0]) for x in
-                      izip_longest(self.attributes,
-                                   self.alias[:len(self.attributes)])]
+            if self.ATTRIBUTES_PARAM in parameters:
+                self.attributes = parameters.get(self.ATTRIBUTES_PARAM)[0]
+            else:
+                raise ValueError(
+                    _("Parameter '{}' must be informed for task {}").format(
+                        self.ATTRIBUTES_PARAM, self.__class__))
 
-        self.has_code = any(
-            [len(self.named_inputs) > 0, self.contains_results()])
-        self.output = self.named_outputs.get('output data',
-                                             'out_{}'.format(self.order))
+            self.alias = parameters.get(
+                        self.ALIAS_PARAM, '{}_ngram'.format(self.attributes))
 
     def generate_code(self):
         input_data = self.named_inputs['input data']
         code = dedent("""
             {output} = {input}.copy()
-            
             from nltk.util import ngrams
-            def word_grams(words, min={n}):
-                max = len(words)
-                s = []
-                for n in range(min, max):
-                    for ngram in ngrams(words, n):
-                        s.append(' '.join(str(i.encode('utf-8')) for i in ngram))
-                return s
             
-            rows = {output}['{att}'].values
             grams = []
-            for r in rows:
-                grams.append(word_grams(r))
+            for row in {output}['{att}'].values:
+                grams.append(list(ngrams(row, {n})))
                 
             {output}['{alias}'] = grams
-            """).format(att=self.attributes[0], alias=self.alias[0],
+            """).format(att=self.attributes, alias=self.alias,
                         n=self.n, input=input_data, output=self.output)
 
         return code
@@ -348,7 +340,7 @@ class WordToVectorOperation(Operation):
             binary=False, max_features={vocab_size})
                             
             bow_transformer.fit(corpus)
-            {out} = {input}
+            {out} = {input}.copy()
             vector = bow_transformer.transform(corpus).toarray().tolist()
             {out}['{alias}'] = vector
             {model} = bow_transformer
@@ -370,7 +362,7 @@ class WordToVectorOperation(Operation):
             model = HashingVectorizer(binary=False, n_features={vocab_size})
                 
             model.fit(corpus)
-            {out} = {input}
+            {out} = {input}.copy()
             vector = model.transform(corpus).toarray().tolist()
             {out}['{alias}'] = vector
             {model} = model

@@ -209,7 +209,6 @@ class ScikitLearnTranspiler(object):
             parameters['task_id'] = task['id']
             parameters['operation_slug'] = task['operation']['slug']
             parameters['job_id'] = job_id
-            parameters['numFrag'] = self.numFrag
             port = ports.get(task['id'], {})
 
             instance = class_name(parameters, port.get('named_inputs', {}),
@@ -295,6 +294,7 @@ class ScikitLearnTranspiler(object):
 
         geo_ops = {
             'read-shapefile': geo.ReadShapefileOperation,
+            'stdbscan': geo.STDSCANOperantion,
             'within': geo.GeoWithinOperation,
         }
 
