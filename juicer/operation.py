@@ -99,10 +99,10 @@ class Operation(object):
         return ', '.join(self.named_inputs.values())
 
     def get_output_names(self, sep=", "):
-        if self.named_outputs:
-            return sep.join(self.named_outputs.values())
-        else:
+        if self.output:
             return self.output
+        else:
+            return sep.join(self.named_outputs.values())
 
     def get_data_out_names(self, sep=','):
         return self.get_output_names(sep)
