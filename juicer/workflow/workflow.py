@@ -46,6 +46,7 @@ class Workflow(object):
 
         # Workflow dictionary
         self.workflow = workflow_data
+        self.workflow['data_source_cache'] = {}
         self.workflow['disabled_tasks'] = self.disabled_tasks
 
         # Construct graph
