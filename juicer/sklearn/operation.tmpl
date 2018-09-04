@@ -6,7 +6,11 @@ Auto-generated Scikit-Learn code from Lemonade Workflow
     Universidade Federal de Minas Gerais
 More information about Lemonade to be provided
 """
-from concurrent.futures import ThreadPoolExecutor
+
+import pyarrow as pa
+
+import datetime
+import decimal
 import os
 import re
 import json
@@ -17,6 +21,7 @@ import time
 import unicodedata
 import numpy as np
 import pandas as pd
+from concurrent.futures import ThreadPoolExecutor
 from timeit import default_timer as timer
 from juicer.util import dataframe_util
 import traceback
