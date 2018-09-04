@@ -1,29 +1,34 @@
+# coding=utf-8
 
-import ast
-import pprint
 from textwrap import dedent
-from itertools import izip_longest
 
 from juicer.operation import Operation
+
+try:
+    from urllib.request import urlopen
+    from urllib.parse import urlparse
+except ImportError:
+    from urlparse import urlparse
+    from urllib import urlopen
 
 
 class DataReaderOperation(Operation):
     # ADD MODE
 
     HEADER_PARAM = 'header'
-    SCHEMA = 'infer_schema' # FROM_VALUES, FROM_LIMONEIRO or NO
+    SCHEMA = 'infer_schema'  # FROM_VALUES, FROM_LIMONEIRO or NO
     NULL_VALUES_PARAM = 'null_values'
     SEPARATOR = 'separator'
     MODE_PARAM = 'mode'
     FILE = 'data_source'
 
-    def __init__(self, parameters, named_inputs,  named_outputs):
+    def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         if self.FILE not in parameters:
             raise ValueError(
-                _("Parameter '{}' must be informed for task {}")
-                    .format(self.FILE, self.__class__))
+                _("Parameter '{}' must be informed for task {}").format(
+                    self.FILE, self.__class__))
 
         self.name_file = parameters[self.FILE]
         self.separator = parameters.get(self.SEPARATOR, ',')
@@ -41,22 +46,47 @@ class DataReaderOperation(Operation):
 
     def generate_code(self):
 
-        code = "{output} = pd.read_csv('{input}', sep='{sep}', " \
-               "encoding='utf-8'".format(output=self.output,
-                                         input= self.name_file,
-                                         sep=self.separator)
+        url = self.name_file
+        parsed = urlparse(url)
+        if parsed.scheme == 'hdfs':
+            code = """
+            import pyarrow as pa
 
-        if not self.header:
-            code += ", header=None"
+            fs = pa.hdfs.connect('{hdfs_server}', {hdfs_port})
+            header = {header}
+            with fs.open('{path}', 'rb') as f:
+                {output} = pd.read_csv(
+                    f, sep='{sep}', encoding='utf-8', header=header,
+                    na_values={na_values})
+                if header == 0:
+                    {output}.columns = ['col_{{col}}'.format(col=col)
+                        for col in {output}.columns]
+            """.format(path=parsed.path,
+                       output=self.output,
+                       hdfs_server=parsed.hostname,
+                       hdfs_port=parsed.port,
+                       input=parsed.path,
+                       sep=self.separator,
+                       header=1 if self.header else 0,
+                       na_values=self.null_values if len(
+                           self.null_values) else 'None')
+        else:
 
-        if len(self.null_values) > 0:
-            code += ", na_values= {}".format(self.null_values)
-        code += ")\n"
+            code = "{output} = pd.read_csv('{input}', sep='{sep}', " \
+                   "encoding='utf-8'".format(output=self.output,
+                                             input=self.name_file,
+                                             sep=self.separator)
 
-        if not self.header:
-            code += \
-                "{out}.columns = ['col_'+str(col) for col in {out}.columns]"\
-                .format(out=self.output)
+            if not self.header:
+                code += ", header=None"
+
+            if len(self.null_values) > 0:
+                code += ", na_values= {}".format(self.null_values)
+            code += ")\n"
+
+            if not self.header:
+                code += "{out}.columns = ['col_'+str(col) " \
+                        "for col in {out}.columns]".format(out=self.output)
         return dedent(code)
 
 
@@ -87,8 +117,8 @@ class SaveOperation(Operation):
         for att in [self.NAME_PARAM, self.FORMAT_PARAM, self.PATH_PARAM]:
             if att not in parameters:
                 raise ValueError(
-                   _("Parameter '{}' must be informed for task {}")
-                   .format(att, self.__class__))
+                    _("Parameter '{}' must be informed for task {}").format(
+                        att, self.__class__))
 
         self.name = parameters.get(self.NAME_PARAM)
         self.format = parameters.get(self.FORMAT_PARAM, self.FORMAT_CSV)
@@ -103,12 +133,11 @@ class SaveOperation(Operation):
             # NEED CHECK
             self.mode = "w"
 
-        self.header = parameters.get(self.HEADER_PARAM, False) \
-            in (1, '1', True)
+        self.header = parameters.get(self.HEADER_PARAM, False) in (1, '1', True)
 
         self.output = self.named_outputs.get('output data',
                                              'output_data_{}'.format(
-                                                     self.order))
+                                                 self.order))
 
         self.filename = self.name
         # if len(self.path) > 0:

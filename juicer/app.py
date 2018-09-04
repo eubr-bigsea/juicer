@@ -1,21 +1,17 @@
 # !/usr/bin/env python
 # -*- coding: utf-8 -*-
 from __future__ import print_function
-from __future__ import print_function
 
 import argparse
 import gettext
-import json
 import logging.config
 
 import os
-import redis
-import requests
 import yaml
-from juicer.runner import configuration
-from juicer.spark.transpiler import SparkTranspiler
-from juicer.sklearn.transpiler import SklearnTranspiler
 from juicer.compss.transpiler import COMPSsTranspiler
+from juicer.runner import configuration
+from juicer.service.tahiti_service import query_tahiti
+from juicer.spark.transpiler import SparkTranspiler
 from juicer.workflow.workflow import Workflow
 
 logging.config.fileConfig('logging_config.ini')
@@ -24,93 +20,45 @@ log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
 
 
-class Statuses:
-    def __init__(self):
-        pass
+def main(workflow_id, execute_main, params, config, deploy, export_notebook):
+    log.debug(_('Processing workflow queue %s'), workflow_id)
+    tahiti_conf = config['juicer']['services']['tahiti']
 
-    EMPTY = 'EMPTY'
-    START = 'START'
-    RUNNING = 'RUNNING'
+    resp = query_tahiti(base_url=tahiti_conf['url'], item_path='/workflows',
+                        token=str(tahiti_conf['auth_token']),
+                        item_id=workflow_id)
 
+    loader = Workflow(resp, config)
+    # FIXME: Implement validation
+    configuration.set_config(config)
 
-# noinspection SpellCheckingInspection
-class JuicerSparkService:
-    def __init__(self, redis_conn, workflow_id, execute_main, params, job_id,
-                 config):
-        self.redis_conn = redis_conn
-        self.config = config
-        self.workflow_id = workflow_id
-        self.state = "LOADING"
-        self.params = params
-        self.job_id = job_id
-        self.execute_main = execute_main
-        self.states = {
-            "EMPTY": {
-                "START": self.start
-            },
-            "START": {
+    ops = query_tahiti(
+        base_url=tahiti_conf['url'], item_path='/operations',
+        token=str(tahiti_conf['auth_token']), item_id='',
+        qs='fields=id,slug,ports.id,ports.slug,ports.interfaces&platform=1')
+    slug_to_op_id = dict([(op['slug'], op['id']) for op in ops])
+    port_id_to_port = dict([(p['id'], p) for op in ops for p in op['ports']])
 
-            }
-        }
-
-    def start(self):
-        pass
-
-    def run(self):
-        # _id = 'status_{}'.format(self.workflow_id)
-        # status = self.redis_conn.hgetall(_id)
-        # print '>>>', status
-
-        log.debug(_('Processing workflow queue %s'), self.workflow_id)
-
-        # msg = self.redis_conn.brpop(str(self.workflow_id))
-
-        # self.redis_conn.hset(_id, 'status', Statuses.RUNNING)
-        tahiti_conf = self.config['juicer']['services']['tahiti']
-
-        r = requests.get("{url}/workflows/{id}?token={token}".format(
-            id=self.workflow_id, url=tahiti_conf['url'],
-            token=tahiti_conf['auth_token']))
-
-        loader = None
-        if r.status_code == 200:
-            loader = Workflow(json.loads(r.text), self.config)
+    try:
+        if loader.platform == "spark":
+            transpiler = SparkTranspiler(configuration.get_config(),
+                                         slug_to_op_id, port_id_to_port)
+        elif loader.platform == "compss":
+            transpiler = COMPSsTranspiler(configuration.get_config())
         else:
-            print(tahiti_conf['url'], r.text)
-            exit(-1)
-        # FIXME: Implement validation
-        # loader.verify_workflow()
-        configuration.set_config(self.config)
+            raise ValueError(
+                _('Invalid platform value: {}').format(loader.platform))
 
-        try:
-            if loader.platform == "spark":
-                transpiler = SparkTranspiler(configuration.get_config())
-            elif loader.platform == "compss":
-                transpiler = COMPSsTranspiler(configuration.get_config())
-            elif loader.platform == "scikit-learn":
-                transpiler = SklearnTranspiler(configuration.get_config())
-            else:
-                raise ValueError(
-                    _('Invalid platform value: {}').format(loader.platform))
+        params['execute_main'] = execute_main
+        transpiler.execute_main = execute_main
+        transpiler.transpile(
+            loader.workflow, loader.graph, params=params, deploy=deploy,
+            export_notebook=export_notebook)
 
-            self.params['execute_main'] = self.execute_main
-            transpiler.execute_main = self.execute_main
-            transpiler.transpile(loader.workflow,
-                                 loader.graph,
-                                 params=self.params,
-                                 job_id=self.job_id)
-
-        except ValueError as ve:
-            log.exception(_("At least one parameter is missing"), exc_info=ve)
-        except:
-            raise
-
-
-def main(workflow_id, execute_main, params, job_id, config):
-    redis_conn = redis.StrictRedis()
-    service = JuicerSparkService(redis_conn, workflow_id, execute_main, params,
-                                 job_id, config)
-    service.run()
+    except ValueError as ve:
+        log.exception(_("At least one parameter is missing"), exc_info=ve)
+    except:
+        raise
 
 
 if __name__ == "__main__":
@@ -122,15 +70,14 @@ if __name__ == "__main__":
     parser.add_argument("-w", "--workflow", type=int, required=True,
                         help="Workflow identification number")
 
-    parser.add_argument("-j", "--job_id", type=int,
-                        help="Job identification number")
-
     parser.add_argument("-e", "--execute-main", action="store_true",
                         help="Write code to run the program (it calls main()")
+    parser.add_argument("-d", "--deploy", action="store_true",
+                        help="Generate deployment workflow")
 
-    parser.add_argument("-s", "--service", required=False,
-                        action="store_true",
-                        help="Indicates if workflow will run as a service")
+    parser.add_argument("-n", "--notebook", action="store_true",
+                        help="Generate Jupyter Notebook")
+
     parser.add_argument("--lang", help="Minion messages language (i18n)",
                         required=False, default="en_US")
     parser.add_argument(
@@ -149,12 +96,5 @@ if __name__ == "__main__":
         with open(args.config) as config_file:
             juicer_config = yaml.load(config_file.read())
 
-    main(args.workflow, args.execute_main,
-         {"service": args.service, "plain": args.plain},
-         args.job_id, juicer_config)
-    '''
-    if True:
-        app.run(debug=True, port=8000)
-    else:
-        wsgi.server(eventlet.listen(('', 8000)), app)
-    '''
+    main(args.workflow, args.execute_main, {"plain": args.plain}, juicer_config,
+         args.deploy, args.notebook)
