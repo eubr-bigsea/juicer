@@ -259,7 +259,7 @@ def test_naive_bayes_with_params_success():
     code = instance_lr.generate_code()
     expected_code = dedent("""
         from sklearn.naive_bayes import BernoulliNB
-        classifier_1 = BernoulliNB(alpha=2.0, prior=None)""")
+        classifier_1 = BernoulliNB(alpha=2.0, prior=[1,2,3,4,5])""")
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
     assert result, msg + format_code_comparison(code, expected_code)
 
@@ -398,8 +398,9 @@ def test_random_forest_wrong_value_param_failure():
 
 
 '''
-    SVMClassifierOperation
+    SVM Classifier Operation
 '''
+
 
 def test_svm_operation_minimum_success():
     params = {
@@ -460,27 +461,136 @@ def test_svm_wrong_value_param_failure():
         SvmClassifierOperation(params, named_inputs=n_in, named_outputs=n_out)
 
 
-# def test_regressor_operation_with_model_success():
-#     params = {
-#             RegressionModelOperation.FEATURES_PARAM: 'f',
-#             RegressionModelOperation.LABEL_PARAM: 'l'
-#     }
-#     n_in = {'algorithm': 'regressor', 'train input data': 'train_data'}
-#     n_out = {'model': 'model_data'}
-#
-#     instance = RegressionModelOperation(params, named_inputs=n_in,
-#                                         named_outputs=n_out)
-#
-#     code = instance.generate_code()
-#     expected_code = dedent("""
-#         algorithm = regressor
-#         out_task_1 = train_data
-#         X_train = train_data['f'].values.tolist()
-#         y = train_data['l'].values.tolist()
-#         model_data = algorithm.fit(X_train, y)
-#         out_task_1['prediction'] = algorithm.predict(X_train).tolist()
-#     """)
-#
-#     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
-#
-#     assert result, msg + format_code_comparison(code, expected_code)
+'''
+    Classification Model Operation    
+'''
+
+
+def test_classification_operation_success():
+    params = {
+
+        ClassificationModelOperation.FEATURES_ATTRIBUTE_PARAM: ['f'],
+        ClassificationModelOperation.LABEL_ATTRIBUTE_PARAM: ['label']
+
+    }
+    named_inputs = {'algorithm': 'algo',
+                    'train input data': 'df_2'}
+    named_outputs = {'output data': 'output_1'}
+
+    instance = ClassificationModelOperation(params, named_inputs=named_inputs,
+                                            named_outputs=named_outputs)
+
+    code = instance.generate_code()
+
+    expected_code = dedent("""
+        X = df_2['f'].values.tolist()
+        y = df_2['label'].values.tolist()
+        model_task_1 = algo.fit(X, y)
+        
+        output_1 = df_2
+         
+        output_1['prediction'] = model_task_1.predict(X).tolist()
+        """.format())
+
+    result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
+
+    assert result, msg + format_code_comparison(code, expected_code)
+
+
+def test_classification_with_model_operation_success():
+    params = {
+
+        ClassificationModelOperation.FEATURES_ATTRIBUTE_PARAM: ['f'],
+        ClassificationModelOperation.LABEL_ATTRIBUTE_PARAM: ['label']
+
+    }
+    named_inputs = {'algorithm': 'algo',
+                    'train input data': 'df_2'}
+    named_outputs = {'output data': 'output_1',
+                     'model': 'output_2'}
+
+    instance = ClassificationModelOperation(params, named_inputs=named_inputs,
+                                            named_outputs=named_outputs)
+
+    code = instance.generate_code()
+
+    expected_code = dedent("""
+        X = df_2['f'].values.tolist()
+        y = df_2['label'].values.tolist()
+        output_2 = algo.fit(X, y)
+         
+        output_1 = df_2
+         
+        output_1['prediction'] = output_2.predict(X).tolist()
+        """.format())
+
+    result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
+
+    assert result, msg + format_code_comparison(code, expected_code)
+
+
+def test_classification_model_operation_success():
+    params = {
+
+        ClassificationModelOperation.FEATURES_ATTRIBUTE_PARAM: ['f'],
+        ClassificationModelOperation.LABEL_ATTRIBUTE_PARAM: ['label']
+
+    }
+    named_inputs = {'algorithm': 'algo',
+                    'train input data': 'df_2'}
+    named_outputs = {'model': 'output_2'}
+
+    instance = ClassificationModelOperation(params, named_inputs=named_inputs,
+                                            named_outputs=named_outputs)
+
+    code = instance.generate_code()
+
+    expected_code = dedent("""
+        X = df_2['f'].values.tolist()
+        y = df_2['label'].values.tolist()
+        output_2 = algo.fit(X, y)
+
+        task_1 = None
+        """.format())
+
+    result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
+
+    assert result, msg + format_code_comparison(code, expected_code)
+
+
+def test_classification_model_operation_missing_features_failure():
+    params = {}
+    named_inputs = {'algorithm': 'df_1',
+                    'train input data': 'df_2'}
+    named_outputs = {'output data': 'output_1',
+                     'model': 'output_2'}
+
+    with pytest.raises(ValueError):
+        ClassificationModelOperation(params, named_inputs=named_inputs,
+                                     named_outputs=named_outputs)
+
+
+def test_classification_model_operation_missing_input_failure():
+    params = {
+        ClassificationModelOperation.FEATURES_ATTRIBUTE_PARAM: ['f']
+    }
+    named_inputs = {'algorithm': 'df_1'}
+    named_outputs = {'output data': 'output_1'}
+
+    with pytest.raises(ValueError):
+        ClassificationModelOperation(params, named_inputs=named_inputs,
+                                     named_outputs=named_outputs)
+
+
+def test_classification_model_operation_missing_output_success():
+    params = {
+        ClassificationModelOperation.FEATURES_ATTRIBUTE_PARAM: ['f'],
+        ClassificationModelOperation.LABEL_ATTRIBUTE_PARAM: ['label']
+    }
+    named_inputs = {'algorithm': 'df_1', 'train input data': 'df_2'}
+    named_outputs = {'model': 'output_2'}
+
+    classifier = ClassificationModelOperation(params,
+                                              named_inputs=named_inputs,
+                                              named_outputs=named_outputs)
+    assert classifier.has_code
