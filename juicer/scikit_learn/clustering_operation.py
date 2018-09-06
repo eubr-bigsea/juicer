@@ -4,31 +4,31 @@ from juicer.operation import Operation
 
 
 class ClusteringModelOperation(Operation):
+    FEATURES_PARAM = 'features'
+    ALIAS_PARAM = 'prediction'
 
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
 
-        if 'features' not in parameters:
-            raise ValueError(
-                _("Parameter '{}' must be informed for task {}")
-                .format('features', self.__class__))
-
-        self.features = parameters['features'][0]
-        self.model = self.named_outputs.get('model',
-                                            'model_tmp_{}'.format(self.output))
-
         self.has_code = len(self.named_inputs) == 2
-        if not self.has_code:
-            raise ValueError(
-                _("Parameters '{}' and '{}' must be informed for task {}")
-                .format('train input data',  'algorithm', self.__class__))
+        if self.has_code:
 
-        self.perform_transformation = 'output data' in self.named_outputs
-        if not self.perform_transformation:
-            self.output = 'task_{}'.format(self.order)
-        else:
-            self.output = self.named_outputs['output data']
-            self.prediction = self.parameters.get('prediction', 'prediction')
+            if self.FEATURES_PARAM in parameters:
+                self.features = parameters.get(self.FEATURES_PARAM)[0]
+            else:
+                raise \
+                    ValueError(_("Parameter '{}' must be informed for task {}")
+                               .format(self.FEATURES_PARAM, self.__class__))
+
+            self.model = self.named_outputs.get('model',
+                                                'model_{}'.format(self.output))
+
+            self.perform_transformation = 'output data' in self.named_outputs
+            if not self.perform_transformation:
+                self.output = 'task_{}'.format(self.order)
+            else:
+                self.output = self.named_outputs['output data']
+                self.alias = parameters.get(self.ALIAS_PARAM, 'prediction')
 
     @property
     def get_inputs_names(self):
@@ -52,12 +52,12 @@ class ClusteringModelOperation(Operation):
 
         if self.perform_transformation:
             code += """
-        y = cluster_model.predict({IN})
+        y = {algorithm}.predict({IN})
         {OUT} = {IN}
         {OUT}['{predCol}'] = y
         """.format(OUT=self.output, model=self.model,
                    IN=self.named_inputs['train input data'],
-                   predCol=self.predCol)
+                   predCol=self.alias, algorithm=self.named_inputs['algorithm'])
         else:
             code += """
         {output} = None
@@ -67,6 +67,9 @@ class ClusteringModelOperation(Operation):
 
 
 class AgglomerativeClusteringOperation(Operation):
+    FEATURES_PARAM = 'attributes'
+    ALIAS_PARAM = 'alias'
+
     N_CLUSTERS_PARAM = 'number_of_clusters'
     LINKAGE_PARAM = 'linkage'
     AFFINITY_PARAM = 'affinity'
@@ -81,14 +84,22 @@ class AgglomerativeClusteringOperation(Operation):
     LINKAGE_PARAM_COMP = 'complete'
     LINKAGE_PARAM_AVG = 'average'
 
-    def __init__(self, parameters, named_inputs,
-                 named_outputs):
+    def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-        self.has_code = len(named_outputs) > 0
+        self.has_code = len(named_inputs) > 0 or self.contains_results()
         if self.has_code:
             self.output = named_outputs.get(
-                    'algorithm', 'clustering_algorithm_{}'.format(self.order))
+                    'output data', 'output_data_{}'.format(self.order))
+
+            if self.FEATURES_PARAM not in parameters:
+                raise \
+                    ValueError(_("Parameter '{}' must be informed for task {}")
+                               .format(self.FEATURES_PARAM, self.__class__))
+
+            self.features = parameters.get(self.FEATURES_PARAM)[0]
+            self.alias = parameters.get(self.ALIAS_PARAM, 'cluster')
+
             self.n_clusters = parameters.get(self.N_CLUSTERS_PARAM, 2) or 2
             self.linkage = parameters.get(
                     self.LINKAGE_PARAM,
@@ -106,11 +117,15 @@ class AgglomerativeClusteringOperation(Operation):
         """Generate code."""
         code = """
         from sklearn.cluster import AgglomerativeClustering
-        {output} = AgglomerativeClustering(n_clusters={n_clusters},
+        {output} = {input}.copy()
+        X = {output}['{features}'].values.tolist()
+        clt = AgglomerativeClustering(n_clusters={n_clusters},
             affinity='{affinity}', linkage='{linkage}')
-        """.format(n_clusters=self.n_clusters,
-                   affinity=self.affinity, linkage=self.linkage,
-                   output=self.output)
+        {output}['{alias}'] = clt.fit_predict(X)
+        """.format(input=self.named_inputs['input data'], output=self.output,
+                   features=self.features, alias=self.alias,
+                   n_clusters=self.n_clusters, affinity=self.affinity,
+                   linkage=self.linkage)
 
         return dedent(code)
 
@@ -125,15 +140,20 @@ class DBSCANClusteringOperation(Operation):
                  named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-        self.has_code = len(named_inputs) > 0 and self.contains_results()
+        self.has_code = len(named_inputs) > 0 or self.contains_results()
         if self.has_code:
             self.output = named_outputs.get(
-                    'algorithm', 'clustering_algorithm_{}'.format(self.order))
+                    'output data', 'output_data_{}'.format(self.order))
             self.eps = parameters.get(
                     self.EPS_PARAM, 0.5) or 0.5
             self.min_samples = parameters.get(self.MIN_SAMPLES_PARAM, 5) or 5
 
-            self.features = parameters.get(self.FEATURES_PARAM)
+            if self.FEATURES_PARAM in parameters:
+                self.features = parameters.get(self.FEATURES_PARAM)[0]
+            else:
+                raise \
+                    ValueError(_("Parameter '{}' must be informed for task {}")
+                               .format(self.FEATURES_PARAM, self.__class__))
             self.alias = parameters.get(self.ALIAS_PARAM, 'cluster')
 
             vals = [self.eps, self.min_samples]
@@ -149,11 +169,13 @@ class DBSCANClusteringOperation(Operation):
         code = """
         {output} = {input}.copy()
         from sklearn.cluster import DBSCAN
+        
         X = {output}['{features}'].values.tolist()
-        {output} = DBSCAN(eps={eps}, min_samples={min_samples})
+        clt = DBSCAN(eps={eps}, min_samples={min_samples})
+        {output}['{alias}'] = clt.fit_predict(X)
         """.format(eps=self.eps, min_samples=self.min_samples,
-                   output=self.output, input=self.named_inputs['input data'],
-                   features=self.features)
+                   input=self.named_inputs['input data'], output=self.output,
+                   features=self.features, alias=self.alias)
 
         return dedent(code)
 
@@ -177,6 +199,7 @@ class GaussianMixtureClusteringOperation(Operation):
                                                  100) or 100
             self.tolerance = parameters.get(self.TOLERANCE_PARAM,
                                             0.001) or 0.001
+            self.tolerance = abs(float(self.tolerance))
 
             vals = [self.number_of_clusters, self.max_iterations]
             atts = [self.N_CLUSTERS_PARAM, self.MAX_ITER_PARAM]
@@ -185,11 +208,6 @@ class GaussianMixtureClusteringOperation(Operation):
                     raise ValueError(
                             _("Parameter '{}' must be x>0 for task {}").format(
                                     att, self.__class__))
-
-            if self.tolerance < 0:
-                raise ValueError(
-                        _("Parameter '{}' must be x>=0 for task {}").format(
-                                self.TOLERANCE_PARAM, self.__class__))
 
     def generate_code(self):
         """Generate code."""
