@@ -27,7 +27,8 @@ class TokenizerOperation(Operation):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         self.has_code = 'input data' in self.named_inputs \
-                        and self.contains_results()
+                        and any([self.contains_results(),
+                                 len(named_outputs) > 0])
         if self.has_code:
 
             self.type = self.parameters.get(self.TYPE_PARAM, self.TYPE_SIMPLE)
@@ -61,6 +62,11 @@ class TokenizerOperation(Operation):
             self.output = self.named_outputs.get(
                 'output data', 'output_data_{}'.format(self.order))
 
+            if self.type == self.TYPE_SIMPLE:
+                self.has_import = "from nltk.tokenize import ToktokTokenizer\n"
+            else:
+                self.has_import = "from nltk.tokenize import regexp_tokenize\n"
+
     def generate_code(self):
         """Generate code."""
 
@@ -72,7 +78,6 @@ class TokenizerOperation(Operation):
             code = """
             {output} = {input}.copy()
             result = []
-            from nltk.tokenize import ToktokTokenizer
             toktok = ToktokTokenizer()
     
             for row in {output}['{att}'].values:
@@ -87,7 +92,6 @@ class TokenizerOperation(Operation):
             code = """
            {output} = {input}.copy()
            result = []
-           from nltk.tokenize import regexp_tokenize
 
            for row in {output}['{att}'].values:
                result.append([word for word in 
@@ -123,7 +127,8 @@ class RemoveStopWordsOperation(Operation):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         self.has_code = 'input data' in self.named_inputs \
-                        and self.contains_results()
+                        and any([self.contains_results(),
+                                 len(named_outputs) > 0])
 
         if self.has_code:
             self.output = self.named_outputs.get(
@@ -149,6 +154,10 @@ class RemoveStopWordsOperation(Operation):
                     self.STOP_WORD_ATTRIBUTE_PARAM, [''])[0]
             self.lang = self.parameters.get(self.LANG_PARAM, '') or ''
 
+            self.has_import = "import nltk\n" \
+                              "nltk.download('stopwords')\n" \
+                              "from nltk.corpus import stopwords\n"
+
     def generate_code(self):
         """Generate code."""
         code = """
@@ -157,9 +166,6 @@ class RemoveStopWordsOperation(Operation):
         """.format(OUT=self.output, IN=self.named_inputs['input data'])
         if len(self.lang) > 0:
             code += """
-        import nltk
-        nltk.download('stopwords')
-        from nltk.corpus import stopwords
         stop_words += stopwords.words('{language}')""".format(
                     language=self.lang.lower())
 
@@ -218,7 +224,8 @@ class GenerateNGramsOperation(Operation):
                            named_outputs)
 
         self.has_code = 'input data' in self.named_inputs \
-                        and self.contains_results()
+                        and any([self.contains_results(),
+                                 len(named_outputs) > 0])
         if self.has_code:
             self.output = self.named_outputs.get('output data',
                                                  'out_{}'.format(self.order))
@@ -239,15 +246,16 @@ class GenerateNGramsOperation(Operation):
             self.alias = parameters.get(
                         self.ALIAS_PARAM, '{}_ngram'.format(self.attributes))
 
+            self.has_import = "from nltk.util import ngrams\n"
+
     def generate_code(self):
         input_data = self.named_inputs['input data']
         code = dedent("""
             {output} = {input}.copy()
-            from nltk.util import ngrams
-            
+                    
             grams = []
             for row in {output}['{att}'].values:
-                grams.append(list(ngrams(row, {n})))
+                grams.append([" ".join(gram) for gram in ngrams(row, {n})])
                 
             {output}['{alias}'] = grams
             """).format(att=self.attributes, alias=self.alias,
@@ -271,56 +279,70 @@ class WordToVectorOperation(Operation):
     ALIAS_PARAM = 'alias'
     VOCAB_SIZE_PARAM = 'vocab_size'
     MINIMUM_DF_PARAM = 'minimum_df'
-    MINIMUM_TF_PARAM = 'minimum_tf'
 
     MINIMUM_VECTOR_SIZE_PARAM = 'minimum_size'
-    MINIMUM_COUNT_PARAM = 'minimum_count'
+    #MINIMUM_COUNT_PARAM = 'minimum_count'
 
     TYPE_COUNT = 'count'
+    TYPE_TFIDF = 'TF-IDF'
     TYPE_WORD2VEC = 'word2vec'
     TYPE_HASHING_TF = 'hashing_tf'
 
-    def __init__(self, parameters, named_inputs,
-                 named_outputs):
-        Operation.__init__(self, parameters, named_inputs,
-                           named_outputs)
-        if self.ATTRIBUTES_PARAM in parameters:
-            self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
-        else:
-            raise ValueError(
-                _("Parameter '{}' must be informed for task {}").format(
-                    self.ATTRIBUTES_PARAM, self.__class__))
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-        self.type = self.parameters.get(self.TYPE_PARAM, self.TYPE_COUNT)
-        self.alias = [alias.strip() for alias in
-                      parameters.get(self.ALIAS_PARAM, '').split(',')]
-        # Adjust alias in order to have the same number of aliases as attributes
-        # by filling missing alias with the attribute name sufixed by _vect.
-        self.alias = [x[1] or '{}_vect'.format(x[0]) for x in
-                      izip_longest(self.attributes,
-                                   self.alias[:len(self.attributes)])]
+        self.has_code = 'input data' in self.named_inputs \
+                        and any([self.contains_results(),
+                                 'output data' in self.named_outputs])
+        if self.has_code:
+            if self.ATTRIBUTES_PARAM in parameters:
+                self.attributes = parameters.get(self.ATTRIBUTES_PARAM)[0]
+            else:
+                raise ValueError(
+                    _("Parameter '{}' must be informed for task {}").format(
+                        self.ATTRIBUTES_PARAM, self.__class__))
 
-        self.vocab_size = parameters.get(self.VOCAB_SIZE_PARAM, 1000) or 1000
-        self.minimum_df = parameters.get(self.MINIMUM_DF_PARAM, 1) or 1.0
-        self.minimum_tf = parameters.get(self.MINIMUM_TF_PARAM, 1) or 1.0
+            self.type = self.parameters.get(self.TYPE_PARAM, self.TYPE_COUNT)
 
-        self.minimum_size = parameters.get(self.MINIMUM_VECTOR_SIZE_PARAM, 100)
-        self.minimum_count = parameters.get(self.MINIMUM_COUNT_PARAM, 5)
+            self.alias = parameters.get(
+                    self.ALIAS_PARAM, '{}_vec'.format(self.attributes))
 
-        self.has_code = any(
-            [len(self.named_inputs) > 0, self.contains_results()])
-        self.output = self.named_outputs.get('output data',
-                                             'out_{}'.format(self.order))
-        self.vocab = self.named_outputs.get('vocabulary',
-                                            'vocab_task_{}'.format(self.order))
-        self.output_model = self.named_outputs.get(
-            'vector-model', 'vector_model_{}'.format(self.order))
+            self.vocab_size = parameters.get(self.VOCAB_SIZE_PARAM,
+                                             1000) or 1000
+            self.minimum_df = parameters.get(self.MINIMUM_DF_PARAM,
+                                             1) or 1.0
 
-        if self.type not in [self.TYPE_HASHING_TF, self.TYPE_WORD2VEC,
-                             self.TYPE_COUNT]:
-            raise ValueError(
-                _("Invalid type '{}' for task {}").format(self.type,
-                                                          self.__class__))
+            self.minimum_size = parameters.get(self.MINIMUM_VECTOR_SIZE_PARAM,
+                                               100)
+
+            self.output = self.named_outputs.get('output data',
+                                                 'out_{}'.format(self.order))
+            self.vocab = self.named_outputs.get('vocabulary',
+                                                'vocab_task_{}'.format(self.order))
+            self.output_model = self.named_outputs.get(
+                'vector-model', 'vector_model_{}'.format(self.order))
+
+            if self.type not in [self.TYPE_HASHING_TF, self.TYPE_WORD2VEC,
+                                 self.TYPE_COUNT, self.TYPE_TFIDF]:
+                raise ValueError(
+                    _("Invalid type '{}' for task {}").format(self.type,
+                                                              self.__class__))
+
+            if self.type == self.TYPE_COUNT:
+                self.has_import = \
+                    'from sklearn.feature_extraction.text ' \
+                    'import CountVectorizer\n'
+            elif self.type == self.TYPE_HASHING_TF:
+                self.has_import = \
+                    'from sklearn.feature_extraction.text ' \
+                    'import HashingVectorizer\n'
+            elif self.type == self.TYPE_WORD2VEC:
+                self.has_import = \
+                    'from gensim.models import Word2Vec\n'
+            elif self.type == self.TYPE_TFIDF:
+                self.has_import = \
+                    'from sklearn.feature_extraction.text ' \
+                    'import TfidfVectorizer\n'
 
     def get_data_out_names(self, sep=','):
         return self.output
@@ -331,25 +353,52 @@ class WordToVectorOperation(Operation):
     def generate_code(self):
         input_data = self.named_inputs['input data']
 
-        # max_df is used for removing terms that appear too frequently
+        # TODO: max_df is used for removing terms that appear too frequently
         if self.type == self.TYPE_COUNT:
             code = dedent("""
-            from sklearn.feature_extraction.text import CountVectorizer
-            corpus = {input}['{att}'].apply(lambda x: ' '.join(x))
-            bow_transformer = CountVectorizer(min_df={min_df}, 
-            binary=False, max_features={vocab_size})
-                            
-            bow_transformer.fit(corpus)
             {out} = {input}.copy()
-            vector = bow_transformer.transform(corpus).toarray().tolist()
-            {out}['{alias}'] = vector
-            {model} = bow_transformer
-            {vocab} = bow_transformer.get_feature_names()
+            
+            def do_nothing(tokens):
+                return tokens
+            
+            corpus = {out}['{att}'].values.tolist()
+            {model} = CountVectorizer(tokenizer=do_nothing,
+                             preprocessor=None, lowercase=False, 
+                             min_df={min_df}, max_features={vocab_size})
+                            
+            {model}.fit(corpus)
+            {out}['{alias}'] = {model}.transform(corpus).toarray().tolist()
+            {vocab} = {model}.get_feature_names()
             """.format(
                     input=input_data,
                     out=self.output,
-                    att=self.attributes[0],
-                    alias=self.alias[0],
+                    att=self.attributes,
+                    alias=self.alias,
+                    min_df=self.minimum_df,
+                    vocab_size=self.vocab_size,
+                    model=self.output_model,
+                    vocab=self.vocab))
+
+        elif self.type == self.TYPE_TFIDF:
+            code = dedent("""
+            {out} = {input}.copy()
+            
+            def do_nothing(tokens):
+                return tokens
+            
+            corpus = {out}['{att}'].values.tolist()
+            {model} = TfidfVectorizer(tokenizer=do_nothing,
+                             preprocessor=None, lowercase=False, 
+                             min_df={min_df}, max_features={vocab_size})
+                            
+            {model}.fit(corpus)
+            {out}['{alias}'] = {model}.transform(corpus).toarray().tolist()
+            {vocab} = {model}.get_feature_names()
+            """.format(
+                    input=input_data,
+                    out=self.output,
+                    att=self.attributes,
+                    alias=self.alias,
                     min_df=self.minimum_df,
                     vocab_size=self.vocab_size,
                     model=self.output_model,
@@ -357,38 +406,53 @@ class WordToVectorOperation(Operation):
 
         elif self.type == self.TYPE_HASHING_TF:
             code = dedent("""
-            from sklearn.feature_extraction.text import HashingVectorizer
-            corpus = {input}['{att}'].apply(lambda x: ' '.join(x))
-            model = HashingVectorizer(binary=False, n_features={vocab_size})
-                
-            model.fit(corpus)
             {out} = {input}.copy()
-            vector = model.transform(corpus).toarray().tolist()
+            
+            def do_nothing(tokens):
+                return tokens
+                
+            corpus = {out}['{att}'].values.tolist()
+            {model} = HashingVectorizer(tokenizer=do_nothing,
+                             preprocessor=None, lowercase=False, 
+                             n_features={vocab_size})
+                
+            {model}.fit(corpus)
+            {out} = {input}.copy()
+            vector = {model}.transform(corpus).toarray().tolist()
             {out}['{alias}'] = vector
-            {model} = model
 
             # There is no vocabulary in this type of transformer
-            {vocab} = {{}}
+            {vocab} = None
             """.format(
                     input=input_data,
                     out=self.output,
-                    att=self.attributes[0],
-                    alias=self.alias[0],
+                    att=self.attributes,
+                    alias=self.alias,
                     vocab_size=self.vocab_size,
                     model=self.output_model,
                     vocab=self.vocab))
         elif self.type == self.TYPE_WORD2VEC:
-            # @FIXME Check
+
             code = dedent("""
-                """.format(
-                self.attributes,
-                input=input_data,
-                out=self.output,
-                aliases=json.dumps(zip(self.attributes, self.alias)),
-                size=self.minimum_size, count=self.minimum_count,
-                vocab=self.vocab,
-                model=self.output_model
-            ))
+            {out} = {input}.copy()
+            dim = {max_dim}
+            corpus = {out}['{att}'].values.tolist()
+            {model} = Word2Vec(corpus, min_count={min_df}, 
+                max_vocab_size={max_vocab}, size=dim)
+            
+            vector = [np.mean([{model}.wv[w] for w in words if w in {model}.wv]
+                      or [np.zeros(dim)], axis=0) for words in corpus]     
+            {out}['{alias}'] = vector
+            {vocab} = [w for w in {model}.wv.vocab]
+                """.format(att=self.attributes,
+                           input=input_data,
+                           min_df=self.minimum_df,
+                           alias=self.alias,
+                           max_dim=self.minimum_size,
+                           out=self.output,
+                           max_vocab=self.vocab_size,
+                           vocab=self.vocab,
+                           model=self.output_model))
 
         else:
             raise ValueError(
