@@ -4,32 +4,45 @@ from juicer.operation import Operation
 
 class ClassificationModelOperation(Operation):
 
+    LABEL_ATTRIBUTE_PARAM = 'label'
+    FEATURES_ATTRIBUTE_PARAM = 'features'
+    PREDICTION_ATTRIBUTE_PARAM = 'prediction'
+
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
 
-        if 'label' not in parameters and 'features' not in parameters:
-            raise ValueError(
-                _("Parameters '{}' and '{}' must be informed for task {}")
-                .format('label',  'features', self.__class__))
-
-        self.label = parameters['label'][0]
-        self.features = parameters['features'][0]
-        self.predCol = parameters.get('prediction', 'prediction')
         self.has_code = len(self.named_inputs) == 2
+
+        if self.has_code:
+            if any([self.FEATURES_ATTRIBUTE_PARAM not in parameters,
+                    self.LABEL_ATTRIBUTE_PARAM not in parameters]):
+                msg = _("Parameters '{}' and '{}' must be informed for task {}")
+                raise ValueError(msg.format(
+                    self.FEATURES_ATTRIBUTE_PARAM, self.LABEL_ATTRIBUTE_PARAM,
+                    self.__class__.__name__))
+
+            self.label = parameters.get(self.LABEL_ATTRIBUTE_PARAM)[0]
+            self.features = parameters.get(self.FEATURES_ATTRIBUTE_PARAM)[0]
+            self.prediction = parameters.get(self.PREDICTION_ATTRIBUTE_PARAM,
+                                             'prediction')
+
         if not self.has_code:
             raise ValueError(
                 _("Parameters '{}' and '{}' must be informed for task {}")
                 .format('train input data',  'algorithm', self.__class__))
 
-        self.model = self.named_outputs.get('model',
-                                            'model_tmp{}'.format(self.order))
+        self.model = named_outputs.get('model',
+                                       'model_task_{}'.format(self.order))
+
+        if not self.has_code and len(self.named_outputs) > 0:
+            raise ValueError(
+                _('Model is being used, but at least one input is missing'))
 
         self.perform_transformation = 'output data' in self.named_outputs
         if not self.perform_transformation:
             self.output = 'task_{}'.format(self.order)
         else:
             self.output = self.named_outputs['output data']
-            self.prediction = self.parameters.get('prediction', 'prediction')
 
     def get_data_out_names(self, sep=','):
         return ''
@@ -53,7 +66,8 @@ class ClassificationModelOperation(Operation):
             {OUT} = {IN}
             
             {OUT}['{predCol}'] = {model}.predict(X).tolist()
-            """.format(predCol=self.predCol, OUT=self.output, model=self.model,
+            """.format(predCol=self.prediction, OUT=self.output,
+                       model=self.model,
                        IN=self.named_inputs['train input data'])
         else:
             code += """
@@ -236,7 +250,7 @@ class LogisticRegressionOperation(Operation):
 
             self.tol = self.parameters.get(self.TOLERANCE_PARAM,
                                            0.0001) or 0.0001
-            self.tol = abs(self.tol)
+            self.tol = abs(float(self.tol))
             self.regularization = self.parameters.get(self.REGULARIZATION_PARAM,
                                                       1.0) or 1.0
             self.max_iter = self.parameters.get(self.MAX_ITER_PARAM,
@@ -291,7 +305,7 @@ class NaiveBayesClassifierOperation(Operation):
             self.class_prior = parameters.get(self.CLASS_PRIOR_PARAM,
                                               'None') or 'None'
             if self.class_prior != "None":
-                self.class_prior = [self.class_prior]
+                self.class_prior = '[' + self.class_prior + ']'
 
             self.smoothing = parameters.get(self.ALPHA_PARAM, 1.0) or 1.0
             self.model_type = parameters.get(
@@ -352,7 +366,7 @@ class PerceptronClassifierOperation(Operation):
             self.max_iter = parameters.get(self.MAX_ITER_PARAM, 1000) or 1000
             self.alpha = parameters.get(self.ALPHA_PARAM, 0.0001) or 0.0001
             self.tol = parameters.get(self.TOLERANCE_PARAM, 0.001) or 0.001
-            self.tol = abs(self.tol)
+            self.tol = abs(float(self.tol))
             self.shuffle = parameters.get(self.SHUFFLE_PARAM, False) or False
             self.seed = parameters.get(self.SEED_PARAM, 'None') or 'None'
             self.penalty = parameters.get(
@@ -461,7 +475,7 @@ class SvmClassifierOperation(Operation):
 
             self.max_iter = parameters.get(self.MAX_ITER_PARAM, -1)
             self.tol = parameters.get(self.TOLERANCE_PARAM, 0.001) or 0.001
-            self.tol = abs(self.tol)
+            self.tol = abs(float(self.tol))
             self.seed = parameters.get(self.SEED_PARAM, 'None') or 'None'
             self.degree = parameters.get(self.DEGREE_PARAM, 3) or 3
             self.kernel = parameters.get(
