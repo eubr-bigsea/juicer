@@ -42,7 +42,7 @@ def test_add_columns_minimum_params_success():
     code = instance.generate_code()
     expected_code = dedent("""
     out = pd.merge(df1, df2, left_index=True, 
-        right_index=True, suffixes=('ds0_', 'ds0_'))
+        right_index=True, suffixes=('_ds0', '_ds1'))
     """.format(
         out=n_out['output data'],
         in0=n_in['input data 1'],
@@ -50,6 +50,26 @@ def test_add_columns_minimum_params_success():
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
     assert result, msg + format_code_comparison(code, expected_code)
 
+
+def test_add_columns_suffixes_params_success():
+    params = {AddColumnsOperation.output: '_l,_r'}
+    n_in = {'input data 1': 'df1', 'input data 2': 'df2'}
+    n_out = {'output data': 'out'}
+
+    instance = AddColumnsOperation(parameters=params,
+                                   named_inputs=n_in,
+                                   named_outputs=n_out)
+
+    code = instance.generate_code()
+    expected_code = dedent("""
+    out = pd.merge(df1, df2, left_index=True, 
+        right_index=True, suffixes=('_l', '_r'))
+    """.format(
+        out=n_out['output data'],
+        in0=n_in['input data 1'],
+        in1=n_in['input data 2']))
+    result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
+    assert result, msg + format_code_comparison(code, expected_code)
 
 '''
     Clean Missing Operation
@@ -861,24 +881,24 @@ def test_aggregation_rows_minimal_params_success():
     assert result, msg + format_code_comparison(code, expected_code)
 
 
-def test_aggregation_rows_group_all_missing_attributes_success():
-    params = {
-        AggregationOperation.FUNCTION_PARAM: [
-            {'attribute': 'income', 'f': 'AVG', 'alias': 'avg_income'}],
-    }
-    n_in = {'input data': 'input_1'}
-    n_out = {'output data': 'output_1'}
-
-    instance = AggregationOperation(params, named_inputs=n_in,
-                                    named_outputs=n_out)
-    code = instance.generate_code()
-
-    expected_code = """{out} = {in0}.agg(
-                        functions.avg('income').alias('avg_income'))""".format(
-        out=n_out['output data'], in0=n_in['input data'], agg='country', )
-    result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
-    print (code)
-    assert result, msg
+# def test_aggregation_rows_group_all_missing_attributes_success():
+#     params = {
+#         AggregationOperation.FUNCTION_PARAM: [
+#             {'attribute': 'income', 'f': 'AVG', 'alias': 'avg_income'}],
+#     }
+#     n_in = {'input data': 'input_1'}
+#     n_out = {'output data': 'output_1'}
+#
+#     instance = AggregationOperation(params, named_inputs=n_in,
+#                                     named_outputs=n_out)
+#     code = instance.generate_code()
+#
+#     expected_code = """{out} = {in0}.agg(
+#                         functions.avg('income').alias('avg_income'))""".format(
+#         out=n_out['output data'], in0=n_in['input data'], agg='country', )
+#     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
+#     print (code)
+#     assert result, msg
 
 
 def test_aggregation_missing_function_param_failure():
