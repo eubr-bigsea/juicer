@@ -777,26 +777,23 @@ class TransformationOperation(Operation):
     def generate_code(self):
         # Builds the expression and identify the target column
         params = {'input': self.named_inputs['input data']}
-        expressions = []
+        functions = ""
         for expr in self.expressions:
-            row = [expr['alias']]
             expression = expr['tree']
             expression = Expression(expression, params)
             f = expression.parsed_expression
-            row.append(f)
-            row.append(expression.imports)
-            expressions.append(row)
+            functions += "['{}', {}],".format(expr['alias'], f)
+            # row.append(expression.imports) #TODO: by operation itself
 
         code = """
-        functions = {expr}
-        {out} = {input}
-        for col, function, imp in functions:
-            exec(imp)
-            function = eval(function)
-            {out}[col] = {out}[col].apply(function, axis=1)
+        {out} = {input}.copy()
+
+        functions = [{expr}]
+        for col, function in functions:
+            {out}[col] = {out}.apply(function, axis=1)
         """.format(out=self.output,
                    input=self.named_inputs['input data'],
-                   expr=expressions)
+                   expr=functions)
         return dedent(code)
 
 
