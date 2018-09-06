@@ -50,7 +50,7 @@ def test_agglomerative_clustering_success():
         df2 = df1.copy()
         X = df2['f'].values.tolist()
         clt = AgglomerativeClustering(n_clusters=2, 
-            affinity='cosine', linkage='l2')
+            linkage='l2', affinity='cosine')
         df2['ALIAS'] = clt.fit_predict(X)
         """.format())
 
@@ -77,7 +77,7 @@ def test_agglomerative_clustering_minimum_success():
         df2 = df1.copy()
         X = df2['f'].values.tolist()
         clt = AgglomerativeClustering(n_clusters=2,
-             affinity='euclidean', linkage='ward')
+             linkage='ward', affinity='euclidean')
         df2['cluster'] = clt.fit_predict(X)
         """)
 
@@ -494,6 +494,8 @@ def test_clustering_model_operation_success():
     expected_code = dedent("""
         X = df_2['f'].values.tolist()
         output_2 = algo.fit(X)
+        
+        task_1 = None
         """.format())
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
