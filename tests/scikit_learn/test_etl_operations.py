@@ -730,19 +730,16 @@ def test_transformation_minumum_params_success():
 
     expected_code = dedent(
         """
-        functions = {expr}
-        {out} = {in1}
-        for col, function, imp in functions:
-            exec(imp)
-            function = eval(function)
-            {out}[col] = {out}[col].apply(function, axis=1)
+        {out} = {in1}.copy()
+        
+        functions = [['new_col1', lambda row: row['col1'] + 2 * 9],
+                     ['new_col2', lambda row: len(row['col2'], 3)],
+                     ['new_col3', lambda row: row['col3'].split(',')],]
+        for col, function in functions:
+            {out}[col] = {out}.apply(function, axis=1)
         """.format(out=n_out['output data'],
                    in1=n_in['input data'],
-                   expr=[
-                       ['new_col1', "lambda row: row['col1'] + 2 * 9", ''],
-                       ['new_col2', "lambda row: len(row['col2'], 3)", ''],
-                       ['new_col3', "lambda row: row['col3'].split(',')", '']
-                   ])
+                   )
     )
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
@@ -776,17 +773,13 @@ def test_transformation_math_expression_success():
 
     expected_code = dedent(
         """
-        functions = {expr}
-        {out} = {in1}
-        for col, function, imp in functions:
-            exec(imp)
-            function = eval(function)
-            {out}[col] = {out}[col].apply(function, axis=1)
+        {out} = {in1}.copy()
+        
+        functions = [['result_2', lambda row: row['a'] * 100],]
+        for col, function in functions:
+            {out}[col] = {out}.apply(function, axis=1)
         """.format(out=n_out['output data'],
-                   in1=n_in['input data'], expr=[
-                       ['result_2', "lambda row: row['a'] * 100", '']
-                   ])
-        )
+                   in1=n_in['input data']))
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
     assert result, msg + format_code_comparison(code, expected_code)
