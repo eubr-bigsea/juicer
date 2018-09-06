@@ -13,24 +13,29 @@ class ReadShapefileOperation(Operation):
         - Alias
 
     """
+    SHAPEFILE_PARAM = 'shapefile'
+    POLYGON_ATTR_PARAM = 'polygon'
+    ATTRIBUTES_PARAM = 'attributes'
+    LAT_LONG_PARAM = 'lat_lon'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-        self.has_code = 'shapefile' in parameters
+        self.has_code = self.SHAPEFILE_PARAM in parameters
         if not self.has_code:
             raise ValueError(
                 _("Parameter '{}' must be informed for task {}")
-                .format('shapefile', self.__class__))
+                .format(self.SHAPEFILE_PARAM, self.__class__))
 
-        self.shp_file = parameters['shapefile']
+        self.shp_file = parameters[self.SHAPEFILE_PARAM]
         if '.shp' not in self.shp_file:
             self.shp_file = self.shp_file+'.shp'
 
         self.dbf_file = re.sub('.shp$', '.dbf', self.shp_file)
-        self.alias = parameters.get('polygon', 'points')
-        self.lat_long = True
-        self.attributes = parameters.get('attributes', []) or []
+        self.alias = parameters.get(self.POLYGON_ATTR_PARAM, 'points')
+        self.lat_long = parameters.get(self.LAT_LONG_PARAM,
+                                       True) in (1, '1', True)
+        self.attributes = parameters.get(self.ATTRIBUTES_PARAM, []) or []
         self.output = self.named_outputs.get(
                 'geo data', 'output_data_{}'.format(self.order))
         self.has_import = \
@@ -44,8 +49,7 @@ class ReadShapefileOperation(Operation):
         polygon = '{polygon}'
         lat_long = {lat_long}
         attributes = {attributes}
-        {out} = read_shapefile(polygon, lat_long, attributes, '{shp}', '{dbf}')
-
+        {out} = ReadShapefile(polygon, lat_long, attributes, '{shp}', '{dbf}')
         """.format(shp=self.shp_file,
                    dbf=self.dbf_file,
                    lat_long=self.lat_long,
@@ -135,7 +139,8 @@ class STDBSCANOperation(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-        self.has_code = len(named_inputs) == 1 and self.contains_results()
+        self.has_code = len(named_inputs) == 1 and any([self.contains_results(),
+                                                        len(named_outputs) > 0])
         if self.has_code:
 
             if any([self.LAT_PARAM not in parameters,
