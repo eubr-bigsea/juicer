@@ -87,7 +87,8 @@ class AgglomerativeClusteringOperation(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-        self.has_code = len(named_inputs) > 0 or self.contains_results()
+        self.has_code = len(named_inputs) > 0 and any([self.contains_results(),
+                                                       len(named_outputs) > 0])
         if self.has_code:
             self.output = named_outputs.get(
                     'output data', 'output_data_{}'.format(self.order))
@@ -143,7 +144,8 @@ class DBSCANClusteringOperation(Operation):
                  named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-        self.has_code = len(named_inputs) > 0 or self.contains_results()
+        self.has_code = len(named_inputs) > 0 and any([self.contains_results(),
+                                                       len(named_outputs) > 0])
         if self.has_code:
             self.output = named_outputs.get(
                     'output data', 'output_data_{}'.format(self.order))

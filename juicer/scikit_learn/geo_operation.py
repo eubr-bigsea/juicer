@@ -30,66 +30,27 @@ class ReadShapefileOperation(Operation):
         self.dbf_file = re.sub('.shp$', '.dbf', self.shp_file)
         self.alias = parameters.get('polygon', 'points')
         self.lat_long = True
-        self.attributes = parameters.get('attributes', [])
+        self.attributes = parameters.get('attributes', []) or []
         self.output = self.named_outputs.get(
                 'geo data', 'output_data_{}'.format(self.order))
+        self.has_import = \
+            "from juicer.scikit_learn.library.read_shapefile " \
+            "import ReadShapefile\n"
 
     def generate_code(self):
         """Generate code."""
 
         code = """
-        import shapefile
-        from io import BytesIO, StringIO
-
         polygon = '{polygon}'
         lat_long = {lat_long}
-        header = {header}
-
-        shp_content = open({shp}, "rb")
-        dbf_content = open({dbf}, "rb")
-    
-        # shp_io = BytesIO(shp_path)
-        # dbf_io = BytesIO(dbf_path)
-
-        shp_object = shapefile.Reader(shp=shp_content, dbf=dbf_content)
-        records = shp_object.records()
-        sectors = shp_object.shapeRecords()
-
-        fields = dict()  # column: position
-        for i, f in enumerate(shp_object.fields):
-            fields[f[0]] = i
-        del fields['DeletionFlag']
-
-        if len(header) == 0:
-            header = [f for f in fields]
-
-        # position of each selected field
-        num_fields = [fields[f] for f in header]
-
-        header.append(polygon)
-        data = []
-        for i, sector in enumerate(sectors):
-            attributes = []
-            r = records[i]
-            for t in num_fields:
-                attributes.append(r[t-1])
-
-            points = []
-            for point in sector.shape.points:
-                if lat_long:
-                    points.append([point[1], point[0]])
-                else:
-                    points.append([point[0], point[1]])
-            attributes.append(points)
-            data.append(attributes)
-
-        {out} = pd.DataFrame(data, columns=header)
+        attributes = {attributes}
+        {out} = read_shapefile(polygon, lat_long, attributes, '{shp}', '{dbf}')
 
         """.format(shp=self.shp_file,
                    dbf=self.dbf_file,
                    lat_long=self.lat_long,
                    polygon=self.alias,
-                   header=self.attributes,
+                   attributes=self.attributes,
                    out=self.output)
         return dedent(code)
 
@@ -131,95 +92,23 @@ class GeoWithinOperation(Operation):
 
             self.output = self.named_outputs.get(
                 'output data', 'output_data_{}'.format(self.order))
+            self.has_import = \
+                "from juicer.scikit_learn.library.geo_within " \
+                "import GeoWithinOperation\n"
 
     def generate_code(self):
         """Generate code."""
         code = """
-                                                         
-        def GeoWithinOperation(data_input, shp_object):                                         
-            import pyqtree
-    
-            lat_long = {lat_long}
-            attributes = {att}
-            if len(attributes) == 0:
-                attributes = shp_object.columns
-            alias = '{alias}'
-            polygon_col = '{polygon}'
-            col_lat = "{LAT}"
-            col_long = "{LON}"
-                              
-            if lat_long:
-                LAT_pos = 0
-                LON_pos = 1
-            else:
-                LAT_pos = 1
-                LON_pos = 0
-    
-            xmin = float('+inf')
-            ymin = float('+inf')
-            xmax = float('-inf')
-            ymax = float('-inf')
-    
-            for i, sector in shp_object.iterrows():
-                for point in sector[polygon_col]:
-                    xmin = min(xmin, point[LON_pos])
-                    ymin = min(ymin, point[LAT_pos])
-                    xmax = max(xmax, point[LON_pos])
-                    ymax = max(ymax, point[LAT_pos])
-    
-            # create the main bound box
-            spindex = pyqtree.Index(bbox=[xmin, ymin, xmax, ymax])
-    
-            # than, insert all sectors bbox
-            for inx, sector in shp_object.iterrows():
-                points = []
-                xmin = float('+inf')
-                ymin = float('+inf')
-                xmax = float('-inf')
-                ymax = float('-inf')
-                for point in sector[polygon_col]:
-                    points.append((point[LON_pos], point[LAT_pos]))
-                    xmin = min(xmin, point[LON_pos])
-                    ymin = min(ymin, point[LAT_pos])
-                    xmax = max(xmax, point[LON_pos])
-                    ymax = max(ymax, point[LAT_pos])
-                spindex.insert(item=inx, bbox=[xmin, ymin, xmax, ymax])
-            
-            from matplotlib.path import Path
-            
-            sector_position = []        
-            if len(data_input) > 0:
-                for i, point in data_input.iterrows():
-                    y = float(point[col_lat])
-                    x = float(point[col_long])
-        
-                    # (xmin,ymin,xmax,ymax)
-                    matches = spindex.intersect([x, y, x, y])
-        
-                    for shp_inx in matches:
-                        row = shp_object.loc[shp_inx]
-                        polygon = Path(row[polygon_col])
-                        if polygon.contains_point([y, x]):
-                            content = [i] + row[attributes].tolist()
-                            sector_position.append(content)
-        
-            if len(sector_position) > 0:
-                attributes = ['index_geoWithin'] + list(attributes)
-                cols = ["%s%s" % (a, alias) for a in attributes]
-                tmp = pd.DataFrame(sector_position, columns=cols)
-        
-                key = 'index_geoWithin'+alias
-                data_input = pd.merge(data_input, tmp,
-                                      left_index=True, right_on=key)
-                data_input = data_input.drop([key], axis=1)
-            else:
-                for a in [a + alias for a in attributes]:
-                    data_input[a] = np.nan
-        
-            data_input = data_input.reset_index(drop=True)  
-            return data_input
+        lat_long = {lat_long}
+        attributes = {att}
+        alias = '{alias}'
+        polygon_col = '{polygon}'
+        col_lat = "{LAT}"
+        col_long = "{LON}"     
 
-        {out} = GeoWithinOperation({input}, {shape})                                   
+        {out} = GeoWithinOperation({input}, {shape}, lat_long,
+                       attributes, alias, polygon_col, col_lat, col_long)    
+                                
         """.format(shape=self.named_inputs['geo data'],
                    polygon=self.polygon_column[0],
                    att=self.attributes,  alias=self.alias,
@@ -247,7 +136,7 @@ class STDBSCANOperation(Operation):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         self.has_code = len(named_inputs) == 1 and self.contains_results()
-        if self.has_code():
+        if self.has_code:
 
             if any([self.LAT_PARAM not in parameters,
                     self.LON_PARAM not in parameters,
@@ -264,27 +153,29 @@ class STDBSCANOperation(Operation):
             self.lon_col = parameters.get(self.LON_PARAM)[0]
             self.datetime_col = parameters.get(self.DATETIME_PARAM)[0]
 
-            self.alias = parameters.get(self.ALIAS_PARAM, 'Cluster')
-            self.min_pts = parameters.get(self.MIN_SAMPLE_PARAM, 5)
-            self.spatial_thr = parameters.get(self.SPA_THRESHOLD_PARAM, 500)
-            self.temporal_thr = parameters.get(self.TMP_THRESHOLD_PARAM, 60)
+            self.alias = parameters.get(self.ALIAS_PARAM, 'cluster')
+            self.min_pts = parameters.get(self.MIN_SAMPLE_PARAM, 15) or 15
+            self.spatial_thr = parameters.get(self.SPA_THRESHOLD_PARAM,
+                                              500) or 500
+            self.temporal_thr = parameters.get(self.TMP_THRESHOLD_PARAM,
+                                               60) or 60
 
-            vals = [self.min_pts, self.spatial_thr, self.temporal_thr]
-            atts = [self.MIN_SAMPLE_PARAM, self.SPA_THRESHOLD_PARAM,
-                    self.TMP_THRESHOLD_PARAM]
-            for var, att in zip(vals, atts):
-                if var <= 0:
-                    raise ValueError(
-                            _("Parameter '{}' must be x>0 for task {}").format(
-                                    att, self.__class__))
+            self.min_pts = abs(int(self.min_pts))
+            self.spatial_thr = abs(float(self.spatial_thr))
+            self.temporal_thr = abs(int(self.temporal_thr))
+            self.has_import = "from juicer.scikit_learn.library.stdbscan " \
+                              "import st_dbscan\n"
 
     def generate_code(self):
         """Generate code."""
         code = """
+        {output} = st_dbscan({data_input}, '{col_latitude}', '{col_longitude}', 
+            '{col_datetime}', '{alias}', spatial_threshold={spatial}, 
+            temporal_threshold={temporal}, min_neighbors={minPts})
             """.format(data_input=self.named_inputs['input data'],
                        output=self.output, minPts=self.min_pts,
                        spatial=self.spatial_thr, temporal=self.temporal_thr,
-                       LAT=self.lat_col, LON=self.lon_col,
-                       datetime=self.datetime_col, predCol=self.pred_col)
+                       col_latitude=self.lat_col, col_longitude=self.lon_col,
+                       col_datetime=self.datetime_col, alias=self.alias)
 
         return dedent(code)
