@@ -33,7 +33,6 @@ def test_gbt_regressor_minimum_params_success():
 
     code = instance_lr.generate_code()
     expected_code = dedent("""
-        from sklearn.tree import DecisionTreeClassifier
         classifier_1 = DecisionTreeClassifier(max_depth=None, 
         min_samples_split=2, min_samples_leaf=1, 
         min_weight_fraction_leaf=0.0, random_state=None)""")
@@ -56,7 +55,6 @@ def test_gbt_regressor_with_params_success():
 
     code = instance_lr.generate_code()
     expected_code = dedent("""
-        from sklearn.tree import DecisionTreeClassifier
         classifier_1 = DecisionTreeClassifier(max_depth=11, 
         min_samples_split=5, min_samples_leaf=4, 
         min_weight_fraction_leaf=0.1, random_state=14)""")
@@ -89,7 +87,6 @@ def test_gbt_classifier_minimum_params_success():
 
     code = instance_lr.generate_code()
     expected_code = dedent("""
-        from sklearn.ensemble import GradientBoostingClassifier
         classifier_1 = GradientBoostingClassifier(loss='deviance',
           learning_rate=0.1, n_estimators=100, 
           min_samples_split=2, max_depth=3,
@@ -116,7 +113,6 @@ def test_gbt_classifier_with_params_success():
 
     code = instance_lr.generate_code()
     expected_code = dedent("""
-        from sklearn.ensemble import GradientBoostingClassifier
         classifier_1 = GradientBoostingClassifier(loss='exponencial',
           learning_rate=1.1, n_estimators=11,
           min_samples_split=12, max_depth=13,
@@ -150,7 +146,6 @@ def test_knn_classifier_minimum_params_success():
 
     code = instance_lr.generate_code()
     expected_code = dedent("""
-        from sklearn.neighbors import KNeighborsClassifier
         classifier_1 = KNeighborsClassifier(n_neighbors=3)""")
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
     assert result, msg + format_code_comparison(code, expected_code)
@@ -180,7 +175,6 @@ def test_logisticregression_minimum_params_success():
 
     code = instance_lr.generate_code()
     expected_code = dedent("""
-        from sklearn.linear_model import LogisticRegression
         classifier_1 = LogisticRegression(tol=0.0001, C=1.0, max_iter=100, 
         solver='liblinear', random_state=None)""")
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
@@ -203,7 +197,6 @@ def test_logisticregression_with_params_success():
 
     code = instance_lr.generate_code()
     expected_code = dedent("""
-        from sklearn.linear_model import LogisticRegression
         classifier_1 = LogisticRegression(tol=0.1, C=1.1, max_iter=10, 
         solver='newton-cg', random_state=2)""")
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
@@ -236,7 +229,6 @@ def test_naive_bayes_minimum_params_success():
 
     code = instance_lr.generate_code()
     expected_code = dedent("""
-        from sklearn.naive_bayes import MultinomialNB
         classifier_1 = MultinomialNB(alpha=1.0, prior=None)""")
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
@@ -258,7 +250,6 @@ def test_naive_bayes_with_params_success():
 
     code = instance_lr.generate_code()
     expected_code = dedent("""
-        from sklearn.naive_bayes import BernoulliNB
         classifier_1 = BernoulliNB(alpha=2.0, prior=[1,2,3,4,5])""")
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
     assert result, msg + format_code_comparison(code, expected_code)
@@ -290,7 +281,6 @@ def test_perceptron_minimum_params_success():
 
     code = instance_lr.generate_code()
     expected_code = dedent("""
-        from sklearn.linear_model import Perceptron
         classifier_1 = Perceptron(tol=0.001, alpha=0.0001, max_iter=1000,
         shuffle=False, random_state=None, penalty='None')""")
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
@@ -314,7 +304,6 @@ def test_perceptron_with_params_success():
 
     code = instance_lr.generate_code()
     expected_code = dedent("""
-        from sklearn.linear_model import Perceptron
         classifier_1 = Perceptron(tol=0.1, alpha=0.11, max_iter=100,
         shuffle=True, random_state=10, penalty='elasticnet')""")
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
@@ -348,7 +337,6 @@ def test_random_forest_operation_minimum_success():
 
     code = instance.generate_code()
     expected_code = dedent("""
-        from sklearn.ensemble import RandomForestClassifier
         classifier_1 = RandomForestClassifier(n_estimators=10, 
          max_depth=None,  min_samples_split=2, 
          min_samples_leaf=1, random_state=None)
@@ -375,7 +363,6 @@ def test_random_forest_operation_params_success():
 
     code = instance.generate_code()
     expected_code = dedent("""
-        from sklearn.ensemble import RandomForestClassifier
         classifier_1 = RandomForestClassifier(n_estimators=15, 
          max_depth=11,  min_samples_split=12, 
          min_samples_leaf=13, random_state=10)
@@ -413,7 +400,6 @@ def test_svm_operation_minimum_success():
 
     code = instance.generate_code()
     expected_code = dedent("""
-        from sklearn.svm import SVC
         classifier_1 = SVC(tol=0.001, C=1.0, max_iter=-1, 
                            degree=3, kernel='rbf', random_state=None)
     """)
@@ -441,7 +427,6 @@ def test_svm_operation_params_success():
 
     code = instance.generate_code()
     expected_code = dedent("""
-        from sklearn.svm import SVC
         classifier_1 = SVC(tol=0.1, C=10.0, max_iter=13, 
                            degree=2, kernel='poly', random_state=12)
     """)

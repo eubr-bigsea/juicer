@@ -113,11 +113,14 @@ class AgglomerativeClusteringOperation(Operation):
                         _("Parameter '{}' must be x>0 for task {}").format(
                                 self.N_CLUSTERS_PARAM, self.__class__))
 
+            self.has_import = \
+                "from sklearn.cluster import AgglomerativeClustering\n"
+
     def generate_code(self):
         """Generate code."""
         code = """
-        from sklearn.cluster import AgglomerativeClustering
         {output} = {input}.copy()
+        
         X = {output}['{features}'].values.tolist()
         clt = AgglomerativeClustering(n_clusters={n_clusters},
             linkage='{linkage}', affinity='{affinity}')
@@ -164,11 +167,13 @@ class DBSCANClusteringOperation(Operation):
                             _("Parameter '{}' must be x>0 for task {}").format(
                                     att, self.__class__))
 
+            self.has_import = \
+                "from sklearn.cluster import DBSCAN\n"
+
     def generate_code(self):
         """Generate code."""
         code = """
         {output} = {input}.copy()
-        from sklearn.cluster import DBSCAN
         
         X = {output}['{features}'].values.tolist()
         clt = DBSCAN(eps={eps}, min_samples={min_samples})
@@ -209,10 +214,12 @@ class GaussianMixtureClusteringOperation(Operation):
                             _("Parameter '{}' must be x>0 for task {}").format(
                                     att, self.__class__))
 
+            self.has_import = \
+                "from sklearn.mixture import GaussianMixture\n"
+
     def generate_code(self):
         """Generate code."""
         code = """
-        from sklearn.mixture import GaussianMixture
         {output} = GaussianMixture(n_components={k}, max_iter={iter}, tol={tol})
         """.format(k=self.number_of_clusters,
                    iter=self.max_iterations, tol=self.tolerance,
@@ -263,16 +270,17 @@ class KMeansClusteringOperation(Operation):
                             _("Parameter '{}' must be x>0 for task {}").format(
                                     att, self.__class__))
 
-            if self.tolerance < 0:
-                raise ValueError(
-                        _("Parameter '{}' must be x>=0 for task {}").format(
-                                self.TOLERANCE_PARAM, self.__class__))
+            if self.type.lower() == "k-means":
+                self.has_import = \
+                    "from sklearn.cluster import KMeans\n"
+            else:
+                self.has_import = \
+                    "from sklearn.cluster import MiniBatchKMeans\n"
 
     def generate_code(self):
         """Generate code."""
         if self.type.lower() == "k-means":
             code = """
-            from sklearn.cluster import KMeans
             {output} = KMeans(n_clusters={k}, init='{init}',
                 max_iter={max_iter}, tol={tol}, random_state={seed})
             """.format(k=self.n_clusters, max_iter=self.max_iter,
@@ -280,7 +288,6 @@ class KMeansClusteringOperation(Operation):
                        output=self.output, seed=self.seed)
         else:
             code = """
-            from sklearn.cluster import MiniBatchKMeans
             {output} = MiniBatchKMeans(n_clusters={k}, init='{init}',
                 max_iter={max_iter}, tol={tol}, random_state={seed})
             """.format(k=self.n_clusters, max_iter=self.max_iter,
@@ -335,10 +342,12 @@ class LdaClusteringOperation(Operation):
                             _("Parameter '{}' must be x>0 for task {}").format(
                                     att, self.__class__))
 
+            self.has_import = \
+                "from sklearn.decomposition import LatentDirichletAllocation\n"
+
     def generate_code(self):
         """Generate code."""
         code = """
-        from sklearn.decomposition import LatentDirichletAllocation
         {output} = LatentDirichletAllocation(n_components={n_components}, 
         doc_topic_prior={doc_topic_prior}, topic_word_prior={topic_word_prior}, 
         learning_method='{learning_method}', max_iter={max_iter})

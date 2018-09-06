@@ -43,6 +43,7 @@ class TranspilerUtils(object):
         return [instance for instance in instances if
                 instance.has_code and instance.enabled]
 
+
     @staticmethod
     def _get_parent_tasks(instances_map, instance, only_enabled=True):
         if only_enabled:
@@ -105,6 +106,16 @@ class ScikitLearnTranspiler(object):
         self._assign_operations()
         self.execute_main = False
 
+
+    @staticmethod
+    def _escape_chars(text):
+        if isinstance(text, str):
+            return text.encode('string-escape').replace('"', '\\"').replace(
+                "'", "\\'")
+        else:
+            return text.encode('unicode-escape').replace('"', '\\"').replace(
+                "'", "\\'")
+
     def transpile(self, workflow, graph, params, out=None, job_id=None):
         """ Transpile the tasks from Lemonade's workflow into COMPSs code """
 
@@ -163,10 +174,15 @@ class ScikitLearnTranspiler(object):
         sorted_tasks_id = nx.topological_sort(graph)
         task_hash = hashlib.sha1()
         for i, task_id in enumerate(sorted_tasks_id):
+            self.current_task_id = task_id
             task = graph.node[task_id]
             class_name = self.operations[task['operation']['slug']]
+
             parameters = {}
-            for parameter, definition in task['forms'].iteritems():
+            not_empty_params = [(k, d) for k, d in task['forms'].items() if
+                                d['value'] != '' and d['value'] is not None]
+            task['forms'] = dict(not_empty_params)
+            for parameter, definition in task['forms'].items():
                 # @FIXME: Fix wrong name of form category
                 # (using name instead of category)
                 # print definition.get('category')
@@ -179,6 +195,7 @@ class ScikitLearnTranspiler(object):
                 if all([cat in ["execution", 'paramgrid', 'param grid',
                                 'execution logging', 'logging'],
                         definition['value'] is not None]):
+
                     task_hash.update(unicode(definition['value']).encode(
                             'utf8', errors='ignore'))
                     if cat in ['paramgrid', 'logging']:
@@ -187,44 +204,53 @@ class ScikitLearnTranspiler(object):
                         parameters[cat][parameter] = definition['value']
                     else:
                         parameters[parameter] = definition['value']
+                # escape invalid characters for code generation
+                # except JSON (starting with {)
+                if definition['value'] is not None and not isinstance(
+                        definition['value'], bool):
+                    if '"' in definition['value'] or "'" in definition['value']:
+                        if definition['value'][0] != '{':
+                            definition['value'] = ScikitLearnTranspiler\
+                                ._escape_chars(definition['value'])
 
             # Hash is used in order to avoid re-run task.
             parameters['hash'] = task_hash.hexdigest()
 
             # Operation SAVE requires the complete workflow
-            if task['operation']['name'] == 'SAVE':
+            if task['operation']['slug'] == 'data-writer':
                 parameters['workflow'] = workflow
 
             # Some temporary variables need to be identified by a sequential
             # number, so it will be stored in this field
-            task['order'] = i
+            parameters['order'] = i
 
             parameters['task'] = task
             parameters['configuration'] = self.configuration
-            parameters['workflow_json'] = json.dumps(workflow)
+            parameters['workflow'] = workflow
             parameters['user'] = workflow['user']
             parameters['workflow_id'] = workflow['id']
-            parameters['workflow_name'] = workflow['name']
+            parameters['workflow_name'] = ScikitLearnTranspiler._escape_chars(
+                    workflow['name'])
             parameters['operation_id'] = task['operation']['id']
             parameters['task_id'] = task['id']
             parameters['operation_slug'] = task['operation']['slug']
             parameters['job_id'] = job_id
+            parameters['display_sample'] = parameters['task']['forms'].get(
+                    'display_sample', {}).get('value') in (1, '1', True, 'true')
+            parameters['display_schema'] = parameters['task']['forms'].get(
+                    'display_schema', {}).get('value') in (1, '1', True, 'true')
             port = ports.get(task['id'], {})
 
             instance = class_name(parameters, port.get('named_inputs', {}),
                                   port.get('named_outputs', {}))
-
-            env_setup['dependency_controller'] = DependencyController(
-                params.get('requires_info', False))
+            instance.out_degree = graph.out_degree(task_id)
 
             env_setup['instances'].append(instance)
             env_setup['instances_by_task_id'][task['id']] = instance
-            env_setup['execute_main'] = params.get('execute_main', False)
-            env_setup['plain'] = params.get('plain', False)
 
-            dict_msgs = {}
+            dict_msgs = dict()
             dict_msgs['task_completed'] = _('Task completed')
-            dict_msgs['task_running']   = _('Task running')
+            dict_msgs['task_running'] = _('Task running')
             dict_msgs['lemonade_task_completed'] = \
                 _('Lemonade task %s completed')
             dict_msgs['lemonade_task_parents'] = \
@@ -232,19 +258,24 @@ class ScikitLearnTranspiler(object):
             dict_msgs['lemonade_task_started'] = \
                 _('Lemonade task %s started')
             dict_msgs['lemonade_task_afterbefore'] = \
-                _("Submitting parent task {} "
-              "before {}")
+                _("Submitting parent task {} before {}")
 
             env_setup['dict_msgs'] = dict_msgs
-            env_setup['transpiler'] = TranspilerUtils()
 
         template_loader = jinja2.FileSystemLoader(
-            searchpath=os.path.dirname(__file__))
+                searchpath=os.path.dirname(__file__))
         template_env = jinja2.Environment(loader=template_loader,
                                           extensions=[AutoPep8Extension,
                                                       HandleExceptionExtension])
         template_env.globals.update(zip=zip)
         template = template_env.get_template("operation.tmpl")
+
+        env_setup['disabled_tasks'] = workflow['disabled_tasks']
+        env_setup['plain'] = params.get('plain', False)
+        env_setup['execute_main'] = params.get('execute_main', False)
+        env_setup['dependency_controller'] = DependencyController(
+                params.get('requires_info', False))
+        env_setup['transpiler'] = TranspilerUtils()
         v = template.render(env_setup)
 
         if out is None:
@@ -294,7 +325,7 @@ class ScikitLearnTranspiler(object):
 
         geo_ops = {
             'read-shapefile': geo.ReadShapefileOperation,
-            'stdbscan': geo.STDSCANOperantion,
+            'stdbscan': geo.STDBSCANOperation,
             'within': geo.GeoWithinOperation,
         }
 
@@ -324,7 +355,7 @@ class ScikitLearnTranspiler(object):
             'save-model': model.SaveModel,
 
             # ------ Clustering      -----#
-            'clustering-model': clustering.ClusteringModelOperation,  # OK
+            'clustering-model': clustering.ClusteringModelOperation,
             'agglomerative-clustering':
                 clustering.AgglomerativeClusteringOperation,
             'dbscan-clustering': clustering.DBSCANClusteringOperation,
@@ -347,11 +378,11 @@ class ScikitLearnTranspiler(object):
             'svm-classification': classifiers.SvmClassifierOperation,
 
             # ------ Regression  -----#
-            'regression-model': regression.RegressionModelOperation,  # OK
+            'regression-model': regression.RegressionModelOperation,
             'gbt-regressor': regression.GradientBoostingRegressorOperation,
             'huber-regressor': regression.HuberRegressorOperation,
             'isotonic-regression':
-                regression.IsotonicRegressionOperation,  # OK - TODO: 1D
+                regression.IsotonicRegressionOperation,
             'linear-regression': regression.LinearRegressionOperation,
             'random-forest-regressor':
                 regression.RandomForestRegressorOperation,

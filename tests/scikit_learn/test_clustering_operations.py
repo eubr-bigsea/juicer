@@ -46,8 +46,8 @@ def test_agglomerative_clustering_success():
     code = instance.generate_code()
 
     expected_code = dedent("""
-        from sklearn.cluster import AgglomerativeClustering
         df2 = df1.copy()
+
         X = df2['f'].values.tolist()
         clt = AgglomerativeClustering(n_clusters=2, 
             linkage='l2', affinity='cosine')
@@ -73,8 +73,8 @@ def test_agglomerative_clustering_minimum_success():
     code = instance.generate_code()
 
     expected_code = dedent("""
-        from sklearn.cluster import AgglomerativeClustering
         df2 = df1.copy()
+
         X = df2['f'].values.tolist()
         clt = AgglomerativeClustering(n_clusters=2,
              linkage='ward', affinity='euclidean')
@@ -122,7 +122,6 @@ def test_dbscan_clustering_success():
 
     expected_code = dedent("""
         df2 = df1.copy()
-        from sklearn.cluster import DBSCAN
          
         X = df2['f'].values.tolist()
         clt = DBSCAN(eps=0.15, min_samples=20)
@@ -148,7 +147,6 @@ def test_dbscan_clustering_minimum_success():
 
     expected_code = dedent("""
         df2 = df1.copy()
-        from sklearn.cluster import DBSCAN
          
         X = df2['f'].values.tolist()
         clt = DBSCAN(eps=0.5, min_samples=5)
@@ -193,7 +191,6 @@ def test_gaussian_mixture_clustering_success():
     code = instance.generate_code()
 
     expected_code = dedent("""
-        from sklearn.mixture import GaussianMixture
         clustering_algo_1 = GaussianMixture(n_components=11, 
             max_iter=15, tol=0.11)
         """.format())
@@ -215,7 +212,6 @@ def test_gaussian_mixture_clustering_minimum_success():
     code = instance.generate_code()
 
     expected_code = dedent("""
-        from sklearn.mixture import GaussianMixture
         clustering_algo_1 = GaussianMixture(n_components=1, 
         max_iter=100, tol=0.001)
         """)
@@ -260,7 +256,6 @@ def test_kmeans_clustering_operation_random_type_minibatch_success():
     code = instance.generate_code()
 
     expected_code = dedent("""
-        from sklearn.cluster import MiniBatchKMeans
         {output} = MiniBatchKMeans(n_clusters={k}, init='{init}',
                 max_iter={max_iter}, tol={tol}, random_state={seed})
         """.format(output=named_outputs['algorithm'],
@@ -294,7 +289,6 @@ def test_kmeans_clustering_operation_random_type_kmeans_success():
     code = instance.generate_code()
 
     expected_code = dedent("""
-        from sklearn.cluster import KMeans
         {output} = KMeans(n_clusters={k}, init='{init}',
                 max_iter={max_iter}, tol={tol}, random_state={seed})
         """.format(output=named_outputs['algorithm'],
@@ -320,7 +314,6 @@ def test_kmeans_clustering_minimum_success():
     code = instance.generate_code()
 
     expected_code = dedent("""
-            from sklearn.cluster import KMeans
             clustering_algo_1 = KMeans(n_clusters=8, init='k-means++',
                     max_iter=300, tol=0.001, random_state=None)
             """)
@@ -367,7 +360,6 @@ def test_lda_clustering_success():
     code = instance.generate_code()
 
     expected_code = dedent("""
-        from sklearn.decomposition import LatentDirichletAllocation
         clustering_algo_1 = LatentDirichletAllocation(n_components=10, 
          doc_topic_prior=0.5, topic_word_prior=0.5, 
          learning_method='online', max_iter=100)
@@ -390,7 +382,6 @@ def test_lda_clustering_minimum_success():
     code = instance.generate_code()
 
     expected_code = dedent("""
-        from sklearn.decomposition import LatentDirichletAllocation
         clustering_algo_1 = LatentDirichletAllocation(n_components=10, 
         doc_topic_prior=None, topic_word_prior=None, 
         learning_method='online', max_iter=10)
