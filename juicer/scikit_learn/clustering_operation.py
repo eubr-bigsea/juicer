@@ -120,12 +120,12 @@ class AgglomerativeClusteringOperation(Operation):
         {output} = {input}.copy()
         X = {output}['{features}'].values.tolist()
         clt = AgglomerativeClustering(n_clusters={n_clusters},
-            affinity='{affinity}', linkage='{linkage}')
+            linkage='{linkage}', affinity='{affinity}')
         {output}['{alias}'] = clt.fit_predict(X)
         """.format(input=self.named_inputs['input data'], output=self.output,
                    features=self.features, alias=self.alias,
-                   n_clusters=self.n_clusters, affinity=self.affinity,
-                   linkage=self.linkage)
+                   n_clusters=self.n_clusters,
+                   affinity=self.affinity, linkage=self.linkage)
 
         return dedent(code)
 
@@ -231,7 +231,7 @@ class KMeansClusteringOperation(Operation):
     SEED_PARAM = 'seed'
 
     INIT_PARAM_RANDOM = 'random'
-    INIT_PARAM_KM = 'k-means++'
+    INIT_PARAM_KM = 'K-Means++'
     TYPE_PARAM_KMEANS = 'K-Means'
     TYPE_PARAM_MB = 'Mini-Batch K-Means'
 
@@ -247,8 +247,9 @@ class KMeansClusteringOperation(Operation):
             self.max_iter = parameters.get(self.MAX_ITER_PARAM, 300) or 300
             self.init_mode = parameters.get(
                     self.INIT_PARAM, self.INIT_PARAM_KM) or self.INIT_PARAM_KM
+            self.init_mode = self.init_mode.lower()
             self.tolerance = parameters.get(self.TOLERANCE_PARAM, 0.001)
-            self.tolerance = abs(self.tolerance)
+            self.tolerance = abs(float(self.tolerance))
             self.seed = parameters.get(self.SEED_PARAM, 'None') or 'None'
             self.type = parameters.get(
                     self.TYPE_PARAM,
