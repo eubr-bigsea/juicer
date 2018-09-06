@@ -70,7 +70,7 @@ def GeoWithinOperation(data_input, shp_object, lat_long,
         cols = ["%s%s" % (a, alias) for a in attributes]
         tmp = pd.DataFrame(sector_position, columns=cols)
 
-        key = 'index_geoWithin ' + alias
+        key = 'index_geoWithin' + alias
         data_input = pd.merge(data_input, tmp,
                               left_index=True, right_on=key)
         data_input = data_input.drop([key], axis=1)
