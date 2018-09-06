@@ -208,7 +208,7 @@ class VisualizationMethodOperation(Operation):
     def generate_code(self):
         code_lines = [dedent(
             u"""
-            from juicer.sklearn.vis_operation import {model}
+            from juicer.scikit_learn.vis_operation import {model}
             from juicer.util.dataframe_util import SimpleJsonEncoder as enc
 
             params = '{params}'

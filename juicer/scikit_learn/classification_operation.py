@@ -119,10 +119,12 @@ class DecisionTreeClassifierOperation(Operation):
                         _("Parameter '{}' must be x>0 for task {}").format(
                                 self.MAX_DEPTH_PARAM, self.__class__))
 
+            self.has_import = \
+                "from sklearn.tree import DecisionTreeClassifier\n"
+
     def generate_code(self):
         """Generate code."""
         code = """
-        from sklearn.tree import DecisionTreeClassifier
         {output} = DecisionTreeClassifier(max_depth={max_depth}, 
         min_samples_split={min_split}, min_samples_leaf={min_leaf}, 
         min_weight_fraction_leaf={min_weight}, random_state={seed})
@@ -177,10 +179,12 @@ class GBTClassifierOperation(Operation):
                             _("Parameter '{}' must be x>0 for task {}").format(
                                     att, self.__class__))
 
+            self.has_import = \
+                "from sklearn.ensemble import GradientBoostingClassifier\n"
+
     def generate_code(self):
         """Generate code."""
-        code = """
-        from sklearn.ensemble import GradientBoostingClassifier
+        code = """ 
         {output} = GradientBoostingClassifier(loss='{loss}',
         learning_rate={learning_rate}, n_estimators={n_estimators},
         min_samples_split={min_split}, max_depth={max_depth},
@@ -216,10 +220,12 @@ class KNNClassifierOperation(Operation):
                         _("Parameter '{}' must be x>0 for task {}").format(
                                 self.K_PARAM, self.__class__))
 
+            self.has_import = \
+                "from sklearn.neighbors import KNeighborsClassifier\n"
+
     def generate_code(self):
         """Generate code."""
         code = """
-        from sklearn.neighbors import KNeighborsClassifier
         {output} = KNeighborsClassifier(n_neighbors={K})
         """.format(K=self.k, output=self.output)
         return dedent(code)
@@ -268,10 +274,12 @@ class LogisticRegressionOperation(Operation):
                             _("Parameter '{}' must be x>0 for task {}").format(
                                     att, self.__class__))
 
+            self.has_import = \
+                "from sklearn.linear_model import LogisticRegression\n"
+
     def generate_code(self):
         """Generate code."""
         code = """
-            from sklearn.linear_model import LogisticRegression
             {output} = LogisticRegression(tol={tol}, C={C}, max_iter={max_iter},
             solver='{solver}', random_state={seed})
             """.format(tol=self.tol,
@@ -317,23 +325,30 @@ class NaiveBayesClassifierOperation(Operation):
                         _("Parameter '{}' must be x>0 for task {}").format(
                                 'smoothing', self.__class__))
 
+            if self.model_type == self.MODEL_TYPE_PARAM_M:
+                self.has_import = \
+                    "from sklearn.naive_bayes import MultinomialNB\n"
+            elif self.model_type == self.MODEL_TYPE_PARAM_B:
+                self.has_import = \
+                    "from sklearn.naive_bayes import BernoulliNB\n"
+            else:
+                self.has_import = \
+                    "from sklearn.naive_bayes import GaussianNB\n"
+
     def generate_code(self):
         """Generate code."""
         if self.model_type == self.MODEL_TYPE_PARAM_M:
             code = """
-        from sklearn.naive_bayes import MultinomialNB
         {output} = MultinomialNB(alpha={alpha}, prior={prior})
         """.format(output=self.output, prior=self.class_prior,
                    alpha=self.smoothing)
         elif self.model_type == self.MODEL_TYPE_PARAM_B:
             code = """
-        from sklearn.naive_bayes import BernoulliNB
         {output} = BernoulliNB(alpha={smoothing}, prior={prior})
         """.format(output=self.output, smoothing= self.smoothing,
                    prior=self.class_prior)
         else:
             code = """
-        from sklearn.naive_bayes import GaussianNB
         {output} = GaussianNB(prior={prior})  
         """.format(prior=self.class_prior, output=self.output)
 
@@ -381,10 +396,12 @@ class PerceptronClassifierOperation(Operation):
                             _("Parameter '{}' must be x>0 for task {}").format(
                                     att, self.__class__))
 
+            self.has_import = \
+                "from sklearn.linear_model import Perceptron\n"
+
     def generate_code(self):
         """Generate code."""
         code = """
-        from sklearn.linear_model import Perceptron
         {output} = Perceptron(tol={tol}, alpha={alpha}, max_iter={max_iter},
         shuffle={shuffle}, random_state={seed}, penalty='{penalty}')
         """.format(tol=self.tol,
@@ -436,10 +453,12 @@ class RandomForestClassifierOperation(Operation):
                         _("Parameter '{}' must be x>0 for task {}").format(
                                 self.MAX_DEPTH_PARAM, self.__class__))
 
+            self.has_import = \
+                "from sklearn.ensemble import RandomForestClassifier\n"
+
     def generate_code(self):
         """Generate code."""
         code = """
-        from sklearn.ensemble import RandomForestClassifier
         {output} = RandomForestClassifier(n_estimators={n_estimators}, 
         max_depth={max_depth},  min_samples_split={min_split}, 
         min_samples_leaf={min_leaf}, random_state={seed})
@@ -491,10 +510,12 @@ class SvmClassifierOperation(Operation):
                             _("Parameter '{}' must be x>0 for task {}").format(
                                     att, self.__class__))
 
+            self.has_import = \
+                "from sklearn.svm import SVC\n"
+
     def generate_code(self):
         """Generate code."""
         code = """
-        from sklearn.svm import SVC
         {output} = SVC(tol={tol}, C={c}, max_iter={max_iter}, 
                        degree={degree}, kernel='{kernel}', random_state={seed})
         """.format(tol=self.tol, c=self.c, max_iter=self.max_iter,

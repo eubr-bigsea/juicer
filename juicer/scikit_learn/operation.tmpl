@@ -6,6 +6,8 @@ Auto-generated Scikit-Learn code from Lemonade Workflow
     Universidade Federal de Minas Gerais
 More information about Lemonade to be provided
 """
+from __future__ import unicode_literals
+
 from concurrent.futures import ThreadPoolExecutor
 import os
 import re
@@ -22,7 +24,13 @@ from juicer.util import dataframe_util
 import traceback
 
 {% autopep8 %}
-
+{% set list_imports = [] %}
+{% for instance in instances %}
+{% if instance.has_import and  instance.has_import not in list_imports %}
+{% set _ = list_imports.append(instance.has_import) %}
+{% endif %}
+{% endfor %}
+{% for imps in list_imports %}{{imps}}{% endfor %}
 
 def sklearn_logging(msg):
     print msg

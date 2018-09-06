@@ -34,7 +34,6 @@ def test_gbt_regressor_minimum_params_success():
 
     code = instance_lr.generate_code()
     expected_code = dedent("""
-        from sklearn.ensemble import GradientBoostingRegressor
         regressor_1 = GradientBoostingRegressor(learning_rate=0.1,
             n_estimators=100, max_depth=3, min_samples_split=2, 
             min_samples_leaf=1, random_state=None)""")
@@ -58,7 +57,6 @@ def test_gbt_regressor_with_params_success():
 
     code = instance_lr.generate_code()
     expected_code = dedent("""
-        from sklearn.ensemble import GradientBoostingRegressor
         regressor_1 = GradientBoostingRegressor(learning_rate=0.155,
           n_estimators=11, max_depth=14, min_samples_split=12, 
           min_samples_leaf=16, random_state=13)""")
@@ -92,7 +90,6 @@ def test_huber_regressor_minimum_params_success():
 
     code = instance_lr.generate_code()
     expected_code = dedent("""
-        from sklearn.linear_model import HuberRegressor
         regressor_1 = HuberRegressor(epsilon=1.35, max_iter=100, alpha=0.0001,
                                      tol=1e-05)""")
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
@@ -113,7 +110,6 @@ def test_huber_regressor_with_params_success():
 
     code = instance_lr.generate_code()
     expected_code = dedent("""
-        from sklearn.linear_model import HuberRegressor
         regressor_1 = HuberRegressor(epsilon=1.6, max_iter=11, alpha=0.11,
                                      tol=1e-01)""")
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
@@ -145,7 +141,6 @@ def test_isotonic_regressor_minimum_params_success():
 
     code = instance_lr.generate_code()
     expected_code = dedent("""
-        from sklearn.isotonic import IsotonicRegression
         regressor_1 = IsotonicRegression(increasing=True)""")
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
     assert result, msg + format_code_comparison(code, expected_code)
@@ -162,7 +157,6 @@ def test_isotonic_regressor_with_params_success():
 
     code = instance_lr.generate_code()
     expected_code = dedent("""
-        from sklearn.isotonic import IsotonicRegression
         regressor_1 = IsotonicRegression(increasing=False)""")
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
     assert result, msg + format_code_comparison(code, expected_code)
@@ -183,7 +177,6 @@ def test_linearegression_minimum_params_success():
 
     code = instance_lr.generate_code()
     expected_code = dedent("""
-        from sklearn.linear_model import ElasticNet
         regressor_1 = ElasticNet(alpha=1.0, l1_ratio=0.5, tol=0.0001,
                                  max_iter=1000, random_state=None,
                                  normalize=True)""")
@@ -207,7 +200,6 @@ def test_linearegression_with_params_success():
 
     code = instance_lr.generate_code()
     expected_code = dedent("""
-        from sklearn.linear_model import ElasticNet
         regressor_1 = ElasticNet(alpha=0.5, l1_ratio=0.55, tol=0.1,
                                  max_iter=10, random_state=2,
                                  normalize=False)""")
@@ -241,7 +233,6 @@ def test_randomforestregressor_minimum_params_success():
 
     code = instance_lr.generate_code()
     expected_code = dedent("""
-        from sklearn.ensemble import RandomForestRegressor
         regressor_1 = RandomForestRegressor(n_estimators=10,
             max_features='auto',
             max_depth=3,
@@ -271,7 +262,6 @@ def test_randomforestregressor_with_params_success():
 
     code = instance_lr.generate_code()
     expected_code = dedent("""
-        from sklearn.ensemble import RandomForestRegressor
         regressor_1 = RandomForestRegressor(n_estimators=9,
             max_features='sqrt',
             max_depth=10,
@@ -308,7 +298,6 @@ def test_sgd_regressor_minimum_params_success():
 
     code = instance_lr.generate_code()
     expected_code = dedent("""
-        from sklearn.linear_model import SGDRegressor
         regressor_1 = SGDRegressor(alpha=0.0001, l1_ratio=0.15, max_iter=1000,
                                    tol=0.001, random_state=None)""")
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
@@ -330,7 +319,6 @@ def test_sgd_regressor_with_params_success():
 
     code = instance_lr.generate_code()
     expected_code = dedent("""
-        from sklearn.linear_model import SGDRegressor
         regressor_1 = SGDRegressor(alpha=0.11, l1_ratio=0.10, max_iter=13,
                                    tol=0.12, random_state=14)""")
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
@@ -379,8 +367,10 @@ def test_regressor_operation_success():
     code = instance.generate_code()
     expected_code = dedent("""
         algorithm = regressor
-        out_data = train_data
+        out_data = train_data.copy()
         X_train = train_data['f'].values.tolist()
+        if 'IsotonicRegression' in str(algorithm):
+            X_train = np.ravel(X_train)
         y = train_data['l'].values.tolist()
         model_1 = algorithm.fit(X_train, y)
         out_data['prediction'] = algorithm.predict(X_train).tolist()
@@ -405,8 +395,10 @@ def test_regressor_operation_with_model_success():
     code = instance.generate_code()
     expected_code = dedent("""
         algorithm = regressor
-        out_task_1 = train_data
+        out_task_1 = train_data.copy()
         X_train = train_data['f'].values.tolist()
+        if 'IsotonicRegression' in str(algorithm):
+            X_train = np.ravel(X_train)
         y = train_data['l'].values.tolist()
         model_data = algorithm.fit(X_train, y)
         out_task_1['prediction'] = algorithm.predict(X_train).tolist()

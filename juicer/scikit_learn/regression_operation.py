@@ -82,13 +82,13 @@ class RegressionModelOperation(Operation):
 
     def generate_code(self):
 
-        #TODO:  np.ravel() if isotonic
-
         if self.has_code:
             code = """
             algorithm = {algorithm}
-            {output_data} = {input}
+            {output_data} = {input}.copy()
             X_train = {input}['{features}'].values.tolist()
+            if 'IsotonicRegression' in str(algorithm):
+                X_train = np.ravel(X_train)
             y = {input}['{label}'].values.tolist()
             {model} = algorithm.fit(X_train, y)
             {output_data}['{prediction}'] = algorithm.predict(X_train).tolist()
@@ -137,10 +137,11 @@ class GradientBoostingRegressorOperation(RegressionOperation):
                     raise ValueError(
                             _("Parameter '{}' must be x>0 for task {}").format(
                                     att, self.__class__))
+            self.has_import = \
+                "from sklearn.ensemble import GradientBoostingRegressor\n"
 
     def generate_code(self):
         code = dedent("""
-        from sklearn.ensemble import GradientBoostingRegressor
         {output} = GradientBoostingRegressor(learning_rate={learning_rate},
         n_estimators={n_estimators}, max_depth={max_depth}, 
         min_samples_split={min_samples_split}, 
@@ -175,7 +176,7 @@ class HuberRegressorOperation(RegressionOperation):
             self.max_iter = parameters.get(self.MAX_ITER_PARAM, 100) or 100
             self.alpha = parameters.get(self.ALPHA_PARAM, 0.0001) or 0.0001
             self.tol = parameters.get(self.TOLERANCE_PARAM, 0.00001) or 0.00001
-            self.tol = abs(self.tol)
+            self.tol = abs(float(self.tol))
 
             vals = [self.max_iter, self.alpha]
             atts = [self.MAX_ITER_PARAM, self.ALPHA_PARAM]
@@ -190,9 +191,11 @@ class HuberRegressorOperation(RegressionOperation):
                         _("Parameter '{}' must be x>1.0 for task {}").format(
                                 self.EPSILON_PARAM, self.__class__))
 
+            self.has_import = \
+                "from sklearn.linear_model import HuberRegressor\n"
+
     def generate_code(self):
         code = dedent("""
-            from sklearn.linear_model import HuberRegressor
             {output} = HuberRegressor(epsilon={epsilon},
                 max_iter={max_iter}, alpha={alpha},
                 tol={tol})
@@ -221,10 +224,11 @@ class IsotonicRegressionOperation(RegressionOperation):
         if self.has_code:
             self.isotonic = parameters.get(
                 self.ISOTONIC_PARAM, True) in (1, '1', 'true', True)
+            self.has_import = \
+                "from sklearn.isotonic import IsotonicRegression\n"
 
     def generate_code(self):
         code = dedent("""
-        from sklearn.isotonic import IsotonicRegression
         {output} = IsotonicRegression(increasing={isotonic})
         """).format(output=self.output, isotonic=self.isotonic)
         return code
@@ -255,8 +259,8 @@ class LinearRegressionOperation(RegressionOperation):
             self.max_iter = parameters.get(self.MAX_ITER_PARAM, 1000) or 1000
             self.tol = self.parameters.get(
                     self.TOLERANCE_PARAM, 0.0001) or 0.0001
-            self.tol = abs(self.tol)
-            self.seed = self.parameters.get(self.SEED_PARAM, 'None')
+            self.tol = abs(float(self.tol))
+            self.seed = self.parameters.get(self.SEED_PARAM, 'None') or 'None'
 
             vals = [self.alpha, self.max_iter]
             atts = [self.ALPHA_PARAM, self.MAX_ITER_PARAM]
@@ -271,9 +275,11 @@ class LinearRegressionOperation(RegressionOperation):
                         _("Parameter '{}' must be 0<=x<=1 for task {}").format(
                                 self.ELASTIC_NET_PARAM, self.__class__))
 
+            self.has_import = \
+                "from sklearn.linear_model import ElasticNet\n"
+
     def generate_code(self):
         code = dedent("""
-        from sklearn.linear_model import ElasticNet
         {output} = ElasticNet(alpha={alpha}, l1_ratio={elastic}, tol={tol},
                               max_iter={max_iter}, random_state={seed},
                               normalize={normalize})""".format(
@@ -327,9 +333,11 @@ class RandomForestRegressorOperation(RegressionOperation):
                             _("Parameter '{}' must be x>0 for task {}").format(
                                     att, self.__class__))
 
+            self.has_import = \
+                "from sklearn.ensemble import RandomForestRegressor\n"
+
     def generate_code(self):
         code = dedent("""
-            from sklearn.ensemble import RandomForestRegressor
             {output} = RandomForestRegressor(n_estimators={n_estimators},
                 max_features='{max_features}',
                 max_depth={max_depth},
@@ -375,7 +383,7 @@ class SGDRegressorOperation(RegressionOperation):
             self.max_iter = parameters.get(self.MAX_ITER_PARAM, 1000) or 1000
             self.tol = parameters.get(
                     self.TOLERANCE_PARAM, 0.001) or 0.001
-            self.tol = abs(self.tol)
+            self.tol = abs(float(self.tol))
             self.seed = parameters.get(self.SEED_PARAM, 'None')
 
             vals = [self.alpha, self.max_iter]
@@ -391,9 +399,11 @@ class SGDRegressorOperation(RegressionOperation):
                         _("Parameter '{}' must be 0<=x<=1 for task {}").format(
                                 self.ELASTIC_PARAM, self.__class__))
 
+            self.has_import = \
+                "from sklearn.linear_model import SGDRegressor\n"
+
     def generate_code(self):
         code = dedent("""
-            from sklearn.linear_model import SGDRegressor
             {output} = SGDRegressor(alpha={alpha},
                 l1_ratio={l1_ratio}, max_iter={max_iter},
                 tol={tol}, random_state={seed})
