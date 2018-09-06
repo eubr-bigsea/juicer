@@ -16,7 +16,7 @@ class AddColumnsOperation(Operation):
 
         self.has_code = len(named_inputs) == 2
 
-        self.suffixes = parameters.get('aliases', 'ds0_,ds1_')
+        self.suffixes = parameters.get('aliases', '_ds0,_ds1')
         self.suffixes = [s for s in self.suffixes.replace(" ", "").split(',')]
 
         if not self.has_code:
@@ -31,7 +31,7 @@ class AddColumnsOperation(Operation):
 
         code = """
         {out} = pd.merge({input1}, {input2}, left_index=True, 
-            right_index=True, suffixes=('{s1}', '{s1}')) 
+            right_index=True, suffixes=('{s1}', '{s2}')) 
         """.format(out=self.output,
                    s1=self.suffixes[0],
                    s2=self.suffixes[1],
