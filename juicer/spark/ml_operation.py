@@ -7,6 +7,7 @@ import string
 from itertools import izip_longest
 from textwrap import dedent
 
+from juicer.deploy import Deployment, DeploymentTask, DeploymentFlow
 from juicer.operation import Operation, ReportOperation
 from juicer.service import limonero_service
 from juicer.service.limonero_service import query_limonero
@@ -18,7 +19,117 @@ log.setLevel(logging.DEBUG)
 class SafeDict(dict):
     # noinspection PyMethodMayBeStatic
     def __missing__(self, key):
-        return '{' + key + '}'
+        return '{' + key + '}'  # pragma: no cover
+
+
+# noinspection PyUnresolvedReferences
+class DeployModelMixin(object):
+    def to_deploy_format(self, id_mapping):
+        """
+        Generate a deployment format.
+
+        This operation requires a connection with SaveModelOperation for the
+        generated model, otherwise, an error will be thrown.
+        """
+        result = Deployment()
+        task = self.parameters['task']
+        task_id = task['id']
+
+        params = self.parameters['task']['forms']
+        forms = [(k, v['category'], v['value']) for k, v in params.items() if v]
+
+        ids_to_tasks = dict(
+            [(t['id'], t) for t in self.parameters['workflow']['tasks']])
+
+        save_model = None
+        data_flow = None
+        model_usage_flows = []
+        for flow in self.parameters['workflow']['flows']:
+            if flow['source_id'] == task_id:
+                target = ids_to_tasks.get(flow['target_id'])
+                if target and target['operation']['slug'] == 'save-model':
+                    if save_model is not None:
+                        raise ValueError(
+                            _('Model is being saved twice (unsupported).'))
+                    else:
+                        save_model = target
+                else:
+                    model_usage_flows.append(flow)
+            elif flow['target_id'] == task_id:
+                if flow['target_port_name'] == 'train input data':
+                    data_flow = flow
+
+        if not save_model:
+            raise ValueError(_('If a workflow generates a model, '
+                               'it must save such model in order '
+                               'to be deployed'))
+
+        limonero_config = self.parameters.get('configuration') \
+            .get('juicer').get('services').get('limonero')
+        url = limonero_config['url']
+        token = str(limonero_config['auth_token'])
+
+        storage_id = save_model['forms'].get(SaveModelOperation.STORAGE_PARAM,
+                                             {}).get('value')
+        path = save_model['forms'].get(SaveModelOperation.PATH_PARAM, {}).get(
+            'value', '/limonero/models')  # FIXME Hard coded
+        name = save_model['forms'].get(SaveModelOperation.NAME_PARAM, {}).get(
+            'value')
+
+        if not all([name, path, storage_id]):
+            raise ValueError(_('Storage for save model operation '
+                               '(required for deployment) '
+                               'is not correctly configured.'))
+        storage = limonero_service.get_storage_info(url, token, storage_id)
+        final_url = '{}/{}/{}'.format(storage['url'], path, name)
+        load_model_forms = [
+            (LoadModelOperation.MODEL_PARAM, 'execution', final_url)
+        ]
+        load_model = DeploymentTask(task_id) \
+            .set_operation(slug="load-model") \
+            .set_properties(load_model_forms) \
+            .set_pos(task['top'], task['left'], task['z_index'])
+
+        result.add_task(load_model)
+
+        # Replaces the save model with apply
+        apply_model = DeploymentTask(task_id) \
+            .set_operation(slug="apply-model") \
+            .set_properties(forms) \
+            .set_pos(task['top'] + 140, task['left'], task['z_index'])
+        result.add_task(apply_model)
+
+        # Service output
+        # FIXME Evaluate form
+        service_out = DeploymentTask(task_id) \
+            .set_operation(slug="service-output") \
+            .set_properties(forms) \
+            .set_pos(task['top'] + 280, task['left'], task['z_index'])
+        result.add_task(service_out)
+
+        if data_flow:
+            data_flow['target_id'] = apply_model.id
+            data_flow['target_port_name'] = 'input data'
+            data_flow['target_port'] = 92  # FIXME Hard coded
+            result.add_flow(DeploymentFlow(**data_flow))
+
+            result.add_flow(DeploymentFlow(load_model.id, 46, 'model',
+                                           apply_model.id, 93, 'model'))
+        else:
+            raise ValueError(_('No training data was informed for '
+                               'model building.'))
+        # other model's usage in workflow
+        for flow in model_usage_flows:
+            result.add_flow(DeploymentFlow(
+                load_model.id, 46, 'model', flow['target_id'],
+                flow['target_port'], flow['target_port_name']))
+
+        # FIXME Hard coded
+        result.add_flow(DeploymentFlow(
+            apply_model.id, 94, 'output data', service_out.id, 40,
+            'input data'))
+
+        return result
 
 
 class FeatureIndexerOperation(Operation):
@@ -74,7 +185,7 @@ class FeatureIndexerOperation(Operation):
             code = dedent("""
                 col_alias = dict(tuple({alias}))
                 indexers = [feature.StringIndexer(
-                    inputCol=col, outputCol=alias, handleInvalid='skip')
+                    inputCol=col, outputCol=alias, handleInvalid='keep')
                              for col, alias in col_alias.items()]
 
                 # Use Pipeline to process all attributes once
@@ -120,18 +231,6 @@ class FeatureIndexerOperation(Operation):
             # Only if the field be open to type
             raise ValueError(
                 _("Parameter type has an invalid value {}").format(self.type))
-
-        code += dedent(
-            """
-            # Store indexer models in cache. Some operations may need to use
-            # them. If an indexer is created more than once for attributes with
-            # the same name, the last executed will overwrite the previous one.
-            # FIXME: evaluate how to handle this conflict.
-            if 'indexer' not in cached_state:
-                cached_state['indexers'] = {{}}
-            for name, model in {models}.items():
-                cached_state['indexers'][name] = model
-        """.format(models=models))
 
         return code
 
@@ -229,7 +328,7 @@ class OneHotEncoderOperation(Operation):
                       parameters.get(self.ALIAS_PARAM, '').split(',')]
 
         # Adjust alias in order to have the same number of aliases as attributes
-        # by filling missing alias with the attribute name sufixed by _indexed.
+        # by filling missing alias with the attribute name suffixed by _indexed.
         self.alias = [x[1] or '{}_onehotenc'.format(x[0]) for x in
                       izip_longest(self.attributes,
                                    self.alias[:len(self.attributes)])]
@@ -252,15 +351,6 @@ class OneHotEncoderOperation(Operation):
                        aliases=json.dumps(zip(self.attributes, self.alias),
                                           indent=None))
         return dedent(code)
-
-    def get_output_names(self, sep=','):
-        output = self.named_outputs.get('output data',
-                                        'out_task_{}'.format(self.order))
-        return output
-
-    def get_data_out_names(self, sep=','):
-        return self.named_outputs.get('output data',
-                                      'out_task_{}'.format(self.order))
 
 
 class FeatureAssemblerOperation(Operation):
@@ -364,45 +454,47 @@ class EvaluateModelOperation(Operation):
         Operation.__init__(self, parameters, named_inputs,
                            named_outputs)
 
-        # @FIXME: validate if metric is compatible with Model using workflow
-
-        self.prediction_attribute = (parameters.get(
-            self.PREDICTION_ATTRIBUTE_PARAM) or [''])[0]
-        self.label_attribute = (parameters.get(
-            self.LABEL_ATTRIBUTE_PARAM) or [''])[0]
-        self.metric = parameters.get(self.METRIC_PARAM) or ''
-
-        if all([self.prediction_attribute != '', self.label_attribute != '',
-                self.metric != '']):
-            pass
-        else:
-            msg = \
-                _("Parameters '{}', '{}' and '{}' must be informed for task {}")
-            raise ValueError(msg.format(
-                self.PREDICTION_ATTRIBUTE_PARAM, self.LABEL_ATTRIBUTE_PARAM,
-                self.METRIC_PARAM, self.__class__))
-        if self.metric in self.METRIC_TO_EVALUATOR:
-            self.evaluator = self.METRIC_TO_EVALUATOR[self.metric][0]
-            self.param_prediction_arg = self.METRIC_TO_EVALUATOR[self.metric][1]
-        else:
-            raise ValueError(_('Invalid metric value {}').format(self.metric))
-
         self.has_code = any([(
             (len(self.named_inputs) > 0 and len(self.named_outputs) > 0) or
             (self.named_outputs.get('evaluator') is not None) or
             ('input data' in self.named_inputs)
         ), self.contains_results()])
+        # @FIXME: validate if metric is compatible with Model using workflow
 
-        self.model = self.named_inputs.get('model')
-        self.model_out = self.named_outputs.get(
-            'evaluated model', 'model_task_{}'.format(self.order))
+        if self.has_code:
+            self.prediction_attribute = (parameters.get(
+                self.PREDICTION_ATTRIBUTE_PARAM) or [''])[0]
+            self.label_attribute = (parameters.get(
+                self.LABEL_ATTRIBUTE_PARAM) or [''])[0]
+            self.metric = parameters.get(self.METRIC_PARAM) or ''
 
-        self.evaluator_out = self.named_outputs.get(
-            'evaluator', 'evaluator_task_{}'.format(self.order))
-        if not self.has_code and self.named_outputs.get(
-                'evaluated model') is not None:
-            raise ValueError(
-                _('Model is being used, but at least one input is missing'))
+            if all([self.prediction_attribute != '', self.label_attribute != '',
+                    self.metric != '']):
+                pass
+            else:
+                msg = _("Parameters '{}', '{}' and '{}' "
+                        "must be informed for task {}")
+                raise ValueError(msg.format(
+                    self.PREDICTION_ATTRIBUTE_PARAM, self.LABEL_ATTRIBUTE_PARAM,
+                    self.METRIC_PARAM, self.__class__))
+            if self.metric in self.METRIC_TO_EVALUATOR:
+                self.evaluator = self.METRIC_TO_EVALUATOR[self.metric][0]
+                self.param_prediction_arg = \
+                    self.METRIC_TO_EVALUATOR[self.metric][1]
+            else:
+                raise ValueError(
+                    _('Invalid metric value {}').format(self.metric))
+
+            self.model = self.named_inputs.get('model')
+            self.model_out = self.named_outputs.get(
+                'evaluated model', 'model_task_{}'.format(self.order))
+
+            self.evaluator_out = self.named_outputs.get(
+                'evaluator', 'evaluator_task_{}'.format(self.order))
+            if not self.has_code and self.named_outputs.get(
+                    'evaluated model') is not None:
+                raise ValueError(
+                    _('Model is being used, but at least one input is missing'))
 
         self.supports_cache = False
 
@@ -422,13 +514,45 @@ class EvaluateModelOperation(Operation):
                 'display_image', {'value': 1}).get('value', 1) in (1, '1')
 
             code = [dedent("""
+                emit = functools.partial(
+                    emit_event, name='update task',
+                    status='RUNNING', type='TEXT',
+                    identifier='{task_id}',
+                    operation={{'id': {operation_id}}},
+                    operation_id={operation_id},
+                    task={{'id': '{task_id}'}},
+                    title='{title}')
                 metric_value = 0.0
                 display_text = {display_text}
                 display_image = {display_image}
                 metric = '{metric}'
                 label_col = '{label_attr}'
                 prediction_col = str('{prediction_attr}')
+
+                stages = []
+                requires_pipeline = False
+                if not dataframe_util.is_numeric({input}.schema, label_col):
+                    emit(message=_('Label attribute is categorical, it will be '
+                            'implicitly indexed as string.'),)
+                    final_label = '{{}}_tmp'.format(label_col)
+                    final_prediction = '{{}}_tmp'.format(prediction_col)
+
+                    indexer = feature.StringIndexer(
+                                inputCol=label_col, outputCol=final_label,
+                                handleInvalid='keep')
+                    label_indexer = indexer.fit({input})
+                    {input} = label_indexer.transform({input})
+
+                    {input} = label_indexer.transform({input},{{
+                        label_indexer.inputCol: prediction_col,
+                        label_indexer.outputCol: final_prediction
+                    }})
+
+                    label_col =  final_label
+                    prediction_col = final_prediction
+
                 """)]
+
             if self.metric in ['areaUnderROC', 'areaUnderPR']:
                 self._get_code_for_area_metric(code)
             elif self.metric in ['f1', 'weightedPrecision', 'weightedRecall',
@@ -467,6 +591,9 @@ class EvaluateModelOperation(Operation):
             )
             return dedent(code)
 
+    def to_deploy_format(self, id_mapping):
+        return []
+
     @staticmethod
     def _get_code_for_classification_metrics(code):
         """
@@ -476,7 +603,7 @@ class EvaluateModelOperation(Operation):
         code.append(dedent("""
             label_prediction = {input}.select(
                 functions.col(prediction_col).cast('Double'),
-                functions.col('{label_attr}').cast('Double'))
+                functions.col(label_col).cast('Double'))
             evaluator = MulticlassMetrics(label_prediction.rdd)
             if metric == 'f1':
                 metric_value = evaluator.weightedFMeasure()
@@ -492,18 +619,18 @@ class EvaluateModelOperation(Operation):
                 # strings must be converted into numbers in order tho
                 # run algorithms, but they are cooler when displaying
                 # results.
-                indexer = cached_state.get('indexers', {{}}).get(
-                    '{label_attr}')
-                if indexer:
-                    classes = indexer.labels
-                else:
-                    classes = sorted(
+                all_labels = [l for l in {input}.schema[
+                    str(label_col)].metadata.get(
+                        'ml_attr', {{}}).get('vals', {{}}) if l[0] != '_']
+
+                if not all_labels:
+                    all_labels = sorted(
                         [x[0] for x in label_prediction.select(
-                                '{label_attr}').distinct().collect()])
+                                label_col).distinct().collect()])
 
                 content = ConfusionMatrixImageReport(
                     cm=evaluator.confusionMatrix().toArray(),
-                    classes=classes,)
+                    classes=all_labels,)
 
                 emit_event(
                     'update task', status='COMPLETED',
@@ -570,14 +697,14 @@ class EvaluateModelOperation(Operation):
         """
         code.append(dedent("""
             df = {input}
-            if not isinstance({input}.schema[prediction_col].dataType,
+            if not isinstance({input}.schema[str(prediction_col)].dataType,
                 (types.DoubleType, types.FloatType)):
                 df = {input}.withColumn(prediction_col,
                     {input}[prediction_col].cast('double'))
 
             evaluator = evaluation.RegressionEvaluator(
                 {prediction_arg}=prediction_col,
-                labelCol='{label_attr}',
+                labelCol=label_col,
                 metricName=metric)
             metric_value = evaluator.evaluate(df)
             if display_text:
@@ -742,12 +869,15 @@ class CrossValidationOperation(Operation):
 
         if self.metric in self.METRIC_TO_EVALUATOR:
             self.evaluator = self.METRIC_TO_EVALUATOR[self.metric][0]
-            self.param_prediction_arg = self.METRIC_TO_EVALUATOR[self.metric][1]
+            self.param_prediction_arg = \
+                self.METRIC_TO_EVALUATOR[self.metric][1]
         else:
-            raise ValueError(_('Invalid metric value {}').format(self.metric))
+            raise ValueError(
+                _('Invalid metric value {}').format(self.metric))
 
-        self.prediction_attr = parameters.get(self.PREDICTION_ATTRIBUTE_PARAM,
-                                              'prediction')
+        self.prediction_attr = parameters.get(
+            self.PREDICTION_ATTRIBUTE_PARAM,
+            'prediction')
 
         if self.LABEL_ATTRIBUTE_PARAM not in parameters:
             raise ValueError(
@@ -795,10 +925,10 @@ class CrossValidationOperation(Operation):
 
                 evaluator = {evaluator}(
                     {prediction_arg}='{prediction_attr}',
-                    labelCol='{label_attr}',
+                    labelCol=label_col,
                     metricName='{metric}')
 
-                estimator.setLabelCol('{label_attr}')
+                estimator.setLabelCol(label_col)
                 estimator.setPredictionCol('{prediction_attr}')
 
                 cross_validator = tuning.CrossValidator(
@@ -867,7 +997,7 @@ class CrossValidationOperation(Operation):
         return code
 
 
-class ClassificationModelOperation(Operation):
+class ClassificationModelOperation(DeployModelMixin, Operation):
     FEATURES_ATTRIBUTE_PARAM = 'features'
     LABEL_ATTRIBUTE_PARAM = 'label'
     PREDICTION_ATTRIBUTE_PARAM = 'prediction'
@@ -892,7 +1022,7 @@ class ClassificationModelOperation(Operation):
                     self.__class__.__name__))
 
             self.label = parameters.get(self.LABEL_ATTRIBUTE_PARAM)[0]
-            self.features = parameters.get(self.FEATURES_ATTRIBUTE_PARAM)[0]
+            self.features = parameters.get(self.FEATURES_ATTRIBUTE_PARAM)
             self.prediction = parameters.get(self.PREDICTION_ATTRIBUTE_PARAM,
                                              'prediction')
             self.ensemble_weights = parameters.get(self.WEIGHTS_PARAM,
@@ -917,6 +1047,14 @@ class ClassificationModelOperation(Operation):
                 'display_text', {'value': 1}).get('value', 1) in (1, '1')
 
             code = """
+            emit = functools.partial(
+                emit_event, name='update task',
+                status='RUNNING', type='TEXT',
+                identifier='{task_id}',
+                operation={{'id': {operation_id}}}, operation_id={operation_id},
+                task={{'id': '{task_id}'}},
+                title='{title}')
+
             alg, param_grid, metrics = {algorithm}
 
             # Clone the algorithm because it can be used more than once
@@ -933,9 +1071,79 @@ class ClassificationModelOperation(Operation):
             algorithm.setParams(**params)
 
             algorithm.setPredictionCol('{prediction}')
-            algorithm.setLabelCol('{label}')
-            algorithm.setFeaturesCol('{feat}')
-            {model} = algorithm.fit({train})
+
+            requires_pipeline = False
+            stages = []
+            features = {feat}
+            keep_at_end = [c.name for c in {train}.schema]
+            keep_at_end.append('{prediction}')
+
+            to_assemble = []
+            if len(features) > 1 and not isinstance(
+                {train}.schema[str(features[0])].dataType, VectorUDT):
+                emit(message='{msg0}')
+                for f in features:
+                    if not dataframe_util.is_numeric({train}.schema, f):
+                        name = f + '_tmp'
+                        to_assemble.append(name)
+                        stages.append(feature.StringIndexer(
+                            inputCol=f, outputCol=name, handleInvalid='keep'))
+                    else:
+                        to_assemble.append(f)
+
+                # Remove rows with null (VectorAssembler doesn't support it)
+                cond = ' AND '.join(['{{}} IS NOT NULL '.format(c)
+                    for c in to_assemble])
+                stages.append(SQLTransformer(
+                    statement='SELECT * FROM __THIS__ WHERE {{}}'.format(cond)))
+
+                final_features = 'features_tmp'
+                stages.append(feature.VectorAssembler(
+                    inputCols=to_assemble, outputCol=final_features))
+                requires_pipeline = True
+            else:
+                final_features = features[0]
+
+            requires_revert_label = False
+            if not dataframe_util.is_numeric({train}.schema, '{label}'):
+                emit(message='{msg1}')
+                final_label = '{label}_tmp'
+                stages.append(feature.StringIndexer(
+                            inputCol='{label}', outputCol=final_label,
+                            handleInvalid='keep'))
+                requires_pipeline = True
+                requires_revert_label = True
+            else:
+                final_label = '{label}'
+
+            if requires_pipeline:
+                algorithm.setLabelCol(final_label)
+                algorithm.setFeaturesCol(final_features)
+                if requires_revert_label:
+                    algorithm.setPredictionCol('{prediction}_tmp')
+
+                stages.append(algorithm)
+
+                pipeline = Pipeline(stages=stages)
+                {model} = pipeline.fit({train})
+
+                last_stages = [{model}]
+                if requires_revert_label:
+                    # Map indexed label to original value
+                    last_stages.append(IndexToString(inputCol='{prediction}_tmp',
+                        outputCol='{prediction}',
+                        labels={model}.stages[-2].labels))
+
+                # Remove temporary columns
+                sql = 'SELECT {{}} FROM __THIS__'.format(', '.join(keep_at_end))
+                last_stages.append(SQLTransformer(statement=sql))
+
+                pipeline = Pipeline(stages=last_stages)
+                {model} = pipeline.fit({train})
+            else:
+                algorithm.setLabelCol(final_label)
+                algorithm.setFeaturesCol(final_features)
+                {model} = algorithm.fit({train})
 
             # Used in ensembles, e.g. VotingClassifierOperation
             setattr({model}, 'ensemble_weights', {weights})
@@ -956,22 +1164,22 @@ class ClassificationModelOperation(Operation):
 
                 result = '<h4>{title}</h4>'
 
-                emit_event(
-                    'update task', status='COMPLETED',
-                    identifier='{task_id}',
-                    message=result + content.generate(),
-                    type='HTML', title='{title}',
-                    task={{'id': '{task_id}'}},
-                    operation={{'id': {operation_id}}},
-                    operation_id={operation_id})
+                emit(status='COMPLETED', message=result + content.generate(),
+                    type='HTML', title='{title}')
 
             """.format(
                 model=self.model,
                 algorithm=self.named_inputs.get('algorithm'),
                 train=self.named_inputs['train input data'],
-                label=self.label, feat=self.features,
+                label=self.label, feat=repr(self.features),
                 prediction=self.prediction,
                 output=self.output,
+                msg0=_('Features are not assembled as a vector. They will be '
+                       'implicitly assembled and rows with null values will be '
+                       'discarded. If this is undesirable, explicitly add a '
+                       'feature assembler in the workflow.'),
+                msg1=_('Label attribute is categorical, it will be '
+                       'implicitly indexed as string.'),
                 display_text=display_text,
                 title=_('Generated classification model parameters'),
                 headers=[_('Parameter'), _('Value'), ],
@@ -1032,6 +1240,9 @@ class ClassifierOperation(Operation):
             raise ValueError(
                 _('Parameter output must be informed for classifier {}').format(
                     self.__class__))
+
+    def to_deploy_format(self, id_mapping):
+        return []
 
 
 class SvmClassifierOperation(ClassifierOperation):
@@ -1421,7 +1632,7 @@ class ClusteringModelOperation(Operation):
             raise ValueError(msg.format(
                 self.FEATURES_ATTRIBUTE_PARAM, self.__class__))
 
-        self.features = parameters.get(self.FEATURES_ATTRIBUTE_PARAM)[0]
+        self.features = parameters.get(self.FEATURES_ATTRIBUTE_PARAM)
 
         self.output = self.named_outputs.get('output data',
                                              'out_task_{}'.format(self.order))
@@ -1451,17 +1662,67 @@ class ClusteringModelOperation(Operation):
 
         if self.has_code:
             code = """
-            {algorithm}.setFeaturesCol('{features}')
-            if hasattr({algorithm}, 'setPredictionCol'):
-                {algorithm}.setPredictionCol('{prediction}')
-            {model} = {algorithm}.fit({input})
+            emit = functools.partial(
+                emit_event, name='update task',
+                status='RUNNING', type='TEXT',
+                identifier='{task_id}',
+                operation={{'id': {operation_id}}}, operation_id={operation_id},
+                task={{'id': '{task_id}'}},
+                title='{title}')
+            alg = {algorithm}
+
+            # Clone the algorithm because it can be used more than once
+            # and this may cause concurrency problems
+            params = dict([(p.name, v) for p, v in
+                alg.extractParamMap().items()])
+            algorithm_cls = globals()[alg.__class__.__name__]
+            algorithm = algorithm_cls()
+            algorithm.setParams(**params)
+            features = {features}
+            requires_pipeline = False
+
+            stages = [] # record pipeline stages
+            if len(features) > 1 and not isinstance(
+                {input}.schema[str(features[0])].dataType, VectorUDT):
+                emit(message='{msg2}')
+                for f in features:
+                    if not dataframe_util.is_numeric({input}.schema, f):
+                        raise ValueError('{msg1}')
+
+                # Remove rows with null (VectorAssembler doesn't support it)
+                cond = ' AND '.join(['{{}} IS NOT NULL '.format(c)
+                    for c in features])
+                stages.append(SQLTransformer(
+                    statement='SELECT * FROM __THIS__ WHERE {{}}'.format(cond)))
+                final_features = 'features_tmp'
+                stages.append(feature.VectorAssembler(
+                    inputCols=features, outputCol=final_features))
+                requires_pipeline = True
+
+            else:
+                # If more than 1 vector is passed, use only the first
+                final_features = features[0]
+
+            algorithm.setFeaturesCol(final_features)
+
+            if hasattr(algorithm, 'setPredictionCol'):
+                algorithm.setPredictionCol('{prediction}')
+            stages.append(algorithm)
+            pipeline = Pipeline(stages=stages)
+
+            pipeline_model = pipeline.fit({input})
+            {model} = pipeline_model
+
             # There is no way to pass which attribute was used in clustering, so
             # information will be stored in a new attribute called features.
-            setattr({model}, 'features', '{features}')
+            setattr({model}, 'features', {features})
 
             # Lazy execution in case of sampling the data in UI
             def call_transform(df):
-                return {model}.transform(df)
+                if requires_pipeline:
+                    return pipeline_model.transform(df).drop(final_features)
+                else:
+                    return pipeline_model.transform(df)
             {output} = dataframe_util.LazySparkTransformationDataframe(
                 {model}, {input}, call_transform)
 
@@ -1504,12 +1765,18 @@ class ClusteringModelOperation(Operation):
                        algorithm=self.named_inputs['algorithm'],
                        input=self.named_inputs['train input data'],
                        output=self.output,
-                       features=self.features,
+                       features=repr(self.features),
                        prediction=self.prediction,
                        task_id=self.parameters['task_id'],
                        operation_id=self.parameters['operation_id'],
-                       title="Clustering result",
-                       centroids=self.centroids)
+                       title=_("Clustering result"),
+                       centroids=self.centroids,
+                       msg1=_('Regression only support numerical features.'),
+                       msg2=_('Features are not assembled as a vector. '
+                              'They will be implicitly assembled and rows with '
+                              'null values will be discarded. If this is '
+                              'undesirable, explicitly add a feature assembler '
+                              'in the workflow.'),)
 
             return dedent(code)
 
@@ -1586,7 +1853,7 @@ class LdaClusteringOperation(ClusteringOperation):
                                      str(self.doc_concentration).split(',') if
                                      v.strip()]
                 self.set_values.append(['DocConcentration', doc_concentration])
-            except Exception as e:
+            except Exception:
                 raise ValueError(
                     _('Invalid document concentration: {}. It must be a single '
                       'decimal value or a list of decimal numbers separated by '
@@ -1961,7 +2228,7 @@ class LogisticRegressionModel(Operation):
 '''
 
 
-class RegressionModelOperation(Operation):
+class RegressionModelOperation(DeployModelMixin, Operation):
     FEATURES_PARAM = 'features'
     LABEL_PARAM = 'label'
     PREDICTION_COL_PARAM = 'prediction'
@@ -2006,16 +2273,67 @@ class RegressionModelOperation(Operation):
     def generate_code(self):
         if self.has_code:
             code = """
-            algorithm = {algorithm}
+            emit = functools.partial(
+                emit_event, name='update task',
+                status='RUNNING', type='TEXT',
+                identifier='{task_id}',
+                operation={{'id': {operation_id}}}, operation_id={operation_id},
+                task={{'id': '{task_id}'}},
+                title='{title}')
+            alg = {algorithm}
+
+            # Clone the algorithm because it can be used more than once
+            # and this may cause concurrency problems
+            params = dict([(p.name, v) for p, v in
+                alg.extractParamMap().items()])
+
+            algorithm_cls = globals()[alg.__class__.__name__]
+            algorithm = algorithm_cls()
+            algorithm.setParams(**params)
             algorithm.setPredictionCol('{prediction}')
             algorithm.setLabelCol('{label}')
-            algorithm.setFeaturesCol('{features}')
+
+            features = {features}
+            requires_pipeline = False
+
+            stages = [] # record pipeline stages
+            if len(features) > 1 and not isinstance(
+                {input}.schema[str(features[0])].dataType, VectorUDT):
+                emit(message='{msg2}')
+                for f in features:
+                    if not dataframe_util.is_numeric({input}.schema, f):
+                        raise ValueError('{msg1}')
+
+                # Remove rows with null (VectorAssembler doesn't support it)
+                cond = ' AND '.join(['{{}} IS NOT NULL '.format(c)
+                    for c in features])
+                stages.append(SQLTransformer(
+                    statement='SELECT * FROM __THIS__ WHERE {{}}'.format(cond)))
+                final_features = 'features_tmp'
+                stages.append(feature.VectorAssembler(
+                    inputCols=features, outputCol=final_features))
+                requires_pipeline = True
+
+            else:
+                # If more than 1 vector is passed, use only the first
+                final_features = features[0]
+
+            algorithm.setFeaturesCol(final_features)
+            stages.append(algorithm)
+            pipeline = Pipeline(stages=stages)
+
             try:
-                {model} = algorithm.fit({input})
+
+                pipeline_model = pipeline.fit({input})
                 def call_transform(df):
-                    return {model}.transform(df)
+                    if requires_pipeline:
+                        return pipeline_model.transform(df).drop(final_features)
+                    else:
+                        return pipeline_model.transform(df)
                 {output_data} = dataframe_util.LazySparkTransformationDataframe(
-                    {model}, {input}, call_transform)
+                    pipeline_model, {input}, call_transform)
+
+                {model} = pipeline_model
 
                 display_text = {display_text}
                 if display_text:
@@ -2065,18 +2383,24 @@ class RegressionModelOperation(Operation):
 
             except IllegalArgumentException as iae:
                 if 'org.apache.spark.ml.linalg.Vector' in iae:
-                    msg = (_('Assemble features in a vector before using a '
-                        'regression model'))
-                    raise ValueError(msg)
+                    raise ValueError('{msg0}')
                 else:
                     raise
             """.format(model=self.model, algorithm=self.algorithm,
                        input=self.named_inputs['train input data'],
                        output_data=self.output, prediction=self.prediction,
-                       label=self.label[0], features=self.features[0],
+                       label=self.label[0], features=repr(self.features),
                        task_id=self.parameters['task_id'],
                        operation_id=self.parameters['operation_id'],
                        title="Regression result",
+                       msg0=_('Assemble features in a vector before using a '
+                              'regression model'),
+                       msg1=_('Regression only support numerical features.'),
+                       msg2=_('Features are not assembled as a vector. '
+                              'They will be implicitly assembled and rows with '
+                              'null values will be discarded. If this is '
+                              'undesirable, explicitly add a feature assembler '
+                              'in the workflow.'),
                        display_text=self.parameters['task']['forms'].get(
                            'display_text', {}).get('value') in (1, '1'))
 
@@ -2116,6 +2440,9 @@ class RegressionOperation(Operation):
 
     def get_data_out_names(self, sep=','):
         return ''
+
+    def to_deploy_format(self, id_mapping):
+        return []
 
 
 class LinearRegressionOperation(RegressionOperation):
@@ -2570,9 +2897,7 @@ class SaveModelOperation(Operation):
             criteria = '{criteria}'
 
             if criteria != 'ALL' and len(with_evaluation) != len(all_models):
-                raise ValueError(_('You cannot mix models with and without '
-                    'evaluation (e.g. indexers) when saving models '
-                    'and criteria is different from ALL'))
+                raise ValueError('{msg0}')
             if criteria == 'ALL':
                 models_to_save = list(itertools.chain.from_iterable(
                     map(lambda m: m.models if isinstance(m,
@@ -2580,8 +2905,7 @@ class SaveModelOperation(Operation):
             elif criteria == 'BEST':
                 metrics_used = set([m.metric_name for m in all_models])
                 if len(metrics_used) > 1:
-                    msg = _('You cannot mix models built using with '
-                            'different metrics ({{}}).')
+                    msg = '{msg1}'
                     raise ValueError(msg.format(', '.join(metrics_used)))
 
                 models_to_save = [m.best for m in all_models]
@@ -2624,10 +2948,18 @@ class SaveModelOperation(Operation):
                    storage_id=self.storage_id,
                    name=self.name.replace(' ', '_'),
                    criteria=self.criteria,
+                   msg0=_('You cannot mix models with and without '
+                          'evaluation (e.g. indexers) when saving models '
+                          'and criteria is different from ALL'),
+                   msg1=_('You cannot mix models built using with '
+                          'different metrics ({}).'),
                    user_id=user.get('id'),
                    user_name=user.get('name'),
                    user_login=user.get('login')))
         return code
+
+    def to_deploy_format(self, id_mapping):
+        return []
 
 
 class LoadModelOperation(Operation):

@@ -23,11 +23,46 @@ class ApplyModel(Operation):
         self.output = self.named_outputs.get('output data',
                                              'output_data_{}'.format(self.order))
 
+        self.has_import = ""
         self.has_code = len(self.named_inputs) == 2
         if not self.has_code:
             raise ValueError(
                 _("Parameter '{}' and '{}' must be informed for task {}")
                 .format('input data',  'model', self.__class__))
+
+
+    def get_optimization_information(self):
+        # optimization problemn: iteration over others fragments
+        flags = {'one_stage': False,  # if has only one stage
+                 'keep_balance': False,  # if number of rows doesnt change
+                 'bifurcation': False,  # if has two inputs
+                 'if_first': False,  # if need to be executed as a first task
+                 'apply_model': True,  # if its a machine learning algorithm
+                 }
+
+        return flags
+
+    def generate_preoptimization_code(self):
+        """Generate code for optimization task."""
+        code = """
+        settings = dict()
+        settings['features'] = '{features}'
+        settings['predCol'] = '{predCol}'
+        conf.append(settings)
+        """.format(IN=self.named_inputs['input data'],
+                   features=self.parameters['features'][0],
+                   predCol=self.prediction)
+        return code
+
+    def generate_optimization_code(self):
+        """Generate code for optimization task."""
+        code = """
+        algorithm, model = {model}
+        {OUT} = algorithm.transform({IN}, model, conf_X, numFrag)
+        """.format(IN=self.named_inputs['input data'],
+                   model=self.named_inputs['model'],
+                   OUT=self.output)
+        return dedent(code)
 
     def generate_code(self):
         """Generate code."""
@@ -112,12 +147,8 @@ class EvaluateModelOperation(Operation):
         return dedent(code)
 
 
-class LoadModel(Operation):
+class LoadModelOperation(Operation):
     """LoadModel.
-
-    REVIEW: 2017-10-20
-    ??? - Juicer ?? / Tahiti ok/ implementation ok
-
     """
 
     def __init__(self, parameters,  named_inputs, named_outputs):
@@ -134,28 +165,53 @@ class LoadModel(Operation):
 
         self.has_code = len(named_outputs) > 0
         if self.has_code:
-            self.has_import = 'from functions.ml.Models ' \
-                              'import LoadModelFromHDFS\n'
+            self.has_import = 'from functions.ml.models ' \
+                              'import LoadModelOperation\n'
         else:
             raise ValueError(
                 _("Parameter '{}' must be informed for task {}")
                 .format('output data', self.__class__))
 
+    def get_optimization_information(self):
+        # optimization problemn: iteration over others fragments
+        flags = {'one_stage': True,  # if has only one stage
+                 'keep_balance': True,  # if number of rows doesnt change
+                 'bifurcation': False,  # if has two inputs
+                 'if_first': False,  # if need to be executed as a first task
+                 }
+        return flags
+
+    def generate_preoptimization_code(self):
+        """Generate code for optimization task."""
+        code = """
+        settings = dict()
+        settings['filename'] = {filename}
+        settings['storage'] = 'hdfs'
+        conf.append(LoadModelOperation(settings))
+        """.format(filename=self.filename)
+        return code
+
+    def generate_optimization_code(self):
+        """Generate code for optimization task."""
+        code = """
+        {output} = conf_X
+        """.format(output=self.output)
+        return dedent(code)
+
     def generate_code(self):
         """Generate code."""
         code = """
         settings = dict()
-        settings['path'] = {filename}
-        {model} = LoadModelFromHDFS(settings)
+        settings['filename'] = {filename}
+        settings['storage'] = 'hdfs'
+        {model} = LoadModelOperation(settings)
         """.format(model=self.output, filename=self.filename)
         return dedent(code)
 
 
-class SaveModel(Operation):
+class SaveModelOperation(Operation):
     """SaveModel.
 
-    REVIEW: 2017-10-20
-    ??? - Juicer ?? / Tahiti ok/ implementation ok
     """
 
     def __init__(self, parameters,  named_inputs, named_outputs):
@@ -174,17 +230,46 @@ class SaveModel(Operation):
             self.overwrite = False
 
         if self.has_code:
-            self.has_import = 'from functions.ml.Models ' \
-                              'import SaveModelToHDFS\n'
+            self.has_import = 'from functions.ml.models ' \
+                              'import SaveModelOperation\n'
+
+    def get_optimization_information(self):
+        # optimization problemn: iteration over others fragments
+        flags = {'one_stage': True,  # if has only one stage
+                 'keep_balance': False,  # if number of rows doesnt change
+                 'bifurcation': False,  # if has two inputs
+                 'if_first': True,  # if need to be executed as a first task
+                 }
+        #!Need to Check it
+        return flags
+
+    def generate_preoptimization_code(self):
+        """Generate code for optimization task."""
+        code = """
+        settings = dict()
+        settings['filename'] = {filename}
+        settings['overwrite'] = {overwrite}
+        settings['storage'] = 'hdfs'
+        sucess = SaveModelOperation({IN}, settings)
+        """.format(IN=self.named_inputs['model'],
+                   filename=self.filename, overwrite=self.overwrite)
+        return code
+
+    def generate_optimization_code(self):
+        """Generate code for optimization task."""
+        code = """
+        {output} = conf_X
+        """.format(output=self.output)
+        return dedent(code)
 
     def generate_code(self):
         """Generate code."""
         code = """
         settings = dict()
-        settings['path'] = {filename}
+        settings['filename'] = {filename}
         settings['overwrite'] = {overwrite}
-
-        sucess = SaveModelToHDFS({IN}, settings)
+        settings['storage'] = 'hdfs'
+        sucess = SaveModelOperation({IN}, settings)
         """.format(IN=self.named_inputs['model'],
                    filename=self.filename, overwrite=self.overwrite)
         return dedent(code)

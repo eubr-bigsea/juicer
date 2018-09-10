@@ -22,6 +22,12 @@ def query_limonero(base_url, item_path, token, item_id):
     item_path = remove_initial_final_path_separator(item_path)
     item_id = remove_initial_final_path_separator(str(item_id))
 
+    if base_url.endswith('/'):
+        base_url = base_url[:-1]
+
+    if item_path.endswith('/'):
+        item_path = item_path[:-1]
+
     if item_path:
         url = '{}/{}/{}'.format(base_url, item_path, item_id)
     else:

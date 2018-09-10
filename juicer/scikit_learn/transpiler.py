@@ -227,7 +227,8 @@ class ScikitLearnTranspiler(object):
             parameters['task'] = task
             parameters['configuration'] = self.configuration
             parameters['workflow'] = workflow
-            parameters['user'] = workflow['user']
+            parameters['workflow_json'] = json.dumps(workflow)
+
             parameters['workflow_id'] = workflow['id']
             parameters['workflow_name'] = ScikitLearnTranspiler._escape_chars(
                     workflow['name'])

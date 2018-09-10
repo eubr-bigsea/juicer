@@ -91,6 +91,30 @@ class KMeansClusteringOperation(Operation):
                               "import Kmeans\n"
             self.output = named_outputs.get('algorithm')
 
+
+    def get_optimization_information(self):
+
+        flags = {'one_stage': False,  # if has only one stage
+                 'keep_balance': False,  # if number of rows doesnt change
+                 'bifurcation': False,  # if has two inputs
+                 'if_first': False,  # if need to be executed as a first task
+                 'ml_algorithm': True,  # if its a machine learning algorithm
+                 }
+
+        return flags
+
+    def generate_preoptimization_code(self):
+        """Generate code for optimization task."""
+        code = """
+        """
+        return code
+
+    def generate_optimization_code(self):
+        """Generate code for optimization task."""
+        code = """
+        """
+        return dedent(code)
+
     def generate_code(self):
         """Generate code."""
         code = """
@@ -106,89 +130,58 @@ class KMeansClusteringOperation(Operation):
         return dedent(code)
 
 
-# Regression Operations
-
-class RegressionModelOperation(Operation):
+class DBSCANClusteringOperation(Operation):
 
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
-        if 'label' not in parameters and 'features' not in parameters:
-            raise ValueError(
-                _("Parameters '{}' and '{}' must be informed for task {}")
-                .format('label',  'features', self.__class__))
 
-        self.label = parameters['label'][0]
+        self.eps = parameters.get('eps', 0.001)
+        self.minPts = parameters.get('minPts', 15)
+        if 'features' not in parameters:
+            raise ValueError(
+                _("Parameter '{}' must be informed for task {}")
+                .format('features', self.__class__))
+
+        tmp = 'output_data_{}'.format(self.order)
         self.features = parameters['features'][0]
-        self.predCol = parameters.get('prediction', 'prediction')
-        self.has_code = len(self.named_inputs) == 2
-        if not self.has_code:
-            raise ValueError(
-                _("Parameters '{}' and '{}' must be informed for task {}")
-                .format('train input data',  'algorithm', self.__class__))
+        self.predCol = self.parameters.get('prediction', 'prediction')
+        self.output = self.named_outputs.get('output data', tmp)
+        self.input = self.named_inputs['input data']
 
-        self.model = self.named_outputs.get('model',
-                                            'model_tmp{}'.format(self.order))
+        self.has_code = len(named_inputs) == 1
 
-        self.perform_transformation = 'output data' in self.named_outputs
-        if not self.perform_transformation:
-            self.output = 'task_{}'.format(self.order)
-        else:
-            self.output = self.named_outputs['output data']
-            self.prediction = self.parameters.get('prediction', 'prediction')
+        if self.has_code:
+            self.has_import = "from functions.ml.clustering.DBSCAN.dbscan " \
+                              "import DBSCAN\n"
 
-    def get_data_out_names(self, sep=','):
-        return ''
+    def get_optimization_information(self):
+        # Not supported. DBSCAN doesnt have centroids to be used as model
+        flags = {}
+        return flags
 
-    def get_output_names(self, sep=', '):
-        return sep.join([self.output, self.model])
-
-    def generate_code(self):
-        """Generate code."""
+    def generate_preoptimization_code(self):
+        """Generate code for optimization task."""
         code = """
-            numFrag = 4
-            regressor, settings = {algorithm}
-            settings['label'] = '{label}'
-            settings['features'] = '{features}'
-            model = regressor.fit({input}, settings, numFrag)
-            {model} = [regressor, model]
-            """.format(output=self.output, model=self.model,
-                       input=self.named_inputs['train input data'],
-                       algorithm=self.named_inputs['algorithm'],
-                       label=self.label, features=self.features)
+        """
+        return code
 
-        if self.perform_transformation:
-            code += """
-            settings['predCol'] = '{predCol}'
-            {output} = regressor.transform({input}, model, settings, numFrag)
-            """.format(predCol=self.predCol, output=self.output,
-                       input=self.named_inputs['train input data'])
-        else:
-            code += 'task_{} = None'.format(self.order)
-
+    def generate_optimization_code(self):
+        """Generate code for optimization task."""
+        code = """
+        """
         return dedent(code)
 
-
-class LinearRegressionOperation(Operation):
-
-    def __init__(self, parameters,  named_inputs, named_outputs):
-        Operation.__init__(self, parameters,  named_inputs,  named_outputs)
-
-        self.has_code = True
-        self.output = named_outputs.get('algorithm',
-                                        'algorithm_tmp{}'.format(self.order))
-        self.maxIters = parameters.get('max_iter', 100)
-        self.alpha = parameters.get('alpha', 0.001)
-        self.has_import = "from functions.ml.regression.linearRegression." \
-                          "linearRegression import linearRegression\n"
-
     def generate_code(self):
         """Generate code."""
         code = """
-            regression_model = linearRegression()
+            cluster_model = DBSCAN()
             settings = dict()
-            settings['alpha'] = {alpha}
-            settings['max_iter'] = {it}
-            settings['option'] = 'SDG'
-            {output} = [regression_model, settings]
-            """.format(alpha=self.alpha, it=self.maxIters, output=self.output)
+            settings['feature'] = '{features}'
+            settings['predCol'] = '{predCol}'
+            settings['minPts'] = {pts}
+            settings['eps'] = {eps}
+            {output} = cluster_model.fit_predict({data_in}, settings, numFrag)
+            """.format(pts=self.minPts, eps=self.eps, output=self.output,
+                       features=self.features, predCol=self.predCol,
+                       data_in=self.input)
         return dedent(code)
