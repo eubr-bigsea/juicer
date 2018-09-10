@@ -10,9 +10,6 @@ class AddColumnsOperation(Operation):
     """AddColumnsOperation.
 
     Merge two data frames, column-wise, similar to the command paste in Linux.
-
-    REVIEW: 2018-04-04
-    OK - Juicer / Tahiti / implementation
     """
 
     def __init__(self, parameters, named_inputs, named_outputs):
@@ -25,7 +22,7 @@ class AddColumnsOperation(Operation):
 
         if self.has_code:
             self.has_import = \
-                "from functions.etl.AddColumns import AddColumnsOperation\n"
+                "from functions.etl.add_columns import AddColumnsOperation\n"
         else:
             raise ValueError(
                 _("Parameters '{}' and '{}' must be informed for task {}")
@@ -34,12 +31,30 @@ class AddColumnsOperation(Operation):
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
 
+    def get_optimization_information(self):
+        # optimization problemn: iteration over others fragments
+        flags = {'one_stage': False,  # if has only one stage
+                 'keep_balance': False,  # if number of rows doesnt change
+                 'bifurcation': False,  # if has two inputs
+                 'if_first': False,  # if need to be executed as a first task
+                 }
+        return flags
+
+    def generate_preoptimization_code(self):
+        """Generate code for optimization task."""
+        pass
+
+    def generate_optimization_code(self):
+        """Generate code for optimization task."""
+        pass
+
     def generate_code(self):
         """Generate code."""
         code = """
         suffixes = {suffixes}
         balanced = False  # Currently, all data are considered unbalanced
-        {out} = AddColumnsOperation({input1}, {input2}, balanced, numFrag)
+        {out} = AddColumnsOperation().transform({input1},
+        {input2}, balanced, numFrag)
         """.format(out=self.output, suffixes=self.suffixes,
                    input1=self.named_inputs['input data 1'],
                    input2=self.named_inputs['input data 2'])
@@ -55,9 +70,6 @@ class AggregationOperation(Operation):
         is the column to perform aggregation on, and the value is the aggregate
         function. The available aggregate functions are avg, max, min, sum,
         count.
-
-    REVIEW: 2018-04-04
-    OK - Juicer / Tahiti / implementation
     """
 
     def __init__(self, parameters, named_inputs, named_outputs):
@@ -74,17 +86,17 @@ class AggregationOperation(Operation):
 
         if self.has_code:
             self.has_import = \
-                "from functions.etl.Aggregation import AggregationOperation\n"
+                "from functions.etl.aggregation import AggregationOperation\n"
         else:
             raise ValueError(
                 _("Parameter '{}', '{}' and '{}' must be informed for task {}")
                 .format('input data',  'attributes', 'function',
                         self.__class__))
 
-        for dict in functions:
-            att = dict['attribute']
-            f = dict['f']
-            a = dict['alias']
+        for d in functions:
+            att = d['attribute']
+            f = d['f']
+            a = d['alias']
             if (f is not None) and (a is not None):
                 if att in self.input_operations:
                         self.input_operations[att].append(f)
@@ -96,6 +108,27 @@ class AggregationOperation(Operation):
         tmp = 'output_data_{}'.format(self.order)
         self.output = self.named_outputs.get('output data', tmp)
 
+    def get_optimization_information(self):
+        # optimization problemn: the last task is executed multiple times
+        flags = {'one_stage': False,  # if has only one stage
+                 'keep_balance': False,  # if number of rows doesnt change
+                 'bifurcation': False,  # if has two inputs
+                 'if_first': False,  # if need to be executed as a first task
+                 }
+        return flags
+
+    def generate_preoptimization_code(self):
+        """Generate code for optimization task."""
+        code = """
+        """
+        return code
+
+    def generate_optimization_code(self):
+        """Generate code for optimization task."""
+        code = """
+        """
+        return dedent(code)
+
     def generate_code(self):
         """Generate code."""
         code = """
@@ -103,7 +136,7 @@ class AggregationOperation(Operation):
         settings['columns'] = {columns}
         settings['operation'] = {operations}
         settings['aliases'] = {aliases}
-        {output} = AggregationOperation({input}, settings, numFrag)
+        {output} = AggregationOperation().transform({input}, settings, numFrag)
         """.format(output=self.output,
                    input=self.named_inputs['input data'],
                    columns=self.input_columns,
@@ -126,9 +159,6 @@ class CleanMissingOperation(Operation):
           * "REMOVE_ROW": remove entire row
           * "REMOVE_COLUMN": remove entire column
         - value: optional, used to replace missing values
-
-    REVIEW: 2017-10-20
-    OK - Juicer / Tahiti / implementation
     """
 
     def __init__(self, parameters, named_inputs, named_outputs):
@@ -150,11 +180,56 @@ class CleanMissingOperation(Operation):
 
         if self.has_code:
             self.has_import = \
-                "from functions.etl.CleanMissing "\
+                "from functions.etl.clean_missing "\
                 "import CleanMissingOperation\n"
 
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
+
+    def get_optimization_information(self):
+        flags = {'one_stage': False,  # if has only one stage
+                 'keep_balance': False,  # if number of rows doesnt change
+                 'bifurcation': False,  # if has two inputs
+                 'if_first': False,  # if need to be executed as a first task
+                 }
+
+        if self.mode_CM in ['REMOVE_ROW', 'VALUE']:
+
+            flags['one_stage'] = True
+        else:
+            flags['if_first'] = True
+
+        if self.mode_CM != 'REMOVE_ROW':
+            flags['keep_balance'] = True
+
+        return flags
+
+    def generate_preoptimization_code(self):
+        """Generate code for optimization task."""
+        """Generate code for optimization task."""
+        code = """
+        settings = dict()
+        settings['attributes'] = {attributes}
+        settings['cleaning_mode'] = '{mode}'
+        """.format(attributes=self.attributes_CM, mode=self.mode_CM)
+
+        if self.mode_CM == "VALUE":
+            code += """
+        settings['value'] = {value}
+        """.format(value=self.value_CM)
+
+        code += """
+        conf.append(CleanMissingOperation().preprocessing(settings))
+        """
+        return code
+
+    def generate_optimization_code(self):
+        """Generate code."""
+        code = """
+        {output} = CleanMissingOperation().transform_serial({input}, conf_X)
+        """.format(output=self.output,
+                   input=self.named_inputs['input data'])
+        return dedent(code)
 
     def generate_code(self):
         code = """
@@ -168,7 +243,8 @@ class CleanMissingOperation(Operation):
             settings['value'] = {value}
             """.format(value=self.value_CM)
         code += """
-            {output} = CleanMissingOperation({input}, settings, numFrag)
+            {output} = CleanMissingOperation().transform({input},
+            settings, numFrag)
             """.format(output=self.output,
                        input=self.named_inputs['input data'])
 
@@ -180,9 +256,6 @@ class DifferenceOperation(Operation):
 
     Returns a new DataFrame containing rows in this frame but not in another
     frame.
-
-    REVIEW: 2017-10-20
-    OK - Juicer / Tahiti / implementation
     """
 
     def __init__(self, parameters,  named_inputs, named_outputs):
@@ -190,13 +263,29 @@ class DifferenceOperation(Operation):
         self.has_code = len(named_inputs) == 2
         if self.has_code:
             self.has_import = \
-                "from functions.etl.Difference import DifferenceOperation\n"
+                "from functions.etl.difference import DifferenceOperation\n"
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
 
+    def get_optimization_information(self):
+        flags = {'one_stage': False,  # if has only one stage
+                 'keep_balance': False,  # if number of rows doesnt change
+                 'bifurcation': False,  # if has two inputs
+                 'if_first': True,  # if need to be executed as a first task
+                 }
+        return flags
+
+    def generate_preoptimization_code(self):
+        """Generate code for optimization task."""
+        pass
+
+    def generate_optimization_code(self):
+        """Generate code for optimization task."""
+        pass
+
     def generate_code(self):
         code = """
-        {} = DifferenceOperation({}, {}, numFrag)
+        {} = DifferenceOperation().transform({}, {}, numFrag)
         """.format(self.output, self.named_inputs['input data 1'],
                    self.named_inputs['input data 2'])
         return dedent(code)
@@ -219,18 +308,36 @@ class DistinctOperation(Operation):
 
         if self.has_code:
             self.has_import = \
-                "from functions.etl.Distinct import DistinctOperation\n"
+                "from functions.etl.distinct import DistinctOperation\n"
 
         self.attributes = parameters.get('attributes', [])
+        self.attributes = [] if len(self.attributes) == 0 else self.attributes
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
+
+    def get_optimization_information(self):
+        #! multiple executions of same task
+        flags = {'one_stage': False,  # if has only one stage
+                 'keep_balance': False,  # if number of rows doesnt change
+                 'bifurcation': False,  # if has two inputs
+                 'if_first': False,  # if need to be executed as a first task
+                 }
+        return flags
+
+    def generate_preoptimization_code(self):
+        """Generate code for optimization task."""
+        pass
+
+    def generate_optimization_code(self):
+        """Generate code for optimization task."""
+        pass
 
     def generate_code(self):
         """Generate code."""
         if self.has_code:
             code = """
             columns = {keys}
-            {output} = DistinctOperation({input}, columns, numFrag)
+            {output} = DistinctOperation().transform({input}, columns, numFrag)
             """.format(output=self.output, keys=self.attributes,
                        input=self.named_inputs['input data'])
             return dedent(code)
@@ -242,25 +349,47 @@ class DropOperation(Operation):
     Returns a new DataFrame that drops the specified column.
     Nothing is done if schema doesn't contain the given column name(s).
     The only parameters is the name of the columns to be removed.
-
-    REVIEW: 2017-10-20
-    OK - Juicer / Tahiti / implementation
     """
 
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
         self.has_code = len(named_inputs) == 1
         if self.has_code:
-            self.has_import = "from functions.etl.Drop import DropOperation\n"
+            self.has_import = "from functions.etl.drop import DropOperation\n"
 
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
+        self.output_pre = 'conf_{}'.format(parameters['task']['order'])
+
+    def get_optimization_information(self):
+        flags = {'one_stage': True,  # if has only one stage
+                 'keep_balance': True,  # if number of rows doesnt change
+                 'bifurcation': False,  # if has two inputs
+                 'if_first': False,  # if need to be executed as a first task
+                 }
+        return flags
+
+    def generate_preoptimization_code(self):
+        """Generate code for optimization task."""
+        code = """
+        columns = {columns}
+        conf.append(DropOperation().preprocessing(columns))
+        """.format(columns=self.parameters['attributes'])
+        return code
+
+    def generate_optimization_code(self):
+        """Generate code."""
+        code = """
+        {output} = DropOperation().transform_serial({input}, conf_X)
+        """.format(output=self.output,
+                   input=self.named_inputs['input data'])
+        return dedent(code)
 
     def generate_code(self):
         """Generate code."""
         code = """
         columns = {columns}
-        {output} = DropOperation({input}, columns, numFrag)
+        {output} = DropOperation().transform({input}, columns, numFrag)
         """.format(output=self.output,
                    input=self.named_inputs['input data'],
                    columns=self.parameters['attributes'])
@@ -268,14 +397,13 @@ class DropOperation(Operation):
 
 
 class FilterOperation(Operation):
-    """
+    """FilterOperation.
+
     Filters rows using the given condition.
     Parameters:
         - The expression (==, <, >)
-
-    REVIEW: 2017-10-20
-    OK - Juicer / Tahiti / implementation
     """
+
     FILTER_PARAM = 'filter'
 
     def __init__(self, parameters,  named_inputs, named_outputs):
@@ -286,26 +414,53 @@ class FilterOperation(Operation):
                 _("Parameters '{}' must be informed for task {}").
                 format(self.FILTER_PARAM, self.__class__))
 
+        self.output = self.named_outputs.get(
+                'output data', 'output_data_{}'.format(self.order))
+        self.output_pre = 'conf_{}'.format(parameters['task']['order'])
         self.has_code = (len(named_inputs) == 1)
         if self.has_code:
             self.has_import = \
-                "from functions.etl.Filter import FilterOperation\n"
+                "from functions.etl.filter import FilterOperation\n"
 
         self.query = ""
         for dict in parameters.get(self.FILTER_PARAM):
-            self.query += "({} {} {}) and ".format(dict['attribute'],
-                                                   dict['f'],
-                                                   dict['alias'])
+            self.query += "({} {} '{}') and ".format(dict['attribute'],
+                                                     dict['f'],
+                                                     dict['alias'])
         self.query = self.query[:-4]
-        self.output = self.named_outputs.get(
-            'output data', 'output_data_{}'.format(self.order))
+
+
+    def get_optimization_information(self):
+        flags = {'one_stage': True,  # if has only one stage
+                 'keep_balance': False,  # if number of rows doesnt change
+                 'bifurcation': False,  # if has two inputs
+                 'if_first': False,  # if need to be executed as a first task
+                 }
+        return flags
+
+    def generate_preoptimization_code(self):
+        """Generate code for optimization task."""
+        code = """
+        settings = dict()
+        settings['query'] = "{query}"
+        conf.append(FilterOperation().preprocessing(settings))
+        """.format(query=self.query)
+        return code
+
+    def generate_optimization_code(self):
+        """Generate code for optimization task."""
+        code = """
+        {out} = FilterOperation().transform_serial({input}, conf_X)
+        """.format(out=self.output,
+                   input=self.named_inputs['input data'])
+        return dedent(code)
 
     def generate_code(self):
         """Generate code."""
         code = """
         settings = dict()
         settings['query'] = "{query}"
-        {out} = FilterOperation({input}, settings, numFrag)
+        {out} = FilterOperation().transform({input}, settings, numFrag)
         """.format(out=self.output,
                    input=self.named_inputs['input data'],
                    query=self.query)
@@ -313,12 +468,10 @@ class FilterOperation(Operation):
 
 
 class Intersection(Operation):
-    """
+    """Intersection.
+
     Returns a new DataFrame containing rows only in both this
     frame and another frame.
-
-    REVIEW: 2017-10-20
-    OK - Juicer / Tahiti / implementation
     """
 
     def __init__(self, parameters,  named_inputs, named_outputs):
@@ -327,7 +480,7 @@ class Intersection(Operation):
 
         if self.has_code:
             self.has_import = \
-                "from functions.etl.Intersect import IntersectionOperation\n"
+                "from functions.etl.intersect import IntersectionOperation\n"
         else:
             raise ValueError(
                 _("Parameter '{}' and '{}' must be informed for task {}")
@@ -336,12 +489,27 @@ class Intersection(Operation):
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
 
+    def get_optimization_information(self):
+        flags = {'one_stage': False,  # if has only one stage
+                 'keep_balance': False,  # if number of rows doesnt change
+                 'bifurcation': False,  # if has two inputs
+                 'if_first': True,  # if need to be executed as a first task
+                 }
+        return flags
+
+    def generate_preoptimization_code(self):
+        """Generate code for optimization task."""
+        pass
+
+    def generate_optimization_code(self):
+        """Generate code for optimization task."""
+        pass
+
     def generate_code(self):
         """Generate code."""
-        code = "{} = IntersectionOperation({},{})".format(
-                self.output,
-                self.named_inputs['input data 1'],
-                self.named_inputs['input data 2'])
+        code = "{} = IntersectionOperation().transform({},{})"\
+            .format(self.output, self.named_inputs['input data 1'],
+                    self.named_inputs['input data 2'])
         return dedent(code)
 
 
@@ -349,9 +517,6 @@ class JoinOperation(Operation):
     """
     Joins with another DataFrame, using the given join expression.
     The expression must be defined as a string parameter.
-
-    REVIEW: 2017-10-20
-    OK - Juicer / Tahiti / implementation
     """
     KEEP_RIGHT_KEYS_PARAM = 'keep_right_keys'
     MATCH_CASE_PARAM = 'match_case'
@@ -361,9 +526,10 @@ class JoinOperation(Operation):
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
-        self.keep_right_keys = parameters.get(self.KEEP_RIGHT_KEYS_PARAM, False)
-        self.match_case = parameters.get(self.MATCH_CASE_PARAM, False) \
-                          in (1, '1', True)
+        self.keep_right_keys = parameters.get(self.KEEP_RIGHT_KEYS_PARAM,
+                                              False) in (1, '1', True)
+        self.match_case = parameters.get(self.MATCH_CASE_PARAM,
+                                         False) in (1, '1', True)
         self.join_type = parameters.get(self.JOIN_TYPE_PARAM, 'inner')
 
         if not all([self.LEFT_ATTRIBUTES_PARAM in parameters,
@@ -376,7 +542,7 @@ class JoinOperation(Operation):
 
         self.has_code = len(named_inputs) == 2
         if self.has_code:
-            self.has_import = "from functions.etl.Join import JoinOperation\n"
+            self.has_import = "from functions.etl.join import JoinOperation\n"
         else:
             raise ValueError(
                 _("Parameter '{}' and '{}' must be informed for task {}")
@@ -390,71 +556,41 @@ class JoinOperation(Operation):
         tmp = 'output_data_{}'.format(self.order)
         self.output = self.named_outputs.get('output data', tmp)
 
-    def generate_code(self):
-        """Generate code."""
-        code = """
-            params = dict()
-            params['option'] = '{type}'
-            params['key1'] = {id1}
-            params['key2'] = {id2}
-            params['case'] = {case}
-            params['suffixes'] = {suffixes}
-            params['keep_keys'] = {keep}
-            {out} = JoinOperation({in1}, {in2}, params, numFrag)
-            """.format(out=self.output, type=self.join_type,
-                       in1=self.named_inputs['input data 1'],
-                       in2=self.named_inputs['input data 2'],
-                       id1=self.parameters['left_attributes'],
-                       id2=self.parameters['right_attributes'],
-                       case=self.match_case, keep=self.keep_right_keys,
-                       suffixes=self.suffixes)
+    def get_optimization_information(self):
+        flags = {'one_stage': False,  # if has only one stage
+                 'keep_balance': False,  # if number of rows doesnt change
+                 'bifurcation': False,  # if has two inputs
+                 'if_first': False,  # if need to be executed as a first task
+                 }
+        return flags
 
-        return dedent(code)
+    def generate_preoptimization_code(self):
+        """Generate code for optimization task."""
+        pass
 
-
-class NormalizeOperation(Operation):
-    def __init__(self, parameters,  named_inputs, named_outputs):
-        Operation.__init__(self, parameters,  named_inputs,  named_outputs)
-
-        if 'attributes' not in parameters:
-            raise ValueError(
-                _("Parameters '{}' must be informed for task {}")
-                .format('attributes', self.__class__))
-
-        elif 'mode' not in parameters:
-            raise ValueError(
-                _("Parameters '{}' must be informed for task {}")
-                .format('mode', self.__class__))
-
-        tmp = 'output_data_{}'.format(self.order)
-        self.output = self.named_outputs.get('output data', tmp)
-        self.alias = [s.strip()
-                      for s in parameters.get("alias", []).split(',')]
-        self.attributes = parameters['attributes']
-        # Adjust alias in order to have the same number of aliases
-        # as attributes by filling missing alias with the attribute
-        # name sufixed by _indexed.
-        if len(self.alias) > 0:
-            self.alias = [x[1] or '{}_norm'.format(x[0]) for x in
-                          izip_longest(self.attributes,
-                                       self.alias[:len(self.attributes)])]
-
-        self.mode = parameters.get('mode', 'range')
-        self.has_code = len(self.named_inputs) == 1
-        if self.has_code:
-            self.has_import = "from functions.etl.Normalize " \
-                              "import NormalizeOperation\n"
+    def generate_optimization_code(self):
+        """Generate code for optimization task."""
+        pass
 
     def generate_code(self):
         """Generate code."""
         code = """
         settings = dict()
-        settings['attributes'] = {att}
-        settings['alias'] = {alias}
-        settings['mode'] = '{mode}'
-        {output} = NormalizeOperation({input}, settings, numFrag)
-        """.format(output=self.output, input=self.named_inputs['input data'],
-                   att=self.attributes, mode=self.mode, alias=self.alias)
+        settings['option'] = '{type}'
+        settings['key1'] = {id1}
+        settings['key2'] = {id2}
+        settings['case'] = {case}
+        settings['suffixes'] = {suffixes}
+        settings['keep_keys'] = {keep}
+        {out} = JoinOperation().transform({in1}, {in2}, settings, numFrag)
+        """.format(out=self.output, type=self.join_type,
+                   in1=self.named_inputs['input data 1'],
+                   in2=self.named_inputs['input data 2'],
+                   id1=self.parameters['left_attributes'],
+                   id2=self.parameters['right_attributes'],
+                   case=self.match_case, keep=self.keep_right_keys,
+                   suffixes=self.suffixes)
+
         return dedent(code)
 
 
@@ -464,9 +600,6 @@ class ReplaceValuesOperation(Operation):
     Replace values in one or more attributes from a dataframe.
     Parameters:
     - The list of columns selected.
-
-    REVIEW: 2017-10-20
-    OK - Juicer / Tahiti / implementation
     """
 
     def __init__(self, parameters, named_inputs, named_outputs):
@@ -503,21 +636,50 @@ class ReplaceValuesOperation(Operation):
         self.has_code = len(named_inputs) == 1
         if self.has_code:
             self.has_import = \
-               "from functions.etl.ReplaceValues "\
+               "from functions.etl.replace_values "\
                "import ReplaceValuesOperation\n"
         tmp = 'output_data_{}'.format(self.order)
         self.output = self.named_outputs.get('output data', tmp)
 
+
+    def get_optimization_information(self):
+        flags = {'one_stage': True,  # if has only one stage
+                 'keep_balance': True,  # if number of rows doesnt change
+                 'bifurcation': False,  # if has two inputs
+                 'if_first': False,  # if need to be executed as a first task
+                 }
+        return flags
+
+    def generate_preoptimization_code(self):
+        """Generate code for optimization task."""
+        code = """
+        settings = dict()
+        settings['replaces'] = {replaces}
+        settings['regex'] = {regex}
+        conf.append(ReplaceValuesOperation().preprocessing(settings))
+        """.format(replaces=self.replaces, regex=self.input_regex)
+        return code
+
+    def generate_optimization_code(self):
+        """Generate code for optimization task."""
+        code = """
+        {output} = ReplaceValuesOperation().transform_serial({input}, conf_X)
+        """.format(output=self.output,
+                   input=self.named_inputs['input data'])
+        return dedent(code)
+
     def generate_code(self):
         """Generate code."""
         code = """
-            settings = dict()
-            settings['replaces'] = {replaces}
-            settings['regex'] = {regex}
-            {output} = ReplaceValuesOperation({input}, settings, numFrag)
-            """.format(output=self.output, replaces=self.replaces,
-                       input=self.named_inputs['input data'],
-                       regex=self.input_regex)
+        settings = dict()
+        settings['replaces'] = {replaces}
+        settings['regex'] = {regex}
+        {output} = ReplaceValuesOperation().transform({input},
+        settings, numFrag)
+        """.format(output=self.output, replaces=self.replaces,
+                   input=self.named_inputs['input data'],
+                   regex=self.input_regex)
+
         return dedent(code)
 
 
@@ -534,9 +696,6 @@ class SampleOrPartition(Operation):
         with replacement: expected number of times each element is chosen;
             fraction must be >= 0
     - seed -> seed for random operation.
-
-    REVIEW: 2017-10-20
-    OK - Juicer / Tahiti / implementation
     """
 
     def __init__(self, parameters,  named_inputs, named_outputs):
@@ -553,8 +712,37 @@ class SampleOrPartition(Operation):
         self.output = self.named_outputs.get('sampled data', tmp)
         self.has_code = len(self.named_inputs) == 1
         if self.has_code:
-            self.has_import = "from functions.etl.Sample "\
+            self.has_import = "from functions.etl.sample "\
                               "import SampleOperation\n"
+
+    def get_optimization_information(self):
+        flags = {'one_stage': False,  # if has only one stage
+                 'keep_balance': False,  # if number of rows doesnt change
+                 'bifurcation': False,  # if has two inputs
+                 'if_first': True,  # if need to be executed as a first task
+                 'need_keeped_data': True  # the group do not change the size ---> REMOVER
+                 }
+        return flags
+
+    def generate_preoptimization_code(self):
+        """Generate code for optimization task."""
+        code = """
+        settings = dict()
+        settings['type'] = '{type}'
+        settings['value'] = {value}
+        settings['seed'] = {seed}
+        conf.append(SampleOperation().preprocessing({input}, settings, numFrag)
+        """.format(output=self.output, type=self.type, seed=self.seed,
+                   input=self.named_inputs['input data'],
+                   value=self.value)
+        return code
+
+    def generate_optimization_code(self):
+        """Generate code for optimization task."""
+        code = """
+        {output} = SampleOperation().transform_serial(({input}, conf_X, idfrag)
+        """.format(output=self.output, input=self.named_inputs['input data'])
+        return dedent(code)
 
     def generate_code(self):
         """Generate code."""
@@ -563,7 +751,7 @@ class SampleOrPartition(Operation):
         settings['type'] = '{type}'
         settings['value'] = {value}
         settings['seed'] = {seed}
-        {output} = SampleOperation({input}, settings, numFrag)
+        {output} = SampleOperation().tranform({input}, settings, numFrag)
         """.format(output=self.output, type=self.type, seed=self.seed,
                    input=self.named_inputs['input data'], value=self.value)
         return dedent(code)
@@ -575,9 +763,6 @@ class SelectOperation(Operation):
     Projects a set of expressions and returns a new DataFrame.
     Parameters:
     - The list of columns selected.
-
-    REVIEW: 2017-10-20
-    OK - Juicer / Tahiti / implementation
     """
 
     ATTRIBUTES_PARAM = 'attributes'
@@ -596,15 +781,41 @@ class SelectOperation(Operation):
         self.has_code = len(named_inputs) == 1
         self.output = self.named_outputs.get(
             'output projected data', 'projection_data_{}'.format(self.order))
+
+        self.output_pre = 'conf_{}'.format(parameters['task']['order'])
         if self.has_code:
             self.has_import = \
-                "from functions.etl.Select import SelectOperation\n"
+                "from functions.etl.select import SelectOperation\n"
+
+    def get_optimization_information(self):
+        flags = {'one_stage': True,  # if has only one stage
+                 'keep_balance': True,  # if number of rows doesnt change
+                 'bifurcation': False,  # if has two inputs
+                 'if_first': False,  # if need to be executed as a first task
+                 }
+        return flags
+
+    def generate_preoptimization_code(self):
+        """Generate code for optimization task."""
+        code = """
+        columns = [{column}]
+        conf.append(SelectOperation().preprocessing(columns))
+        """.format(column=self.cols)
+        return code
+
+    def generate_optimization_code(self):
+        """Generate code for optimization task."""
+        code = """
+        {output} = SelectOperation().transform_serial({input}, conf_X)
+        """.format(output=self.output,
+                   input=self.named_inputs['input data'])
+        return dedent(code)
 
     def generate_code(self):
         """Generate code."""
         code = """
         columns = [{column}]
-        {output} = SelectOperation({input}, columns, numFrag)
+        {output} = SelectOperation().transform({input}, columns, numFrag)
         """.format(output=self.output, column=self.cols,
                    input=self.named_inputs['input data'])
         return dedent(code)
@@ -619,9 +830,6 @@ class SortOperation(Operation):
     - A list indicating whether the sort order is ascending for the columns.
     Condition: the list of columns should have the same size of the list of
                boolean to indicating if it is ascending sorting.
-
-    REVIEW: 2017-10-20
-    OK - Juicer / Tahiti / implementation
     """
 
     def __init__(self, parameters, named_inputs, named_outputs):
@@ -641,20 +849,28 @@ class SortOperation(Operation):
             else:
                 self.AscDes[i] = True
 
-        # if numFrag is power of 2, the algorithm will be 'Bitonic Sort',
-        # otherwise, "Odd-Even Sort"
-        numFrag = parameters['numFrag']
-        if not ((numFrag & (numFrag - 1)) == 0) and numFrag != 0:
-            self.algo = "odd-even"
-        else:
-            self.algo = "bitonic"
-
         self.has_code = len(named_inputs) == 1
         if self.has_code:
-            self.has_import = "from functions.etl.Sort import SortOperation\n"
+            self.has_import = "from functions.etl.sort import SortOperation\n"
 
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
+
+    def get_optimization_information(self):
+        flags = {'one_stage': False,  # if has only one stage
+                 'keep_balance': False,  # if number of rows doesnt change
+                 'bifurcation': False,  # if has two inputs
+                 'if_first': False,  # if need to be executed as a first task
+                 }
+        return flags
+
+    def generate_preoptimization_code(self):
+        """Generate code for optimization task."""
+        pass
+
+    def generate_optimization_code(self):
+        """Generate code for optimization task."""
+        pass
 
     def generate_code(self):
         """Generate code."""
@@ -662,10 +878,9 @@ class SortOperation(Operation):
             settings = dict()
             settings['columns'] = {columns}
             settings['ascending'] = {asc}
-            settings['algorithm'] = '{algo}'
-            {output} = SortOperation({input}, settings, numFrag)
+            {output} = SortOperation().transform({input}, settings, numFrag)
             """.format(output=self.output, columns=self.input_columns,
-                       input=self.named_inputs['input data'], algo=self.algo,
+                       input=self.named_inputs['input data'],
                        asc=self.AscDes)
         return dedent(code)
 
@@ -678,9 +893,6 @@ class SplitOperation(Operation):
     - List with two weights for the two new data frames.
     - Optional seed in case of deterministic random operation
         ('0' means no seed).
-
-    REVIEW: 2017-10-20
-    OK - Juicer / Tahiti / implementation
     """
 
     def __init__(self, parameters,  named_inputs, named_outputs):
@@ -688,10 +900,13 @@ class SplitOperation(Operation):
 
         self.has_code = len(named_inputs) == 1
         if self.has_code:
-            self.has_import = "from functions.etl.Split "\
+            self.has_import = "from functions.etl.split "\
                               "import SplitOperation\n"
 
-        self.percentage = float(self.parameters.get('weights', 0.5))/100
+        self.percentage = self.parameters.get('weights', 0.5)
+        if self.percentage == "":
+            self.percentage = 0.5
+        self.percentage = float(self.percentage)/100
         self.seed = self.parameters.get("seed", 0)
         self.seed = self.seed if self.seed != 0 else None
 
@@ -706,13 +921,29 @@ class SplitOperation(Operation):
     def get_output_names(self, sep=', '):
         return sep.join([self.out1, self.out2])
 
+    def get_optimization_information(self):
+        flags = {'one_stage': False,  # if has only one stage
+                 'keep_balance': False,  # if number of rows doesnt change
+                 'bifurcation': False,  # if has two inputs
+                 'if_first': False,  # if need to be executed as a first task
+                 }
+        return flags
+
+    def generate_preoptimization_code(self):
+        """Generate code for optimization task."""
+        pass
+
+    def generate_optimization_code(self):
+        """Generate code for optimization task."""
+        pass
+
     def generate_code(self):
         """Generate code."""
         code = """
         settings = dict()
         settings['percentage'] = {percentage}
-        settings['seed']       = {seed}
-        {out1}, {out2} = SplitOperation({input}, settings, numFrag)
+        settings['seed'] = {seed}
+        {out1}, {out2} = SplitOperation().transform({input}, settings, numFrag)
                 """.format(out1=self.out1, out2=self.out2,
                            input=self.named_inputs['input data'],
                            seed=self.seed, percentage=self.percentage)
@@ -728,8 +959,6 @@ class TransformationOperation(Operation):
             replace it.
         - Expression: json describing the transformation expression
 
-    REVIEW: 2017-10-20
-    OK - Juicer / Tahiti / implementation
     !!! TODO: Need to review the list of functions
     """
 
@@ -739,6 +968,7 @@ class TransformationOperation(Operation):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
         self.has_code = any(
             [len(self.named_inputs) > 0, self.contains_results()])
+
         if self.has_code:
             if 'expression' in parameters:
                 self.expressions = parameters['expression']
@@ -747,29 +977,55 @@ class TransformationOperation(Operation):
                 raise ValueError(
                     msg.format(self.EXPRESSION_PARAM, self.__class__))
             self.has_import = \
-                "from functions.etl.Transform import TransformOperation\n"
+                "from functions.etl.transform import TransformOperation\n"
             self.output = self.named_outputs.get(
                 'output data', 'sampled_data_{}'.format(self.order))
 
-    def generate_code(self):
-        """Generate code."""
-        input_data = self.named_inputs['input data']
-        params = {'input': input_data}
+            self.input_data = self.named_inputs['input data']
+            params = {'input': self.input_data}
 
-        expr_alias = []
-        for expr in self.expressions:
-            # Builds the expression and identify the target column
-            expression = Expression(expr['tree'], params)
-            expr_alias.append([expr['alias'], expression.parsed_expression,
-                               expression.imports])
+            self.expr_alias = []
+            for expr in self.expressions:
+                # Builds the expression and identify the target column
+                expression = Expression(expr['tree'], params)
+                self.expr_alias.append([expr['alias'],
+                                        expression.parsed_expression,
+                                        expression.imports])
 
+    def get_optimization_information(self):
+        flags = {'one_stage': True,  # if has only one stage
+                 'keep_balance': True,  # if number of rows doesnt change
+                 'bifurcation': False,  # if has two inputs
+                 'if_first': False,  # if need to be executed as a first task
+                 }
+        #!TODO: keep_balance not always
+        return flags
+
+    def generate_preoptimization_code(self):
+        """Generate code for optimization task."""
         code = """
         settings = dict()
-        settings['functions']   = {expr}
-        {out} = TransformOperation({input}, settings, numFrag)
+        settings['functions'] = {expr}
+        conf.append(TransformOperation().preprocessing(settings))
+        """.format(expr=self.expr_alias)
+        return code
+
+    def generate_optimization_code(self):
+        """Generate code for optimization task."""
+        code = """
+        {output} = TransformOperation().transform_serial({input}, conf_X)
+        """.format(output=self.output,  input=self.input_data)
+        return dedent(code)
+
+    def generate_code(self):
+        """Generate code."""
+        code = """
+        settings = dict()
+        settings['functions'] = {expr}
+        {out} = TransformOperation().transform({input}, settings, numFrag)
         """.format(out=self.output,
-                   input=self.named_inputs['input data'],
-                   expr=expr_alias)
+                   input=self.input_data,
+                   expr=self.expr_alias)
         return dedent(code)
 
 
@@ -778,16 +1034,14 @@ class UnionOperation(Operation):
 
     Return a new DataFrame containing all rows in this frame and another frame.
     Takes no parameters.
-
-    REVIEW: 2017-10-20
-    OK - Juicer / Tahiti / implementation
     """
 
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
         self.has_code = len(self.named_inputs) == 2
         if self.has_code:
-            self.has_import = "from functions.etl.Union import UnionOperation\n"
+            self.has_import = \
+                "from functions.etl.union import UnionOperation\n"
         else:
             raise ValueError(
                 _("Parameter '{}' and '{}' must be informed for task {}")
@@ -796,10 +1050,31 @@ class UnionOperation(Operation):
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
 
+    def get_optimization_information(self):
+        flags = {'one_stage': False,  # if has only one stage
+                 'keep_balance': False,  # if number of rows doesnt change
+                 'bifurcation': True,  # if has two inputs
+                 'if_first': True,  # if need to be executed as a first task
+                 }
+        return flags
+
+    def generate_preoptimization_code(self):
+        """Generate code for optimization task."""
+        pass
+
+    def generate_optimization_code(self):
+        """Generate code for optimization task."""
+        code = """
+        {out} = UnionOperation().transform_serial({input1}, {input2})
+        """.format(out=self.output,
+                   input1=self.named_inputs['input data 1'],
+                   input2=self.named_inputs['input data 2'])
+        return dedent(code)
+
     def generate_code(self):
         """Generate code."""
         code = """
-        {0} = UnionOperation({1}, {2}, numFrag)
+        {0} = UnionOperation().transform({1}, {2}, numFrag)
         """.format(self.output,
                    self.named_inputs['input data 1'],
                    self.named_inputs['input data 2'])

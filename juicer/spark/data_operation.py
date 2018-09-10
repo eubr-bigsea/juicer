@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
+
 import ast
 import itertools
 import json
@@ -7,6 +8,10 @@ import pprint
 import uuid
 from textwrap import dedent
 
+import datetime
+
+from future.backports.urllib.parse import urlparse, parse_qs
+from juicer.deploy import Deployment, DeploymentFlow, DeploymentTask
 from juicer.operation import Operation
 from juicer.privaaas import PrivacyPreservingDecorator
 from juicer.service import limonero_service
@@ -42,6 +47,9 @@ class DataReaderOperation(Operation):
         "TEXT": 'types.StringType',
     }
 
+    SUPPORTED_DRIVERS = {
+        'mysql': 'com.mysql.jdbc.Driver'
+    }
     DATA_TYPES_WITH_PRECISION = {'DECIMAL'}
 
     SEPARATORS = {
@@ -51,6 +59,7 @@ class DataReaderOperation(Operation):
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
+
         self.has_code = any(
             [len(self.named_outputs) > 0, self.contains_results()])
 
@@ -61,6 +70,18 @@ class DataReaderOperation(Operation):
                 raise ValueError(
                     _("Parameter '{}' must be informed for task {}").format(
                         self.DATA_SOURCE_ID_PARAM, self.__class__))
+
+            # Test if data source was changed since last execution and
+            # invalidate cache if so.
+            self._set_data_source_parameters(parameters)
+            data_source_updated = self.metadata.get('updated')
+            if data_source_updated:
+                data_source_updated = datetime.datetime.strptime(
+                    data_source_updated[0:19], '%Y-%m-%dT%H:%M:%S')
+            self.supports_cache = (
+                parameters.get('execution_date') is not None and
+                data_source_updated < parameters['execution_date'])
+
         self.output = named_outputs.get('output data',
                                         'out_task_{}'.format(self.order))
 
@@ -112,6 +133,7 @@ class DataReaderOperation(Operation):
         code = []
         infer_from_data = self.infer_schema == self.INFER_FROM_DATA
         infer_from_limonero = self.infer_schema == self.INFER_FROM_LIMONERO
+
         if self.has_code:
             if infer_from_limonero:
                 if 'attributes' in self.metadata:
@@ -133,9 +155,14 @@ class DataReaderOperation(Operation):
             else:
                 code.append('schema_{0} = None'.format(self.output))
 
+            url = self.metadata['url']
+            if self.parameters.get('export_notebook', False) and False:
+                # Protect URL
+                url = 'hdfs://xxxxx:0000/path/name'
+                code.append("# URL is protected, please update it")
             if self.metadata['format'] in ['CSV', 'TEXT']:
                 # Multiple values not supported yet! See SPARK-17878
-                code.append("url = '{url}'".format(url=self.metadata['url']))
+                code.append("url = '{url}'".format(url=url))
                 null_values = self.null_values
                 if self.metadata.get('treat_as_missing'):
                     null_values.extend([x.strip() for x in self.metadata.get(
@@ -193,26 +220,15 @@ class DataReaderOperation(Operation):
                     {output} = spark_session.read.option(
                         'treatEmptyValuesAsNulls', 'true').json(
                         '{url}')""".format(output=self.output,
-                                           url=self.metadata['url']))
+                                           url=url))
                 code.append(code_json)
                 # FIXME: Evaluate if it is good idea to always use cache
                 code.append('{}.cache()'.format(self.output))
                 pass
             elif self.metadata['format'] == 'LIB_SVM':
-                # Test
-                format_libsvm = 'libsvm'
-                code.append(
-                    "url_{0} = '{1}'".format(self.output, self.metadata['url']))
-
-                code_csv = """{0} = spark_session.read\\
-                            .format('{2}')\\
-                            .load(url_{0}, mode='DROPMALFORMED')
-                """.format(self.output,
-                           infer_from_data,
-                           format_libsvm)
-
-                code.append(code_csv)
-                # # FIXME: Evaluate if it is good idea to always use cache
+                self._generate_code_for_lib_svm(code, infer_from_data)
+            elif self.metadata['format'] == 'JDBC':
+                self._generate_code_for_jdbc(code)
 
         if self.metadata.get('privacy_aware', False):
             restrictions = self.parameters['workflow'].get(
@@ -221,6 +237,47 @@ class DataReaderOperation(Operation):
 
         code.append('{}.cache()'.format(self.output))
         return '\n'.join(code)
+
+    def _generate_code_for_jdbc(self, code):
+
+        parsed = urlparse(self.metadata['url'])
+        qs_parsed = parse_qs(parsed.query)
+        driver = self.SUPPORTED_DRIVERS.get(parsed.scheme)
+        if driver is None:
+            raise ValueError(
+                _('Database {} not supported').format(parsed.scheme))
+        if not self.metadata.get('command'):
+            raise ValueError(
+                _('No command nor table specified for data source.'))
+        code_jdbc = dedent("""
+            query = '{table}'
+            if query.strip()[:6].upper() == 'SELECT':
+                # Add parentheses required by Spark
+                query = '(' + query + ') AS tb'
+            {out} = spark_session.read.format('jdbc').load(
+                driver='{driver}',
+                url='jdbc:{scheme}://{server}:{port}{db}',
+                user='{user}', password='{password}',
+                dbtable=query)
+                """.format(scheme=parsed.scheme, server=parsed.hostname,
+                           db=parsed.path,
+                           port=parsed.port,
+                           driver=driver, user=qs_parsed.get('user', [''])[0],
+                           password=qs_parsed.get('password', [''])[0],
+                           table=self.metadata.get('command'),
+                           out=self.output))
+        code.append(code_jdbc)
+
+    def _generate_code_for_lib_svm(self, code, infer_from_data):
+        """"""
+        # # FIXME: Evaluate if it is good idea to always use cache
+        code.append(
+            "url_{0} = '{1}'".format(self.output, self.metadata['url']))
+        code_csv = """
+            {0} = spark_session.read.format('{2}').load(
+                url_{0}, mode='DROPMALFORMED')""".format(
+            self.output, infer_from_data, 'libsvm')
+        code.append(dedent(code_csv))
 
     def _apply_privacy_constraints(self, restrictions):
         result = [
@@ -278,21 +335,47 @@ class DataReaderOperation(Operation):
         # metadata = {k: attr[k] for k in
         #             ['nullable', 'type', 'size', 'precision', 'enumeration',
         #              'missing_representation'] if attr[k]}
+        if self.metadata.get('privacy_aware', False):
+            metadata = {'sources': [
+                '{}/{}'.format(self.data_source_id, attr['name'])
+            ]}
 
-        metadata = {'sources': [
-            '{}/{}'.format(self.data_source_id, attr['name'])
-        ]}
-
-        code.append("schema_{0}.add('{1}', {2}, {3},\n{5}{4})".format(
-            self.output, attr['name'], data_type, attr['nullable'],
-            pprint.pformat(metadata, indent=0), ' ' * 20
-        ))
+            code.append("schema_{0}.add('{1}', {2}, {3},\n{5}{4})".format(
+                self.output, attr['name'], data_type, attr['nullable'],
+                pprint.pformat(metadata, indent=0), ' ' * 20
+            ))
+        else:
+            code.append("schema_{0}.add('{1}', {2}, {3})".format(
+                self.output, attr['name'], data_type, attr['nullable']))
 
     def get_output_names(self, sep=", "):
         return self.output
 
     def get_data_out_names(self, sep=','):
         return self.output
+
+    def to_deploy_format(self, id_mapping):
+        params = self.parameters['task']['forms']
+        result = Deployment()
+
+        forms = [(k, v['category'], v['value']) for k, v in params.items() if v]
+
+        task = self.parameters['task']
+        task_id = task['id']
+
+        deploy = DeploymentTask(task_id) \
+            .set_operation(slug="external-input") \
+            .set_properties(forms) \
+            .set_pos(task['top'], task['left'], task['z_index'])
+
+        result.add_task(deploy)
+        id_mapping[task_id] = deploy.id
+        for flow in self.parameters['workflow']['flows']:
+            if flow['source_id'] == task_id:
+                flow['source_port'] = 129  # FIXME how to avoid hard coding ?
+                flow['source_id'] = deploy.id
+                result.add_flow(DeploymentFlow(**flow))
+        return result
 
 
 class SaveOperation(Operation):
@@ -510,7 +593,7 @@ class SaveOperation(Operation):
                 'url': "{final_url}",
                 'attributes': attributes
             }}
-            register_datasource('{url}', parameters, '{token}', '{mode}')
+            register_datasource('{url}', parameters, '{token}', 'overwrite')
             """.format(
             input=self.named_inputs['input data'],
             name=self.name,
