@@ -6,7 +6,6 @@ import sys
 
 import os
 import pytest
-from juicer.service import limonero_service
 
 sys.path.append(os.path.dirname(os.path.curdir))
 
@@ -26,9 +25,6 @@ def patched_get_data_source_info(base_url, token, data_source_id):
         'format': 'CSV',
         'url': 'http://hdfs.lemonade:9000'
     }
-
-
-limonero_service.get_data_source_info = patched_get_data_source_info
 
 
 @pytest.fixture(scope='function')
