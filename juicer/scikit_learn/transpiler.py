@@ -4,19 +4,18 @@ import sys
 import hashlib
 from collections import OrderedDict
 import jinja2
-import juicer.sklearn.data_operation as io
-import juicer.sklearn.etl_operation as etl
-import juicer.sklearn.feature_operation as feature_extraction
-import juicer.sklearn.geo_operation as geo
-# import juicer.compss.ml_operation
-import juicer.sklearn.associative_operation as associative
+import juicer.scikit_learn.data_operation as io
+import juicer.scikit_learn.etl_operation as etl
+import juicer.scikit_learn.feature_operation as feature_extraction
+import juicer.scikit_learn.geo_operation as geo
+import juicer.scikit_learn.associative_operation as associative
 
-import juicer.sklearn.model_operation as model
-import juicer.sklearn.regression_operation
-import juicer.sklearn.text_operation
-import juicer.sklearn.clustering_operation as clustering
-import juicer.sklearn.classification_operation
-import juicer.sklearn.vis_operation as vis_operation
+import juicer.scikit_learn.model_operation as model
+import juicer.scikit_learn.regression_operation as regression
+import juicer.scikit_learn.text_operation as text_operations
+import juicer.scikit_learn.clustering_operation as clustering
+import juicer.scikit_learn.classification_operation as classifiers
+import juicer.scikit_learn.vis_operation as vis_operation
 import networkx as nx
 import os
 from juicer import operation
@@ -43,6 +42,7 @@ class TranspilerUtils(object):
     def _get_enabled_tasks(instances):
         return [instance for instance in instances if
                 instance.has_code and instance.enabled]
+
 
     @staticmethod
     def _get_parent_tasks(instances_map, instance, only_enabled=True):
@@ -94,33 +94,27 @@ class DependencyController:
 
 
 # noinspection SpellCheckingInspection
-class SklearnTranspiler(object):
+class ScikitLearnTranspiler(object):
     """
     Convert Lemonade workflow representation (JSON) into code to be run in
-    Sklearn.
+    Scikit-Learn.
     """
 
     def __init__(self, configuration):
         self.configuration = configuration
         self.operations = {}
         self._assign_operations()
-        self.numFrag = 4
-        # self.graph = graph
-        # self.params = params if params is not None else {}
-        #
-        # self.using_stdout = out is None
-        # if self.using_stdout:
-        #     self.out = sys.stdout
-        # else:
-        #     self.out = out
-        #
-        # self.job_id = job_id
-        # workflow_json = json.dumps(workflow)
-        # workflow_name = workflow['name']
-        # workflow_id = workflow['id']
-        # workflow_user = workflow.get('user', {})
-
         self.execute_main = False
+
+
+    @staticmethod
+    def _escape_chars(text):
+        if isinstance(text, str):
+            return text.encode('string-escape').replace('"', '\\"').replace(
+                "'", "\\'")
+        else:
+            return text.encode('unicode-escape').replace('"', '\\"').replace(
+                "'", "\\'")
 
     def transpile(self, workflow, graph, params, out=None, job_id=None):
         """ Transpile the tasks from Lemonade's workflow into COMPSs code """
@@ -180,10 +174,15 @@ class SklearnTranspiler(object):
         sorted_tasks_id = nx.topological_sort(graph)
         task_hash = hashlib.sha1()
         for i, task_id in enumerate(sorted_tasks_id):
+            self.current_task_id = task_id
             task = graph.node[task_id]
             class_name = self.operations[task['operation']['slug']]
+
             parameters = {}
-            for parameter, definition in task['forms'].iteritems():
+            not_empty_params = [(k, d) for k, d in task['forms'].items() if
+                                d['value'] != '' and d['value'] is not None]
+            task['forms'] = dict(not_empty_params)
+            for parameter, definition in task['forms'].items():
                 # @FIXME: Fix wrong name of form category
                 # (using name instead of category)
                 # print definition.get('category')
@@ -196,6 +195,7 @@ class SklearnTranspiler(object):
                 if all([cat in ["execution", 'paramgrid', 'param grid',
                                 'execution logging', 'logging'],
                         definition['value'] is not None]):
+
                     task_hash.update(unicode(definition['value']).encode(
                             'utf8', errors='ignore'))
                     if cat in ['paramgrid', 'logging']:
@@ -204,46 +204,54 @@ class SklearnTranspiler(object):
                         parameters[cat][parameter] = definition['value']
                     else:
                         parameters[parameter] = definition['value']
+                # escape invalid characters for code generation
+                # except JSON (starting with {)
+                if definition['value'] is not None and not isinstance(
+                        definition['value'], bool):
+                    if '"' in definition['value'] or "'" in definition['value']:
+                        if definition['value'][0] != '{':
+                            definition['value'] = ScikitLearnTranspiler\
+                                ._escape_chars(definition['value'])
 
             # Hash is used in order to avoid re-run task.
             parameters['hash'] = task_hash.hexdigest()
 
             # Operation SAVE requires the complete workflow
-            if task['operation']['name'] == 'SAVE':
+            if task['operation']['slug'] == 'data-writer':
                 parameters['workflow'] = workflow
 
             # Some temporary variables need to be identified by a sequential
             # number, so it will be stored in this field
-            task['order'] = i
+            parameters['order'] = i
 
             parameters['task'] = task
             parameters['configuration'] = self.configuration
-            parameters['workflow_json'] = json.dumps(workflow)
             parameters['workflow'] = workflow
-            parameters['user'] = workflow['user']
+            parameters['workflow_json'] = json.dumps(workflow)
+
             parameters['workflow_id'] = workflow['id']
-            parameters['workflow_name'] = workflow['name']
+            parameters['workflow_name'] = ScikitLearnTranspiler._escape_chars(
+                    workflow['name'])
             parameters['operation_id'] = task['operation']['id']
             parameters['task_id'] = task['id']
             parameters['operation_slug'] = task['operation']['slug']
             parameters['job_id'] = job_id
-            parameters['numFrag'] = self.numFrag
+            parameters['display_sample'] = parameters['task']['forms'].get(
+                    'display_sample', {}).get('value') in (1, '1', True, 'true')
+            parameters['display_schema'] = parameters['task']['forms'].get(
+                    'display_schema', {}).get('value') in (1, '1', True, 'true')
             port = ports.get(task['id'], {})
 
             instance = class_name(parameters, port.get('named_inputs', {}),
                                   port.get('named_outputs', {}))
-
-            env_setup['dependency_controller'] = DependencyController(
-                params.get('requires_info', False))
+            instance.out_degree = graph.out_degree(task_id)
 
             env_setup['instances'].append(instance)
             env_setup['instances_by_task_id'][task['id']] = instance
-            env_setup['execute_main'] = params.get('execute_main', False)
-            env_setup['plain'] = params.get('plain', False)
 
-            dict_msgs = {}
+            dict_msgs = dict()
             dict_msgs['task_completed'] = _('Task completed')
-            dict_msgs['task_running']   = _('Task running')
+            dict_msgs['task_running'] = _('Task running')
             dict_msgs['lemonade_task_completed'] = \
                 _('Lemonade task %s completed')
             dict_msgs['lemonade_task_parents'] = \
@@ -251,19 +259,24 @@ class SklearnTranspiler(object):
             dict_msgs['lemonade_task_started'] = \
                 _('Lemonade task %s started')
             dict_msgs['lemonade_task_afterbefore'] = \
-                _("Submitting parent task {} "
-              "before {}")
+                _("Submitting parent task {} before {}")
 
             env_setup['dict_msgs'] = dict_msgs
-            env_setup['transpiler'] = TranspilerUtils()
 
         template_loader = jinja2.FileSystemLoader(
-            searchpath=os.path.dirname(__file__))
+                searchpath=os.path.dirname(__file__))
         template_env = jinja2.Environment(loader=template_loader,
                                           extensions=[AutoPep8Extension,
                                                       HandleExceptionExtension])
         template_env.globals.update(zip=zip)
         template = template_env.get_template("operation.tmpl")
+
+        env_setup['disabled_tasks'] = workflow['disabled_tasks']
+        env_setup['plain'] = params.get('plain', False)
+        env_setup['execute_main'] = params.get('execute_main', False)
+        env_setup['dependency_controller'] = DependencyController(
+                params.get('requires_info', False))
+        env_setup['transpiler'] = TranspilerUtils()
         v = template.render(env_setup)
 
         if out is None:
@@ -280,41 +293,41 @@ class SklearnTranspiler(object):
                                                    stand_config['auth_token'],
                                                    job_id, v.encode('utf8'))
             except Exception as e:
+                print (e)
                 pass
 
     def _assign_operations(self):
         etl_ops = {
-            'add-columns': etl.AddColumnsOperation,  # OK
-            'add-rows': etl.UnionOperation,  # OK
-            'aggregation': etl.AggregationOperation,  # OK
-            'clean-missing': etl.CleanMissingOperation,  # OK --> add threshold
+            'add-columns': etl.AddColumnsOperation,
+            'add-rows': etl.UnionOperation,
+            'aggregation': etl.AggregationOperation,  # TODO: agg sem groupby
+            'clean-missing': etl.CleanMissingOperation,
             'difference': etl.DifferenceOperation,
-            'drop': etl.DropOperation,  # OK
-            'filter-selection': etl.FilterOperation,  # OK - Todo:  advanced
-            'join': etl.JoinOperation,  # OK +- --> sufixes problem
-            'projection': etl.SelectOperation,  # OK
-            'remove-duplicated-rows': etl.DistinctOperation,  # OK
-            'replace-value': etl.ReplaceValuesOperation,  # infer type
-            'sample': etl.SampleOrPartition,  # OK
-            'set-intersection': etl.Intersection,  # OK
-            'sort': etl.SortOperation,  # OK
-            'split': etl.SplitOperation,  # OK
-            'transformation': etl.TransformationOperation,  # ERROR --> tahiti
-
+            'drop': etl.DropOperation,
+            'filter-selection': etl.FilterOperation,
+            'join': etl.JoinOperation,
+            'projection': etl.SelectOperation,
+            'remove-duplicated-rows': etl.DistinctOperation,
+            'replace-value': etl.ReplaceValuesOperation,
+            'sample': etl.SampleOrPartitionOperation,
+            'set-intersection': etl.IntersectionOperation,
+            'sort': etl.SortOperation,
+            'split': etl.SplitOperation,
+            'transformation': etl.TransformationOperation,
+            # TODO in 'transformation': test others functions
         }
 
         data_ops = {
             'data-reader': io.DataReaderOperation,
             'data-writer': io.SaveOperation,
             'save': io.SaveOperation,
-            # 'change-attribute':
-            #     juicer.compss.data_operation.ChangeAttributesOperation,
+            # 'change-attribute': io.ChangeAttributesOperation,
         }
 
         geo_ops = {
-            'read-shapefile': geo.ReadShapefileOperation, # OK
-            'within': geo.GeoWithinOperation, # OK
-
+            'read-shapefile': geo.ReadShapefileOperation,
+            'stdbscan': geo.STDBSCANOperation,
+            'within': geo.GeoWithinOperation,
         }
 
         ml_ops = {
@@ -327,10 +340,12 @@ class SklearnTranspiler(object):
             'feature-assembler': feature_extraction.FeatureAssemblerOperation,
             'min-max-scaler': feature_extraction.MinMaxScalerOperation,
             'max-abs-scaler': feature_extraction.MaxAbsScalerOperation,
-            'standard-scaler': feature_extraction.StandardScalerOperation,
             'one-hot-encoder': feature_extraction.OneHotEncoderOperation,
             'pca': feature_extraction.PCAOperation,
-            # 'feature-indexer':
+            'quantile-discretizer':
+                feature_extraction.QuantileDiscretizerOperation,
+            'standard-scaler': feature_extraction.StandardScalerOperation,
+            # 'feature-indexer': #confirm vector and strings
             #     juicer.compss.feature_operation.FeatureIndexerOperation,
             #
             # ------ Model Operations  ------#
@@ -341,65 +356,45 @@ class SklearnTranspiler(object):
             'save-model': model.SaveModel,
 
             # ------ Clustering      -----#
-            'clustering-model': clustering.ClusteringModelOperation,  # OK
+            'clustering-model': clustering.ClusteringModelOperation,
+            'agglomerative-clustering':
+                clustering.AgglomerativeClusteringOperation,
+            'dbscan-clustering': clustering.DBSCANClusteringOperation,
             'gaussian-mixture-clustering':
-                clustering.GaussianMixtureClusteringOperation,    # OK
-            'k-means-clustering': clustering.KMeansClusteringOperation,  # OK
-            'lda-clustering': clustering.LdaClusteringOperation,  # OK
+                clustering.GaussianMixtureClusteringOperation,
+            'k-means-clustering': clustering.KMeansClusteringOperation,
+            'lda-clustering': clustering.LdaClusteringOperation,
 
             # ------ Classification  -----#
-            'classification-model':
-                juicer.sklearn.classification_operation
-                    .ClassificationModelOperation,  # OK
+            'classification-model': classifiers.ClassificationModelOperation,
             'decision-tree-classifier':
-                juicer.sklearn.classification_operation
-                    .DecisionTreeClassifierOperation,   # OK
-            'gbt-classifier':
-                juicer.sklearn.classification_operation
-                    .GBTClassifierOperation,    # OK
-            'knn-classifier':
-                juicer.sklearn.classification_operation
-                    .KNNClassifierOperation,    # OK
-            'logistic-regression':
-                juicer.sklearn.classification_operation
-                    .LogisticRegressionOperation,   # OK
-            'naive-bayes-classifier':
-                juicer.sklearn.classification_operation
-                    .NaiveBayesClassifierOperation,  # OK
-            'perceptron-classifier':
-                juicer.sklearn.classification_operation
-                    .PerceptronClassifierOperation,  # OK
+                classifiers.DecisionTreeClassifierOperation,
+            'gbt-classifier': classifiers.GBTClassifierOperation,
+            'knn-classifier': classifiers.KNNClassifierOperation,
+            'logistic-regression': classifiers.LogisticRegressionOperation,
+            'naive-bayes-classifier': classifiers.NaiveBayesClassifierOperation,
+            'perceptron-classifier': classifiers.PerceptronClassifierOperation,
             'random-forest-classifier':
-                juicer.sklearn.classification_operation
-                    .RandomForestClassifierOperation,   # OK
-            'svm-classification':
-                juicer.sklearn.classification_operation
-                    .SvmClassifierOperation,    # OK
+                classifiers.RandomForestClassifierOperation,
+            'svm-classification': classifiers.SvmClassifierOperation,
 
             # ------ Regression  -----#
-            'regression-model':
-                juicer.sklearn.regression_operation
-                    .RegressionModelOperation,  # OK
-            'linear-regression':
-                juicer.sklearn.regression_operation
-                    .LinearRegressionOperation,  # OK
-            'random-forest-regressor':
-                juicer.sklearn.regression_operation.
-                RandomForestRegressorOperation,  # OK
+            'regression-model': regression.RegressionModelOperation,
+            'gbt-regressor': regression.GradientBoostingRegressorOperation,
+            'huber-regressor': regression.HuberRegressorOperation,
             'isotonic-regression':
-                juicer.sklearn.regression_operation
-                    .IsotonicRegressionOperation,  # OK - TODO: 1D
+                regression.IsotonicRegressionOperation,
+            'linear-regression': regression.LinearRegressionOperation,
+            'random-forest-regressor':
+                regression.RandomForestRegressorOperation,
+            'sgd-regressor': regression.SGDRegressorOperation,
         }
 
         text_ops = {
-            'generate-n-grams':
-                juicer.sklearn.text_operation.GenerateNGramsOperation,
-            'remove-stop-words':
-                juicer.sklearn.text_operation.RemoveStopWordsOperation,
-            'tokenizer':
-                juicer.sklearn.text_operation.TokenizerOperation,
-            'word-to-vector':
-                juicer.sklearn.text_operation.WordToVectorOperation
+            'generate-n-grams': text_operations.GenerateNGramsOperation,
+            'remove-stop-words': text_operations.RemoveStopWordsOperation,
+            'tokenizer': text_operations.TokenizerOperation,
+            'word-to-vector': text_operations.WordToVectorOperation
         }
 
         other_ops = {

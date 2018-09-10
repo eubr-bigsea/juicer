@@ -6,11 +6,11 @@ Auto-generated Scikit-Learn code from Lemonade Workflow
     Universidade Federal de Minas Gerais
 More information about Lemonade to be provided
 """
-
-import pyarrow as pa
+from __future__ import unicode_literals
 
 import datetime
 import decimal
+import pyarrow as pa
 import os
 import re
 import json
@@ -29,7 +29,13 @@ import traceback
 pa.__version__ = '0.10.0' # Hack. Pyarrow do not set its version correctly.
 
 {% autopep8 %}
-
+{% set list_imports = [] %}
+{% for instance in instances %}
+{% if instance.has_import and  instance.has_import not in list_imports %}
+{% set _ = list_imports.append(instance.has_import) %}
+{% endif %}
+{% endfor %}
+{% for imps in list_imports %}{{imps}}{% endfor %}
 
 def sklearn_logging(msg):
     print msg
