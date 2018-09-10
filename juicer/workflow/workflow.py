@@ -158,7 +158,19 @@ class Workflow(object):
                     # operation will be executed
                     task['operation']['slug'] = operation['slug']
                     task['operation']['name'] = operation['name']
-
+                    task['operation']['ports'] = dict(
+                        [
+                            (
+                                port['id'],
+                                {
+                                    'id': port['id'],
+                                    'type': port['type'],
+                                    'slug': port['slug'],
+                                    'multiplicity': port['multiplicity'],
+                                    'interfaces': [pi['name'] for pi in port[
+                                        'interfaces']]
+                                }) for port in
+                            operation['ports']])
                     ports_list = operation['ports']
                     # Get operation requirements in tahiti
                     result = {

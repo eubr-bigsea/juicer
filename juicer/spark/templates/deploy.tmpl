@@ -1,0 +1,56 @@
+{
+   "id": 123456,
+    "name": "Deployment for workflow {{instances[0].parameters.workflow_id}} - instances[0].parameters.workflow_name",
+    "description": "",
+    "enabled": true,
+    "updated": "{{now.isoformat()}}",
+    "version": 1,
+{%- set all_tasks = [] %}
+{%- set all_flows = [] %}
+{%- for instance in instances %}
+{%- if instance.enabled and instance.has_code %}
+{%- set task = instance.parameters.task %}
+{%- set deployment = instance.to_deploy_format(id_mapping) %}
+{{- all_tasks.extend(deployment.tasks) or ''}}
+{{- all_flows.extend(deployment.flows) or ''}}
+{%- endif %}
+{%- endfor %}
+
+    "tasks": [
+        {%- for task in all_tasks %}
+        {
+            "id": "{{task.id}}",
+            "original": "{{task.original_id}}",
+            "enabled": true,
+            "left": {{task.left or (loop.index0 * 100 + 50 |int)}},
+            "top": {{task.top or (outer_loop.index0 * 150 + 50|int)}},
+            "z_index": {{task.z_index or (loop.index0 + 100)}},
+            "operation": {
+                "id": {{slug_to_op_id[task.operation.slug]}},
+                "slug": "{{task.operation.slug}}"
+            },
+            "forms": {
+                {%- for k, v in task.forms.items() %}
+                "{{k}}": {
+                    "category": "{{v.category}}",
+                    "value": {{v.value|tojson}}
+                }
+                {%- if not loop.last %},{% endif %}
+                {%- endfor %}
+            }
+        }{%- if not loop.last %},{% endif %}
+        {%- endfor %}
+    ],
+    "flows": [
+        {%- for flow in all_flows %}
+        {
+            "source_id": "{{flow.source_id}}",
+            "source_port": {{flow.source_port}},
+            "source_port_name": "{{flow.source_port_name}}",
+            "target_id": "{{flow.target_id}}",
+            "target_port": {{flow.target_port}},
+            "target_port_name": "{{flow.target_port_name}}"
+        }{%- if not loop.last %},{% endif %}
+        {%- endfor %}
+    ]
+}

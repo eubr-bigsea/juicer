@@ -1,10 +1,12 @@
 # coding=utf-8
 import decimal
 import json
+from gettext import gettext as _
 
 import datetime
 import pyspark.sql.types as spark_types
 from pyspark.ml.linalg import DenseVector
+
 import re
 import simplejson
 import types
@@ -141,11 +143,11 @@ def emit_schema(task_id, df, emit_event, name):
         _('Schema for {}').format(name),
         numbered=True)
 
-    emit_event('update task', status='COMPLETED',
-               identifier=task_id,
-               message=content.generate(),
-               type='HTML', title=_('Schema for {}').format(name),
-               task={'id': task_id})
+    return emit_event('update task', status='COMPLETED',
+                      identifier=task_id,
+                      message=content.generate(),
+                      type='HTML', title=_('Schema for {}').format(name),
+                      task={'id': task_id})
 
 
 def emit_schema_sklearn(task_id, df, emit_event, name):
@@ -165,7 +167,6 @@ def emit_schema_sklearn(task_id, df, emit_event, name):
 
 
 def emit_sample(task_id, df, emit_event, name, size=50):
-
     from juicer.spark.reports import SimpleTableReport
     headers = [f.name for f in df.schema.fields]
 
@@ -193,15 +194,15 @@ def emit_sample(task_id, df, emit_event, name, size=50):
             new_row.append(value)
 
     content = SimpleTableReport(
-        'table table-striped table-bordered', headers, rows,
+        'table table-striped table-bordered dataframe', headers, rows,
         _('Sample data for {}').format(name),
         numbered=True)
 
-    emit_event('update task', status='COMPLETED',
-               identifier=task_id,
-               message=content.generate(),
-               type='HTML', title=_('Sample data for {}').format(name),
-               task={'id': task_id})
+    return emit_event('update task', status='COMPLETED',
+                      identifier=task_id,
+                      message=content.generate(),
+                      type='HTML', title=_('Sample data for {}').format(name),
+                      task={'id': task_id})
 
 
 def emit_sample_sklearn(task_id, df, emit_event, name, size=50):
@@ -232,12 +233,12 @@ def emit_sample_sklearn(task_id, df, emit_event, name, size=50):
                 value = value[:150] + ' ... ' + value[-50:]
             new_row.append(value)
 
-    #print (headers)
+    # print (headers)
     print (rows)
     content = SimpleTableReport(
-            'table table-striped table-bordered', headers, rows,
-            _('Sample data for {}').format(name),
-            numbered=True)
+        'table table-striped table-bordered', headers, rows,
+        _('Sample data for {}').format(name),
+        numbered=True)
 
     emit_event('update task', status='COMPLETED',
                identifier=task_id,
