@@ -634,7 +634,7 @@ def test_select_minimal_params_success():
     code = instance.generate_code()
     columns = ', '.join(
         ['"{}"'.format(x) for x in params[SelectOperation.ATTRIBUTES_PARAM]])
-    expected_code = '{out} = {in1}[{columns}]'\
+    expected_code = '{out} = {in1}[[{columns}]]'\
         .format(out=n_out['output projected data'],
                 in1=n_in['input data'], columns=columns)
 
