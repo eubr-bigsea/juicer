@@ -22,7 +22,7 @@ from timeit import default_timer as timer
 from concurrent.futures import ThreadPoolExecutor
 # noinspection PyCompatibility
 from juicer.runner import configuration
-from juicer.runner import juicer_protocol
+from juicer.runner import protocol
 
 from juicer.runner.minion_base import Minion
 from juicer.sklearn.transpiler import SklearnTranspiler
