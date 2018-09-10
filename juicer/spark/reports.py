@@ -4,6 +4,7 @@ from __future__ import unicode_literals, absolute_import, division
 import base64
 import gettext
 import itertools
+from gettext import gettext as _
 from io import BytesIO
 
 import datetime
