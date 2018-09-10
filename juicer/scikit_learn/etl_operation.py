@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
+from gettext import gettext
 from textwrap import dedent
 from juicer.operation import Operation
-from juicer.compss.expression import Expression
+from juicer.scikit_learn.expression import Expression
 from itertools import izip_longest
 
 
@@ -15,7 +16,7 @@ class AddColumnsOperation(Operation):
 
         self.has_code = len(named_inputs) == 2
 
-        self.suffixes = parameters.get('aliases', 'ds0_,ds1_')
+        self.suffixes = parameters.get('aliases', '_ds0,_ds1')
         self.suffixes = [s for s in self.suffixes.replace(" ", "").split(',')]
 
         if not self.has_code:
@@ -29,14 +30,13 @@ class AddColumnsOperation(Operation):
     def generate_code(self):
 
         code = """
-        
         {out} = pd.merge({input1}, {input2}, left_index=True, 
-            right_index=True, suffixes=('{s1}', '{s1}')) 
+            right_index=True, suffixes=('{s1}', '{s2}')) 
         """.format(out=self.output,
                    s1=self.suffixes[0],
                    s2=self.suffixes[1],
-                   input1 = self.named_inputs['input data 1'],
-                   input2 = self.named_inputs['input data 2'])
+                   input1=self.named_inputs['input data 1'],
+                   input2=self.named_inputs['input data 2'])
         return dedent(code)
 
 
@@ -49,76 +49,126 @@ class AggregationOperation(Operation):
         function. The available aggregate functions are avg, max, min, sum,
         count.
     """
+
+    ATTRIBUTES_PARAM = 'attributes'
+    FUNCTION_PARAM = 'function'
+    PIVOT_ATTRIBUTE = 'pivot'
+    PIVOT_VALUE_ATTRIBUTE = 'pivot_values'
+
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs, named_outputs)
 
-        self.input_columns = parameters.get('attributes', [])
-        functions = parameters.get('function', [])
+        self.attributes = parameters.get(self.ATTRIBUTES_PARAM, [])
+        self.functions = parameters.get(self.FUNCTION_PARAM)
         self.input_aliases = {}
         self.input_operations = {}
 
-        self.has_code = all([len(named_inputs) == 1,
-                            len(functions) > 0,
-                            len(self.input_columns) > 0])
+        self.has_code = len(self.named_inputs) == 1 and any(
+                [len(self.named_outputs) == 1, self.contains_results()])
 
-        if not self.has_code:
+        # Attributes are optional
+        self.group_all = len(self.attributes) == 0
+
+        if not all([self.FUNCTION_PARAM in parameters, self.functions]):
             raise ValueError(
-                _("Parameter '{}', '{}' and '{}' must be informed for task {}")
-                .format('input data', 'attributes', 'function', self.__class__))
+                    _("Parameter '{}' must be informed for task {}").format(
+                            self.FUNCTION_PARAM, self.__class__))
 
-        for dictionary in functions:
+        for f in parameters[self.FUNCTION_PARAM]:
+            if not all([f.get('attribute'), f.get('f'), f.get('alias')]):
+                raise ValueError(_('Missing parameter in aggregation function'))
+
+        for dictionary in self.functions:
             att = dictionary['attribute']
-            f = dictionary['f']
-            a = dictionary['alias']
-            if (f is not None) and (a is not None):
-                if att in self.input_operations:
-                        self.input_operations[att].append(f)
-                        self.input_aliases[att].append(a)
-                else:
-                        self.input_operations[att] = [f]
-                        self.input_aliases[att] = [a]
+            agg = dictionary['f']
+            alias = dictionary['alias']
+            if att in self.input_operations:
+                    self.input_operations[att].append(agg)
+                    self.input_aliases[att].append(alias)
+            else:
+                    self.input_operations[att] = [agg]
+                    self.input_aliases[att] = [alias]
 
+        self.values = [agg for agg in self.input_operations]
         self.input_operations = str(self.input_operations)\
             .replace("u'collect_set'", '_merge_set')\
             .replace("u'collect_list'", '_collect_list')
 
-        self.output = self.named_outputs.get('output data',
-                                             'output_data_{}'.format(
-                                                     self.order))
+        # noinspection PyArgumentEqualDefault
+        self.pivot = parameters.get(self.PIVOT_ATTRIBUTE, None)
+
+        self.pivot_values = parameters.get(self.PIVOT_VALUE_ATTRIBUTE, None)
+        self.output = self.named_outputs.get(
+                'output data', 'data_{}'.format(self.order))
+
+    def get_data_out_names(self, sep=','):
+        return self.output
+
+    def get_output_names(self, sep=", "):
+        return self.output
 
     def generate_code(self):
 
         code = """
-        def _collect_list(x):
-            return x.tolist()
-        
-        def _merge_set(x):
-            return set(x.tolist())
-    
-    
-        columns = {columns}
-        target = {aliases}
-        operations = {operations}
+            def _collect_list(x):
+                return x.tolist()
+            
+            def _merge_set(x):
+                return set(x.tolist())
+            """
+        if self.pivot:
+            self.pivot = self.pivot[0]
 
-        {output} = {input}.groupby(columns).agg(operations)
-        new_idx = []
-        i = 0
-        old = None
-        for (n1, n2) in {output}.columns.ravel():
-            if old != n1:
-                old = n1
-                i = 0
-            new_idx.append(target[n1][i])
-            i += 1
+            if self.pivot_values:
+                code += """
+            values = {values}
+            {input} = {input}[{input}['{pivot}'].isin(values)]""".format(
+                        output=self.output, values=self.pivot_values,
+                        input=self.named_inputs['input data'],
+                        pivot=self.pivot)
+
+            code += """
+            aggfunc = {aggfunc}
+            {output} = pd.pivot_table({input}, index={index}, values={values},
+                                      columns=['{pivot}'], aggfunc=aggfunc)
+            # rename columns and convert to DataFrame
+            {output}.reset_index(inplace=True)
+            new_idx = [n[0] if n[1] is ''
+                       else "%s_%s_%s" % (n[0],n[1], n[2])
+                       for n in {output}.columns.ravel()]    
+            {output} = pd.DataFrame({output}.to_records())
+            {output}.reset_index(drop=True, inplace=True)
+            {output} = {output}.drop(columns='index')
+            {output}.columns = new_idx
+            """.format(pivot=self.pivot, values=self.values,
+                       index=self.attributes, output=self.output,
+                       input=self.named_inputs['input data'],
+                       aggfunc=self.input_operations)
+        else:
+            code += """
+            columns = {columns}
+            target = {aliases}
+            operations = {operations}
     
-        {output}.columns = new_idx
-        {output} = {output}.reset_index()
-        {output}.reset_index(drop=True, inplace=True)
-        """.format(output=self.output,
-                   input=self.named_inputs['input data'],
-                   columns=self.input_columns,
-                   aliases=self.input_aliases,
-                   operations=self.input_operations)
+            {output} = {input}.groupby(columns).agg(operations)
+            new_idx = []
+            i = 0
+            old = None
+            for (n1, n2) in {output}.columns.ravel():
+                if old != n1:
+                    old = n1
+                    i = 0
+                new_idx.append(target[n1][i])
+                i += 1
+        
+            {output}.columns = new_idx
+            {output} = {output}.reset_index()
+            {output}.reset_index(drop=True, inplace=True)
+            """.format(output=self.output,
+                       input=self.named_inputs['input data'],
+                       columns=self.attributes,
+                       aliases=self.input_aliases,
+                       operations=self.input_operations)
         return dedent(code)
 
 
@@ -136,86 +186,88 @@ class CleanMissingOperation(Operation):
           * "REMOVE_COLUMN": remove entire column
         - value: optional, used to replace missing values
     """
+    ATTRIBUTES_PARAM = 'attributes'
+    MIN_MISSING_RATIO_PARAM = 'min_missing_ratio'
+    MAX_MISSING_RATIO_PARAM = 'max_missing_ratio'
+    CLEANING_MODE_PARAM = 'cleaning_mode'
+    VALUE_PARAMETER = 'value'
+
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs, named_outputs)
 
-        if 'attributes' in parameters:
-            self.attributes_CM = parameters['attributes']
-        else:
-            raise ValueError(
-                _("Parameter '{}' must be informed for task {}")
-                .format('attributes', self.__class__))
+        self.has_code = len(self.named_inputs) == 1
 
-        self.mode_CM = self.parameters.get('cleaning_mode', "REMOVE_ROW")
-        self.value_CM = self.parameters.get('value', None)
+        if self.has_code:
+            if self.ATTRIBUTES_PARAM in parameters:
+                self.attributes_CM = parameters[self.ATTRIBUTES_PARAM]
+            else:
+                raise ValueError(
+                    _("Parameter '{}' must be informed for task {}")
+                    .format('attributes', self.__class__))
 
-        self.has_code = all([
-                any([self.value_CM is not None,  self.mode_CM != "VALUE"]),
-                len(self.named_inputs) == 1])
+            self.min_ratio = abs(parameters.get(
+                    self.MIN_MISSING_RATIO_PARAM, 0.0))
+            self.max_ratio = abs(parameters.get(
+                    self.MAX_MISSING_RATIO_PARAM, 1.0))
 
-        self.output = self.named_outputs.get(
-            'output result', 'output_data_{}'.format(self.order))
+            if any([self.min_ratio > self.max_ratio,
+                    self.min_ratio > 1.0,
+                    self.max_ratio > 1.0]):
+                raise ValueError(
+                        _("Parameter '{}' must be 0<=x<=1 for task {}").format(
+                                'attributes', self.__class__))
+
+            self.mode_CM = self.parameters.get(self.CLEANING_MODE_PARAM,
+                                               "REMOVE_ROW")
+            self.value_CM = self.parameters.get(self.VALUE_PARAMETER, None)
+
+            if all([self.value_CM is None,  self.mode_CM == "VALUE"]):
+                raise ValueError(
+                        _("Parameter '{}' must be not None when"
+                          " mode is '{}' for task {}").format(
+                                self.VALUE_PARAMETER, 'VALUE', self.__class__))
+
+            self.output = self.named_outputs.get(
+                'output result', 'output_data_{}'.format(self.order))
 
     def generate_code(self):
-        code = ""
+
+        op = ""
+
         if self.mode_CM == "REMOVE_ROW":
-            code = """
-            #ADD MIN e MAX
-            {output} = {input}.dropna(subset={columns}, axis='index')
-            """.format(columns=self.attributes_CM,
-                       output=self.output,
-                       input=self.named_inputs['input data'])
+            op = "{output}.dropna(subset=col, axis='index', inplace=True)"\
+                .format(output=self.output)
         elif self.mode_CM == "REMOVE_COLUMN":
-            code = """
-            columns = {columns}
-            #ADD MIN e MAX
-            for col in columns:
-                {input}[col] = {input}[col].dropna(axis='columns')
-            {output} = {input}
-            """.format(columns=self.attributes_CM,
-                       output=self.output,
-                       input=self.named_inputs['input data'])
+            op = "{output}[col].dropna(axis='columns', inplace=True))"\
+                .format(output=self.output)
 
         elif self.mode_CM == "VALUE":
-            code = """
-            columns = {columns}
-            for col in columns:
-                {input}[col].fillna(value={value}, inplace=True)
-            
-            {output} = {input}
-            """.format(columns=self.attributes_CM,
-                       output=self.output, value=self.value_CM,
-                       input=self.named_inputs['input data'])
+            op = "{output}[col].fillna(value={value}, inplace=True)"\
+                .format(output=self.output, value=self.value_CM)
 
         elif self.mode_CM == "MEAN":
-            code = """
-            columns = {columns}
-            for col in columns:
-                {input}[col].fillna(value={input}[col].mean(), inplace=True)
-            {output} = {input}
-            """.format(columns=self.attributes_CM,
-                       output=self.output,
-                       input=self.named_inputs['input data'])
+            op = "{output}[col].fillna(value={output}" \
+                 "[col].mean(), inplace=True)".format(output=self.output)
         elif self.mode_CM == "MEDIAN":
-            code = """
-            columns = {columns}
-            for col in columns:
-                {input}[col].fillna(value={input}[col].median(), inplace=True)
-            {output} = {input}
-            """.format(columns=self.attributes_CM,
-                       output=self.output,
-                       input=self.named_inputs['input data'])
+            op = "{output}[col].fillna(value={output}" \
+                 "[col].median(), inplace=True)".format(output=self.output)
 
         elif self.mode_CM == "MODE":
-            code = """
-            columns = {columns}
-            for col in columns:
-                {input}[col].fillna(value={input}[col].mode(), inplace=True)
-            {output} = {input}
-            """.format(columns=self.attributes_CM,
-                       output=self.output,
-                       input=self.named_inputs['input data'])
+            op = "{out}[col].fillna(value={out}[col].mode(), inplace=True)"\
+                .format(out=self.output)
 
+        code = """
+        min_missing_ratio = {min_thresh}
+        max_missing_ratio = {max_thresh}
+        {output} = {input}
+        for col in {columns}:
+            ratio = {input}[col].isnull().sum()
+            if ratio >= min_missing_ratio and ratio <= max_missing_ratio:
+                {op}
+            """\
+            .format(min_thresh=self.min_ratio, max_thresh=self.max_ratio,
+                    output=self.output, input=self.named_inputs['input data'],
+                    columns=self.attributes_CM, op=op)
         return dedent(code)
 
 
@@ -233,10 +285,10 @@ class DifferenceOperation(Operation):
 
     def generate_code(self):
         code = """
-        names = {input1}.columns
+        cols = {input1}.columns
         {output} = pd.merge({input1}, {input2},
             indicator=True, how='left', on=None)
-        {output} = {output}.loc[{output}['_merge'] == 'left_only', names]
+        {output} = {output}.loc[{output}['_merge'] == 'left_only', cols]
         """.format(output=self.output,
                    input1=self.named_inputs['input data 1'],
                    input2=self.named_inputs['input data 2'])
@@ -247,29 +299,20 @@ class DistinctOperation(Operation):
     """
     Returns a new DataFrame containing the distinct rows in this DataFrame.
     Parameters: attributes to consider during operation (keys)
-
     """
 
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
 
-        self.attributes = parameters.get('attributes', [])
-        if len(self.attributes) == 0:
-            raise ValueError(
-                    _("Parameter '{}' must be informed for task {}").format(
-                        'attributes', self.__class__))
-
+        self.attributes = parameters.get('attributes', 'None')
         self.has_code = len(named_inputs) == 1
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
 
     def generate_code(self):
-        code = """
-        columns = {keys}
-        {output} = {input}.drop_duplicates(columns, keep='first')\
-        """.format(output=self.output,
-                   input=self.named_inputs['input data'],
-                   keys=self.attributes)
+        code = "{out} = {in1}.drop_duplicates(subset={columns}, keep='first')"\
+            .format(out=self.output, in1=self.named_inputs['input data'],
+                    columns=self.attributes)
         return dedent(code)
 
 
@@ -297,12 +340,9 @@ class DropOperation(Operation):
             'output data', 'output_data_{}'.format(self.order))
 
     def generate_code(self):
-        code = """
-        columns = {columns}
-        {output} = {input}.drop(columns=columns)
-        """.format(output=self.output,
-                   input=self.named_inputs['input data'],
-                   columns=self.attributes)
+        code = "{output} = {input}.drop(columns={columns})"\
+            .format(output=self.output, input=self.named_inputs['input data'],
+                    columns=self.attributes)
         return dedent(code)
 
 
@@ -313,37 +353,59 @@ class FilterOperation(Operation):
         - The expression (==, <, >)
     """
     FILTER_PARAM = 'filter'
+    ADVANCED_FILTER_PARAM = 'expression'
 
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
 
-        if self.FILTER_PARAM not in parameters:
+        if self.FILTER_PARAM not in parameters and self.ADVANCED_FILTER_PARAM \
+                not in parameters:
             raise ValueError(
-                _("Parameters '{}' must be informed for task {}")
-                    .format(self.FILTER_PARAM, self.__class__))
+                _("Parameter '{}' must be informed for task {}".format(
+                    self.FILTER_PARAM, self.__class__)))
 
-        self.has_code = (len(named_inputs) == 1)
+        self.advanced_filter = parameters.get(self.ADVANCED_FILTER_PARAM) or []
+        self.filter = parameters.get(self.FILTER_PARAM) or []
 
-        self.query = ""
-        for dictionary in parameters.get(self.FILTER_PARAM):
-            self.query += "({} {} {}) and ".format(dictionary['attribute'],
-                                                   dictionary['f'],
-                                                   dictionary['alias'] )
-        self.query = self.query[:-4]
-        self.output = self.named_outputs.get(
-            'output data', 'output_data_{}'.format(self.order))
+        self.has_code = any(
+            [len(self.named_inputs) == 1, self.contains_results()])
+        self.output = self.named_outputs.get('output data',
+                                             'out_{}'.format(self.order))
 
     def generate_code(self):
+        input_data = self.named_inputs['input data']
+        params = {'input': input_data}
+
+        filters = [
+            "({0} {1} {2})".format(f['attribute'], f['f'],
+                                   f.get('value', f.get('alias')))
+            for f in self.filter]
+
         code = """
-        query = "{query}"
-        {out} = {input}.query(query)
-        """.format(out=self.output, input=self.named_inputs['input data'],
-                   query=self.query)
+        {out} = {input}""".format(out=self.output,
+                                  input=self.named_inputs['input data'])
+
+        expressions = []
+        for i, expr in enumerate(self.advanced_filter):
+            expression = Expression(expr['tree'], params)
+            expressions.append(expression.parsed_expression)
+
+        if len(expressions) > 0:
+            for e in expressions:
+                code += """
+        {out} = {out}[{out}.apply({expr}, axis=1)]""".format(out=self.output,
+                                                             expr=e)
+
+        indentation = " and "
+        if len(filters) > 0:
+            code += """
+        {out} = {out}.query('{f}')""".format(out=self.output,
+                                             f=indentation.join(filters))
 
         return dedent(code)
 
 
-class Intersection(Operation):
+class IntersectionOperation(Operation):
     """
     Returns a new DataFrame containing rows only in both this
     frame and another frame.
@@ -363,16 +425,20 @@ class Intersection(Operation):
 
     def generate_code(self):
         code = """
-        {input1} = {input1}.dropna(axis=0, how='any')
-        {input2} = {input2}.dropna(axis=0, how='any')
-        keys = {input1}.columns.tolist()
-        {input1} = pd.merge({input1}, {input2}, how='left', on=keys,
-                       indicator=True, copy=False)
-        {output} = {input1}.loc[{input1}['_merge'] == 'both', keys]
-        
-        """.format(output=self.output,
-                   input1=self.named_inputs['input data 1'],
-                   input2=self.named_inputs['input data 2'])
+        if len({in1}.columns) != len({in2}.columns):
+            raise ValueError('{error}')
+        {in1} = {in1}.dropna(axis=0, how='any')
+        {in2} = {in2}.dropna(axis=0, how='any')
+        keys = {in1}.columns.tolist()
+        {in1} = pd.merge({in1}, {in2}, how='left', on=keys, 
+        indicator=True, copy=False)
+        {out} = {in1}.loc[{in1}['_merge'] == 'both', keys]
+        """.format(out=self.output,
+                   in1=self.named_inputs['input data 1'],
+                   in2=self.named_inputs['input data 2'],
+                   error='For intersection operation, both input data '
+                         'sources must have the same number of attributes '
+                         'and types.')
         return dedent(code)
 
 
@@ -433,15 +499,12 @@ class JoinOperation(Operation):
 
         if self.match_case:
             code += """
-            
             data1_tmp = {in1}[{id1}].applymap(lambda col: str(col).lower())
-            col1 = [c+"_lower" for c in data1_tmp.columns]
-            data1_tmp.columns = col1
+            data1_tmp.columns = [c+"_lower" for c in data1_tmp.columns]
             data1_tmp = pd.concat([{in1}, data1_tmp], axis=1, sort=False)
             
             data2_tmp = {in2}[{id2}].applymap(lambda col: str(col).lower())
-            col2 = [c+"_lower" for c in data2_tmp.columns]
-            data2_tmp.columns = col2
+            data2_tmp.columns = [c+"_lower" for c in data2_tmp.columns]
             data2_tmp = pd.concat([{in2}, data2_tmp], axis=1, sort=False)
 
             {out} = pd.merge(data1_tmp, data2_tmp, left_on=col1, right_on=col2,
@@ -488,8 +551,8 @@ class ReplaceValuesOperation(Operation):
                 'replacement' not in parameters]):
             raise ValueError(
                 _("Parameter {} and {} must be informed if is using "
-                  "replace by value in task {}.")
-                    .format('value',  'replacement', self.__class__))
+                  "replace by value in task {}.").format(
+                        'value', 'replacement', self.__class__))
 
         for att in parameters['attributes']:
             if att not in self.replaces:
@@ -503,49 +566,51 @@ class ReplaceValuesOperation(Operation):
 
     def generate_code(self):
         code = """
-            replacement = {replaces}
-            for col in replacement:
-                old_values = replacement[col][0]
-                new_values = replacement[col][1]
-                for o, n in zip(old_values, new_values):
-                    {input}[col] = {input}[col].replace(o, n)
-            
-            {output} = {input}
-            """.format(output=self.output,
-                       input=self.named_inputs['input data'],
-                       replaces=self.replaces)
+        {out} = {in1}
+        replacement = {replaces}
+        for col in replacement:
+            list_replaces = replacement[col]
+            {out}[col] = {out}[col].replace(list_replaces[0], list_replaces[1])
+        """.format(out=self.output, in1=self.named_inputs['input data'],
+                   replaces=self.replaces)
         return dedent(code)
 
 
-class SampleOrPartition(Operation):
+class SampleOrPartitionOperation(Operation):
     """
     Returns a sampled subset of this DataFrame.
     Parameters:
-    - withReplacement -> can elements be sampled multiple times
-                        (replaced when sampled out)
     - fraction -> fraction of the data frame to be sampled.
         without replacement: probability that each element is chosen;
             fraction must be [0, 1]
-        with replacement: expected number of times each element is chosen;
-            fraction must be >= 0
     - seed -> seed for random operation.
     """
+    TYPE_VALUE = 'value'
+    TYPE_PERCENT = 'percent'
+    TYPE_HEAD = 'head'
 
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
 
-        self.type = self.parameters.get('type', 'percent')
+        self.type = self.parameters.get('type', self.TYPE_PERCENT)
         self.value = self.parameters.get('value', -1)
-        self.fraction = float(self.parameters.get('fraction', 50)) / 100
+        self.fraction = float(self.parameters.get('fraction', -50)) / 100
 
-        if (self.value < 0) and (self.type != 'percent'):
+        if self.value < 0 and self.type != self.TYPE_PERCENT:
             raise ValueError(
                 _("Parameter 'value' must be [x>=0] if is using "
                   "the current type of sampling in task {}.")
                 .format(self.__class__))
+        if self.type == self.TYPE_PERCENT and any([self.fraction > 1.0,
+                                                   self.fraction < 0]):
+            raise ValueError(
+                    _("Parameter 'fraction' must be 0<=x<=1 if is using "
+                      "the current type of sampling in task {}.")
+                        .format(self.__class__))
 
-        self.seed = self.parameters['seed'] \
-            if self.parameters['seed'] != "" else 'None'
+        self.seed = self.parameters.get('seed', 'None')
+        self.seed = self.seed if self.seed != "" else 'None'
+
         self.output = self.named_outputs.get('sampled data',
                                              'output_data_{}'.format(
                                                      self.order))
@@ -553,13 +618,13 @@ class SampleOrPartition(Operation):
         self.has_code = len(self.named_inputs) == 1
 
     def generate_code(self):
-        if self.type == 'percent':
+        if self.type == self.TYPE_PERCENT:
             code = """
             {output} = {input}.sample(frac={value}, random_state={seed})
             """.format(output=self.output,
                        input=self.named_inputs['input data'],
                        seed=self.seed, value=self.fraction)
-        elif self.type == 'head':
+        elif self.type == self.TYPE_HEAD:
             code = """
             {output} = {input}.head({value})
             """.format(output=self.output,
@@ -601,11 +666,9 @@ class SelectOperation(Operation):
 
     def generate_code(self):
 
-        code = """
-        columns = [{column}]
-        {output} = {input}[columns]
-        """.format(output=self.output, column=self.cols,
-                   input=self.named_inputs['input data'])
+        code = "{output} = {input}[{column}]"\
+            .format(output=self.output, column=self.cols,
+                    input=self.named_inputs['input data'])
         return dedent(code)
 
 
@@ -617,40 +680,33 @@ class SortOperation(Operation):
     - A list indicating whether the sort order is ascending for the columns.
     Condition: the list of columns should have the same size of the list of
                boolean to indicating if it is ascending sorting.
-    REVIEW: 2017-10-20
-    OK - Juicer / Tahiti / implementation
     """
+    ATTRIBUTES_PARAM = 'attributes'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs, named_outputs)
 
-        attributes = parameters.get('attributes', [])
+        attributes = parameters.get(self.ATTRIBUTES_PARAM, '')
         if len(attributes) == 0:
             raise ValueError(
-                _("Parameter '{}' must be informed for task {}").format(
-                    'attributes', self.__class__))
+                    gettext("Parameter '{}' must be"
+                            " informed for task {}").format(
+                            self.ATTRIBUTES_PARAM, self.__class__))
 
-        self.input_columns = [dict['attribute'] for dict in attributes]
-        self.AscDes = [True for _ in range(len(self.input_columns))]
-        for i, v in enumerate([dict['f'] for dict in attributes]):
+        self.columns = [att['attribute'] for att in attributes]
+        self.ascending = [True for _ in range(len(self.columns))]
+        for i, v in enumerate([att['f'] for att in attributes]):
             if v != "asc":
-                self.AscDes[i] = False
-            else:
-                self.AscDes[i] = True
+                self.ascending[i] = False
 
         self.has_code = len(named_inputs) == 1
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
 
     def generate_code(self):
-        code = """
-            columns = {columns}
-            ascending = {asc}
-            {output} = {input}.sort_values(by=columns, ascending=ascending)
-            """.format(output=self.output,
-                       input=self.named_inputs['input data'],
-                       columns=self.input_columns,
-                       asc=self.AscDes)
+        code = "{out} = {input}.sort_values(by={columns}, ascending={asc})"\
+            .format(out=self.output, input=self.named_inputs['input data'],
+                    columns=self.columns, asc=self.ascending)
         return dedent(code)
 
 
@@ -669,8 +725,8 @@ class SplitOperation(Operation):
 
         self.has_code = len(named_inputs) == 1
 
-        self.percentage = float(self.parameters.get('weights', 50))/100
-        self.seed = self.parameters.get("seed", 0)
+        self.weights = float(self.parameters.get('weights', 50))/100
+        self.seed = self.parameters.get("seed", 'None')
         self.seed = 'None' if self.seed == "" else self.seed
 
         self.out1 = self.named_outputs.get('splitted data 1',
@@ -685,12 +741,11 @@ class SplitOperation(Operation):
         return sep.join([self.out1, self.out2])
 
     def generate_code(self):
-        code = """
-        {out1}, {out2} = np.split({input}.sample(frac=1, random_state={seed}), 
-        [int({percentage}*len({input}))])
-                """.format(out1=self.out1, out2=self.out2,
-                           input=self.named_inputs['input data'],
-                           seed=self.seed, percentage=self.percentage)
+        code = """{out1}, {out2} = np.split({input}.sample(frac=1, 
+        random_state={seed}), [int({weights}*len({input}))])
+        """.format(out1=self.out1, out2=self.out2,
+                   input=self.named_inputs['input data'],
+                   seed=self.seed, weights=self.weights)
         return dedent(code)
 
 
@@ -707,46 +762,35 @@ class TransformationOperation(Operation):
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
-        import json
-
-        if any(['alias' not in self.parameters,
-                'expression' not in self.parameters]):
-            raise ValueError(
-                _("Parameters '{}' and '{}' must be informed for task {}")
-                .format(self.ALIAS_PARAM,
-                        self.EXPRESSION_PARAM, self.__class__))
-
-        self.alias = self.parameters['alias']
-        self.json_expression = json.loads(self.parameters['expression'])['tree']
-        self.has_code = len(self.named_inputs) == 1
-        self.output = self.named_outputs.get('output data',
-                                             'output_data_{}'.format(
-                                                     self.order))
+        self.has_code = any(
+                [len(self.named_inputs) > 0, self.contains_results()])
+        if self.has_code:
+            if self.EXPRESSION_PARAM in parameters:
+                self.expressions = parameters[self.EXPRESSION_PARAM]
+            else:
+                msg = _("Parameter must be informed for task {}.")
+                raise ValueError(
+                        msg.format(self.EXPRESSION_PARAM, self.__class__))
+            self.output = self.named_outputs.get(
+                    'output data', 'sampled_data_{}'.format(self.order))
 
     def generate_code(self):
-
         # Builds the expression and identify the target column
-        params = {'input': 'input_data'}
-        expression = Expression(self.json_expression, params)
-        #print self.json_expression
-        functions = [ self.alias,
-                      expression.parsed_expression,
-                      expression.imports]
+        params = {'input': self.named_inputs['input data']}
+        functions = ""
+        for expr in self.expressions:
+            expression = expr['tree']
+            expression = Expression(expression, params)
+            f = expression.parsed_expression
+            functions += "['{}', {}],".format(expr['alias'], f)
+            # row.append(expression.imports) #TODO: by operation itself
 
         code = """
+        {out} = {input}.copy()
+
         functions = [{expr}]
-        {out} = {input}
-        for action in functions:
-            ncol, function, imp = action
-            exec(imp)
-            if len({out}) > 0:
-                func = eval(function)
-                v1s = []
-                for _, row in {out}.iterrows():
-                    v1s.append(func(row))
-                {out}[ncol] = v1s
-            else:
-                {out}[ncol] = np.nan
+        for col, function in functions:
+            {out}[col] = {out}.apply(function, axis=1)
         """.format(out=self.output,
                    input=self.named_inputs['input data'],
                    expr=functions)
@@ -765,7 +809,7 @@ class UnionOperation(Operation):
         if not self.has_code:
             raise ValueError(
                 _("Parameter '{}' and '{}' must be informed for task {}")
-                    .format('input data 1',  'input data 2', self.__class__))
+                .format('input data 1',  'input data 2', self.__class__))
 
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
