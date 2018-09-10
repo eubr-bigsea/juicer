@@ -593,7 +593,7 @@ class SaveOperation(Operation):
                 'url': "{final_url}",
                 'attributes': attributes
             }}
-            register_datasource('{url}', parameters, '{token}', '{mode}')
+            register_datasource('{url}', parameters, '{token}', 'overwrite')
             """.format(
             input=self.named_inputs['input data'],
             name=self.name,
