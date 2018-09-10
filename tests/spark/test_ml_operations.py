@@ -70,11 +70,6 @@ def test_feature_indexer_operation_success():
         {in1}_without_null = {in1}.na.fill('NA', subset=col_alias.keys())
         {out} = pipeline.fit({in1}_without_null).transform({in1}_without_null)
 
-        if 'indexer' not in cached_state:
-            cached_state['indexers'] = {{}}
-        for name, model in models_task_1.items():
-            cached_state['indexers'][name] = model
-
         """.format(attr=params[FeatureIndexerOperation.ATTRIBUTES_PARAM],
                    in1=in1,
                    out=out,
@@ -201,10 +196,6 @@ def test_feature_indexer_vector_operation_success():
             {1}_without_null = {1}.na.fill('NA', subset=col_alias.keys())
 
             {2} = pipeline.fit({1}_without_null).transform({1}_without_null)
-            if 'indexer' not in cached_state:
-                cached_state['indexers'] = {{}}
-            for name, model in models_task_1.items():
-                cached_state['indexers'][name] = model
 
             """.format(params[FeatureIndexerOperation.ATTRIBUTES_PARAM],
                        in1,
@@ -675,7 +666,7 @@ def test_cross_validation_partial_operation_success():
         CrossValidationOperation.LABEL_ATTRIBUTE_PARAM: ['label'],
 
     }
-    n_in = {'algorithm': 'df_1', 'input data': 'df_2', 'evaluator': 'xpto'}
+    n_in = {'algorithm': 'df_1', 'input data': 'df_2'}
     n_out = {'scored data': 'output_1', 'evaluation': 'eval_1'}
     outputs = ['output_1']
 
@@ -717,7 +708,6 @@ def test_cross_validation_partial_operation_success():
             """.format(
         algorithm=n_in['algorithm'],
         input_data=n_in['input data'],
-        evaluator=n_in['evaluator'],
         evaluation='eval_1',
         output=outputs[0],
         metric=params[CrossValidationOperation.EVALUATOR_PARAM],
@@ -778,7 +768,6 @@ def test_cross_validation_complete_operation_success():
             """.format(
         algorithm=n_in['algorithm'],
         input_data=n_in['input data'],
-        evaluator=n_in['evaluator'],
         output=outputs[0],
         label=params[CrossValidationOperation.LABEL_ATTRIBUTE_PARAM][0],
         metric=params[CrossValidationOperation.EVALUATOR_PARAM],

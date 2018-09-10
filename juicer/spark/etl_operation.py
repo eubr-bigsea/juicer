@@ -6,7 +6,7 @@ import time
 from random import random
 from textwrap import dedent
 
-from juicer.operation import Operation, TraceabilityData
+from juicer.operation import Operation
 from juicer.spark.expression import Expression
 
 

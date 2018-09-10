@@ -3,23 +3,22 @@ from __future__ import absolute_import
 
 import decimal
 import json
+from gettext import gettext as _
 
 import datetime
-from six import text_type
+
 import re
 import simplejson
-try:
-    import pyspark.sql.types as spark_types
-    from pyspark.ml.linalg import DenseVector
-except ImportError:
-    pass
+from six import text_type
 
 
 def is_numeric(schema, col):
+    import pyspark.sql.types as spark_types
     return isinstance(schema[str(col)].dataType, spark_types.NumericType)
 
 
 def default_encoder(obj):
+    from pyspark.ml.linalg import DenseVector
     if isinstance(obj, decimal.Decimal):
         return str(obj)
     elif isinstance(obj, datetime.datetime):
@@ -68,6 +67,7 @@ def get_dict_schema(df):
 
 
 def with_column_index(sdf, name):
+    import pyspark.sql.types as spark_types
     new_schema = spark_types.StructType(sdf.schema.fields + [
         spark_types.StructField(name, spark_types.LongType(), False), ])
     return sdf.rdd.zipWithIndex().map(lambda row: row[0] + (row[1],)).toDF(
@@ -145,11 +145,11 @@ def emit_schema(task_id, df, emit_event, name):
         _('Schema for {}').format(name),
         numbered=True)
 
-    emit_event('update task', status='COMPLETED',
-               identifier=task_id,
-               message=content.generate(),
-               type='HTML', title=_('Schema for {}').format(name),
-               task={'id': task_id})
+    return emit_event('update task', status='COMPLETED',
+                      identifier=task_id,
+                      message=content.generate(),
+                      type='HTML', title=_('Schema for {}').format(name),
+                      task={'id': task_id})
 
 
 def emit_schema_sklearn(task_id, df, emit_event, name):
@@ -169,7 +169,6 @@ def emit_schema_sklearn(task_id, df, emit_event, name):
 
 
 def emit_sample(task_id, df, emit_event, name, size=50):
-
     from juicer.spark.reports import SimpleTableReport
     headers = [f.name for f in df.schema.fields]
 
@@ -194,24 +193,22 @@ def emit_sample(task_id, df, emit_event, name, size=50):
             new_row.append(value)
 
     content = SimpleTableReport(
-        'table table-striped table-bordered', headers, rows,
+        'table table-striped table-bordered dataframe', headers, rows,
         _('Sample data for {}').format(name),
         numbered=True)
 
-    emit_event('update task', status='COMPLETED',
-               identifier=task_id,
-               message=content.generate(),
-               type='HTML', title=_('Sample data for {}').format(name),
-               task={'id': task_id})
+    return emit_event('update task', status='COMPLETED',
+                      identifier=task_id,
+                      message=content.generate(),
+                      type='HTML', title=_('Sample data for {}').format(name),
+                      task={'id': task_id})
 
 
 def emit_sample_sklearn(task_id, df, emit_event, name, size=50):
     from juicer.spark.reports import SimpleTableReport
     headers = list(df.columns)
 
-    number_types = (types.IntType, types.LongType,
-                    types.FloatType, types.ComplexType, decimal.Decimal)
-
+    number_types = (int, float, decimal.Decimal)
     rows = []
 
     for row in df.head(size).values:
@@ -233,12 +230,12 @@ def emit_sample_sklearn(task_id, df, emit_event, name, size=50):
                 value = value[:150] + ' ... ' + value[-50:]
             new_row.append(value)
 
-    #print (headers)
+    # print (headers)
     print (rows)
     content = SimpleTableReport(
-            'table table-striped table-bordered', headers, rows,
-            _('Sample data for {}').format(name),
-            numbered=True)
+        'table table-striped table-bordered', headers, rows,
+        _('Sample data for {}').format(name),
+        numbered=True)
 
     emit_event('update task', status='COMPLETED',
                identifier=task_id,

@@ -67,7 +67,7 @@ def copy_input_add_attributes_split_alias(task, attributes, alias,
             aliases.append(attr + suffix)
     else:
         print('Alias ' + alias + ' does not exist for task ' +
-              task.id + '(' + task.operation.slug + ')')
+              task.id + '(' + task.set_operation.slug + ')')
 
     result.extend(aliases)
 

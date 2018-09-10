@@ -22,23 +22,23 @@ from timeit import default_timer as timer
 from concurrent.futures import ThreadPoolExecutor
 # noinspection PyCompatibility
 from juicer.runner import configuration
-from juicer.runner import juicer_protocol
+from juicer.runner import protocol
 
 from juicer.runner.minion_base import Minion
-from juicer.sklearn.transpiler import SklearnTranspiler
+from juicer.scikit_learn.transpiler import ScikitLearnTranspiler
 from juicer.util import dataframe_util
 from juicer.workflow.workflow import Workflow
 
 
 logging.config.fileConfig('logging_config.ini')
-log = logging.getLogger('juicer.sklearn.sklearn_minion')
+log = logging.getLogger('juicer.scikit_learn.scikit_learn_minion')
 
 locales_path = os.path.join(os.path.dirname(__file__), '..', 'i18n', 'locales')
 
 
-class SklearnMinion(Minion):
+class ScikitLearnMinion(Minion):
     """
-    Controls the execution of Sklearn code in Lemonade Juicer.
+    Controls the execution of Scikit-Learn code in Lemonade Juicer.
     """
 
     # max idle time allowed in seconds until this minion self termination
@@ -58,7 +58,7 @@ class SklearnMinion(Minion):
         self._state = {}
         self.config = config
 
-        self.transpiler = SklearnTranspiler(config)
+        self.transpiler = ScikitLearnTranspiler(config)
         configuration.set_config(self.config)
 
         self.tmp_dir = self.config.get('config', {}).get('tmp_dir', '/tmp')
@@ -73,7 +73,7 @@ class SklearnMinion(Minion):
         self.executor = ThreadPoolExecutor(max_workers=1)
         self.job_future = None
 
-        self.sklearn_config = config['juicer'].get('sklearn', {})
+        self.scikit_learn_config = config['juicer'].get('scikit_learn', {})
 
         # self termination timeout
         self.active_messages = 0
@@ -196,8 +196,8 @@ class SklearnMinion(Minion):
         try:
             loader = Workflow(workflow, self.config)
 
-            # force the sklearn context creation
-            self.get_or_create_sklearn_session(loader, app_configs, job_id)
+            # force the scikit-learn context creation
+            self.get_or_create_scikit_learn_session(loader, app_configs, job_id)
 
             # Mark job as running
             self._emit_event(room=job_id, namespace='/stand')(
@@ -220,7 +220,7 @@ class SklearnMinion(Minion):
             if os.path.isfile('{}c'.format(generated_code_path)):
                 os.remove('{}c'.format(generated_code_path))
 
-            # Launch the sklearn
+            # Launch the scikit_learn
             self.module = importlib.import_module(module_name)
             self.module = imp.reload(self.module)
             if log.isEnabledFor(logging.debug):
@@ -234,8 +234,9 @@ class SklearnMinion(Minion):
             # of several partial workflow executions.
             try:
                 new_state = self.module.main(
-                        self.get_or_create_sklearn_session(loader, app_configs,
-                                                           job_id),
+                        self.get_or_create_scikit_learn_session(loader,
+                                                                app_configs,
+                                                                job_id),
                         self._state,
                         self._emit_event(room=job_id, namespace='/stand'))
             except:
@@ -303,7 +304,7 @@ class SklearnMinion(Minion):
         return result
 
     # noinspection PyUnresolvedReferences
-    def get_or_create_sklearn_session(self, loader, app_configs, job_id):
+    def get_or_create_scikit_learn_session(self, loader, app_configs, job_id):
         """
         """
         pass
@@ -380,7 +381,7 @@ class SklearnMinion(Minion):
         msg_processed = {
             'workflow_id': self.workflow_id,
             'app_id': self.app_id,
-            'type': SklearnMinion.MSG_PROCESSED,
+            'type': ScikitLearnMinion.MSG_PROCESSED,
             'msg_type': msg_type
         }
         self.state_control.push_app_queue(self.app_id,
