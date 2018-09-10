@@ -37,6 +37,10 @@ class Transpiler(object):
     """
     VISITORS = []
     DATA_SOURCE_OPS = ['data-reader']
+    __slots__ = (
+        'configuration', 'current_task_id', 'operations', 'port_id_to_port',
+        'slug_to_op_id', 'template_dir'
+    )
 
     def __init__(self, configuration, template_dir, slug_to_op_id=None,
                  port_id_to_port=None):
@@ -53,6 +57,7 @@ class Transpiler(object):
         self._assign_operations()
         self.configuration = configuration
         self.template_dir = template_dir
+        self.current_task_id = None
 
     def _assign_operations(self):
         raise NotImplementedError()
@@ -94,9 +99,10 @@ class Transpiler(object):
         else:
             tasks_ids = sorted_tasks_id
 
-        instances = {}
+        instances = OrderedDict()
         for i, task_id in enumerate(tasks_ids):
             task = graph.node[task_id]
+            self.current_task_id = task_id
             class_name = self.operations[task['operation']['slug']]
 
             parameters = {}
