@@ -10,10 +10,9 @@ import os
 import yaml
 from juicer.compss.transpiler import COMPSsTranspiler
 from juicer.runner import configuration
+from juicer.scikit_learn.transpiler import ScikitLearnTranspiler
 from juicer.service.tahiti_service import query_tahiti
 from juicer.spark.transpiler import SparkTranspiler
-from juicer.scikit_learn.transpiler import ScikitLearnTranspiler
-from juicer.compss.transpiler import COMPSsTranspiler
 from juicer.workflow.workflow import Workflow
 
 logging.config.fileConfig('logging_config.ini')
@@ -59,9 +58,9 @@ def main(workflow_id, execute_main, params, config, deploy, export_notebook):
             loader.workflow, loader.graph, params=params, deploy=deploy,
             export_notebook=export_notebook)
 
-   except ValueError as ve:
+    except ValueError as ve:
         log.exception(_("At least one parameter is missing"), exc_info=ve)
-   except:
+    except:
         raise
 
 
