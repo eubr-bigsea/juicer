@@ -1,5 +1,6 @@
 # coding=utf-8
 from __future__ import absolute_import
+
 import json
 
 import pytest
@@ -94,11 +95,19 @@ def test_new_dashboard(mocked_post, mocked_emit):
     for k, v in resp.items():
         assert v == text[k]
 
+    data = json.dumps(
+        {
+            "visualizations": [],
+            "task_id": 555,
+            "workflow_name": "Test",
+            "user": {"id": 1, "name": "Lemon"},
+            "workflow_id": 1999, "job_id": 982,
+            "title": "Dashboard title",
+        }, sort_keys=True)
+
     mocked_post.assert_called_with(
         'http://caipirinha/dashboards',
-        data='{"workflow_id": 1999, "job_id": 982, "task_id": 555, '
-             '"title": "Dashboard title", "visualizations": [], '
-             '"workflow_name": "Test", "user": {"id": 1, "name": "Lemon"}}',
+        data=data,
         headers={'X-Auth-Token': '0000'})
     calls = [call('update task', identifier=555,
                   message='Saving visualizations',
@@ -124,11 +133,13 @@ def test_new_dashboard(mocked_post, mocked_emit):
 
     mocked_post.assert_called_with(
         'http://caipirinha/dashboards',
-        data='{"workflow_id": 1999, "job_id": 982, "task_id": 555, '
-             '"title": "Dashboard title", '
-             '"visualizations": [{"type": "chart", "id": 1, '
-             '"task_id": "aaa-bbb"}], '
-             '"workflow_name": "Test", "user": {"id": 1, "name": "Lemon"}}',
+        data=json.dumps({
+            "workflow_id": 1999, "job_id": 982, "task_id": 555,
+            "title": "Dashboard title",
+            "visualizations": [{"type": "chart", "id": 1,
+                                "task_id": "aaa-bbb"}],
+            "workflow_name": "Test", "user": {"id": 1, "name": "Lemon"}
+        }, sort_keys=True),
         headers={'X-Auth-Token': '0000'})
 
 

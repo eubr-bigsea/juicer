@@ -1,5 +1,6 @@
 # coding=utf-8
 from __future__ import absolute_import
+
 import json
 
 import pytest
@@ -26,7 +27,9 @@ def test_job_source_code_success(mocked_patch):
 
     mocked_patch.assert_called_with(
         'http://stand/jobs/982/source-code',
-        data='{"source": "def f()\\n    print(\\"OK\\")", "secret": "00000"}',
+        data=json.dumps({
+            "source": 'def f()\n    print("OK")', "secret": "00000"},
+            sort_keys=True),
         headers={'Content-Type': 'application/json', 'X-Auth-Token': '00000'})
 
 

@@ -499,7 +499,7 @@ def test_replace_value_minimal_params_success():
                    replaces={"col2": [[-10], [10]], "col1": [[-10], [10]]}))
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
-    assert result, msg
+    assert result, msg + format_code_comparison(code, expected_code)
 
 
 def test_replace_value_missing_attribute_param_failure():

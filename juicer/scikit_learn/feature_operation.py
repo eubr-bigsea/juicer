@@ -1,6 +1,6 @@
 from textwrap import dedent
+
 from juicer.operation import Operation
-from itertools import izip_longest
 
 
 # TODO: https://spark.apache.org/docs/2.2.0/ml-features.html#vectorassembler

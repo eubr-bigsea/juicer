@@ -78,7 +78,7 @@ def new_dashboard(config, title, user, workflow_id, workflow_name, job_id,
 
     r = _update_caipirinha(caipirinha_config['url'], 'dashboards',
                            caipirinha_config['auth_token'], '',
-                           json.dumps(data))
+                           json.dumps(data, sort_keys=True))
     _emit_completed(emit_event_fn, task_id)
     return r
 

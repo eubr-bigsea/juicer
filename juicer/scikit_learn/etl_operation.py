@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 from gettext import gettext
 from textwrap import dedent
+
 from juicer.operation import Operation
 from juicer.scikit_learn.expression import Expression
-from itertools import izip_longest
 
 
 class AddColumnsOperation(Operation):
@@ -593,7 +593,7 @@ class SampleOrPartitionOperation(Operation):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
 
         self.type = self.parameters.get('type', self.TYPE_PERCENT)
-        self.value = self.parameters.get('value', -1)
+        self.value = int(self.parameters.get('value', -1))
         self.fraction = float(self.parameters.get('fraction', -50)) / 100
 
         if self.value < 0 and self.type != self.TYPE_PERCENT:

@@ -19,8 +19,8 @@ def test_get_tasks_sorted_topologically_success():
         ],
     }
     tasks = get_tasks_sorted_topologically(workflow)
-    assert tasks[0]['id'] == "1"
-    assert tasks[1]['id'] == "3"
+    assert tasks[0]['id'] in ["1", "3"]
+    assert tasks[1]['id'] in ["1", "3"]
     assert tasks[2]['id'] == "2"
 
     ####
@@ -70,9 +70,9 @@ def test_get_tasks_sorted_topologically_success():
         ],
     }
     tasks = get_tasks_sorted_topologically(workflow)
-    assert tasks[0]['id'] in ["3"]
-    assert tasks[1]['id'] in ["4", "5"]
-    assert tasks[2]['id'] in ["4", "5"]
+    assert tasks[0]['id'] in ["3", "4", "5"]
+    assert tasks[1]['id'] in ["3", "4", "5"]
+    assert tasks[2]['id'] in ["3", "4", "5"]
     assert tasks[3]['id'] in ["2"]
     assert tasks[4]['id'] in ["1"]
 

@@ -22,7 +22,7 @@ class StateControlRedis:
                 result = result[1]
         else:
             result = self.redis_conn.lpop(queue)
-        return result
+        return result.decode('utf8') if result else None
 
     def push_queue(self, queue, data, ttl=0):
         self.redis_conn.rpush(queue, data)
@@ -47,7 +47,8 @@ class StateControlRedis:
 
     def get_workflow_status(self, workflow_id):
         key = 'record_workflow_{}'.format(workflow_id)
-        return self.redis_conn.hget(key, 'status')
+        result = self.redis_conn.hget(key, 'status')
+        return result.decode('utf8') if result else None
 
     def set_workflow_status(self, workflow_id, status):
         key = 'record_workflow_{}'.format(workflow_id)
@@ -59,7 +60,8 @@ class StateControlRedis:
 
     def get_minion_status(self, app_id):
         key = 'key_minion_app_{}'.format(app_id)
-        return self.redis_conn.get(key)
+        result = self.redis_conn.get(key)
+        return result.decode('utf8') if result else None
 
     def set_minion_status(self, app_id, status, ex=30, nx=True):
         key = 'key_minion_app_{}'.format(app_id)
@@ -75,13 +77,14 @@ class StateControlRedis:
             result = self.redis_conn.blpop(key)[1]
         else:
             result = self.redis_conn.lpop(key)
-        return result
+        return result.decode('utf8') if result else None
 
     def push_app_output_queue(self, app_id, data):
         key = 'queue_output_app_{app_id}'.format(app_id=app_id)
         self.redis_conn.rpush(key, data)
 
     def get_app_output_queue_size(self, app_id):
+
         key = 'queue_output_app_{app_id}'.format(app_id=app_id)
         return self.redis_conn.llen(key)
 
@@ -91,7 +94,7 @@ class StateControlRedis:
             result = self.redis_conn.blpop(key)[1]
         else:
             result = self.redis_conn.lpop(key)
-        return result
+        return result.decode('utf8') if result else None
 
     def push_master_queue(self, data):
         key = 'queue_master'
