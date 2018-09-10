@@ -53,7 +53,8 @@ if __name__ == '__main__':
         parsed_url = urlparse.urlparse(
             juicer_config['juicer']['servers']['redis_url'])
         redis_conn = redis.StrictRedis(host=parsed_url.hostname,
-                                       port=parsed_url.port)
+                                       port=parsed_url.port,
+                                       decode_responses=True)
         if args.type == 'spark':
             # log.info('Starting Juicer Spark Minion')
             minion = SparkMinion(redis_conn,

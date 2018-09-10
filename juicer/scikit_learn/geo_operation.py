@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from textwrap import dedent
-from itertools import izip_longest
+
 import re
 from juicer.operation import Operation
 

@@ -47,7 +47,7 @@ def test_add_columns_minimum_params_success():
 
         # Add attribute index
         return df.rdd.zipWithIndex().map(
-            lambda (row, inx): row + (inx,)).toDF(new_attrs)
+            lambda row, inx: row + (inx,)).toDF(new_attrs)
 
     input1_indexed = _add_column_index({in0}, 'ds0_')
     input2_indexed = _add_column_index({in1}, 'ds1_')
