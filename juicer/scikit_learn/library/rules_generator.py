@@ -5,22 +5,11 @@ import pandas as pd
 
 class RulesGenerator:
 
-    def filter_rules(self, rules, count, max_rules, pos):
-        total, partial = count
-        if total > max_rules:
-            gets = 0
-            for i in range(pos):
-                gets += partial[i]
-            number = max_rules - gets
-            if number > partial[pos]:
-                number = partial[pos]
-            if number < 0:
-                number = 0
-            return rules.head(number)
-        else:
-            return rules
+    def __init__(self, min_conf, max_len):
+        self.min_conf = min_conf
+        self.max_len = max_len
 
-    def get_rules(self, freq_items, col_item, col_freq,  min_confidence):
+    def get_rules(self, freq_items, col_item, col_freq):
         list_rules = []
         for index, row in freq_items.iterrows():
             item = row[col_item]
@@ -36,12 +25,16 @@ class RulesGenerator:
                         den = self.get_support(element, freq_items,
                                                col_item, col_freq)
                         confidence = num/den
-                        if confidence > min_confidence:
+                        if confidence > self.min_conf:
                             r = [element, remain, confidence]
                             list_rules.append(r)
 
         cols = ['Pre-Rule', 'Post-Rule', 'confidence']
         rules = pd.DataFrame(list_rules, columns=cols)
+
+        rules.sort_values(by='confidence', inplace=True, ascending=False)
+        if self.max_len != -1 and self.max_len < len(rules):
+            rules = rules.head(self.max_len)
 
         return rules
 
@@ -49,7 +42,6 @@ class RulesGenerator:
         return chain(*[combinations(arr, i + 1) for i, a in enumerate(arr)])
 
     def get_support(self, element, freqset, col_item, col_freq):
-
         for t, s in zip(freqset[col_item].values, freqset[col_freq].values):
             if element == list(t):
                 return s
