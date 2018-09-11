@@ -233,8 +233,6 @@ def emit_sample_sklearn(task_id, df, emit_event, name, size=50):
                 value = value[:150] + ' ... ' + value[-50:]
             new_row.append(value)
 
-    #print (headers)
-    print (rows)
     content = SimpleTableReport(
             'table table-striped table-bordered', headers, rows,
             _('Sample data for {}').format(name),
