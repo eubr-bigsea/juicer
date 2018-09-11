@@ -77,3 +77,6 @@ subprocess32==3.2.7
 text-unidecode==1.1
 urllib3==1.22
 wrapt==1.10.11
+nltk==3.3
+gensim==3.5.0
+fim==6.27
