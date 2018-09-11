@@ -351,7 +351,6 @@ class WordToVectorOperation(Operation):
     def generate_code(self):
         input_data = self.named_inputs['input data']
 
-        # TODO: max_df is used for removing terms that appear too frequently
         if self.type == self.TYPE_COUNT:
             code = dedent("""
             {out} = {input}.copy()
@@ -430,7 +429,9 @@ class WordToVectorOperation(Operation):
                     model=self.output_model,
                     vocab=self.vocab))
         elif self.type == self.TYPE_WORD2VEC:
-
+            # in word2vec, the number of features its not always equals to
+            # the number of vocabulary. Currently, the generated code force
+            # to be equals.
             code = dedent("""
             {out} = {input}.copy()
             dim = {max_dim}
@@ -446,7 +447,7 @@ class WordToVectorOperation(Operation):
                            input=input_data,
                            min_df=self.minimum_df,
                            alias=self.alias,
-                           max_dim=self.minimum_size,
+                           max_dim=self.vocab_size,
                            out=self.output,
                            max_vocab=self.vocab_size,
                            vocab=self.vocab,
