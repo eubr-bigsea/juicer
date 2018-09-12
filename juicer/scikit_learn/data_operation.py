@@ -416,7 +416,7 @@ class SaveOperation(Operation):
                 f = open(path, 'wb')
                 {%- endif %}
                 {%- if format == FORMAT_CSV %}
-                {{input}}.to_csv(f, sep=',', mode='w',
+                {{input}}.to_csv(f, sep=str(','), mode='w',
                     header={{header}}, index=False, encoding='utf-8')
                 {%- elif format == FORMAT_PARQUET %}
                 {{input}}.to_parquet(f, engine='pyarrow')
