@@ -52,7 +52,7 @@ def test_add_columns_minimum_params_success():
 
 
 def test_add_columns_suffixes_params_success():
-    params = {AddColumnsOperation.output: '_l,_r'}
+    params = {AddColumnsOperation.ALIASES_PARAM: '_l,_r'}
     n_in = {'input data 1': 'df1', 'input data 2': 'df2'}
     n_out = {'output data': 'out'}
 
@@ -70,6 +70,7 @@ def test_add_columns_suffixes_params_success():
         in1=n_in['input data 2']))
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
     assert result, msg + format_code_comparison(code, expected_code)
+
 
 '''
     Clean Missing Operation
