@@ -72,7 +72,7 @@ class TokenizerOperation(Operation):
 
         if self.min_token_lenght is not None:
             self.min_token_lenght = \
-                ' if len(word) > {}'.format(self.min_token_lenght)
+                ' if len(word) >= {}'.format(self.min_token_lenght)
 
         if self.type == self.TYPE_SIMPLE:
             code = """
@@ -172,7 +172,6 @@ class RemoveStopWordsOperation(Operation):
         if len(self.named_inputs) == 2 and len(self.stop_word_attribute) > 0:
             code += """
         stop_words += {in2}['{att2}'].values.tolist()
-        print (stop_words)
         """.format(in2=self.stopwords_input, att2=self.stop_word_attribute)
         if len(self.stop_word_list) > 1:
             code += """
@@ -197,7 +196,7 @@ class RemoveStopWordsOperation(Operation):
         word_tokens = {OUT}['{att}'].values       
         result = []
         for row in word_tokens:
-            result.append([w for w in row if not w in stop_words])
+            result.append([w for w in row if not w.lower() in stop_words])
         {OUT}['{alias}'] = result
         """.format(att=self.attributes,
                    att_stop=self.stop_word_attribute,
@@ -281,7 +280,6 @@ class WordToVectorOperation(Operation):
     MINIMUM_DF_PARAM = 'minimum_df'
 
     MINIMUM_VECTOR_SIZE_PARAM = 'minimum_size'
-    #MINIMUM_COUNT_PARAM = 'minimum_count'
 
     TYPE_COUNT = 'count'
     TYPE_TFIDF = 'TF-IDF'
@@ -353,7 +351,6 @@ class WordToVectorOperation(Operation):
     def generate_code(self):
         input_data = self.named_inputs['input data']
 
-        # TODO: max_df is used for removing terms that appear too frequently
         if self.type == self.TYPE_COUNT:
             code = dedent("""
             {out} = {input}.copy()
@@ -432,7 +429,9 @@ class WordToVectorOperation(Operation):
                     model=self.output_model,
                     vocab=self.vocab))
         elif self.type == self.TYPE_WORD2VEC:
-
+            # in word2vec, the number of features its not always equals to
+            # the number of vocabulary. Currently, the generated code force
+            # to be equals.
             code = dedent("""
             {out} = {input}.copy()
             dim = {max_dim}
@@ -448,7 +447,7 @@ class WordToVectorOperation(Operation):
                            input=input_data,
                            min_df=self.minimum_df,
                            alias=self.alias,
-                           max_dim=self.minimum_size,
+                           max_dim=self.vocab_size,
                            out=self.output,
                            max_vocab=self.vocab_size,
                            vocab=self.vocab,

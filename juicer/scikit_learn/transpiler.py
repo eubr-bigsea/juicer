@@ -350,8 +350,7 @@ class ScikitLearnTranspiler(object):
             #
             # ------ Model Operations  ------#
             'apply-model': model.ApplyModelOperation,
-            # 'evaluate-model':
-            #     juicer.compss.model_operation.EvaluateModelOperation,
+            'evaluate-model': model.EvaluateModelOperation,
             'load-model': model.LoadModel,
             'save-model': model.SaveModel,
 
