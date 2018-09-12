@@ -134,14 +134,14 @@ def format_row_for_bar_chart_visualization(row):
     return dict(id=_id, name=name, value=value)
 
 
-def emit_schema(task_id, df, emit_event, name):
+def emit_schema(task_id, df, emit_event, name, notebook=False):
     from juicer.spark.reports import SimpleTableReport
     headers = [_('Attribute'), _('Type'), _('Metadata')]
     rows = [[f.name, str(f.dataType), json.dumps(f.metadata) if f else ''] for f
             in df.schema.fields]
+    css_class = 'table table-striped table-bordered' if not notebook else ''
     content = SimpleTableReport(
-        'table table-striped table-bordered', headers, rows,
-        _('Schema for {}').format(name),
+        css_class, headers, rows, _('Schema for {}').format(name),
         numbered=True)
 
     return emit_event('update task', status='COMPLETED',
@@ -151,13 +151,13 @@ def emit_schema(task_id, df, emit_event, name):
                       task={'id': task_id})
 
 
-def emit_schema_sklearn(task_id, df, emit_event, name):
+def emit_schema_sklearn(task_id, df, emit_event, name, notebook=False):
     from juicer.spark.reports import SimpleTableReport
     headers = [_('Attribute'), _('Type')]
     rows = [[i, str(f)] for i, f in zip(df.columns, df.dtypes)]
+    css_class = 'table table-striped table-bordered' if not notebook else ''
     content = SimpleTableReport(
-        'table table-striped table-bordered', headers, rows,
-        _('Schema for {}').format(name),
+        css_class, headers, rows, _('Schema for {}').format(name),
         numbered=True)
 
     emit_event('update task', status='COMPLETED',
@@ -167,7 +167,7 @@ def emit_schema_sklearn(task_id, df, emit_event, name):
                task={'id': task_id})
 
 
-def emit_sample(task_id, df, emit_event, name, size=50):
+def emit_sample(task_id, df, emit_event, name, size=50, notebook=False):
     from juicer.spark.reports import SimpleTableReport
     headers = [f.name for f in df.schema.fields]
 
@@ -194,9 +194,9 @@ def emit_sample(task_id, df, emit_event, name, size=50):
                 value = value[:150] + ' ... ' + value[-50:]
             new_row.append(value)
 
+    css_class = 'table table-striped table-bordered' if not notebook else ''
     content = SimpleTableReport(
-        'table table-striped table-bordered dataframe', headers, rows,
-        _('Sample data for {}').format(name),
+        css_class, headers, rows, _('Sample data for {}').format(name),
         numbered=True)
 
     return emit_event('update task', status='COMPLETED',
@@ -206,7 +206,7 @@ def emit_sample(task_id, df, emit_event, name, size=50):
                       task={'id': task_id})
 
 
-def emit_sample_sklearn(task_id, df, emit_event, name, size=50):
+def emit_sample_sklearn(task_id, df, emit_event, name, size=50, notebook=False):
     from juicer.spark.reports import SimpleTableReport
     headers = list(df.columns)
 
@@ -235,10 +235,9 @@ def emit_sample_sklearn(task_id, df, emit_event, name, size=50):
             new_row.append(value)
 
     # print (headers)
-    print (rows)
+    css_class = 'table table-striped table-bordered' if not notebook else ''
     content = SimpleTableReport(
-        'table table-striped table-bordered', headers, rows,
-        _('Sample data for {}').format(name),
+        css_class, headers, rows, _('Sample data for {}').format(name),
         numbered=True)
 
     emit_event('update task', status='COMPLETED',

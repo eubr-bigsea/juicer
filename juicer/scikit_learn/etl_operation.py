@@ -654,7 +654,7 @@ class SelectOperation(Operation):
         if self.ATTRIBUTES_PARAM in parameters:
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
             self.cols = ','.join(['"{}"'.format(x)
-                                   for x in self.attributes])
+                                  for x in self.attributes])
         else:
             raise ValueError(
                 _("Parameter '{}' must be informed for task {}").format(
@@ -666,7 +666,7 @@ class SelectOperation(Operation):
 
     def generate_code(self):
 
-        code = "{output} = {input}[{column}]"\
+        code = "{output} = {input}[[{column}]]"\
             .format(output=self.output, column=self.cols,
                     input=self.named_inputs['input data'])
         return dedent(code)
