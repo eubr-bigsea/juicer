@@ -3,8 +3,6 @@ import decimal
 import json
 
 import datetime
-import pyspark.sql.types as spark_types
-from pyspark.ml.linalg import DenseVector
 
 import re
 import simplejson
@@ -12,10 +10,12 @@ import types
 
 
 def is_numeric(schema, col):
+    import pyspark.sql.types as spark_types
     return isinstance(schema[str(col)].dataType, spark_types.NumericType)
 
 
 def default_encoder(obj):
+    from pyspark.ml.linalg import DenseVector
     if isinstance(obj, decimal.Decimal):
         return str(obj)
     elif isinstance(obj, datetime.datetime):
@@ -64,6 +64,7 @@ def get_dict_schema(df):
 
 
 def with_column_index(sdf, name):
+    import pyspark.sql.types as spark_types
     new_schema = spark_types.StructType(sdf.schema.fields + [
         spark_types.StructField(name, spark_types.LongType(), False), ])
     return sdf.rdd.zipWithIndex().map(lambda row: row[0] + (row[1],)).toDF(
