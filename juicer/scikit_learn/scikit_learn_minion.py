@@ -1,6 +1,8 @@
 # coding=utf-8
 import gc
 import gettext
+import imp
+import importlib
 import json
 import logging.config
 import multiprocessing
@@ -8,8 +10,6 @@ import signal
 import sys
 import time
 import traceback
-import imp
-import importlib
 
 # noinspection PyUnresolvedReferences
 import datetime
@@ -18,17 +18,14 @@ import codecs
 import os
 import socketio
 from timeit import default_timer as timer
-# noinspection PyCompatibility
 from concurrent.futures import ThreadPoolExecutor
-# noinspection PyCompatibility
 from juicer.runner import configuration
-from juicer.runner import protocol
+from juicer.runner import protocol as juicer_protocol
 
 from juicer.runner.minion_base import Minion
 from juicer.scikit_learn.transpiler import ScikitLearnTranspiler
 from juicer.util import dataframe_util
 from juicer.workflow.workflow import Workflow
-
 
 logging.config.fileConfig('logging_config.ini')
 log = logging.getLogger('juicer.scikit_learn.scikit_learn_minion')
@@ -234,11 +231,11 @@ class ScikitLearnMinion(Minion):
             # of several partial workflow executions.
             try:
                 new_state = self.module.main(
-                        self.get_or_create_scikit_learn_session(loader,
-                                                                app_configs,
-                                                                job_id),
-                        self._state,
-                        self._emit_event(room=job_id, namespace='/stand'))
+                    self.get_or_create_scikit_learn_session(loader,
+                                                            app_configs,
+                                                            job_id),
+                    self._state,
+                    self._emit_event(room=job_id, namespace='/stand'))
             except:
                 raise
 
@@ -303,7 +300,7 @@ class ScikitLearnMinion(Minion):
 
         return result
 
-    # noinspection PyUnresolvedReferences
+    # noinspection PyUnresolvedReferences,PyMethodMayBeStatic
     def get_or_create_scikit_learn_session(self, loader, app_configs, job_id):
         """
         """
