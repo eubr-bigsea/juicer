@@ -8,8 +8,8 @@ import os
 import redis
 import yaml
 from juicer.compss.compss_minion import COMPSsMinion
-from juicer.scikit_learn.scikit_learn_minion import ScikitLearnMinion
 from juicer.spark.spark_minion import SparkMinion
+from juicer.scikit_learn.scikit_learn_minion import ScikitLearnMinion
 
 # Important!
 # See https://stackoverflow.com/a/29172195/1646932

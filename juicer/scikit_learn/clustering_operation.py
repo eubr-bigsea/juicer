@@ -52,7 +52,7 @@ class ClusteringModelOperation(Operation):
 
         if self.perform_transformation:
             code += """
-        y = {algorithm}.predict({IN})
+        y = {algorithm}.predict(X)
         {OUT} = {IN}
         {OUT}['{predCol}'] = y
         """.format(OUT=self.output, model=self.model,
