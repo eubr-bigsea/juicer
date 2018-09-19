@@ -381,14 +381,18 @@ def handle_spark_exception(e):
                 ))
     elif hasattr(e, 'java_exception'):
         cause = e.java_exception.getCause()
-        while cause is not None and cause.getCause() is not None:
-            cause = cause.getCause()
+        if 'unwrapRemoteException' in dir(cause):
+            cause = cause.unwrapRemoteException()
+        else:
+            while cause is not None and cause.getCause() is not None:
+                cause = cause.getCause()
 
         if cause is not None:
             nfe = 'java.lang.NumberFormatException'
             uoe = 'java.lang.UnsupportedOperationException'
             npe = 'java.lang.NullPointerException'
             bme = 'org.apache.hadoop.hdfs.BlockMissingException'
+            ace = 'org.apache.hadoop.security.AccessControlException'
 
             cause_msg = cause.getMessage()
             inner_cause = cause.getCause()
@@ -415,6 +419,12 @@ def handle_spark_exception(e):
                       'Please, check if HDFS namenode is up and you '
                       'correctly configured the option '
                       'dfs.client.use.datanode.hostname in Juicer\' config.'))
+            elif cause.getClass().getName() == ace:
+                raise ValueError(
+                    _('You do not have permissions to read or write in the '
+                      'storage. Probably, it is a configuration problem. '
+                      'Please, contact the support.')
+                )
         elif e.java_exception.getMessage():
             value_expr = re.compile(r'CSV data source does not support '
                                     r'(.+?) data type')
