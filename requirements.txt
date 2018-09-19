@@ -51,7 +51,6 @@ ply==3.10
 py==1.5.2
 py4j==0.10.7
 pyaml==17.12.1
-pyarrow==0.10.0
 pycodestyle==2.3.1
 pycparser==2.18
 pyinotify==0.9.6
