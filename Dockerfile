@@ -17,6 +17,8 @@ RUN echo -e $APK_REPOS >> /etc/apk/repositories \
       musl-dev \
       openblas-dev \
       py-numpy-dev \
+      openssl-dev \
+      libffi-dev  \
     && apk add --no-cache \
       cython \
       gfortran \
