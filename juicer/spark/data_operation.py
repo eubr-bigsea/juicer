@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
 
-import ast
 import itertools
 import json
 import pprint
@@ -15,6 +14,7 @@ from juicer.deploy import Deployment, DeploymentFlow, DeploymentTask
 from juicer.operation import Operation
 from juicer.privaaas import PrivacyPreservingDecorator
 from juicer.service import limonero_service
+from juicer.util.template_util import strip_accents
 
 
 class DataReaderOperation(Operation):
@@ -36,6 +36,7 @@ class DataReaderOperation(Operation):
     DO_NOT_INFER = 'NO'
 
     LIMONERO_TO_SPARK_DATA_TYPES = {
+        "BINARY": 'types.BinaryType',
         "CHARACTER": 'types.StringType',
         "DATETIME": 'types.TimestampType',
         "DATE": 'types.DateType',
@@ -210,9 +211,9 @@ class DataReaderOperation(Operation):
                             url)""".format(output=self.output,
                                            null_option=null_option))
                     code.append(code_csv)
-            elif self.metadata['format'] == 'PARQUET_FILE':
-                # TO DO
-                pass
+            elif self.metadata['format'] == 'PARQUET':
+                self._generate_code_for_parquet(code, infer_from_data,
+                                                infer_from_limonero)
             elif self.metadata['format'] == 'JSON':
                 code_json = dedent("""
                     schema_{output} = types.StructType()
@@ -224,7 +225,7 @@ class DataReaderOperation(Operation):
                 code.append(code_json)
                 # FIXME: Evaluate if it is good idea to always use cache
                 code.append('{}.cache()'.format(self.output))
-                pass
+
             elif self.metadata['format'] == 'LIB_SVM':
                 self._generate_code_for_lib_svm(code, infer_from_data)
             elif self.metadata['format'] == 'JDBC':
@@ -267,6 +268,25 @@ class DataReaderOperation(Operation):
                            table=self.metadata.get('command'),
                            out=self.output))
         code.append(code_jdbc)
+
+    def _generate_code_for_parquet(self, code, infer_from_data,
+                                   infer_from_limonero):
+        code.append(
+            "url_{0} = '{1}'".format(self.output, self.metadata['url']))
+        if infer_from_limonero:
+            code_csv = """
+                {0} = spark_session.read.format('{2}').schema(
+                schema_{0}).load(url_{0})
+                # Drop index columns
+                {0} = {0}.drop('__index_level_0__')
+            """.format(self.output, infer_from_data, 'parquet')
+        else:
+            code_csv = """
+                {0} = spark_session.read.format('{2}').load(url_{0})
+                # Drop index columns
+                {0} = {0}.drop('__index_level_0__')
+            """.format(self.output, infer_from_data, 'parquet')
+        code.append(dedent(code_csv))
 
     def _generate_code_for_lib_svm(self, code, infer_from_data):
         """"""
@@ -397,6 +417,7 @@ class SaveOperation(Operation):
         'types.FloatType': "FLOAT",
         'types.LongType': "LONG",
         'types.IntegerType': "INTEGER",
+        'types.BinaryType': "BINARY",
 
         'StringType': "CHARACTER",
         'TimestampType': "DATETIME",
@@ -405,6 +426,7 @@ class SaveOperation(Operation):
         'FloatType': "FLOAT",
         'LongType': "LONG",
         'IntegerType': "INTEGER",
+        'BinaryType': "BINARY",
     }
 
     NAME_PARAM = 'name'
@@ -431,6 +453,9 @@ class SaveOperation(Operation):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         self.name = parameters.get(self.NAME_PARAM)
+        if self.name is None or not self.name.strip():
+            raise ValueError(_('You must specify a name for new data source.'))
+
         self.format = parameters.get(self.FORMAT_PARAM, '') or ''
         valid_formats = (self.FORMAT_PARQUET, self.FORMAT_CSV, self.FORMAT_JSON)
         if not self.format.strip() or self.format not in valid_formats:
@@ -441,7 +466,7 @@ class SaveOperation(Operation):
         if not self.storage_id:
             raise ValueError(_('You must specify a storage for saving data.'))
 
-        self.tags = ast.literal_eval(parameters.get(self.TAGS_PARAM, '[]'))
+        self.tags = parameters.get(self.TAGS_PARAM, [])
         self.path = parameters.get(self.PATH_PARAM)
         if self.path is None or not self.path.strip():
             raise ValueError(_('You must specify a path for saving data.'))
@@ -472,7 +497,7 @@ class SaveOperation(Operation):
 
         final_url = '{}/limonero/user_data/{}/{}/{}'.format(
             storage['url'], self.user['id'], self.path,
-            self.name.replace(' ', '_'))
+            strip_accents(self.name.replace(' ', '_')))
         code_save = ''
         if self.format == self.FORMAT_CSV:
             code_save = dedent(u"""

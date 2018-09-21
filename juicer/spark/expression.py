@@ -89,13 +89,13 @@ class Expression(object):
         arguments = [self.parse(x, params) for x in spec['arguments']]
 
         field_name = 'start' if arguments[-1] != 'end' else 'end'
-        bins_size = '{} seconds'.format(arguments[-2])
+        bins_size = '{} seconds'.format(arguments[len(arguments) - 2])
 
         # FIXME: add the word 'SECONDS' after parameter 'SEGUNDOS'
         result = (
             "functions.window({value}, str('{bin}'))"
             ".{start_or_end}.cast('timestamp')").format(
-            value=', '.join(arguments[:-2]), bin=bins_size,
+            value=', '.join(arguments[: 1 - len(arguments)]), bin=bins_size,
             start_or_end=field_name)
         return result
 
@@ -220,6 +220,7 @@ class Expression(object):
 
     def get_window_function(self, spec, params):
         """ """
+
         arguments = ', '.join(
             [self.parse(x, params) for x in spec['arguments']])
 
@@ -240,6 +241,7 @@ class Expression(object):
 
     def build_functions_dict(self):
         spark_sql_functions = {
+            'abs': self.get_function_call,
             'add_months': self.get_function_call,
             'array': self.get_function_call,
             'ceil': self.get_function_call,
