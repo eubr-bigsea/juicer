@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
 
+import json
 from itertools import izip_longest
 from textwrap import dedent
 
@@ -162,7 +163,8 @@ class GeoWithin(Operation):
             attributes_to_add = {attributes}
 
             schema = [s.name for s in {geo}.schema]
-            shp_object = {geo}.select(attributes_to_add + ['points']).collect()
+            shp_object = {geo}.select(attributes_to_add +
+                ['{points_column}']).collect()
             bcast_shapefile = spark_session.sparkContext.broadcast(shp_object)
 
             f_min = functions.udf(
@@ -173,10 +175,10 @@ class GeoWithin(Operation):
                     types.DoubleType())
 
             boundaries = {geo}.select(
-                (f_min('points', functions.lit(1))).alias('x_min'),
-                (f_min('points', functions.lit(0))).alias('y_min'),
-                (f_max('points', functions.lit(1))).alias('x_max'),
-                (f_max('points', functions.lit(0))).alias('y_max'),
+                (f_min('{points_column}', functions.lit(1))).alias('x_min'),
+                (f_min('{points_column}', functions.lit(0))).alias('y_min'),
+                (f_max('{points_column}', functions.lit(1))).alias('x_max'),
+                (f_max('{points_column}', functions.lit(0))).alias('y_max'),
             ).collect()
 
             global_min_x = float('+inf')
@@ -208,7 +210,6 @@ class GeoWithin(Operation):
             broad_casted_sp_index = spark_session.sparkContext.broadcast(
                 sp_index)
 
-            counter = 0
             def get_first_polygon(lat, lng):
                 x = float(lat)
                 y = float(lng)
@@ -243,7 +244,7 @@ class GeoWithin(Operation):
                    input=self.named_inputs['input data'],
                    lat=self.lat_column[0],
                    lng=self.lon_column[0], out=self.output,
-                   aliases=repr(self.alias),
+                   aliases=json.dumps(self.alias),
                    attributes=self.attributes
                    )
         return dedent(code)
