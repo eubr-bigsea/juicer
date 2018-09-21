@@ -89,7 +89,7 @@ class Expression(object):
         arguments = [self.parse(x, params) for x in spec['arguments']]
 
         field_name = 'start' if arguments[-1] != 'end' else 'end'
-        bins_size = '{} seconds'.format(arguments[len(arguments) - 1])
+        bins_size = '{} seconds'.format(arguments[len(arguments) - 2])
 
         # FIXME: add the word 'SECONDS' after parameter 'SEGUNDOS'
         result = (
@@ -220,6 +220,7 @@ class Expression(object):
 
     def get_window_function(self, spec, params):
         """ """
+
         arguments = ', '.join(
             [self.parse(x, params) for x in spec['arguments']])
 

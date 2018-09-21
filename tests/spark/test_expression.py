@@ -292,7 +292,8 @@ def test_get_windows_function_success():
         }
     }
     params = {}
-    expr = Expression(json_code, params)
+
+    expr = Expression(json_code, params, True)
 
     expected_code = ("functions.window("
                      "functions.col('created_at'),"
