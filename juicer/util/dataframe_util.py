@@ -435,3 +435,16 @@ def handle_spark_exception(e):
                       'Try to convert the attribute to string (see to_json()) '
                       'before saving.'.format(value[0])))
     return result
+
+
+def df_zip_with_index(df, offset=1, name="row_id"):
+    import pyspark.sql.types as spark_types
+    new_schema = spark_types.StructType(
+        [spark_types.StructField(name, spark_types.LongType(),
+                                 True)] + df.schema.fields
+    )
+
+    zipped_rdd = df.rdd.zipWithIndex()
+
+    return zipped_rdd.map(
+        lambda (row, row_id): ([row_id + offset] + list(row))).toDF(new_schema)
