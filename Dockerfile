@@ -9,6 +9,7 @@ ARG APK_REPOS="${APK_EDGE_TESTING_REPO}\n${APK_EDGE_COMMUNITY_REPO}"
 RUN echo -e $APK_REPOS >> /etc/apk/repositories \
     && apk add --no-cache --virtual .build-deps \
       cython-dev \
+      libc6-compat \
       freetype-dev \
       g++ \
       hdf5-dev \
