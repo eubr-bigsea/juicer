@@ -136,41 +136,74 @@ class GeoWithin(Operation):
             raise ValueError(
                 _('Values for latitude and longitude columns must be informed'))
 
+    def _generate_code(self):
+        return """
+            def geo_join(lat, lng, row_number, points):
+                p_polygon = Path(points)
+                bcast_index = broad_casted_sp_index.value
+                matches = bcast_index.intersect([lat, lng, lat, lng])
+                return row_number in matches and p_polygon.contains_point(
+                    [lng, lat])
+
+            f_join = functions.udf(geo_join, types.BooleanType())
+
+            {geo} = dataframe_util.df_zip_with_index({geo}, 0, '_row_number_')
+            {out} = {input}.crossJoin({geo}).where(
+                f_join({input}['lat'], {input}['lng'], {geo}['_row_number_'],
+                {geo}['points']))
+
+        """
+
     def generate_code(self):
         code = """
             from matplotlib.path import Path
             import pyqtree
 
-            schema = [s.name for s in {geo}.schema]
-            shp_object = {geo}.collect()
-            bcast_shapefile = spark_session.sparkContext.broadcast(
-                shp_object)
+            attributes_to_add = {attributes}
 
-            x_min = float('+inf')
-            y_min = float('+inf')
-            x_max = float('-inf')
-            y_max = float('-inf')
-            for i, polygon in enumerate(shp_object):
-                for point in polygon['points']:
-                    x_min = min(x_min, point[1])
-                    y_min = min(y_min, point[0])
-                    x_max = max(x_max, point[1])
-                    y_max = max(y_max, point[0])
-            #
-            sp_index = pyqtree.Index(bbox=[x_min, y_min, x_max, y_max])
-            for inx, polygon in enumerate(shp_object):
-                points = []
-                x_min = float('+inf')
-                y_min = float('+inf')
-                x_max = float('-inf')
-                y_max = float('-inf')
-                for point in polygon['points']:
-                    points.append((point[0], point[1]))
-                    x_min = min(x_min, point[0])
-                    y_min = min(y_min, point[1])
-                    x_max = max(x_max, point[0])
-                    y_max = max(y_max, point[1])
-                sp_index.insert(item=inx, bbox=[x_min, y_min, x_max, y_max])
+            schema = [s.name for s in {geo}.schema]
+            shp_object = {geo}.select(attributes_to_add + ['points']).collect()
+            bcast_shapefile = spark_session.sparkContext.broadcast(shp_object)
+
+            f_min = functions.udf(
+                lambda v, index: min([item[index] for item in v]),
+                    types.DoubleType())
+            f_max = functions.udf(
+                lambda v, index: max([item[index] for item in v]),
+                    types.DoubleType())
+
+            boundaries = {geo}.select(
+                (f_min('points', functions.lit(1))).alias('x_min'),
+                (f_min('points', functions.lit(0))).alias('y_min'),
+                (f_max('points', functions.lit(1))).alias('x_max'),
+                (f_max('points', functions.lit(0))).alias('y_max'),
+            ).collect()
+
+            global_min_x = float('+inf')
+            global_min_y = float('+inf')
+            global_max_x = float('-inf')
+            global_max_y = float('-inf')
+
+            to_update = []
+            for inx, row in enumerate(boundaries):
+                x_min = row['x_min']
+                y_min = row['y_min']
+                x_max = row['x_max']
+                y_max = row['y_max']
+                to_update.append({{
+                    'item': inx,
+                    'bbox': [x_min, y_min, x_max, y_max]
+                }})
+                global_min_x = min(global_min_x, x_min)
+                global_min_y = min(global_min_y, y_min)
+                global_max_x = max(global_max_x, x_max)
+                global_max_y = max(global_max_y, y_max)
+
+            sp_index = pyqtree.Index(
+                bbox=[global_min_x, global_min_y, global_max_x, global_max_y])
+
+            for item in to_update:
+                sp_index.insert(**item)
 
             broad_casted_sp_index = spark_session.sparkContext.broadcast(
                 sp_index)
@@ -180,15 +213,14 @@ class GeoWithin(Operation):
                 x = float(lat)
                 y = float(lng)
                 bcast_index = broad_casted_sp_index.value
-                # Here it uses longitude, latitude
-                matches = bcast_index.intersect([y, x, y, x])
+                matches = bcast_index.intersect([x, y, x, y])
 
                 for shp_inx in matches:
                     row = bcast_shapefile.value[shp_inx]
                     p_polygon = Path(row['{points_column}'])
                     # Here it uses longitude, latitude
                     if p_polygon.contains_point([y, x]):
-                        return [c for c in row]
+                        return [c for c in row] # must return an array, no Row
                 return [None] * len(bcast_shapefile.value[0])
 
             udf_get_first_polygon = functions.udf(
@@ -197,13 +229,15 @@ class GeoWithin(Operation):
                 'tmp_polygon_data', udf_get_first_polygon(
                     functions.col('{lat}'), functions.col('{lng}')))
             aliases = {aliases}
-            attributes_to_add = {attributes}
+
             {out} = within.select(within.columns +
                [within.tmp_polygon_data[i].alias(aliases.pop())
                 for i, col in enumerate(schema)
                 if col in attributes_to_add])
 
             {out} = {out}.drop('tmp_polygon_data')
+
+
         """.format(geo=self.named_inputs['geo data'],
                    points_column=self.points_column[0],
                    input=self.named_inputs['input data'],
