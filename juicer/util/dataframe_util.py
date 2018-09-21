@@ -381,14 +381,18 @@ def handle_spark_exception(e):
                 ))
     elif hasattr(e, 'java_exception'):
         cause = e.java_exception.getCause()
-        while cause is not None and cause.getCause() is not None:
-            cause = cause.getCause()
+        if 'unwrapRemoteException' in dir(cause):
+            cause = cause.unwrapRemoteException()
+        else:
+            while cause is not None and cause.getCause() is not None:
+                cause = cause.getCause()
 
         if cause is not None:
             nfe = 'java.lang.NumberFormatException'
             uoe = 'java.lang.UnsupportedOperationException'
             npe = 'java.lang.NullPointerException'
             bme = 'org.apache.hadoop.hdfs.BlockMissingException'
+            ace = 'org.apache.hadoop.security.AccessControlException'
 
             cause_msg = cause.getMessage()
             inner_cause = cause.getCause()
@@ -415,6 +419,12 @@ def handle_spark_exception(e):
                       'Please, check if HDFS namenode is up and you '
                       'correctly configured the option '
                       'dfs.client.use.datanode.hostname in Juicer\' config.'))
+            elif cause.getClass().getName() == ace:
+                raise ValueError(
+                    _('You do not have permissions to read or write in the '
+                      'storage. Probably, it is a configuration problem. '
+                      'Please, contact the support.')
+                )
         elif e.java_exception.getMessage():
             value_expr = re.compile(r'CSV data source does not support '
                                     r'(.+?) data type')
@@ -425,3 +435,16 @@ def handle_spark_exception(e):
                       'Try to convert the attribute to string (see to_json()) '
                       'before saving.'.format(value[0])))
     return result
+
+
+def df_zip_with_index(df, offset=1, name="row_id"):
+    import pyspark.sql.types as spark_types
+    new_schema = spark_types.StructType(
+        [spark_types.StructField(name, spark_types.LongType(),
+                                 True)] + df.schema.fields
+    )
+
+    zipped_rdd = df.rdd.zipWithIndex()
+
+    return zipped_rdd.map(
+        lambda (row, row_id): ([row_id + offset] + list(row))).toDF(new_schema)
