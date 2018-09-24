@@ -64,9 +64,6 @@ class AddRowsOperation(Operation):
         self.output = self.named_outputs.get(
             'output data', 'add_rows_{}'.format(self.order))
 
-    def get_output_names(self, sep=", "):
-        return self.output
-
     def generate_code(self):
         code = "{out} = {input1}.unionAll({input2})".format(
             out=self.output, input1=self.named_inputs['input data 1'],
@@ -135,12 +132,6 @@ class RemoveDuplicatedOperation(Operation):
         self.output = self.named_outputs.get('output data',
                                              'dedup_data_{}'.format(
                                                  self.order))
-
-    def get_output_names(self, sep=", "):
-        return self.output
-
-    def get_data_out_names(self, sep=','):
-        return self.output
 
     def generate_code(self):
         input_data = self.named_inputs['input data']
@@ -214,9 +205,6 @@ class SampleOrPartitionOperation(Operation):
         self.output = self.named_outputs.get(
             'sampled data', 'sampled_data_{}'.format(self.order))
 
-    def get_output_names(self, sep=", "):
-        return self.output
-
     def generate_code(self):
         code = ''
         input_data = self.named_inputs.get('input data')
@@ -256,12 +244,6 @@ class IntersectionOperation(Operation):
         self.output = self.named_outputs.get(
             'output data', 'out_{}'.format(self.order))
 
-    def get_output_names(self, sep=", "):
-        return self.output
-
-    def get_data_out_names(self, sep=','):
-        return self.output
-
     def generate_code(self):
         input_data1 = self.named_inputs['input data 1']
         input_data2 = self.named_inputs['input data 2']
@@ -293,9 +275,6 @@ class DifferenceOperation(Operation):
         self.output = self.named_outputs.get(
             'output data', 'intersected_data_{}'.format(self.order))
 
-    def get_output_names(self, sep=", "):
-        return self.output
-
     def generate_code(self):
         input_data1 = self.named_inputs['input data 1']
         input_data2 = self.named_inputs['input data 2']
@@ -320,7 +299,9 @@ class JoinOperation(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
         self.keep_right_keys = parameters.get(self.KEEP_RIGHT_KEYS_PARAM, False)
-        self.match_case = parameters.get(self.MATCH_CASE_PARAM, False)
+        self.match_case = parameters.get(self.MATCH_CASE_PARAM, False) in [
+            'true', 'True', True, '1', 1
+        ]
         self.join_type = parameters.get(self.JOIN_TYPE_PARAM, 'inner')
 
         if not all([self.LEFT_ATTRIBUTES_PARAM in parameters,
@@ -338,13 +319,10 @@ class JoinOperation(Operation):
             parameters.get(self.ALIASES_PARAM, 'ds0_, ds1_').split(',')]
 
         if len(self.aliases) != 2:
-            raise ValueError('You must inform 2 values for alias')
+            raise ValueError(_('You must inform 2 values for alias'))
 
         self.output = self.named_outputs.get(
             'output data', 'out_data_{}'.format(self.order))
-
-    def get_data_out_names(self, sep=','):
-        return self.output
 
     def generate_code(self):
 
@@ -488,9 +466,6 @@ class SelectOperation(Operation):
         self.output = self.named_outputs.get(
             'output projected data', 'projection_data_{}'.format(self.order))
 
-    def get_output_names(self, sep=", "):
-        return self.output
-
     def generate_code(self):
         input_data = self.named_inputs['input data']
         code = "{out} = {in1}.select({select})".format(
@@ -630,16 +605,16 @@ class AggregationOperation(Operation):
 
     def attribute_traceability(self):
         result = []
-        for i, function in enumerate(self.functions):
-            if self.pivot:
-                # FIXME (how to add this when columns are dynamically generated?
-                pass
-            else:
-                result.append(TraceabilityData(
-                    input=self.named_inputs.values()[0],
-                    attribute=function.get('alias', function.get('value')),
-                    derived_from=function['attribute'],
-                    was_value=False))
+        # for i, function in enumerate(self.functions):
+        #     if self.pivot:
+        #         # FIXME (how to add this when columns are dynamically generated?
+        #         pass
+        #     else:
+        #         result.append(TraceabilityData(
+        #             input=self.named_inputs.values()[0],
+        #             attribute=function.get('alias', function.get('value')),
+        #             derived_from=function['attribute'],
+        #             was_value=False))
         return result
 
     def generate_code(self):
@@ -1243,13 +1218,13 @@ class WindowTransformationOperation(Operation):
                 if 'alias' not in expression:
                     msg = _("Parameter '{}' must be informed in all "
                             "expressions in task {}.")
-                    raise ValueError(msg.format('alias'), self.__class__)
+                    raise ValueError(msg.format('alias', self.__class__))
                 if 'tree' not in expression:
                     msg = _("Parameter '{}' must be informed in all "
                             "expressions in task {}.")
-                    raise ValueError(msg.format('tree'), self.__class__)
+                    raise ValueError(msg.format('tree', self.__class__))
 
-            self.order_by = parameters.get(self.ORDER_BY_PARAM)
+            self.order_by = parameters.get(self.ORDER_BY_PARAM, [])
             self.rows_from = parameters.get(
                 self.ROWS_FROM_PARAM,
                 'Window.unboundedPreceding') or 'Window.unboundedPreceding'
@@ -1272,9 +1247,7 @@ class WindowTransformationOperation(Operation):
 
     def generate_code(self):
         input_data = self.named_inputs['input data']
-        params = {'input': input_data}
 
-        ascending = []
         attributes = []
         for attr in self.order_by:
             if attr['f'] == 'asc':
@@ -1285,7 +1258,6 @@ class WindowTransformationOperation(Operation):
                     "functions.desc('{}')".format(attr['attribute']))
 
         if attributes:
-            order_attrs = []
             order_by_code = ".orderBy({attrs})".format(
                 attrs=', '.join(attributes))
         else:
@@ -1314,20 +1286,7 @@ class WindowTransformationOperation(Operation):
             range_code = ".rangeBetween({range_from}, {range_to})".format(
                 range_from=self.range_from, range_to=self.range_to)
 
-        new_attrs = []
-        aliases = []
-        params = {}
-        for expr in self.expressions:
-            if expr['tree'].get('callee', {}).get(
-                    'name') not in self.RANKING_FUNCTIONS:
-                params['window'] = 'window'
-            else:
-                params['window'] = 'rank_window'
-
-            expression = Expression(expr['tree'], params, window=True)
-            built_expr = expression.parsed_expression
-            new_attrs.append(built_expr)
-            aliases.append(expr['alias'])
+        aliases, new_attrs, params = self._get_expressions()
 
         code = dedent("""
             from juicer.spark.ext import CustomExpressionTransformer
@@ -1350,3 +1309,20 @@ class WindowTransformationOperation(Operation):
                    aliases=json.dumps(aliases)))
 
         return dedent(code)
+
+    def _get_expressions(self):
+        aliases = []
+        new_attrs = []
+        params = {}
+        for expr in self.expressions:
+            if expr['tree'].get('callee', {}).get(
+                    'name') not in self.RANKING_FUNCTIONS:
+                params['window'] = 'window'
+            else:
+                params['window'] = 'rank_window'
+
+            expression = Expression(expr['tree'], params, window=True)
+            built_expr = expression.parsed_expression
+            new_attrs.append(built_expr)
+            aliases.append(expr['alias'])
+        return aliases, new_attrs, params

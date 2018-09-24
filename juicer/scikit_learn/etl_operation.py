@@ -10,13 +10,14 @@ class AddColumnsOperation(Operation):
     """
     Merge two data frames, column-wise, similar to the command paste in Linux.
     """
+    ALIASES_PARAM = 'aliases'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs, named_outputs)
 
         self.has_code = len(named_inputs) == 2
 
-        self.suffixes = parameters.get('aliases', '_ds0,_ds1')
+        self.suffixes = parameters.get(self.ALIASES_PARAM, '_ds0,_ds1')
         self.suffixes = [s for s in self.suffixes.replace(" ", "").split(',')]
 
         if not self.has_code:
@@ -654,7 +655,7 @@ class SelectOperation(Operation):
         if self.ATTRIBUTES_PARAM in parameters:
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
             self.cols = ','.join(['"{}"'.format(x)
-                                   for x in self.attributes])
+                                  for x in self.attributes])
         else:
             raise ValueError(
                 _("Parameter '{}' must be informed for task {}").format(
@@ -666,7 +667,7 @@ class SelectOperation(Operation):
 
     def generate_code(self):
 
-        code = "{output} = {input}[{column}]"\
+        code = "{output} = {input}[[{column}]]"\
             .format(output=self.output, column=self.cols,
                     input=self.named_inputs['input data'])
         return dedent(code)

@@ -427,7 +427,7 @@ def test_clustering_operation_success():
         X = df_2['f'].values.tolist()
         model_output_1 = algo.fit(X)
          
-        y = algo.predict(df_2)
+        y = algo.predict(X)
         output_1 = df_2
         output_1['prediction'] = y
         """.format())
@@ -457,7 +457,7 @@ def test_clustering_with_model_operation_success():
         X = df_2['f'].values.tolist()
         output_2 = algo.fit(X)
 
-        y = algo.predict(df_2)
+        y = algo.predict(X)
         output_1 = df_2
         output_1['prediction'] = y
         """.format())

@@ -52,7 +52,7 @@ def test_add_columns_minimum_params_success():
 
 
 def test_add_columns_suffixes_params_success():
-    params = {'aliases': '_l,_r'}
+    params = {AddColumnsOperation.ALIASES_PARAM: '_l,_r'}
     n_in = {'input data 1': 'df1', 'input data 2': 'df2'}
     n_out = {'output data': 'out'}
 
@@ -70,6 +70,7 @@ def test_add_columns_suffixes_params_success():
         in1=n_in['input data 2']))
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
     assert result, msg + format_code_comparison(code, expected_code)
+
 
 '''
     Clean Missing Operation
@@ -634,7 +635,7 @@ def test_select_minimal_params_success():
     code = instance.generate_code()
     columns = ', '.join(
         ['"{}"'.format(x) for x in params[SelectOperation.ATTRIBUTES_PARAM]])
-    expected_code = '{out} = {in1}[{columns}]'\
+    expected_code = '{out} = {in1}[[{columns}]]'\
         .format(out=n_out['output projected data'],
                 in1=n_in['input data'], columns=columns)
 

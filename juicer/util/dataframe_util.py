@@ -3,7 +3,6 @@ from __future__ import absolute_import
 
 import decimal
 import json
-from gettext import gettext as _
 
 import datetime
 
@@ -135,30 +134,14 @@ def format_row_for_bar_chart_visualization(row):
     return dict(id=_id, name=name, value=value)
 
 
-def emit_schema(task_id, df, emit_event, name):
+def emit_schema(task_id, df, emit_event, name, notebook=False):
     from juicer.spark.reports import SimpleTableReport
     headers = [_('Attribute'), _('Type'), _('Metadata')]
     rows = [[f.name, str(f.dataType), json.dumps(f.metadata) if f else ''] for f
             in df.schema.fields]
+    css_class = 'table table-striped table-bordered' if not notebook else ''
     content = SimpleTableReport(
-        'table table-striped table-bordered', headers, rows,
-        _('Schema for {}').format(name),
-        numbered=True)
-
-    return emit_event('update task', status='COMPLETED',
-                      identifier=task_id,
-                      message=content.generate(),
-                      type='HTML', title=_('Schema for {}').format(name),
-                      task={'id': task_id})
-
-
-def emit_schema_sklearn(task_id, df, emit_event, name):
-    from juicer.spark.reports import SimpleTableReport
-    headers = [_('Attribute'), _('Type')]
-    rows = [[i, str(f)] for i, f in zip(df.columns, df.dtypes)]
-    content = SimpleTableReport(
-        'table table-striped table-bordered', headers, rows,
-        _('Schema for {}').format(name),
+        css_class, headers, rows, _('Schema for {}').format(name),
         numbered=True)
 
     emit_event('update task', status='COMPLETED',
@@ -168,7 +151,23 @@ def emit_schema_sklearn(task_id, df, emit_event, name):
                task={'id': task_id})
 
 
-def emit_sample(task_id, df, emit_event, name, size=50):
+def emit_schema_sklearn(task_id, df, emit_event, name, notebook=False):
+    from juicer.spark.reports import SimpleTableReport
+    headers = [_('Attribute'), _('Type')]
+    rows = [[i, str(f)] for i, f in zip(df.columns, df.dtypes)]
+    css_class = 'table table-striped table-bordered' if not notebook else ''
+    content = SimpleTableReport(
+        css_class, headers, rows, _('Schema for {}').format(name),
+        numbered=True)
+
+    emit_event('update task', status='COMPLETED',
+               identifier=task_id,
+               message=content.generate(),
+               type='HTML', title=_('Schema for {}').format(name),
+               task={'id': task_id})
+
+
+def emit_sample(task_id, df, emit_event, name, size=50, notebook=False):
     from juicer.spark.reports import SimpleTableReport
     headers = [f.name for f in df.schema.fields]
 
@@ -192,19 +191,19 @@ def emit_sample(task_id, df, emit_event, name, size=50):
                 value = value[:150] + ' ... ' + value[-50:]
             new_row.append(value)
 
+    css_class = 'table table-striped table-bordered' if not notebook else ''
     content = SimpleTableReport(
-        'table table-striped table-bordered dataframe', headers, rows,
-        _('Sample data for {}').format(name),
+        css_class, headers, rows, _('Sample data for {}').format(name),
         numbered=True)
 
-    return emit_event('update task', status='COMPLETED',
-                      identifier=task_id,
-                      message=content.generate(),
-                      type='HTML', title=_('Sample data for {}').format(name),
-                      task={'id': task_id})
+    emit_event('update task', status='COMPLETED',
+               identifier=task_id,
+               message=content.generate(),
+               type='HTML', title=_('Sample data for {}').format(name),
+               task={'id': task_id})
 
 
-def emit_sample_sklearn(task_id, df, emit_event, name, size=50):
+def emit_sample_sklearn(task_id, df, emit_event, name, size=50, notebook=False):
     from juicer.spark.reports import SimpleTableReport
     headers = list(df.columns)
 
@@ -230,11 +229,9 @@ def emit_sample_sklearn(task_id, df, emit_event, name, size=50):
                 value = value[:150] + ' ... ' + value[-50:]
             new_row.append(value)
 
-    # print (headers)
-    print (rows)
+    css_class = 'table table-striped table-bordered' if not notebook else ''
     content = SimpleTableReport(
-        'table table-striped table-bordered', headers, rows,
-        _('Sample data for {}').format(name),
+        css_class, headers, rows, _('Sample data for {}').format(name),
         numbered=True)
 
     emit_event('update task', status='COMPLETED',
@@ -342,7 +339,6 @@ def merge_dicts(x, y):
 
 def handle_spark_exception(e):
     from pyspark.sql.utils import AnalysisException, IllegalArgumentException
-
     result = False
     if isinstance(e, AnalysisException):
         value_expr = re.compile(r'[`"](.+)[`"].+columns:\s(.+)$')
@@ -380,17 +376,20 @@ def handle_spark_exception(e):
                     attr=attr, used=used, correct=correct
                 ))
     elif hasattr(e, 'java_exception'):
-        cause = e.java_exception
-        while cause.getCause() is not None:
-            cause = cause.getCause()
+        cause = e.java_exception.getCause()
+        if 'unwrapRemoteException' in dir(cause):
+            cause = cause.unwrapRemoteException()
+        else:
+            while cause is not None and cause.getCause() is not None:
+                cause = cause.getCause()
 
-        myse = 'com.mysql.jdbc.exceptions.jdbc4.MySQLSyntaxErrorException'
         if cause is not None:
             nfe = 'java.lang.NumberFormatException'
+            uoe = 'java.lang.UnsupportedOperationException'
             npe = 'java.lang.NullPointerException'
             bme = 'org.apache.hadoop.hdfs.BlockMissingException'
-            myce = 'com.mysql.jdbc.exceptions.jdbc4.CommunicationsException'
-            faee = 'org.apache.hadoop.mapred.FileAlreadyExistsException'
+            ace = 'org.apache.hadoop.security.AccessControlException'
+
             cause_msg = cause.getMessage()
             inner_cause = cause.getCause()
             if cause.getClass().getName() == nfe and cause_msg:
@@ -409,13 +408,6 @@ def handle_spark_exception(e):
                                        'Please, remove them before applying '
                                        'a data transformation.'))
                 pass
-            elif e.java_exception.getClass().getName() == myce:
-                raise ValueError(
-                    _('Unable to connect to MySQL while reading data source.'))
-            elif cause.getClass().getName() == faee:
-                raise ValueError(_('File already exist. Use an option to '
-                                   'override it (if it is possible) and if you '
-                                   'want to replace it.'))
             elif cause.getClass().getName() == bme:
                 raise ValueError(
                     _('Cannot read data from the data source. In this case, '
@@ -423,17 +415,32 @@ def handle_spark_exception(e):
                       'Please, check if HDFS namenode is up and you '
                       'correctly configured the option '
                       'dfs.client.use.datanode.hostname in Juicer\' config.'))
-            elif cause.getClass().getName() == myse:
+            elif cause.getClass().getName() == ace:
                 raise ValueError(
-                    _('Syntax error querying data in MySQL: {}').format(
-                        e.java_exception.getMessage()))
-            elif cause.getMessage():
-                value_expr = re.compile(r'CSV data source does not support '
-                                        r'(.+?) data type')
-                value = value_expr.findall(e.java_exception.getMessage())
-                if value:
-                    raise ValueError(
-                        _('CSV format does not support the data type {}. '
-                          'Try to convert the attribute to string '
-                          '(see to_json()) before saving.'.format(value[0])))
+                    _('You do not have permissions to read or write in the '
+                      'storage. Probably, it is a configuration problem. '
+                      'Please, contact the support.')
+                )
+        elif e.java_exception.getMessage():
+            value_expr = re.compile(r'CSV data source does not support '
+                                    r'(.+?) data type')
+            value = value_expr.findall(e.java_exception.getMessage())
+            if value:
+                raise ValueError(
+                    _('CSV format does not support the data type {}. '
+                      'Try to convert the attribute to string (see to_json()) '
+                      'before saving.'.format(value[0])))
     return result
+
+
+def df_zip_with_index(df, offset=1, name="row_id"):
+    import pyspark.sql.types as spark_types
+    new_schema = spark_types.StructType(
+        [spark_types.StructField(name, spark_types.LongType(),
+                                 True)] + df.schema.fields
+    )
+
+    zipped_rdd = df.rdd.zipWithIndex()
+
+    return zipped_rdd.map(
+        lambda (row, row_id): ([row_id + offset] + list(row))).toDF(new_schema)
