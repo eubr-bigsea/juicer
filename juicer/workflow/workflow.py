@@ -1,3 +1,5 @@
+# coding=utf-8
+from __future__ import absolute_import, print_function
 import collections
 import logging
 
@@ -231,13 +233,13 @@ class Workflow(object):
                     flow['target_id'] not in self.disabled_tasks]):
                 # Updates the source_port_name and target_port_name. They are
                 # used in the transpiler part instead of the id of the port.
-                source_port = filter(
+                source_port = list(filter(
                     lambda p: int(p['id']) == int(flow['source_port']),
-                    task_map[flow['source_id']]['operation']['ports'])
+                    task_map[flow['source_id']]['operation']['ports']))
 
-                target_port = filter(
+                target_port = list(filter(
                     lambda p: int(p['id']) == int(flow['target_port']),
-                    task_map[flow['target_id']]['operation']['ports'])
+                    task_map[flow['target_id']]['operation']['ports']))
 
                 if all([source_port, target_port]):
                     # Compatibility assertion, may be removed in future
@@ -388,11 +390,146 @@ class Workflow(object):
             'token': str(tahiti_conf['auth_token']),
             'item_id': ''
         }
+
+        # Querying tahiti operations to get number of inputs and outputs
+        return tahiti_service.query_tahiti(params['base_url'],
+                                           params['item_path'],
+                                           params['token'],
+                                           params['item_id'])
+
+    def get_ports_from_operation_tasks(self, id_operation):
+        tahiti_conf = self.config['juicer']['services']['tahiti']
+        params = {
+            'base_url': tahiti_conf['url'],
+            'item_path': 'operations',
+            'token': str(tahiti_conf['auth_token']),
+            'item_id': id_operation
+        }
+
+        # Querying tahiti operations to get number of inputs and outputs
+        operations_ports = tahiti_service.query_tahiti(params['base_url'],
+                                                       params['item_path'],
+                                                       params['token'],
+                                                       params['item_id'])
+        # Get operation requirements in tahiti
+        result = {
+            'N_INPUT': 0,
+            'N_OUTPUT': 0,
+            'M_INPUT': 'None',
+            'M_OUTPUT': 'None'
+        }
+
+        for port in operations_ports['ports']:
+            if port['type'] == 'INPUT':
+                result['M_INPUT'] = port['multiplicity']
+                if 'N_INPUT' in result:
+                    result['N_INPUT'] += 1
+                else:
+                    result['N_INPUT'] = 1
+            elif port['type'] == 'OUTPUT':
+                result['M_OUTPUT'] = port['multiplicity']
+                if 'N_OUTPUT' in result:
+                    result['N_OUTPUT'] += 1
+                else:
+                    result['N_OUTPUT'] = 1
+        return result
+
+    def workflow_execution_parcial(self):
+
+        topological_sort = self.get_topological_sorted_tasks()
+
+        for node_obj in topological_sort:
+            print (nx.ancestors(self.graph, node_obj),
+                   self.graph.predecessors(node_obj),
+                   node_obj,
+                   self.graph.node[node_obj]['in_degree_required'],
+                   self.graph.node[node_obj]['in_degree'],
+                   self.graph.node[node_obj]['out_degree_required'],
+                   self.graph.node[node_obj]['out_degree']
+                   )
+        return True
+
+    # only to debug
+    def check_outdegree_edges(self, atr):
+
+        if self.graph.has_node(atr):
+            return (self.graph.node[atr]['in_degree'],
+                    self.graph.node[atr]['out_degree'],
+                    self.graph.in_degree(atr),
+                    self.graph.out_degree(atr),
+                    self.graph.node[atr]['in_degree_required'],
+                    self.graph.node[atr]['out_degree_required']
+                    )
+        # Querying tahiti operations to get number of inputs and outputs
+        return tahiti_service.query_tahiti(params['base_url'],
+                                           params['item_path'],
+                                           params['token'],
+                                           params['item_id'])
+
+    def get_ports_from_operation_tasks(self, id_operation):
+        tahiti_conf = self.config['juicer']['services']['tahiti']
+        params = {
+            'base_url': tahiti_conf['url'],
+            'item_path': 'operations',
+            'token': str(tahiti_conf['auth_token']),
+            'item_id': id_operation
+        }
+
+        # Querying tahiti operations to get number of inputs and outputs
+        operations_ports = tahiti_service.query_tahiti(params['base_url'],
+                                                       params['item_path'],
+                                                       params['token'],
+                                                       params['item_id'])
+        # Get operation requirements in tahiti
+        result = {
+            'N_INPUT': 0,
+            'N_OUTPUT': 0,
+            'M_INPUT': 'None',
+            'M_OUTPUT': 'None'
+        }
+
+        for port in operations_ports['ports']:
+            if port['type'] == 'INPUT':
+                result['M_INPUT'] = port['multiplicity']
+                if 'N_INPUT' in result:
+                    result['N_INPUT'] += 1
+                else:
+                    result['N_INPUT'] = 1
+            elif port['type'] == 'OUTPUT':
+                result['M_OUTPUT'] = port['multiplicity']
+                if 'N_OUTPUT' in result:
+                    result['N_OUTPUT'] += 1
+                else:
+                    result['N_OUTPUT'] = 1
+        return result
+
+    def workflow_execution_parcial(self):
+
+        topological_sort = self.get_topological_sorted_tasks()
+
+        for node_obj in topological_sort:
+            # print self.workflow_graph.node[node]
+            print (nx.ancestors(self.graph, node_obj),
+                   self.graph.predecessors(node_obj),
+                   node_obj,
+                   self.graph.node[node_obj]['in_degree_required'],
+                   self.graph.node[node_obj]['in_degree'],
+                   self.graph.node[node_obj]['out_degree_required'],
+                   self.graph.node[node_obj]['out_degree']
+                   )
+        return True
+
+    # only to debug
+    def check_outdegree_edges(self, atr):
+
+        if self.graph.has_node(atr):
+            return (self.graph.node[atr]['in_degree'],
+                    self.graph.node[atr]['out_degree'],
+                    self.graph.in_degree(atr),
+                    self.graph.out_degree(atr),
+                    self.graph.node[atr]['in_degree_required'],
+                    self.graph.node[atr]['out_degree_required']
+                    )
         if self.query_operations:
             return self.query_operations()
-        else:
-            # Querying tahiti operations to get number of inputs and outputs
-            return tahiti_service.query_tahiti(params['base_url'],
-                                               params['item_path'],
-                                               params['token'],
-                                               params['item_id'])
+

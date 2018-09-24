@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals
+from __future__ import unicode_literals, absolute_import
 
 import itertools
 import json
@@ -332,7 +332,6 @@ class DataReaderOperation(Operation):
                                     metadata=found.metadata))
                 """.format(out=self.output)))
         except Exception as e:
-            print e
             raise
 
         return result

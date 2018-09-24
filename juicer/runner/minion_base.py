@@ -1,3 +1,6 @@
+# coding=utf-8
+from __future__ import absolute_import
+
 import importlib
 import json
 import logging.config
@@ -8,6 +11,9 @@ import datetime
 import os
 import pyinotify
 from juicer.runner.control import StateControlRedis
+
+# noinspection PyUnresolvedReferences
+from six.moves import reload_module
 
 logging.config.fileConfig('logging_config.ini')
 log = logging.getLogger('juicer.spark.spark_minion')
@@ -32,7 +38,7 @@ class EventHandler(pyinotify.ProcessEvent):
         if self.is_allowed_path(event.pathname, event.dir):
             module = importlib.import_module(
                 event.pathname.replace(_watch_dir, '')[1:-3].replace('/', '.'))
-            reload(module)
+            reload_module(module)
             log.warn(_('Reloading {}'.format(module)))
 
     def process_IN_MODIFY(self, event):

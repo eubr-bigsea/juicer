@@ -1,6 +1,8 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
+from six import text_type
+
 
 class Expression:
     def __init__(self, json_code, params):
@@ -17,14 +19,15 @@ class Expression:
 
         if tree['type'] == 'BinaryExpression':
             result = "{} {} {}".format(
-                    self.parse(tree['left'], params),
-                    tree['operator'],
-                    self.parse(tree['right'], params))
+                self.parse(tree['left'], params),
+                tree['operator'],
+                self.parse(tree['right'], params))
 
         # Literal parsing
         elif tree['type'] == 'Literal':
             v = tree['value']
-            result = "'{}'".format(v) if type(v) in [str, unicode] else str(v)
+            result = "'{}'".format(v) if isinstance(
+                v, (str, text_type)) else str(v)
 
         # Expression parsing
         elif tree['type'] == 'CallExpression':
@@ -36,7 +39,8 @@ class Expression:
         # Identifier parsing
         elif tree['type'] == 'Identifier':
             if 'input' in params:
-                result = "{}['{}']".format('row', tree['name'])#params['input'], tree['name'])
+                result = "{}['{}']".format('row', tree[
+                    'name'])  # params['input'], tree['name'])
             else:
                 result = "functions.row['{}']".format(tree['name'])
 
@@ -44,16 +48,19 @@ class Expression:
         elif tree['type'] == 'UnaryExpression':
             if tree['operator'] == '!':
                 tree['operator'] = '~'
-                result = "({} {})".format(tree['operator'],  self.parse(tree['argument'], params))
+            result = "({} {})".format(tree['operator'],
+                                      self.parse(tree['argument'], params))
 
         elif tree['type'] == 'LogicalExpression':
             operators = {"&&": "&", "||": "|", "!": "~"}
             operator = operators[tree['operator']]
-            result = "({}) {} ({})".format(self.parse(tree['left'], params), operator,
+            result = "({}) {} ({})".format(self.parse(tree['left'], params),
+                                           operator,
                                            self.parse(tree['right'], params))
 
         elif tree['type'] == 'ConditionalExpression':
-            spec = {'arguments': [tree['test'], tree['consequent'], tree['alternate'] ]}
+            spec = {'arguments': [tree['test'], tree['consequent'],
+                                  tree['alternate']]}
             result = self.get_when_function(spec, params)
 
         else:
@@ -68,7 +75,8 @@ class Expression:
         """
         callee = spec['arguments'][0].get('callee', {})
         # Evaluates if column name is wrapped in a col() function call
-        arguments = ', '.join([self.parse(x, params) for x in spec['arguments']])
+        arguments = ', '.join(
+            [self.parse(x, params) for x in spec['arguments']])
         function_name = spec['callee']['name']
         result = " np.{}({})".format(function_name, arguments)
         return result
@@ -80,7 +88,8 @@ class Expression:
         """
         callee = spec['arguments'][0].get('callee', {})
         # Evaluates if column name is wrapped in a col() function call
-        arguments = ', '.join([self.parse(x, params) for x in spec['arguments']])
+        arguments = ', '.join(
+            [self.parse(x, params) for x in spec['arguments']])
         function_name = spec['callee']['name']
         result = "{}({})".format(function_name, arguments)
         return result
@@ -91,10 +100,11 @@ class Expression:
         """
         callee = spec['arguments'][0].get('callee', {})
         function = spec['callee']['name']
-        function = self.translate_functions[function] if function in self.translate_functions else function
+        function = self.translate_functions[
+            function] if function in self.translate_functions else function
         # Evaluates if column name is wrapped in a col() function call
         args = [self.parse(x, params) for x in spec['arguments']]
-        #origin = args[0]
+        # origin = args[0]
 
         arguments = ', '.join(args)
 
@@ -108,7 +118,8 @@ class Expression:
         """
         callee = spec['arguments'][0].get('callee', {})
         function = spec['callee']['name']
-        function = self.translate_functions[function] if function in self.translate_functions else function
+        function = self.translate_functions[
+            function] if function in self.translate_functions else function
         # Evaluates if column name is wrapped in a row() function call
         args = [self.parse(x, params) for x in spec['arguments']]
         col = args[0]
@@ -126,7 +137,7 @@ class Expression:
         if function in self.imports_functions:
             imp = self.imports_functions[function] + "\n"
             if imp not in self.imports:
-                self.imports +=  imp
+                self.imports += imp
         # Evaluates if column name is wrapped in a col() function call
         args = [self.parse(x, params) for x in spec['arguments']]
         origin = args[0]
@@ -135,7 +146,6 @@ class Expression:
 
         result = "{}.{}({})".format(origin, function, arguments)
         return result
-
 
     def get_window_function(self, spec, params):
         """
@@ -146,16 +156,15 @@ class Expression:
         if function in self.imports_functions:
             imp = self.imports_functions[function] + "\n"
             if imp not in self.imports:
-                self.imports +=  imp
+                self.imports += imp
         args = [self.parse(x, params) for x in spec['arguments']]
         bins_size = args[1]
         var_date = args[0]
 
-        result = "group_datetime(row[{date}], {bins_size})"\
-            .format(date = var_date, bins_size = bins_size)
+        result = "group_datetime(row[{date}], {bins_size})" \
+            .format(date=var_date, bins_size=bins_size)
 
         return result
-
 
     def get_strip_accents_function(self, spec, params):
         callee = spec['arguments'][0].get('callee', {})
@@ -163,9 +172,11 @@ class Expression:
         if function in self.imports_functions:
             imp = self.imports_functions[function] + "\n"
             if imp not in self.imports:
-                self.imports +=  imp
-        arguments = ', '.join([self.parse(x, params) for x in spec['arguments']])
-        result = " ''.join(c for c in unicodedata.normalize('NFD', unicode({})) if unicodedata.category(c) != 'Mn')".format(arguments)
+                self.imports += imp
+        arguments = ', '.join(
+            [self.parse(x, params) for x in spec['arguments']])
+        result = " ''.join(c for c in unicodedata.normalize('NFD', unicode({})) if unicodedata.category(c) != 'Mn')".format(
+            arguments)
 
         return result
 
@@ -175,11 +186,12 @@ class Expression:
         if function in self.imports_functions:
             imp = self.imports_functions[function] + "\n"
             if imp not in self.imports:
-                self.imports +=  imp
+                self.imports += imp
         # Evaluates if column name is wrapped in a col() function call
-        arguments = ', '.join([self.parse(x, params) for x in spec['arguments']])
+        arguments = ', '.join(
+            [self.parse(x, params) for x in spec['arguments']])
         strip_punctuation = ".translate(None, string.punctuation)"
-        result = '{}{}'.format(arguments,strip_punctuation )
+        result = '{}{}'.format(arguments, strip_punctuation)
         return result
 
     def build_functions_dict(self):
@@ -202,19 +214,19 @@ class Expression:
             'rad2deg': self.get_numpy_function_call,
 
             # Hyperbolic functions:
-            'sinh':	self.get_numpy_function_call,
-            'cosh':	self.get_numpy_function_call,
-            'tanh':	self.get_numpy_function_call,
+            'sinh': self.get_numpy_function_call,
+            'cosh': self.get_numpy_function_call,
+            'tanh': self.get_numpy_function_call,
             'arccosh': self.get_numpy_function_call,
             'arcsinh': self.get_numpy_function_call,
             'arctanh': self.get_numpy_function_call,
 
             # Rounding:
             'around': self.get_numpy_function_call,
-            'rint':	self.get_numpy_function_call,
+            'rint': self.get_numpy_function_call,
             'fix': self.get_numpy_function_call,
             'floor': self.get_numpy_function_call,
-            'ceil':	self.get_numpy_function_call,
+            'ceil': self.get_numpy_function_call,
             'trunc': self.get_numpy_function_call,
 
             # Exponents and logarithms:
@@ -231,25 +243,25 @@ class Expression:
             # Arithmetic operations:
             'add': self.get_numpy_function_call,
             'reciprocal': self.get_numpy_function_call,
-            'negative':	self.get_numpy_function_call,
-            'multiply':	self.get_numpy_function_call,
+            'negative': self.get_numpy_function_call,
+            'multiply': self.get_numpy_function_call,
             'divide': self.get_numpy_function_call,
             'power': self.get_numpy_function_call,
             'subtract': self.get_numpy_function_call,
             'true_divide': self.get_numpy_function_call,
-            'floor_divide':	self.get_numpy_function_call,
+            'floor_divide': self.get_numpy_function_call,
             'float_power': self.get_numpy_function_call,
             'fmod': self.get_numpy_function_call,
             'remainder': self.get_numpy_function_call,
 
             # Miscellaneous
-            'clip':         self.get_numpy_function_call,
-            'sqrt':	        self.get_numpy_function_call,
-            'cbrt':	        self.get_numpy_function_call,
-            'square':	    self.get_numpy_function_call,
-            'fabs':	        self.get_numpy_function_call,
-            'sign':	        self.get_numpy_function_call,
-            'nan_to_num':   self.get_numpy_function_call,
+            'clip': self.get_numpy_function_call,
+            'sqrt': self.get_numpy_function_call,
+            'cbrt': self.get_numpy_function_call,
+            'square': self.get_numpy_function_call,
+            'fabs': self.get_numpy_function_call,
+            'sign': self.get_numpy_function_call,
+            'nan_to_num': self.get_numpy_function_call,
 
             # --------- String operations ---------#
             # See more at:
@@ -278,8 +290,8 @@ class Expression:
             'zfill': self.get_numpy_function_call,
 
             # String information
-            'count':  self.get_numpy_function_call,
-            'find':  self.get_numpy_function_call,
+            'count': self.get_numpy_function_call,
+            'find': self.get_numpy_function_call,
             'isalpha': self.get_numpy_function_call,
             'isdecimal': self.get_numpy_function_call,
             'isdigit': self.get_numpy_function_call,
@@ -314,18 +326,18 @@ class Expression:
             #  -------- Date and time operations
             # See more at: https://docs.python.org/2/library/datetime.html
 
-            'timedelta':        self.get_date_function_call,
+            'timedelta': self.get_date_function_call,
 
-            'str2time':         self.get_date_function_call,
+            'str2time': self.get_date_function_call,
 
-            'date':             self.get_date_function_call,
-            'today':            self.get_date_function_call,
-            'now':              self.get_date_function_call,
-            'utcnow':           self.get_date_function_call,
-            'fromtimestamp':    self.get_date_function_call,
+            'date': self.get_date_function_call,
+            'today': self.get_date_function_call,
+            'now': self.get_date_function_call,
+            'utcnow': self.get_date_function_call,
+            'fromtimestamp': self.get_date_function_call,
             'utcfromtimestamp': self.get_date_function_call,
-            'fromordinal':      self.get_date_function_call,
-            'combine':          self.get_date_function_call,
+            'fromordinal': self.get_date_function_call,
+            'combine': self.get_date_function_call,
         }
 
         date_instance_functions = {
@@ -343,7 +355,6 @@ class Expression:
         self.functions.update(date_functions)
         self.functions.update(date_instance_functions)
 
-
         translate_functions = {
 
             'timedelta': 'datetime.timedelta',
@@ -360,14 +371,13 @@ class Expression:
             'combine': 'date.combine',
             'length': 'len'
 
-
         }
         self.translate_functions.update(translate_functions)
 
         self.imports_functions = {
-            "str2time":             "from dateutil import parser",
-            "strip_accents":        "import unicodedata",
-            "strip_punctuation":    "import string",
+            "str2time": "from dateutil import parser",
+            "strip_accents": "import unicodedata",
+            "strip_punctuation": "import string",
 
         }
 
@@ -375,9 +385,9 @@ class Expression:
         # lambda function. For now, and due simplicity, we require that every
         # custom function is necessarily defined here.
         others_functions = {
-            'group_datetime':       self.get_window_function,
-            'strip_accents':        self.get_strip_accents_function,
-            'strip_punctuation':    self.get_strip_punctuation_function,
+            'group_datetime': self.get_window_function,
+            'strip_accents': self.get_strip_accents_function,
+            'strip_punctuation': self.get_strip_punctuation_function,
             'str': self.get_function_call,
             'length': self.get_function_call,
             'len': self.get_function_call,

@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+from __future__ import absolute_import
+
 import errno
 import json
 import signal
@@ -42,8 +44,9 @@ def test_runner_read_start_queue_success():
             # Start of testing
             server.read_start_queue(mocked_redis_conn)
 
-            assert state_control.get_minion_status(
-                app_id) == '{"pid": 1, "port": 36000}'
+            d1 = json.loads(state_control.get_minion_status(app_id))
+            d2 = {"port": 36000, "pid": 1,}
+            assert d1 == d2
 
             assert mocked_popen.call_args_list[0][0][0] == [
                 'nohup', sys.executable, 'faked_minions.py',
@@ -227,8 +230,9 @@ def test_runner_master_queue_client_shutdown_success():
                 # Start of testing
                 server.read_minion_support_queue(mocked_redis_conn)
 
-                assert state_control.get_minion_status(
-                    app_id) == '{"pid": 1, "port": 36000}'
+                d1 = json.loads(state_control.get_minion_status(app_id))
+                d2 = {"pid": 1, "port": 36000}
+                assert d1 == d2
 
                 assert mocked_popen.called
 

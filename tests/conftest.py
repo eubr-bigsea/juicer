@@ -1,4 +1,6 @@
 # from project.database import db as _db
+from __future__ import absolute_import
+
 import gettext
 import sys
 
@@ -23,9 +25,6 @@ def patched_get_data_source_info(base_url, token, data_source_id):
         'format': 'CSV',
         'url': 'http://hdfs.lemonade:9000'
     }
-
-
-# limonero_service.get_data_source_info = patched_get_data_source_info
 
 
 @pytest.fixture(scope='function')

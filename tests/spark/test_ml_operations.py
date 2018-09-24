@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from __future__ import absolute_import
 from __future__ import unicode_literals
 
 import ast
@@ -73,8 +74,9 @@ def test_feature_indexer_operation_success():
                    in1=in1,
                    out=out,
                    alias=json.dumps(
-                       zip(params[FeatureIndexerOperation.ATTRIBUTES_PARAM],
-                           params[FeatureIndexerOperation.ALIAS_PARAM]))))
+                       list(
+                           zip(params[FeatureIndexerOperation.ATTRIBUTES_PARAM],
+                               params[FeatureIndexerOperation.ALIAS_PARAM])))))
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
     assert result, msg + format_code_comparison(code, expected_code)
@@ -199,8 +201,9 @@ def test_feature_indexer_vector_operation_success():
                        in1,
                        out,
                        json.dumps(
-                           zip(params[FeatureIndexerOperation.ATTRIBUTES_PARAM],
-                               params[FeatureIndexerOperation.ALIAS_PARAM])),
+                           list(zip(
+                               params[FeatureIndexerOperation.ATTRIBUTES_PARAM],
+                               params[FeatureIndexerOperation.ALIAS_PARAM]))),
                        params[FeatureIndexerOperation.MAX_CATEGORIES_PARAM]))
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
