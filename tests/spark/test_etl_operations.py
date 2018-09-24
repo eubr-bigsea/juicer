@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import, print_function
 import ast
+from gettext import gettext
 from textwrap import dedent
 
 import pytest
@@ -12,7 +13,8 @@ from juicer.spark.etl_operation import SplitOperation, SortOperation, \
     TransformationOperation, SelectOperation, AggregationOperation, \
     FilterOperation, \
     CleanMissingOperation, \
-    AddColumnsOperation
+    AddColumnsOperation, WindowTransformationOperation as WTransf, \
+    ReplaceValueOperation
 from tests import compare_ast, format_code_comparison
 
 
@@ -76,6 +78,16 @@ def test_add_rows_minimal_params_success():
         in1=n_in['input data 2'])
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
     assert result, msg
+
+
+def test_add_rows_get_output_names_success():
+    params = {}
+
+    n_in = {'input data 1': 'df1', 'input data 2': 'df2'}
+    n_out = {'output data': 'out'}
+
+    instance = AddRowsOperation(params, named_inputs=n_in, named_outputs=n_out)
+    assert instance.get_output_names() == ', '.join([n_out['output data']])
 
 
 def test_aggregation_rows_minimal_params_success():
@@ -357,9 +369,9 @@ def test_intersection_minimal_params_success():
 
 def test_join_inner_join_minimal_params_success():
     params = {
-        'left_attributes': ['id', 'cod'],
-        'right_attributes': ['id', 'cod'],
-        'aliases': 'left_, right_  '
+        JoinOperation.LEFT_ATTRIBUTES_PARAM: ['id', 'cod'],
+        JoinOperation.RIGHT_ATTRIBUTES_PARAM: ['id', 'cod'],
+        JoinOperation.ALIASES_PARAM: 'left_, right_  '
     }
     n_in = {'input data 1': 'df1', 'input data 2': 'df2'}
     n_out = {'output data': 'out'}
@@ -392,11 +404,11 @@ def test_join_inner_join_minimal_params_success():
 
 def test_join_left_join_keep_columns_minimal_params_success():
     params = {
-        'left_attributes': ['id', 'cod'],
-        'right_attributes': ['id', 'cod'],
+        JoinOperation.LEFT_ATTRIBUTES_PARAM: ['id', 'cod'],
+        JoinOperation.RIGHT_ATTRIBUTES_PARAM: ['id', 'cod'],
         JoinOperation.JOIN_TYPE_PARAM: 'left',
         JoinOperation.KEEP_RIGHT_KEYS_PARAM: True,
-        'aliases': 'left_, right_  '
+        JoinOperation.ALIASES_PARAM: 'left_, right_  '
     }
     n_in = {'input data 1': 'df1', 'input data 2': 'df2'}
     n_out = {'output data': 'out'}
@@ -428,10 +440,10 @@ def test_join_left_join_keep_columns_minimal_params_success():
 
 def test_join_remove_right_columns_success():
     params = {
-        'left_attributes': ['id', 'cod'],
-        'right_attributes': ['id2', 'cod2'],
+        JoinOperation.LEFT_ATTRIBUTES_PARAM: ['id', 'cod'],
+        JoinOperation.RIGHT_ATTRIBUTES_PARAM: ['id2', 'cod2'],
         JoinOperation.KEEP_RIGHT_KEYS_PARAM: 'False',
-        'aliases': 'left_, right_  '
+        JoinOperation.ALIASES_PARAM: 'left_, right_  '
     }
     n_in = {'input data 1': 'df1', 'input data 2': 'df2'}
     n_out = {'output data': 'out'}
@@ -459,9 +471,45 @@ def test_join_remove_right_columns_success():
     assert result, msg + format_code_comparison(code, expected_code)
 
 
+def test_join_case_insensitive_success():
+    params = {
+        JoinOperation.LEFT_ATTRIBUTES_PARAM: ['id', 'cod'],
+        JoinOperation.RIGHT_ATTRIBUTES_PARAM: ['id2', 'cod2'],
+        JoinOperation.KEEP_RIGHT_KEYS_PARAM: 'True',
+        JoinOperation.ALIASES_PARAM: 'left_, right_  ',
+        JoinOperation.MATCH_CASE_PARAM: 'True',
+    }
+    n_in = {'input data 1': 'df1', 'input data 2': 'df2'}
+    n_out = {'output data': 'out'}
+    instance = JoinOperation(params, named_inputs=n_in, named_outputs=n_out)
+
+    code = instance.generate_code()
+    expected_code = dedent("""
+        def _rename_attributes(df, prefix):
+            result = df
+            for col in df.columns:
+                result = result.withColumnRenamed(col, '{{}}{{}}'.format(
+                    prefix, col))
+            return result
+        in0_renamed = _rename_attributes({in0}, '{a0}')
+        in1_renamed = _rename_attributes({in1}, '{a1}')
+
+        condition = [functions.lower(in0_renamed['{a0}id'])
+            == functions.lower(in1_renamed['{a1}id2']),
+            functions.lower(in0_renamed['{a0}cod'])
+            == functions.lower(in1_renamed['{a1}cod2'])]
+        {out} = in0_renamed.join(in1_renamed, on=condition, how='inner')
+        """.format(
+        out=n_out['output data'], in0=n_in['input data 1'],
+        in1=n_in['input data 2'], a0='left_', a1='right_'))
+
+    result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
+    assert result, msg + format_code_comparison(code, expected_code)
+
+
 def test_join_missing_left_or_right_param_failure():
     params = {
-        'right_attributes': ['id', 'cod']
+        JoinOperation.RIGHT_ATTRIBUTES_PARAM: ['id', 'cod']
     }
     with pytest.raises(ValueError):
         n_in = {'input data 1': 'df1', 'input data 2': 'df2'}
@@ -469,10 +517,36 @@ def test_join_missing_left_or_right_param_failure():
         JoinOperation(params, named_inputs=n_in, named_outputs=n_out)
 
     params = {
-        'left_attributes': ['id', 'cod']
+        JoinOperation.LEFT_ATTRIBUTES_PARAM: ['id', 'cod']
     }
     with pytest.raises(ValueError):
         JoinOperation(params, named_inputs=n_in, named_outputs=n_out)
+
+
+def test_join_missing_alias_param_failure():
+    params = {
+        JoinOperation.LEFT_ATTRIBUTES_PARAM: ['id', 'cod'],
+        JoinOperation.RIGHT_ATTRIBUTES_PARAM: ['id2', 'cod2'],
+        JoinOperation.KEEP_RIGHT_KEYS_PARAM: 'False',
+        JoinOperation.ALIASES_PARAM: 'left_'
+    }
+    n_in = {'input data 1': 'df1', 'input data 2': 'df2'}
+    n_out = {'output data': 'out'}
+    with pytest.raises(ValueError, match='inform 2 values'):
+        JoinOperation(params, named_inputs=n_in, named_outputs=n_out)
+
+
+def test_split_get_output_names_success():
+    params = {
+        'weights': '40',
+        'seed': '1234321'
+    }
+    n_in = {'input data': 'df1'}
+    n_out = {'splitted data 1': 'out1', 'splitted data 2': 'out2'}
+
+    instance = SplitOperation(params, named_inputs=n_in, named_outputs=n_out)
+    assert instance.get_output_names() == ', '.join(
+        [n_out['splitted data 1'], n_out['splitted data 2']])
 
 
 def test_random_split_minimal_params_success():
@@ -797,3 +871,121 @@ def test_transformation_missing_expr_failure():
         n_out = {'output data': 'out'}
         TransformationOperation(params, named_inputs=n_in,
                                 named_outputs=n_out)
+
+
+def test_window_transformation_missing_params_failure():
+    params = {
+    }
+    with pytest.raises(ValueError):
+        n_in = {'input data': 'df1'}
+        n_out = {'output data': 'out'}
+        WTransf(params, named_inputs=n_in,
+                named_outputs=n_out)
+
+
+def test_window_transformation_basic_success():
+    attribute = 'attribute1'
+    params = {
+        WTransf.EXPRESSIONS_PARAM: [
+            {
+                'alias': attribute,
+                'tree': {
+                    "type": "BinaryExpression",
+                    "operator": "*",
+                    "left": {
+                        "type": "Identifier",
+                        "name": "attribute1"
+                    },
+                    "right": {
+                        "type": "Literal",
+                        "value": 4,
+                        "raw": "4"
+                    }
+                }
+            }
+        ],
+        WTransf.PARTITION_ATTRIBUTE_PARAM: 'partitioned'
+    }
+    n_in = {'input data': 'df1'}
+    n_out = {'output data': 'out'}
+    instance = WTransf(params, named_inputs=n_in,
+                       named_outputs=n_out)
+    code = instance.generate_code()
+
+    # expression = Expression(expr['tree'], params, window=True)
+
+    expected_code = dedent("""
+        from juicer.spark.ext import CustomExpressionTransformer
+        rank_window = Window.partitionBy('{partition}')
+        window = Window.partitionBy('{partition}')
+        specs = [(functions.col('{attribute}') * 4)]
+        aliases = ["{attribute}"]
+        {out} = {input}
+        for i, spec in enumerate(specs):
+            {out} = {out}.withColumn(aliases[i], spec)
+    """.format(
+        input=n_in['input data'],
+        out=n_out['output data'],
+        partition=params[WTransf.PARTITION_ATTRIBUTE_PARAM],
+        attribute=attribute))
+    result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
+    assert result, msg + format_code_comparison(code, expected_code)
+
+
+def test_replace_value_missing_params_failure():
+    params = {
+    }
+    required = [(ReplaceValueOperation.REPLACEMENT_PARAM, '"changed"'),
+                (ReplaceValueOperation.VALUE_PARAM, '"replaced"'),
+                ]
+    for req, v in required:
+        with pytest.raises(ValueError, match=req):
+            n_in = {'input data': 'input_1'}
+            n_out = {'output data': 'output_1'}
+            ReplaceValueOperation(params, named_inputs=n_in,
+                                  named_outputs=n_out)
+        params[req] = v
+
+
+def test_replace_unquoted_params_failure():
+    params = {ReplaceValueOperation.REPLACEMENT_PARAM: 'changed1',
+              ReplaceValueOperation.VALUE_PARAM: '"replaced2"'}
+    with pytest.raises(ValueError, match='enclosed in quotes'):
+        n_in = {'input data': 'input_1'}
+        n_out = {'output data': 'output_1'}
+        ReplaceValueOperation(params, named_inputs=n_in, named_outputs=n_out)
+
+    params = {ReplaceValueOperation.REPLACEMENT_PARAM: '"changed1"',
+              ReplaceValueOperation.VALUE_PARAM: 'replaced2'}
+    with pytest.raises(ValueError, match='enclosed in quotes'):
+        n_in = {'input data': 'input_1'}
+        n_out = {'output data': 'output_1'}
+        ReplaceValueOperation(params, named_inputs=n_in, named_outputs=n_out)
+
+
+def test_replace_success():
+    params = {ReplaceValueOperation.REPLACEMENT_PARAM: '"changed1"',
+              ReplaceValueOperation.VALUE_PARAM: '"replaced2"',
+              ReplaceValueOperation.ATTRIBUTES_PARAM: ['attr1', 'name2']}
+    n_in = {'input data': 'input_1'}
+    n_out = {'output data': 'output_1'}
+    instance = ReplaceValueOperation(params, named_inputs=n_in,
+                                     named_outputs=n_out)
+    code = instance.generate_code()
+    msg = gettext('Value and replacement must be of '
+                  'the same type for all attributes')
+    expected_code = dedent("""
+        try:
+            {out} = {in1}.replace({original}, {replacement}, subset={subset})
+        except ValueError as ve:
+            if 'Mixed type replacements are not supported' in ve.message:
+                raise ValueError('{replacement_same_type}')
+            else:
+                raise
+    """.format(out=n_out['output data'], in1=n_in['input data'],
+               original=params[ReplaceValueOperation.VALUE_PARAM],
+               replacement=params[ReplaceValueOperation.REPLACEMENT_PARAM],
+               subset=params[ReplaceValueOperation.ATTRIBUTES_PARAM],
+               replacement_same_type=msg))
+    result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
+    assert result, msg + format_code_comparison(code, expected_code)

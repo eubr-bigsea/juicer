@@ -1,25 +1,39 @@
 # -*- coding: utf-8 -*-
 
-counter = 0
+"""
+PrefixSpan.
+
+Adapted implementation of github:
+https://github.com/manohar-ch/prefixspan/tree/master
+"""
 
 
 class PrefixSpan:
-    def __init__(self, db=[]):
-        self.db = db
-        self.genSdb()
 
-    def genSdb(self):
-        '''
-        Generate mutual converting tables between db and sdb
-        '''
+    def __init__(self, db=None):
+        if db is None:
+            db = []
+        self.db = db
+
+        self.min_sup = 0
+        self.item_count = 0
+        self.sdb = list()
         self.db2sdb = dict()
         self.sdb2db = list()
+        self.sdb_patterns = list()
+
+        self.gen_sdb()
+
+    def gen_sdb(self):
+        """
+        Generate mutual converting tables between db and sdb
+        """
+
         count = 0
-        self.sdb = list()
         for seq in self.db:
             newseq = list()
             for item in seq:
-                if self.db2sdb.has_key(item):
+                if item in self.db2sdb:
                     pass
                 else:
                     self.db2sdb[item] = count
@@ -27,66 +41,67 @@ class PrefixSpan:
                     count += 1
                 newseq.append(self.db2sdb[item])
             self.sdb.append(newseq)
-        self.itemCount = count
+        self.item_count = count
 
     def run(self, min_sup=0.2, max_len=3):
-        '''
+        """
         mine patterns with min_sup as the min support threshold
-        '''
-        self.min_sup = min_sup * len(self.db)
-        L1Patterns = self.genL1Patterns()
-        patterns = self.genPatterns(L1Patterns, max_len)
-        self.sdbpatterns = L1Patterns + patterns
+        """
+        self.min_sup = int(min_sup * len(self.db))
+        l1_patterns = self.gen_l1_patterns()
+        patterns = self.gen_patterns(l1_patterns, max_len)
+        self.sdb_patterns = l1_patterns + patterns
 
-    def getPatterns(self):
-        oriPatterns = list()
-        for (pattern, sup, pdb) in self.sdbpatterns:
-            oriPattern = list()
+    def get_patterns(self):
+        ori_patterns = list()
+        for (pattern, sup, pdb) in self.sdb_patterns:
+            ori_pattern = list()
             for item in pattern:
-                oriPattern.append(self.sdb2db[item])
-            oriPatterns.append((oriPattern, sup))
-        return oriPatterns
+                ori_pattern.append(self.sdb2db[item])
+            ori_patterns.append((ori_pattern, sup))
+        return ori_patterns
 
-    def genL1Patterns(self):
+    def gen_l1_patterns(self):
         pattern = []
         sup = len(self.sdb)
         pdb = [(i, 0) for i in range(len(self.sdb))]
-        L1Prefixes = self.span((pattern, sup, pdb))
+        l1_prefixes = self.span((pattern, sup, pdb))
 
-        return L1Prefixes
+        return l1_prefixes
 
-    def genPatterns(self, prefixes, max_len):
+    def gen_patterns(self, prefixes, max_len):
         results = []
         for prefix in prefixes:
             if len(prefix[0]) < max_len:
                 result = self.span(prefix)
                 results += result
 
-        if results != []:
-            results += self.genPatterns(results, max_len)
+        if len(results) > 0:
+            results += self.gen_patterns(results, max_len)
         return results
 
     def span(self, prefix):
         (pattern, sup, pdb) = prefix
 
-        itemSups = [0] * self.itemCount
+        item_sups = [0] * self.item_count
         for (sid, pid) in pdb:
-            itemAppear = [0] * self.itemCount
+            item_appear = [0] * self.item_count
             for item in self.sdb[sid][pid:]:
-                itemAppear[item] = 1
-            itemSups = map(lambda x, y: x + y, itemSups, itemAppear)
+                item_appear[item] = 1
+            item_sups = map(lambda x, y: x + y, item_sups, item_appear)
+
         prefixes = list()
-        for i in range(len(itemSups)):
-            if itemSups[i] >= self.min_sup:
-                newPattern = pattern + [i]
-                newSup = itemSups[i]
-                newPdb = list()
+        for i in range(len(item_sups)):
+            if item_sups[i] >= self.min_sup:
+                new_pattern = pattern + [i]
+                new_sup = item_sups[i]
+                new_pdb = list()
                 for (sid, pid) in pdb:
                     for j in range(pid, len(self.sdb[sid])):
                         item = self.sdb[sid][j]
                         if item == i:
-                            newPdb.append((sid, j + 1))
+                            new_pdb.append((sid, j + 1))
                             break
-                prefixes.append((newPattern, newSup, newPdb))
+                prefixes.append((new_pattern, new_sup, new_pdb))
 
         return prefixes

@@ -5,7 +5,8 @@ from io import StringIO
 import mock
 import pytest
 from juicer.operation import Operation
-from juicer.spark.transpiler import SparkTranspiler, TranspilerUtils
+from juicer.spark.transpiler import SparkTranspiler
+from juicer.transpiler import TranspilerUtils
 from juicer.workflow.workflow import Workflow
 
 

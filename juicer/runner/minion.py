@@ -12,7 +12,7 @@ import yaml
 from future.moves.urllib.parse import urlparse
 from juicer.compss.compss_minion import COMPSsMinion
 from juicer.spark.spark_minion import SparkMinion
-from juicer.scikit_learn.scikit_learn_minion import SklearnMinion
+from juicer.scikit_learn.scikit_learn_minion import ScikitLearnMinion
 
 # Important!
 # See https://stackoverflow.com/a/29172195/1646932
@@ -71,11 +71,11 @@ if __name__ == '__main__':
                                   args.lang)
         elif args.type == 'scikit-learn':
             # log.info('Starting Scikit-learn Minion')
-            minion = SklearnMinion(redis_conn,
-                                   args.workflow_id,
-                                   args.app_id or args.workflow_id,
-                                   juicer_config,
-                                   args.lang)
+            minion = ScikitLearnMinion(redis_conn,
+                                       args.workflow_id,
+                                       args.app_id or args.workflow_id,
+                                       juicer_config,
+                                       args.lang)
         else:
             raise ValueError(
                 _("{type} is not supported (yet!)").format(type=args.type))
