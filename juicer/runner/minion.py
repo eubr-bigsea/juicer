@@ -1,12 +1,15 @@
+# coding=utf-8
+from __future__ import absolute_import
+
 import argparse
 import gettext
 import logging.config
-import urlparse
 
 import matplotlib
 import os
 import redis
 import yaml
+from future.moves.urllib.parse import urlparse
 from juicer.compss.compss_minion import COMPSsMinion
 from juicer.spark.spark_minion import SparkMinion
 from juicer.scikit_learn.scikit_learn_minion import ScikitLearnMinion
@@ -50,7 +53,8 @@ if __name__ == '__main__':
         parsed_url = urlparse.urlparse(
             juicer_config['juicer']['servers']['redis_url'])
         redis_conn = redis.StrictRedis(host=parsed_url.hostname,
-                                       port=parsed_url.port)
+                                       port=parsed_url.port,
+                                       decode_responses=True)
         if args.type == 'spark':
             # log.info('Starting Juicer Spark Minion')
             minion = SparkMinion(redis_conn,

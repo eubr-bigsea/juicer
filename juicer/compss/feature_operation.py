@@ -1,7 +1,12 @@
 # -*- coding: utf-8 -*-
+from __future__ import absolute_import
 from textwrap import dedent
 from juicer.operation import Operation
-from itertools import izip_longest
+try:
+    from itertools import zip_longest as zip_longest
+except ImportError:
+    from itertools import izip_longest as zip_longest
+
 
 class FeatureAssemblerOperation(Operation):
     """FeatureAssemblerOperation.

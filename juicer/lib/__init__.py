@@ -1,4 +1,5 @@
 # coding=utf-8
+from __future__ import absolute_import, division
 import numpy as np
 import pandas as pd
 from lifelines import CoxPHFitter
@@ -57,7 +58,7 @@ def get_schoenfeld_residuals(y, x, event, params, covar):
     number_of_events = np.sum(event)
 
     # For each unit, calculate the residuals if they experienced the event
-    for patient_index in xrange(number_of_units):
+    for patient_index in range(number_of_units):
         if x['Eventoccured'].iloc[patient_index] == 1:
             current_time = x['Time'].iloc[patient_index]
 

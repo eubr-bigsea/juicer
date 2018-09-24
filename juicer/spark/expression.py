@@ -1,11 +1,12 @@
 # coding=utf-8
-from __future__ import unicode_literals
+from __future__ import unicode_literals, absolute_import
 
 import functools
 import json
 from textwrap import dedent
 
 from juicer.util import group
+from six import text_type
 
 
 class Expression(object):
@@ -25,7 +26,8 @@ class Expression(object):
         # Literal parsing
         elif tree['type'] == 'Literal':
             v = tree['value']
-            result = "'{}'".format(v) if type(v) in [str, unicode] else str(v)
+            result = "'{}'".format(v) if isinstance(
+                v, (str, text_type)) else str(v)
 
         # Expression parsing
         elif tree['type'] == 'CallExpression':

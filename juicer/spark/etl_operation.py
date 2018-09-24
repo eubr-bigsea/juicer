@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals
+from __future__ import unicode_literals, absolute_import
 
 import json
 import time
@@ -329,7 +329,7 @@ class JoinOperation(Operation):
         input_data1 = self.named_inputs['input data 1']
         input_data2 = self.named_inputs['input data 2']
 
-        on_clause = zip(self.left_attributes, self.right_attributes)
+        on_clause = list(zip(self.left_attributes, self.right_attributes))
         if self.match_case:
             join_condition = ', '.join(
                 [("functions.lower(in0_renamed['{a0}{p0}']) == "
@@ -917,7 +917,7 @@ class AddColumnsOperation(Operation):
             
                 # Add attribute index
                 return df.rdd.zipWithIndex().map(
-                    lambda (row, inx): row + (inx,)).toDF(new_attrs)
+                    lambda row, inx: row + (inx,)).toDF(new_attrs)
 
             input1_indexed = _add_column_index({input1}, '{a1}')
             input2_indexed = _add_column_index({input2}, '{a2}')
