@@ -11,112 +11,485 @@ from juicer.runner import configuration
 
 from tests import compare_ast, format_code_comparison
 
-from juicer.scikit_learn.model_operation import CrossValidationOperation
 
+from juicer.scikit_learn.feature_operation import \
+    FeatureAssemblerOperation, \
+    MinMaxScalerOperation, \
+    MaxAbsScalerOperation, \
+    StandardScalerOperation, \
+    OneHotEncoderOperation,\
+    PCAOperation,\
+    QuantileDiscretizerOperation
 
 
 '''
- CrossValidation tests
+ FeatureAssembler tests
 '''
 
 
-def test_crossvalidation_operation_success():
+def test_feature_assembler_operation_success():
     params = {
-        CrossValidationOperation.PREDICTION_ATTRIBUTE_PARAM: 'predict',
-        CrossValidationOperation.EVALUATOR_PARAM: 'f1',
-        CrossValidationOperation.LABEL_ATTRIBUTE_PARAM: ['label'],
-        CrossValidationOperation.FEATURE_ATTRIBUTE_PARAM: ['Feature'],
-        CrossValidationOperation.NUM_FOLDS_PARAM: 7,
-        CrossValidationOperation.SEED_PARAM: 88,
+        FeatureAssemblerOperation.ATTRIBUTES_PARAM: ['col'],
+        FeatureAssemblerOperation.ALIAS_PARAM: 'c'
     }
 
-    n_in = {'input data': 'input_1', 'algorithm': 'algo1'}
-    n_out = {'scored data': 'output_1'}
-    instance = CrossValidationOperation(params, named_inputs=n_in,
-                                        named_outputs=n_out)
+    n_in = {'input data': 'input_1'}
+    n_out = {'output data': 'output_1'}
+    in1 = n_in['input data']
+    out = n_out['output data']
+
+    instance = FeatureAssemblerOperation(params, named_inputs=n_in,
+                                         named_outputs=n_out)
 
     code = instance.generate_code()
+
     expected_code = dedent("""
-        kf = KFold(n_splits=7, random_state=88,  shuffle=True) 
-        X_train = input_1['Feature'].values        
-        y = input_1['label'].values                                
-                                                                         
-        scores = cross_val_score(algo1, X_train.tolist(),            
-                                 y.tolist(), cv=kf, scoring='f1')  
-                                                                         
-        best_score = np.argmax(scores)                                          
-                                                                              
-        models = None                                                         
-        train_index, test_index = list(kf.split(X_train))[best_score]       
-        Xf_train, Xf_test = X_train[train_index], X_train[test_index]        
-        yf_train, yf_test = y[train_index],  y[test_index]              
-        best_model_1 = algo1.fit(Xf_train.tolist(), yf_train.tolist())     
-                                                                         
-        metric_result = scores[best_score]                          
-        output_1 = input_1.copy()                                       
-        output_1['predict'] = best_model_1.predict(X_train.tolist())
-        models_task_1 = models
-        """)
+        cols = {cols}
+        {output} = {input}
+        {output}['{alias}'] = {input}[cols].values.tolist()
+        """.format(cols=params[FeatureAssemblerOperation.ATTRIBUTES_PARAM],
+                   alias=params[FeatureAssemblerOperation.ALIAS_PARAM],
+                   output=out, input=in1))
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
+
     assert result, msg + format_code_comparison(code, expected_code)
 
 
-def test_crossvalidation_operation_models_success():
+def test_feature_assembler_operation_success():
     params = {
-        CrossValidationOperation.PREDICTION_ATTRIBUTE_PARAM: 'predict',
-        CrossValidationOperation.EVALUATOR_PARAM: 'f1',
-        CrossValidationOperation.LABEL_ATTRIBUTE_PARAM: ['label'],
-        CrossValidationOperation.FEATURE_ATTRIBUTE_PARAM: ['Feature'],
-        CrossValidationOperation.NUM_FOLDS_PARAM: 7,
-        CrossValidationOperation.SEED_PARAM: 88,
+        FeatureAssemblerOperation.ATTRIBUTES_PARAM: ['col'],
     }
 
-    n_in = {'input data': 'input_1', 'algorithm': 'algo1'}
-    n_out = {'scored data': 'output_1',
-             'models': 'models1', 'best model': 'BestModel'}
-    instance = CrossValidationOperation(params, named_inputs=n_in,
-                                        named_outputs=n_out)
+    n_in = {'input data': 'input_1'}
+    n_out = {'output data': 'output_1'}
+    in1 = n_in['input data']
+    out = n_out['output data']
+
+    instance = FeatureAssemblerOperation(params, named_inputs=n_in,
+                                         named_outputs=n_out)
 
     code = instance.generate_code()
+
     expected_code = dedent("""
-        kf = KFold(n_splits=7, random_state=88,  shuffle=True) 
-        X_train = input_1['Feature'].values        
-        y = input_1['label'].values                                
-
-        scores = cross_val_score(algo1, X_train.tolist(),            
-                                 y.tolist(), cv=kf, scoring='f1')  
-
-        best_score = np.argmax(scores)                                          
-
-        models = []                                                           
-        for train_index, test_index in kf.split(X_train):      
-            Xf_train, Xf_test = X_train[train_index], X_train[test_index]   
-            yf_train, yf_test = y[train_index],  y[test_index]   
-            algo1.fit(Xf_train.tolist(), yf_train.tolist())                         
-            models.append(algo1)                 
-                               
-        BestModel = models[best_score]     
-
-        metric_result = scores[best_score]                          
-        output_1 = input_1.copy()                                       
-        output_1['predict'] = BestModel.predict(X_train.tolist())
-        models1 = models
-        """)
+        cols = {cols}
+        {output} = {input}
+        {output}['FeatureField'] = {input}[cols].values.tolist()
+        """.format(cols=params[FeatureAssemblerOperation.ATTRIBUTES_PARAM],
+                   output=out, input=in1))
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
+
     assert result, msg + format_code_comparison(code, expected_code)
 
 
-def test_crossvalidation_operation_failure():
+def test_feature_assembler_operation_failure():
     params = {
-        CrossValidationOperation.LABEL_ATTRIBUTE_PARAM: ['label'],
-        CrossValidationOperation.FEATURE_ATTRIBUTE_PARAM: ['Feature'],
+        FeatureAssemblerOperation.ALIAS_PARAM: 'c'
     }
     with pytest.raises(ValueError):
-        n_in = {'input data': 'input_1', 'algorithm': 'algo1'}
-        n_out = {'scored data': 'output_1'}
-        CrossValidationOperation(params, named_inputs=n_in, named_outputs=n_out)
+        n_in = {'input data': 'input_1'}
+        n_out = {'output data': 'output_1'}
+        FeatureAssemblerOperation(params, named_inputs=n_in,
+                                  named_outputs=n_out)
+
+
+'''
+    Min-Max Scaler tests
+'''
+
+
+def test_minmaxscaler_operation_success():
+    params = {
+        MinMaxScalerOperation.ALIAS_PARAM: 'result',
+        MinMaxScalerOperation.ATTRIBUTE_PARAM: ['col_1'],
+        MinMaxScalerOperation.MAX_PARAM: 2,
+        MinMaxScalerOperation.MIN_PARAM: -2
+    }
+
+    n_in = {'input data': 'input_1'}
+    n_out = {'output data': 'output_1'}
+    in1 = n_in['input data']
+    out = n_out['output data']
+
+    instance = MinMaxScalerOperation(params, named_inputs=n_in,
+                                     named_outputs=n_out)
+
+    code = instance.generate_code()
+    expected_code = dedent("""
+        output_1 = input_1
+        from sklearn.preprocessing import MinMaxScaler
+        scaler = MinMaxScaler(feature_range=(-2,2))
+        X_train = input_1['col_1'].values.tolist()
+        output_1['result'] = scaler.fit_transform(X_train).tolist()
+        """)
+
+    result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
+    assert result, msg + format_code_comparison(code, expected_code)
+
+
+def test_minmaxscaler_minimum_operation_success():
+    params = {
+        MinMaxScalerOperation.ATTRIBUTE_PARAM: ['col'],
+    }
+
+    n_in = {'input data': 'input_1'}
+    n_out = {'output data': 'output_1'}
+    in1 = n_in['input data']
+    out = n_out['output data']
+
+    instance = MinMaxScalerOperation(params, named_inputs=n_in,
+                                     named_outputs=n_out)
+
+    code = instance.generate_code()
+
+    expected_code = dedent("""
+        output_1 = input_1
+        from sklearn.preprocessing import MinMaxScaler
+        scaler = MinMaxScaler(feature_range=(0,1))
+        X_train = input_1['col'].values.tolist()
+        output_1['col_norm'] = scaler.fit_transform(X_train).tolist()
+        """)
+
+    result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
+
+    assert result, msg + format_code_comparison(code, expected_code)
+
+
+def test_minmaxscaler_operation_failure():
+    params = {
+        MinMaxScalerOperation.ALIAS_PARAM: 'c'
+    }
+    with pytest.raises(ValueError):
+        n_in = {'input data': 'input_1'}
+        n_out = {'output data': 'output_1'}
+        MinMaxScalerOperation(params, named_inputs=n_in, named_outputs=n_out)
+
+
+'''
+    Max-Abs Scaler tests
+'''
+
+
+def test_maxabsscaler_operation_success():
+    params = {
+        MaxAbsScalerOperation.ALIAS_PARAM: 'result',
+        MaxAbsScalerOperation.ATTRIBUTE_PARAM: ['col_1']
+    }
+
+    n_in = {'input data': 'input_1'}
+    n_out = {'output data': 'output_1'}
+    in1 = n_in['input data']
+    out = n_out['output data']
+
+    instance = MaxAbsScalerOperation(params, named_inputs=n_in,
+                                     named_outputs=n_out)
+
+    code = instance.generate_code()
+    expected_code = dedent("""
+        output_1 = input_1
+        from sklearn.preprocessing import MaxAbsScaler
+        scaler = MaxAbsScaler()
+        X_train = input_1['col_1'].values.tolist()
+        output_1['result'] = scaler.fit_transform(X_train).tolist()
+        """)
+
+    result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
+    assert result, msg + format_code_comparison(code, expected_code)
+
+
+def test_maxabsscaler_minimum_operation_success():
+    params = {
+        MaxAbsScalerOperation.ATTRIBUTE_PARAM: ['col'],
+    }
+
+    n_in = {'input data': 'input_1'}
+    n_out = {'output data': 'output_1'}
+    in1 = n_in['input data']
+    out = n_out['output data']
+
+    instance = MaxAbsScalerOperation(params, named_inputs=n_in,
+                                     named_outputs=n_out)
+
+    code = instance.generate_code()
+
+    expected_code = dedent("""
+        output_1 = input_1
+        from sklearn.preprocessing import MaxAbsScaler
+        scaler = MaxAbsScaler()
+        X_train = input_1['col'].values.tolist()
+        output_1['col_norm'] = scaler.fit_transform(X_train).tolist()
+        """)
+
+    result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
+
+    assert result, msg + format_code_comparison(code, expected_code)
+
+
+def test_maxabsscaler_operation_failure():
+    params = {
+        MaxAbsScalerOperation.ALIAS_PARAM: 'c'
+    }
+    with pytest.raises(ValueError):
+        n_in = {'input data': 'input_1'}
+        n_out = {'output data': 'output_1'}
+        MaxAbsScalerOperation(params, named_inputs=n_in, named_outputs=n_out)
+
+
+'''
+    Standard Scaler tests
+'''
+
+
+def test_standardscaler_operation_success():
+    params = {
+        StandardScalerOperation.ALIAS_PARAM: 'result',
+        StandardScalerOperation.ATTRIBUTE_PARAM: ['col_1']
+    }
+
+    n_in = {'input data': 'input_1'}
+    n_out = {'output data': 'output_1'}
+    in1 = n_in['input data']
+    out = n_out['output data']
+
+    instance = StandardScalerOperation(params, named_inputs=n_in,
+                                       named_outputs=n_out)
+
+    code = instance.generate_code()
+    expected_code = dedent("""
+        output_1 = input_1
+        from sklearn.preprocessing import StandardScaler
+        scaler = StandardScaler()
+        X_train = input_1['col_1'].values.tolist()
+        output_1['result'] = scaler.fit_transform(X_train).tolist()
+        """)
+
+    result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
+    assert result, msg + format_code_comparison(code, expected_code)
+
+
+def test_standardscaler_minimum_operation_success():
+    params = {
+        StandardScalerOperation.ATTRIBUTE_PARAM: ['col'],
+    }
+
+    n_in = {'input data': 'input_1'}
+    n_out = {'output data': 'output_1'}
+    in1 = n_in['input data']
+    out = n_out['output data']
+
+    instance = StandardScalerOperation(params, named_inputs=n_in,
+                                       named_outputs=n_out)
+
+    code = instance.generate_code()
+
+    expected_code = dedent("""
+        output_1 = input_1
+        from sklearn.preprocessing import StandardScaler
+        scaler = StandardScaler()
+        X_train = input_1['col'].values.tolist()
+        output_1['col_norm'] = scaler.fit_transform(X_train).tolist()
+        """)
+
+    result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
+
+    assert result, msg + format_code_comparison(code, expected_code)
+
+
+def test_standardscaler_operation_failure():
+    params = {
+        StandardScalerOperation.ALIAS_PARAM: 'c'
+    }
+    with pytest.raises(ValueError):
+        n_in = {'input data': 'input_1'}
+        n_out = {'output data': 'output_1'}
+        StandardScalerOperation(params, named_inputs=n_in, named_outputs=n_out)
+
+
+'''
+    OneHot Encoder tests
+'''
+
+
+def test_onehot_encoder_operation_success():
+    params = {
+        OneHotEncoderOperation.ALIAS_PARAM: 'result',
+        OneHotEncoderOperation.ATTRIBUTE_PARAM: ['col_1']
+    }
+
+    n_in = {'input data': 'input_1'}
+    n_out = {'output data': 'output_1'}
+    in1 = n_in['input data']
+    out = n_out['output data']
+
+    instance = OneHotEncoderOperation(params, named_inputs=n_in,
+                                      named_outputs=n_out)
+
+    code = instance.generate_code()
+    expected_code = dedent("""
+        output_1 = input_1
+        from sklearn.preprocessing import OneHotEncoder
+        enc = OneHotEncoder()
+        X_train = input_1['col_1'].values.tolist()
+        output_1['result'] = enc.fit_transform(X_train).toarray().tolist()
+        """)
+
+    result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
+    assert result, msg + format_code_comparison(code, expected_code)
+
+
+def test_onehot_encoder_minimum_operation_success():
+    params = {
+        OneHotEncoderOperation.ATTRIBUTE_PARAM: ['col'],
+    }
+
+    n_in = {'input data': 'input_1'}
+    n_out = {'output data': 'output_1'}
+
+    instance = OneHotEncoderOperation(params, named_inputs=n_in,
+                                      named_outputs=n_out)
+
+    code = instance.generate_code()
+    expected_code = dedent("""
+        output_1 = input_1
+        from sklearn.preprocessing import OneHotEncoder
+        enc = OneHotEncoder()
+        X_train = input_1['col'].values.tolist()
+        output_1['col_norm'] = enc.fit_transform(X_train).toarray().tolist()
+        """)
+
+    result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
+
+    assert result, msg + format_code_comparison(code, expected_code)
+
+
+def test_onehot_encoder_operation_failure():
+    params = {
+        OneHotEncoderOperation.ALIAS_PARAM: 'c'
+    }
+    with pytest.raises(ValueError):
+        n_in = {'input data': 'input_1'}
+        n_out = {'output data': 'output_1'}
+        OneHotEncoderOperation(params, named_inputs=n_in, named_outputs=n_out)
+
+
+'''
+ PCA Operation tests
+'''
+
+
+def test_pca_operation_success():
+    params = {
+        PCAOperation.ATTRIBUTE_PARAM: ['col'],
+        PCAOperation.ALIAS_PARAM: 'feature',
+        PCAOperation.N_COMPONENTS: 3
+    }
+
+    n_in = {'input data': 'input_1'}
+    n_out = {'output data': 'output_1'}
+    in1 = n_in['input data']
+    out = n_out['output data']
+
+    instance = PCAOperation(params, named_inputs=n_in, named_outputs=n_out)
+
+    code = instance.generate_code()
+
+    expected_code = dedent("""
+        output_1 = input_1
+        from sklearn.decomposition import PCA
+        pca = PCA(n_components=3)
+        X_train = input_1['col'].values.tolist()
+        output_1['feature'] = pca.fit_transform(X_train).tolist()
+        """)
+
+    result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
+
+    assert result, msg + format_code_comparison(code, expected_code)
+
+
+def test_pca_operation_failure():
+    params = {
+        PCAOperation.N_COMPONENTS: -1
+    }
+    with pytest.raises(ValueError):
+        n_in = {'input data': 'input_1'}
+        n_out = {'output data': 'output_1'}
+        PCAOperation(params, named_inputs=n_in, named_outputs=n_out)
+
+
+'''
+    Quantile Discretizer tests
+'''
+
+
+def test_quantile_discretizer_operation_success():
+    params = {
+        QuantileDiscretizerOperation.ALIAS_PARAM: 'result',
+        QuantileDiscretizerOperation.ATTRIBUTE_PARAM: ['col_1'],
+        QuantileDiscretizerOperation.DISTRIBUITION_PARAM:
+            QuantileDiscretizerOperation.DISTRIBUITION_PARAM_NORMAL,
+        QuantileDiscretizerOperation.SEED_PARAM: 19,
+        QuantileDiscretizerOperation.N_QUANTILES_PARAM: 500
+    }
+
+    n_in = {'input data': 'input_1'}
+    n_out = {'output data': 'output_1'}
+    in1 = n_in['input data']
+    out = n_out['output data']
+
+    instance = QuantileDiscretizerOperation(params, named_inputs=n_in,
+                                            named_outputs=n_out)
+
+    code = instance.generate_code()
+    expected_code = dedent("""
+        output_1 = input_1
+        from sklearn.preprocessing import QuantileTransformer
+        qt = QuantileTransformer(n_quantiles=500,
+            output_distribution='normal', random_state=19)
+        X_train = input_1['col_1'].values.tolist()
+        output_1['result'] = qt.fit_transform(X_train).toarray().tolist()
+        """)
+
+    result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
+    assert result, msg + format_code_comparison(code, expected_code)
+
+
+def test_quantile_discretizer_minimum_operation_success():
+    params = {
+        QuantileDiscretizerOperation.ATTRIBUTE_PARAM: ['col'],
+    }
+
+    n_in = {'input data': 'input_1'}
+    n_out = {'output data': 'output_1'}
+
+    instance = QuantileDiscretizerOperation(params, named_inputs=n_in,
+                                            named_outputs=n_out)
+
+    code = instance.generate_code()
+    expected_code = dedent("""
+        output_1 = input_1
+        from sklearn.preprocessing import QuantileTransformer
+        qt = QuantileTransformer(n_quantiles=1000,
+            output_distribution='uniform', random_state=None)
+        X_train = input_1['col'].values.tolist()
+        output_1['col_norm'] = qt.fit_transform(X_train).toarray().tolist()
+        """)
+
+    result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
+
+    assert result, msg + format_code_comparison(code, expected_code)
+
+
+def test_quantile_discretizer_operation_failure():
+    params = {
+        QuantileDiscretizerOperation.ALIAS_PARAM: 'c'
+    }
+    with pytest.raises(ValueError):
+        n_in = {'input data': 'input_1'}
+        n_out = {'output data': 'output_1'}
+        QuantileDiscretizerOperation(params, named_inputs=n_in,
+                                     named_outputs=n_out)
+
 
 
 '''
