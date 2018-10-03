@@ -172,7 +172,6 @@ class SequenceMiningOperation(Operation):
 
     def generate_code(self):
         code = dedent(u"""
-            from pyspark.sql import DataFrame
             try:
                 # noinspection PyProtectedMember
                 ext_pkg = spark_session._jvm.br.ufmg.dcc.lemonade.ext.fpm
