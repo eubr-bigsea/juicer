@@ -50,7 +50,7 @@ if __name__ == '__main__':
         with open(args.config) as config_file:
             juicer_config = yaml.load(config_file.read())
 
-        parsed_url = urlparse.urlparse(
+        parsed_url = urlparse(
             juicer_config['juicer']['servers']['redis_url'])
         redis_conn = redis.StrictRedis(host=parsed_url.hostname,
                                        port=parsed_url.port,
