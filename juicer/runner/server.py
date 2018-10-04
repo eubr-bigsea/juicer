@@ -80,7 +80,7 @@ class JuicerServer:
         signal.signal(signal.SIGTERM, self._terminate_minions)
         log.info(_('Starting master process. Reading "start" queue'))
 
-        parsed_url = urlparse.urlparse(
+        parsed_url = urlparse(
             self.config['juicer']['servers']['redis_url'])
         redis_conn = redis.StrictRedis(host=parsed_url.hostname,
                                        port=parsed_url.port)
@@ -233,7 +233,7 @@ class JuicerServer:
             del self.active_minions[(workflow_id, app_id)]
 
     def minion_support(self):
-        parsed_url = urlparse.urlparse(
+        parsed_url = urlparse(
             self.config['juicer']['servers']['redis_url'])
         redis_conn = redis.StrictRedis(host=parsed_url.hostname,
                                        port=parsed_url.port)
@@ -289,7 +289,7 @@ class JuicerServer:
         try:
             log.info(_('Watching minions events.'))
 
-            parsed_url = urlparse.urlparse(
+            parsed_url = urlparse(
                 self.config['juicer']['servers']['redis_url'])
             redis_conn = redis.StrictRedis(host=parsed_url.hostname,
                                            port=parsed_url.port)
