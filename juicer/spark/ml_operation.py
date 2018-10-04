@@ -1734,17 +1734,20 @@ class ClusteringModelOperation(Operation):
             summary = getattr({model}, 'summary', None)
 
             # Lazy execution in case of sampling the data in UI
-            def call_clusters(df):
-                if hasattr({model}, 'clusterCenters'):
+            def call_clusters(clustering_model):
+                if hasattr(clustering_model, 'clusterCenters'):
+                    centers = clustering_model.clusterCenters()
+                    df_data = [center.tolist() for center in centers]
                     return spark_session.createDataFrame(
-                        [center.tolist()
-                            for center in {model}.clusterCenters()])
+                        df_data, ['centroid_{{}}'.format(i)
+                            for i in range(len(df_data[0]))])
                 else:
                     return spark_session.createDataFrame([],
                         types.StructType([]))
 
+            # Last stage contains clustering model
             {centroids} = dataframe_util.LazySparkTransformationDataframe(
-                {model}, {input}, call_clusters)
+                {model}.stages[-1], {model}.stages[-1], call_clusters)
 
             if summary:
                 summary_rows = []
