@@ -323,7 +323,7 @@ class MLPClassifierOperation(Operation):
                                                 '(1,100,1)') or '(1,100,1)'
             self.hidden_layers = \
                 self.hidden_layers.replace("(", "").replace(")", "")
-            if not bool(re.match('([0-9,]*)', self.hidden_layers)):
+            if not bool(re.match('(\d+,)+\d*', self.hidden_layers)):
                 raise ValueError(
                         _("Parameter '{}' must be a tuple with the size "
                           "of each layer for task {}").format(

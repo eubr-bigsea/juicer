@@ -10,7 +10,7 @@ from __future__ import unicode_literals
 
 import datetime
 import decimal
-import pyarrow as pa
+#import pyarrow as pa
 import os
 import re
 import json
@@ -21,6 +21,7 @@ import time
 import unicodedata
 import numpy as np
 import pandas as pd
+
 from concurrent.futures import ThreadPoolExecutor
 from timeit import default_timer as timer
 from juicer.util import dataframe_util
@@ -28,7 +29,7 @@ from juicer.scikit_learn.model_operation import ModelsEvaluationResultList
 from juicer.spark.reports import *
 import traceback
 
-pa.__version__ = '0.10.0' # Hack. Pyarrow do not set its version correctly.
+#pa.__version__ = '0.10.0' # Hack. Pyarrow do not set its version correctly.
 
 {% autopep8 %}
 {% set list_imports = [] %}
