@@ -14,7 +14,6 @@ from tests import compare_ast, format_code_comparison
 from juicer.scikit_learn.model_operation import CrossValidationOperation
 
 
-
 '''
  CrossValidation tests
 '''
