@@ -347,6 +347,169 @@ class DropOperation(Operation):
         return dedent(code)
 
 
+class ExecutePythonOperation(Operation):
+    PYTHON_CODE_PARAM = 'code'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+
+        if not all([self.PYTHON_CODE_PARAM in parameters]):
+            msg = _("Required parameter {} must be informed for task {}")
+            raise ValueError(msg.format(self.PYTHON_CODE_PARAM, self.__class__))
+
+        self.code = parameters.get(self.PYTHON_CODE_PARAM)
+
+        # Always execute
+        self.has_code = True
+        self.out1 = self.named_outputs.get('output data 1',
+                                           'out_1_{}'.format(self.order))
+        self.out2 = self.named_outputs.get('output data 2',
+                                           'out_2_{}'.format(self.order))
+
+    def get_output_names(self, sep=", "):
+        return sep.join([self.out1, self.out2])
+
+    def generate_code(self):
+        in1 = self.named_inputs.get('input data 1', 'None')
+
+        in2 = self.named_inputs.get('input data 2', 'None')
+
+        code = dedent("""
+        import json
+        from RestrictedPython.Guards import safe_builtins
+        from RestrictedPython.RCompile import compile_restricted
+        from RestrictedPython.PrintCollector import PrintCollector
+
+        results = [r[1].result() for r in task_futures.items() if r[1].done()]
+        results = dict([(r['task_name'], r) for r in results])
+        # Input data
+        in1 = {in1}
+        in2 = {in2}
+
+        # Output data, initialized as None
+        out1 = None
+        out2 = None
+
+        # Variables and language supported
+        ctx = {{
+            'wf_results': results,
+            'in1': in1,
+            'in2': in2,
+            'out1': out1,
+            'out2': out2,
+            
+            # Restrictions in Python language
+             '_write_': lambda v: v,
+            '_getattr_': getattr,
+            '_getitem_': lambda ob, index: ob[index],
+            '_getiter_': lambda it: it,
+            '_print_': PrintCollector,
+            'json': json,
+        }}
+        user_code = \"\"\"{code}\"\"\"
+
+        ctx['__builtins__'] = safe_builtins
+
+        compiled_code = compile_restricted(user_code,
+        str('python_execute_{order}'), str('exec'))
+        try:
+            exec compiled_code in ctx
+
+            # Retrieve values changed in the context
+            out1 = ctx['out1']
+            out2 = ctx['out2']
+
+            if '_print' in ctx:
+                emit_event(name='update task',
+                    message=ctx['_print'](),
+                    status='RUNNING',
+                    identifier='{id}')
+        except NameError as ne:
+            raise ValueError(_('Invalid name: {{}}. '
+                'Many Python commands are not available in Lemonade').format(ne))
+        except ImportError as ie:
+            raise ValueError(_('Command import is not supported'))
+        """.format(in1=in1, in2=in2, code=self.code.encode('unicode_escape'),
+                   name="execute_python", order=self.order,
+                   id=self.parameters['task']['id']))
+
+        code += dedent("""
+        {out1} = out1
+        {out2} = out2
+        """.format(out1=self.out1, out2=self.out2))
+        return dedent(code)
+
+
+class ExecuteSQLOperation(Operation):
+    QUERY_PARAM = 'query'
+    NAMES_PARAM = 'names'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+
+        if not all([self.QUERY_PARAM in parameters]):
+            msg = _("Required parameter {} must be informed for task {}")
+            raise ValueError(msg.format(self.QUERY_PARAM, self.__class__))
+
+        self.query = ExecuteSQLOperation._escape_string(
+            parameters.get(self.QUERY_PARAM).strip().replace('\n', ' '))
+        if self.query[:6].upper() != 'SELECT':
+            raise ValueError(_('Invalid query. Only SELECT is allowed.'))
+
+        if self.NAMES_PARAM in parameters:
+            self.names = [
+                n.strip() for n in parameters.get(self.NAMES_PARAM).split(',')
+                if n.strip()]
+        else:
+            self.names = None
+
+        self.has_code = any([len(self.named_outputs) > 0,
+                             self.contains_results()])
+        self.input1 = self.named_inputs.get('input data 1')
+        self.input2 = self.named_inputs.get('input data 2')
+        self.output = self.named_outputs.get('output data',
+                                             'out_{}'.format(self.order))
+
+        self.has_import = 'from pandasql import sqldf\n'
+
+    def get_data_out_names(self, sep=','):
+        return self.output
+
+    @staticmethod
+    def _escape_string(value):
+        """ Escape a SQL string. Borrowed from
+        https://github.com/PyMySQL/PyMySQL/blob/master/pymysql/converters.py"""
+        return value
+        # _escape_table = [unichr(x) for x in range(128)]
+        # _escape_table[0] = u'\\0'
+        # _escape_table[ord('\\')] = u'\\\\'
+        # _escape_table[ord('\n')] = u'\\n'
+        # _escape_table[ord('\r')] = u'\\r'
+        # _escape_table[ord('\032')] = u'\\Z'
+        # _escape_table[ord('"')] = u'\\"'
+        # _escape_table[ord("'")] = u"\\'"
+        # return value.translate(_escape_table)
+
+    def generate_code(self):
+        code = dedent(u"""
+
+        query = {query}
+        {out} = sqldf(query, {{'ds1': {in1}, 'ds2': {in2}}})
+        names = {names}
+        
+        if names is not None and len(names) > 0:
+            old_names = {out}.columns
+            if len(old_names) != len(names):
+                raise ValueError('{invalid_names}')
+            rename = dict(zip(old_names, names))
+            {out}.rename(columns=rename, inplace=True)
+        """.format(in1=self.input1, in2=self.input2, query=repr(self.query),
+                   out=self.output, names=repr(self.names),
+                   invalid_names=_('Invalid names. Number of attributes in '
+                                   'result differs from names informed.')))
+        return code
+
+
 class FilterOperation(Operation):
     """
     Filters rows using the given condition.
