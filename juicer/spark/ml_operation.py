@@ -1979,7 +1979,7 @@ class TopicReportOperation(ReportOperation):
             # TODO: evaluate if using broadcast() is more efficient
             terms_idx_to_str = functions.udf(lambda term_indexes:
                 [{vocabulary}['text_vector'][inx]  for inx in term_indexes])
-            topic_df = {model}.describeTopics(
+            topic_df = {model}.stages[-1].describeTopics(
                 maxTermsPerTopic={tpt}).withColumn(
                     'terms', terms_idx_to_str(functions.col('termIndices')))
 
