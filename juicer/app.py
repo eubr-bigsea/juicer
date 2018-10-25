@@ -10,6 +10,7 @@ import logging.config
 import os
 import yaml
 from juicer.compss.transpiler import COMPSsTranspiler
+from juicer.keras.transpiler import KerasTranspiler
 from juicer.runner import configuration
 from juicer.scikit_learn.transpiler import ScikitLearnTranspiler
 from juicer.service.tahiti_service import query_tahiti
@@ -49,6 +50,8 @@ def main(workflow_id, execute_main, params, config, deploy, export_notebook):
             transpiler = COMPSsTranspiler(configuration.get_config())
         elif loader.platform == "scikit-learn":
             transpiler = ScikitLearnTranspiler(configuration.get_config())
+        elif loader.platform == 'keras':
+            transpiler = KerasTranspiler(configuration.get_config())
         else:
             raise ValueError(
                 _('Invalid platform value: {}').format(loader.platform))

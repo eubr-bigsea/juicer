@@ -10,8 +10,9 @@ import datetime
 
 import jinja2
 import networkx as nx
+
+from juicer.util.jinja2_custom import AutoPep8Extension
 from .service import stand_service
-from .util.jinja2_custom import AutoPep8Extension
 from .util.template_util import HandleExceptionExtension
 
 
@@ -100,6 +101,7 @@ class Transpiler(object):
             tasks_ids = sorted_tasks_id
 
         instances = OrderedDict()
+
         for i, task_id in enumerate(tasks_ids):
             task = graph.node[task_id]
             self.current_task_id = task_id
