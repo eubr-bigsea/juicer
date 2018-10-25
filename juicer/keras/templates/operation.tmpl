@@ -1,0 +1,33 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+from __future__ import unicode_literals
+"""
+Auto-generated Spark code from Lemonade Workflow
+(c) Speed Labs - Departamento de Ciência da Computação
+    Universidade Federal de Minas Gerais
+More information about Lemonade to be provided
+"""
+import keras
+from keras.models import Model, Input, Sequential
+from keras.layers import Dense, Activation, Conv2D, MaxPooling2D, Flatten, Dropout
+from keras.optimizers import SGD
+import numpy as np
+
+def main():
+    model = Sequential()
+
+    {%- for instance in instances %}
+    {%- if instance.has_code and instance.enabled %}
+    {%- set task = instance.parameters.task %}
+    {%- set task_id = task.id %}
+    # Task {{task_id}}
+    {{ instance.generate_code().strip() | indent(width=4, indentfirst=False) }}
+    {% endif %}
+    {%- endfor -%}
+
+    model.compile(loss=loss_function, optimizer=optimizer_function, metrics=['accuracy'])
+    model.fit(input_var, output_var, epochs=150, batch_size=10)
+
+    scores = model.evaluate(input_var, output_var)
+    print("\n%s: %.2f%%" % (model.metrics_names[1], scores[1]*100))
+
