@@ -1,6 +1,11 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
+
+import json
+
+from keras.callbacks import Callback
+
 """
 Auto-generated Spark code from Lemonade Workflow
 (c) Speed Labs - Departamento de Ciência da Computação
@@ -12,8 +17,32 @@ from keras.models import Model, Input, Sequential
 from keras.layers import Dense, Activation, Conv2D, MaxPooling2D, Flatten, Dropout
 from keras.optimizers import SGD
 import numpy as np
+from keras.callbacks import TensorBoard
+from time import time
 
-def main():
+
+def emit_layer_before_add(task_id, emit_event):
+    emit_event(name='update task', message=_('Adding layer'), status='RUNNING',
+               identifier=task_id)
+
+def emit_layer_added(task_id, emit_event):
+    emit_event(name='update task', message=_('Layer added'),
+               status='COMPLETED', identifier=task_id)
+
+class ExecutionHistory(Callback):
+    def __init__(self, emit_event, output_task_id):
+        Callback.__init__(self)
+        self.emit_event = emit_event
+        self.output_task_id = output_task_id
+
+    def on_batch_end(self, batch, logs=None):
+        msg = {}
+        for k, v in logs.items():
+            msg[k] = float(v)
+        self.emit_event(name='update task', message=json.dumps(msg),
+                   status='RUNNING', identifier=self.output_task_id)
+
+def main(session, cached_state, emit_event):
     model = Sequential()
 
     {%- for instance in instances %}
@@ -22,12 +51,29 @@ def main():
     {%- set task_id = task.id %}
     # Task {{task_id}}
     {{ instance.generate_code().strip() | indent(width=4, indentfirst=False) }}
+    emit_layer_added('{{task_id}}', emit_event)
     {% endif %}
     {%- endfor -%}
 
     model.compile(loss=loss_function, optimizer=optimizer_function, metrics=['accuracy'])
-    model.fit(input_var, output_var, epochs=150, batch_size=10)
+
+    #history = ExecutionHistory(emit_event, '{{instances[-1].parameters.task.id}}')
+
+    tensorboard = TensorBoard(log_dir="/tmp/logs/{time}".format(time=time()))
+
+    model.fit(input_var, output_var, epochs=150, batch_size=100, verbose=0, callbacks=[tensorboard])
+
+
+    emit_event(name='update task', message='<a href="http://localhost:6006" target="_blank">TensorBoard</a>',
+                    type='HTML',
+                    status='COMPLETED', identifier=output_task_id)
 
     scores = model.evaluate(input_var, output_var)
-    print("\n%s: %.2f%%" % (model.metrics_names[1], scores[1]*100))
+    final_train_score = ("%s: %.2f%%" % (model.metrics_names[1], scores[1]*100))
+
+    emit_event(name='update task', message=final_train_score,
+               type='TEXT',
+               status='COMPLETED', identifier=output_task_id)
+
+    return {}
 

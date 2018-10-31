@@ -192,6 +192,7 @@ class Transpiler(object):
             'plain': params.get('plain', False),
             'transpiler': TranspilerUtils(),
             'workflow_name': workflow['name'],
+            'job_id': job_id,
         }
         env_setup.update(self.get_context())
 

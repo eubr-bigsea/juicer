@@ -3,7 +3,6 @@ from gettext import gettext
 from textwrap import dedent
 
 from juicer.operation import Operation
-import pprint
 
 class DenseOperation(Operation):
     UNITS_PARAM = 'units'
@@ -39,7 +38,7 @@ class DenseOperation(Operation):
         self.kernel_constraint = parameters.get(self.KERNEL_CONSTRAINT_PARAM, None) or None
         self.bias_constraint = parameters.get(self.BIAS_CONSTRAINT_PARAM, None) or None
         self.add_functions_not_required = ""
-
+        self.task_name = self.parameters.get('task').get('name')
         self.has_code = True
 
         self.treatment()
@@ -81,13 +80,15 @@ class DenseOperation(Operation):
 
     def generate_code(self):
         return dedent("""
-        model.add(Dense(units={units}, 
+        model.add(Dense(name='{name}',
+                    units={units}, 
                     activation='{activation}', 
                     use_bias={use_bias}, 
                     kernel_initializer='{kernel_initializer}', 
                     bias_initializer='{bias_initializer}',
                     {add_functions_not_required}))
-        """).format(units=(self.units),
+        """).format(name=self.task_name,
+                    units=(self.units),
                     activation=(self.activation),
                     use_bias=(self.use_bias),
                     kernel_initializer=(self.kernel_initializer),
@@ -111,14 +112,15 @@ class DropoutOperation(Operation):
         self.rate = parameters[self.RATE_PARAM]
         self.noise_shape = parameters.get(self.NOISE_SHAPE_PARAM)
         self.seed = parameters.get(self.SEED_PARAM)
+        self.task_name = self.parameters.get('task').get('name')
         self.has_code = True
 
     def generate_code(self):
         return dedent(
             """
-            model.add(Dropout(rate={rate}, noise_shape={noise_shape}, seed={seed}))
+            model.add(Dropout(name='{name}', rate={rate}, noise_shape={noise_shape}, seed={seed}))
             """
-        ).format(rate=self.rate, noise_shape=self.noise_shape, seed=self.seed)
+        ).format(name=self.task_name, rate=self.rate, noise_shape=self.noise_shape, seed=self.seed)
 
 
 class FlattenOperation(Operation):
@@ -130,14 +132,15 @@ class FlattenOperation(Operation):
                                         'out_task_{}'.format(self.order))
 
         self.data_format = parameters.get(self.DATA_FORMAT_PARAM)
+        self.task_name = self.parameters.get('task').get('name')
         self.has_code = True
 
     def generate_code(self):
         return dedent(
             """
-            model.add(Flatten(data_format={data_format}))
+            model.add(Flatten(name='{name}', data_format={data_format}))
             """
-        ).format(data_format=self.data_format)
+        ).format(name=self.task_name, data_format=self.data_format)
 
 
 class OptimizerOperation(Operation):
@@ -272,11 +275,12 @@ class OutputOperation(Operation):
         self.output = named_outputs.get('output data',
                                         'out_task_{}'.format(self.order))
 
+        self.output_task_id = self.parameters.get('task').get('id')
         self.has_code = True
 
     def generate_code(self):
         return dedent(
             """
-            """
-        )
+            output_task_id = '{output_task_id}'
+            """).format(output_task_id=self.output_task_id)
 
