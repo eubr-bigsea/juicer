@@ -31,6 +31,7 @@ class KerasTranspiler(Transpiler):
             'activation': core_operations.ActivationOperation,
             'reshape': core_operations.ReshapeOperation,
             'permute': core_operations.PermuteOperation,
+            'repeatVector': core_operations.RepeatVectorOperation,
         }
 
         self.operations = {}
