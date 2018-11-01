@@ -28,10 +28,8 @@ class DenseOperation(Operation):
         self.activation = parameters.get(self.ACTIVATION_PARAM,
                                          'linear') or 'linear'
         self.use_bias = parameters.get(self.USE_BIAS_PARAM, False) or False
-        self.kernel_initializer = parameters.get(self.KERNEL_INITIALIZER_PARAM,
-                                                 'glorot_uniform') or 'glorot_uniform'
-        self.bias_initializer = parameters.get(self.BIAS_INITIALIZER_PARAM,
-                                               'zeros') or 'zeros'
+        self.kernel_initializer = parameters.get(self.KERNEL_INITIALIZER_PARAM, None) or None
+        self.bias_initializer = parameters.get(self.BIAS_INITIALIZER_PARAM, None) or None
         self.kernel_regularizer = parameters.get(self.KERNEL_REGULARIZER_PARAM, None) or None
         self.bias_regularizer = parameters.get(self.BIAS_REGULARIZER_PARAM, None) or None
         self.activity_regularizer = parameters.get(self.ACTIVITY_REGULARIZER_PARAM, None) or None
@@ -52,6 +50,12 @@ class DenseOperation(Operation):
             self.use_bias = False
 
         functions_not_required = []
+        if self.kernel_initializer:
+            self.kernel_initializer = """kernel_initializer='{kernel_initializer}'""".format(kernel_initializer=self.kernel_initializer)
+            functions_not_required.append(self.kernel_initializer)
+        if self.bias_initializer:
+            self.bias_initializer = """bias_initializer='{bias_initializer}'""".format(bias_initializer=self.bias_initializer)
+            functions_not_required.append(self.bias_initializer)
         if self.kernel_regularizer:
             self.kernel_regularizer = """kernel_regularizer='{kernel_regularizer}'""".format(kernel_regularizer=self.kernel_regularizer)
             functions_not_required.append(self.kernel_regularizer)
@@ -83,16 +87,12 @@ class DenseOperation(Operation):
         model.add(Dense(name='{name}',
                     units={units}, 
                     activation='{activation}', 
-                    use_bias={use_bias}, 
-                    kernel_initializer='{kernel_initializer}', 
-                    bias_initializer='{bias_initializer}',
+                    use_bias={use_bias},
                     {add_functions_not_required}))
         """).format(name=self.task_name,
                     units=(self.units),
                     activation=(self.activation),
                     use_bias=(self.use_bias),
-                    kernel_initializer=(self.kernel_initializer),
-                    bias_initializer=(self.bias_initializer),
                     add_functions_not_required=self.add_functions_not_required)
 
 
@@ -284,3 +284,108 @@ class OutputOperation(Operation):
             output_task_id = '{output_task_id}'
             """).format(output_task_id=self.output_task_id)
 
+
+class ActivationOperation(Operation):
+    ACTIVATION_PARAM = 'activation'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+        self.output = named_outputs.get('output data',
+                                        'out_task_{}'.format(self.order))
+
+        if self.ACTIVATION_PARAM not in parameters:
+            raise ValueError(gettext('Parameter {} is required').format(self.ACTIVATION_PARAM))
+
+        self.activation = parameters.get(self.ACTIVATION_PARAM, 'linear') or 'linear'
+        self.task_name = self.parameters.get('task').get('name')
+        self.has_code = True
+
+    def generate_code(self):
+        return dedent(
+            """
+            model.add(Activation(name='{name}', activation='{activation}'))
+            """
+        ).format(name=self.task_name, activation=self.activation)
+
+
+class ReshapeOperation(Operation):
+    TARGET_SHAPE_PARAM = 'target_shape'
+    INPUT_SHAPE_PARAM = 'input_shape'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+        self.output = named_outputs.get('output data',
+                                        'out_task_{}'.format(self.order))
+
+        if self.TARGET_SHAPE_PARAM not in parameters or self.TARGET_SHAPE_PARAM is None:
+            raise ValueError(gettext('Parameter {} is required').format(self.TARGET_SHAPE_PARAM))
+
+        self.target_shape = parameters.get(self.TARGET_SHAPE_PARAM, None) or None
+        self.input_shape = parameters.get(self.INPUT_SHAPE_PARAM, None) or None
+        self.task_name = self.parameters.get('task').get('name')
+        self.task_workflow_order = self.parameters.get('task').get('order')
+        self.has_code = True
+        self.add_input_shape = ''
+
+        self.treatment()
+
+    def treatment(self):
+        if self.target_shape is not None:
+            import re
+            regex = re.compile('\((\s*\-{0,1}\d+\s*,){0,1}(\s*\d+\s*,\s*\d+\s*)\)')
+            if regex.match(self.target_shape) is None:
+                raise ValueError(gettext('Parameter {} is required. The format is: '
+                                         '(x, y) or (-1, x, y)').format(self.TARGET_SHAPE_PARAM))
+
+            '''
+            if self.input_shape is not None:
+                if self.task_workflow_order in [1, 2]:
+                    regex = re.compile('\(\s*\d+\s*,\s*\)')
+                else:
+                    regex = re.compile('\(\s*\d+\s*,\s*\d+\s*\)')
+                if regex.match(self.input_shape) is None:
+                    raise ValueError(gettext('Parameter {} is required. The format is: '
+                                             '(x,y)').format(self.INPUT_SHAPE_PARAM))
+                else:
+                    self.add_input_shape = ', input_shape=' + self.input_shape
+            '''
+
+    def generate_code(self):
+        return dedent(
+            """
+            model.add(Reshape(name='{name}', target_shape={target_shape}{add_input_shape}))
+            """
+        ).format(name=self.task_name, target_shape=self.target_shape, add_input_shape=self.add_input_shape)
+
+
+class PermuteOperation(Operation):
+    DIMS_PARAM = 'dims'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+        self.output = named_outputs.get('output data',
+                                        'out_task_{}'.format(self.order))
+
+        if self.DIMS_PARAM not in parameters or self.DIMS_PARAM is None:
+            raise ValueError(gettext('Parameter {} is required').format(self.DIMS_PARAM))
+
+        self.dims = parameters.get(self.DIMS_PARAM, None) or None
+        self.task_name = self.parameters.get('task').get('name')
+        self.has_code = True
+
+        self.treatment()
+
+    def treatment(self):
+        if self.dims is not None:
+            import re
+            regex = re.compile('\(\s*\d+\s*,\s*\d+\s*\)')
+            if regex.match(self.dims) is None:
+                raise ValueError(gettext('Parameter {} is required. The format is: '
+                                         '(x, y)').format(self.DIMS_PARAM))
+
+    def generate_code(self):
+        return dedent(
+            """
+            model.add(Permute(name='{name}', dims={dims}))
+            """
+        ).format(name=self.task_name, dims=self.dims)
