@@ -389,3 +389,27 @@ class PermuteOperation(Operation):
             model.add(Permute(name='{name}', dims={dims}))
             """
         ).format(name=self.task_name, dims=self.dims)
+
+
+class RepeatVectorOperation(Operation):
+    N_PARAM = 'n'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+        self.output = named_outputs.get('output data',
+                                        'out_task_{}'.format(self.order))
+
+        if self.N_PARAM not in parameters or self.N_PARAM is None:
+            raise ValueError(gettext('Parameter {} is required').format(self.N_PARAM))
+
+        self.n = parameters.get(self.N_PARAM, 1) or 1
+        self.task_name = self.parameters.get('task').get('name')
+        self.has_code = True
+
+    def generate_code(self):
+        return dedent(
+            """
+            model.add(RepeatVector(name='{name}', n={n}))
+            """
+        ).format(name=self.task_name, n=self.n)
+
