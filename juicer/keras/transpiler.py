@@ -28,6 +28,9 @@ class KerasTranspiler(Transpiler):
             'loss': core_operations.LossOperation,
             'input': core_operations.InputOperation,
             'output': core_operations.OutputOperation,
+            'activation': core_operations.ActivationOperation,
+            'reshape': core_operations.ReshapeOperation,
+            'permute': core_operations.PermuteOperation,
         }
 
         self.operations = {}
