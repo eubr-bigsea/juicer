@@ -413,3 +413,96 @@ class RepeatVectorOperation(Operation):
             """
         ).format(name=self.task_name, n=self.n)
 
+
+class LambdaOperation(Operation):
+    FUNCTION_PARAM = 'function'
+    MASK_PARAM = 'mask'
+    ARGUMENTS_PARAM = 'arguments'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+        self.output = named_outputs.get('output data',
+                                        'out_task_{}'.format(self.order))
+
+        if self.FUNCTION_PARAM not in parameters or self.FUNCTION_PARAM is None:
+            raise ValueError(gettext('Parameter {} is required').format(self.FUNCTION_PARAM))
+
+        self.function = parameters.get(self.FUNCTION_PARAM, None) or None
+        self.mask = parameters.get(self.MASK_PARAM, 0.0) or 0.0
+        self.arguments = parameters.get(self.ARGUMENTS_PARAM, None) or None
+
+        self.function_name = self.get_function_name()
+        self.task_name = self.parameters.get('task').get('name')
+        self.has_code = True
+        self.add_functions_not_required = ""
+        self.treatment()
+
+    def treatment(self):
+        functions_not_required = []
+        if self.mask is not None:
+            functions_not_required.append('''mask={mask}'''.format(mask=self.mask))
+        if self.arguments is not None:
+            functions_not_required.append('''arguments={arguments}'''.format(mask=self.arguments))
+
+        length = len(functions_not_required)
+        for i in range(0, length):
+            if not i == 0:
+                self.add_functions_not_required += '          '
+            if i == (length - 1):
+                self.add_functions_not_required += functions_not_required[i]
+            else:
+                self.add_functions_not_required += functions_not_required[i] + ",\n"
+
+    def get_function_name(self):
+        if self.function:
+            import re
+            return re.compile('def\s*|\(.*')\
+                     .sub('', re.search('def.*?:', self.function).group())
+        return None
+
+    def generate_code(self):
+        return dedent(
+            """
+            {function}
+            
+            model.add(Lambda(name='{name}',
+                      function={function_name},
+                      {functions_not_required}))
+            """
+        ).format(function=self.function, name=self.task_name,
+                 function_name=self.function_name, functions_not_required=self.add_functions_not_required)
+
+
+class ActivityRegularizationOperation(Operation):
+    L1_PARAM = 'l1'
+    L2_PARAM = 'l2'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+        self.output = named_outputs.get('output data',
+                                        'out_task_{}'.format(self.order))
+
+        if self.L1_PARAM not in parameters or self.L2_PARAM not in parameters:
+            raise ValueError(gettext('Parameter {l1} and {l2} are required').format(l1=self.L1_PARAM,
+                                                                                    l2=self.L2_PARAM))
+
+        self.l1 = parameters.get(self.L1_PARAM, 0.0) or 0.0
+        self.l2 = parameters.get(self.L2_PARAM, 0.0) or 0.0
+        self.task_name = self.parameters.get('task').get('name')
+        self.has_code = True
+
+        self.treatment()
+
+    def treatment(self):
+        if self.l1 is None:
+            self.l1 = 0.0
+        if self.l2 is None:
+            self.l2 = 0.0
+
+    def generate_code(self):
+        return dedent(
+            """
+            model.add(ActivityRegularization(name='{name}', l1={l1}, l2={l2}))
+            """
+        ).format(name=self.task_name, l1=self.l1, l2=self.l2)
+
