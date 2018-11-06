@@ -34,6 +34,7 @@ class KerasTranspiler(Transpiler):
             'repeatVector': core_operations.RepeatVectorOperation,
             'lambda': core_operations.LambdaOperation,
             'activityRegularization': core_operations.ActivityRegularizationOperation,
+            'masking': core_operations.MaskingOperation,
         }
 
         self.operations = {}
