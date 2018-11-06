@@ -506,3 +506,32 @@ class ActivityRegularizationOperation(Operation):
             """
         ).format(name=self.task_name, l1=self.l1, l2=self.l2)
 
+
+class MaskingOperation(Operation):
+    MASK_VALUE_PARAM = 'mask_value'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+        self.output = named_outputs.get('output data',
+                                        'out_task_{}'.format(self.order))
+
+        if self.MASK_VALUE_PARAM not in parameters or self.MASK_VALUE_PARAM is None:
+            raise ValueError(gettext('Parameter {} are required').format(self.MASK_VALUE_PARAM))
+
+        self.mask_value = parameters.get(self.MASK_VALUE_PARAM, 0.0) or 0.0
+        self.task_name = self.parameters.get('task').get('name')
+        self.has_code = True
+
+        self.treatment()
+
+    def treatment(self):
+        if self.mask_value is None:
+            self.mask_value = 0.0
+
+    def generate_code(self):
+        return dedent(
+            """
+            model.add(Masking(name='{name}', mask_value={mask_value}))
+            """
+        ).format(name=self.task_name, mask_value=self.mask_value)
+
