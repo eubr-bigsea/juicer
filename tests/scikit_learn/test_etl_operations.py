@@ -7,6 +7,7 @@ from tests import compare_ast, format_code_comparison
 from juicer.scikit_learn.etl_operation import AddColumnsOperation, \
     AggregationOperation, CleanMissingOperation, \
     DifferenceOperation, DistinctOperation, DropOperation, \
+    ExecutePythonOperation, ExecuteSQLOperation, \
     FilterOperation, IntersectionOperation, JoinOperation, \
     ReplaceValuesOperation,  SampleOrPartitionOperation, \
     SelectOperation, SortOperation, SplitOperation, \
@@ -253,6 +254,180 @@ def test_drop_minimal_params_success():
                 columns=params['attributes'])
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
     assert result, msg
+
+
+'''
+    Execute Python Operation
+'''
+
+
+def test_pythoncode_minimum_params_success():
+    params = {
+        ExecutePythonOperation.PYTHON_CODE_PARAM:
+            "df1['col3'] =  df1['col1'] + df1['col2']",
+        'task': {'id': 1}
+    }
+    n_in = {'input data 1': 'input_1'}
+    n_out = {'output data': 'output_1'}
+    instance = ExecutePythonOperation(params, named_inputs=n_in,
+                                      named_outputs=n_out)
+
+    code = instance.generate_code()
+    expected_code = dedent("""
+    import json                                                                            
+    from RestrictedPython.Guards import safe_builtins                                      
+    from RestrictedPython.RCompile import compile_restricted                               
+    from RestrictedPython.PrintCollector import PrintCollector                             
+                                                                                           
+    results = [r[1].result() for r in task_futures.items() if r[1].done()]                 
+    results = dict([(r['task_name'], r) for r in results])                                 
+    # Input data                                                                           
+    in1 = input_1                                                                          
+    in2 = None                                                                             
+                                                                                           
+    # Output data, initialized as None                                                     
+    out1 = None                                                                            
+    out2 = None                                                                            
+                                                                                           
+    # Variables and language supported                                                     
+    ctx = {                                                                                
+        'wf_results': results,                                                             
+        'in1': in1,                                                                        
+        'in2': in2,                                                                        
+        'out1': out1,                                                                      
+        'out2': out2,                                                                      
+                                                                                           
+        # Restrictions in Python language                                                  
+         '_write_': lambda v: v,                                                           
+        '_getattr_': getattr,                                                              
+        '_getitem_': lambda ob, index: ob[index],                                          
+        '_getiter_': lambda it: it,                                                        
+        '_print_': PrintCollector,                                                         
+        'json': json,                                                                      
+    }                                                                                      
+    user_code = "df1['col3'] =  df1['col1'] + df1['col2']"   
+                                                                                           
+    ctx['__builtins__'] = safe_builtins                                                    
+                                                                                           
+    compiled_code = compile_restricted(user_code,                                          
+    str('python_execute_1'), str('exec'))                                                  
+    try:                                                                                   
+        exec compiled_code in ctx                                                          
+                                                                                           
+        # Retrieve values changed in the context                                           
+        out1 = ctx['out1']                                                                 
+        out2 = ctx['out2']                                                                 
+                                                                                           
+        if '_print' in ctx:                                                                
+            emit_event(name='update task',                                                 
+                message=ctx['_print'](),                                                   
+                status='RUNNING',                                                          
+                identifier='1')                                                            
+    except NameError as ne:                                                                
+        raise ValueError(_('Invalid name: {}. '                                            
+            'Many Python commands are not available in Lemonade').format(ne))              
+    except ImportError as ie:                                                              
+        raise ValueError(_('Command import is not supported'))                             
+                                                                                           
+    out_1_1 = out1                                                                         
+    out_2_1 = out2                         
+    """)
+
+    result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
+    assert result, msg + format_code_comparison(code, expected_code)
+
+
+def test_pythoncode_missing_parameter_failure():
+    params = {
+        'task': {'id': 1}
+    }
+    with pytest.raises(ValueError):
+        n_in = {'input data 1': 'input_1'}
+        n_out = {'output data': 'output_1'}
+        ExecutePythonOperation(params, named_inputs=n_in, named_outputs=n_out)
+
+
+'''
+    Execute SQL Operation
+'''
+
+
+def test_sql_minimum_params_success():
+    params = {
+        ExecuteSQLOperation.QUERY_PARAM: "select * where df1.id = 1;"
+    }
+    n_in = {'input data 1': 'input_1'}
+    n_out = {'output data': 'output_1'}
+    instance = ExecuteSQLOperation(params, named_inputs=n_in,
+                                   named_outputs=n_out)
+
+    code = instance.generate_code()
+    expected_code = dedent("""
+    
+        query = 'select * where df1.id = 1;'
+        output_1 = sqldf(query, {'ds1': input_1, 'ds2': None})
+        names = None
+
+        if names is not None and len(names) > 0:
+            old_names = output_1.columns
+            if len(old_names) != len(names):
+                raise ValueError('Invalid names. Number of attributes '
+                                 'in result differs from names informed.')
+            rename = dict(zip(old_names, names))
+            output_1.rename(columns=rename, inplace=True)
+    """)
+
+    result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
+    assert result, msg + format_code_comparison(code, expected_code)
+
+
+def test_sql_two_inputs_params_success():
+    params = {
+        ExecuteSQLOperation.QUERY_PARAM: "select * where df2.id = 1;",
+        ExecuteSQLOperation.NAMES_PARAM: "col1, col2, col3"
+
+    }
+    n_in = {'input data 1': 'input_1', 'input data 2': 'input_2'}
+    n_out = {'output data': 'output_1'}
+    instance = ExecuteSQLOperation(params, named_inputs=n_in,
+                                   named_outputs=n_out)
+
+    code = instance.generate_code()
+    expected_code = dedent("""
+    
+        query = 'select * where df2.id = 1;'
+        output_1 = sqldf(query, {'ds1': input_1, 'ds2': input_2})
+        names = ['col1', 'col2', 'col3']
+
+        if names is not None and len(names) > 0:
+            old_names = output_1.columns
+            if len(old_names) != len(names):
+                raise ValueError('Invalid names. Number of attributes '
+                                 'in result differs from names informed.')
+            rename = dict(zip(old_names, names))
+            output_1.rename(columns=rename, inplace=True)
+        """)
+    result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
+    assert result, msg + format_code_comparison(code, expected_code)
+
+
+def test_sql_missing_parameter_failure():
+    params = {
+    }
+    with pytest.raises(ValueError):
+        n_in = {'input data 1': 'input_1'}
+        n_out = {'output data': 'output_1'}
+        ExecuteSQLOperation(params, named_inputs=n_in, named_outputs=n_out)
+
+
+def test_wrong_query_parameter_failure():
+    params = {
+        ExecuteSQLOperation.QUERY_PARAM: "ALTER TABLE Customer DROP Birth_Date;"
+    }
+    with pytest.raises(ValueError):
+        n_in = {'input data 1': 'input_1'}
+        n_out = {'output data': 'output_1'}
+        ExecuteSQLOperation(params, named_inputs=n_in, named_outputs=n_out)
 
 
 '''
