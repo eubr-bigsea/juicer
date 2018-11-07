@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from __future__ import absolute_import
 import json
 import logging
 
@@ -46,8 +47,8 @@ def query_limonero(base_url, item_path, token, item_id):
         else:
             msg = r.text
         raise ValueError(_(
-            u"Error loading {} id {}: HTTP {} - {}").format(
-            item_path, item_id, r.status_code, msg))
+            u"Error loading {} id {}: HTTP {} - {} ({})").format(
+            item_path, item_id, r.status_code, msg, url))
 
 
 def get_storage_info(base_url, token, storage_id):

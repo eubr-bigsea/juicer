@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from __future__ import absolute_import
 import json
 import sys
 
@@ -23,7 +24,7 @@ from juicer.service import stand_service
 from juicer.util.jinja2_custom import AutoPep8Extension
 from juicer.util.template_util import HandleExceptionExtension
 
-from optimizated_operation import OptimizatedOperation
+from juicer.compss.optimizated_operation import OptimizatedOperation
 
 
 class DependencyController:

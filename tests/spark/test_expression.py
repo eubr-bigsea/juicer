@@ -1,3 +1,6 @@
+# coding=utf-8
+from __future__ import absolute_import
+
 import ast
 
 import pytest
@@ -62,7 +65,8 @@ def test_binary_expression_valid_success():
     params = {}
     expr = Expression(json_code, params)
     result, msg = compare_ast(ast.parse(expr.parsed_expression),
-                              ast.parse("functions.col('column1') * functions.col('column2')"))
+                              ast.parse(
+                                  "functions.col('column1') * functions.col('column2')"))
     assert result, msg
 
     json_code['operator'] = '/'
@@ -292,7 +296,8 @@ def test_get_windows_function_success():
         }
     }
     params = {}
-    expr = Expression(json_code, params)
+
+    expr = Expression(json_code, params, True)
 
     expected_code = ("functions.window("
                      "functions.col('created_at'),"

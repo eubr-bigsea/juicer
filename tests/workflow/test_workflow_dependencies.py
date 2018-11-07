@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+from __future__ import absolute_import, print_function
+
 import gzip
 import json
 
@@ -18,28 +20,28 @@ fake_conf = {
 
 
 def debug_instance(instance_wf):
-    print '*' * 20
-    print instance_wf.graph.nodes(data=False)
-    print '*' * 21
-    print instance_wf.graph.edges()
-    print '*' * 22
-    print instance_wf.graph.is_multigraph()
-    print '*' * 23
-    print instance_wf.graph.number_of_edges()
-    print '*' * 24
-    print instance_wf.sorted_tasks
-    print '*' * 25
+    print('*' * 20)
+    print(instance_wf.graph.nodes(data=False))
+    print('*' * 21)
+    print(instance_wf.graph.edges())
+    print('*' * 22)
+    print(instance_wf.graph.is_multigraph())
+    print('*' * 23)
+    print(instance_wf.graph.number_of_edges())
+    print('*' * 24)
+    print(instance_wf.sorted_tasks)
+    print('*' * 25)
     test = instance_wf.graph.reverse()
-    print test.edges()
-    print '*' * 26
-    print instance_wf.graph.in_degree()
-    print instance_wf.check_in_degree_edges()
-    print '*' * 27
-    print instance_wf.graph.out_degree()
-    print instance_wf.check_out_degree_edges()
-    print '*' * 28
+    print(test.edges())
+    print('*' * 26)
+    print(instance_wf.graph.in_degree())
+    print(instance_wf.check_in_degree_edges())
+    print('*' * 27)
+    print(instance_wf.graph.out_degree())
+    print(instance_wf.check_out_degree_edges())
+    print('*' * 28)
     x = instance_wf._get_operations()[0]
-    print x['ports']
+    print(x['ports'])
 
     # print instance_wf.get_ports_from_operation_tasks('')
     # Show image

@@ -6,6 +6,8 @@ This module implements methods to guarantee data privacy during the execution
 of Lemonade's workflows.
 
 """
+from __future__ import absolute_import, division
+
 import hashlib
 import json
 import math
@@ -15,6 +17,8 @@ import sys
 from textwrap import dedent
 
 import datetime
+
+from six import text_type
 
 ANONYMIZATION_TECHNIQUES = {
     'NO_TECHNIQUE': 0,
@@ -81,7 +85,7 @@ def _number_range_to_string(value, details):
             if k != 'x':
                 value_unit = int(k)
             else:
-                value_unit = sys.maxint
+                value_unit = sys.maxsize
             list_of_integers.append(value_unit)
         min_value = list_of_integers[0]
         max_value = list_of_integers[1]
@@ -113,7 +117,7 @@ def _number_to_bucket(value, bucket_size):
         start = float(math.ceil(value / bucket_size) * bucket_size - 1)
         end = float(math.floor(value / bucket_size) * bucket_size)
         result = [start, end]
-    elif isinstance(value, basestring):
+    elif isinstance(value, (str, text_type)):
         # @FIXME Implement
         result = ''
     elif isinstance(value, (datetime.datetime, datetime.date)):
@@ -127,8 +131,8 @@ def _substring(value, _from, to, size, replacement):
     else:
         if size == -1:
             size = len(value)
-        if isinstance(value, unicode):
-            replacement = unicode(replacement)
+        if isinstance(value, text_type):
+            replacement = replacement
         else:
             replacement = str(replacement)
         result = value[_from:to].ljust(size, replacement)
@@ -214,7 +218,7 @@ def encryption(details):
         raise ValueError(_('Invalid encryption function {}').format(algorithm))
 
     def _apply(value):
-        return h(unicode(value)).hexdigest()
+        return h(value).hexdigest()
 
     return _apply
 
@@ -227,6 +231,7 @@ def masking_gen(attribute_name, details):
     @FIXME: Define a good size for partitions / groups (for instance use part
     of string or range of numbers, but it depends on the data type).
     """
+
     def masking(group):
         from faker import Factory
         faker_obj = Factory.create(details.get('lang', 'en_GB'))

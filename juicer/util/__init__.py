@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from __future__ import absolute_import
 import functools
 from collections import defaultdict
 from itertools import takewhile, count
@@ -59,7 +60,7 @@ def group(lst, n):
     > group(range(10), 3)
     [(0, 1, 2), (3, 4, 5), (6, 7, 8)]
     """
-    return zip(*[lst[i::n] for i in range(n)])
+    return list(zip(*[lst[i::n] for i in range(n)]))
 
 
 def get_emitter(emit_event, operation_id, task_id, title=''):

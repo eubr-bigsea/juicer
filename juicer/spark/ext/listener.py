@@ -1,4 +1,9 @@
+# coding=utf-8
 # noinspection PyPep8Naming,PyMethodMayBeStatic
+from __future__ import absolute_import, print_function
+
+
+# noinspection PyPep8Naming
 class SparkListener(object):
     def __init__(self, emit):
         self.emit = emit
@@ -31,18 +36,16 @@ class SparkListener(object):
     def onJobEnd(self, jobEnd):
         pass
 
+    # noinspection PyMethodMayBeStatic
     def onJobStart(self, jobStart):
         try:
-            # print '@' * 20, dir(jobStart.stageIds())
             l = jobStart.stageIds()
-            # print l.getClass().getName()
             l2 = []
-            # print l.foreach(lambda x: l2.append(x))
-            for i in xrange(l.size()):
+            for i in range(l.size()):
                 l2.append(l.remove(0))
-            print '#' * 20, l2
+            print('#' * 20, l2)
         except Exception as e:
-            print '@' * 20, e.message, dir(jobStart)
+            print('@' * 20, str(e), dir(jobStart))
 
     def onOtherEvent(self, event):
         pass

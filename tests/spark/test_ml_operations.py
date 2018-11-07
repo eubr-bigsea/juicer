@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from __future__ import absolute_import
 from __future__ import unicode_literals
 
 import ast
@@ -73,8 +74,9 @@ def test_feature_indexer_operation_success():
                    in1=in1,
                    out=out,
                    alias=json.dumps(
-                       zip(params[FeatureIndexerOperation.ATTRIBUTES_PARAM],
-                           params[FeatureIndexerOperation.ALIAS_PARAM]))))
+                       list(
+                           zip(params[FeatureIndexerOperation.ATTRIBUTES_PARAM],
+                               params[FeatureIndexerOperation.ALIAS_PARAM])))))
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
     assert result, msg + format_code_comparison(code, expected_code)
@@ -199,8 +201,9 @@ def test_feature_indexer_vector_operation_success():
                        in1,
                        out,
                        json.dumps(
-                           zip(params[FeatureIndexerOperation.ATTRIBUTES_PARAM],
-                               params[FeatureIndexerOperation.ALIAS_PARAM])),
+                           list(zip(
+                               params[FeatureIndexerOperation.ATTRIBUTES_PARAM],
+                               params[FeatureIndexerOperation.ALIAS_PARAM]))),
                        params[FeatureIndexerOperation.MAX_CATEGORIES_PARAM]))
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
@@ -1274,17 +1277,19 @@ def test_clustering_model_operation_success():
              {model}, df_2, call_transform)
 
         summary = getattr({model}, 'summary', None)
-        def call_clusters(df):
-            if hasattr({model}, 'clusterCenters'):
+        def call_clusters(clustering_model):
+            if hasattr(clustering_model, 'clusterCenters'):
+                centers = clustering_model.clusterCenters()
+                df_data = [center.tolist() for center in centers]
                 return spark_session.createDataFrame(
-                    [center.tolist()
-                        for center in {model}.clusterCenters()])
+                    df_data, ['centroid_{{}}'.format(i)
+                        for i in range(len(df_data[0]))])
             else:
                 return spark_session.createDataFrame([],
                     types.StructType([]))
 
         centroids_task_1 = dataframe_util.LazySparkTransformationDataframe(
-            {model}, df_2, call_clusters)
+            {model}.stages[-1], {model}.stages[-1], call_clusters)
 
         if summary:
             summary_rows = []

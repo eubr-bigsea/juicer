@@ -1,5 +1,5 @@
 # coding=utf-8
-from __future__ import unicode_literals
+from __future__ import unicode_literals, absolute_import
 
 import decimal
 import itertools
@@ -495,7 +495,7 @@ class BarChartModel(ChartVisualization):
         colors = {}
         color_counter = 0
         for i, attr in enumerate(y_attrs):
-            color = COLORS_PALETTE[(i % 6) * 5 + ((i / 6) % 5)]
+            color = COLORS_PALETTE[(i % 6) * 5 + ((i // 6) % 5)]
             colors[attr.name] = {
                 'fill': color,
                 'gradient': color,
@@ -542,7 +542,7 @@ class BarChartModel(ChartVisualization):
             if x_value not in colors:
                 inx_row += 1
                 color = COLORS_PALETTE[(color_counter % 6) * 5 +
-                                       ((color_counter / 6) % 5)]
+                                       ((color_counter // 6) % 5)]
                 colors[x_value] = {
                     'fill': color,
                     'gradient': color,
@@ -554,7 +554,7 @@ class BarChartModel(ChartVisualization):
                 'name': row[x_attr.name],
                 'key': row[x_attr.name],
                 'color': COLORS_PALETTE[
-                    (inx_row % 6) * 5 + ((inx_row / 6) % 5)],
+                    (inx_row % 6) * 5 + ((inx_row // 6) % 5)],
                 'values': []
             }
             result['data'].append(data)
@@ -649,7 +649,7 @@ class PieChartModel(ChartVisualization):
                 'id': '{}_{}'.format(label_attr.name, i),
                 'name': row[label_attr.name],
                 'label': row[label_attr.name],
-                'color': COLORS_PALETTE[(i % 6) * 5 + ((i / 6) % 5)],
+                'color': COLORS_PALETTE[(i % 6) * 5 + ((i // 6) % 5)],
             }
             result['data'].append(data)
             if i >= 100:
@@ -678,8 +678,8 @@ class LineChartModel(ChartVisualization):
             data.append({
                 "id": attr.name,
                 "name": attr.name,
-                "color": COLORS_PALETTE[(i % 6) * 5 + ((i / 6) % 5)],
-                "pointColor": COLORS_PALETTE[(i % 6) * 5 + ((i / 6) % 5)],
+                "color": COLORS_PALETTE[(i % 6) * 5 + ((i // 6) % 5)],
+                "pointColor": COLORS_PALETTE[(i % 6) * 5 + ((i // 6) % 5)],
                 "pointShape": SHAPES[i % len(SHAPES)],
                 "pointSize": 3,
                 "values": []
@@ -869,7 +869,7 @@ class ScatterPlotModel(ChartVisualization):
                 series_value = row[series_attr.name]
                 if series_value not in series:
                     color = COLORS_PALETTE[(current_color % 6) * 5 +
-                                           ((current_color / 6) % 5)]
+                                           ((current_color // 6) % 5)]
                     series[series_value] = {
                         "id": series_value,
                         "name": series_value,
@@ -887,7 +887,7 @@ class ScatterPlotModel(ChartVisualization):
                 item[axis] = ScatterPlotModel._get_value(row, attrs[axis])
             data.append(item)
 
-        result['data'] = series.values()
+        result['data'] = list(series.values())
         return result
 
     @staticmethod

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-
+from __future__ import absolute_import
 from jinja2 import nodes
 from jinja2.ext import Extension
 import autopep8
@@ -15,7 +15,7 @@ class AutoPep8Extension(Extension):
         environment.extend()
 
     def parse(self, parser):
-        lineno = parser.stream.next().lineno
+        lineno = next(parser.stream).lineno
 
         body = parser.parse_statements(['name:endautopep8'], drop_needle=True)
         args = []

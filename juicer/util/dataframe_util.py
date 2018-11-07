@@ -1,4 +1,6 @@
 # coding=utf-8
+from __future__ import absolute_import
+
 import decimal
 import json
 
@@ -6,7 +8,7 @@ import datetime
 
 import re
 import simplejson
-import types
+from six import text_type
 
 
 def is_numeric(schema, col):
@@ -74,10 +76,9 @@ def with_column_index(sdf, name):
 def convert_to_csv(row):
     result = []
     for v in row:
-        t = type(v)
-        if t in [datetime.datetime]:
+        if isinstance(v, datetime.datetime):
             result.append(v.isoformat())
-        elif t in [unicode, str]:
+        elif isinstance(v, (str, text_type)):
             result.append(u'"{}"'.format(v))
         else:
             result.append(str(v))
@@ -170,17 +171,14 @@ def emit_sample(task_id, df, emit_event, name, size=50, notebook=False):
     from juicer.spark.reports import SimpleTableReport
     headers = [f.name for f in df.schema.fields]
 
-    number_types = (types.IntType, types.LongType,
-                    types.FloatType, types.ComplexType, decimal.Decimal)
+    number_types = (int, float, decimal.Decimal)
 
     rows = []
     for row in df.take(size):
         new_row = []
         rows.append(new_row)
         for col in row:
-            if isinstance(col, str):
-                value = col
-            elif isinstance(col, unicode):
+            if isinstance(col, (str, text_type)):
                 value = col
             elif isinstance(col, (datetime.datetime, datetime.date)):
                 value = col.isoformat()
@@ -209,9 +207,7 @@ def emit_sample_sklearn(task_id, df, emit_event, name, size=50, notebook=False):
     from juicer.spark.reports import SimpleTableReport
     headers = list(df.columns)
 
-    number_types = (types.IntType, types.LongType,
-                    types.FloatType, types.ComplexType, decimal.Decimal)
-
+    number_types = (int, float, decimal.Decimal)
     rows = []
 
     for row in df.head(size).values:
@@ -346,7 +342,7 @@ def handle_spark_exception(e):
     result = False
     if isinstance(e, AnalysisException):
         value_expr = re.compile(r'[`"](.+)[`"].+columns:\s(.+)$')
-        found = value_expr.findall(unicode(e.desc.split('\n')[0]))
+        found = value_expr.findall(e.desc.split('\n')[0])
         if found:
             field, fields = found[0]
             raise ValueError(
@@ -355,7 +351,7 @@ def handle_spark_exception(e):
         else:
             value_expr = re.compile(r'The data type of the expression in the '
                                     r'ORDER BY clause should be a numeric type')
-            found = value_expr.findall(unicode(e.desc.split('\n')[0]))
+            found = value_expr.findall(e.desc.split('\n')[0])
             if found:
                 raise ValueError(
                     _('When using Window Operation with range type, the order '
@@ -368,7 +364,7 @@ def handle_spark_exception(e):
                       'option must include only one attribute.'))
     elif isinstance(e, IllegalArgumentException):
         # Invalid column type
-        if 'must be of type equal' in unicode(e.message):
+        if 'must be of type equal' in str(e):
             value_expr = re.compile(
                 "requirement failed: Column (.+?) must be"
                 ".+following types: \[(.+?)\] but was actually of type (.+).")
@@ -381,14 +377,18 @@ def handle_spark_exception(e):
                 ))
     elif hasattr(e, 'java_exception'):
         cause = e.java_exception.getCause()
-        while cause is not None and cause.getCause() is not None:
-            cause = cause.getCause()
+        if 'unwrapRemoteException' in dir(cause):
+            cause = cause.unwrapRemoteException()
+        else:
+            while cause is not None and cause.getCause() is not None:
+                cause = cause.getCause()
 
         if cause is not None:
             nfe = 'java.lang.NumberFormatException'
             uoe = 'java.lang.UnsupportedOperationException'
             npe = 'java.lang.NullPointerException'
             bme = 'org.apache.hadoop.hdfs.BlockMissingException'
+            ace = 'org.apache.hadoop.security.AccessControlException'
 
             cause_msg = cause.getMessage()
             inner_cause = cause.getCause()
@@ -415,6 +415,12 @@ def handle_spark_exception(e):
                       'Please, check if HDFS namenode is up and you '
                       'correctly configured the option '
                       'dfs.client.use.datanode.hostname in Juicer\' config.'))
+            elif cause.getClass().getName() == ace:
+                raise ValueError(
+                    _('You do not have permissions to read or write in the '
+                      'storage. Probably, it is a configuration problem. '
+                      'Please, contact the support.')
+                )
         elif e.java_exception.getMessage():
             value_expr = re.compile(r'CSV data source does not support '
                                     r'(.+?) data type')
@@ -425,3 +431,16 @@ def handle_spark_exception(e):
                       'Try to convert the attribute to string (see to_json()) '
                       'before saving.'.format(value[0])))
     return result
+
+
+def df_zip_with_index(df, offset=1, name="row_id"):
+    import pyspark.sql.types as spark_types
+    new_schema = spark_types.StructType(
+        [spark_types.StructField(name, spark_types.LongType(),
+                                 True)] + df.schema.fields
+    )
+
+    zipped_rdd = df.rdd.zipWithIndex()
+
+    return zipped_rdd.map(
+        lambda (row, row_id): ([row_id + offset] + list(row))).toDF(new_schema)

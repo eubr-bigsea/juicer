@@ -1,13 +1,14 @@
 # -*- coding: utf-8 -*-
+from __future__ import absolute_import
+
 import ast
 import gettext
 
+import os
 try:
     from itertools import zip_longest
 except ImportError:
     from itertools import izip_longest as zip_longest
-
-import os
 
 locales_path = os.path.join(os.path.dirname(__file__), 'i18n', 'locales')
 t = gettext.translation('messages', locales_path, ["pt"],

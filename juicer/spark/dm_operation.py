@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals
+from __future__ import unicode_literals, absolute_import
 from textwrap import dedent
 
 from juicer.operation import Operation
@@ -172,7 +172,6 @@ class SequenceMiningOperation(Operation):
 
     def generate_code(self):
         code = dedent(u"""
-            from pyspark.sql import DataFrame
             try:
                 # noinspection PyProtectedMember
                 ext_pkg = spark_session._jvm.br.ufmg.dcc.lemonade.ext.fpm

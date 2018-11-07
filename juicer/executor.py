@@ -1,5 +1,6 @@
 # !/usr/bin/env python
 # -*- coding: utf-8 -*-
+from __future__ import absolute_import
 import argparse
 import fcntl
 import logging.config
@@ -56,17 +57,12 @@ def execute_workflow(redis_conn, _id, shells):
         sub.stdin.flush()
         gevent.sleep(.1)
 
-        print '-' * 10
         out_buffer = ""
         while True:
             gevent.sleep(1)
             out_buffer += fr.read()
             if out_buffer.endswith(">>> "):
-                print out_buffer
                 break
-            else:
-                print out_buffer
-        print '-' * 10
 
 
 def publisher(redis_conn):
@@ -96,7 +92,7 @@ def main():
     workers = 2
     log.info(_("Spawning %s greenlets connecting to Redis..."), workers)
     redis_greenlets = [gevent.spawn(execute_workflow, redis_conn, _id, shells)
-                       for _id in xrange(workers)]
+                       for _id in range(workers)]
     # Wait until all greenlets have started and connected.
     gevent.sleep(1)
 
