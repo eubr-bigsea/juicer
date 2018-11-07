@@ -1,7 +1,6 @@
 # coding=utf-8
-"""
-"
-"""
+from __future__ import absolute_import
+
 import argparse
 import errno
 import gettext
@@ -12,11 +11,11 @@ import signal
 import subprocess
 import sys
 import time
-import urlparse
 
 import os
 import redis
 import yaml
+from future.moves.urllib.parse import urlparse
 from juicer.exceptions import JuicerException
 from juicer.runner import configuration
 from juicer.runner import protocol as juicer_protocol
@@ -65,8 +64,8 @@ class JuicerServer:
         signal.signal(signal.SIGTERM, self._terminate)
         self.platform = 'spark'
 
-        self.port_range = range(*(config['juicer'].get('minion', {}).get(
-            'libprocess_port_range', [36000, 36500])))
+        self.port_range = list(range(*(config['juicer'].get('minion', {}).get(
+            'libprocess_port_range', [36000, 36500]))))
         self.advertise_ip = config['juicer'].get('minion', {}).get(
             'libprocess_advertise_ip')
 
@@ -81,7 +80,7 @@ class JuicerServer:
         signal.signal(signal.SIGTERM, self._terminate_minions)
         log.info(_('Starting master process. Reading "start" queue'))
 
-        parsed_url = urlparse.urlparse(
+        parsed_url = urlparse(
             self.config['juicer']['servers']['redis_url'])
         redis_conn = redis.StrictRedis(host=parsed_url.hostname,
                                        port=parsed_url.port)
@@ -132,14 +131,14 @@ class JuicerServer:
             log.exception(je)
             if app_id:
                 self.state_control.push_app_output_queue(app_id, json.dumps(
-                    {'code': je.code, 'message': je.message}))
+                    {'code': je.code, 'message': str(je)}))
         except KeyboardInterrupt:
             pass
         except Exception as ex:
             log.exception(ex)
             if app_id:
                 self.state_control.push_app_output_queue(
-                    app_id, json.dumps({'code': 500, 'message': ex.message}))
+                    app_id, json.dumps({'code': 500, 'message': str(ex)}))
 
     def _forward_to_minion(self, msg_type, workflow_id, app_id, msg, platform):
         # Get minion status, if it exists
@@ -234,7 +233,7 @@ class JuicerServer:
             del self.active_minions[(workflow_id, app_id)]
 
     def minion_support(self):
-        parsed_url = urlparse.urlparse(
+        parsed_url = urlparse(
             self.config['juicer']['servers']['redis_url'])
         redis_conn = redis.StrictRedis(host=parsed_url.hostname,
                                        port=parsed_url.port)
@@ -290,7 +289,7 @@ class JuicerServer:
         try:
             log.info(_('Watching minions events.'))
 
-            parsed_url = urlparse.urlparse(
+            parsed_url = urlparse(
                 self.config['juicer']['servers']['redis_url'])
             redis_conn = redis.StrictRedis(host=parsed_url.hostname,
                                            port=parsed_url.port)

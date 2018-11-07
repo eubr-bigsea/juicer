@@ -1,10 +1,14 @@
 # coding=utf-8
-from __future__ import unicode_literals
+from __future__ import unicode_literals, absolute_import
 
 import json
 import logging
 import string
-from itertools import izip_longest
+
+try:
+    from itertools import zip_longest as zip_longest
+except ImportError:
+    from itertools import izip_longest as zip_longest
 from textwrap import dedent
 
 from juicer.deploy import Deployment, DeploymentTask, DeploymentFlow
@@ -171,8 +175,8 @@ class FeatureIndexerOperation(Operation):
         # Adjust alias in order to have the same number of aliases as attributes
         # by filling missing alias with the attribute name suffixed by _indexed.
         self.alias = [x[1] or '{}_indexed'.format(x[0]) for x in
-                      izip_longest(self.attributes,
-                                   self.alias[:len(self.attributes)])]
+                      zip_longest(self.attributes,
+                                  self.alias[:len(self.attributes)])]
 
     def generate_code(self):
         input_data = self.named_inputs['input data']
@@ -201,7 +205,7 @@ class FeatureIndexerOperation(Operation):
                 {out} = pipeline.fit({input}_without_null)\\
                     .transform({input}_without_null)
             """.format(input=input_data, out=output, models=models,
-                       alias=json.dumps(zip(self.attributes, self.alias),
+                       alias=json.dumps(list(zip(self.attributes, self.alias)),
                                         indent=None)))
         elif self.type == self.TYPE_VECTOR:
             code = dedent("""
@@ -224,7 +228,7 @@ class FeatureIndexerOperation(Operation):
                 {out} = pipeline.fit({input}_without_null).transform(
                     {input}_without_null)
             """.format(input=input_data, out=output,
-                       alias=json.dumps(zip(self.attributes, self.alias)),
+                       alias=json.dumps(list(zip(self.attributes, self.alias))),
                        max_categ=self.max_categories,
                        models=models))
         else:
@@ -273,8 +277,8 @@ class IndexToStringOperation(Operation):
         # Adjust alias in order to have the same number of aliases as attributes
         # by filling missing alias with the attribute name sufixed by _indexed.
         self.alias = [x[1] or '{}_str'.format(x[0]) for x in
-                      izip_longest(self.attributes,
-                                   self.alias[:len(self.attributes)])]
+                      zip_longest(self.attributes,
+                                  self.alias[:len(self.attributes)])]
         self.has_code = any(
             ['input data' in self.named_inputs, self.contains_results()])
 
@@ -302,7 +306,7 @@ class IndexToStringOperation(Operation):
         """.format(input=input_data, out=output, labels=labels,
                    original_names=json.dumps(
                        [n.strip() for n in self.original_names]),
-                   alias=json.dumps(zip(self.attributes, self.alias),
+                   alias=json.dumps(list(zip(self.attributes, self.alias)),
                                     indent=None))
         return dedent(code)
 
@@ -330,8 +334,8 @@ class OneHotEncoderOperation(Operation):
         # Adjust alias in order to have the same number of aliases as attributes
         # by filling missing alias with the attribute name suffixed by _indexed.
         self.alias = [x[1] or '{}_onehotenc'.format(x[0]) for x in
-                      izip_longest(self.attributes,
-                                   self.alias[:len(self.attributes)])]
+                      zip_longest(self.attributes,
+                                  self.alias[:len(self.attributes)])]
 
     def generate_code(self):
         input_data = self.named_inputs['input data']
@@ -347,9 +351,10 @@ class OneHotEncoderOperation(Operation):
             # Use Pipeline to process all attributes once
             pipeline = Pipeline(stages=encoders)
             {out} = pipeline.fit({input}).transform({input})
-            """.format(input=input_data, out=output,
-                       aliases=json.dumps(zip(self.attributes, self.alias),
-                                          indent=None))
+            """.format(
+            input=input_data, out=output,
+            aliases=json.dumps(list(zip(self.attributes, self.alias)),
+                               indent=None))
         return dedent(code)
 
 
@@ -1729,17 +1734,20 @@ class ClusteringModelOperation(Operation):
             summary = getattr({model}, 'summary', None)
 
             # Lazy execution in case of sampling the data in UI
-            def call_clusters(df):
-                if hasattr({model}, 'clusterCenters'):
+            def call_clusters(clustering_model):
+                if hasattr(clustering_model, 'clusterCenters'):
+                    centers = clustering_model.clusterCenters()
+                    df_data = [center.tolist() for center in centers]
                     return spark_session.createDataFrame(
-                        [center.tolist()
-                            for center in {model}.clusterCenters()])
+                        df_data, ['centroid_{{}}'.format(i)
+                            for i in range(len(df_data[0]))])
                 else:
                     return spark_session.createDataFrame([],
                         types.StructType([]))
 
+            # Last stage contains clustering model
             {centroids} = dataframe_util.LazySparkTransformationDataframe(
-                {model}, {input}, call_clusters)
+                {model}.stages[-1], {model}.stages[-1], call_clusters)
 
             if summary:
                 summary_rows = []
@@ -1970,8 +1978,8 @@ class TopicReportOperation(ReportOperation):
         code = dedent("""
             # TODO: evaluate if using broadcast() is more efficient
             terms_idx_to_str = functions.udf(lambda term_indexes:
-                [{vocabulary}['text_vector'][inx]  for inx in term_indexes])
-            topic_df = {model}.describeTopics(
+                [{vocabulary}.values()[0][inx]  for inx in term_indexes])
+            topic_df = {model}.stages[-1].describeTopics(
                 maxTermsPerTopic={tpt}).withColumn(
                     'terms', terms_idx_to_str(functions.col('termIndices')))
 

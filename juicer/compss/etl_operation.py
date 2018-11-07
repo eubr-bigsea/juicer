@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
-import json
+from __future__ import absolute_import, division
 from textwrap import dedent
 from juicer.operation import Operation
 from juicer.compss.expression import Expression
-from itertools import izip_longest
 
 
 class AddColumnsOperation(Operation):

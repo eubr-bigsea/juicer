@@ -1,14 +1,15 @@
-FROM python:2.7-alpine as base
+FROM python:2.7-alpine3.8 as base
 
 FROM base as pip_build
 
-ARG APK_EDGE_COMMUNITY_REPO=http://dl-cdn.alpinelinux.org/alpine/edge/community
+ARG APK_EDGE_COMMUNITY_REPO=http://dl-cdn.alpinelinux.org/alpine/3.8/community
 ARG APK_EDGE_TESTING_REPO=http://dl-cdn.alpinelinux.org/alpine/edge/testing
 ARG APK_REPOS="${APK_EDGE_TESTING_REPO}\n${APK_EDGE_COMMUNITY_REPO}"
 
 RUN echo -e $APK_REPOS >> /etc/apk/repositories \
     && apk add --no-cache --virtual .build-deps \
       cython-dev \
+      libc6-compat \
       freetype-dev \
       g++ \
       hdf5-dev \
@@ -17,6 +18,8 @@ RUN echo -e $APK_REPOS >> /etc/apk/repositories \
       musl-dev \
       openblas-dev \
       py-numpy-dev \
+      openssl-dev \
+      libffi-dev  \
     && apk add --no-cache \
       cython \
       gfortran \

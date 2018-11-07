@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+from __future__ import absolute_import
+
 import json
 import logging
 
@@ -17,7 +19,8 @@ def save_job_source_code(base_url, token, job_id, source):
     url = '{}/jobs/{}/source-code'.format(base_url, job_id)
 
     r = requests.patch(url,
-                       data=json.dumps({'secret': token, 'source': source}),
+                       data=json.dumps({'secret': token, 'source': source},
+                                       sort_keys=True),
                        headers=headers)
     if r.status_code == 200:
         return json.loads(r.text)

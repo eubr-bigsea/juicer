@@ -1,3 +1,7 @@
+# coding=utf-8
+from __future__ import print_function
+
+
 def flatten(l):
     return [item for sublist in l for item in sublist]
 

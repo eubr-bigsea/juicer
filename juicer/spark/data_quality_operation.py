@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
+from __future__ import absolute_import
 from __future__ import unicode_literals
+
 from textwrap import dedent
 
 from juicer.operation import Operation
@@ -18,14 +20,15 @@ class EntityMatchingOperation(Operation):
         else:
             raise ValueError(_(
                 "Parameter '{}' must be informed for task {}").format(
-                    self.ALGORITHM_PARAM, self.__class__))
+                self.ALGORITHM_PARAM, self.__class__))
 
         if self.algorithm not in [self.ALGORITHM_BULMA]:
             raise ValueError(_(
                 "Algorithm '{}' not supported in for task {}").format(
-                    self.algorithm, self.__class__))
-        self.output = self.named_outputs.get('output data 1', 'em_data_{}'.format(
-            self.order))
+                self.algorithm, self.__class__))
+        self.output = self.named_outputs.get('output data 1',
+                                             'em_data_{}'.format(
+                                                 self.order))
         self.has_code = len(self.named_inputs) == 2
 
     def generate_code(self):

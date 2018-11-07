@@ -1,7 +1,12 @@
 # coding=utf-8
-from __future__ import unicode_literals
+from __future__ import unicode_literals, absolute_import
+
 import json
-from itertools import izip_longest
+
+try:
+    from itertools import zip_longest as zip_longest
+except ImportError:
+    from itertools import izip_longest as zip_longest
 from textwrap import dedent
 
 from juicer.operation import Operation
@@ -42,8 +47,8 @@ class TokenizerOperation(Operation):
         # Adjust alias in order to have the same number of aliases as attributes
         # by filling missing alias with attribute name suffixed by tokenized.
         self.alias = [x[1] or '{}_tokenized'.format(x[0]) for x in
-                      izip_longest(self.attributes,
-                                   self.alias[:len(self.attributes)])]
+                      zip_longest(self.attributes,
+                                  self.alias[:len(self.attributes)])]
 
         self.expression_param = parameters.get(self.EXPRESSION_PARAM, r'\s+')
         self.min_token_lenght = parameters.get(self.MINIMUM_SIZE, 3)
@@ -75,7 +80,7 @@ class TokenizerOperation(Operation):
 
                 {out} = pipeline.fit({input}).transform({input})
             """.format(input=input_data, out=self.output,
-                       alias=json.dumps(zip(self.attributes, self.alias)),
+                       alias=json.dumps(list(zip(self.attributes, self.alias))),
                        pattern=self.expression_param,
                        min_token=self.min_token_lenght)
 
@@ -118,8 +123,8 @@ class RemoveStopWordsOperation(Operation):
         # by filling missing alias with the attribute name sufixed by
         # _no_stopwords.
         self.alias = [x[1] or '{}_no_stopwords'.format(x[0]) for x in
-                      izip_longest(self.attributes,
-                                   self.alias[:len(self.attributes)])]
+                      zip_longest(self.attributes,
+                                  self.alias[:len(self.attributes)])]
 
         self.stop_word_language = self.parameters.get(
             self.STOP_WORD_LANGUAGE_PARAM, 'english')
@@ -164,7 +169,7 @@ class RemoveStopWordsOperation(Operation):
             {out} = pipeline.fit({input}).transform({input})
         """.format(input=input_data,
                    out=self.output,
-                   alias=json.dumps(zip(self.attributes, self.alias)),
+                   alias=json.dumps(list(zip(self.attributes, self.alias))),
                    case_sensitive=self.sw_case_sensitive))
         else:
             code = ("sw = [stop[0].strip() "
@@ -183,7 +188,7 @@ class RemoveStopWordsOperation(Operation):
                 {2} = pipeline.fit({1}).transform({1})
             """.format(self.attributes, input_data,
                        self.output,
-                       json.dumps(zip(self.attributes, self.alias)),
+                       json.dumps(list(zip(self.attributes, self.alias))),
                        self.sw_case_sensitive))
         return code
 
@@ -229,8 +234,8 @@ class WordToVectorOperation(Operation):
         # Adjust alias in order to have the same number of aliases as attributes
         # by filling missing alias with the attribute name sufixed by _vect.
         self.alias = [x[1] or '{}_vect'.format(x[0]) for x in
-                      izip_longest(self.attributes,
-                                   self.alias[:len(self.attributes)])]
+                      zip_longest(self.attributes,
+                                  self.alias[:len(self.attributes)])]
 
         self.vocab_size = parameters.get(self.VOCAB_SIZE_PARAM, 1000) or 1000
         self.minimum_df = parameters.get(self.MINIMUM_DF_PARAM, 1) or 1.0
@@ -278,7 +283,7 @@ class WordToVectorOperation(Operation):
                         for i, v in enumerate({model}.stages)])""".format(
                 input=input_data,
                 out=self.output,
-                alias=json.dumps(zip(self.attributes, self.alias)),
+                alias=json.dumps(list(zip(self.attributes, self.alias))),
                 min_tf=self.minimum_tf, min_df=self.minimum_df,
                 vocab_size=self.vocab_size,
                 model=self.output_model,
@@ -299,7 +304,7 @@ class WordToVectorOperation(Operation):
                 {vocab} = {{}}""".format(
                 input=input_data,
                 out=self.output,
-                alias=json.dumps(zip(self.attributes, self.alias)),
+                alias=json.dumps(list(zip(self.attributes, self.alias))),
                 vocab_size=self.vocab_size,
                 model=self.output_model,
                 vocab=self.vocab))
@@ -324,7 +329,7 @@ class WordToVectorOperation(Operation):
                 self.attributes,
                 input=input_data,
                 out=self.output,
-                aliases=json.dumps(zip(self.attributes, self.alias)),
+                aliases=json.dumps(list(zip(self.attributes, self.alias))),
                 size=self.minimum_size, count=self.minimum_count,
                 vocab=self.vocab,
                 model=self.output_model
@@ -371,8 +376,8 @@ class GenerateNGramsOperation(Operation):
         # Adjust alias in order to have the same number of aliases as attributes
         # by filling missing alias with the attribute name sufixed by _ngram.
         self.alias = [x[1] or '{}_ngram'.format(x[0]) for x in
-                      izip_longest(self.attributes,
-                                   self.alias[:len(self.attributes)])]
+                      zip_longest(self.attributes,
+                                  self.alias[:len(self.attributes)])]
 
         self.has_code = any(
             [len(self.named_inputs) > 0, self.contains_results()])
@@ -389,7 +394,8 @@ class GenerateNGramsOperation(Operation):
             pipeline = Pipeline(stages=n_gramers)
             model = pipeline.fit({input})
             {output} = model.transform({input})
-            """).format(alias=json.dumps(zip(self.attributes, self.alias)),
-                        n=self.n, input=input_data, output=self.output)
+            """).format(
+            alias=json.dumps(list(zip(self.attributes, self.alias))),
+            n=self.n, input=input_data, output=self.output)
 
         return code

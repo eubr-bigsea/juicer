@@ -1,5 +1,8 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
+from __future__ import absolute_import
+
+from six import text_type
 
 
 class Expression:
@@ -24,7 +27,8 @@ class Expression:
         # Literal parsing
         elif tree['type'] == 'Literal':
             v = tree['value']
-            result = "'{}'".format(v) if type(v) in [str, unicode] else str(v)
+            result = "'{}'".format(v) if isinstance(
+                v, (str, text_type)) else str(v)
 
         # Expression parsing
         elif tree['type'] == 'CallExpression':
@@ -81,7 +85,8 @@ class Expression:
         Wrap column name with col() function call, if such call is not present.
         """
         # Evaluates if column name is wrapped in a col() function call
-        arguments = ', '.join([self.parse(x, params) for x in spec['arguments']])
+        arguments = ', '.join(
+            [self.parse(x, params) for x in spec['arguments']])
         action = spec['callee']['name']
 
         action = self.translate_functions.get(action, action)
@@ -134,7 +139,7 @@ class Expression:
         bins_size = args[1]
         var_date = args[0]
 
-        result = "group_datetime(col[{date}], {bins_size})"\
+        result = "group_datetime(col[{date}], {bins_size})" \
             .format(date=var_date, bins_size=bins_size)
 
         return result
@@ -163,7 +168,7 @@ class Expression:
         arguments = ', '.join([self.parse(x, params)
                                for x in spec['arguments']])
         strip_punctuation = ".translate(None, string.punctuation)"
-        result = '{}{}'.format(arguments, strip_punctuation )
+        result = '{}{}'.format(arguments, strip_punctuation)
         return result
 
     def convertToPandas_function(self, spec, params):
@@ -181,68 +186,118 @@ class Expression:
             # https://docs.scipy.org/doc/numpy-1.13.0/reference/routines.math.html
 
             #   *   Trigonometric functions:
-            'sin':	self.get_numpy_function_call,  # Trigonometric sine, element-wise.
-            'cos':	self.get_numpy_function_call, #	Cosine element-wise.
-            'tan':	self.get_numpy_function_call, #	Compute tangent element-wise.
-            'arcsin':	self.get_numpy_function_call, #	Inverse sine, element-wise.
-            'arccos':	self.get_numpy_function_call, #	Trigonometric inverse cosine, element-wise.
-            'arctan':	self.get_numpy_function_call, #	Trigonometric inverse tangent, element-wise.
-            'hypot':	self.get_numpy_function_call, #	Given the “legs” of a right triangle, return its hypotenuse.
-            'arctan2':	self.get_numpy_function_call, #	Element-wise arc tangent of x1/x2 choosing the quadrant correctly.
-            'deg2rad':	self.get_numpy_function_call, #	Convert angles from degrees to radians.
-            'rad2deg':	self.get_numpy_function_call, #	Convert angles from radians to degrees.
+            'sin': self.get_numpy_function_call,
+        # Trigonometric sine, element-wise.
+            'cos': self.get_numpy_function_call,  # Cosine element-wise.
+            'tan': self.get_numpy_function_call,
+            # Compute tangent element-wise.
+            'arcsin': self.get_numpy_function_call,
+            # Inverse sine, element-wise.
+            'arccos': self.get_numpy_function_call,
+            # Trigonometric inverse cosine, element-wise.
+            'arctan': self.get_numpy_function_call,
+            # Trigonometric inverse tangent, element-wise.
+            'hypot': self.get_numpy_function_call,
+            # Given the “legs” of a right triangle, return its hypotenuse.
+            'arctan2': self.get_numpy_function_call,
+            # Element-wise arc tangent of x1/x2 choosing the quadrant correctly.
+            'deg2rad': self.get_numpy_function_call,
+            # Convert angles from degrees to radians.
+            'rad2deg': self.get_numpy_function_call,
+            # Convert angles from radians to degrees.
 
             #   * Hyperbolic functions:
-            'sinh':	self.get_numpy_function_call, #	Hyperbolic sine, element-wise.
-            'cosh':	self.get_numpy_function_call, #	Hyperbolic cosine, element-wise.
-            'tanh':	self.get_numpy_function_call, #	Compute hyperbolic tangent element-wise.
-            'arccosh':	self.get_numpy_function_call, #	Inverse hyperbolic cosine, element-wise.
-            'arcsinh':	self.get_numpy_function_call, #	Inverse hyperbolic sine element-wise.
-            'arctanh':	self.get_numpy_function_call, #	Inverse hyperbolic tangent element-wise.
+            'sinh': self.get_numpy_function_call,
+            # Hyperbolic sine, element-wise.
+            'cosh': self.get_numpy_function_call,
+            # Hyperbolic cosine, element-wise.
+            'tanh': self.get_numpy_function_call,
+            # Compute hyperbolic tangent element-wise.
+            'arccosh': self.get_numpy_function_call,
+            # Inverse hyperbolic cosine, element-wise.
+            'arcsinh': self.get_numpy_function_call,
+            # Inverse hyperbolic sine element-wise.
+            'arctanh': self.get_numpy_function_call,
+            # Inverse hyperbolic tangent element-wise.
 
             #       *  Rounding:
-            'around':	self.get_numpy_function_call, #	Evenly round to the given number of decimals.
-            'rint':	    self.get_numpy_function_call, #	Round elements of the array to the nearest integer.
-            'fix':	    self.get_numpy_function_call, #	Round to nearest integer towards zero.
-            'floor':	self.get_numpy_function_call, #	Return the floor of the input, element-wise.
-            'ceil':	    self.get_numpy_function_call, #	Return the ceiling of the input, element-wise.
-            'trunc':	self.get_numpy_function_call, #	Return the truncated value of the input, element-wise.
+            'around': self.get_numpy_function_call,
+            # Evenly round to the given number of decimals.
+            'rint': self.get_numpy_function_call,
+            # Round elements of the array to the nearest integer.
+            'fix': self.get_numpy_function_call,
+            # Round to nearest integer towards zero.
+            'floor': self.get_numpy_function_call,
+            # Return the floor of the input, element-wise.
+            'ceil': self.get_numpy_function_call,
+            # Return the ceiling of the input, element-wise.
+            'trunc': self.get_numpy_function_call,
+            # Return the truncated value of the input, element-wise.
 
             #   *   Exponents and logarithms:
-            'exp':	    self.get_numpy_function_call, #	Calculate the exponential of all elements in the input array.
-            'expm1':	self.get_numpy_function_call, #	Calculate exp(x) - 1 for all elements in the array.
-            'exp2':	    self.get_numpy_function_call, #	Calculate 2**p for all p in the input array.
-            'log':	    self.get_numpy_function_call, #	Natural logarithm, element-wise.
-            'log10':	self.get_numpy_function_call, #	Return the base 10 logarithm of the input array, element-wise.
-            'log2':	    self.get_numpy_function_call, #	Base-2 logarithm of x.
-            'log1p':	self.get_numpy_function_call, #	Return the natural logarithm of one plus the input array, element-wise.
-            'logaddexp':	self.get_numpy_function_call, #	Logarithm of the sum of exponentiations of the inputs.
-            'logaddexp2':	self.get_numpy_function_call, #	Logarithm of the sum of exponentiations of the inputs in base-2.
+            'exp': self.get_numpy_function_call,
+            # Calculate the exponential of all elements in the input array.
+            'expm1': self.get_numpy_function_call,
+            # Calculate exp(x) - 1 for all elements in the array.
+            'exp2': self.get_numpy_function_call,
+            # Calculate 2**p for all p in the input array.
+            'log': self.get_numpy_function_call,
+            # Natural logarithm, element-wise.
+            'log10': self.get_numpy_function_call,
+            # Return the base 10 logarithm of the input array, element-wise.
+            'log2': self.get_numpy_function_call,
+            # Base-2 logarithm of x.
+            'log1p': self.get_numpy_function_call,
+            # Return the natural logarithm of one plus the input array, element-wise.
+            'logaddexp': self.get_numpy_function_call,
+            # Logarithm of the sum of exponentiations of the inputs.
+            'logaddexp2': self.get_numpy_function_call,
+            # Logarithm of the sum of exponentiations of the inputs in base-2.
 
             #   *   Arithmetic operations:
-            'add':	        self.get_numpy_function_call, #	Add arguments element-wise.
-            'reciprocal':	self.get_numpy_function_call, #	Return the reciprocal of the argument, element-wise.
-            'negative':	    self.get_numpy_function_call, #	Numerical negative, element-wise.
-            'multiply':	    self.get_numpy_function_call, #	Multiply arguments element-wise.
-            'divide':	    self.get_numpy_function_call, #	Divide arguments element-wise.
-            'power':	    self.get_numpy_function_call, #	First array elements raised to powers from second array, element-wise.
-            'subtract':	    self.get_numpy_function_call, #	Subtract arguments, element-wise.
-            'true_divide':	self.get_numpy_function_call, #	Returns a true division of the inputs, element-wise.
-            'floor_divide':	self.get_numpy_function_call, #	Return the largest integer smaller or equal to the division of the inputs.
-            'float_power':	self.get_numpy_function_call, #	First array elements raised to powers from second array, element-wise.
-            'fmod':	        self.get_numpy_function_call, #	Return the element-wise remainder of division.
-            'mod':	        self.get_numpy_function_call, #	Return element-wise remainder of division.
-            'remainder':	self.get_numpy_function_call, #	Return element-wise remainder of division.
+            'add': self.get_numpy_function_call,
+            # Add arguments element-wise.
+            'reciprocal': self.get_numpy_function_call,
+            # Return the reciprocal of the argument, element-wise.
+            'negative': self.get_numpy_function_call,
+            # Numerical negative, element-wise.
+            'multiply': self.get_numpy_function_call,
+            # Multiply arguments element-wise.
+            'divide': self.get_numpy_function_call,
+            # Divide arguments element-wise.
+            'power': self.get_numpy_function_call,
+            # First array elements raised to powers from second array, element-wise.
+            'subtract': self.get_numpy_function_call,
+            # Subtract arguments, element-wise.
+            'true_divide': self.get_numpy_function_call,
+            # Returns a true division of the inputs, element-wise.
+            'floor_divide': self.get_numpy_function_call,
+            # Return the largest integer smaller or equal to the division of the inputs.
+            'float_power': self.get_numpy_function_call,
+            # First array elements raised to powers from second array, element-wise.
+            'fmod': self.get_numpy_function_call,
+            # Return the element-wise remainder of division.
+            'mod': self.get_numpy_function_call,
+            # Return element-wise remainder of division.
+            'remainder': self.get_numpy_function_call,
+            # Return element-wise remainder of division.
 
 
             #   *   Miscellaneous
-            'clip':         self.get_numpy_function_call, # Clip (limit) the values in an array.
-            'sqrt':	        self.get_numpy_function_call, #	Return the positive square-root of an array, element-wise.
-            'cbrt':	        self.get_numpy_function_call, #	Return the cube-root of an array, element-wise.
-            'square':	    self.get_numpy_function_call, #	Return the element-wise square of the input.
-            'fabs':	        self.get_numpy_function_call, #	Compute the absolute values element-wise.
-            'sign':	        self.get_numpy_function_call, #	Returns an element-wise indication of the sign of a number.
-            'nan_to_num':   self.get_numpy_function_call, #	Replace nan with zero and inf with finite numbers.
+            'clip': self.get_numpy_function_call,
+        # Clip (limit) the values in an array.
+            'sqrt': self.get_numpy_function_call,
+            # Return the positive square-root of an array, element-wise.
+            'cbrt': self.get_numpy_function_call,
+            # Return the cube-root of an array, element-wise.
+            'square': self.get_numpy_function_call,
+            # Return the element-wise square of the input.
+            'fabs': self.get_numpy_function_call,
+            # Compute the absolute values element-wise.
+            'sign': self.get_numpy_function_call,
+            # Returns an element-wise indication of the sign of a number.
+            'nan_to_num': self.get_numpy_function_call,
+            # Replace nan with zero and inf with finite numbers.
 
 
             # --------- String operations ---------#
@@ -250,38 +305,68 @@ class Expression:
             # https://docs.scipy.org/doc/numpy-1.13.0/reference/routines.char.html
 
             #   *   String operations
-            'capitalize':   self.get_numpy_function_call, #	Return a copy of a with only the first character of each element capitalized.
-            'center':   self.get_numpy_function_call, #	Return a copy of a with its elements centered in a string of length width.
-            'decode':   self.get_numpy_function_call, #	Calls str.decode element-wise.
-            'encode':   self.get_numpy_function_call, #	Calls str.encode element-wise.
-            'join':     self.get_numpy_function_call, #	Return a string which is the concatenation of the strings in the sequence seq.
-            'ljust':    self.get_numpy_function_call, #	Return an array with the elements of a left-justified in a string of length width.
-            'lower':    self.get_numpy_function_call, #	Return an array with the elements converted to lowercase.
-            'lstrip':   self.get_numpy_function_call, #	For each element in a, return a copy with the leading characters removed.
-            'partition':    self.get_numpy_function_call, #	Partition each element in a around sep.
-            'replace':      self.get_numpy_function_call, #	For each element in a, return a copy of the string with all occurrences of substring old replaced by new.
-            'rjust':        self.get_numpy_function_call, #	Return an array with the elements of a right-justified in a string of length width.
-            'rpartition':   self.get_numpy_function_call, #	Partition (split) each element around the right-most separator.
-            'rsplit':       self.get_numpy_function_call, #	For each element in a, return a list of the words in the string, using sep as the delimiter string.
-            'rstrip':       self.get_numpy_function_call, #	For each element in a, return a copy with the trailing characters removed.
-            'split':        self.get_numpy_function_call, #	For each element in a, return a list of the words in the string, using sep as the delimiter string.
-            'splitlines':   self.get_numpy_function_call, #	For each element in a, return a list of the lines in the element, breaking at line boundaries.
-            'strip':        self.get_numpy_function_call, #	For each element in a, return a copy with the leading and trailing characters removed.
-            'swapcase':     self.get_numpy_function_call, #	Return element-wise a copy of the string with uppercase characters converted to lowercase and vice versa.
-            'upper':        self.get_numpy_function_call, #	Return an array with the elements converted to uppercase.
-            'zfill':        self.get_numpy_function_call, #	Return the numeric string left-filled with zeros
+            'capitalize': self.get_numpy_function_call,
+            # Return a copy of a with only the first character of each element capitalized.
+            'center': self.get_numpy_function_call,
+            # Return a copy of a with its elements centered in a string of length width.
+            'decode': self.get_numpy_function_call,
+            # Calls str.decode element-wise.
+            'encode': self.get_numpy_function_call,
+            # Calls str.encode element-wise.
+            'join': self.get_numpy_function_call,
+            # Return a string which is the concatenation of the strings in the sequence seq.
+            'ljust': self.get_numpy_function_call,
+            # Return an array with the elements of a left-justified in a string of length width.
+            'lower': self.get_numpy_function_call,
+            # Return an array with the elements converted to lowercase.
+            'lstrip': self.get_numpy_function_call,
+            # For each element in a, return a copy with the leading characters removed.
+            'partition': self.get_numpy_function_call,
+            # Partition each element in a around sep.
+            'replace': self.get_numpy_function_call,
+            # For each element in a, return a copy of the string with all occurrences of substring old replaced by new.
+            'rjust': self.get_numpy_function_call,
+            # Return an array with the elements of a right-justified in a string of length width.
+            'rpartition': self.get_numpy_function_call,
+            # Partition (split) each element around the right-most separator.
+            'rsplit': self.get_numpy_function_call,
+            # For each element in a, return a list of the words in the string, using sep as the delimiter string.
+            'rstrip': self.get_numpy_function_call,
+            # For each element in a, return a copy with the trailing characters removed.
+            'split': self.get_numpy_function_call,
+            # For each element in a, return a list of the words in the string, using sep as the delimiter string.
+            'splitlines': self.get_numpy_function_call,
+            # For each element in a, return a list of the lines in the element, breaking at line boundaries.
+            'strip': self.get_numpy_function_call,
+            # For each element in a, return a copy with the leading and trailing characters removed.
+            'swapcase': self.get_numpy_function_call,
+            # Return element-wise a copy of the string with uppercase characters converted to lowercase and vice versa.
+            'upper': self.get_numpy_function_call,
+            # Return an array with the elements converted to uppercase.
+            'zfill': self.get_numpy_function_call,
+            # Return the numeric string left-filled with zeros
 
             #   *   String information
-            'count':        self.get_numpy_function_call, #	Returns an array with the number of non-overlapping occurrences of substring sub in the range [start, end].
-            'find':         self.get_numpy_function_call, #	For each element, return the lowest index in the string where substring sub is found.
-            'isalpha':      self.get_numpy_function_call, #	Returns true for each element if all characters in the string are alphabetic and there is at least one character, false otherwise.
-            'isdecimal':    self.get_numpy_function_call, #	For each element, return True if there are only decimal characters in the element.
-            'isdigit':      self.get_numpy_function_call, #	Returns true for each element if all characters in the string are digits and there is at least one character, false otherwise.
-            'islower':      self.get_numpy_function_call, #	Returns true for each element if all cased characters in the string are lowercase and there is at least one cased character, false otherwise.
-            'isnumeric':    self.get_numpy_function_call, #	For each element, return True if there are only numeric characters in the element.
-            'isspace':      self.get_numpy_function_call, #	Returns true for each element if there are only whitespace characters in the string and there is at least one character, false otherwise.
-            'istitle':      self.get_numpy_function_call, #	Returns true for each element if the element is a titlecased string and there is at least one character, false otherwise.
-            'isupper':      self.get_numpy_function_call, #	Returns true for each element if all cased characters in the string are uppercase and there is at least one character, false otherwise.
+            'count': self.get_numpy_function_call,
+            # Returns an array with the number of non-overlapping occurrences of substring sub in the range [start, end].
+            'find': self.get_numpy_function_call,
+            # For each element, return the lowest index in the string where substring sub is found.
+            'isalpha': self.get_numpy_function_call,
+            # Returns true for each element if all characters in the string are alphabetic and there is at least one character, false otherwise.
+            'isdecimal': self.get_numpy_function_call,
+            # For each element, return True if there are only decimal characters in the element.
+            'isdigit': self.get_numpy_function_call,
+            # Returns true for each element if all characters in the string are digits and there is at least one character, false otherwise.
+            'islower': self.get_numpy_function_call,
+            # Returns true for each element if all cased characters in the string are lowercase and there is at least one cased character, false otherwise.
+            'isnumeric': self.get_numpy_function_call,
+            # For each element, return True if there are only numeric characters in the element.
+            'isspace': self.get_numpy_function_call,
+            # Returns true for each element if there are only whitespace characters in the string and there is at least one character, false otherwise.
+            'istitle': self.get_numpy_function_call,
+            # Returns true for each element if the element is a titlecased string and there is at least one character, false otherwise.
+            'isupper': self.get_numpy_function_call,
+            # Returns true for each element if all cased characters in the string are uppercase and there is at least one character, false otherwise.
 
 
             # --------- Logic operations ----------#
@@ -289,20 +374,31 @@ class Expression:
             # https://docs.scipy.org/doc/numpy-1.13.0/reference/routines.logic.html
 
             #   *   Logical operations
-            'logical_and':  self.get_numpy_function_call,  # Compute the truth value of x1 AND x2 element-wise.
-            'logical_or':   self.get_numpy_function_call,  # Compute the truth value of x1 OR x2 element-wise.
-            'logical_not':  self.get_numpy_function_call,  # Compute the truth value of NOT x element-wise.
-            'logical_xor':  self.get_numpy_function_call,  # Compute the truth value of x1 XOR x2, element-wise.
+            'logical_and': self.get_numpy_function_call,
+        # Compute the truth value of x1 AND x2 element-wise.
+            'logical_or': self.get_numpy_function_call,
+        # Compute the truth value of x1 OR x2 element-wise.
+            'logical_not': self.get_numpy_function_call,
+        # Compute the truth value of NOT x element-wise.
+            'logical_xor': self.get_numpy_function_call,
+        # Compute the truth value of x1 XOR x2, element-wise.
 
 
             #   *   Comparison
-            'array_equiv':      self.get_numpy_function_call,  # Returns True if input arrays are shape consistent and all elements equal.
-            'equal':            self.get_numpy_function_call,  # Return (x1 == x2) element-wise.
-            'not_equal':        self.get_numpy_function_call,  # Return (x1 != x2) element-wise.
-            'greater_equal':    self.get_numpy_function_call,  # Return (x1 >= x2) element-wise.
-            'less_equal':       self.get_numpy_function_call,  # Return (x1 <= x2) element-wise.
-            'greater':          self.get_numpy_function_call,  # Return (x1 > x2) element-wise.
-            'less':             self.get_numpy_function_call,  # Return (x1 < x2) element-wise.
+            'array_equiv': self.get_numpy_function_call,
+        # Returns True if input arrays are shape consistent and all elements equal.
+            'equal': self.get_numpy_function_call,
+        # Return (x1 == x2) element-wise.
+            'not_equal': self.get_numpy_function_call,
+        # Return (x1 != x2) element-wise.
+            'greater_equal': self.get_numpy_function_call,
+        # Return (x1 >= x2) element-wise.
+            'less_equal': self.get_numpy_function_call,
+        # Return (x1 <= x2) element-wise.
+            'greater': self.get_numpy_function_call,
+        # Return (x1 > x2) element-wise.
+            'less': self.get_numpy_function_call,
+        # Return (x1 < x2) element-wise.
 
         }
 
@@ -311,26 +407,29 @@ class Expression:
             # See more at:
             # https://docs.python.org/2/library/datetime.html
 
-            'timedelta':        self.get_date_function_call,
+            'timedelta': self.get_date_function_call,
 
-            'str2time':         self.get_date_function_call,
+            'str2time': self.get_date_function_call,
 
             # For example, date(2002, 12, 4)
             'date': self.get_date_function_call,
 
             # Return the current local date.
-            'today':            self.get_date_function_call,
+            'today': self.get_date_function_call,
 
             # Return the current local date and time.
-            'now':              self.get_date_function_call,
+            'now': self.get_date_function_call,
 
             # Return the current UTC date and time, with tzinfo None.
-            'utcnow':           self.get_date_function_call,
-            'fromtimestamp':    self.get_date_function_call,  # Return the local date and time corresponding to the POSIX timestamp, such as is returned by time.time()
-            'utcfromtimestamp': self.get_date_function_call,  # Return the UTC datetime corresponding to the POSIX timestamp, with tzinfo None.
-            'fromordinal':      self.get_date_function_call,  # Return the datetime corresponding to the proleptic Gregorian ordinal, where January 1 of year 1 has ordinal 1.
-            'combine':          self.get_date_function_call,  # Return a new datetime object whose date components are equal to the given date object’s, and whose time components and tzinfo attributes are equal to the given time object’s.
-
+            'utcnow': self.get_date_function_call,
+            'fromtimestamp': self.get_date_function_call,
+        # Return the local date and time corresponding to the POSIX timestamp, such as is returned by time.time()
+            'utcfromtimestamp': self.get_date_function_call,
+        # Return the UTC datetime corresponding to the POSIX timestamp, with tzinfo None.
+            'fromordinal': self.get_date_function_call,
+        # Return the datetime corresponding to the proleptic Gregorian ordinal, where January 1 of year 1 has ordinal 1.
+            'combine': self.get_date_function_call,
+        # Return a new datetime object whose date components are equal to the given date object’s, and whose time components and tzinfo attributes are equal to the given time object’s.
 
         }
 
@@ -386,7 +485,6 @@ class Expression:
             'utcfromtimestamp': 'date.utcfromtimestamp',
             'fromordinal': 'date.fromordinal',
             'combine': 'date.combine',
-
 
         }
         self.translate_functions.update(translate_date_functions)

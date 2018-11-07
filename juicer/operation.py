@@ -1,7 +1,13 @@
 # -*- coding: utf-8 -*-
+from __future__ import absolute_import
+
 import logging
 from collections import namedtuple
-from itertools import izip_longest
+
+try:
+    from itertools import zip_longest as zip_longest
+except ImportError:
+    from itertools import izip_longest as zip_longest
 
 from juicer.deploy import Deployment, DeploymentFlow
 from juicer.deploy import DeploymentTask
@@ -102,10 +108,10 @@ class Operation(object):
         return ', '.join(self.named_inputs.values())
 
     def get_output_names(self, sep=", "):
-        if self.named_outputs:
-            return sep.join(self.named_outputs.values())
-        else:
+        if self.output:
             return self.output
+        else:
+            return sep.join(self.named_outputs.values())
 
     def get_data_out_names(self, sep=','):
         return self.get_output_names(sep)
@@ -216,4 +222,4 @@ class TransformModelOperation(Operation):
         # Adjust alias in order to have the same number of aliases as attributes
         # by filling missing alias with the attribute name suffixed by _indexed.
         return [x[1] or '{}_{}'.format(x[0], suffix) for x in
-                izip_longest(attributes, aliases[:len(attributes)])]
+                zip_longest(attributes, aliases[:len(attributes)])]
