@@ -259,8 +259,6 @@ class Workflow(object):
                     self.log.warn(
                         _("Incorrect configuration for ports: %s, %s"),
                         source_port, target_port)
-                    import pdb
-                    pdb.set_trace()
                     raise ValueError(_(
                         "Invalid or non-existing port: '{op}' {s} {t}").format(
                         op=task_map[flow['source_id']]['operation']['name'],

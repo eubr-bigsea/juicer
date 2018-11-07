@@ -1,6 +1,6 @@
 from textwrap import dedent
 from juicer.operation import Operation
-
+import re
 
 class ClassificationModelOperation(Operation):
 
@@ -284,6 +284,83 @@ class LogisticRegressionOperation(Operation):
             solver='{solver}', random_state={seed})
             """.format(tol=self.tol,
                        C=self.regularization,
+                       max_iter=self.max_iter,
+                       seed=self.seed,
+                       solver=self.solver,
+                       output=self.output)
+        return dedent(code)
+
+
+class MLPClassifierOperation(Operation):
+
+    HIDDEN_LAYER_SIZES_PARAM = 'hidden_layer_sizes'
+    ACTIVATION_PARAM = 'activation'
+    SOLVER_PARAM = 'solver'
+    ALPHA_PARAM = 'alpha'
+    MAX_ITER_PARAM = 'max_iter'
+    TOLERANCE_PARAM = 'tol'
+    SEED_PARAM = 'seed'
+
+    SOLVER_PARAM_ADAM = 'adam'
+    SOLVER_PARAM_LBFGS = 'lbfgs'
+    SOLVER_PARAM_SGD = 'sgd'
+
+    ACTIVATION_PARAM_ID = 'identity'
+    ACTIVATION_PARAM_LOG = 'logistic'
+    ACTIVATION_PARAM_TANH = 'tanh'
+    ACTIVATION_PARAM_RELU = 'relu'
+
+    def __init__(self, parameters,  named_inputs, named_outputs):
+        Operation.__init__(self, parameters,  named_inputs,  named_outputs)
+
+        self.has_code = len(named_outputs) > 0
+        if self.has_code:
+            self.output = \
+                named_outputs.get('algorithm',
+                                  'algorithm_tmp_{}'.format(self.order))
+
+            self.hidden_layers = parameters.get(self.HIDDEN_LAYER_SIZES_PARAM,
+                                                '(1,100,1)') or '(1,100,1)'
+            self.hidden_layers = \
+                self.hidden_layers.replace("(", "").replace(")", "")
+            if not bool(re.match('(\d+,)+\d*', self.hidden_layers)):
+                raise ValueError(
+                        _("Parameter '{}' must be a tuple with the size "
+                          "of each layer for task {}").format(
+                                self.HIDDEN_LAYER_SIZES_PARAM, self.__class__))
+
+            self.activation = parameters.get(
+                    self.ACTIVATION_PARAM,
+                    self.ACTIVATION_PARAM_RELU) or self.ACTIVATION_PARAM_RELU
+
+            self.solver = parameters.get(
+                    self.SOLVER_PARAM,
+                    self.SOLVER_PARAM_ADAM) or self.SOLVER_PARAM_LINEAR
+
+            self.alpha = parameters.get(self.ALPHA_PARAM, 0.0001) or 0.0001
+            self.alpha = abs(float(self.alpha))
+
+            self.max_iter = parameters.get(self.MAX_ITER_PARAM, 200) or 200
+            self.max_iter = abs(int(self.max_iter))
+
+            self.tol = parameters.get(self.TOLERANCE_PARAM, 0.0001) or 0.0001
+            self.tol = abs(float(self.tol))
+
+            self.seed = parameters.get(self.SEED_PARAM, 'None') or 'None'
+
+            self.has_import = \
+                "from sklearn.neural_network import MLPClassifier\n"
+
+    def generate_code(self):
+        """Generate code."""
+        code = """
+            {output} = MLPClassifier(hidden_layer_sizes=({hidden_layers}), 
+            activation='{activation}', solver='{solver}', alpha={alpha}, 
+            max_iter={max_iter}, random_state={seed}, tol={tol})
+            """.format(tol=self.tol,
+                       alpha=self.alpha,
+                       activation=self.activation,
+                       hidden_layers=self.hidden_layers,
                        max_iter=self.max_iter,
                        seed=self.seed,
                        solver=self.solver,
