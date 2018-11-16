@@ -485,7 +485,7 @@ class SparkMinion(Minion):
             result = False
 
         except ValueError as ve:
-            msg = str(ve)
+            msg = ve.message
             txt = msg.decode('utf8') if isinstance(msg, str) else msg
             message = _('Invalid or missing parameters: {}').format(txt)
             log.exception(message)
@@ -513,7 +513,9 @@ class SparkMinion(Minion):
             tb = traceback.format_exception(*sys.exc_info())
             log.exception(_('Unhandled error'))
             self._emit_event(room=job_id, namespace='/stand')(
-                name='update job', message='\n'.join(tb),
+                exception_stack='\n'.join(tb),
+                message=_('Unhandled error'),
+                name='update job',
                 status='ERROR', identifier=job_id)
             self._generate_output(str(ee), 'ERROR', code=1000)
             result = False

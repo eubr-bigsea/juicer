@@ -291,7 +291,8 @@ class ScikitLearnMinion(Minion):
             tb = traceback.format_exception(*sys.exc_info())
             log.exception(_('Unhandled error'))
             self._emit_event(room=job_id, namespace='/stand')(
-                name='update job', message='\n'.join(tb),
+                message=_('Internal error.'),
+                name='update job', exception_stack='\n'.join(tb),
                 status='ERROR', identifier=job_id)
             self._generate_output(ee.message, 'ERROR', code=1000)
             result = False
