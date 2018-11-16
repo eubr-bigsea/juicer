@@ -362,6 +362,11 @@ def handle_spark_exception(e):
                 raise ValueError(
                     _('When using Window Operation with range type, the order '
                       'option must include only one attribute.'))
+            found = 'Path does not exist' in e.desc
+            if found:
+                raise ValueError(
+                    _('Data source does not exist. It may have been deleted.'))
+
     elif isinstance(e, IllegalArgumentException):
         # Invalid column type
         if 'must be of type equal' in str(e):
