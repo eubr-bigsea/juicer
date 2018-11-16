@@ -215,6 +215,7 @@ class InputOperation(Operation):
 
         self.is_image = False
         self.has_code = True
+        self.has_external_code = True
 
         self.treatment()
 
@@ -259,13 +260,23 @@ class InputOperation(Operation):
             if not is_pattern:
                 raise ValueError(gettext('Parameter {} needs to be like 60%-20%-20%').format(self.train_validation_test_split))
 
+        # HAS TO BE DELETED IN THE FUTURE
+        arq = open(self.dataset, 'r')
+        self.number_of_attributes = len(arq.readline().split(',')) - 1
+
+
+
+    def external_code(self):
+        return dedent("""
+            reproducible_seed = {seed}
+            """).format(seed=self.seed)
+
     def generate_code(self):
         return dedent("""
-            np.random.seed({seed})
-            dataset = np.loadtxt("{dataset}", delimiter=",")
-            input_var = dataset[:,0:8]
-            output_var = dataset[:,8]
-            """).format(seed=self.seed, dataset=self.dataset)
+            dataset = np.loadtxt("{dataset}", delimiter=",", skiprows=1)
+            input_var = dataset[:,0:{number_of_attributes}]
+            output_var = dataset[:,{number_of_attributes}]
+            """).format(dataset=self.dataset, number_of_attributes=self.number_of_attributes)
 
 
 class OutputOperation(Operation):
@@ -534,4 +545,92 @@ class MaskingOperation(Operation):
             model.add(Masking(name='{name}', mask_value={mask_value}))
             """
         ).format(name=self.task_name, mask_value=self.mask_value)
+
+
+class SpatialDropout1DOperation(Operation):
+    RATE_PARAM = 'rate'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+        self.output = named_outputs.get('output data',
+                                        'out_task_{}'.format(self.order))
+
+        if self.RATE_PARAM not in parameters or self.RATE_PARAM is None:
+            raise ValueError(gettext('Parameter {} are required').format(self.RATE_PARAM))
+
+        self.rate = parameters.get(self.RATE_PARAM, 0.0) or 0.0
+        self.task_name = self.parameters.get('task').get('name')
+        self.has_code = True
+
+        self.treatment()
+
+    def treatment(self):
+        if self.rate is None:
+            self.rate = 0.0
+
+    def generate_code(self):
+        return dedent(
+            """
+            model.add(SpatialDropout1D(name='{name}', rate={rate}))
+            """
+        ).format(name=self.task_name, rate=self.rate)
+
+
+class SpatialDropout2DOperation(Operation):
+    RATE_PARAM = 'rate'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+        self.output = named_outputs.get('output data',
+                                        'out_task_{}'.format(self.order))
+
+        if self.RATE_PARAM not in parameters or self.RATE_PARAM is None:
+            raise ValueError(gettext('Parameter {} are required').format(self.RATE_PARAM))
+
+        self.rate = parameters.get(self.RATE_PARAM, 0.0) or 0.0
+        self.task_name = self.parameters.get('task').get('name')
+        self.has_code = True
+
+        self.treatment()
+
+    def treatment(self):
+        if self.rate is None:
+            self.rate = 0.0
+
+    def generate_code(self):
+        return dedent(
+            """
+            model.add(SpatialDropout2D(name='{name}', rate={rate}))
+            """
+        ).format(name=self.task_name, rate=self.rate)
+
+
+class SpatialDropout3DOperation(Operation):
+    RATE_PARAM = 'rate'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+        self.output = named_outputs.get('output data',
+                                        'out_task_{}'.format(self.order))
+
+        if self.RATE_PARAM not in parameters or self.RATE_PARAM is None:
+            raise ValueError(gettext('Parameter {} are required').format(self.RATE_PARAM))
+
+        self.rate = parameters.get(self.RATE_PARAM, 0.0) or 0.0
+        self.task_name = self.parameters.get('task').get('name')
+        self.has_code = True
+
+        self.treatment()
+
+    def treatment(self):
+        if self.rate is None:
+            self.rate = 0.0
+
+    def generate_code(self):
+        return dedent(
+            """
+            model.add(SpatialDropout3D(name='{name}', rate={rate}))
+            """
+        ).format(name=self.task_name, rate=self.rate)
+
 

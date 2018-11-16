@@ -35,6 +35,9 @@ class KerasTranspiler(Transpiler):
             'lambda': core_operations.LambdaOperation,
             'activityRegularization': core_operations.ActivityRegularizationOperation,
             'masking': core_operations.MaskingOperation,
+            'spatialDropout1D': core_operations.SpatialDropout1DOperation,
+            'spatialDropout2D': core_operations.SpatialDropout2DOperation,
+            'spatialDropout3D': core_operations.SpatialDropout3DOperation,
         }
 
         self.operations = {}
