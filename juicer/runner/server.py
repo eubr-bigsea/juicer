@@ -101,7 +101,9 @@ class JuicerServer:
         try:
             self.state_control = StateControlRedis(redis_conn)
             # Process next message
+            log.info(_('Reading "start" queue.'))
             msg = self.state_control.pop_start_queue()
+            log.info(_('Forwarding message to minion.'))
             msg_info = json.loads(msg)
 
             # Extract message type and common parameters
