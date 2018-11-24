@@ -890,7 +890,7 @@ class CrossValidationOperation(Operation):
                 _("Parameter '{}' must be informed for task {}").format(
                     self.LABEL_ATTRIBUTE_PARAM, self.__class__))
 
-	self.features = parameters.get(self.FEATURES_PARAM, 'features') 
+	self.features = parameters.get(self.FEATURES_PARAM, ['features']) 
         self.label_attr = parameters.get(self.LABEL_ATTRIBUTE_PARAM)
 
         self.num_folds = parameters.get(self.NUM_FOLDS_PARAM, 3)
@@ -956,7 +956,7 @@ class CrossValidationOperation(Operation):
                            output=self.output,
                            best_model=self.best_model,
                            models=self.models,
-                           features=self.features,
+                           features=self.features[0],
                            prediction_arg=self.param_prediction_arg,
                            prediction_attr=self.prediction_attr,
                            label_attr=self.label_attr[0],
