@@ -923,7 +923,7 @@ class CrossValidationOperation(Operation):
         code = dedent("""
                 grid_builder = tuning.ParamGridBuilder()
                 estimator, param_grid, metric = {algorithm}
-		label_col = estimator.getLabelCol()
+                label_col = estimator.getLabelCol()
 
                 for param_name, values in param_grid.items():
                     param = getattr(estimator, param_name)
