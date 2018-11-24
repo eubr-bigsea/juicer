@@ -937,7 +937,7 @@ class CrossValidationOperation(Operation):
 
                 features = '{features}'
                 estimator.setLabelCol(label_col)
-                estimator.setFeatures(features)
+                estimator.setFeaturesCol(features)
                 estimator.setPredictionCol('{prediction_attr}')
 
                 cross_validator = tuning.CrossValidator(
