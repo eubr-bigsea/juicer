@@ -12,8 +12,9 @@ from juicer.scikit_learn.classification_operation import \
         ClassificationModelOperation, \
         DecisionTreeClassifierOperation, GBTClassifierOperation, \
         KNNClassifierOperation, LogisticRegressionOperation, \
-        NaiveBayesClassifierOperation, PerceptronClassifierOperation, \
-        RandomForestClassifierOperation, SvmClassifierOperation
+        MLPClassifierOperation, NaiveBayesClassifierOperation, \
+        PerceptronClassifierOperation, RandomForestClassifierOperation, \
+        SvmClassifierOperation
 
 from tests import compare_ast, format_code_comparison
 
@@ -212,6 +213,64 @@ def test_logisticregression_wrong_value_param_failure():
     with pytest.raises(ValueError):
         LogisticRegressionOperation(params, named_inputs=n_in,
                                     named_outputs=n_out)
+
+
+'''
+    MLP Classifier Operation
+'''
+
+
+def test_mlp_classifier_minimum_params_success():
+    params = {
+        MLPClassifierOperation.HIDDEN_LAYER_SIZES_PARAM: '(100,100,9)'
+    }
+    n_out = {'algorithm': 'classifier_1'}
+
+    instance_lr = MLPClassifierOperation(
+        params, named_inputs={}, named_outputs=n_out)
+
+    code = instance_lr.generate_code()
+    expected_code = dedent("""
+        classifier_1 = MLPClassifier(hidden_layer_sizes=(100,100,9),
+        activation='relu', solver='adam', alpha=0.0001,
+        max_iter=200, random_state=None, tol=0.0001)""")
+    result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
+    assert result, msg + format_code_comparison(code, expected_code)
+
+
+def test_mlp_classifier_with_params_success():
+    params = {
+        MLPClassifierOperation.HIDDEN_LAYER_SIZES_PARAM: '(100,10,9)',
+        MLPClassifierOperation.ACTIVATION_PARAM:
+            MLPClassifierOperation.ACTIVATION_PARAM_LOG,
+        MLPClassifierOperation.SEED_PARAM: 9,
+        MLPClassifierOperation.SOLVER_PARAM:
+            MLPClassifierOperation.SOLVER_PARAM_LBFGS,
+        MLPClassifierOperation.MAX_ITER_PARAM: 1000,
+        MLPClassifierOperation.ALPHA_PARAM: 0.01,
+        MLPClassifierOperation.TOLERANCE_PARAM: 0.1,
+    }
+    n_out = {'algorithm': 'classifier_1'}
+
+    instance_lr = MLPClassifierOperation(
+        params, named_inputs={}, named_outputs=n_out)
+
+    code = instance_lr.generate_code()
+    expected_code = dedent("""
+        classifier_1 = MLPClassifier(hidden_layer_sizes=(100,10,9),
+        activation='logistic', solver='lbfgs', alpha=0.01,
+        max_iter=1000, random_state=9, tol=0.1)""")
+    result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
+    assert result, msg + format_code_comparison(code, expected_code)
+
+
+def test_mlp_classifier_wrong_value_param_failure():
+    params = {
+        MLPClassifierOperation.HIDDEN_LAYER_SIZES_PARAM: '100.100,'
+    }
+    n_out = {'algorithm': 'classifier_1'}
+    with pytest.raises(ValueError):
+        MLPClassifierOperation(params, named_inputs={}, named_outputs=n_out)
 
 
 '''

@@ -11,6 +11,7 @@ import redis
 import yaml
 from future.moves.urllib.parse import urlparse
 from juicer.compss.compss_minion import COMPSsMinion
+from juicer.keras.keras_minion import KerasMinion
 from juicer.spark.spark_minion import SparkMinion
 from juicer.scikit_learn.scikit_learn_minion import ScikitLearnMinion
 
@@ -76,6 +77,13 @@ if __name__ == '__main__':
                                        args.app_id or args.workflow_id,
                                        juicer_config,
                                        args.lang)
+        elif args.type == 'keras':
+            log.info('Starting Keras Minion')
+            minion = KerasMinion(redis_conn,
+                                 args.workflow_id,
+                                 args.app_id or args.workflow_id,
+                                 juicer_config,
+                                 args.lang)
         else:
             raise ValueError(
                 _("{type} is not supported (yet!)").format(type=args.type))

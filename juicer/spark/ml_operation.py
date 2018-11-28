@@ -846,6 +846,7 @@ class CrossValidationOperation(Operation):
     SEED_PARAM = 'seed'
     PREDICTION_ATTRIBUTE_PARAM = 'prediction_attribute'
     LABEL_ATTRIBUTE_PARAM = 'label_attribute'
+    FEATURES_PARAM = 'features'
 
     METRIC_TO_EVALUATOR = {
         'areaUnderROC': (
@@ -893,6 +894,7 @@ class CrossValidationOperation(Operation):
                 _("Parameter '{}' must be informed for task {}").format(
                     self.LABEL_ATTRIBUTE_PARAM, self.__class__))
 
+	self.features = parameters.get(self.FEATURES_PARAM, ['features']) 
         self.label_attr = parameters.get(self.LABEL_ATTRIBUTE_PARAM)
 
         self.num_folds = parameters.get(self.NUM_FOLDS_PARAM, 3)
@@ -904,7 +906,6 @@ class CrossValidationOperation(Operation):
             'models', 'models_task_{}'.format(self.order))
         self.best_model = self.named_outputs.get(
             'best model', 'best_model_{}'.format(self.order))
-
         self.algorithm_port = self.named_inputs.get(
             'algorithm', 'algo_{}'.format(self.order))
         self.input_port = self.named_inputs.get(
@@ -927,6 +928,7 @@ class CrossValidationOperation(Operation):
         code = dedent("""
                 grid_builder = tuning.ParamGridBuilder()
                 estimator, param_grid, metric = {algorithm}
+                label_col = '{label_attr}'
 
                 for param_name, values in param_grid.items():
                     param = getattr(estimator, param_name)
@@ -937,7 +939,9 @@ class CrossValidationOperation(Operation):
                     labelCol=label_col,
                     metricName='{metric}')
 
+                features = '{features}'
                 estimator.setLabelCol(label_col)
+                estimator.setFeaturesCol(features)
                 estimator.setPredictionCol('{prediction_attr}')
 
                 cross_validator = tuning.CrossValidator(
@@ -956,6 +960,7 @@ class CrossValidationOperation(Operation):
                            output=self.output,
                            best_model=self.best_model,
                            models=self.models,
+                           features=self.features[0],
                            prediction_arg=self.param_prediction_arg,
                            prediction_attr=self.prediction_attr,
                            label_attr=self.label_attr[0],
