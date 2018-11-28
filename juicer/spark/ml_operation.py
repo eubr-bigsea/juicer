@@ -741,7 +741,11 @@ class EvaluateModelOperation(Operation):
             plot_y_title=_('Prediction'),
         )
         partial_code = """
-            summary = getattr({model}, 'summary', None)
+            if isinstance({model}, PipelineModel):
+                ml_model = {model}.stages[-1]
+            else:
+                ml_model = {model}
+            summary = getattr(ml_model, 'summary', None)
             if summary:
                 if summary.numInstances < 2000 and display_image:
                     predictions = [r[prediction_col] for r in

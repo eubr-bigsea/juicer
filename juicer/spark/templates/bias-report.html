@@ -1,17 +1,10 @@
-<html>
-
-<head>
-    <link href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
-    <link href="https://stackpath.bootstrapcdn.com/font-awesome/4.6.3/css/font-awesome.min.css" rel="stylesheet" crossorigin="anonymous">
-</head>
-<body>
     <div class="container">
         <div class="row">
             <div class="col-md-12">
                 <h1>{{ _('Bias Report') }}</h1>
             </div>
             <div class="col-md-12">
-                <table class="table table-condensed">
+                <table class="table table-sm">
                     <tr>
                         <th>{{ _('Audit Date') }}:</th>
                         <td>{{ date }}</td>
@@ -53,7 +46,7 @@
 
             <div class="col-md-12">
                 <h2>{{ _('Audit Summary') }}</h2>
-                <table class="table table-striped table-hover table-condensed">
+                <table class="table table-striped table-hover table-sm">
                     <tbody>
                         {%- for s in summary %}
                         <tr>
@@ -83,7 +76,7 @@
                             <td>{{ _('Ensure all protected groups have equally proportional false negatives within the non-selected set (compared to the reference group).') }}</td>
                         {%- endif %}
                             <td>
-                                <div class="label {% if s[1] %}label-success{% else %}label-danger{% endif %}">
+                                <div class="badge {% if s[1] %}badge-success{% else %}badge-danger{% endif %}">
                                     {% if s[1] %}{{ _('Passed') }}{% else %}{{ _('Failed') }}{% endif %}
                                </div>
                             </td>
@@ -102,10 +95,10 @@
                 <h3>{{explanations[s[0]].title}} {{s[0]}}</h3>
             </div>
             <div class="col-md-1 text-right">
-                <span class="label {% if s[1] %}label-success{% else %}label-danger{% endif %}">{% if s[1] %}{{ _('Success')}}{% else %}{{ _('Failed') }}{% endif %}</span>
+                <span class="badge {% if s[1] %}badge-success{% else %}badge-danger{% endif %}">{% if s[1] %}{{ _('Success')}}{% else %}{{ _('Failed') }}{% endif %}</span>
             </div>
             <div class="col-md-12 justified">
-                <table class="table table-condensed">
+                <table class="table table-sm">
                     <tr>
                         <th style="width: 300px">What is it?</th>
                         <td>
@@ -144,7 +137,7 @@
             <div class="col-md-12">
                 <h2>Audit Results: Details by Protected Attributes</h2>
                 <h3>Race</h3>
-                <table class="table table-striped" padding="5">
+                <table class="table table-striped table-sm" padding="5">
                     <thead>
                         <tr>
                             <th align="left">Attribute Value</th>
@@ -167,22 +160,22 @@
                         {%- if row[row['attribute']] == reference %}
                         <tr>
                             <td>{{row[row['attribute']]}}</td>
-                            <td><div class="label label-info">{{ _('Ref') }}</div></td>
-                            <td><div class="label label-info">{{ _('Ref') }}</div></td>
-                            <td><div class="label label-info">{{ _('Ref') }}</div></td>
-                            <td><div class="label label-info">{{ _('Ref') }}</div></td>
-                            <td><div class="label label-info">{{ _('Ref') }}</div></td>
-                            <td><div class="label label-info">{{ _('Ref') }}</div></td>
+                            <td><div class="badge badge-info">{{ _('Ref') }}</div></td>
+                            <td><div class="badge badge-info">{{ _('Ref') }}</div></td>
+                            <td><div class="badge badge-info">{{ _('Ref') }}</div></td>
+                            <td><div class="badge badge-info">{{ _('Ref') }}</div></td>
+                            <td><div class="badge badge-info">{{ _('Ref') }}</div></td>
+                            <td><div class="badge badge-info">{{ _('Ref') }}</div></td>
                         </tr>
                         {%- else %}
                         <tr>
                             <td>{{row[row['attribute']]}}</td>
-                            <td><div class="label {% if row['pred_pos_ratio_k_parity'] -%} label-success {%- else -%} label-danger {%- endif %}">{{row['pred_pos_ratio_k_parity']}}</div></td>
-                            <td><div class="label {% if row['pred_pos_ratio_g_parity'] -%} label-success {%- else -%} label-danger {%- endif %}">{{row['pred_pos_ratio_g_parity']}}</div></td>
-                            <td><div class="label {% if row['fdr_parity'] -%} label-success {%- else -%} label-danger {%- endif %}">{{row['fdr_parity']}}</div></td>
-                            <td><div class="label {% if row['fpr_parity'] -%} label-success {%- else -%} label-danger {%- endif %}">{{row['fpr_parity']}}</div></td>
-                            <td><div class="label {% if row['for_parity'] -%} label-success {%- else -%} label-danger {%- endif %}">{{row['for_parity']}}</div></td>
-                            <td><div class="label {% if row['fnr_parity'] -%} label-success {%- else -%} label-danger {%- endif %}">{{row['fnr_parity']}}</div></td>
+                            <td><div class="badge {% if row['pred_pos_ratio_k_parity'] -%} badge-success {%- else -%} badge-danger {%- endif %}">{{row['pred_pos_ratio_k_parity']}}</div></td>
+                            <td><div class="badge {% if row['pred_pos_ratio_g_parity'] -%} badge-success {%- else -%} badge-danger {%- endif %}">{{row['pred_pos_ratio_g_parity']}}</div></td>
+                            <td><div class="badge {% if row['fdr_parity'] -%} badge-success {%- else -%} badge-danger {%- endif %}">{{row['fdr_parity']}}</div></td>
+                            <td><div class="badge {% if row['fpr_parity'] -%} badge-success {%- else -%} badge-danger {%- endif %}">{{row['fpr_parity']}}</div></td>
+                            <td><div class="badge {% if row['for_parity'] -%} badge-success {%- else -%} badge-danger {%- endif %}">{{row['for_parity']}}</div></td>
+                            <td><div class="badge {% if row['fnr_parity'] -%} badge-success {%- else -%} badge-danger {%- endif %}">{{row['fnr_parity']}}</div></td>
                         </tr>
                         {%- endif %}
                         {%- endfor %}
@@ -192,7 +185,7 @@
             <div class="col-md-12">
                 <h2>Audit Results: Bias Metrics Values </h2>
                 <h3>Race</h3>
-                <table class="table table-striped" padding="5">
+                <table class="table table-striped table-sm" padding="5">
                     <thead>
                         <tr>
                             <th align="left">Attribute Value</th>
@@ -208,12 +201,12 @@
                         {%- for row in data %}
                         <tr>
                             <td>{{row[row['attribute']]}}</td>
-                            <td><div class="label {% if row[row['attribute']] == reference -%} label-info {% elif tau < row['pred_pos_ratio_k_disparity'] < 1.0/tau -%} label-success {%- else -%} label-danger {%- endif %}">{{"%.2f"|format(row['pred_pos_ratio_k_disparity'])}}</div></td>
-                            <td><div class="label {% if row[row['attribute']] == reference -%} label-info {% elif tau < row['pred_pos_ratio_g_disparity'] < 1.0/tau -%} label-success {%- else -%} label-danger {%- endif %}">{{"%.2f"|format(row['pred_pos_ratio_g_disparity'])}}</div></td>
-                            <td><div class="label {% if row[row['attribute']] == reference -%} label-info {% elif tau < row['fdr_disparity'] < 1.0/tau -%} label-success {%- else -%} label-danger {%- endif %}">{{"%.2f"|format(row['fdr_disparity'])}}</div></td>
-                            <td><div class="label {% if row[row['attribute']] == reference -%} label-info {% elif tau < row['fpr_disparity'] < 1.0/tau -%} label-success {%- else -%} label-danger {%- endif %}">{{"%.2f"|format(row['fpr_disparity'])}}</div></td>
-                            <td><div class="label {% if row[row['attribute']] == reference -%} label-info {% elif tau < row['for_disparity'] < 1.0/tau -%} label-success {%- else -%} label-danger {%- endif %}">{{"%.2f"|format(row['for_disparity'])}}</div></td>
-                            <td><div class="label {% if row[row['attribute']] == reference -%} label-info {% elif tau < row['fnr_disparity'] < 1.0/tau -%} label-success {%- else -%} label-danger {%- endif %}">{{"%.2f"|format(row['fnr_disparity'])}}</div></td>
+                            <td><div class="badge {% if row[row['attribute']] == reference -%} badge-info {% elif tau < row['pred_pos_ratio_k_disparity'] < 1.0/tau -%} badge-success {%- else -%} badge-danger {%- endif %}">{{"%.2f"|format(row['pred_pos_ratio_k_disparity'])}}</div></td>
+                            <td><div class="badge {% if row[row['attribute']] == reference -%} badge-info {% elif tau < row['pred_pos_ratio_g_disparity'] < 1.0/tau -%} badge-success {%- else -%} badge-danger {%- endif %}">{{"%.2f"|format(row['pred_pos_ratio_g_disparity'])}}</div></td>
+                            <td><div class="badge {% if row[row['attribute']] == reference -%} badge-info {% elif tau < row['fdr_disparity'] < 1.0/tau -%} badge-success {%- else -%} badge-danger {%- endif %}">{{"%.2f"|format(row['fdr_disparity'])}}</div></td>
+                            <td><div class="badge {% if row[row['attribute']] == reference -%} badge-info {% elif tau < row['fpr_disparity'] < 1.0/tau -%} badge-success {%- else -%} badge-danger {%- endif %}">{{"%.2f"|format(row['fpr_disparity'])}}</div></td>
+                            <td><div class="badge {% if row[row['attribute']] == reference -%} badge-info {% elif tau < row['for_disparity'] < 1.0/tau -%} badge-success {%- else -%} badge-danger {%- endif %}">{{"%.2f"|format(row['for_disparity'])}}</div></td>
+                            <td><div class="badge {% if row[row['attribute']] == reference -%} badge-info {% elif tau < row['fnr_disparity'] < 1.0/tau -%} badge-success {%- else -%} badge-danger {%- endif %}">{{"%.2f"|format(row['fnr_disparity'])}}</div></td>
                         </tr>
                         {%- endfor %}
                     </tbody>
@@ -222,7 +215,7 @@
             <div class="col-md-12">
                 <h2>Audit Results: Group Metrics Values</h2>
                 <h3>Race</h3>
-                <table class="table table-striped" padding="5">
+                <table class="table table-striped table-sm" padding="5">
                     <thead>
                         <tr>
                             <th align="left">Attribute Value</th>
@@ -230,9 +223,9 @@
                             <th align="left"><a title="" data-original-title="Number of elements of the group selected divided by the total size of the interventation set.">Predicted Positive Rate</a></th>
                             <th align="left"><a title="" data-original-title="Number of elements of the group selected divided by the size of the group.">Predicted Positive Group Rate</a></th>
                             <th align="left"> <a title="" data-original-title="Number of false positives of the group divided by the size of the intervention set of the group (predicted positives within group).">False Discovery Rate</a></th>
-                            <th align="left"><a title="" data-original-title="Number of false positives of the group divided by number of labeled negatives within the group.">False Positive Rate</a></th>
+                            <th align="left"><a title="" data-original-title="Number of false positives of the group divided by number of badgeed negatives within the group.">False Positive Rate</a></th>
                             <th align="left"><a title="" data-original-title="Number of false negatives of the group divided by the size of the non-selected set of the group (predicted negatives within group).">False Omission Rate</a></th>
-                            <th align="left"><a title="" data-original-title="Number of false negative of the group divided by number of labeled positives in the group">False Negative Rate</a></th>
+                            <th align="left"><a title="" data-original-title="Number of false negative of the group divided by number of badgeed positives in the group">False Negative Rate</a></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -240,12 +233,12 @@
                     <tr>
                         <td>{{row[row['attribute']]}}</td>
                         <td>{{"%.2f"|format(row['group_size']/row['total_records'])}}</td>
-                        <td><div class="label {% if row[row['attribute']] == reference -%} label-info {% elif tau < row['pred_pos_ratio_k'] < 1.0/tau -%} label-success {%- else -%} label-danger {%- endif %}">{{"%.2f"|format(row['pred_pos_ratio_k'])}}</div></td>
-                        <td><div class="label {% if row[row['attribute']] == reference -%} label-info {% elif tau < row['pred_pos_ratio_g'] < 1.0/tau -%} label-success {%- else -%} label-danger {%- endif %}">{{"%.2f"|format(row['pred_pos_ratio_g'])}}</div></td>
-                        <td><div class="label {% if row[row['attribute']] == reference -%} label-info {% elif tau < row['fdr_disparity'] < 1.0/tau -%} label-success {%- else -%} label-danger {%- endif %}">{{"%.2f"|format(row['fdr'])}}</div></td>
-                        <td><div class="label {% if row[row['attribute']] == reference -%} label-info {% elif tau < row['fpr_disparity'] < 1.0/tau -%} label-success {%- else -%} label-danger {%- endif %}">{{"%.2f"|format(row['fpr'])}}</div></td>
-                        <td><div class="label {% if row[row['attribute']] == reference -%} label-info {% elif tau < row['for_disparity'] < 1.0/tau -%} label-success {%- else -%} label-danger {%- endif %}">{{"%.2f"|format(row['for'])}}</div></td>
-                        <td><div class="label {% if row[row['attribute']] == reference -%} label-info {% elif tau < row['fnr_disparity'] < 1.0/tau -%} label-success {%- else -%} label-danger {%- endif %}">{{"%.2f"|format(row['fnr'])}}</div></td>
+                        <td><div class="badge {% if row[row['attribute']] == reference -%} badge-info {% elif tau < row['pred_pos_ratio_k'] < 1.0/tau -%} badge-success {%- else -%} badge-danger {%- endif %}">{{"%.2f"|format(row['pred_pos_ratio_k'])}}</div></td>
+                        <td><div class="badge {% if row[row['attribute']] == reference -%} badge-info {% elif tau < row['pred_pos_ratio_g'] < 1.0/tau -%} badge-success {%- else -%} badge-danger {%- endif %}">{{"%.2f"|format(row['pred_pos_ratio_g'])}}</div></td>
+                        <td><div class="badge {% if row[row['attribute']] == reference -%} badge-info {% elif tau < row['fdr_disparity'] < 1.0/tau -%} badge-success {%- else -%} badge-danger {%- endif %}">{{"%.2f"|format(row['fdr'])}}</div></td>
+                        <td><div class="badge {% if row[row['attribute']] == reference -%} badge-info {% elif tau < row['fpr_disparity'] < 1.0/tau -%} badge-success {%- else -%} badge-danger {%- endif %}">{{"%.2f"|format(row['fpr'])}}</div></td>
+                        <td><div class="badge {% if row[row['attribute']] == reference -%} badge-info {% elif tau < row['for_disparity'] < 1.0/tau -%} badge-success {%- else -%} badge-danger {%- endif %}">{{"%.2f"|format(row['for'])}}</div></td>
+                        <td><div class="badge {% if row[row['attribute']] == reference -%} badge-info {% elif tau < row['fnr_disparity'] < 1.0/tau -%} badge-success {%- else -%} badge-danger {%- endif %}">{{"%.2f"|format(row['fnr'])}}</div></td>
                     </tr>
                     {%- endfor %}
                     </tbody>
@@ -253,6 +246,3 @@
             </div>
         </div>
     </div>
-</body>
-
-</html>
