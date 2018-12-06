@@ -142,7 +142,7 @@ class FlattenOperation(Operation):
             """
         ).format(name=self.task_name, data_format=self.data_format)
 
-
+'''
 class OptimizerOperation(Operation):
     OPTIMIZER_PARAM = 'optimizer'
 
@@ -185,7 +185,7 @@ class LossOperation(Operation):
             loss_function = "{loss_function}"
             """.format(loss_function=self.loss)
         )
-
+'''
 
 class InputOperation(Operation):
     DATASET_PARAM = 'dataset'
@@ -216,6 +216,8 @@ class InputOperation(Operation):
         self.is_image = False
         self.has_code = True
         self.has_external_code = True
+
+        self.number_of_attributes = None
 
         self.treatment()
 
@@ -263,8 +265,7 @@ class InputOperation(Operation):
         # HAS TO BE DELETED IN THE FUTURE
         arq = open(self.dataset, 'r')
         self.number_of_attributes = len(arq.readline().split(',')) - 1
-
-
+        arq.close()
 
     def external_code(self):
         return dedent("""
@@ -633,4 +634,42 @@ class SpatialDropout3DOperation(Operation):
             """
         ).format(name=self.task_name, rate=self.rate)
 
+'''
+class Hyperparameters(Operation):
+    NUMBER_OF_EPOCHS_PARAM = 'number_of_epochs'
+    BATCH_SIZE_PARAM = 'batch_size'
+    LOSS_PARAM = 'loss'
+    OPTIMIZER_PARAM = 'optimizer'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+        self.output = named_outputs.get('output data',
+                                        'out_task_{}'.format(self.order))
+
+        if self.LOSS_PARAM not in parameters:
+            raise ValueError(gettext('Parameter {} is required').format(self.LOSS_PARAM))
+
+        if self.OPTIMIZER_PARAM not in parameters:
+            raise ValueError(gettext('Parameter {} is required').format(self.OPTIMIZER_PARAM))
+
+        self.optimizer = parameters.get(self.OPTIMIZER_PARAM)
+        self.number_of_epochs = parameters.get(self.NUMBER_OF_EPOCHS_PARAM)
+        self.batch_size = parameters.get(self.BATCH_SIZE_PARAM)
+        self.loss = parameters.get(self.LOSS_PARAM)
+
+        self.has_code = True
+
+        self.treatment()
+
+    def treatment(self):
+        if self.number_of_epochs <= 0:
+            raise ValueError(gettext('Parameter {} requires a valid value').format(self.NUMBER_OF_EPOCHS_PARAM))
+
+    def generate_code(self):
+        return dedent(
+            """
+            loss_function = "{loss_function}"
+            optimizer_function = "{optimizer_function}"
+            """.format(loss_function=self.loss, optimizer_function=self.optimizer))
+'''
 
