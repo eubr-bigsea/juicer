@@ -15,6 +15,7 @@ More information about Lemonade to be provided
 import keras
 from keras.models import Model, Input, Sequential
 from keras.layers import *
+from keras import metrics
 from keras.callbacks import TensorBoard
 from time import time
 
@@ -74,13 +75,26 @@ def main(session, cached_state, emit_event):
     {% endif %}
     {%- endfor -%}
 
-    model.compile(loss=loss_function, optimizer=optimizer_function, metrics=['accuracy'])
+    metrics_selected = {{workflow.forms.metrics.value}}
+    model_metrics = []
+    for metric in metrics_selected:
+        if metric["key"] not in model_metrics:
+            model_metrics.append(metric["key"])
+
+    model.compile(loss="{{workflow.forms.loss.value}}",
+                  optimizer="{{workflow.forms.optimizer.value}}",
+                  metrics=model_metrics)
 
     #history = ExecutionHistory(emit_event, '{{instances[-1].parameters.task.id}}')
 
     tensorboard = TensorBoard(log_dir="/tmp/logs/{time}".format(time=time()))
 
-    model.fit(input_var, output_var, epochs=150, batch_size=100, verbose=1, callbacks=[tensorboard])
+    model.fit(input_var,
+              output_var,
+              epochs={{workflow.forms.number_of_epochs.value}},
+              batch_size={{workflow.forms.batch_size.value}},
+              verbose=1,
+              callbacks=[tensorboard])
 
 
     emit_event(name='update task', message='<a href="http://localhost:6006" target="_blank">TensorBoard</a>',
@@ -88,7 +102,13 @@ def main(session, cached_state, emit_event):
                     status='COMPLETED', identifier=output_task_id)
 
     scores = model.evaluate(input_var, output_var)
-    final_train_score = ("%s: %.2f%%" % (model.metrics_names[1], scores[1]*100))
+
+    final_train_score = []
+    length = len(model.metrics_names)
+    for i in range(0, length):
+        final_train_score.append("%s: %.2f%%" % (model.metrics_names[i], scores[i]*100))
+
+    final_train_score = ' || '.join(final_train_score)
 
     emit_event(name='update task', message=final_train_score,
                type='TEXT',

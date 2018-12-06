@@ -24,8 +24,8 @@ class KerasTranspiler(Transpiler):
             'dense': core_operations.DenseOperation,
             'dropout': core_operations.DropoutOperation,
             'flatten': core_operations.FlattenOperation,
-            'optimizer': core_operations.OptimizerOperation,
-            'loss': core_operations.LossOperation,
+            #'optimizer': core_operations.OptimizerOperation,
+            #'loss': core_operations.LossOperation,
             'input': core_operations.InputOperation,
             'output': core_operations.OutputOperation,
             'activation': core_operations.ActivationOperation,
@@ -38,6 +38,7 @@ class KerasTranspiler(Transpiler):
             'spatialDropout1D': core_operations.SpatialDropout1DOperation,
             'spatialDropout2D': core_operations.SpatialDropout2DOperation,
             'spatialDropout3D': core_operations.SpatialDropout3DOperation,
+            #'hyperparameters': core_operations.Hyperparameters,
         }
 
         self.operations = {}
