@@ -37,7 +37,7 @@ class FairnessEvaluationOperation(Operation):
         self.label = (parameters.get(
             self.LABEL_ATTRIBUTE_PARAM, ['label']) or ['label'])[0]
         self.score = (parameters.get(
-            self.LABEL_ATTRIBUTE_PARAM, ['score']) or ['score'])[0]
+            self.SCORE_ATTRIBUTE_PARAM, ['score']) or ['score'])[0]
         self.type = parameters.get(self.TYPE_PARAM, 'aequitas')
 
         self.output = self.named_outputs.get(
@@ -71,24 +71,34 @@ class FairnessEvaluationOperation(Operation):
 
             evaluator = FairnessEvaluatorTransformer(
                 sensitiveColumn='{sensitive}', labelColumn='{label}',
-                   baselineValue=baseline, tau={tau})
+                   baselineValue=str(baseline), tau={tau},
+                   scoreColumn='{score}')
             {out} = evaluator.transform({input})
             display_image = {display_image}
             if display_image:
+                html = FairnessBiasReport({out},
+                            '{sensitive}', baseline).generate()
                 visualization = {{
                     'job_id': '{job_id}', 'task_id': '{task_id}',
                     'title': '{title}',
                     'type': {{'id': 1, 'name': 'HTML'}},
                     'model': HtmlVisualizationModel(title='{title}'),
                     'data': json.dumps({{
-                        'html': FairnessBiasReport({out},
-                            '{sensitive}', baseline).generate(),
+                        'html': html,
                         'xhtml': '''
                             <a href="" target="_blank">
                             {title} ({open})
                             </a>'''
                     }}),
                 }}
+                emit_event(
+                            'update task', status='COMPLETED',
+                            identifier='{task_id}',
+                            message=html,
+                            type='HTML', title='{title}',
+                            task={{'id': '{task_id}'}},
+                            operation={{'id': {operation_id}}},
+                            operation_id={operation_id})
                 {config}
                 # emit_event(
                 #             'update task', status='COMPLETED',
@@ -99,13 +109,14 @@ class FairnessEvaluationOperation(Operation):
                 #             operation={{'id': {operation_id}}},
                 #             operation_id={operation_id})
 
-                caipirinha_service.new_visualization(
-                    config,
-                    {user},
-                    {workflow_id}, {job_id}, '{task_id}',
-                    visualization, emit_event)
+                # caipirinha_service.new_visualization(
+                #     config,
+                #     {user},
+                #     {workflow_id}, {job_id}, '{task_id}',
+                #     visualization, emit_event)
         """.format(sensitive=self.sensitive[0], label=self.label,
                    baseline=self.baseline, tau=self.tau,
+                   score=self.score,
                    out=self.output, input=self.input,
                    display_image=display_image,
                    task_id=self.parameters['task_id'],
