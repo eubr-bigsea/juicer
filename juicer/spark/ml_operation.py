@@ -517,7 +517,6 @@ class EvaluateModelOperation(Operation):
                 'display_text', {'value': 1}).get('value', 1) in (1, '1')
             display_image = self.parameters['task']['forms'].get(
                 'display_image', {'value': 1}).get('value', 1) in (1, '1')
-
             code = [dedent("""
                 emit = functools.partial(
                     emit_event, name='update task',
@@ -557,7 +556,6 @@ class EvaluateModelOperation(Operation):
                     prediction_col = final_prediction
 
                 """)]
-
             if self.metric in ['areaUnderROC', 'areaUnderPR']:
                 self._get_code_for_area_metric(code)
             elif self.metric in ['f1', 'weightedPrecision', 'weightedRecall',
@@ -1171,15 +1169,16 @@ class ClassificationModelOperation(DeployModelMixin, Operation):
             if display_text:
                 rows = [[m, getattr({model}, m)] for m in metrics
                     if hasattr({model}, m)]
-                headers = {headers}
-                content = SimpleTableReport(
-                    'table table-striped table-bordered table-sm',
-                    headers, rows)
+                if rows and len(rows):
+                    headers = {headers}
+                    content = SimpleTableReport(
+                        'table table-striped table-bordered table-sm',
+                        headers, rows)
 
-                result = '<h4>{title}</h4>'
+                    result = '<h4>{title}</h4>'
 
-                emit(status='COMPLETED', message=result + content.generate(),
-                    type='HTML', title='{title}')
+                    emit(status='COMPLETED', message=result + content.generate(),
+                        type='HTML', title='{title}')
 
             """.format(
                 model=self.model,

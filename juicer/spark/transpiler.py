@@ -8,6 +8,7 @@ import juicer.spark.etl_operation as etl_operation
 import juicer.spark.feature_operation as feature_operation
 import juicer.spark.geo_operation as geo_operation
 import juicer.spark.ml_operation as ml_operation
+import juicer.spark.ml_operation2 as ml_operation2
 import juicer.spark.statistic_operation as statistic_operation
 import juicer.spark.text_operation as text_operation
 import juicer.spark.trustworthy_operation as trustworthy_operation
@@ -177,8 +178,26 @@ class SparkTranspiler(Transpiler):
             'fairness-evaluator':
                 trustworthy_operation.FairnessEvaluationOperation
         }
+        ml_model_operations2 = {
+            'decision-tree-classifier-model':
+                ml_operation2.DecisionTreeModelOperation,
+            'logistic-regression-classifier-model':
+                ml_operation2.LogisticRegressionModelOperation,
+            'gbt-classifier-model': ml_operation2.GBTModelOperation,
+            'naive-bayes-classifier-model':
+                ml_operation2.NaiveBayesModelOperation,
+            'random-forest-classifier-model':
+                ml_operation2.RandomForestModelOperation,
+            'perceptron-classifier-model':
+                ml_operation2.PerceptronModelOperation,
+            'one-vs-rest-classifier-model-':
+                ml_operation2.OneVsRestModelOperation,
+            'svm-classifier-model': ml_operation2.SvmClassifierOperation,
+
+        }
+
         self.operations = {}
         for ops in [data_ops, etl_ops, geo_ops, ml_ops, other_ops, text_ops,
                     statistics_ops, ws_ops, vis_ops, dm_ops, data_quality_ops,
-                    feature_ops, trustworthy_operations]:
+                    feature_ops, trustworthy_operations, ml_model_operations2]:
             self.operations.update(ops)
