@@ -3,10 +3,10 @@ from __future__ import absolute_import
 
 import decimal
 import json
+import re
 
 import datetime
 
-import re
 import simplejson
 from six import text_type
 
@@ -394,6 +394,7 @@ def handle_spark_exception(e):
             npe = 'java.lang.NullPointerException'
             bme = 'org.apache.hadoop.hdfs.BlockMissingException'
             ace = 'org.apache.hadoop.security.AccessControlException'
+            iae = 'java.lang.IllegalArgumentException'
 
             cause_msg = cause.getMessage()
             inner_cause = cause.getCause()
@@ -426,6 +427,12 @@ def handle_spark_exception(e):
                       'storage. Probably, it is a configuration problem. '
                       'Please, contact the support.')
                 )
+            elif cause.getClass().getName() == iae:
+                gbt_error = 'dataset with invalid label'
+                if gbt_error in cause_msg:
+                    raise ValueError(_('GBT classifier requires labels '
+                                       'to be in [0, 1] range.'))
+
         elif e.java_exception.getMessage():
             value_expr = re.compile(r'CSV data source does not support '
                                     r'(.+?) data type')

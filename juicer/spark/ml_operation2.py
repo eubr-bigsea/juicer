@@ -6,7 +6,7 @@ import logging
 from juicer.spark.ml_operation import DeployModelMixin, SvmClassifierOperation, \
     LogisticRegressionClassifierOperation, DecisionTreeClassifierOperation, \
     GBTClassifierOperation, NaiveBayesClassifierOperation, \
-    RandomForestClassifierOperation, PerceptronClassifier, OneVsRestClassifier, \
+    RandomForestClassifierOperation, PerceptronClassifier, \
     ClassificationModelOperation
 
 try:
@@ -21,123 +21,94 @@ log = logging.getLogger()
 log.setLevel(logging.DEBUG)
 
 
-class ClassifierAndModelOperation(ClassificationModelOperation):
-    """
-    Base class for classification algorithms that are complete operations (
-    apply algorithm and generate model).
-    """
-
-    def __init__(self, parameters, named_inputs, named_outputs):
-        super(ClassifierAndModelOperation, self).__init__(
+class AlgorithmOperation(Operation):
+    def __init__(self, parameters, named_inputs, named_outputs, algorithm):
+        super(AlgorithmOperation, self).__init__(
             parameters, named_inputs, named_outputs)
 
+        model_in_ports = {
+            'train input data': named_inputs.get('train input data'),
+            'algorithm': 'algorithm'}
 
-class SvmModelOperation(SvmClassifierOperation):
-    def __init__(self, parameters, named_inputs, named_outputs):
-        SvmClassifierOperation.__init__(
-            self, parameters, named_inputs, named_outputs)
-        self.classification_model = ClassifierAndModelOperation(
-            parameters, named_inputs, named_inputs)
+        self.algorithm = algorithm
+        self.classification_model = ClassificationModelOperation(
+            parameters, model_in_ports, named_outputs)
 
     def generate_code(self):
-        algorithm_code = super(SvmClassifierOperation, self).generate_code()
+        algorithm_code = self.algorithm.generate_code()
         model_code = self.classification_model.generate_code()
         return "\n".join([algorithm_code, model_code])
 
+    def get_output_names(self, sep=','):
+        output = self.named_outputs.get('output data',
+                                        'out_task_{}'.format(self.order))
+        models = self.named_outputs.get('model',
+                                        'model_task_{}'.format(self.order))
+        return sep.join([output, models])
 
-class LogisticRegressionModelOperation(LogisticRegressionClassifierOperation):
+
+class SvmModelOperation(AlgorithmOperation):
     def __init__(self, parameters, named_inputs, named_outputs):
-        LogisticRegressionClassifierOperation.__init__(
-            self, parameters, named_inputs, named_outputs)
-        self.classification_model = ClassifierAndModelOperation(
-            parameters, named_inputs, named_inputs)
-
-    def generate_code(self):
-        algorithm_code = super(LogisticRegressionClassifierOperation,
-                               self).generate_code()
-        model_code = self.classification_model.generate_code()
-        return "\n".join([algorithm_code, model_code])
+        algorithm = SvmClassifierOperation(
+            parameters, named_inputs, {'algorithm': 'algorithm'})
+        super(SvmModelOperation, self).__init__(
+            parameters, named_inputs, named_outputs, algorithm)
 
 
-class DecisionTreeModelOperation(DecisionTreeClassifierOperation):
+class LogisticRegressionModelOperation(AlgorithmOperation):
     def __init__(self, parameters, named_inputs, named_outputs):
-        DecisionTreeClassifierOperation.__init__(
-            self, parameters, named_inputs, named_outputs)
-        self.classification_model = ClassifierAndModelOperation(
-            parameters, named_inputs, named_inputs)
-
-    def generate_code(self):
-        algorithm_code = super(DecisionTreeClassifierOperation,
-                               self).generate_code()
-        model_code = self.classification_model.generate_code()
-        return "\n".join([algorithm_code, model_code])
+        algorithm = LogisticRegressionClassifierOperation(
+            parameters, named_inputs, {'algorithm': 'algorithm'})
+        super(LogisticRegressionModelOperation, self).__init__(
+            parameters, named_inputs, named_outputs, algorithm)
 
 
-class GBTModelOperation(GBTClassifierOperation):
+class DecisionTreeModelOperation(AlgorithmOperation):
     def __init__(self, parameters, named_inputs, named_outputs):
-        GBTClassifierOperation.__init__(
-            self, parameters, named_inputs, named_outputs)
-        self.classification_model = ClassifierAndModelOperation(
-            parameters, named_inputs, named_inputs)
-
-    def generate_code(self):
-        algorithm_code = super(GBTClassifierOperation, self).generate_code()
-        model_code = self.classification_model.generate_code()
-        return "\n".join([algorithm_code, model_code])
+        algorithm = DecisionTreeClassifierOperation(
+            parameters, named_inputs, {'algorithm': 'algorithm'})
+        super(DecisionTreeModelOperation, self).__init__(
+            parameters, named_inputs, named_outputs, algorithm)
 
 
-class NaiveBayesModelOperation(NaiveBayesClassifierOperation):
+class GBTModelOperation(AlgorithmOperation):
     def __init__(self, parameters, named_inputs, named_outputs):
-        NaiveBayesClassifierOperation.__init__(
-            self, parameters, named_inputs, named_outputs)
-        self.classification_model = ClassifierAndModelOperation(
-            parameters, named_inputs, named_inputs)
-
-    def generate_code(self):
-        algorithm_code = super(NaiveBayesClassifierOperation,
-                               self).generate_code()
-        model_code = self.classification_model.generate_code()
-        return "\n".join([algorithm_code, model_code])
+        algorithm = GBTClassifierOperation(
+            parameters, named_inputs, {'algorithm': 'algorithm'})
+        super(GBTModelOperation, self).__init__(
+            parameters, named_inputs, named_outputs, algorithm)
 
 
-class RandomForestModelOperation(RandomForestClassifierOperation):
+class NaiveBayesModelOperation(AlgorithmOperation):
     def __init__(self, parameters, named_inputs, named_outputs):
-        RandomForestClassifierOperation.__init__(
-            self, parameters, named_inputs, named_outputs)
-        self.classification_model = ClassifierAndModelOperation(
-            parameters, named_inputs, named_inputs)
-
-    def generate_code(self):
-        algorithm_code = super(RandomForestClassifierOperation,
-                               self).generate_code()
-        model_code = self.classification_model.generate_code()
-        return "\n".join([algorithm_code, model_code])
+        algorithm = NaiveBayesClassifierOperation(
+            parameters, named_inputs, {'algorithm': 'algorithm'})
+        super(NaiveBayesModelOperation, self).__init__(
+            parameters, named_inputs, named_outputs, algorithm)
 
 
-class PerceptronModelOperation(PerceptronClassifier):
+class RandomForestModelOperation(AlgorithmOperation):
     def __init__(self, parameters, named_inputs, named_outputs):
-        PerceptronClassifier.__init__(
-            self, parameters, named_inputs, named_outputs)
-        self.classification_model = ClassifierAndModelOperation(
-            parameters, named_inputs, named_inputs)
-
-    def generate_code(self):
-        algorithm_code = super(PerceptronClassifier, self).generate_code()
-        model_code = self.classification_model.generate_code()
-        return "\n".join([algorithm_code, model_code])
+        algorithm = RandomForestClassifierOperation(
+            parameters, named_inputs, {'algorithm': 'algorithm'})
+        super(RandomForestModelOperation, self).__init__(
+            parameters, named_inputs, named_outputs, algorithm)
 
 
-class OneVsRestModelOperation(OneVsRestClassifier):
+class PerceptronModelOperation(AlgorithmOperation):
     def __init__(self, parameters, named_inputs, named_outputs):
-        OneVsRestClassifier.__init__(
-            self, parameters, named_inputs, named_outputs)
-        self.classification_model = ClassifierAndModelOperation(
-            parameters, named_inputs, named_inputs)
+        algorithm = PerceptronClassifier(
+            parameters, named_inputs, {'algorithm': 'algorithm'})
+        super(PerceptronModelOperation, self).__init__(
+            parameters, named_inputs, named_outputs, algorithm)
 
-    def generate_code(self):
-        algorithm_code = super(OneVsRestClassifier, self).generate_code()
-        model_code = self.classification_model.generate_code()
-        return "\n".join([algorithm_code, model_code])
+
+class OneVsRestModelOperation(AlgorithmOperation):
+    def __init__(self, parameters, named_inputs, named_outputs):
+        algorithm = OneVsRestModelOperation(
+            parameters, named_inputs, {'algorithm': 'algorithm'})
+        super(OneVsRestModelOperation, self).__init__(
+            parameters, named_inputs, named_outputs, algorithm)
 
 
 """
