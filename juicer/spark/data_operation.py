@@ -55,7 +55,8 @@ class DataReaderOperation(Operation):
 
     SEPARATORS = {
         '{tab}': '\\t',
-        '{new_line}': '\\n',
+        '{new_line \\n}': u'\n',
+        '{new_line \\r\\n}': u'\r\n'
     }
 
     def __init__(self, parameters, named_inputs, named_outputs):
@@ -112,6 +113,7 @@ class DataReaderOperation(Operation):
         self.null_values = [v.strip() for v in parameters.get(
             self.NULL_VALUES_PARAM, '').split(",")]
 
+        self.record_delimiter = self.metadata.get('record_delimiter')
         self.sep = parameters.get(
             self.SEPARATOR_PARAM,
             self.metadata.get('attribute_delimiter', ',')) or ','
@@ -176,6 +178,7 @@ class DataReaderOperation(Operation):
                     encoding = self.metadata.get('encoding', 'UTF-8') or 'UTF-8'
                     # Spark does not works with encoding + multiline options
                     # See https://github.com/databricks/spark-csv/issues/448
+                    # And there is no way to specify record delimiter!!!!!
                     code_csv = dedent("""
                         {output} = spark_session.read{null_option}.option(
                             'treatEmptyValuesAsNulls', 'true').option(
@@ -184,6 +187,7 @@ class DataReaderOperation(Operation):
                                     '"').csv(
                                 url, schema=schema_{output},
                                 quote={quote},
+                                ignoreTrailingWhiteSpace=True, # Handles \r
                                 encoding='{encoding}',
                                 header={header}, sep='{sep}',
                                 inferSchema={infer_schema},
