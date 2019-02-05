@@ -5,6 +5,7 @@ import decimal
 import json
 
 import datetime
+from pyspark.ml.linalg import DenseVector
 
 import re
 import simplejson
@@ -384,6 +385,15 @@ def handle_spark_exception(e):
                                    ' [{correct}], but it is {used}').format(
                     attr=attr, used=used, correct=correct
                 ))
+        else:
+            value_expr = re.compile(r'Field.+? does not exist.+:\s(.+)$')
+            found = value_expr.findall(e.desc.split('\n')[0])
+            if found:
+                field, fields = found[0]
+                raise ValueError(
+                    _('Attribute {} not found. Valid attributes: {}').format(
+                        field, fields.replace(';', '')))
+
     elif hasattr(e, 'java_exception'):
         cause = e.java_exception.getCause()
         if 'unwrapRemoteException' in dir(cause):
@@ -392,9 +402,10 @@ def handle_spark_exception(e):
             while cause is not None and cause.getCause() is not None:
                 cause = cause.getCause()
 
+        myse = 'com.mysql.jdbc.exceptions.jdbc4.MySQLSyntaxErrorException'
         if cause is not None:
             nfe = 'java.lang.NumberFormatException'
-            uoe = 'java.lang.UnsupportedOperationException'
+            # uoe = 'java.lang.UnsupportedOperationException'
             npe = 'java.lang.NullPointerException'
             bme = 'org.apache.hadoop.hdfs.BlockMissingException'
             ace = 'org.apache.hadoop.security.AccessControlException'
@@ -418,6 +429,9 @@ def handle_spark_exception(e):
                                        'Please, remove them before applying '
                                        'a data transformation.'))
                 pass
+            elif e.java_exception.getClass().getName() == myse:
+                raise ValueError(
+                    _('Unable to connect to MySQL while reading data source.'))
             elif cause.getClass().getName() == bme:
                 raise ValueError(
                     _('Cannot read data from the data source. In this case, '
