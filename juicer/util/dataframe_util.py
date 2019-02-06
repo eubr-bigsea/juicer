@@ -344,8 +344,6 @@ def merge_dicts(x, y):
 def handle_spark_exception(e):
     from pyspark.sql.utils import AnalysisException, IllegalArgumentException
     result = False
-    import pdb
-    pdb.set_trace()
     if isinstance(e, AnalysisException):
         value_expr = re.compile(r'[`"](.+)[`"].+columns:\s(.+)$')
         found = value_expr.findall(e.desc.split('\n')[0])
@@ -401,6 +399,8 @@ def handle_spark_exception(e):
                 raise ValueError(
                     _('Attribute {} not found. Valid attributes: {}').format(
                         used, correct))
+        else:
+            raise ValueError(e.desc)
     elif hasattr(e, 'java_exception'):
         cause = e.java_exception.getCause()
         if 'unwrapRemoteException' in dir(cause):
@@ -453,7 +453,8 @@ def handle_spark_exception(e):
                 if gbt_error in cause_msg:
                     raise ValueError(_('GBT classifier requires labels '
                                        'to be in [0, 1] range.'))
-
+                else:
+                    raise ValueError(cause_msg)
         elif e.java_exception.getMessage():
             value_expr = re.compile(r'CSV data source does not support '
                                     r'(.+?) data type')
