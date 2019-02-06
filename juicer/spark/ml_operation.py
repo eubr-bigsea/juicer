@@ -892,7 +892,7 @@ class CrossValidationOperation(Operation):
                 _("Parameter '{}' must be informed for task {}").format(
                     self.LABEL_ATTRIBUTE_PARAM, self.__class__))
 
-	self.features = parameters.get(self.FEATURES_PARAM, ['features']) 
+        self.features = parameters.get(self.FEATURES_PARAM, ['features'])
         self.label_attr = parameters.get(self.LABEL_ATTRIBUTE_PARAM)
 
         self.num_folds = parameters.get(self.NUM_FOLDS_PARAM, 3)
@@ -1488,23 +1488,25 @@ class PerceptronClassifier(ClassifierOperation):
     MAX_ITER_PARAM = 'max_iter'
     SEED_PARAM = 'seed'
     SOLVER_PARAM = 'solver'
+    LAYERS_PARAM = 'layers'
 
     def __init__(self, parameters, named_inputs,
                  named_outputs):
         ClassifierOperation.__init__(self, parameters, named_inputs,
                                      named_outputs)
         self.metrics = ['layers', 'numFeatures', 'weights']
-        param_grid = parameters.get('paramgrid', {})
         ctor_params = {}
         params_name = [
             ['blockSize', self.BLOCK_SIZE_PARAM, int],
             ['maxIter', self.MAX_ITER_PARAM, int],
             ['seed', self.SEED_PARAM, int],
-            ['solver', self.SOLVER_PARAM, str]
+            ['solver', self.SOLVER_PARAM, str],
+            ['layers', self.LAYERS_PARAM,
+             lambda x: [int(v) for v in x.split(',') if v]]
         ]
         for spark_name, lemonade_name, f in params_name:
-            if lemonade_name in param_grid and param_grid.get(lemonade_name):
-                ctor_params[spark_name] = f(param_grid.get(lemonade_name))
+            if lemonade_name in parameters and parameters.get(lemonade_name):
+                ctor_params[spark_name] = f(parameters.get(lemonade_name))
 
         self.name = 'classification.MultilayerPerceptronClassifier(**{k})' \
             .format(k=ctor_params)
@@ -1792,7 +1794,7 @@ class ClusteringModelOperation(Operation):
                               'They will be implicitly assembled and rows with '
                               'null values will be discarded. If this is '
                               'undesirable, explicitly add a feature assembler '
-                              'in the workflow.'),)
+                              'in the workflow.'), )
 
             return dedent(code)
 
