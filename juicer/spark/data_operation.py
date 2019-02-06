@@ -515,7 +515,7 @@ class SaveOperation(Operation):
             {input} = {input}.select(*cols)
             mode = '{mode}'
             # Write in a temporary directory
-            # Header configuration will be handled by LemondadeFileUtil class
+            # Header configuration will be handled by LemonadeFileUtil class
             {input}.write.csv('{url}{uuid}',
                          header=False, mode=mode)
             # Merge files using Hadoop HDFS API
@@ -608,6 +608,8 @@ class SaveOperation(Operation):
                   'scale': scale
                 }})
             parameters = {{
+                'attribute_delimiter': ',',
+                'is_first_line_header': write_header,
                 'name': "{name}",
                 'enabled': 1,
                 'is_public': 0,
@@ -618,6 +620,7 @@ class SaveOperation(Operation):
                 'user_login': "{user_login}",
                 'user_name': "{user_name}",
                 'workflow_id': "{workflow_id}",
+                'tags': '{tags}',
                 'url': "{final_url}",
                 'attributes': attributes
             }}
@@ -636,6 +639,7 @@ class SaveOperation(Operation):
             final_url=final_url,
             token=token,
             url=url,
+            tags=', '.join(self.tags or []),
             mode=self.mode,
             data_types=json.dumps(self.SPARK_TO_LIMONERO_DATA_TYPES))
         code += dedent(code_api)
