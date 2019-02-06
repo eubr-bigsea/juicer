@@ -1,6 +1,8 @@
 FROM ubuntu:16.04 as base
 
-LABEL maintainer="Vinicius Dias <viniciusvdias@dcc.ufmg.br>, Guilherme Maluf <guimaluf@dcc.ufmg.br>, Walter Santos <walter@dcc.ufmg.br>"
+LABEL maintainer="Vinicius Dias <viniciusvdias@dcc.ufmg.br>, \
+                  Guilherme Maluf <guimaluf@dcc.ufmg.br>, \
+                  Walter Santos <walter@dcc.ufmg.br>"
 
 ENV SPARK_HOME /usr/local/spark
 ENV JUICER_HOME /usr/local/juicer
@@ -24,11 +26,19 @@ RUN apt-key adv --keyserver keyserver.ubuntu.com --recv E56151BF \
   && echo "LC_ALL=en_US.UTF-8" >> /etc/default/locale \
   && rm -rf /var/lib/apt/lists/*
 
-ENV SPARK_VERSION=2.3.1
+ENV SPARK_VERSION=2.4
 ENV HADOOP_VERSION=2.7
-ENV SPARK_HADOOP_PKG spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION}
-ENV SPARK_HADOOP_URL http://www-eu.apache.org/dist/spark/spark-${SPARK_VERSION}/${SPARK_HADOOP_PKG}.tgz
-RUN curl -s ${SPARK_HADOOP_URL} | tar -xz -C /usr/local/  \
+ENV SPARK_BASE_URL=http://www.apache.org/dist/spark
+
+# Get latest spark based on major.minor version
+RUN SPARK_LATEST_VERSION=$(\
+      curl -sL ${SPARK_BASE_URL} | \
+      grep -Eo "spark-${SPARK_VERSION}\.[0-9]{1}" | \
+      head -1 \
+    ) \
+  && SPARK_HADOOP_PKG=${SPARK_LATEST_VERSION}-bin-hadoop${HADOOP_VERSION} \
+  && SPARK_HADOOP_URL=${SPARK_BASE_URL}/${SPARK_LATEST_VERSION}/${SPARK_HADOOP_PKG}.tgz \
+  && curl -s ${SPARK_HADOOP_URL} | tar -xz -C /usr/local/  \
   && mv /usr/local/$SPARK_HADOOP_PKG $SPARK_HOME
 
 WORKDIR $JUICER_HOME
