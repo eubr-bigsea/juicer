@@ -344,6 +344,8 @@ def merge_dicts(x, y):
 def handle_spark_exception(e):
     from pyspark.sql.utils import AnalysisException, IllegalArgumentException
     result = False
+    import pdb
+    pdb.set_trace()
     if isinstance(e, AnalysisException):
         value_expr = re.compile(r'[`"](.+)[`"].+columns:\s(.+)$')
         found = value_expr.findall(e.desc.split('\n')[0])
@@ -370,7 +372,12 @@ def handle_spark_exception(e):
             if found:
                 raise ValueError(
                     _('Data source does not exist. It may have been deleted.'))
-
+    elif isinstance(e, KeyError):
+        value_expr = re.compile(r'No StructField named (.+)\'$')
+        found = value_expr.findall(str(e))
+        if found:
+            raise ValueError(
+                _('Attribute {} not found.').format(found[0]))
     elif isinstance(e, IllegalArgumentException):
         # Invalid column type
         if 'must be of type equal' in str(e):
@@ -384,6 +391,16 @@ def handle_spark_exception(e):
                                    ' [{correct}], but it is {used}').format(
                     attr=attr, used=used, correct=correct
                 ))
+        elif 'Available fields' in str(e):
+            value_expr = re.compile(
+                r'Field "(.+?)" does not exist.\nAvailable fields: (.+)',
+                re.MULTILINE)
+            found = value_expr.findall(e.desc)
+            if found:
+                used, correct = found[0]
+                raise ValueError(
+                    _('Attribute {} not found. Valid attributes: {}').format(
+                        used, correct))
     elif hasattr(e, 'java_exception'):
         cause = e.java_exception.getCause()
         if 'unwrapRemoteException' in dir(cause):
