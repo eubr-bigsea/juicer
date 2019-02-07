@@ -194,6 +194,27 @@ class SparkTranspiler(Transpiler):
                 ml_operation2.OneVsRestModelOperation,
             'svm-classifier-model': ml_operation2.SvmClassifierOperation,
 
+            'k-means-clustering-model': ml_operation2.KMeansModelOperation,
+            'gaussian-mixture-clustering-model':
+                ml_operation2.GaussianMixtureModelOperation,
+            'lda-clustering-model': ml_operation2.LDAModelOperation,
+
+            'decision-tree-regression-model':
+                ml_operation2.DecisionTreeRegressionModelOperation,
+
+            'isotonic-regression-model':
+                ml_operation2.IsotonicRegressionModelOperation,
+            'aft-survival-regression-model':
+                ml_operation2.AFTSurvivalRegressionModelOperation,
+            'gbt-regressor-model':
+                ml_operation2.GBTRegressionModelOperation,
+            'random-forest-regressor-model':
+                ml_operation2.RandomForestRegressionModelOperation,
+            'generalized-linear-regressor-model':
+                ml_operation2.GeneralizedLinearRegressionModelOperation,
+            'linear-regression-mode':
+                ml_operation2.LinearRegressionOperation,
+
         }
 
         self.operations = {}
