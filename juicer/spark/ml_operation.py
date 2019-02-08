@@ -2852,6 +2852,9 @@ class SaveModelOperation(Operation):
     WRITE_MODE_OVERWRITE = 'OVERWRITE'
     WRITE_MODE_OPTIONS = [WRITE_MODE_ERROR,
                           WRITE_MODE_OVERWRITE]
+    WORKFLOW_ID_PARAM = 'workflow_id'
+    WORKFLOW_NAME_PARAM = 'workflow_name'
+    JOB_ID_PARAM = 'job_id'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
@@ -2884,6 +2887,10 @@ class SaveModelOperation(Operation):
             raise ValueError(
                 _('Invalid value for parameter {param}: {value}').format(
                     param=self.SAVE_CRITERIA_PARAM, value=self.criteria))
+
+        self.workflow_id = parameters.get(self.WORKFLOW_ID_PARAM)
+        self.workflow_name = parameters.get(self.WORKFLOW_NAME_PARAM)
+        self.job_id = parameters.get(self.JOB_ID_PARAM)
 
         self.has_code = any([len(named_inputs) > 0, self.contains_results()])
 
@@ -2943,7 +2950,11 @@ class SaveModelOperation(Operation):
                     "class_name": model_type,
                     "storage_id": {storage_id},
                     "path":  model_path,
-                    "type": "UNSPECIFIED"
+                    "type": "UNSPECIFIED",
+                    "task_id": '{task_id}',
+                    "job_id": {job_id},
+                    "workflow_id": {workflow_id},
+                    "workflow_name": '{workflow_name}'
                 }}
                 # Save model information in Limonero
                 register_model('{url}', model_payload, '{token}')
@@ -2971,6 +2982,10 @@ class SaveModelOperation(Operation):
                           'and criteria is different from ALL'),
                    msg1=_('You cannot mix models built using with '
                           'different metrics ({}).'),
+                   job_id=self.job_id,
+                   task_id=self.parameters['task_id'],
+                   workflow_id=self.workflow_id,
+                   workflow_name=self.workflow_name,
                    user_id=user.get('id'),
                    user_name=user.get('name'),
                    user_login=user.get('login')))
