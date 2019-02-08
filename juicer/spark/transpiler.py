@@ -192,7 +192,7 @@ class SparkTranspiler(Transpiler):
                 ml_operation2.PerceptronModelOperation,
             'one-vs-rest-classifier-model-':
                 ml_operation2.OneVsRestModelOperation,
-            'svm-classifier-model': ml_operation2.SvmClassifierOperation,
+            'svm-classification-model': ml_operation2.SvmClassifierOperation,
 
             'k-means-clustering-model': ml_operation2.KMeansModelOperation,
             'gaussian-mixture-clustering-model':
