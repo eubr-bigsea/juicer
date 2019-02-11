@@ -34,6 +34,7 @@ class DataReaderOperation(Operation):
     INFER_FROM_LIMONERO = 'FROM_LIMONERO'
     INFER_FROM_DATA = 'FROM_VALUES'
     DO_NOT_INFER = 'NO'
+    SLUG = 'data-reader'
 
     LIMONERO_TO_SPARK_DATA_TYPES = {
         "BINARY": 'types.BinaryType',
@@ -81,8 +82,8 @@ class DataReaderOperation(Operation):
                 data_source_updated = datetime.datetime.strptime(
                     data_source_updated[0:19], '%Y-%m-%dT%H:%M:%S')
             self.supports_cache = (
-                parameters.get('execution_date') is not None and
-                data_source_updated < parameters['execution_date'])
+                    parameters.get('execution_date') is not None and
+                    data_source_updated < parameters['execution_date'])
 
         self.output = named_outputs.get('output data',
                                         'out_task_{}'.format(self.order))
@@ -90,18 +91,12 @@ class DataReaderOperation(Operation):
     def _set_data_source_parameters(self, parameters):
 
         self.data_source_id = int(parameters[self.DATA_SOURCE_ID_PARAM])
-        # Retrieve metadata from Limonero.
-        limonero_config = \
-            self.parameters['configuration']['juicer']['services'][
-                'limonero']
-        url = limonero_config['url']
-        token = str(limonero_config['auth_token'])
         # Is data source information cached?
         self.metadata = self.parameters.get('workflow', {}).get(
             'data_source_cache', {}).get(self.data_source_id)
         if self.metadata is None:
-            self.metadata = limonero_service.get_data_source_info(
-                url, token, self.data_source_id)
+            # Retrieve metadata from Limonero.
+            self.metadata = self._get_data_source_info()
             self.parameters['workflow']['data_source_cache'][
                 self.data_source_id] = self.metadata
         if not self.metadata.get('url'):
@@ -126,6 +121,15 @@ class DataReaderOperation(Operation):
         self.infer_schema = parameters.get(self.INFER_SCHEMA_PARAM,
                                            self.INFER_FROM_LIMONERO)
         self.mode = parameters.get(self.MODE_PARAM, 'FAILFAST')
+
+    def _get_data_source_info(self):
+        limonero_config = \
+            self.parameters['configuration']['juicer']['services'][
+                'limonero']
+        url = limonero_config['url']
+        token = str(limonero_config['auth_token'])
+        return limonero_service.get_data_source_info(url, token,
+                                                     self.data_source_id)
 
     def generate_code(self):
 
@@ -194,7 +198,8 @@ class DataReaderOperation(Operation):
                                 mode='{mode}')""".format(
                         output=self.output,
                         header=self.header or self.metadata.get(
-                            'is_first_line_header', False),
+                            'is_first_line_header', False) not in (
+                               '0', 0, 'false', False),
                         sep=self.sep,
                         quote='None' if self.quote is None else "'{}'".format(
                             self.quote),
@@ -364,12 +369,13 @@ class DataReaderOperation(Operation):
             ]}
 
             code.append("schema_{0}.add('{1}', {2}, {3},\n{5}{4})".format(
-                self.output, attr['name'], data_type, attr['nullable'],
+                self.output, attr['name'], data_type, attr.get('nullable', True),
                 pprint.pformat(metadata, indent=0), ' ' * 20
             ))
         else:
             code.append("schema_{0}.add('{1}', {2}, {3})".format(
-                self.output, attr['name'], data_type, attr['nullable']))
+                self.output, attr['name'], data_type,
+                attr.get('nullable', True)))
 
     def get_output_names(self, sep=", "):
         return self.output
@@ -451,6 +457,7 @@ class SaveOperation(Operation):
     WORKFLOW_JSON_PARAM = 'workflow_json'
     USER_PARAM = 'user'
     WORKFLOW_ID_PARAM = 'workflow_id'
+    SLUG = 'data-writer'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)

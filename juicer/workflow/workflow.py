@@ -60,8 +60,8 @@ class Workflow(object):
         # Spark or COMPSs
         self.platform = workflow_data.get('platform', {}).get('slug', 'spark')
 
-        if self.platform == 'spark':
-            self._build_privacy_restrictions()
+        # if self.platform == 'spark':
+        #     self._build_privacy_restrictions()
 
         # Verify null edges to topological_sorted_tasks
         if self._is_there_null_target_id_tasks() \
@@ -76,7 +76,7 @@ class Workflow(object):
 
     def _build_privacy_restrictions(self):
         if 'juicer' not in self.config or \
-                        'services' not in self.config['juicer']:
+                'services' not in self.config['juicer']:
             return
         limonero_config = self.config['juicer']['services']['limonero']
         data_sources = []
@@ -142,13 +142,13 @@ class Workflow(object):
     def _build_initial_workflow_graph(self):
         """ Builds a graph with the tasks """
 
-        operations_tahiti = {op['id']: op for op in self._get_operations()}
+        operations_tahiti = {op['slug']: op for op in self._get_operations()}
         # Querying all operations from tahiti one time
         task_map = {}
 
         for task in self.workflow['tasks']:
             if task.get('enabled', True):
-                operation = operations_tahiti.get(task['operation']['id'])
+                operation = operations_tahiti.get(task['operation']['slug'])
                 form_fields = {}
                 for form in operation['forms']:
                     for field in form['fields']:
@@ -233,36 +233,52 @@ class Workflow(object):
                     flow['target_id'] not in self.disabled_tasks]):
                 # Updates the source_port_name and target_port_name. They are
                 # used in the transpiler part instead of the id of the port.
-                source_port = list(filter(
-                    lambda p: int(p['id']) == int(flow['source_port']),
-                    task_map[flow['source_id']]['operation']['ports']))
 
-                target_port = list(filter(
-                    lambda p: int(p['id']) == int(flow['target_port']),
-                    task_map[flow['target_id']]['operation']['ports']))
+                if 'source_port' in flow:
+                    source_port = list(filter(
+                        lambda p: int(p['id']) == int(flow['source_port']),
+                        task_map[flow['source_id']]['operation']['ports']))
 
-                if all([source_port, target_port]):
-                    # Compatibility assertion, may be removed in future
-                    # assert 'target_port_name' not in flow or \
-                    #        flow['target_port_name'] == target_port[0]['slug']
-                    # assert 'source_port_name' not in flow \
-                    #      or flow['source_port_name'] == source_port[0]['slug']
+                    target_port = list(filter(
+                        lambda p: int(p['id']) == int(flow['target_port']),
+                        task_map[flow['target_id']]['operation']['ports']))
 
-                    flow['target_port_name'] = target_port[0]['slug']
-                    flow['source_port_name'] = source_port[0]['slug']
+                    if all([source_port, target_port]):
+                        # Compatibility assertion, may be removed in future
+                        # assert 'target_port_name' not in flow or \
+                        #        flow['target_port_name'] == target_port[0][
+                        #        'slug']
+                        # assert 'source_port_name' not in flow \
+                        #      or flow['source_port_name'] == source_port[0][
+                        #      'slug']
 
-                    self.graph.add_edge(flow['source_id'], flow['target_id'],
-                                        attr_dict=flow)
-                    self.graph.node[flow['target_id']]['parents'].append(
-                        flow['source_id'])
+                        flow['target_port_name'] = target_port[0]['slug']
+                        flow['source_port_name'] = source_port[0]['slug']
+
+                    else:
+                        self.log.warn(
+                            _("Incorrect configuration for ports: %s, %s"),
+                            source_port, target_port)
+                        raise ValueError(_(
+                            "Invalid or non-existing port: '{op}' {s} {"
+                            "t}").format(
+                            op=task_map[flow['source_id']]['operation']['name'],
+                            s=flow['source_port'], t=flow['target_port']))
                 else:
-                    self.log.warn(
-                        _("Incorrect configuration for ports: %s, %s"),
-                        source_port, target_port)
-                    raise ValueError(_(
-                        "Invalid or non-existing port: '{op}' {s} {t}").format(
-                        op=task_map[flow['source_id']]['operation']['name'],
-                        s=flow['source_port'], t=flow['target_port']))
+                    source_port = list(filter(
+                        lambda p: p['slug'] == flow['source_port_name'],
+                        task_map[flow['source_id']]['operation']['ports']))
+
+                    target_port = list(filter(
+                        lambda p: p['slug'] == flow['target_port_name'],
+                        task_map[flow['target_id']]['operation']['ports']))
+                    flow['target_port'] = target_port[0]['id']
+                    flow['source_port'] = source_port[0]['id']
+
+                self.graph.add_edge(flow['source_id'], flow['target_id'],
+                                    attr_dict=flow)
+                self.graph.node[flow['target_id']]['parents'].append(
+                    flow['source_id'])
 
         for nodes in self.graph.nodes():
             self.graph.node[nodes]['in_degree'] = self.graph. \
@@ -437,14 +453,14 @@ class Workflow(object):
         topological_sort = self.get_topological_sorted_tasks()
 
         for node_obj in topological_sort:
-            print (nx.ancestors(self.graph, node_obj),
-                   self.graph.predecessors(node_obj),
-                   node_obj,
-                   self.graph.node[node_obj]['in_degree_required'],
-                   self.graph.node[node_obj]['in_degree'],
-                   self.graph.node[node_obj]['out_degree_required'],
-                   self.graph.node[node_obj]['out_degree']
-                   )
+            print(nx.ancestors(self.graph, node_obj),
+                  self.graph.predecessors(node_obj),
+                  node_obj,
+                  self.graph.node[node_obj]['in_degree_required'],
+                  self.graph.node[node_obj]['in_degree'],
+                  self.graph.node[node_obj]['out_degree_required'],
+                  self.graph.node[node_obj]['out_degree']
+                  )
         return True
 
     # only to debug
@@ -507,14 +523,14 @@ class Workflow(object):
 
         for node_obj in topological_sort:
             # print self.workflow_graph.node[node]
-            print (nx.ancestors(self.graph, node_obj),
-                   self.graph.predecessors(node_obj),
-                   node_obj,
-                   self.graph.node[node_obj]['in_degree_required'],
-                   self.graph.node[node_obj]['in_degree'],
-                   self.graph.node[node_obj]['out_degree_required'],
-                   self.graph.node[node_obj]['out_degree']
-                   )
+            print(nx.ancestors(self.graph, node_obj),
+                  self.graph.predecessors(node_obj),
+                  node_obj,
+                  self.graph.node[node_obj]['in_degree_required'],
+                  self.graph.node[node_obj]['in_degree'],
+                  self.graph.node[node_obj]['out_degree_required'],
+                  self.graph.node[node_obj]['out_degree']
+                  )
         return True
 
     # only to debug
@@ -530,4 +546,3 @@ class Workflow(object):
                     )
         if self.query_operations:
             return self.query_operations()
-
