@@ -138,6 +138,7 @@ class DataReaderOperation(Operation):
         infer_from_limonero = self.infer_schema == self.INFER_FROM_LIMONERO
 
         if self.has_code:
+            date_format = "yyyy/MM/dd HH:mm:ss"
             if infer_from_limonero:
                 if 'attributes' in self.metadata:
                     code.append(
@@ -146,6 +147,9 @@ class DataReaderOperation(Operation):
                     if attrs:
                         for attr in attrs:
                             self._add_attribute_to_schema(attr, code)
+                            if attr.get('type') == 'DATETIME':
+                                date_format = attr.get('format') or \
+                                    "yyyy/MM/dd HH:mm:ss"
                     else:
                         code.append(
                             "schema_{0}.add('value', "
@@ -184,7 +188,8 @@ class DataReaderOperation(Operation):
                             'treatEmptyValuesAsNulls', 'true').option(
                             'wholeFile', True).option(
                                 'multiLine', {multiline}).option('escape',
-                                    '"').csv(
+                                    '"').option('timestampFormat', '{date_fmt}'
+                                    ).csv(
                                 url, schema=schema_{output},
                                 quote={quote},
                                 ignoreTrailingWhiteSpace=True, # Handles \r
@@ -196,6 +201,7 @@ class DataReaderOperation(Operation):
                         header=self.header or self.metadata.get(
                             'is_first_line_header', False),
                         sep=self.sep,
+                        date_fmt=date_format,
                         quote='None' if self.quote is None else "'{}'".format(
                             self.quote),
                         infer_schema=infer_from_data,
