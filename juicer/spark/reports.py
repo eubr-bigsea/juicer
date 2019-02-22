@@ -4,7 +4,6 @@ from __future__ import unicode_literals, absolute_import, division
 import base64
 import gettext
 import itertools
-from gettext import gettext as _
 from io import BytesIO
 
 import datetime
@@ -68,7 +67,7 @@ class SeabornChartReport(BaseHtmlReport):
 
 class ConfusionMatrixImageReport(BaseHtmlReport):
     def __init__(self, cm, classes, normalize=False,
-                 title='Confusion matrix', cmap=None,
+                 title=_('Confusion matrix'), cmap=None,
                  axis=None):
         """
        This function prints and plots the confusion matrix.

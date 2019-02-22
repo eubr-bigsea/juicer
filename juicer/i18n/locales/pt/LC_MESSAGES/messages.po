@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2019-02-06 10:07-0200\n"
-"PO-Revision-Date: 2019-02-06 10:12-0200\n"
+"POT-Creation-Date: 2019-02-21 11:22-0300\n"
+"PO-Revision-Date: 2019-02-21 11:22-0300\n"
 "Last-Translator: \n"
 "Language-Team: pt_BR <LL@li.org>\n"
 "Language: pt_BR\n"
@@ -127,7 +127,7 @@ msgstr ""
 #: juicer/scikit_learn/text_operation.py:235
 #: juicer/scikit_learn/text_operation.py:242
 #: juicer/scikit_learn/text_operation.py:300 juicer/spark/data_operation.py:73
-#: juicer/spark/data_operation.py:694 juicer/spark/data_operation.py:803
+#: juicer/spark/data_operation.py:700 juicer/spark/data_operation.py:809
 #: juicer/spark/data_quality_operation.py:21 juicer/spark/etl_operation.py:92
 #: juicer/spark/etl_operation.py:198 juicer/spark/etl_operation.py:464
 #: juicer/spark/etl_operation.py:498 juicer/spark/etl_operation.py:505
@@ -135,14 +135,13 @@ msgstr ""
 #: juicer/spark/etl_operation.py:758 juicer/spark/etl_operation.py:1207
 #: juicer/spark/feature_operation.py:30 juicer/spark/feature_operation.py:180
 #: juicer/spark/feature_operation.py:282 juicer/spark/geo_operation.py:34
-#: juicer/spark/ml_operation.py:161 juicer/spark/ml_operation.py:265
-#: juicer/spark/ml_operation.py:272 juicer/spark/ml_operation.py:329
-#: juicer/spark/ml_operation.py:377 juicer/spark/ml_operation.py:873
-#: juicer/spark/ml_operation.py:892 juicer/spark/ml_operation.py:1644
-#: juicer/spark/ml_operation.py:3038 juicer/spark/ml_operation.py:3043
-#: juicer/spark/ml_operation.py:3088 juicer/spark/ml_operation.py:3094
-#: juicer/spark/ml_operation.py:3162 juicer/spark/ml_operation2.py:131
-#: juicer/spark/statistic_operation.py:30
+#: juicer/spark/ml_operation.py:161 juicer/spark/ml_operation.py:264
+#: juicer/spark/ml_operation.py:271 juicer/spark/ml_operation.py:328
+#: juicer/spark/ml_operation.py:376 juicer/spark/ml_operation.py:872
+#: juicer/spark/ml_operation.py:891 juicer/spark/ml_operation.py:1645
+#: juicer/spark/ml_operation.py:3054 juicer/spark/ml_operation.py:3059
+#: juicer/spark/ml_operation.py:3104 juicer/spark/ml_operation.py:3110
+#: juicer/spark/ml_operation.py:3178 juicer/spark/statistic_operation.py:30
 #: juicer/spark/statistic_operation.py:189 juicer/spark/text_operation.py:38
 #: juicer/spark/text_operation.py:110 juicer/spark/text_operation.py:228
 #: juicer/spark/text_operation.py:363 juicer/spark/text_operation.py:370
@@ -182,11 +181,9 @@ msgstr "Parâmetros '{}' devem ser informados para a tarefa {}"
 #: juicer/scikit_learn/model_operation.py:140
 #: juicer/scikit_learn/regression_operation.py:25
 #: juicer/scikit_learn/regression_operation.py:60
-#: juicer/spark/ml_operation.py:1031 juicer/spark/ml_operation.py:2206
-#: juicer/spark/ml_operation.py:2236 juicer/spark/ml_operation.py:2264
-#: juicer/spark/ml_operation.py:2443 juicer/spark/ml_operation2.py:635
-#: juicer/spark/ml_operation2.py:665 juicer/spark/ml_operation2.py:693
-#: juicer/spark/ml_operation2.py:872
+#: juicer/spark/ml_operation.py:1030 juicer/spark/ml_operation.py:2207
+#: juicer/spark/ml_operation.py:2237 juicer/spark/ml_operation.py:2265
+#: juicer/spark/ml_operation.py:2444
 msgid "Parameters '{}' and '{}' must be informed for task {}"
 msgstr "Parâmetros '{}' e '{}' devem ser informado para a tarefa {}"
 
@@ -635,8 +632,8 @@ msgstr "Matando subprocessos do servidor juicer e finalizando"
 
 #: juicer/scikit_learn/classification_operation.py:39
 #: juicer/scikit_learn/model_operation.py:26
-#: juicer/scikit_learn/model_operation.py:179 juicer/spark/ml_operation.py:411
-#: juicer/spark/ml_operation.py:502 juicer/spark/ml_operation.py:1047
+#: juicer/scikit_learn/model_operation.py:179 juicer/spark/ml_operation.py:410
+#: juicer/spark/ml_operation.py:501 juicer/spark/ml_operation.py:1046
 msgid "Model is being used, but at least one input is missing"
 msgstr "Model está sendo usado, mas falta pelo menos uma entrada."
 
@@ -677,7 +674,7 @@ msgstr ""
 "{}"
 
 #: juicer/scikit_learn/clustering_operation.py:336
-#: juicer/spark/ml_operation.py:1849 juicer/spark/ml_operation2.py:336
+#: juicer/spark/ml_operation.py:1850
 msgid "Invalid optimizer value {} for class {}"
 msgstr "Valor de optimizer inválido {} para classe {}"
 
@@ -685,8 +682,8 @@ msgstr "Valor de optimizer inválido {} para classe {}"
 msgid "Incorrect data source configuration (empty url)"
 msgstr "Configuração incorreta para fonte de dados (url vazia)"
 
-#: juicer/scikit_learn/data_operation.py:167 juicer/spark/data_operation.py:157
-#: juicer/spark/data_operation.py:827
+#: juicer/scikit_learn/data_operation.py:167 juicer/spark/data_operation.py:161
+#: juicer/spark/data_operation.py:833
 msgid "Metadata do not include attributes information"
 msgstr "Metadata não incluem informações sobre os atributos"
 
@@ -697,11 +694,11 @@ msgstr "Metadata não incluem informações sobre os atributos"
 msgid "Not supported"
 msgstr "Não suportado"
 
-#: juicer/scikit_learn/data_operation.py:257 juicer/spark/data_operation.py:253
+#: juicer/scikit_learn/data_operation.py:257 juicer/spark/data_operation.py:259
 msgid "Database {} not supported"
 msgstr "Base de dados {} não é suportada"
 
-#: juicer/scikit_learn/data_operation.py:260 juicer/spark/data_operation.py:256
+#: juicer/scikit_learn/data_operation.py:260 juicer/spark/data_operation.py:262
 msgid "No command nor table specified for data source."
 msgstr "Nenhum comando ou tabela especificada como fonte de dados."
 
@@ -709,19 +706,19 @@ msgstr "Nenhum comando ou tabela especificada como fonte de dados."
 msgid "Storage type not supported: {}"
 msgstr "Tipo de armazenamento não suportado: {}"
 
-#: juicer/scikit_learn/data_operation.py:479 juicer/spark/data_operation.py:633
+#: juicer/scikit_learn/data_operation.py:479 juicer/spark/data_operation.py:639
 msgid "Data source generated by workflow {}"
 msgstr "Fonte de dados gerada pelo workflow {}"
 
-#: juicer/scikit_learn/data_operation.py:497 juicer/spark/data_operation.py:560
+#: juicer/scikit_learn/data_operation.py:497 juicer/spark/data_operation.py:566
 msgid "File already exists"
 msgstr "Arquivo já existe"
 
-#: juicer/scikit_learn/data_operation.py:498 juicer/spark/data_operation.py:561
+#: juicer/scikit_learn/data_operation.py:498 juicer/spark/data_operation.py:567
 msgid "File not written (already exists)"
 msgstr "Arquivo não foi escrito (já existe)"
 
-#: juicer/scikit_learn/data_operation.py:499 juicer/spark/data_operation.py:562
+#: juicer/scikit_learn/data_operation.py:499 juicer/spark/data_operation.py:568
 msgid "Invalid mode {}"
 msgstr "Modo inválido: {}"
 
@@ -765,22 +762,22 @@ msgstr ""
 "amosta na tarefa {}."
 
 #: juicer/scikit_learn/model_operation.py:146
-#: juicer/scikit_learn/model_operation.py:530 juicer/spark/ml_operation.py:491
-#: juicer/spark/ml_operation.py:884
+#: juicer/scikit_learn/model_operation.py:530 juicer/spark/ml_operation.py:490
+#: juicer/spark/ml_operation.py:883
 msgid "Invalid metric value {}"
 msgstr "Valor de métrica inválido {}"
 
-#: juicer/scikit_learn/model_operation.py:231 juicer/spark/ml_operation.py:733
+#: juicer/scikit_learn/model_operation.py:231 juicer/spark/ml_operation.py:732
 msgid "Prediction versus Residual"
 msgstr "Predição versus Resíduo"
 
-#: juicer/scikit_learn/model_operation.py:232 juicer/spark/ml_operation.py:735
+#: juicer/scikit_learn/model_operation.py:232 juicer/spark/ml_operation.py:734
 msgid "Residual"
 msgstr "Resíduo"
 
 #: juicer/scikit_learn/model_operation.py:233
-#: juicer/scikit_learn/model_operation.py:244 juicer/spark/ml_operation.py:734
-#: juicer/spark/ml_operation.py:739
+#: juicer/scikit_learn/model_operation.py:244 juicer/spark/ml_operation.py:733
+#: juicer/spark/ml_operation.py:738
 msgid "Prediction"
 msgstr "Predição"
 
@@ -793,24 +790,24 @@ msgid "Parameters"
 msgstr "Parâmetros"
 
 #: juicer/scikit_learn/model_operation.py:241
-#: juicer/scikit_learn/model_operation.py:246 juicer/spark/ml_operation.py:591
-#: juicer/spark/ml_operation.py:1198
+#: juicer/scikit_learn/model_operation.py:246 juicer/spark/ml_operation.py:590
+#: juicer/spark/ml_operation.py:1197
 msgid "Value"
 msgstr "Valor"
 
-#: juicer/scikit_learn/model_operation.py:242 juicer/spark/ml_operation.py:737
+#: juicer/scikit_learn/model_operation.py:242 juicer/spark/ml_operation.py:736
 msgid "Actual versus Prediction"
 msgstr "Real versus Predito"
 
-#: juicer/scikit_learn/model_operation.py:243 juicer/spark/ml_operation.py:738
+#: juicer/scikit_learn/model_operation.py:243 juicer/spark/ml_operation.py:737
 msgid "Actual"
 msgstr "Real"
 
-#: juicer/scikit_learn/model_operation.py:246 juicer/spark/ml_operation.py:591
+#: juicer/scikit_learn/model_operation.py:246 juicer/spark/ml_operation.py:590
 msgid "Metric"
 msgstr "Métrica"
 
-#: juicer/scikit_learn/model_operation.py:248 juicer/spark/ml_operation.py:586
+#: juicer/scikit_learn/model_operation.py:248 juicer/spark/ml_operation.py:585
 msgid "Evaluation result"
 msgstr "Resultado da avaliação"
 
@@ -980,27 +977,27 @@ msgstr "Consultando a URL do Tahiti: %s"
 msgid "Error loading storage id {}: HTTP {} - {}  ({})"
 msgstr "Erro ao carregar o id de armazenamento {} : HTTP {} - {} ({})"
 
-#: juicer/spark/data_operation.py:327
+#: juicer/spark/data_operation.py:333
 msgid "Invalid anonymization type ({})"
 msgstr "Tipo de anonimização inválido ({})"
 
-#: juicer/spark/data_operation.py:460
+#: juicer/spark/data_operation.py:466
 msgid "You must specify a name for new data source."
 msgstr "Você deve especificar um nome para a nova base de dados"
 
-#: juicer/spark/data_operation.py:465
+#: juicer/spark/data_operation.py:471
 msgid "You must specify a valid format."
 msgstr "Você deve especificar um formato válido."
 
-#: juicer/spark/data_operation.py:470
+#: juicer/spark/data_operation.py:476
 msgid "You must specify a storage for saving data."
 msgstr "Você deve especificar um local de armazenamento para salvar os dados."
 
-#: juicer/spark/data_operation.py:475
+#: juicer/spark/data_operation.py:481
 msgid "You must specify a path for saving data."
 msgstr "Você deve especificar um caminho para salvar os dados."
 
-#: juicer/spark/data_operation.py:792 juicer/spark/data_operation.py:797
+#: juicer/spark/data_operation.py:798 juicer/spark/data_operation.py:803
 msgid "Invalid value '{}' for parameter '{}'"
 msgstr "Valor '{}' inválido para parâmetro '{}'"
 
@@ -1190,17 +1187,16 @@ msgstr "Nenhum treino foi informado para construir o modelo."
 msgid "Parameter '{}' must be in range [x>=0] for task {}"
 msgstr "Parâmetro '{}' deve estar na faixa [x>=0] para tarefa {}"
 
-#: juicer/spark/ml_operation.py:237
+#: juicer/spark/ml_operation.py:236
 msgid "Parameter type has an invalid value {}"
 msgstr "Tipo de parâmetro tem um valor inválido {}"
 
-#: juicer/spark/ml_operation.py:480
+#: juicer/spark/ml_operation.py:479
 msgid "Parameters '{}', '{}' and '{}' must be informed for task {}"
 msgstr "Parâmetro '{}' , '{}' e '{}' devem ser informado para a tarefa {}"
 
-#: juicer/spark/ml_operation.py:1190 juicer/spark/ml_operation.py:1791
-#: juicer/spark/ml_operation.py:2415 juicer/spark/ml_operation2.py:278
-#: juicer/spark/ml_operation2.py:844
+#: juicer/spark/ml_operation.py:1189 juicer/spark/ml_operation.py:1792
+#: juicer/spark/ml_operation.py:2416
 msgid ""
 "Features are not assembled as a vector. They will be implicitly assembled "
 "and rows with null values will be discarded. If this is undesirable, "
@@ -1211,56 +1207,52 @@ msgstr ""
 "comportamento não é desejável, adicione explicitamente um montador de "
 "features ao fluxo."
 
-#: juicer/spark/ml_operation.py:1194
+#: juicer/spark/ml_operation.py:1193
 msgid ""
 "Label attribute is categorical, it will be implicitly indexed as string."
 msgstr ""
 "Atributo usado como rótulo é categórico e portanto será implicitamente "
 "indexado."
 
-#: juicer/spark/ml_operation.py:1197
+#: juicer/spark/ml_operation.py:1196
 msgid "Generated classification model parameters"
 msgstr "Parâmetros gerados para o modelo de classificação"
 
-#: juicer/spark/ml_operation.py:1198
+#: juicer/spark/ml_operation.py:1197
 msgid "Parameter"
 msgstr "Parâmetro"
 
-#: juicer/spark/ml_operation.py:1254 juicer/spark/ml_operation.py:2510
-#: juicer/spark/ml_operation.py:2588 juicer/spark/ml_operation.py:2651
-#: juicer/spark/ml_operation.py:2710 juicer/spark/ml_operation.py:2764
-#: juicer/spark/ml_operation2.py:939 juicer/spark/ml_operation2.py:1017
-#: juicer/spark/ml_operation2.py:1080 juicer/spark/ml_operation2.py:1139
-#: juicer/spark/ml_operation2.py:1193
+#: juicer/spark/ml_operation.py:1253 juicer/spark/ml_operation.py:2511
+#: juicer/spark/ml_operation.py:2589 juicer/spark/ml_operation.py:2652
+#: juicer/spark/ml_operation.py:2711 juicer/spark/ml_operation.py:2765
 msgid "Parameter output must be informed for classifier {}"
 msgstr "Parâmetro de saída deve ser informado para o classificador {}"
 
-#: juicer/spark/ml_operation.py:1603
+#: juicer/spark/ml_operation.py:1604
 msgid "Models used in ensemble classification"
 msgstr "Modelos usados na classificação por comitê"
 
-#: juicer/spark/ml_operation.py:1606
+#: juicer/spark/ml_operation.py:1607
 msgid "name"
 msgstr "nome"
 
-#: juicer/spark/ml_operation.py:1606
+#: juicer/spark/ml_operation.py:1607
 msgid "order"
 msgstr "ordem"
 
-#: juicer/spark/ml_operation.py:1606
+#: juicer/spark/ml_operation.py:1607
 msgid "weight"
 msgstr "peso"
 
-#: juicer/spark/ml_operation.py:1788 juicer/spark/ml_operation2.py:275
+#: juicer/spark/ml_operation.py:1789
 msgid "Clustering result"
 msgstr "Resultado do agrupamento"
 
-#: juicer/spark/ml_operation.py:1790 juicer/spark/ml_operation.py:2414
-#: juicer/spark/ml_operation2.py:277 juicer/spark/ml_operation2.py:843
+#: juicer/spark/ml_operation.py:1791 juicer/spark/ml_operation.py:2415
 msgid "Regression only support numerical features."
 msgstr "Regressão suporta apenas features numéricas."
 
-#: juicer/spark/ml_operation.py:1874 juicer/spark/ml_operation2.py:361
+#: juicer/spark/ml_operation.py:1875
 msgid ""
 "Invalid document concentration: {}. It must be a single decimal value or a "
 "list of decimal numbers separated by comma."
@@ -1268,25 +1260,25 @@ msgstr ""
 "Parâmetro \"concentração de documentos\" inválido: {}. Ele deve ser um único "
 "valor decimal ou uma lista de valores decimais separados por vírgula."
 
-#: juicer/spark/ml_operation.py:1932 juicer/spark/ml_operation2.py:419
+#: juicer/spark/ml_operation.py:1933
 msgid "Invalid type {} for class {}"
 msgstr "Tipo inválido {} para a classe {}"
 
-#: juicer/spark/ml_operation.py:2412 juicer/spark/ml_operation2.py:841
+#: juicer/spark/ml_operation.py:2413
 msgid "Assemble features in a vector before using a regression model"
 msgstr "Monte um vetor de features antes de usar um modelo de regressão"
 
-#: juicer/spark/ml_operation.py:2863
+#: juicer/spark/ml_operation.py:2867
 msgid "Missing parameters. Check if values for parameters {} were informed"
 msgstr ""
 "Parâmetros ausentes. Verifique se os valores para os parâmetros {} foram "
 "informados"
 
-#: juicer/spark/ml_operation.py:2875 juicer/spark/ml_operation.py:2883
+#: juicer/spark/ml_operation.py:2879 juicer/spark/ml_operation.py:2887
 msgid "Invalid value for parameter {param}: {value}"
 msgstr "Valor inválido para o parâmetro {param}: {value}"
 
-#: juicer/spark/ml_operation.py:2967
+#: juicer/spark/ml_operation.py:2979
 msgid ""
 "You cannot mix models with and without evaluation (e.g. indexers) when "
 "saving models and criteria is different from ALL"
@@ -1294,14 +1286,18 @@ msgstr ""
 "Você não pode misturar modelos com e sem avaliação (por exemplo, "
 "indexadores) ao salvar modelos e sendo o critério diferente de ALL"
 
-#: juicer/spark/ml_operation.py:2970
+#: juicer/spark/ml_operation.py:2982
 msgid "You cannot mix models built using with different metrics ({})."
 msgstr ""
 "Você não pode misturar modelos construídos usando métricas diferentes ({})."
 
-#: juicer/spark/ml_operation.py:3100
+#: juicer/spark/ml_operation.py:3116
 msgid "Invalid type '{}' for class {}"
 msgstr "Tipo inválido '{}' para classe {}"
+
+#: juicer/spark/reports.py:71
+msgid "Confusion matrix"
+msgstr "Matriz de confusão"
 
 #: juicer/spark/reports.py:85
 msgid "Label"
@@ -1561,11 +1557,11 @@ msgstr "Schema para {}"
 msgid "Sample data for {}"
 msgstr "Amostra de dados para {}"
 
-#: juicer/util/dataframe_util.py:355 juicer/util/dataframe_util.py:402
+#: juicer/util/dataframe_util.py:353 juicer/util/dataframe_util.py:400
 msgid "Attribute {} not found. Valid attributes: {}"
 msgstr "Atributo {} não encontrado. Atributos válidos: {}"
 
-#: juicer/util/dataframe_util.py:363
+#: juicer/util/dataframe_util.py:361
 msgid ""
 "When using Window Operation with range type, the order by attribute must be "
 "numeric."
@@ -1573,7 +1569,7 @@ msgstr ""
 "Quando usando operações de janela com tipo \"faixa\", o atributo de "
 "ordenação deve ser numérico."
 
-#: juicer/util/dataframe_util.py:369
+#: juicer/util/dataframe_util.py:367
 msgid ""
 "When using Window Operation with range type, the order option must include "
 "only one attribute."
@@ -1581,15 +1577,15 @@ msgstr ""
 "Quando usando operações de janela com tipo \"faixa\", a opção de ordenação "
 "deve incluir apenas um atributo."
 
-#: juicer/util/dataframe_util.py:374
+#: juicer/util/dataframe_util.py:372
 msgid "Data source does not exist. It may have been deleted."
 msgstr "Fonte de dados não existe. Ela deve ter sido excluída."
 
-#: juicer/util/dataframe_util.py:380
+#: juicer/util/dataframe_util.py:378
 msgid "Attribute {} not found."
 msgstr "Atributo {} não encontrado."
 
-#: juicer/util/dataframe_util.py:390
+#: juicer/util/dataframe_util.py:388
 msgid ""
 "Attribute {attr} must be one of these types [{correct}], but it is {used}"
 msgstr ""
@@ -1637,7 +1633,7 @@ msgstr ""
 msgid "GBT classifier requires labels to be in [0, 1] range."
 msgstr "Classificador GBT requer que rótulos estejam na faixa in [0, 1]."
 
-#: juicer/util/dataframe_util.py:465
+#: juicer/util/dataframe_util.py:466
 msgid ""
 "CSV format does not support the data type {}. Try to convert the attribute "
 "to string (see to_json()) before saving."
