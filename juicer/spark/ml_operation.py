@@ -213,7 +213,6 @@ class FeatureIndexerOperation(Operation):
                 indexers = [feature.VectorIndexer(maxCategories={max_categ},
                                 inputCol=col, outputCol=alias)
                                     for col, alias in col_alias.items()]
-
                 # Use Pipeline to process all attributes once
                 pipeline = Pipeline(stages=indexers)
                 {models} = dict([(col, indexers[i].fit({input})) for i, col in
@@ -3037,6 +3036,9 @@ class LoadModelOperation(Operation):
             pkg='.'.join(parts[:-1])
         ))
         return code
+
+    def get_output_names(self, sep=','):
+       return self.output_model 
 
 
 class PCAOperation(Operation):

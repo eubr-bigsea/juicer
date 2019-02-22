@@ -154,7 +154,7 @@ def {{task.operation.slug.replace('-', '_')}}_{{instance.order}}(spark_session, 
           {%- set is_leaf = instance.out_degree == 0 %}
           {%- for port_name,out in zip(task.port_names, instance.get_output_names(',').split(',')) %}
             {%- if port_name and out %}
-             '{{port_name}}': {{out}},
+            '{{port_name}}': {{out}},
             {%- endif %}
           {%- endfor %}
         }
