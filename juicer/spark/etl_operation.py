@@ -32,12 +32,10 @@ class SplitOperation(Operation):
             [len(self.named_outputs) > 0, self.contains_results()])
 
         self.output1 = self.named_outputs.get(
-            'splitted data 1',
-            'split_1_task_{}'.format(self.order))
+            'split 1', 'split_1_task_{}'.format(self.order))
 
         self.output2 = self.named_outputs.get(
-            'splitted data 2',
-            'split_2_task_{}'.format(self.order))
+            'split 2', 'split_2_task_{}'.format(self.order))
 
     def get_output_names(self, sep=", "):
         return sep.join([self.output1, self.output2])
