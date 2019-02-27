@@ -67,12 +67,14 @@ class SeabornChartReport(BaseHtmlReport):
 
 class ConfusionMatrixImageReport(BaseHtmlReport):
     def __init__(self, cm, classes, normalize=False,
-                 title=_('Confusion matrix'), cmap=None,
+                 title=None, cmap=None,
                  axis=None):
         """
        This function prints and plots the confusion matrix.
        Normalization can be applied by setting `normalize=True`.
        """
+        if title is None:
+            title = _('Confusion matrix')
         self.cm = cm
         self.classes = classes
         self.normalize = normalize

@@ -1176,8 +1176,9 @@ class ClassificationModelOperation(DeployModelMixin, Operation):
 
                     result = '<h4>{title}</h4>'
 
-                    emit(status='COMPLETED', message=result + content.generate(),
-                        type='HTML', title='{title}')
+                    emit(status='COMPLETED',
+                         message=result + content.generate(),
+                         type='HTML', title='{title}')
 
             """.format(
                 model=self.model,
@@ -3038,7 +3039,7 @@ class LoadModelOperation(Operation):
         return code
 
     def get_output_names(self, sep=','):
-       return self.output_model 
+        return self.output_model
 
 
 class PCAOperation(Operation):
@@ -3072,16 +3073,23 @@ class PCAOperation(Operation):
     def generate_code(self):
         input_data = self.named_inputs['input data']
         code = dedent("""
+            features = {inputAttr}
             pca = PCA(k={k}, inputCol='{inputAttr}', outputCol='{outputAttr}')
-            model = pca.fit({input})
+            keep = [c.name for c in {input}.schema] + ['{outputAttr}']
+
+            # handle categorical features (if it is the case)
+            model = assemble_features_pipeline_model(
+                {input}, features, None, pca, 'setInputCol', None, None, keep,
+                emit_event, '{task_id}')
+
             {out} = model.transform({input})
         """.format(
             k=self.k,
-            inputAttr=self.attribute[0],
+            inputAttr=json.dumps(self.attribute),
             outputAttr=self.output_attribute,
             input=input_data,
-            out=self.output
-
+            out=self.output,
+            task_id=self.parameters['task_id'],
         ))
         return code
 
@@ -3138,6 +3146,7 @@ class LSHOperation(Operation):
     def generate_code(self):
         input_data = self.named_inputs['input data']
         code = dedent("""
+            features = {inputAttr}
             hash_type = '{type}'
             if hash_type == 'bucketed-random':
                 lsh = BucketedRandomProjectionLSH(
@@ -3150,17 +3159,25 @@ class LSHOperation(Operation):
                     inputCol='{inputAttr}',
                     outputCol='{outputAttr}',
                     numHashTables={num_hash_tables})
-            {model} = lsh.fit({input})
+
+            keep = [c.name for c in {input}.schema] + ['{outputAttr}']
+
+            # handle categorical features (if it is the case)
+            {model} = assemble_features_pipeline_model(
+                {input}, features, None, lsh, 'setInputCol', None, None, keep,
+                emit_event, '{task_id}')
+
             {out} = {model}.transform({input})
         """.format(
             num_hash_tables=self.num_hash_tables,
             bucket_length=self.bucket_length,
-            inputAttr=self.attribute[0],
+            inputAttr=json.dumps(self.attribute),
             outputAttr=self.output_attribute,
             input=input_data,
             out=self.output,
             model=self.output_model,
             type=self.type,
+            task_id=self.parameters['task_id'],
 
         ))
         return code
