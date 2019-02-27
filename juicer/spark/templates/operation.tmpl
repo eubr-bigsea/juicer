@@ -45,6 +45,7 @@ from pyspark.mllib.evaluation import *
 from juicer import privaaas
 from juicer.util import dataframe_util, get_emitter
 from juicer.spark.reports import *
+from juicer.spark.util import assemble_features_pipeline_model
 from juicer.spark.ml_operation import ModelsEvaluationResultList
 
 executor = ThreadPoolExecutor(max_workers={{instances|length}})
