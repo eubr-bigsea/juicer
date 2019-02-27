@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2019-02-21 11:22-0300\n"
-"PO-Revision-Date: 2019-02-21 11:22-0300\n"
+"POT-Creation-Date: 2019-02-27 09:40-0300\n"
+"PO-Revision-Date: 2019-02-27 09:41-0300\n"
 "Last-Translator: \n"
 "Language-Team: pt_BR <LL@li.org>\n"
 "Language: pt_BR\n"
@@ -128,20 +128,20 @@ msgstr ""
 #: juicer/scikit_learn/text_operation.py:242
 #: juicer/scikit_learn/text_operation.py:300 juicer/spark/data_operation.py:73
 #: juicer/spark/data_operation.py:700 juicer/spark/data_operation.py:809
-#: juicer/spark/data_quality_operation.py:21 juicer/spark/etl_operation.py:92
-#: juicer/spark/etl_operation.py:198 juicer/spark/etl_operation.py:464
-#: juicer/spark/etl_operation.py:498 juicer/spark/etl_operation.py:505
-#: juicer/spark/etl_operation.py:583 juicer/spark/etl_operation.py:691
-#: juicer/spark/etl_operation.py:758 juicer/spark/etl_operation.py:1207
+#: juicer/spark/data_quality_operation.py:21 juicer/spark/etl_operation.py:90
+#: juicer/spark/etl_operation.py:196 juicer/spark/etl_operation.py:462
+#: juicer/spark/etl_operation.py:496 juicer/spark/etl_operation.py:503
+#: juicer/spark/etl_operation.py:581 juicer/spark/etl_operation.py:689
+#: juicer/spark/etl_operation.py:756 juicer/spark/etl_operation.py:1205
 #: juicer/spark/feature_operation.py:30 juicer/spark/feature_operation.py:180
 #: juicer/spark/feature_operation.py:282 juicer/spark/geo_operation.py:34
 #: juicer/spark/ml_operation.py:161 juicer/spark/ml_operation.py:264
 #: juicer/spark/ml_operation.py:271 juicer/spark/ml_operation.py:328
 #: juicer/spark/ml_operation.py:376 juicer/spark/ml_operation.py:872
-#: juicer/spark/ml_operation.py:891 juicer/spark/ml_operation.py:1645
-#: juicer/spark/ml_operation.py:3054 juicer/spark/ml_operation.py:3059
-#: juicer/spark/ml_operation.py:3104 juicer/spark/ml_operation.py:3110
-#: juicer/spark/ml_operation.py:3178 juicer/spark/statistic_operation.py:30
+#: juicer/spark/ml_operation.py:891 juicer/spark/ml_operation.py:1646
+#: juicer/spark/ml_operation.py:3058 juicer/spark/ml_operation.py:3063
+#: juicer/spark/ml_operation.py:3115 juicer/spark/ml_operation.py:3121
+#: juicer/spark/ml_operation.py:3189 juicer/spark/statistic_operation.py:30
 #: juicer/spark/statistic_operation.py:189 juicer/spark/text_operation.py:38
 #: juicer/spark/text_operation.py:110 juicer/spark/text_operation.py:228
 #: juicer/spark/text_operation.py:363 juicer/spark/text_operation.py:370
@@ -181,9 +181,9 @@ msgstr "Parâmetros '{}' devem ser informados para a tarefa {}"
 #: juicer/scikit_learn/model_operation.py:140
 #: juicer/scikit_learn/regression_operation.py:25
 #: juicer/scikit_learn/regression_operation.py:60
-#: juicer/spark/ml_operation.py:1030 juicer/spark/ml_operation.py:2207
-#: juicer/spark/ml_operation.py:2237 juicer/spark/ml_operation.py:2265
-#: juicer/spark/ml_operation.py:2444
+#: juicer/spark/ml_operation.py:1030 juicer/spark/ml_operation.py:2208
+#: juicer/spark/ml_operation.py:2238 juicer/spark/ml_operation.py:2266
+#: juicer/spark/ml_operation.py:2445
 msgid "Parameters '{}' and '{}' must be informed for task {}"
 msgstr "Parâmetros '{}' e '{}' devem ser informado para a tarefa {}"
 
@@ -306,7 +306,7 @@ msgstr ""
 "Parâmetro 'value/valor' deve ser [x>=0] se para o tipo amostra na tarefa {}."
 
 #: juicer/compss/etl_operation.py:975 juicer/scikit_learn/etl_operation.py:935
-#: juicer/spark/etl_operation.py:411
+#: juicer/spark/etl_operation.py:409
 msgid "Parameter must be informed for task {}."
 msgstr "Parâmetro deve ser informado para a tarefa: {}."
 
@@ -674,7 +674,7 @@ msgstr ""
 "{}"
 
 #: juicer/scikit_learn/clustering_operation.py:336
-#: juicer/spark/ml_operation.py:1850
+#: juicer/spark/ml_operation.py:1851
 msgid "Invalid optimizer value {} for class {}"
 msgstr "Valor de optimizer inválido {} para classe {}"
 
@@ -722,7 +722,7 @@ msgstr "Arquivo não foi escrito (já existe)"
 msgid "Invalid mode {}"
 msgstr "Modo inválido: {}"
 
-#: juicer/scikit_learn/etl_operation.py:80 juicer/spark/etl_operation.py:588
+#: juicer/scikit_learn/etl_operation.py:80 juicer/spark/etl_operation.py:586
 msgid "Missing parameter in aggregation function"
 msgstr "Parâmetro ausente na função de agregação"
 
@@ -737,16 +737,16 @@ msgid "Parameter '{}' must be not None when mode is '{}' for task {}"
 msgstr "Parâmetro '{}' não pode ser None quando o modo é '{}' para a tarefa {}"
 
 #: juicer/scikit_learn/etl_operation.py:357
-#: juicer/scikit_learn/etl_operation.py:451 juicer/spark/etl_operation.py:989
-#: juicer/spark/etl_operation.py:1089
+#: juicer/scikit_learn/etl_operation.py:451 juicer/spark/etl_operation.py:987
+#: juicer/spark/etl_operation.py:1087
 msgid "Required parameter {} must be informed for task {}"
 msgstr "Parâmetro obrigatório {} deve ser informado para tarefa {}"
 
-#: juicer/scikit_learn/etl_operation.py:457 juicer/spark/etl_operation.py:1095
+#: juicer/scikit_learn/etl_operation.py:457 juicer/spark/etl_operation.py:1093
 msgid "Invalid query. Only SELECT is allowed."
 msgstr "Consulta inválida. Apenas SELECT é permitido."
 
-#: juicer/scikit_learn/etl_operation.py:508 juicer/spark/etl_operation.py:1151
+#: juicer/scikit_learn/etl_operation.py:508 juicer/spark/etl_operation.py:1149
 msgid ""
 "Invalid names. Number of attributes in result differs from names informed."
 msgstr ""
@@ -791,7 +791,7 @@ msgstr "Parâmetros"
 
 #: juicer/scikit_learn/model_operation.py:241
 #: juicer/scikit_learn/model_operation.py:246 juicer/spark/ml_operation.py:590
-#: juicer/spark/ml_operation.py:1197
+#: juicer/spark/ml_operation.py:1198
 msgid "Value"
 msgstr "Valor"
 
@@ -1021,11 +1021,11 @@ msgstr "Modelo treinado"
 msgid "Required Lemonade Spark Extensions not found in CLASSPATH."
 msgstr "Extensões do Lemonade para Spark não foram encontradas no CLASSPATH."
 
-#: juicer/spark/etl_operation.py:190
+#: juicer/spark/etl_operation.py:188
 msgid "Parameter '{}' must be in range [0, 100] for task {}"
 msgstr "Parâmetro '{}' deve estar entre [0,100] para a tarefa {}"
 
-#: juicer/spark/etl_operation.py:257
+#: juicer/spark/etl_operation.py:255
 msgid ""
 "For intersection operation, both input data sources must have the same "
 "number of attributes and types."
@@ -1033,42 +1033,42 @@ msgstr ""
 "Para a operação de interseção, ambas as fontes de dados devem ter o mesmo "
 "número de atributos e tipos correspondentes."
 
-#: juicer/spark/etl_operation.py:310
+#: juicer/spark/etl_operation.py:308
 msgid "Parameters '{}' and {} must be informed for task {}"
 msgstr "Parâmetro '{}' e {} devem ser informado para a tarefa {}"
 
-#: juicer/spark/etl_operation.py:322
+#: juicer/spark/etl_operation.py:320
 msgid "You must inform 2 values for alias"
 msgstr "Você deve informar 2 valores para o alias"
 
-#: juicer/spark/etl_operation.py:521 juicer/spark/etl_operation.py:527
+#: juicer/spark/etl_operation.py:519 juicer/spark/etl_operation.py:525
 msgid "Parameter '{}' for task '{}' must be a number or enclosed in quotes."
 msgstr ""
 "Parâmetro '{}' para a tarefa '{}' deve ser numérico ou estar entre aspas."
 
-#: juicer/spark/etl_operation.py:552
+#: juicer/spark/etl_operation.py:550
 msgid "Value and replacement must be of the same type for all attributes"
 msgstr ""
 "O valor a ser substituído e a substituição devem ser do mesmo tipo para "
 "todos os atributos"
 
-#: juicer/spark/etl_operation.py:870
+#: juicer/spark/etl_operation.py:868
 msgid "Parameter '{}' has an incorrect value '{}' in {}"
 msgstr "Parâmetro '{}' tem um valor incorreto '{}' in {}"
 
-#: juicer/spark/etl_operation.py:946
+#: juicer/spark/etl_operation.py:944
 msgid "Required parameters must be informed for task {}"
 msgstr "Parâmetro necessário deve ser informado para a tarefa {}"
 
-#: juicer/spark/etl_operation.py:1214
+#: juicer/spark/etl_operation.py:1212
 msgid "The value for parameter {} must be one of these: {}."
 msgstr "O valor para o parâmetro {} deve ser um destes: {}."
 
-#: juicer/spark/etl_operation.py:1219 juicer/spark/etl_operation.py:1223
+#: juicer/spark/etl_operation.py:1217 juicer/spark/etl_operation.py:1221
 msgid "Parameter '{}' must be informed in all expressions in task {}."
 msgstr "Parâmetro '{}' deve ser informado em todas as expressões na tarefa {}."
 
-#: juicer/spark/etl_operation.py:1280
+#: juicer/spark/etl_operation.py:1278
 msgid "Start of offset must be >= its end: [{}, {}]"
 msgstr "O começo do deslocamento deve ser >= ao seu final: [{}, {}]"
 
@@ -1195,8 +1195,8 @@ msgstr "Tipo de parâmetro tem um valor inválido {}"
 msgid "Parameters '{}', '{}' and '{}' must be informed for task {}"
 msgstr "Parâmetro '{}' , '{}' e '{}' devem ser informado para a tarefa {}"
 
-#: juicer/spark/ml_operation.py:1189 juicer/spark/ml_operation.py:1792
-#: juicer/spark/ml_operation.py:2416
+#: juicer/spark/ml_operation.py:1190 juicer/spark/ml_operation.py:1793
+#: juicer/spark/ml_operation.py:2417
 msgid ""
 "Features are not assembled as a vector. They will be implicitly assembled "
 "and rows with null values will be discarded. If this is undesirable, "
@@ -1207,52 +1207,52 @@ msgstr ""
 "comportamento não é desejável, adicione explicitamente um montador de "
 "features ao fluxo."
 
-#: juicer/spark/ml_operation.py:1193
+#: juicer/spark/ml_operation.py:1194
 msgid ""
 "Label attribute is categorical, it will be implicitly indexed as string."
 msgstr ""
 "Atributo usado como rótulo é categórico e portanto será implicitamente "
 "indexado."
 
-#: juicer/spark/ml_operation.py:1196
+#: juicer/spark/ml_operation.py:1197
 msgid "Generated classification model parameters"
 msgstr "Parâmetros gerados para o modelo de classificação"
 
-#: juicer/spark/ml_operation.py:1197
+#: juicer/spark/ml_operation.py:1198
 msgid "Parameter"
 msgstr "Parâmetro"
 
-#: juicer/spark/ml_operation.py:1253 juicer/spark/ml_operation.py:2511
-#: juicer/spark/ml_operation.py:2589 juicer/spark/ml_operation.py:2652
-#: juicer/spark/ml_operation.py:2711 juicer/spark/ml_operation.py:2765
+#: juicer/spark/ml_operation.py:1254 juicer/spark/ml_operation.py:2512
+#: juicer/spark/ml_operation.py:2590 juicer/spark/ml_operation.py:2653
+#: juicer/spark/ml_operation.py:2712 juicer/spark/ml_operation.py:2766
 msgid "Parameter output must be informed for classifier {}"
 msgstr "Parâmetro de saída deve ser informado para o classificador {}"
 
-#: juicer/spark/ml_operation.py:1604
+#: juicer/spark/ml_operation.py:1605
 msgid "Models used in ensemble classification"
 msgstr "Modelos usados na classificação por comitê"
 
-#: juicer/spark/ml_operation.py:1607
+#: juicer/spark/ml_operation.py:1608
 msgid "name"
 msgstr "nome"
 
-#: juicer/spark/ml_operation.py:1607
+#: juicer/spark/ml_operation.py:1608
 msgid "order"
 msgstr "ordem"
 
-#: juicer/spark/ml_operation.py:1607
+#: juicer/spark/ml_operation.py:1608
 msgid "weight"
 msgstr "peso"
 
-#: juicer/spark/ml_operation.py:1789
+#: juicer/spark/ml_operation.py:1790
 msgid "Clustering result"
 msgstr "Resultado do agrupamento"
 
-#: juicer/spark/ml_operation.py:1791 juicer/spark/ml_operation.py:2415
+#: juicer/spark/ml_operation.py:1792 juicer/spark/ml_operation.py:2416
 msgid "Regression only support numerical features."
 msgstr "Regressão suporta apenas features numéricas."
 
-#: juicer/spark/ml_operation.py:1875
+#: juicer/spark/ml_operation.py:1876
 msgid ""
 "Invalid document concentration: {}. It must be a single decimal value or a "
 "list of decimal numbers separated by comma."
@@ -1260,25 +1260,25 @@ msgstr ""
 "Parâmetro \"concentração de documentos\" inválido: {}. Ele deve ser um único "
 "valor decimal ou uma lista de valores decimais separados por vírgula."
 
-#: juicer/spark/ml_operation.py:1933
+#: juicer/spark/ml_operation.py:1934
 msgid "Invalid type {} for class {}"
 msgstr "Tipo inválido {} para a classe {}"
 
-#: juicer/spark/ml_operation.py:2413
+#: juicer/spark/ml_operation.py:2414
 msgid "Assemble features in a vector before using a regression model"
 msgstr "Monte um vetor de features antes de usar um modelo de regressão"
 
-#: juicer/spark/ml_operation.py:2867
+#: juicer/spark/ml_operation.py:2868
 msgid "Missing parameters. Check if values for parameters {} were informed"
 msgstr ""
 "Parâmetros ausentes. Verifique se os valores para os parâmetros {} foram "
 "informados"
 
-#: juicer/spark/ml_operation.py:2879 juicer/spark/ml_operation.py:2887
+#: juicer/spark/ml_operation.py:2880 juicer/spark/ml_operation.py:2888
 msgid "Invalid value for parameter {param}: {value}"
 msgstr "Valor inválido para o parâmetro {param}: {value}"
 
-#: juicer/spark/ml_operation.py:2979
+#: juicer/spark/ml_operation.py:2980
 msgid ""
 "You cannot mix models with and without evaluation (e.g. indexers) when "
 "saving models and criteria is different from ALL"
@@ -1286,24 +1286,24 @@ msgstr ""
 "Você não pode misturar modelos com e sem avaliação (por exemplo, "
 "indexadores) ao salvar modelos e sendo o critério diferente de ALL"
 
-#: juicer/spark/ml_operation.py:2982
+#: juicer/spark/ml_operation.py:2983
 msgid "You cannot mix models built using with different metrics ({})."
 msgstr ""
 "Você não pode misturar modelos construídos usando métricas diferentes ({})."
 
-#: juicer/spark/ml_operation.py:3116
+#: juicer/spark/ml_operation.py:3127
 msgid "Invalid type '{}' for class {}"
 msgstr "Tipo inválido '{}' para classe {}"
 
-#: juicer/spark/reports.py:71
+#: juicer/spark/reports.py:70
 msgid "Confusion matrix"
 msgstr "Matriz de confusão"
 
-#: juicer/spark/reports.py:85
+#: juicer/spark/reports.py:84
 msgid "Label"
 msgstr "Rótulo"
 
-#: juicer/spark/reports.py:85
+#: juicer/spark/reports.py:84
 msgid "Predicted"
 msgstr "Predição"
 
@@ -1526,6 +1526,18 @@ msgstr "Quando é relevante?"
 #: juicer/spark/templates/bias-report.html:174
 msgid "Ref"
 msgstr "Referência"
+
+#: juicer/spark/util/__init__.py:40
+msgid ""
+"Features are not assembled as a vector. They will be implicitly assembled "
+"and rows with null values will be discarded. If this is undesirable, "
+"explicitly add a attribute vectorizer, handle missing data and categorical "
+"attributes in the workflow."
+msgstr ""
+"Features não estão na forma de um vetor. Elas serão implicitamente agrupadas "
+"em um vetor e os registros com valores nulos serão descartados. Se este "
+"comportamento não é desejável, adicione explicitamente uma tarefa vetorizar "
+"atributos, trate os dados ausentes e atributos categóricos no fluxo."
 
 #: juicer/util/dataframe_util.py:112 juicer/util/dataframe_util.py:131
 msgid ""

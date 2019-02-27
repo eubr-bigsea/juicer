@@ -24,7 +24,7 @@ class ScalerOperation(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
         if self.ATTRIBUTE_PARAM in parameters:
-            self.attribute = parameters.get(self.ATTRIBUTE_PARAM)[0]
+            self.attribute = parameters.get(self.ATTRIBUTE_PARAM)
         else:
             raise ValueError(
                 _("Parameter '{}' must be informed for task {}").format(
@@ -50,7 +50,7 @@ class ScalerOperation(Operation):
 
     def generate_code(self):
         name_and_params = self._get_scaler_algorithm_and_parameters()
-        name_and_params.parameters['inputCol'] = self.attribute
+
         name_and_params.parameters['outputCol'] = self.scaled_attr
 
         input_data = self.named_inputs['input data']
@@ -59,7 +59,15 @@ class ScalerOperation(Operation):
             params = {params}
             metrics = {metrics}
             scaler = {scaler_impl}(**params)
-            {model} = scaler.fit({input})
+
+            features = {features}
+            keep = [c.name for c in {input}.schema] + [params['outputCol']]
+
+            # handle categorical features (if it is the case)
+            {model} = assemble_features_pipeline_model(
+                {input}, features, None, scaler, 'setInputCol', None, None,
+                keep, emit_event, '{task_id}')
+
 
             # Lazy execution in case of sampling the data in UI
             def call_transform(df):
@@ -68,8 +76,13 @@ class ScalerOperation(Operation):
                 {model}, {input}, call_transform)
             if metrics:
                 from juicer.spark.reports import SimpleTableReport
+                if isinstance({model}, PipelineModel):
+                    scaler_model = {model}.stages[0].stages[2]
+                else:
+                    scaler_model = {model}
+
                 headers = ['Metric', 'Value']
-                rows = [[m, getattr({model}, m)] for m in metrics]
+                rows = [[m, getattr(scaler_model, m)] for m in metrics]
 
                 content = SimpleTableReport(
                         'table table-striped table-bordered table-sm',
@@ -86,6 +99,7 @@ class ScalerOperation(Operation):
         """.format(
             params=name_and_params.parameters,  # str representation is ok here
             scaler_impl=name_and_params.name,
+            features=json.dumps(self.attribute),
             input=input_data,
             output=self.output,
             model=self.model,
