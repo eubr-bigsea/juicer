@@ -170,37 +170,37 @@ class VectorIndexOperation(Operation):
                       zip_longest(self.attributes,
                                   self.alias[:len(self.attributes)])]
 
-        def generate_code(self):
-            input_data = self.named_inputs['input data']
-            output = self.named_outputs.get('output data',
-                                            'out_task_{}'.format(self.order))
+    def generate_code(self):
+        input_data = self.named_inputs['input data']
+        output = self.named_outputs.get('output data',
+                                        'out_task_{}'.format(self.order))
 
-            models = self.named_outputs.get('indexer models',
-                                            'models_task_{}'.format(self.order))
-            code = dedent("""
-                col_alias = dict({alias})
-                indexers = [feature.VectorIndexer(maxCategories={max_categ},
-                                inputCol=col, outputCol=alias)
-                                    for col, alias in col_alias.items()]
-                # Use Pipeline to process all attributes once
-                pipeline = Pipeline(stages=indexers)
-                {models} = dict([(col, indexers[i].fit({input})) for i, col in
-                                enumerate(col_alias.values())])
-                labels = None
-    
-                # Spark ML 2.0.1 do not deal with null in indexer.
-                # See SPARK-11569
-                {input}_without_null = {input}.na.fill('NA',
-                    subset=col_alias.keys())
-    
-                {out} = pipeline.fit({input}_without_null).transform(
-                    {input}_without_null)
-            """.format(input=input_data, out=output,
-                       alias=json.dumps(list(zip(self.attributes, self.alias))),
-                       max_categ=self.max_categories,
-                       models=models))
+        models = self.named_outputs.get('indexer models',
+                                        'models_task_{}'.format(self.order))
+        code = dedent("""
+            col_alias = dict({alias})
+            indexers = [feature.VectorIndexer(maxCategories={max_categ},
+                            inputCol=col, outputCol=alias)
+                                for col, alias in col_alias.items()]
+            # Use Pipeline to process all attributes once
+            pipeline = Pipeline(stages=indexers)
+            {models} = dict([(col, indexers[i].fit({input})) for i, col in
+                            enumerate(col_alias.values())])
+            labels = None
 
-            return code
+            # Spark ML 2.0.1 do not deal with null in indexer.
+            # See SPARK-11569
+            {input}_without_null = {input}.na.fill('NA',
+                subset=col_alias.keys())
+
+            {out} = pipeline.fit({input}_without_null).transform(
+                {input}_without_null)
+        """.format(input=input_data, out=output,
+                   alias=json.dumps(list(zip(self.attributes, self.alias))),
+                   max_categ=self.max_categories,
+                   models=models))
+
+        return code
 
     def get_output_names(self, sep=','):
         output = self.named_outputs.get('output data',
@@ -495,9 +495,9 @@ class EvaluateModelOperation(Operation):
                            named_outputs)
 
         self.has_code = any([(
-            (len(self.named_inputs) > 0 and len(self.named_outputs) > 0) or
-            (self.named_outputs.get('evaluator') is not None) or
-            ('input data' in self.named_inputs)
+                (len(self.named_inputs) > 0 and len(self.named_outputs) > 0) or
+                (self.named_outputs.get('evaluator') is not None) or
+                ('input data' in self.named_inputs)
         ), self.contains_results()])
         # @FIXME: validate if metric is compatible with Model using workflow
 
