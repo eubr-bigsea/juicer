@@ -95,15 +95,16 @@ def test_data_reader_minimal_parameters_success():
 
         url = '{url}'
         {output} = spark_session.read\\
-                               .option('nullValue', '')\\
-                               .option('treatEmptyValuesAsNulls', 'true')\\
-                               .option('wholeFile', True)\\
-                               .option('multiLine', True)\\
-                               .option('escape', '"')\\
-                               .csv(url, schema=schema_output_1,
-                                    quote=None, encoding='UTF-8',
-                                    header=False, sep=',',
-                                    inferSchema=False, mode='FAILFAST')
+                       .option('nullValue', '')\\
+                       .option('treatEmptyValuesAsNulls', 'true')\\
+                       .option('wholeFile', True)\\
+                       .option('multiLine', True)\\
+                       .option('escape', '"')\\
+                       .option('timestampFormat', 'yyyy/MM/dd HH:mm:ss')\\
+                       .csv(url, schema=schema_output_1,
+                            quote=None, encoding='UTF-8',
+                            header=False, sep=',',
+                            inferSchema=False, mode='FAILFAST')
         {output}.cache()
         """.format(url=url, output='output_1'))
     expected_tree = ast.parse(expected_code)

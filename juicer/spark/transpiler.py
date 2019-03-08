@@ -58,10 +58,10 @@ class SparkTranspiler(Transpiler):
             'set-intersection': etl_operation.IntersectionOperation,
             'sort': etl_operation.SortOperation,
             'split': etl_operation.SplitOperation,
+            'split-k-fold': etl_operation.SplitKFoldOperation,
             'transformation': etl_operation.TransformationOperation,
             'window-transformation':
                 etl_operation.WindowTransformationOperation,
-            'split-k-fold': etl_operation.SplitKFoldOperation,
         }
         dm_ops = {
             'frequent-item-set': dm_operation.FrequentItemSetOperation,
@@ -80,7 +80,7 @@ class SparkTranspiler(Transpiler):
             'evaluate-model': ml_operation.EvaluateModelOperation,
             'feature-assembler': ml_operation.FeatureAssemblerOperation,
             'vector-indexer': ml_operation.VectorIndexOperation,
-            'string-indexer': ml_operation.StringIndexerOperation,
+            'feature-indexer': ml_operation.StringIndexerOperation,
             'gaussian-mixture-clustering':
                 ml_operation.GaussianMixtureClusteringOperation,
             'gbt-classifier': ml_operation.GBTClassifierOperation,
