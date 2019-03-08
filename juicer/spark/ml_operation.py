@@ -138,7 +138,7 @@ class DeployModelMixin(object):
 
 class VectorIndexOperation(Operation):
     """
-
+    Class for indexing categorical feature columns in a dataset of Vector.
     """
     ATTRIBUTES_PARAM = 'attributes'
     ALIAS_PARAM = 'alias'
@@ -186,15 +186,7 @@ class VectorIndexOperation(Operation):
             pipeline = Pipeline(stages=indexers)
             {models} = dict([(col, indexers[i].fit({input})) for i, col in
                             enumerate(col_alias.values())])
-            labels = None
-
-            # Spark ML 2.0.1 do not deal with null in indexer.
-            # See SPARK-11569
-            {input}_without_null = {input}.na.fill('NA',
-                subset=col_alias.keys())
-
-            {out} = pipeline.fit({input}_without_null).transform(
-                {input}_without_null)
+            {out} = pipeline.fit({input}).transform({input})
         """.format(input=input_data, out=output,
                    alias=json.dumps(list(zip(self.attributes, self.alias))),
                    max_categ=self.max_categories,

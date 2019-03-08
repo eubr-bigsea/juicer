@@ -136,7 +136,7 @@ def format_row_for_bar_chart_visualization(row):
 
 def emit_schema(task_id, df, emit_event, name, notebook=False):
     from juicer.spark.reports import SimpleTableReport
-    headers = [_('Attribute'), _('Type'), _('Metadata')]
+    headers = [_('Attribute'), _('Type'), _('Metadata (Spark)')]
     rows = [[f.name, str(f.dataType), json.dumps(f.metadata) if f else ''] for f
             in df.schema.fields]
     css_class = 'table table-striped table-bordered w-auto' \
