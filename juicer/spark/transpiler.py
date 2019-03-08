@@ -61,6 +61,7 @@ class SparkTranspiler(Transpiler):
             'transformation': etl_operation.TransformationOperation,
             'window-transformation':
                 etl_operation.WindowTransformationOperation,
+            'split-k-fold': etl_operation.SplitKFoldOperation,
         }
         dm_ops = {
             'frequent-item-set': dm_operation.FrequentItemSetOperation,
