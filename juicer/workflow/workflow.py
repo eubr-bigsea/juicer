@@ -147,7 +147,7 @@ class Workflow(object):
         task_map = {}
 
         for task in self.workflow['tasks']:
-            if task.get('enabled', True):
+            if task.get('enabled', True) and task.get('environment') == 'DESIGN':
                 operation = operations_tahiti.get(task['operation']['id'])
                 form_fields = {}
                 for form in operation['forms']:
