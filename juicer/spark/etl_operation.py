@@ -32,10 +32,12 @@ class SplitOperation(Operation):
             [len(self.named_outputs) > 0, self.contains_results()])
 
         self.output1 = self.named_outputs.get(
-            'split 1', 'split_1_task_{}'.format(self.order))
+            'split 1',
+            'split_1_task_{}'.format(self.order))
 
         self.output2 = self.named_outputs.get(
-            'split 2', 'split_2_task_{}'.format(self.order))
+            'split 2',
+            'split_2_task_{}'.format(self.order))
 
     def get_output_names(self, sep=", "):
         return sep.join([self.output1, self.output2])
@@ -185,7 +187,7 @@ class SampleOrPartitionOperation(Operation):
             if self.FRACTION_PARAM in parameters:
                 self.fraction = float(parameters[self.FRACTION_PARAM])
                 if not (0 <= self.fraction <= 100):
-                    msg = _("Parameter '{}' must be in "
+                    msg = _("Parameter '{}' must be in " \
                             "range [0, 100] for task {}") \
                         .format(self.FRACTION_PARAM, __name__)
                     raise ValueError(msg)
@@ -605,8 +607,7 @@ class AggregationOperation(Operation):
         result = []
         # for i, function in enumerate(self.functions):
         #     if self.pivot:
-        #         # FIXME (how to add this when columns are dynamically
-        # generated?
+        #         # FIXME (how to add this when columns are dynamically generated?
         #         pass
         #     else:
         #         result.append(TraceabilityData(
@@ -848,7 +849,7 @@ class CleanMissingOperation(Operation):
             partial.append("""
                 mdn_replace_{1} = dict()
                 for mdn_attr_{1} in attributes_{1}:
-                    # Computes median value for column with relat. error=10%%
+                    # Computes median value for column with relat. error=10%
                     mdn_{1} = {1}.na.drop(subset=[mdn_attr_{1}])\\
                         .approxQuantile(str(mdn_attr_{1}), [.5], .1)
                     mdn_replace_{1}[mdn_attr_{1}] = mdn_{1}[0]
@@ -916,7 +917,7 @@ class AddColumnsOperation(Operation):
 
                 # Add attribute index
                 return df.rdd.zipWithIndex().map(
-                    lambda (row, inx): row + (inx,)).toDF(new_attrs)
+                    lambda row, inx: row + (inx,)).toDF(new_attrs)
 
             input1_indexed = _add_column_index({input1}, '{a1}')
             input2_indexed = _add_column_index({input2}, '{a2}')
@@ -1061,8 +1062,7 @@ class ExecutePythonOperation(Operation):
                     identifier='{id}')
         except NameError as ne:
             raise ValueError(_('Invalid name: {{}}. '
-                'Many Python commands are not available in Lemonade').format(
-                ne))
+                'Many Python commands are not available in Lemonade').format(ne))
         except ImportError as ie:
             raise ValueError(_('Command import is not supported'))
         """.format(in1=in1, in2=in2, code=self.code.encode('unicode_escape'),
@@ -1333,8 +1333,7 @@ class SplitKFoldOperation(Operation):
     K-fold cross-validation  partitioned dataset into k equal sized
     subsamples called folds, it can be randomly or stratified.
     """
-    KFOLD_PARAM = 'k_folds'
-    WEIGHTS_PARAM = 'weights'
+    K_FOLD_PARAM = 'k_fold'
     TYPE_PARAM = 'type'
     FEATURES_PARAM = 'features'
     LABEL_PARAM = 'label'
@@ -1347,16 +1346,16 @@ class SplitKFoldOperation(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-        if self.KFOLD_PARAM in parameters:
-            self.k_folds = parameters.get(self.KFOLD_PARAM)
-            if self.k_folds < 2:
-                raise ValueError(_("Parameter '{}' informed for task {} "
-                                   "must be >= 2").format(
-                    self.KFOLD_PARAM, self.__class__))
+        if self.K_FOLD_PARAM in parameters:
+            self.k_fold = parameters.get(self.K_FOLD_PARAM)
+            if self.k_fold < 2:
+                raise ValueError(_("Parameter '{}' informed for task '{}' \
+                                   must be at >= 2").format(self.K_FOLD_PARAM,
+                                                            self.__class__))
         else:
-            raise ValueError(
-                _("Parameter '{}' must be informed for task {}").format(
-                    self.KFOLD_PARAM, self.__class__))
+            raise ValueError(_("Parameter '{}' must be informed \
+                                for task {}").format(self.K_FOLD_PARAM,
+                                                     self.__class__))
 
         self.type = parameters.get(self.TYPE_PARAM, self.TYPE_RANDOM)
         self.label = (parameters.get(self.LABEL_PARAM) or ['label'])[0]
@@ -1364,32 +1363,31 @@ class SplitKFoldOperation(Operation):
         self.seed = parameters.get(self.SEED_PARAM, 'None') or 'None'
 
         self.has_code = any(
-            [len(self.named_outputs) > 0, self.contains_results()])
+            [len(self.named_inputs) == 1, self.contains_results()])
 
         self.output = self.named_outputs.get('output data',
-                                             'out_{}'.format(self.order))
-
-    def get_output_names(self, sep=", "):
-        return self.output
+                                             'out_task_{}'.format(self.order))
 
     def generate_code(self):
-        input_data = self.named_inputs['input data']
-        code = ''
+        code = ""
+        input_data = self.named_inputs.get('input data')
+
         if self.type == self.TYPE_RANDOM:
-            code = """
+            code = ("""
                 from pyspark.sql import SQLContext
+                # spark_session.create
+                from pyspark.sql.functions import monotonically_increasing_id
+                from pyspark.sql.functions import rand
                 from pyspark.sql import Row
 
                 df_size = {input}.count()
 
                 # extremely expensive
-                {out_sample} = {input}.orderBy(f.rand(seed={user_seed}))
-
-                {out_sample} = {out_sample}.coalesce(1).withColumn('_idx',
-                    f.monotonically_increasing_id())
+                {out_sample} = {input}.orderBy(rand(seed={user_seed}))
+                {out_sample} = {out_sample}.coalesce(1).withColumn(
+                    '_idx', monotonically_increasing_id())
 
                 aux_list = [None] * df_size
-
                 def create_folds(k, max_elem, aux_l):
                     i = 0
                     j = 0
@@ -1399,34 +1397,36 @@ class SplitKFoldOperation(Operation):
                         if j>= max_elem:
                             value = value - 1
                             j = 0
-                        i += 1
-                        j += 1
+                        i+=1
+                        j+=1
                     return aux_l
 
-                aux_list = create_folds({k_folds},
-                    round(df_size / {k_folds}), aux_list)
+                aux_list = create_folds({k_fold}, round(df_size / {k_fold}),
+                    aux_list)
 
                 # Input data
                 sql_context = SQLContext(spark_session.sparkContext)
                 rdd_folds = sc.parallelize(aux_list)
-                row_rdd = rdd1.map(lambda x: Row(str(x))
+                row_rdd = rdd_folds.map(lambda x: Row(str(x)))
                 # using sql context because spark_session.createDataFrame
                 # requires schema
-                out_sample2 = sql_context.createDataFrame(row_folds,
-                    ['{alias}'])
+                out_sample2 = sql_context.createDataFrame(
+                    row_folds, ['{alias}'])
 
-                out_sample2 = out_sample2.coalesce(1).withColumn('_idx',
-                    f.monotonically_increasing_id())
+                out_sample2 = out_sample2.coalesce(1).withColumn(
+                    '_idx', monotonically_increasing_id())
 
-                {out_sample} = {out_sample}.join(out_sample2, on = ['_idx']
-                    ).sort(asc('_idx')).drop('_idx')
+                {out_sample} = {out_sample}.join(
+                    out_sample2, on = ['_idx']).sort(asc('_idx')).drop('_idx')
+
                 """.format(input=input_data,
                            out_sample=self.output,
-                           k_folds=self.k_folds,
+                           k_fold=self.k_fold,
                            alias=self.alias,
-                           user_seed=self.seed)
+                           user_seed=self.seed))
 
         elif self.type == self.TYPE_STRATIFIED:
+
             # Stratification seeks to ensure that each fold is
             # representative of all strata of the data. Generally
             # this is done in a supervised way for classification
@@ -1434,67 +1434,41 @@ class SplitKFoldOperation(Operation):
             # represented across each test fold (which are of course
             # combined in a complementary way to form training folds).
 
-            code = """
+            code = ("""
                 # shuffle input dataset
                 input_shuffle = {input}.orderBy(rand(seed={user_seed}))
-
                 labels_count = {input}.groupby('{label_column}').agg(
-                    f.count('{label_column}').alias('count_{label_column}'))
+                    count('{label_column}').alias('count_{label_column}'))
+                label_distinct_list = {input}.select(
+                    '{label_column}').distinct().collect()
 
-                label_distinct_list = {input}.select('{label_column}'
-                    ).distinct().collect()
-
-                aux_label_df_dict = {}
-
-                split_ratio = 1.0 / {k_folds}
+                aux_label_df_dict = {{}}
+                split_ratio = 1.0 / {k_fold}
 
                 for v in label_distinct_list:
                     aux_label_df_dict[label_distinct_list[v]] = input_shuffle.\
-                    filter(input_shuffle['{{}}'] == label_distinct_list[v]
-                        ).randomSplit(
-                            [split_ratio+0.1 for x in range({k_folds})])
+                    filter(input_shuffle['{label_column}'] == label_distinct_list[v]).\
+                        randomSplit([split_ratio+0.1 for x in range({k_fold})])
 
                 {output_sample} = None
 
                 for k, v in aux_label_df_dict.items():
                     for i, label_fold_df in enumerate(v):
                         label_fold_df = label_fold_df.withColumn("{alias}",
-                            f.lit(i))
+                            lit(i))
                         if {output_sample} is None:
                             {output_sample} = label_fold_df
                         else:
                             {output_sample} = {output_sample}.union(
                                 label_fold_df)
-
-                # if total < k_folds, show a warning on log
-                for v in labels_count:
-                    if v["count_{label_column}"] < {k_folds}:
-                        msg_folds = '{msg0}'
-                        emit_event(name='update task',
-                                message=msg_folds,
-                                status='WARNING',
-                                type='TEXT',
-                                identifier='{task_id}',
-                                operation={{'id': {operation_id}}},
-                                operation_id={operation_id},
-                                task={{'id': '{task_id}'}},
-                                title='{title}')
-                        break
-
             """.format(input=input_data,
                        output_sample=self.output,
-                       k_folds=self.k_folds,
+                       k_fold=self.k_fold,
                        label_column=self.label,
                        alias=self.alias,
                        user_seed=self.seed,
                        task_id=self.parameters['task_id'],
                        operation_id=self.parameters['operation_id'],
-                       title=_("Warning k-folds splitting!"),
-                       msg0=_('category/label size str(v["count_'
-                              '{label_column}"]) is less than folds number '
-                              '{k_folds}, this will break stratification '
-                              'and leads to bad folds splitting').format(
-                           k_folds=self.k_folds)
-                       )
+                       title_msg=_('Warning k-folds splitting!')))
 
         return dedent(code)
