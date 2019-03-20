@@ -1333,7 +1333,7 @@ class SplitKFoldOperation(Operation):
     K-fold cross-validation  partitioned dataset into k equal sized
     subsamples called folds, it can be randomly or stratified.
     """
-    KFOLD_PARAM = 'k_folds'
+    KFOLD_PARAM = 'k_fold'
     WEIGHTS_PARAM = 'weights'
     TYPE_PARAM = 'type'
     FEATURES_PARAM = 'features'
@@ -1348,8 +1348,8 @@ class SplitKFoldOperation(Operation):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         if self.KFOLD_PARAM in parameters:
-            self.k_folds = parameters.get(self.KFOLD_PARAM)
-            if self.k_folds < 2:
+            self.k_fold = parameters.get(self.KFOLD_PARAM)
+            if self.k_fold < 2:
                 raise ValueError(_("Parameter '{}' informed for task {} "
                                    "must be >= 2").format(
                     self.KFOLD_PARAM, self.__class__))
@@ -1364,7 +1364,7 @@ class SplitKFoldOperation(Operation):
         self.seed = parameters.get(self.SEED_PARAM, 'None') or 'None'
 
         self.has_code = any(
-            [len(self.named_outputs) > 0, self.contains_results()])
+            [len(self.named_inputs) == 1, self.contains_results()])
 
         self.output = self.named_outputs.get('output data',
                                              'out_{}'.format(self.order))
@@ -1374,7 +1374,8 @@ class SplitKFoldOperation(Operation):
 
     def generate_code(self):
         input_data = self.named_inputs['input data']
-        code = ''
+        code = ""
+
         if self.type == self.TYPE_RANDOM:
             code = """
                 from pyspark.sql import SQLContext
@@ -1403,8 +1404,8 @@ class SplitKFoldOperation(Operation):
                         j += 1
                     return aux_l
 
-                aux_list = create_folds({k_folds},
-                    round(df_size / {k_folds}), aux_list)
+                aux_list = create_folds({k_fold},
+                    round(df_size / {k_fold}), aux_list)
 
                 # Input data
                 sql_context = SQLContext(spark_session.sparkContext)
@@ -1422,7 +1423,7 @@ class SplitKFoldOperation(Operation):
                     ).sort(asc('_idx')).drop('_idx')
                 """.format(input=input_data,
                            out_sample=self.output,
-                           k_folds=self.k_folds,
+                           k_fold=self.k_fold,
                            alias=self.alias,
                            user_seed=self.seed)
 
@@ -1434,6 +1435,7 @@ class SplitKFoldOperation(Operation):
             # represented across each test fold (which are of course
             # combined in a complementary way to form training folds).
 
+            
             code = """
                 # shuffle input dataset
                 input_shuffle = {input}.orderBy(rand(seed={user_seed}))
@@ -1444,15 +1446,15 @@ class SplitKFoldOperation(Operation):
                 label_distinct_list = {input}.select('{label_column}'
                     ).distinct().collect()
 
-                aux_label_df_dict = {}
+                aux_label_df_dict = {{}}
 
-                split_ratio = 1.0 / {k_folds}
+                split_ratio = 1.0 / {k_fold}
 
                 for v in label_distinct_list:
                     aux_label_df_dict[label_distinct_list[v]] = input_shuffle.\
-                    filter(input_shuffle['{{}}'] == label_distinct_list[v]
+                    filter(input_shuffle['{label_column}'] == label_distinct_list[v]
                         ).randomSplit(
-                            [split_ratio+0.1 for x in range({k_folds})])
+                            [split_ratio+0.1 for x in range({k_fold})])
 
                 {output_sample} = None
 
@@ -1466,9 +1468,9 @@ class SplitKFoldOperation(Operation):
                             {output_sample} = {output_sample}.union(
                                 label_fold_df)
 
-                # if total < k_folds, show a warning on log
+                # if total < k_fold, show a warning on log
                 for v in labels_count:
-                    if v["count_{label_column}"] < {k_folds}:
+                    if v["count_{label_column}"] < {k_fold}:
                         msg_folds = '{msg0}'
                         emit_event(name='update task',
                                 message=msg_folds,
@@ -1483,7 +1485,7 @@ class SplitKFoldOperation(Operation):
 
             """.format(input=input_data,
                        output_sample=self.output,
-                       k_folds=self.k_folds,
+                       k_fold=self.k_fold,
                        label_column=self.label,
                        alias=self.alias,
                        user_seed=self.seed,
@@ -1492,9 +1494,9 @@ class SplitKFoldOperation(Operation):
                        title=_("Warning k-folds splitting!"),
                        msg0=_('category/label size str(v["count_'
                               '{label_column}"]) is less than folds number '
-                              '{k_folds}, this will break stratification '
+                              '{k_fold}, this will break stratification '
                               'and leads to bad folds splitting').format(
-                           k_folds=self.k_folds)
+                           k_fold=self.k_fold, label_column=self.label)
                        )
 
         return dedent(code)
