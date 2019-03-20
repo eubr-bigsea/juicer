@@ -776,7 +776,7 @@ class EvaluateModelOperation(Operation):
                     predictions = [r[prediction_col] for r in
                         summary.predictions.collect()]
 
-                    if isinstance({model}, LinearRegressionModel):
+                    if isinstance(ml_model, LinearRegressionModel):
                         residuals_col = 'residuals'
                         df_residual = summary.residuals
                     else:
