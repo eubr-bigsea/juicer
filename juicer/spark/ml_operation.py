@@ -1343,7 +1343,8 @@ class LogisticRegressionClassifierOperation(ClassifierOperation):
         self.metrics = ['coefficientMatrix', 'coefficients', 'intercept',
                         'numClasses', 'numFeatures']
 
-        param_grid = parameters.get('paramgrid', {})
+        # param_grid = parameters.get('paramgrid', {})
+        param_grid = parameters
         ctor_params = {}
         params_name = [
             ['weightCol', self.WEIGHT_COL_PARAM, str],
@@ -1382,7 +1383,8 @@ class DecisionTreeClassifierOperation(ClassifierOperation):
         self.metrics = ['depth', 'featureImportances', 'numClasses',
                         'numFeatures', 'numNodes', ]
 
-        param_grid = parameters.get('paramgrid', {})
+        # param_grid = parameters.get('paramgrid', {})
+        param_grid = parameters
         ctor_params = {}
         params_name = [
             ['maxBins', self.MAX_BINS_PARAM, int],
@@ -1454,7 +1456,8 @@ class NaiveBayesClassifierOperation(ClassifierOperation):
                                      named_outputs)
         self.metrics = ['numClasses', 'numFeatures', 'pi', 'theta']
 
-        param_grid = parameters.get('paramgrid', {})
+        # param_grid = parameters.get('paramgrid', {})
+        param_grid = parameters
         ctor_params = {}
         params_name = [
             ['smoothing', self.SMOOTHING_PARAM, float],
@@ -1489,7 +1492,8 @@ class RandomForestClassifierOperation(ClassifierOperation):
         self.metrics = ['featureImportances', 'getNumTrees',
                         'numClasses', 'numFeatures', 'trees']
 
-        param_grid = parameters.get('paramgrid', {})
+        # param_grid = parameters.get('paramgrid', {})
+        param_grid = parameters
         ctor_params = {}
         params_name = [
             ['impurity', self.IMPURITY_PARAM, str],
