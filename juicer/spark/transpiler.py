@@ -214,7 +214,7 @@ class SparkTranspiler(Transpiler):
                 ml_operation2.RandomForestRegressionModelOperation,
             'generalized-linear-regressor-model':
                 ml_operation2.GeneralizedLinearRegressionModelOperation,
-            'linear-regression-mode':
+            'linear-regression-model':
                 ml_operation2.LinearRegressionOperation,
 
         }
