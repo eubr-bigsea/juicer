@@ -2,6 +2,7 @@
 from __future__ import unicode_literals, absolute_import
 
 import logging
+from textwrap import dedent
 
 from juicer.spark.ml_operation import SvmClassifierOperation, \
     LogisticRegressionClassifierOperation, DecisionTreeClassifierOperation, \
@@ -12,7 +13,8 @@ from juicer.spark.ml_operation import SvmClassifierOperation, \
     LdaClusteringOperation, RegressionModelOperation, LinearRegressionOperation, \
     GeneralizedLinearRegressionOperation, DecisionTreeRegressionOperation, \
     GBTRegressorOperation, AFTSurvivalRegressionOperation, \
-    RandomForestRegressorOperation, IsotonicRegressionOperation
+    RandomForestRegressorOperation, IsotonicRegressionOperation, \
+    OneVsRestClassifier
 
 try:
     from itertools import zip_longest as zip_longest
@@ -32,11 +34,22 @@ class AlgorithmOperation(Operation):
             parameters, named_inputs, named_outputs)
         self.algorithm = algorithm
         self.model = model
+        self.apply_one_versus_rest = parameters.get(
+            'one_vs_rest') in [1, '1', 'True', True]
 
     def generate_code(self):
         algorithm_code = self.algorithm.generate_code()
         model_code = self.model.generate_code()
-        return "\n".join([algorithm_code, model_code])
+        if self.apply_one_versus_rest:
+            # Only valid for classification
+            # Code is generated here because it is simple
+            one_vs_rest_code = dedent("""
+                algorithm = [classification.OneVsRest(
+                    classifier={alg}[0]), {alg}[1], {alg}[2]]
+                """.format(alg="algorithm"))
+            return "\n".join([algorithm_code, one_vs_rest_code, model_code])
+        else:
+            return "\n".join([algorithm_code, model_code])
 
     def get_output_names(self, sep=','):
         output = self.named_outputs.get('output data',
@@ -54,6 +67,7 @@ class ClassificationOperation(AlgorithmOperation):
 
         model = ClassificationModelOperation(
             parameters, model_in_ports, named_outputs)
+        model.clone_algorithm = False
         super(ClassificationOperation, self).__init__(
             parameters, named_inputs, named_outputs, model, algorithm)
 
@@ -131,6 +145,7 @@ class RegressionOperation(AlgorithmOperation):
 
         model = RegressionModelOperation(
             parameters, model_in_ports, named_outputs)
+        model.clone_algorithm = False
         super(RegressionOperation, self).__init__(
             parameters, named_inputs, named_outputs, model, algorithm)
 
