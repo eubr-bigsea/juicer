@@ -1098,16 +1098,19 @@ class ClassificationModelOperation(DeployModelMixin, Operation):
 
             # Clone the algorithm because it can be used more than once
             # and this may cause concurrency problems
-            params = dict([(p.name, v) for p, v in
-                alg.extractParamMap().items()])
+            if {clone}:
+                params = dict([(p.name, v) for p, v in
+                    alg.extractParamMap().items()])
 
-            # Perceptron does not support some parameters
-            if isinstance(alg, MultilayerPerceptronClassifier):
-                del params['rawPredictionCol']
+                # Perceptron does not support some parameters
+                if isinstance(alg, MultilayerPerceptronClassifier):
+                    del params['rawPredictionCol']
 
-            algorithm_cls = globals()[alg.__class__.__name__]
-            algorithm = algorithm_cls()
-            algorithm.setParams(**params)
+                algorithm_cls = globals()[alg.__class__.__name__]
+                algorithm = algorithm_cls()
+                algorithm.setParams(**params)
+            else:
+                algorithm = alg
 
             algorithm.setPredictionCol('{prediction}')
 
@@ -1226,6 +1229,7 @@ class ClassificationModelOperation(DeployModelMixin, Operation):
                 headers=[_('Parameter'), _('Value'), ],
                 task_id=self.parameters['task_id'],
                 operation_id=self.parameters['operation_id'],
+                clone=self.clone_algorithm,
                 weights=repr(
                     [float(w) for w in self.ensemble_weights.split(',')]
                 ))
@@ -2309,6 +2313,11 @@ class RegressionModelOperation(DeployModelMixin, Operation):
             self.output = self.named_outputs.get(
                 'output data', 'out_task_{}'.format(self.order))
 
+        # In some cases, it is necessary to clone algorithm instance
+        # because otherwise, it can cause concurrency problems.
+        # But when used in the AlgorithmOperation subclasses, it is not needed.
+        self.clone_algorithm = True
+
     @property
     def get_inputs_names(self):
         return ', '.join([self.named_inputs['train input data'],
@@ -2330,16 +2339,18 @@ class RegressionModelOperation(DeployModelMixin, Operation):
                 operation={{'id': {operation_id}}}, operation_id={operation_id},
                 task={{'id': '{task_id}'}},
                 title='{title}')
-            alg = {algorithm}
+            if {clone}:
+                alg = {algorithm}
 
-            # Clone the algorithm because it can be used more than once
-            # and this may cause concurrency problems
-            params = dict([(p.name, v) for p, v in
-                alg.extractParamMap().items()])
+                # Clone the algorithm because it can be used more than once
+                # and this may cause concurrency problems
+                params = dict([(p.name, v) for p, v in
+                    alg.extractParamMap().items()])
 
-            algorithm_cls = globals()[alg.__class__.__name__]
-            algorithm = algorithm_cls()
-            algorithm.setParams(**params)
+                algorithm_cls = globals()[alg.__class__.__name__]
+                algorithm = algorithm_cls()
+                algorithm.setParams(**params)
+
             algorithm.setPredictionCol('{prediction}')
             algorithm.setLabelCol('{label}')
 
@@ -2451,6 +2462,7 @@ class RegressionModelOperation(DeployModelMixin, Operation):
                               'null values will be discarded. If this is '
                               'undesirable, explicitly add a feature assembler '
                               'in the workflow.'),
+                       clone=self.clone_algorithm,
                        display_text=self.parameters['task']['forms'].get(
                            'display_text', {}).get('value') in (1, '1'))
 
