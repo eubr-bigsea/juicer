@@ -169,7 +169,8 @@ def emit_schema_sklearn(task_id, df, emit_event, name, notebook=False):
                task={'id': task_id})
 
 
-def emit_sample(task_id, df, emit_event, name, size=50, notebook=False):
+def emit_sample(task_id, df, emit_event, name, size=50, notebook=False,
+                title=None):
     from juicer.spark.reports import SimpleTableReport
     headers = [f.name for f in df.schema.fields]
 
@@ -195,14 +196,14 @@ def emit_sample(task_id, df, emit_event, name, size=50, notebook=False):
 
     css_class = 'table table-striped table-bordered w-auto' \
         if not notebook else ''
-    content = SimpleTableReport(
-        css_class, headers, rows, _('Sample data for {}').format(name),
-        numbered=True)
+    if title is None:
+        title = _('Sample data for {}').format(name)
+    content = SimpleTableReport(css_class, headers, rows, title, numbered=True)
 
     emit_event('update task', status='COMPLETED',
                identifier=task_id,
                message=content.generate(),
-               type='HTML', title=_('Sample data for {}').format(name),
+               type='HTML', title=title,
                task={'id': task_id})
 
 
