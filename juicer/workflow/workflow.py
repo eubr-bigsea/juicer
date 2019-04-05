@@ -241,6 +241,10 @@ class Workflow(object):
                     lambda p: int(p['id']) == int(flow['target_port']),
                     task_map[flow['target_id']]['operation']['ports']))
 
+                is_meta_operation = (task_map[flow['source_id']]['operation'][
+                                        'slug'] == 'meta-operation' or
+                                     task_map[flow['target_id']]['operation'][
+                                         'slug'] == 'meta-operation')
                 if all([source_port, target_port]):
                     # Compatibility assertion, may be removed in future
                     # assert 'target_port_name' not in flow or \
@@ -251,6 +255,11 @@ class Workflow(object):
                     flow['target_port_name'] = target_port[0]['slug']
                     flow['source_port_name'] = source_port[0]['slug']
 
+                    self.graph.add_edge(flow['source_id'], flow['target_id'],
+                                        attr_dict=flow)
+                    self.graph.node[flow['target_id']]['parents'].append(
+                        flow['source_id'])
+                elif is_meta_operation:
                     self.graph.add_edge(flow['source_id'], flow['target_id'],
                                         attr_dict=flow)
                     self.graph.node[flow['target_id']]['parents'].append(
@@ -347,6 +356,109 @@ class Workflow(object):
         # plt.savefig(filename, dpi=300, orientation='landscape', format=None,
         # bbox_inches=None, pad_inches=0.1)
 
+    def short_circuit_flow(self):
+        """
+            Removes the meta-operations and creates edges between tasks, creating
+            a flat flow.
+        """
+        import pprint
+        pp = pprint.PrettyPrinter(depth=6)
+
+        meta_source_input = []
+        meta_source_output = []
+        meta_target_input = []
+        meta_target_output = []
+
+        for source_id in self.graph.edge:
+            for target_id in self.graph.edge[source_id]:
+                # Nodes accept multiple edges from same source
+                for flow in self.graph.edge[source_id][target_id].values():
+                    # verify
+                    if flow['source_port_name'] == 'meta input data':
+                        meta_source_input.append(flow)
+                    elif flow['target_port_name'] == 'meta input data':
+                        meta_target_input.append(flow)
+
+                    if flow['target_port_name'] == 'meta output data':
+                        meta_source_output.append(flow)
+                    elif flow['source_port_name'] == 'meta output data':
+                        meta_target_output.append(flow)
+
+        real_graph_flow = {}
+        new_workflow_flow = []
+        parents_map = {}
+        for source in meta_source_input:
+            for target in meta_target_input:
+                if (source['source_id'] == target['target_id']) and (
+                        source['source_port'] == target['target_port']):
+                    task_map = {
+                        'environment': target['environment'],
+                        'source_id': target['source_id'],
+                        'source_port': target['source_port'],
+                        'source_port_name': target['source_port_name'],
+                        'target_id': source['target_id'],
+                        'target_port': source['target_port'],
+                        'target_port_name': source['target_port_name']
+                    }
+
+                    real_graph_flow[target['source_id']] = {
+                        source['target_id']: {0: task_map}
+                    }
+
+                    new_workflow_flow.append(task_map)
+
+                    if task_map['target_id'] not in parents_map:
+                        parents_map[task_map['target_id']] = {'parents': [
+                            task_map['source_id']]}
+                    else:
+                        parents_map[task_map['target_id']]['parents'].append(
+                            task_map['source_id'])
+
+                    # If the meta-operation has more than one input port
+                    try:
+                        del self.graph.edge[source['source_id']]
+                        del self.graph.edge[target['source_id']]
+                    except:
+                        pass
+
+        meta_nodes_to_remove = []
+        for node in self.graph.node:
+            if self.graph.node[node]['operation']['slug'] == 'meta-operation':
+                meta_nodes_to_remove.append(node)
+        for node in meta_nodes_to_remove:
+            del self.graph.node[node]
+
+        for flow in self.workflow['flows']:
+            if not (flow['source_port_name'] == 'meta input data' or
+                    flow['target_port_name'] == 'meta input data'):
+                new_workflow_flow.append(flow)
+
+                if flow['target_id'] not in parents_map:
+                    parents_map[flow['target_id']] = {'parents': [
+                        flow['source_id']]}
+                else:
+                    parents_map[flow['target_id']]['parents'].append(
+                        flow['source_id'])
+
+        self.workflow['flows'] = new_workflow_flow
+
+        new_workflow_tasks = []
+        # Organizes the parent information after short circuit the flow
+        for task in self.workflow['tasks']:
+            if not task['operation']['slug'] == 'meta-operation':
+                new_workflow_tasks.append(task)
+                if len(task['parents']) > 0:
+                    task['parents'] = parents_map[task['id']]['parents']
+                    self.graph.node[task['id']]['parents'] = parents_map[
+                        task['id']]['parents']
+
+        self.workflow['tasks'] = new_workflow_tasks
+
+        for flow in real_graph_flow:
+            self.graph.edge[flow] = real_graph_flow[flow]
+
+        pp.pprint(self.graph.node)
+
     def get_topological_sorted_tasks(self):
 
         """ Create the tasks Graph and perform topological sorting
@@ -357,7 +469,12 @@ class Workflow(object):
 
             :return: Return a list of nodes in topological sort order.
         """
-        # First, map the tasks IDs to their original position
+
+        # First, Removes the meta-operations and add edges between tasks,
+        # creating a flat flow.
+        self.short_circuit_flow()
+
+        # Second, map the tasks IDs to their original position
         tasks_position = {}
 
         for count_position, task in enumerate(self.workflow['tasks']):

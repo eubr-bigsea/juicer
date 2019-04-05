@@ -80,7 +80,7 @@ class SparkTranspiler(Transpiler):
             'evaluate-model': ml_operation.EvaluateModelOperation,
             'feature-assembler': ml_operation.FeatureAssemblerOperation,
             'vector-indexer': ml_operation.VectorIndexOperation,
-            'feature-indexer': ml_operation.StringIndexerOperation,
+            'string-indexer': ml_operation.StringIndexerOperation,
             'gaussian-mixture-clustering':
                 ml_operation.GaussianMixtureClusteringOperation,
             'gbt-classifier': ml_operation.GBTClassifierOperation,
