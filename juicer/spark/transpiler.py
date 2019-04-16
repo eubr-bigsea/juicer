@@ -165,7 +165,8 @@ class SparkTranspiler(Transpiler):
             'plot-chart': vis_operation.ScatterPlotOperation,
             'scatter-plot': vis_operation.ScatterPlotOperation,
             'map-chart': vis_operation.MapOperation,
-            'map': vis_operation.MapOperation
+            'map': vis_operation.MapOperation,
+            'box-plot': vis_operation.BoxPlotOperation
         }
         feature_ops = {
             'bucketizer': feature_operation.BucketizerOperation,
