@@ -1,9 +1,11 @@
 # coding=utf-8
 from __future__ import unicode_literals, absolute_import
 
+import collections
 import decimal
 import itertools
 import json
+from collections import Iterable
 from textwrap import dedent
 
 import datetime
@@ -412,7 +414,9 @@ class ChartVisualization(VisualizationModel):
 
     @staticmethod
     def _get_attr_type(attr):
-        if attr.dataType.jsonValue() == 'date':
+        if isinstance(attr, Iterable):
+            return [ChartVisualization._get_attr_type(a) for a in attr]
+        elif attr.dataType.jsonValue() == 'date':
             attr_type = 'date'
         elif attr.dataType.jsonValue() == 'datetime':
             attr_type = 'time'
@@ -447,15 +451,20 @@ class ChartVisualization(VisualizationModel):
             },
         }
 
-    def _get_axis_info(self):
+    def _get_axis_info(self, single_x_attr=True):
         schema = self.data.schema
         if not self.params.get('x_axis_attribute'):
             raise ValueError(_('X-axis attribute not specified'))
-        x = self.params.get('x_axis_attribute')[0]
+        if single_x_attr:
+            x = self.params.get('x_axis_attribute')[0]
+        else:
+            x = self.params.get('x_axis_attributes')
+
         x_attr = [c for c in schema if c.name == x]
         y_attrs = [c for c in schema if c.name in self.column_names]
         if len(x_attr):
-            x_attr = x_attr[0]
+            if single_x_attr:
+                x_attr = x_attr[0]
         else:
             raise ValueError(
                 _('Attribute {} for X-axis does not exist in ({})').format(
@@ -1076,3 +1085,117 @@ class SummaryStatisticsModel(TableVisualizationModel):
         rows = [aggregated[i:i + n] for i in range(0, len(aggregated), n)]
 
         return {"rows": rows, "attributes": self.get_column_names().split(',')}
+
+
+class BoxPlotOperation(VisualizationMethodOperation):
+    def __init__(self, parameters, named_inputs, named_outputs):
+        VisualizationMethodOperation.__init__(self, parameters, named_inputs,
+                                              named_outputs)
+
+    def get_model_name(self):
+        return BoxPlotModel.__name__
+
+
+BoxPlotInfo = collections.namedtuple(
+    'BoxPlotInfo', ['fact', 'q1', 'q2', 'q3', 'outliers', 'min', 'max'])
+
+
+class BoxPlotModel(ChartVisualization):
+    """ Bar chart model for visualization of data """
+
+    def get_icon(self):
+        return 'fa-chart'
+
+    # noinspection PyUnresolvedReferences
+    def get_data(self):
+        from pyspark.sql import functions as F
+
+        def _alias(attribute, counter, suffix):
+            return '{}_{}_{}'.format(attribute, counter, suffix)
+
+        # TODO Technical debt: review
+        # Assume data is big and it will be read many times
+        self.data.cache()
+
+        facts = self.params.get('facts-attributes')
+        if facts is None or not isinstance(facts, list) or len(facts) == 0:
+            raise ValueError(
+                _('Input attribute(s) must be informed for box plot.'))
+
+        quartiles_expr = [
+            F.expr('percentile_approx({}, array(.25, .5, .75))'.format(fact)
+                   ).alias(fact) for fact in facts]
+
+        group = self.params.get('group-attribute')
+        # Calculates the quartiles for fact attributes
+        if group is not None and len(group) > 1:
+            group = group[0]
+            quartiles = self.data.groupBy(group).agg(
+                *quartiles_expr).collect()
+        else:
+            group = None
+            quartiles = self.data.agg(*quartiles_expr).collect()
+
+        computed_cols = []
+        for i, quartile_row in enumerate(quartiles):
+            # First column in row is the label for the group, so it's ignored
+            for j, fact_quartiles in enumerate(quartile_row[1:]):
+                # Calculates inter quartile range (IQR)
+                iqr = round(fact_quartiles[2] - fact_quartiles[0], 4)
+                # Calculates boundaries for identifying outliers
+                lower_bound = round(fact_quartiles[0] - 1.5 * iqr, 4)
+                upper_bound = round(fact_quartiles[2] + 1.5 * iqr, 4)
+
+                # Outliers are beyond boundaries
+                outliers_cond = (F.col(facts[i]) < F.lit(lower_bound)) | (
+                    F.col(facts[i]) > F.lit(upper_bound))
+
+                # If grouping is not specified, uses True when combining
+                # conditions
+                if group is not None:
+                    value_cond = F.col(group) == F.lit(g)
+                else:
+                    value_cond = F.lit(True)
+
+                outliers = F.collect_list(
+                    F.when(cond & value_cond, F.col(y[i]))).alias(
+                    _alias(facts[i], i, 'outliers'))
+                computed_cols.append(outliers)
+
+                min_val = F.min(F.when(~cond & value_cond, F.col(y[i]))).alias(
+                    _alias(facts[i], i, 'min'))
+                computed_cols.append(min_val)
+                max_val = F.max(F.when(~cond & value_cond, F.col(y[i]))).alias(
+                    _alias(facts[i], i, 'max'))
+                computed_cols.append(max_val)
+
+        if group is not None:
+            min_max_outliers = self.data.groupBy(group).agg(
+                *computed_cols).collect()
+        else:
+            min_max_outliers = self.data.agg(*computed_cols).collect()
+
+        # Organize all information
+        summary = {}
+        for i, quartile_row in enumerate(quartiles):
+            summary_row = []
+            summary[quartiles[0]] = summary_row
+
+            # Data for min, max and outliers are organized in multiple columns,
+            # like a matrix represented as a vector. This offset is used to
+            # re-organize the data
+            offset = 1 + 3 * len(facts) * i
+            for j, fact in enumerate(facts):
+                start_offset = offset + j * len(facts)
+                end_offset = offset + (1 + j) * len(facts)
+                min_max_outliers_part = min_max_outliers[i][
+                                        start_offset: end_offset]
+                box_plot_info = BoxPlotInfo(fact=fact, q1=quartile_row[1][j][0],
+                                            q2=quartile_row[1][j][1],
+                                            q3=quartile_row[1][j][2],
+                                            outliers=min_max_outliers_part[0],
+                                            min=min_max_outliers_part[1],
+                                            max=min_max_outliers_part[2])
+                summary_row.append(box_plot_info)
+        result = summary_row
+        return result
