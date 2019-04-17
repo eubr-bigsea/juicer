@@ -101,7 +101,8 @@ if __name__ == "__main__":
     juicer_config = {}
     if args.config:
         with open(args.config) as config_file:
-            juicer_config = yaml.load(config_file.read())
+            juicer_config = yaml.load(config_file.read(),
+                                      Loader=yaml.FullLoader)
 
     main(args.workflow, args.execute_main, {"plain": args.plain}, juicer_config,
          args.deploy, args.notebook)
