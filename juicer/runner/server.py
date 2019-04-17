@@ -398,7 +398,7 @@ if __name__ == '__main__':
     t.install(unicode=True)
 
     with open(args.config) as config_file:
-        juicer_config = yaml.load(config_file.read())
+        juicer_config = yaml.load(config_file.read(), Loader=yaml.FullLoader)
 
     # Every minion starts with the same script.
     _minion_executable = os.path.abspath(
