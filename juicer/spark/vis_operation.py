@@ -194,7 +194,9 @@ class VisualizationMethodOperation(Operation):
                  'latitude', 'longitude', 'value', 'label',
                  'y_axis_attribute', 'z_axis_attribute', 't_axis_attribute',
                  'series_attribute', 'extra_data', 'polygon', 'geojson_id',
-                 'polygon_url']
+                 'polygon_url', 'fact_attributes', 'group_attribute',
+                 'show_outliers', 'title']
+
         for k, v in self.parameters.items():
             if k in valid:
                 result[k] = v
@@ -1113,11 +1115,10 @@ class BoxPlotModel(ChartVisualization):
         def _alias(attribute, counter, suffix):
             return '{}_{}_{}'.format(attribute, counter, suffix)
 
-        # TODO Technical debt: review
-        # Assume data is big and it will be read many times
         self.data.cache()
 
-        facts = self.params.get('facts-attributes')
+        facts = self.params.get('fact_attributes')
+        print self.params
         if facts is None or not isinstance(facts, list) or len(facts) == 0:
             raise ValueError(
                 _('Input attribute(s) must be informed for box plot.'))
@@ -1126,9 +1127,9 @@ class BoxPlotModel(ChartVisualization):
             F.expr('percentile_approx({}, array(.25, .5, .75))'.format(fact)
                    ).alias(fact) for fact in facts]
 
-        group = self.params.get('group-attribute')
+        group = self.params.get('group_attribute')
         # Calculates the quartiles for fact attributes
-        if group is not None and len(group) > 1:
+        if group is not None and len(group) >= 1:
             group = group[0]
             quartiles = self.data.groupBy(group).agg(
                 *quartiles_expr).collect()
@@ -1137,36 +1138,46 @@ class BoxPlotModel(ChartVisualization):
             quartiles = self.data.agg(*quartiles_expr).collect()
 
         computed_cols = []
+
+        show_outliers = self.params.get('show_outliers') in (1, '1', True)
+        group_offset = 1 if group is not None else 0
         for i, quartile_row in enumerate(quartiles):
             # First column in row is the label for the group, so it's ignored
-            for j, fact_quartiles in enumerate(quartile_row[1:]):
+            for j, fact_quartiles in enumerate(quartile_row[group_offset:]):
                 # Calculates inter quartile range (IQR)
                 iqr = round(fact_quartiles[2] - fact_quartiles[0], 4)
                 # Calculates boundaries for identifying outliers
-                lower_bound = round(fact_quartiles[0] - 1.5 * iqr, 4)
-                upper_bound = round(fact_quartiles[2] + 1.5 * iqr, 4)
+                lower_bound = round(float(fact_quartiles[0]) - 1.5 * iqr, 4)
+                upper_bound = round(float(fact_quartiles[2]) + 1.5 * iqr, 4)
 
                 # Outliers are beyond boundaries
-                outliers_cond = (F.col(facts[i]) < F.lit(lower_bound)) | (
-                    F.col(facts[i]) > F.lit(upper_bound))
+                outliers_cond = (F.col(facts[j]) < F.lit(lower_bound)) | (
+                    F.col(facts[j]) > F.lit(upper_bound))
 
                 # If grouping is not specified, uses True when combining
                 # conditions
                 if group is not None:
-                    value_cond = F.col(group) == F.lit(g)
+                    value_cond = F.col(group) == F.lit(quartile_row[0])
                 else:
                     value_cond = F.lit(True)
 
-                outliers = F.collect_list(
-                    F.when(cond & value_cond, F.col(y[i]))).alias(
-                    _alias(facts[i], i, 'outliers'))
+                if show_outliers:
+                    outliers = F.collect_list(
+                        F.when(outliers_cond & value_cond,
+                               F.col(facts[j]))).alias(
+                        _alias(facts[j], i, 'outliers'))
+                else:
+                    outliers = F.lit(None).alias(
+                        _alias(facts[j], i, 'outliers'))
                 computed_cols.append(outliers)
 
-                min_val = F.min(F.when(~cond & value_cond, F.col(y[i]))).alias(
-                    _alias(facts[i], i, 'min'))
+                min_val = F.min(
+                    F.when(~outliers_cond & value_cond, F.col(facts[j]))).alias(
+                    _alias(facts[j], i, 'min'))
                 computed_cols.append(min_val)
-                max_val = F.max(F.when(~cond & value_cond, F.col(y[i]))).alias(
-                    _alias(facts[i], i, 'max'))
+                max_val = F.max(
+                    F.when(~outliers_cond & value_cond, F.col(facts[j]))).alias(
+                    _alias(facts[j], i, 'max'))
                 computed_cols.append(max_val)
 
         if group is not None:
@@ -1179,23 +1190,78 @@ class BoxPlotModel(ChartVisualization):
         summary = {}
         for i, quartile_row in enumerate(quartiles):
             summary_row = []
-            summary[quartiles[0]] = summary_row
+            if group:
+                summary[quartile_row[0]] = summary_row
+            else:
+                summary[i] = summary_row
 
             # Data for min, max and outliers are organized in multiple columns,
             # like a matrix represented as a vector. This offset is used to
             # re-organize the data
-            offset = 1 + 3 * len(facts) * i
+            offset = group_offset + 3 * len(facts) * i
             for j, fact in enumerate(facts):
-                start_offset = offset + j * len(facts)
-                end_offset = offset + (1 + j) * len(facts)
+                start_offset = offset + j * 3  # len(facts)
+                end_offset = offset + (1 + j) * 3  # len(facts)
                 min_max_outliers_part = min_max_outliers[i][
                                         start_offset: end_offset]
-                box_plot_info = BoxPlotInfo(fact=fact, q1=quartile_row[1][j][0],
-                                            q2=quartile_row[1][j][1],
-                                            q3=quartile_row[1][j][2],
+
+                box_plot_info = BoxPlotInfo(fact=fact,
+                                            q1=quartile_row[j + group_offset][
+                                                0],
+                                            q2=quartile_row[j + group_offset][
+                                                1],
+                                            q3=quartile_row[j + group_offset][
+                                                2],
                                             outliers=min_max_outliers_part[0],
                                             min=min_max_outliers_part[1],
                                             max=min_max_outliers_part[2])
                 summary_row.append(box_plot_info)
-        result = summary_row
-        return result
+        # Format to JSON
+        result = []
+        v = {
+            'chart': {'type': 'boxplot'},
+            'title': {'text': self.params.get('title', '')},
+            'legend': {'enabled': False},
+            'xAxis': {
+                'categories': [],
+                'title': {'text': self.params.get('x_title')}
+            },
+            'yAxis': {
+                'title': {'text': self.params.get('y_title')},
+            },
+            'series': [
+                {
+                    'name': self.params.get('y_title'),
+                    'data': [],
+                    'tooltip': {'headerFormat': '<b>{point.key}</b><br/>'}
+                },
+                {
+                    'name': 'Outlier',
+                    'type': 'scatter',
+                    'data': [],
+                    'marker': {
+                        'fillColor': 'white',
+                        'lineWidth': 1
+                    },
+                    'tooltip': {
+                        'pointFormat': '{point.y}'
+                    }
+                }
+            ]
+        }
+
+        for k, rows in summary.items():
+            for i, s in enumerate(rows):
+                if group:
+                    v['xAxis']['categories'].append(
+                        '{}: {}'.format(k, facts[i]))
+                else:
+                    v['xAxis']['categories'].append(facts[i])
+                v['series'][0]['data'].append([s.min, s.q1, s.q2, s.q3, s.max])
+                if s.outliers:
+                    v['series'][1]['data'].extend([[i, o] for o in s.outliers])
+
+            result.append(v)
+        if not show_outliers:
+            del v['series'][1]
+        return {'data': result}
