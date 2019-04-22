@@ -1118,7 +1118,7 @@ class BoxPlotModel(ChartVisualization):
         self.data.cache()
 
         facts = self.params.get('fact_attributes')
-        print self.params
+
         if facts is None or not isinstance(facts, list) or len(facts) == 0:
             raise ValueError(
                 _('Input attribute(s) must be informed for box plot.'))
@@ -1179,7 +1179,6 @@ class BoxPlotModel(ChartVisualization):
                     F.when(~outliers_cond & value_cond, F.col(facts[j]))).alias(
                     _alias(facts[j], i, 'max'))
                 computed_cols.append(max_val)
-
         if group is not None:
             min_max_outliers = self.data.groupBy(group).agg(
                 *computed_cols).collect()
@@ -1249,19 +1248,18 @@ class BoxPlotModel(ChartVisualization):
                 }
             ]
         }
-
-        for k, rows in summary.items():
-            for i, s in enumerate(rows):
+        result.append(v)
+        for i, (k, rows) in enumerate(summary.items()):
+            for j, s in enumerate(rows):
                 if group:
                     v['xAxis']['categories'].append(
-                        '{}: {}'.format(k, facts[i]))
+                        '{}: {}'.format(k, facts[j]))
                 else:
-                    v['xAxis']['categories'].append(facts[i])
+                    v['xAxis']['categories'].append(facts[j])
                 v['series'][0]['data'].append([s.min, s.q1, s.q2, s.q3, s.max])
                 if s.outliers:
                     v['series'][1]['data'].extend([[i, o] for o in s.outliers])
 
-            result.append(v)
         if not show_outliers:
             del v['series'][1]
         return {'data': result}
