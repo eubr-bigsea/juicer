@@ -4,6 +4,7 @@ from __future__ import unicode_literals, absolute_import
 import json
 import logging
 import string
+from gettext import gettext
 
 try:
     from itertools import zip_longest as zip_longest
@@ -487,9 +488,9 @@ class EvaluateModelOperation(Operation):
                            named_outputs)
 
         self.has_code = any([(
-                (len(self.named_inputs) > 0 and len(self.named_outputs) > 0) or
-                (self.named_outputs.get('evaluator') is not None) or
-                ('input data' in self.named_inputs)
+            (len(self.named_inputs) > 0 and len(self.named_outputs) > 0) or
+            (self.named_outputs.get('evaluator') is not None) or
+            ('input data' in self.named_inputs)
         ), self.contains_results()])
         # @FIXME: validate if metric is compatible with Model using workflow
 
@@ -560,6 +561,7 @@ class EvaluateModelOperation(Operation):
                 label_col = '{label_attr}'
                 prediction_col = str('{prediction_attr}')
 
+
                 stages = []
                 requires_pipeline = False
                 if not dataframe_util.is_numeric({input}.schema, label_col):
@@ -581,7 +583,8 @@ class EvaluateModelOperation(Operation):
 
                     label_col =  final_label
                     prediction_col = final_prediction
-
+                # Used in summary
+                df = {input}
                 """)]
             if self.metric in ['areaUnderROC', 'areaUnderPR']:
                 self._get_code_for_area_metric(code)
@@ -601,7 +604,6 @@ class EvaluateModelOperation(Operation):
             {metric} = metric_value
             {model_output} = None
             """))
-
             code = "\n".join(code).format(
                 model_output=self.model_out,
                 model=self.model,
@@ -618,6 +620,13 @@ class EvaluateModelOperation(Operation):
                 headers=[_('Metric'), _('Value')],
                 evaluator=self.evaluator,
                 prediction_arg=self.param_prediction_arg,
+                f1=gettext('F1 measure'),
+                weightedPrecision=gettext('Weighted precision'),
+                weightedRecall=gettext('Weighted recall'),
+                accuracy=gettext('Accuracy'),
+                summary=gettext('Summary'),
+                prediction=gettext('Prediction'),
+                residual=gettext('Residual'),
             )
             return dedent(code)
 
@@ -674,10 +683,10 @@ class EvaluateModelOperation(Operation):
             if display_text:
                 headers = {headers}
                 rows = [
-                    ['F1', evaluator.weightedFMeasure()],
-                    ['Weighted Precision', evaluator.weightedPrecision],
-                    ['Weighted Recall', evaluator.weightedRecall],
-                    ['Accuracy', evaluator.accuracy],
+                    ['{f1}', evaluator.weightedFMeasure()],
+                    ['{weightedPrecision}', evaluator.weightedPrecision],
+                    ['{weightedRecall}', evaluator.weightedRecall],
+                    ['{accuracy}', evaluator.accuracy],
                 ]
 
                 content = SimpleTableReport(
@@ -764,6 +773,7 @@ class EvaluateModelOperation(Operation):
             plot_title=_('Actual versus Prediction'),
             plot_x_title=_('Actual'),
             plot_y_title=_('Prediction'),
+            summary=_('Summary'),
         )
         partial_code = """
             if isinstance({model}, PipelineModel):
@@ -791,7 +801,9 @@ class EvaluateModelOperation(Operation):
                                 for x in zip(predictions, residuals)
                         ]
                     )
-
+                    pandas_df.rename(index=str, columns=dict(
+                        prediction='{join_plot_x_title}',
+                        residuals='{join_plot_y_title}'))
                     report = SeabornChartReport()
                     emit_event(
                         'update task', status='COMPLETED',
@@ -828,17 +840,19 @@ class EvaluateModelOperation(Operation):
                         operation_id={operation_id})
 
                 summary_rows = []
+                ignore = ['cluster', 'residuals', 'predictions']
+                from juicer.spark import spark_summary_translations as sst
                 for p in dir(summary):
-                    if not p.startswith('_') and p != "cluster":
+                    if not p.startswith('_') and p not in ignore:
                         try:
                             summary_rows.append(
-                                [p, getattr(summary, p)])
+                                [sst(p), getattr(summary, p)])
                         except Exception as e:
-                            summary_rows.append([p, e.message])
+                            summary_rows.append([sst(p), e])
                 summary_content = SimpleTableReport(
                     'table table-striped table-bordered', [],
                     summary_rows,
-                    title='Summary')
+                    title='{summary}')
                 emit_event('update task', status='COMPLETED',
                     identifier='{task_id}',
                     message=summary_content.generate(),
@@ -1807,7 +1821,7 @@ class ClusteringModelOperation(Operation):
                 summary_content = SimpleTableReport(
                     'table table-striped table-bordered', [],
                     summary_rows,
-                    title='Summary')
+                    title='{summary}')
                 emit_event('update task', status='COMPLETED',
                     identifier='{task_id}',
                     message=summary_content.generate(),
@@ -1825,6 +1839,7 @@ class ClusteringModelOperation(Operation):
                        operation_id=self.parameters['operation_id'],
                        title=_("Clustering result"),
                        centroids=self.centroids,
+                       summary=gettext('Summary'),
                        msg1=_('Regression only support numerical features.'),
                        msg2=_('Features are not assembled as a vector. '
                               'They will be implicitly assembled and rows with '
@@ -2309,7 +2324,7 @@ class RegressionModelOperation(DeployModelMixin, Operation):
             self.prediction = parameters.get(self.PREDICTION_COL_PARAM,
                                              'prediction') or 'prediction'
             self.model = self.named_outputs.get(
-                'model', 'model_{}'.format(self.order))
+                'model', 'model_task_{}'.format(self.order))
             self.output = self.named_outputs.get(
                 'output data', 'out_task_{}'.format(self.order))
 
@@ -2433,7 +2448,7 @@ class RegressionModelOperation(DeployModelMixin, Operation):
                         summary_content = SimpleTableReport(
                             'table table-striped table-bordered', [],
                             summary_rows,
-                            title='Summary')
+                            title='{summary}')
                         emit_event('update task', status='COMPLETED',
                             identifier='{task_id}',
                             message=summary_content.generate(),
@@ -2454,6 +2469,7 @@ class RegressionModelOperation(DeployModelMixin, Operation):
                        task_id=self.parameters['task_id'],
                        operation_id=self.parameters['operation_id'],
                        title="Regression result",
+                       summary=gettext('Summary'),
                        msg0=_('Assemble features in a vector before using a '
                               'regression model'),
                        msg1=_('Regression only support numerical features.'),
