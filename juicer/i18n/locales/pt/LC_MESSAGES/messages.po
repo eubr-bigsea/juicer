@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2019-04-24 11:28-0300\n"
-"PO-Revision-Date: 2019-04-25 09:02-0300\n"
+"POT-Creation-Date: 2019-04-25 09:14-0300\n"
+"PO-Revision-Date: 2019-04-25 09:18-0300\n"
 "Last-Translator: \n"
 "Language-Team: pt_BR <LL@li.org>\n"
 "Language: pt_BR\n"
@@ -979,6 +979,10 @@ msgstr "Consultando a URL do Tahiti: %s"
 msgid "Error loading storage id {}: HTTP {} - {}  ({})"
 msgstr "Erro ao carregar o id de armazenamento {} : HTTP {} - {} ({})"
 
+#: juicer/spark/__init__.py:8
+msgid "Akaike's \"An Information Criterion\" (AIC)"
+msgstr "\"Um Critério de Informação\" (AIC) de Akaike"
+
 #: juicer/spark/__init__.py:9
 msgid "Coefficient standard errors"
 msgstr "Coeficientes de erro padrão"
@@ -992,66 +996,98 @@ msgid "Deviance residuals"
 msgstr "Desvio dos Residuos"
 
 #: juicer/spark/__init__.py:12
+msgid "Deviance"
+msgstr "Desvio"
+
+#: juicer/spark/__init__.py:13
+msgid "Dispersion"
+msgstr "Dispersão"
+
+#: juicer/spark/__init__.py:14
 msgid "Explained variance"
 msgstr "Variância Explicada"
 
-#: juicer/spark/__init__.py:13
+#: juicer/spark/__init__.py:15
 msgid "Features attribute"
 msgstr "Coluna(s) de atributos"
 
-#: juicer/spark/__init__.py:14
+#: juicer/spark/__init__.py:16
 msgid "Label attribute"
 msgstr "Coluna do rótulo"
 
-#: juicer/spark/__init__.py:15
+#: juicer/spark/__init__.py:17
 msgid "Mean absolute error"
 msgstr "Erro Absoluto Médio"
 
-#: juicer/spark/__init__.py:16
+#: juicer/spark/__init__.py:18
 msgid "Mean squared error"
 msgstr "Erro Quadrático Médio"
 
-#: juicer/spark/__init__.py:17
+#: juicer/spark/__init__.py:19
+msgid "Deviance for the null model"
+msgstr "Desvio para o modelo nulo"
+
+#: juicer/spark/__init__.py:20
 msgid "Number of instances"
 msgstr "Número de Instância"
 
-#: juicer/spark/__init__.py:18
+#: juicer/spark/__init__.py:21
+msgid "Iterations"
+msgstr "Iterações"
+
+#: juicer/spark/__init__.py:22
 msgid "Objective history"
 msgstr "Histórico do Objetivo"
 
-#: juicer/spark/__init__.py:19
-msgid "p-values"
-msgstr "Valores de p (p-values)"
+#: juicer/spark/__init__.py:23
+msgid "P-values"
+msgstr "Valores p (p-values)"
 
-#: juicer/spark/__init__.py:20
+#: juicer/spark/__init__.py:24
 msgid "Prediction attribute"
 msgstr "Coluna de Predição"
 
-#: juicer/spark/__init__.py:21
+#: juicer/spark/__init__.py:25
 msgid "Predictions"
 msgstr "Predições"
 
-#: juicer/spark/__init__.py:22
+#: juicer/spark/__init__.py:26
 msgid "R²"
 msgstr "Coeficiente de determinação (R²)"
 
-#: juicer/spark/__init__.py:23
+#: juicer/spark/__init__.py:27
 msgid "Adjusted R²"
 msgstr "Coeficiente de Determinação Ajustado\" (Adjusted R²)"
 
-#: juicer/spark/__init__.py:24
+#: juicer/spark/__init__.py:28
+msgid "Rank"
+msgstr "Classificação (rank)"
+
+#: juicer/spark/__init__.py:29
 msgid "Residuals"
 msgstr "Residuos"
 
-#: juicer/spark/__init__.py:25
+#: juicer/spark/__init__.py:30
+msgid "Residual degree of freedom"
+msgstr "Grau residual de liberdade"
+
+#: juicer/spark/__init__.py:31
+msgid "Residual degree of freedom for the null model"
+msgstr "Grau residual de liberdade para o modelo nulo"
+
+#: juicer/spark/__init__.py:32
 msgid "Root mean squared error"
 msgstr "Raiz do Erro Quadrático Médio"
 
-#: juicer/spark/__init__.py:26
+#: juicer/spark/__init__.py:33
+msgid "Solver"
+msgstr "Solucionador"
+
+#: juicer/spark/__init__.py:34
 msgid "T-values"
 msgstr "Estatística-t (t-value)"
 
-#: juicer/spark/__init__.py:27
+#: juicer/spark/__init__.py:35
 msgid "Total of iterations"
 msgstr "Total de Iterações"
 
@@ -1155,16 +1191,20 @@ msgid ""
 "Parameter '{}' informed for task '{}'                                    "
 "must be at >= 2"
 msgstr ""
+"Parâmetro '{}' informado para tarefa '{}'                                    "
+"deve ser pelo menos >= 2"
 
 #: juicer/spark/etl_operation.py:1360
 msgid ""
 "Parameter '{}' must be informed                                 for task {}"
 msgstr ""
+"Parâmetro '{}' deve ser informado                                 para "
+"tarefa {}"
 
 #: juicer/spark/etl_operation.py:1403 juicer/spark/etl_operation.py:1445
 #: juicer/spark/etl_operation.py:1503 juicer/spark/etl_operation.py:1552
 msgid "Summary for K-fold"
-msgstr ""
+msgstr "Sumário para K-partições (folds)"
 
 #: juicer/spark/expression.py:70
 msgid ""
@@ -1801,6 +1841,9 @@ msgstr "Configuração incorreta para as portas: %s, %s"
 #: juicer/workflow/workflow.py:262
 msgid "Invalid or non-existing port: '{op}' {s} {t}"
 msgstr "Porta inválida ou inexistente: '{op}' {s} {t}"
+
+#~ msgid "p-values"
+#~ msgstr "Valores de p (p-values)"
 
 #~ msgid "Parameter '{}' informed for task {} must be >= 2"
 #~ msgstr "Parâmeter '{}' informado para tarefa {} deve ser >= 2"
