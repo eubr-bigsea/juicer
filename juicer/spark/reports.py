@@ -58,6 +58,8 @@ class SeabornChartReport(BaseHtmlReport):
         data_df = pd.DataFrame.from_records(data)
         sns.set(rc={'figure.figsize': (1, 1)})
         g = sns.jointplot(x=x, y=y, data=data_df)
+        g.set_axis_labels(x_label, y_label)
+
         g.fig.subplots_adjust(top=.9, left=.15)
         fig_file = BytesIO()
         plt.savefig(fig_file, format='png', dpi=75)
