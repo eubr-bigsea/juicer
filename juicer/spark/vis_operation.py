@@ -195,7 +195,7 @@ class VisualizationMethodOperation(Operation):
                  'y_axis_attribute', 'z_axis_attribute', 't_axis_attribute',
                  'series_attribute', 'extra_data', 'polygon', 'geojson_id',
                  'polygon_url', 'fact_attributes', 'group_attribute',
-                 'show_outliers', 'title']
+                 'show_outliers', 'title', 'attributes', 'bins']
 
         for k, v in self.parameters.items():
             if k in valid:
@@ -1103,7 +1103,7 @@ BoxPlotInfo = collections.namedtuple(
 
 
 class BoxPlotModel(ChartVisualization):
-    """ Bar chart model for visualization of data """
+    """ Box plot model for visualization of data """
 
     def get_icon(self):
         return 'fa-chart'
@@ -1263,3 +1263,86 @@ class BoxPlotModel(ChartVisualization):
         if not show_outliers:
             del v['series'][1]
         return {'data': result}
+
+
+class HistogramOperation(VisualizationMethodOperation):
+    def __init__(self, parameters, named_inputs, named_outputs):
+        VisualizationMethodOperation.__init__(self, parameters, named_inputs,
+                                              named_outputs)
+
+    def get_model_name(self):
+        return HistogramModel.__name__
+
+
+class HistogramModel(ChartVisualization):
+    """ Histogram model for visualization of data """
+
+    def get_icon(self):
+        return 'fa-chart'
+
+    # noinspection PyUnresolvedReferences
+    def get_data(self):
+        from pyspark.sql import functions
+
+        self.data.cache()
+
+        attributes = self.params.get('attributes')
+        bins = int(self.params.get('bins', '10'))
+
+        if attributes is None or not isinstance(attributes, list) or len(
+                attributes) == 0:
+            raise ValueError(
+                _('Input attribute(s) must be informed for histogram.'))
+        schema = dict((a.name, a) for a in self.data.schema)
+        cols = []
+        for attribute in attributes:
+            if attribute in schema:
+                type_name = schema[attribute].dataType.typeName()
+                if type_name == 'decimal':
+                    cols.append(functions.col(attribute).cast('float'))
+                elif type_name in ['int', 'float', "byte", "long", "short"]:
+                    cols.append(functions.col(attribute))
+                else:
+                    raise ValueError(_('Attribute {} must be numeric.'))
+            else:
+                raise ValueError(_('Attribute {} not found in input data.'))
+
+        def identity(x):
+            return x
+
+        hist_data = []
+        # For each attribute, it has to read input once
+        for i, col in enumerate(cols):
+            # data contains a vector with 2 elements:
+            # the first one, with the ranges' boundaries and the 2nd with
+            # frequencies.
+            data = self.data.select(col).rdd.flatMap(identity).histogram(bins)
+            v = {
+                'chart': {'type': 'column'},
+                'title': {'text': self.params.get('title', '')},
+                'xAxis': {
+                    'tickWidth': 1,
+                    'tickmarkPlacement': 'between',
+                    'title': {'text': '{} {}'.format(
+                        self.params.get('x_title'), attributes[i])
+                    },
+                    'categories': [round(boundary, 4) for boundary in data[0]],
+                },
+                'yAxis': {'title': {'text': self.params.get('y_title')}},
+                'plotOptions': {
+                    'column': {
+                        'pointPadding': 0,
+                        'borderWidth': 1,
+                        'groupPadding': 0,
+                        'shadow': False,
+                        'pointPlacement': 'between',
+                    }
+                },
+                'series': [{
+                    'name': _('Histogram'),
+                    'data': data[1]
+
+                }]
+            }
+            hist_data.append(v)
+        return {'data': hist_data}
