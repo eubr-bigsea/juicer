@@ -153,20 +153,21 @@ class SparkTranspiler(Transpiler):
 
         }
         vis_ops = {
-            'publish-as-visualization':
-                vis_operation.PublishVisualizationOperation,
+            'area-chart': vis_operation.AreaChartOperation,
+            'box-plot': vis_operation.BoxPlotOperation,
             'bar-chart': vis_operation.BarChartOperation,
             'donut-chart': vis_operation.DonutChartOperation,
-            'pie-chart': vis_operation.PieChartOperation,
-            'area-chart': vis_operation.AreaChartOperation,
+            'histogram': vis_operation.HistogramOperation,
             'line-chart': vis_operation.LineChartOperation,
-            'table-visualization': vis_operation.TableVisualizationOperation,
-            'summary-statistics': vis_operation.SummaryStatisticsOperation,
-            'plot-chart': vis_operation.ScatterPlotOperation,
-            'scatter-plot': vis_operation.ScatterPlotOperation,
             'map-chart': vis_operation.MapOperation,
             'map': vis_operation.MapOperation,
-            'box-plot': vis_operation.BoxPlotOperation
+            'pie-chart': vis_operation.PieChartOperation,
+            'plot-chart': vis_operation.ScatterPlotOperation,
+            'publish-as-visualization':
+                vis_operation.PublishVisualizationOperation,
+            'scatter-plot': vis_operation.ScatterPlotOperation,
+            'summary-statistics': vis_operation.SummaryStatisticsOperation,
+            'table-visualization': vis_operation.TableVisualizationOperation,
         }
         feature_ops = {
             'bucketizer': feature_operation.BucketizerOperation,
