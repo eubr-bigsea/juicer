@@ -620,13 +620,13 @@ class EvaluateModelOperation(Operation):
                 headers=[_('Metric'), _('Value')],
                 evaluator=self.evaluator,
                 prediction_arg=self.param_prediction_arg,
-                f1=gettext('F1 measure'),
-                weightedPrecision=gettext('Weighted precision'),
-                weightedRecall=gettext('Weighted recall'),
-                accuracy=gettext('Accuracy'),
-                summary=gettext('Summary'),
-                prediction=gettext('Prediction'),
-                residual=gettext('Residual'),
+                f1=_('F1 measure'),
+                weightedPrecision=_('Weighted precision'),
+                weightedRecall=_('Weighted recall'),
+                accuracy=_('Accuracy'),
+                summary=_('Summary'),
+                prediction=_('Prediction'),
+                residual=_('Residual'),
             )
             return dedent(code)
 
