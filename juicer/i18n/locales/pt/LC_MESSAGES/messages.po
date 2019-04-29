@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2019-04-25 09:14-0300\n"
-"PO-Revision-Date: 2019-04-25 09:18-0300\n"
+"POT-Creation-Date: 2019-04-29 10:23-0300\n"
+"PO-Revision-Date: 2019-04-29 10:24-0300\n"
 "Last-Translator: \n"
 "Language-Team: pt_BR <LL@li.org>\n"
 "Language: pt_BR\n"
@@ -31,45 +31,6 @@ msgstr "Valor inválido para a plataforma: {}"
 #: juicer/app.py:66
 msgid "At least one parameter is missing"
 msgstr "Parâmetro ausente na função de agregação"
-
-#: juicer/executor.py:38
-#, python-format
-msgid "Waiting for new commands in %s"
-msgstr "Esperando por um novo comando em %s"
-
-#: juicer/executor.py:93
-#, python-format
-msgid "Spawning %s greenlets connecting to Redis..."
-msgstr "Criando %s greenlets conexões para Regis..."
-
-#: juicer/executor.py:99
-#, python-format
-msgid "# active `threading` threads: %s"
-msgstr "# ativando 'threading' de threads: %s"
-
-#: juicer/executor.py:100
-#, python-format
-msgid "# Redis connections created: %s"
-msgstr "# Conexão Regis criada: %s"
-
-#: juicer/executor.py:101
-#, python-format
-msgid "# Redis connections in use: %s"
-msgstr "# Conexão Regis em uso: %s"
-
-#: juicer/executor.py:102
-#, python-format
-msgid "# Redis connections available: %s"
-msgstr "# Conexão Regis disponível: %s"
-
-#: juicer/executor.py:103
-msgid "Waiting for Redis connection greenlets to terminate..."
-msgstr "Esperando que os greenlets da conexão Regis terminem..."
-
-#: juicer/executor.py:107
-#, python-format
-msgid "All Redis connection greenlets terminated. Duration: %.2f s."
-msgstr "Todos os greenlets da conexão Regis foram encerrados. Duração: %.2f s."
 
 #: juicer/operation.py:84 juicer/scikit_learn/vis_operation.py:205
 #: juicer/spark/vis_operation.py:209
@@ -1521,6 +1482,22 @@ msgstr "click para abrir"
 msgid "Input attribute(s) must be informed for box plot."
 msgstr "Atributo(s) de  entrada deve(m) ser informado(s) para o box plot."
 
+#: juicer/spark/vis_operation.py:1295
+msgid "Input attribute(s) must be informed for histogram."
+msgstr "O atributo de entrada deve ser informado para o histograma."
+
+#: juicer/spark/vis_operation.py:1306
+msgid "Attribute {} must be numeric."
+msgstr "Atributo {} deve ser numérico."
+
+#: juicer/spark/vis_operation.py:1308
+msgid "Attribute {} not found in input data."
+msgstr "Atributo {} não encontrado nos dados de entrada."
+
+#: juicer/spark/vis_operation.py:1342
+msgid "Histogram"
+msgstr "Histograma"
+
 #: juicer/spark/templates/bias-report.html:4
 msgid "Bias Report"
 msgstr "Relatório de viés"
@@ -1841,6 +1818,31 @@ msgstr "Configuração incorreta para as portas: %s, %s"
 #: juicer/workflow/workflow.py:262
 msgid "Invalid or non-existing port: '{op}' {s} {t}"
 msgstr "Porta inválida ou inexistente: '{op}' {s} {t}"
+
+#~ msgid "Waiting for new commands in %s"
+#~ msgstr "Esperando por um novo comando em %s"
+
+#~ msgid "Spawning %s greenlets connecting to Redis..."
+#~ msgstr "Criando %s greenlets conexões para Regis..."
+
+#~ msgid "# active `threading` threads: %s"
+#~ msgstr "# ativando 'threading' de threads: %s"
+
+#~ msgid "# Redis connections created: %s"
+#~ msgstr "# Conexão Regis criada: %s"
+
+#~ msgid "# Redis connections in use: %s"
+#~ msgstr "# Conexão Regis em uso: %s"
+
+#~ msgid "# Redis connections available: %s"
+#~ msgstr "# Conexão Regis disponível: %s"
+
+#~ msgid "Waiting for Redis connection greenlets to terminate..."
+#~ msgstr "Esperando que os greenlets da conexão Regis terminem..."
+
+#~ msgid "All Redis connection greenlets terminated. Duration: %.2f s."
+#~ msgstr ""
+#~ "Todos os greenlets da conexão Regis foram encerrados. Duração: %.2f s."
 
 #~ msgid "p-values"
 #~ msgstr "Valores de p (p-values)"
