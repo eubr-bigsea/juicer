@@ -3135,7 +3135,7 @@ class PCAOperation(Operation):
         code = dedent("""
             features = {inputAttr}
             pca = PCA(k={k}, inputCol='{inputAttr}', outputCol='{outputAttr}')
-            keep = [c.name for c in {input}.schema] + ['{outputAttr}']
+            keep = ['{outputAttr}']
 
             # handle categorical features (if it is the case)
             model = assemble_features_pipeline_model(
