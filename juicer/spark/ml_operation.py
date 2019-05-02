@@ -371,15 +371,47 @@ class OneHotEncoderOperation(Operation):
                                         'out_task_{}'.format(self.order))
 
         code = """
+            emit = functools.partial(
+                    emit_event, name='update task',
+                    status='RUNNING', type='TEXT',
+                    identifier='{task_id}',
+                    operation={{'id': {operation_id}}},
+                    operation_id={operation_id},
+                    task={{'id': '{task_id}'}},
+                    title='{title}')
             col_alias = dict({aliases})
-            encoders = [feature.OneHotEncoder(inputCol=col, outputCol=alias,
-                            dropLast=True)
-                        for col, alias in col_alias.items()]
+            stages = []
+            keep_at_end = [c.name for c in {input}.schema]
+            delete_tmp = False
+            for col, alias in col_alias.items():
+                if not dataframe_util.is_numeric({input}.schema, col):
+                    emit(message=_('Label attribute is categorical, it will be '
+                            'implicitly indexed as string.'),)
+                    final_label = '{{}}_tmp'.format(col)
+                    indexer = feature.StringIndexer(
+                                inputCol=col, outputCol=final_label,
+                                handleInvalid='keep')
+                    stages.append(indexer)
+                    delete_tmp = True
+                    stages.append(feature.OneHotEncoder(
+                        inputCol=final_label, outputCol=alias,dropLast=True))
+                else:
+                    stages.append(feature.OneHotEncoder(
+                        inputCol=col, outputCol=alias,dropLast=True))
+                keep_at_end.append(alias)
+
+            if delete_tmp:
+                sql = 'SELECT {{}} FROM __THIS__'.format(', '.join(keep_at_end))
+                stages.append(SQLTransformer(statement=sql))
 
             # Use Pipeline to process all attributes once
-            pipeline = Pipeline(stages=encoders)
+            pipeline = Pipeline(stages=stages)
             {out} = pipeline.fit({input}).transform({input})
             """.format(
+            task_id=self.parameters['task_id'],
+            operation_id=self.parameters['operation_id'],
+            title=_('Evaluation result'),
+
             input=input_data, out=output,
             aliases=json.dumps(list(zip(self.attributes, self.alias)),
                                indent=None))
@@ -3220,7 +3252,7 @@ class LSHOperation(Operation):
                     outputCol='{outputAttr}',
                     numHashTables={num_hash_tables})
 
-            keep = [c.name for c in {input}.schema] + ['{outputAttr}']
+            keep = ['{outputAttr}']
 
             # handle categorical features (if it is the case)
             {model} = assemble_features_pipeline_model(
