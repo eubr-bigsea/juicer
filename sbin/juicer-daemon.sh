@@ -1,11 +1,11 @@
-#!/usr/bin/env sh
+#!/usr/bin/env bash
 
 # This script controls the juicer server daemon initialization, status reporting
 # and termination
 # TODO: rotate logs
 
-REDIS_PORT=${REDIS_PORT:-6379}
-REDIS_PORT_6379_TCP_ADDR=${REDIS_PORT_6379_TCP_ADDR:-redis}
+REDIS_PORT=${REDIS_SERVICE_PORT:-6379}
+REDIS_PORT_6379_TCP_ADDR=${REDIS_SERVICE_HOST:-redis}
 REDIS=${REDIS_PORT_6379_TCP_ADDR}:${REDIS_PORT}
 
 

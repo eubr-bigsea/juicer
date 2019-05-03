@@ -10,7 +10,6 @@ ENV PYTHONPATH $PYTHONPATH:$JUICER_HOME:$SPARK_HOME/python
 
 RUN apt-key adv --keyserver keyserver.ubuntu.com --recv E56151BF \
   && echo deb http://repos.mesosphere.io/ubuntu trusty main > /etc/apt/sources.list.d/mesosphere.list \
-
   && apt-get update && apt-get install -y  \
       python-pip \
       python-tk \
