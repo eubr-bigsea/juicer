@@ -344,3 +344,93 @@ class QuantileDiscretizerOperation(TransformModelOperation):
             model=self.model,
         ))
         return code
+
+
+class ChiSquaredSelectorOperation(Operation):
+    """
+    Chi-Squared feature selection, which selects categorical features to use
+    for predicting a categorical label
+    """
+
+    ATTRIBUTES_PARAM = 'attributes'
+    LABEL_PARAM = 'label'
+    ALIAS_PARAM = 'alias'
+    SELECTOR_TYPE_PARAM = 'selector_type'
+    NUM_TOP_FEATURES_PARAM = 'num_top_features'
+    PERCENTILE_PARAM = 'percentile'
+    FPR_PARAM = 'fpr'
+    FDR_PARAM = 'fdr'
+    FWE_PARAM = 'fwe'
+    VALID_TYPES = ['numTopFeatures', 'percentile', 'fpr', 'fdr', 'fwe']
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+
+        if self.ATTRIBUTES_PARAM in parameters:
+            self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
+        else:
+            raise ValueError(
+                _("Parameter '{}' must be informed for task {}").format(
+                    self.ATTRIBUTES_PARAM, self.__class__))
+
+        if self.LABEL_PARAM in parameters:
+            self.label = parameters.get(self.LABEL_PARAM)
+        else:
+            raise ValueError(
+                _("Parameter '{}' must be informed for task {}").format(
+                    self.LABEL_PARAM, self.__class__))
+
+        if self.ALIAS_PARAM in parameters:
+            self.alias = parameters.get(self.ALIAS_PARAM)
+        else:
+            raise ValueError(
+                _("Parameter '{}' must be informed for task {}").format(
+                    self.ALIAS_PARAM, self.__class__))
+
+        if self.SELECTOR_TYPE_PARAM in parameters:
+            self.selector_type = parameters.get(self.SELECTOR_TYPE_PARAM)
+        else:
+            raise ValueError(
+                _("Parameter '{}' must be informed for task {}").format(
+                    self.SELECTOR_TYPE_PARAM, self.__class__))
+        if self.selector_type not in self.VALID_TYPES:
+            raise ValueError(
+                _('Parameter {} must be one of these: {}').format(
+                    self.SELECTOR_TYPE_PARAM, ','.join(self.VALID_TYPES)
+                )
+            )
+        self.num_top_features = int(
+            parameters.get(self.NUM_TOP_FEATURES_PARAM, 50))
+        self.percentile = float(parameters.get(self.PERCENTILE_PARAM, 0.1))
+        self.fpr = float(parameters.get(self.FPR_PARAM, 0.05))
+        self.fdr = float(parameters.get(self.FDR_PARAM, 0.05))
+        self.fwe = float(parameters.get(self.FWE_PARAM, 0.05))
+
+        self.model = 'model'  # FIXME
+
+    def generate_code(self):
+        input_data = self.named_inputs['input data']
+        code = dedent("""
+                features = {features}
+                selector = ChiSqSelector(
+                    numTopFeatures={top_features}, featuresCol=features[0],
+                    outputCol='{alias}', labelCol='{label}',
+                    selectorType='{selector_type}', percentile={percentile},
+                    fpr={fpr}, fdr={fdr}, fwe={fwe})
+                {model} = selector.fit({input})
+                {output} = {model}.transform({input})
+            """.format(
+            alias=self.alias,
+            label=self.label[0],
+            input=input_data,
+            output=self.output,
+            model=self.model,
+            selector_type=self.selector_type,
+            percentile=self.percentile,
+            top_features=self.num_top_features,
+            fpr=self.fpr,
+            fdr=self.fdr,
+            fwe=self.fwe,
+            features=json.dumps(self.attributes)
+        ))
+        return code

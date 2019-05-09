@@ -171,6 +171,7 @@ class SparkTranspiler(Transpiler):
         }
         feature_ops = {
             'bucketizer': feature_operation.BucketizerOperation,
+            'chi-squared': feature_operation.ChiSquaredSelectorOperation,
             'quantile-discretizer':
                 feature_operation.QuantileDiscretizerOperation,
             'standard-scaler': feature_operation.StandardScalerOperation,
