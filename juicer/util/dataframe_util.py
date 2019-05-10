@@ -345,6 +345,7 @@ def merge_dicts(x, y):
 def handle_spark_exception(e):
     from pyspark.sql.utils import AnalysisException, IllegalArgumentException
     result = False
+
     if isinstance(e, AnalysisException):
         value_expr = re.compile(r'[`"](.+)[`"].+columns:\s(.+)$')
         found = value_expr.findall(e.desc.split('\n')[0])
@@ -400,6 +401,16 @@ def handle_spark_exception(e):
                 raise ValueError(
                     _('Attribute {} not found. Valid attributes: {}').format(
                         used, correct))
+        elif 'Binomial family only supports' in str(e):
+            value_expr = re.compile(
+                r'outcome classes but found (\d+)',
+                re.MULTILINE)
+            found = value_expr.findall(e.desc)
+            if found:
+                total = found[0]
+                raise ValueError(
+                    _('Binomial family only supports 1 or 2 outcome '
+                      'classes but found {}').format(total))
         else:
             raise ValueError(e.desc)
     elif hasattr(e, 'java_exception'):

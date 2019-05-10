@@ -64,7 +64,7 @@ class FrequentItemSetOperation(Operation):
 
                 emit_event(name='update task', message='{model_trained}',
                            status='RUNNING', identifier='{task_id}')
-                {output} = model.freqItemsets.withColumn('relative_support',
+                {output} = model.freqItemsets.withColumn('{relative_support}',
                     functions.col('freq') / size)
                 {rules} = model.associationRules
             except Exception as e:
@@ -87,6 +87,7 @@ class FrequentItemSetOperation(Operation):
                    rules=self.rules,
                    not_unique=_('Items in a transaction must be unique'),
                    confidence=self.confidence,
+                   relative_support=_('relative_support'),
                    model_trained=_('Model trained'))
 
         return dedent(code)
