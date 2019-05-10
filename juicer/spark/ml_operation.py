@@ -255,11 +255,10 @@ class StringIndexerOperation(Operation):
 
             # Spark ML 2.0.1 do not deal with null in indexer.
             # See SPARK-11569
-            {input}_without_null = {input}.na.fill(
-                'NA', subset=col_alias.keys())
+            # {input}_without_null = {input}.na.fill(
+            #    'NA', subset=col_alias.keys())
 
-            {out} = pipeline.fit({input}_without_null)\\
-                .transform({input}_without_null)
+            {out} = pipeline.fit({input}).transform({input})
         """.format(input=input_data, out=output, models=models,
                    alias=json.dumps(list(zip(self.attributes, self.alias)),
                                     indent=None)))
