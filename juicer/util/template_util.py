@@ -5,11 +5,14 @@ from __future__ import print_function
 import logging
 import sys
 import unicodedata
+import re
 
 from jinja2 import nodes
 from jinja2.ext import Extension
 from juicer.exceptions import JuicerException
 from six import reraise as raise_
+from ast import parse
+from gettext import gettext
 
 log = logging.getLogger(__name__)
 
@@ -56,3 +59,99 @@ class HandleExceptionExtension(Extension):
 def strip_accents(s):
     return ''.join(c for c in unicodedata.normalize('NFD', s)
                    if unicodedata.category(c) != 'Mn')
+
+
+def convert_variable_name(task_name):
+    name = strip_accents(task_name)
+    name = re.sub(r"^\s+|\s+$", "", name)
+    name = re.sub(r"\s+|\-+", "_", name)
+    name = re.sub(r"\_+", "_", name)
+
+    variable_name = ""
+    for c in name:
+        if c.isalnum():
+            variable_name += ''.join(c)
+        elif c is not '_':
+            variable_name += ''.join(c)
+
+    if is_valid_var_name(variable_name):
+        return str(variable_name.lower())
+    else:
+        raise ValueError(gettext('Parameter task name is invalid.'))
+
+
+def convert_parents_to_variable_name(parents=[]):
+    parents_var_name = []
+
+    for parent in parents:
+        name = strip_accents(parent)
+        name = re.sub(r"^\s+|\s+$", "", name)
+        name = re.sub(r"\s+|\-+", "_", name)
+        name = re.sub(r"\_+", "_", name)
+
+        variable_name = ""
+        for c in name:
+            if c.isalnum():
+                variable_name += ''.join(c)
+            elif c is not '_':
+                variable_name += ''.join(c)
+
+        variable_name = variable_name.lower()
+
+        if is_valid_var_name(variable_name):
+            parents_var_name.append(str(variable_name.lower()))
+        else:
+            raise ValueError(gettext('Parameter task name is invalid.'))
+
+    return parents_var_name
+
+
+def is_valid_var_name(variable_name):
+    try:
+        parse('{} = None'.format(variable_name))
+        return True
+    except:
+        return False
+
+
+def kwargs(kwargs_param):
+    args = re.sub(r"^\s+|\s+$", "", kwargs_param)
+    args = re.sub(r"\s+", " ", args)
+    args = re.sub(r"\s*,\s*", ", ", args)
+    args = re.sub(r"\s*=\s*", "=", args)
+
+    return args
+
+
+def get_tuple(field):
+    try:
+        values = field.replace('(', '') \
+            .replace(')', '') \
+            .replace(' ', '') \
+            .split(',')
+        return tuple([int(v) for v in values])
+    except:
+        try:
+            if len(values) > 1:
+                return tuple([str(v) for v in values])  # In case of the value be a flow variable
+            return str(field)
+        except:
+            return str(field)
+
+
+def get_int_or_tuple(field):
+    if field is not None:
+        if isinstance(field, basestring) and field.strip():
+            try:
+                return int(field)
+            except:
+                try:
+                    values = field.replace('(', '') \
+                        .replace(')', '') \
+                        .replace(' ', '') \
+                        .split(',')
+                    return tuple([int(v) for v in values])
+                except:
+                    return False
+    return None
+
