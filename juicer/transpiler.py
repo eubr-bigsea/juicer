@@ -174,6 +174,12 @@ class Transpiler(object):
                 'export_notebook': export_notebook,
             })
             port = ports.get(task['id'], {})
+            parameters['parents'] = port.get('parents', [])
+            parameters['parents_slug'] = port.get('parents_slug', [])
+
+            #print task['name'], parameters['parents'] # port.get('parents', [])
+            #import pdb
+            #pdb.set_trace()
 
             instance = class_name(parameters, port.get('named_inputs', {}),
                                   port.get('named_outputs', {}))
@@ -245,7 +251,10 @@ class Transpiler(object):
         ports = {}
         sequential_ports = {}
         counter = 0
+
         for source_id in graph.edge:
+            source_name = graph.node[source_id]['name']
+            source_slug = graph.node[source_id]['operation']['slug']
             for target_id in graph.edge[source_id]:
                 # Nodes accept multiple edges from same source
                 for flow in graph.edge[source_id][target_id].values():
@@ -257,13 +266,18 @@ class Transpiler(object):
                         counter += 1
                     if source_id not in ports:
                         ports[source_id] = {'outputs': [], 'inputs': [],
+                                            'parents': [],
+                                            'parents_slug': [],
                                             'named_inputs': {},
                                             'named_outputs': {}}
                     if target_id not in ports:
                         ports[target_id] = {'outputs': [], 'inputs': [],
+                                            'parents': [],
+                                            'parents_slug': [],
                                             'named_inputs': {},
                                             'named_outputs': {}}
-
+                    ports[target_id]['parents'].append(source_name)
+                    ports[target_id]['parents_slug'].append(source_slug)
                     sequence = sequential_ports[flow_id]
 
                     source_port = ports[source_id]
