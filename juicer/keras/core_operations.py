@@ -1808,6 +1808,680 @@ class PythonCode(Operation):
         ).format(name=self.task_name, code=self.code)
 
 
+class MaxPooling1D(Operation):
+    POOL_SIZE_PARAM = 'pool_size'
+    STRIDES_PARAM = 'strides'
+    PADDING_PARAM = 'padding'
+    DATA_FORMAT_PARAM = 'data_format'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+        self.output = named_outputs.get('output data',
+                                        'out_task_{}'.format(self.order))
+
+        self.pool_size = parameters.get(self.POOL_SIZE_PARAM, None) or None
+        self.strides = parameters.get(self.STRIDES_PARAM, None) or None
+        self.padding = parameters.get(self.PADDING_PARAM, None) or None
+        self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None) or None
+
+        self.task_name = self.parameters.get('task').get('name')
+        self.parent = ""
+        self.var_name = ""
+        self.has_code = True
+
+        self.add_functions_required = ""
+
+        if self.POOL_SIZE_PARAM not in parameters or \
+                self.POOL_SIZE_PARAM is None:
+            raise ValueError(gettext('Parameter {} are required')
+                             .format(self.POOL_SIZE_PARAM))
+
+        self.treatment()
+
+    def treatment(self):
+        self.parent = convert_parents_to_variable_name(self.parameters
+                                                       .get('parents', []))
+        self.var_name = convert_variable_name(self.task_name)
+        self.parent = ''.join(self.parent)
+
+        try:
+            self.pool_size = int(self.pool_size)
+        except:
+            self.pool_size = False
+        if not self.pool_size:
+            raise ValueError(gettext('Parameter {} is invalid').format(
+                self.POOL_SIZE_PARAM))
+
+        try:
+            self.strides = int(self.strides)
+        except:
+            self.strides = False
+        if not self.strides:
+            raise ValueError(gettext('Parameter {} is invalid').format(
+                self.STRIDES_PARAM))
+
+        functions_required = []
+        if self.strides is not None:
+            self.strides = """,\nstrides={strides}""" \
+                .format(strides=self.strides)
+            functions_required.append(self.strides)
+
+        if self.padding is not None:
+            self.padding = """,\npadding={padding}""" \
+                .format(padding=self.padding)
+            functions_required.append(self.padding)
+
+        if self.data_format is not None:
+            self.data_format = """,\ndata_format={data_format}""" \
+                .format(data_format=self.data_format)
+            functions_required.append(self.data_format)
+
+        # Mount
+        length = len(functions_required)
+        for i in range(0, length):
+            self.add_functions_required += functions_required[i]
+
+    def generate_code(self):
+        return dedent(
+            """
+            {var_name} = MaxPooling1D(name='{name}'{add_functions_required})({parent})
+            """
+        ).format(var_name=self.var_name,
+                 name=self.task_name,
+                 pool_size=self.pool_size,
+                 add_functions_required=self.add_functions_required,
+                 parent=self.parent)
+
+
+class MaxPooling2D(Operation):
+    POOL_SIZE_PARAM = 'pool_size'
+    STRIDES_PARAM = 'strides'
+    PADDING_PARAM = 'padding'
+    DATA_FORMAT_PARAM = 'data_format'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+        self.output = named_outputs.get('output data',
+                                        'out_task_{}'.format(self.order))
+
+        self.pool_size = parameters.get(self.POOL_SIZE_PARAM, None) or None
+        self.strides = parameters.get(self.STRIDES_PARAM, None) or None
+        self.padding = parameters.get(self.PADDING_PARAM, None) or None
+        self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None) or None
+
+        self.task_name = self.parameters.get('task').get('name')
+        self.parent = ""
+        self.var_name = ""
+        self.has_code = True
+
+        self.add_functions_required = ""
+
+        if self.POOL_SIZE_PARAM not in parameters or \
+                self.POOL_SIZE_PARAM is None:
+            raise ValueError(gettext('Parameter {} are required')
+                             .format(self.POOL_SIZE_PARAM))
+
+        self.treatment()
+
+    def treatment(self):
+        self.parent = convert_parents_to_variable_name(self.parameters
+                                                       .get('parents', []))
+        self.var_name = convert_variable_name(self.task_name)
+        self.parent = ''.join(self.parent)
+
+        self.pool_size = get_int_or_tuple(self.pool_size)
+        if not self.pool_size:
+            raise ValueError(gettext('Parameter {} is invalid').format(
+                self.POOL_SIZE_PARAM))
+
+        self.strides = get_int_or_tuple(self.strides)
+        if not self.strides:
+            raise ValueError(gettext('Parameter {} is invalid').format(
+                self.STRIDES_PARAM))
+
+        functions_required = []
+        if self.strides is not None:
+            self.strides = """,\nstrides={strides}""" \
+                .format(strides=self.strides)
+            functions_required.append(self.strides)
+
+        if self.padding is not None:
+            self.padding = """,\npadding={padding}""" \
+                .format(padding=self.padding)
+            functions_required.append(self.padding)
+
+        if self.data_format is not None:
+            self.data_format = """,\ndata_format={data_format}""" \
+                .format(data_format=self.data_format)
+            functions_required.append(self.data_format)
+
+        # Mount
+        length = len(functions_required)
+        for i in range(0, length):
+            self.add_functions_required += functions_required[i]
+
+    def generate_code(self):
+        return dedent(
+            """
+            {var_name} = MaxPooling2D(name='{name}'{add_functions_required})({parent})
+            """
+        ).format(var_name=self.var_name,
+                 name=self.task_name,
+                 pool_size=self.pool_size,
+                 add_functions_required=self.add_functions_required,
+                 parent=self.parent)
+
+
+class MaxPooling3D(Operation):
+    POOL_SIZE_PARAM = 'pool_size'
+    STRIDES_PARAM = 'strides'
+    PADDING_PARAM = 'padding'
+    DATA_FORMAT_PARAM = 'data_format'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+        self.output = named_outputs.get('output data',
+                                        'out_task_{}'.format(self.order))
+
+        self.pool_size = parameters.get(self.POOL_SIZE_PARAM, None) or None
+        self.strides = parameters.get(self.STRIDES_PARAM, None) or None
+        self.padding = parameters.get(self.PADDING_PARAM, None) or None
+        self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None) or None
+
+        self.task_name = self.parameters.get('task').get('name')
+        self.parent = ""
+        self.var_name = ""
+        self.has_code = True
+
+        self.add_functions_required = ""
+
+        if self.POOL_SIZE_PARAM not in parameters or \
+                self.POOL_SIZE_PARAM is None:
+            raise ValueError(gettext('Parameter {} are required')
+                             .format(self.POOL_SIZE_PARAM))
+
+        self.treatment()
+
+    def treatment(self):
+        self.parent = convert_parents_to_variable_name(self.parameters
+                                                       .get('parents', []))
+        self.var_name = convert_variable_name(self.task_name)
+        self.parent = ''.join(self.parent)
+
+        self.pool_size = get_int_or_tuple(self.pool_size)
+        if not self.pool_size:
+            raise ValueError(gettext('Parameter {} is invalid').format(
+                self.POOL_SIZE_PARAM))
+
+        self.strides = get_int_or_tuple(self.strides)
+        if not self.strides:
+            raise ValueError(gettext('Parameter {} is invalid').format(
+                self.STRIDES_PARAM))
+
+        functions_required = []
+        if self.strides is not None:
+            self.strides = """,\nstrides={strides}""" \
+                .format(strides=self.strides)
+            functions_required.append(self.strides)
+
+        if self.padding is not None:
+            self.padding = """,\npadding={padding}""" \
+                .format(padding=self.padding)
+            functions_required.append(self.padding)
+
+        if self.data_format is not None:
+            self.data_format = """,\ndata_format={data_format}""" \
+                .format(data_format=self.data_format)
+            functions_required.append(self.data_format)
+
+        # Mount
+        length = len(functions_required)
+        for i in range(0, length):
+            self.add_functions_required += functions_required[i]
+
+    def generate_code(self):
+        return dedent(
+            """
+            {var_name} = MaxPooling3D(name='{name}'{add_functions_required})({parent})
+            """
+        ).format(var_name=self.var_name,
+                 name=self.task_name,
+                 pool_size=self.pool_size,
+                 add_functions_required=self.add_functions_required,
+                 parent=self.parent)
+
+
+class AveragePooling1D(Operation):
+    POOL_SIZE_PARAM = 'pool_size'
+    STRIDES_PARAM = 'strides'
+    PADDING_PARAM = 'padding'
+    DATA_FORMAT_PARAM = 'data_format'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+        self.output = named_outputs.get('output data',
+                                        'out_task_{}'.format(self.order))
+
+        self.pool_size = parameters.get(self.POOL_SIZE_PARAM, None) or None
+        self.strides = parameters.get(self.STRIDES_PARAM, None) or None
+        self.padding = parameters.get(self.PADDING_PARAM, None) or None
+        self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None) or None
+
+        self.task_name = self.parameters.get('task').get('name')
+        self.parent = ""
+        self.var_name = ""
+        self.has_code = True
+
+        self.add_functions_required = ""
+
+        if self.POOL_SIZE_PARAM not in parameters or \
+                self.POOL_SIZE_PARAM is None:
+            raise ValueError(gettext('Parameter {} are required')
+                             .format(self.POOL_SIZE_PARAM))
+
+        self.treatment()
+
+    def treatment(self):
+        self.parent = convert_parents_to_variable_name(self.parameters
+                                                       .get('parents', []))
+        self.var_name = convert_variable_name(self.task_name)
+        self.parent = ''.join(self.parent)
+
+        try:
+            self.pool_size = int(self.pool_size)
+        except:
+            self.pool_size = False
+        if not self.pool_size:
+            raise ValueError(gettext('Parameter {} is invalid').format(
+                self.POOL_SIZE_PARAM))
+
+        try:
+            self.strides = int(self.strides)
+        except:
+            self.strides = False
+        if not self.strides:
+            raise ValueError(gettext('Parameter {} is invalid').format(
+                self.STRIDES_PARAM))
+
+        functions_required = []
+        if self.strides is not None:
+            self.strides = """,\nstrides={strides}""" \
+                .format(strides=self.strides)
+            functions_required.append(self.strides)
+
+        if self.padding is not None:
+            self.padding = """,\npadding={padding}""" \
+                .format(padding=self.padding)
+            functions_required.append(self.padding)
+
+        if self.data_format is not None:
+            self.data_format = """,\ndata_format={data_format}""" \
+                .format(data_format=self.data_format)
+            functions_required.append(self.data_format)
+
+        # Mount
+        length = len(functions_required)
+        for i in range(0, length):
+            self.add_functions_required += functions_required[i]
+
+    def generate_code(self):
+        return dedent(
+            """
+            {var_name} = AveragePooling1D(name='{name}'{add_functions_required})({parent})
+            """
+        ).format(var_name=self.var_name,
+                 name=self.task_name,
+                 pool_size=self.pool_size,
+                 add_functions_required=self.add_functions_required,
+                 parent=self.parent)
+
+
+class AveragePooling2D(Operation):
+    POOL_SIZE_PARAM = 'pool_size'
+    STRIDES_PARAM = 'strides'
+    PADDING_PARAM = 'padding'
+    DATA_FORMAT_PARAM = 'data_format'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+        self.output = named_outputs.get('output data',
+                                        'out_task_{}'.format(self.order))
+
+        self.pool_size = parameters.get(self.POOL_SIZE_PARAM, None) or None
+        self.strides = parameters.get(self.STRIDES_PARAM, None) or None
+        self.padding = parameters.get(self.PADDING_PARAM, None) or None
+        self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None) or None
+
+        self.task_name = self.parameters.get('task').get('name')
+        self.parent = ""
+        self.var_name = ""
+        self.has_code = True
+
+        self.add_functions_required = ""
+
+        if self.POOL_SIZE_PARAM not in parameters or \
+                self.POOL_SIZE_PARAM is None:
+            raise ValueError(gettext('Parameter {} are required')
+                             .format(self.POOL_SIZE_PARAM))
+
+        self.treatment()
+
+    def treatment(self):
+        self.parent = convert_parents_to_variable_name(self.parameters
+                                                       .get('parents', []))
+        self.var_name = convert_variable_name(self.task_name)
+        self.parent = ''.join(self.parent)
+
+        self.pool_size = get_int_or_tuple(self.pool_size)
+        if not self.pool_size:
+            raise ValueError(gettext('Parameter {} is invalid').format(
+                self.POOL_SIZE_PARAM))
+
+        self.strides = get_int_or_tuple(self.strides)
+        if not self.strides:
+            raise ValueError(gettext('Parameter {} is invalid').format(
+                self.STRIDES_PARAM))
+
+        functions_required = []
+        if self.strides is not None:
+            self.strides = """,\nstrides={strides}""" \
+                .format(strides=self.strides)
+            functions_required.append(self.strides)
+
+        if self.padding is not None:
+            self.padding = """,\npadding={padding}""" \
+                .format(padding=self.padding)
+            functions_required.append(self.padding)
+
+        if self.data_format is not None:
+            self.data_format = """,\ndata_format={data_format}""" \
+                .format(data_format=self.data_format)
+            functions_required.append(self.data_format)
+
+        # Mount
+        length = len(functions_required)
+        for i in range(0, length):
+            self.add_functions_required += functions_required[i]
+
+    def generate_code(self):
+        return dedent(
+            """
+            {var_name} = AveragePooling2D(name='{name}'{add_functions_required})({parent})
+            """
+        ).format(var_name=self.var_name,
+                 name=self.task_name,
+                 pool_size=self.pool_size,
+                 add_functions_required=self.add_functions_required,
+                 parent=self.parent)
+
+
+class AveragePooling3D(Operation):
+    POOL_SIZE_PARAM = 'pool_size'
+    STRIDES_PARAM = 'strides'
+    PADDING_PARAM = 'padding'
+    DATA_FORMAT_PARAM = 'data_format'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+        self.output = named_outputs.get('output data',
+                                        'out_task_{}'.format(self.order))
+
+        self.pool_size = parameters.get(self.POOL_SIZE_PARAM, None) or None
+        self.strides = parameters.get(self.STRIDES_PARAM, None) or None
+        self.padding = parameters.get(self.PADDING_PARAM, None) or None
+        self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None) or None
+
+        self.task_name = self.parameters.get('task').get('name')
+        self.parent = ""
+        self.var_name = ""
+        self.has_code = True
+
+        self.add_functions_required = ""
+
+        if self.POOL_SIZE_PARAM not in parameters or \
+                self.POOL_SIZE_PARAM is None:
+            raise ValueError(gettext('Parameter {} are required')
+                             .format(self.POOL_SIZE_PARAM))
+
+        self.treatment()
+
+    def treatment(self):
+        self.parent = convert_parents_to_variable_name(self.parameters
+                                                       .get('parents', []))
+        self.var_name = convert_variable_name(self.task_name)
+        self.parent = ''.join(self.parent)
+
+        self.pool_size = get_int_or_tuple(self.pool_size)
+        if not self.pool_size:
+            raise ValueError(gettext('Parameter {} is invalid').format(
+                self.POOL_SIZE_PARAM))
+
+        self.strides = get_int_or_tuple(self.strides)
+        if not self.strides:
+            raise ValueError(gettext('Parameter {} is invalid').format(
+                self.STRIDES_PARAM))
+
+        functions_required = []
+        if self.strides is not None:
+            self.strides = """,\nstrides={strides}""" \
+                .format(strides=self.strides)
+            functions_required.append(self.strides)
+
+        if self.padding is not None:
+            self.padding = """,\npadding={padding}""" \
+                .format(padding=self.padding)
+            functions_required.append(self.padding)
+
+        if self.data_format is not None:
+            self.data_format = """,\ndata_format={data_format}""" \
+                .format(data_format=self.data_format)
+            functions_required.append(self.data_format)
+
+        # Mount
+        length = len(functions_required)
+        for i in range(0, length):
+            self.add_functions_required += functions_required[i]
+
+    def generate_code(self):
+        return dedent(
+            """
+            {var_name} = AveragePooling3D(name='{name}'{add_functions_required})({parent})
+            """
+        ).format(var_name=self.var_name,
+                 name=self.task_name,
+                 pool_size=self.pool_size,
+                 add_functions_required=self.add_functions_required,
+                 parent=self.parent)
+
+
+class GlobalMaxPooling1D(Operation):
+    DATA_FORMAT_PARAM = 'data_format'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+        self.output = named_outputs.get('output data',
+                                        'out_task_{}'.format(self.order))
+
+        self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None) or None
+
+        self.task_name = self.parameters.get('task').get('name')
+        self.parent = ""
+        self.var_name = ""
+        self.has_code = True
+
+        self.add_functions_required = ""
+
+        self.treatment()
+
+    def treatment(self):
+        self.parent = convert_parents_to_variable_name(self.parameters
+                                                       .get('parents', []))
+        self.var_name = convert_variable_name(self.task_name)
+        self.parent = ''.join(self.parent)
+
+        functions_required = []
+        if self.data_format is not None:
+            self.data_format = """,\ndata_format={data_format}""" \
+                .format(data_format=self.data_format)
+            functions_required.append(self.data_format)
+
+        # Mount
+        length = len(functions_required)
+        for i in range(0, length):
+            self.add_functions_required += functions_required[i]
+
+    def generate_code(self):
+        return dedent(
+            """
+            {var_name} = GlobalMaxPooling1D(name='{name}'{add_functions_required})({parent})
+            """
+        ).format(var_name=self.var_name,
+                 name=self.task_name,
+                 add_functions_required=self.add_functions_required,
+                 parent=self.parent)
+
+
+class GlobalMaxPooling2D(Operation):
+    DATA_FORMAT_PARAM = 'data_format'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+        self.output = named_outputs.get('output data',
+                                        'out_task_{}'.format(self.order))
+
+        self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None) or None
+
+        self.task_name = self.parameters.get('task').get('name')
+        self.parent = ""
+        self.var_name = ""
+        self.has_code = True
+
+        self.add_functions_required = ""
+
+        self.treatment()
+
+    def treatment(self):
+        self.parent = convert_parents_to_variable_name(self.parameters
+                                                       .get('parents', []))
+        self.var_name = convert_variable_name(self.task_name)
+        self.parent = ''.join(self.parent)
+
+        functions_required = []
+        if self.data_format is not None:
+            self.data_format = """,\ndata_format={data_format}""" \
+                .format(data_format=self.data_format)
+            functions_required.append(self.data_format)
+
+        # Mount
+        length = len(functions_required)
+        for i in range(0, length):
+            self.add_functions_required += functions_required[i]
+
+    def generate_code(self):
+        return dedent(
+            """
+            {var_name} = GlobalMaxPooling2D(name='{name}'{add_functions_required})({parent})
+            """
+        ).format(var_name=self.var_name,
+                 name=self.task_name,
+                 add_functions_required=self.add_functions_required,
+                 parent=self.parent)
+
+
+class GlobalMaxPooling3D(Operation):
+    DATA_FORMAT_PARAM = 'data_format'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+        self.output = named_outputs.get('output data',
+                                        'out_task_{}'.format(self.order))
+
+        self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None) or None
+
+        self.task_name = self.parameters.get('task').get('name')
+        self.parent = ""
+        self.var_name = ""
+        self.has_code = True
+
+        self.add_functions_required = ""
+
+        self.treatment()
+
+    def treatment(self):
+        self.parent = convert_parents_to_variable_name(self.parameters
+                                                       .get('parents', []))
+        self.var_name = convert_variable_name(self.task_name)
+        self.parent = ''.join(self.parent)
+
+        functions_required = []
+        if self.data_format is not None:
+            self.data_format = """,\ndata_format={data_format}""" \
+                .format(data_format=self.data_format)
+            functions_required.append(self.data_format)
+
+        # Mount
+        length = len(functions_required)
+        for i in range(0, length):
+            self.add_functions_required += functions_required[i]
+
+    def generate_code(self):
+        return dedent(
+            """
+            {var_name} = GlobalMaxPooling3D(name='{name}'{add_functions_required})({parent})
+            """
+        ).format(var_name=self.var_name,
+                 name=self.task_name,
+                 add_functions_required=self.add_functions_required,
+                 parent=self.parent)
+
+
+class GlobalAveragePooling1D(Operation):
+    DATA_FORMAT_PARAM = 'data_format'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+        self.output = named_outputs.get('output data',
+                                        'out_task_{}'.format(self.order))
+
+        self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None) or None
+
+        self.task_name = self.parameters.get('task').get('name')
+        self.parent = ""
+        self.var_name = ""
+        self.has_code = True
+
+        self.add_functions_required = ""
+
+        self.treatment()
+
+    def treatment(self):
+        self.parent = convert_parents_to_variable_name(self.parameters
+                                                       .get('parents', []))
+        self.var_name = convert_variable_name(self.task_name)
+        self.parent = ''.join(self.parent)
+
+        functions_required = []
+        if self.data_format is not None:
+            self.data_format = """,\ndata_format={data_format}""" \
+                .format(data_format=self.data_format)
+            functions_required.append(self.data_format)
+
+        # Mount
+        length = len(functions_required)
+        for i in range(0, length):
+            self.add_functions_required += functions_required[i]
+
+    def generate_code(self):
+        return dedent(
+            """
+            {var_name} = GlobalAveragePooling1D(name='{name}'{add_functions_required})({parent})
+            """
+        ).format(var_name=self.var_name,
+                 name=self.task_name,
+                 add_functions_required=self.add_functions_required,
+                 parent=self.parent)
+
+
 class GlobalAveragePooling2D(Operation):
     DATA_FORMAT_PARAM = 'data_format'
 
@@ -1848,6 +2522,53 @@ class GlobalAveragePooling2D(Operation):
         return dedent(
             """
             {var_name} = GlobalAveragePooling2D(name='{name}'{add_functions_required})({parent})
+            """
+        ).format(var_name=self.var_name,
+                 name=self.task_name,
+                 add_functions_required=self.add_functions_required,
+                 parent=self.parent)
+
+
+class GlobalAveragePooling3D(Operation):
+    DATA_FORMAT_PARAM = 'data_format'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+        self.output = named_outputs.get('output data',
+                                        'out_task_{}'.format(self.order))
+
+        self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None) or None
+
+        self.task_name = self.parameters.get('task').get('name')
+        self.parent = ""
+        self.var_name = ""
+        self.has_code = True
+
+        self.add_functions_required = ""
+
+        self.treatment()
+
+    def treatment(self):
+        self.parent = convert_parents_to_variable_name(self.parameters
+                                                       .get('parents', []))
+        self.var_name = convert_variable_name(self.task_name)
+        self.parent = ''.join(self.parent)
+
+        functions_required = []
+        if self.data_format is not None:
+            self.data_format = """,\ndata_format={data_format}""" \
+                .format(data_format=self.data_format)
+            functions_required.append(self.data_format)
+
+        # Mount
+        length = len(functions_required)
+        for i in range(0, length):
+            self.add_functions_required += functions_required[i]
+
+    def generate_code(self):
+        return dedent(
+            """
+            {var_name} = GlobalAveragePooling3D(name='{name}'{add_functions_required})({parent})
             """
         ).format(var_name=self.var_name,
                  name=self.task_name,
