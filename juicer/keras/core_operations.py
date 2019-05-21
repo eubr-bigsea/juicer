@@ -8,7 +8,8 @@ import re
 from ast import parse
 
 from juicer.util.template_util import strip_accents, convert_variable_name, \
-    kwargs, convert_parents_to_variable_name, get_tuple, get_int_or_tuple
+    kwargs, convert_parents_to_variable_name, get_tuple, get_int_or_tuple,\
+    string_to_list, string_to_dictionary
 
 
 class DenseOperation(Operation):
@@ -3219,6 +3220,639 @@ class Dot(Operation):
                  normalize=self.normalize,
                  add_functions_required=self.add_functions_required)
 
+
+class Model(Operation):
+    OPTIMIZER_PARAM = 'optimizer'
+    LOSS_PARAM = 'loss'
+    METRICS_PARAM = 'metrics'
+    K_PARAM = 'k'
+    LOSS_WEIGHTS_PARAM = 'loss_weights'
+    SAMPLE_WEIGHT_MODE_PARAM = 'sample_weight_mode'
+    WEIGHTED_METRICS_PARAM = 'weighted_metrics'
+    TARGET_TENSORS_PARAM = 'target_tensors'
+    KWARGS_PARAM = 'kwargs'
+    BATCH_SIZE_PARAM = 'batch_size'
+    EPOCHS_PARAM = 'epochs'
+    VERBOSE_PARAM = 'verbose'
+    CALLBACKS_PARAM = 'callbacks'
+    VALIDATION_SPLIT_PARAM = 'validation_split'
+    VALIDATION_DATA_PARAM = 'validation_data'
+    SHUFFLE_PARAM = 'shuffle'
+    CLASS_WEIGHT_PARAM = 'class_weight'
+    SAMPLE_WEIGHT_PARAM = 'sample_weight'
+    INITIAL_EPOCH_PARAM = 'initial_epoch'
+    STEPS_PER_EPOCH_PARAM = 'steps_per_epoch'
+    VALIDATION_STEPS_PARAM = 'validation_steps'
+    VALIDATION_FREQ_PARAM = 'validation_freq'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+        self.output = named_outputs.get('output data',
+                                        'out_task_{}'.format(self.order))
+
+        self.optimizer = parameters.get(self.OPTIMIZER_PARAM, None) or None
+        self.loss = parameters.get(self.LOSS_PARAM, None) or None
+        self.metrics = parameters.get(self.METRICS_PARAM, None) or None
+        self.k = parameters.get(self.K_PARAM, None) or None
+        self.loss_weights = parameters.get(self.LOSS_WEIGHTS_PARAM, None) or None
+        self.sample_weight_mode = parameters.get(self.SAMPLE_WEIGHT_MODE_PARAM, None) or None
+        self.weighted_metrics = parameters.get(self.WEIGHTED_METRICS_PARAM, None) or None
+        self.target_tensors = parameters.get(self.TARGET_TENSORS_PARAM, None) or None
+        self.kwargs = parameters.get(self.KWARGS_PARAM, None) or None
+        self.batch_size = parameters.get(self.BATCH_SIZE_PARAM, None) or None
+        self.epochs = parameters.get(self.EPOCHS_PARAM, None) or None
+        self.verbose = parameters.get(self.VERBOSE_PARAM, None) or None
+        self.callbacks = parameters.get(self.CALLBACKS_PARAM, None) or None
+        self.validation_split = parameters.get(self.VALIDATION_SPLIT_PARAM, None) or None
+        self.validation_data = parameters.get(self.VALIDATION_DATA_PARAM, None) or None
+        self.shuffle = parameters.get(self.SHUFFLE_PARAM, None) or None
+        self.class_weight = parameters.get(self.CLASS_WEIGHT_PARAM, None) or None
+        self.sample_weight = parameters.get(self.SAMPLE_WEIGHT_PARAM, None) or None
+        self.initial_epoch = parameters.get(self.INITIAL_EPOCH_PARAM, None) or None
+        self.steps_per_epoch = parameters.get(self.STEPS_PER_EPOCH_PARAM, None) or None
+        self.validation_steps = parameters.get(self.VALIDATION_STEPS_PARAM, None) or None
+        self.validation_freq = parameters.get(self.VALIDATION_FREQ_PARAM, None) or None
+
+        self.x = []
+        self.y = []
+
+        self.task_name = self.parameters.get('task').get('name')
+        self.parents = ""
+        self.var_name = ""
+        self.has_code = True
+
+        self.add_functions_required_compile = ""
+        self.add_functions_required_fit = ""
+
+        if self.OPTIMIZER_PARAM not in parameters or self.optimizer is None:
+            raise ValueError(gettext('Parameter {} is required.')
+                             .format(self.OPTIMIZER_PARAM))
+
+        if self.LOSS_PARAM not in parameters or self.loss is None:
+            raise ValueError(gettext('Parameter {} is required')
+                             .format(self.LOSS_PARAM))
+
+        if self.METRICS_PARAM not in parameters or self.metrics is None:
+            raise ValueError(gettext('Parameter {} is required')
+                             .format(self.METRICS_PARAM))
+
+        if self.BATCH_SIZE_PARAM not in parameters or self.batch_size is None:
+            raise ValueError(gettext('Parameter {} is required')
+                             .format(self.BATCH_SIZE_PARAM))
+
+        if self.EPOCHS_PARAM not in parameters or self.epochs is None:
+            raise ValueError(gettext('Parameter {} is required')
+                             .format(self.EPOCHS_PARAM))
+
+        self.parents_by_port = parameters.get('parents_by_port')
+
+        self.input_data = []
+        self.target = []
+
+        self.treatment()
+
+    def treatment(self):
+        self.parents = convert_parents_to_variable_name(self.parameters
+                                                        .get('parents', []))
+        self.var_name = convert_variable_name(self.task_name)
+
+        for pp in self.parents_by_port:
+            if pp[0] is u'target':
+                self.target.append(pp[1])
+            else:
+                self.target.append(pp[1])
+
+        functions_required_compile = []
+        if self.optimizer is not None:
+            self.optimizer = """optimizer='{optimizer}'"""\
+                .format(optimizer=self.optimizer)
+            functions_required_compile.append(self.optimizer)
+        else:
+            raise ValueError(gettext('Parameter {} is required.')
+                             .format(self.optimizer))
+
+        losses = []
+        if self.loss is not None:
+            for loss in self.loss:
+                losses.append(loss['key'])
+
+            self.loss = """,\nloss={loss}""".format(loss=losses)
+            functions_required_compile.append(self.loss)
+        else:
+            raise ValueError(gettext('Parameter {} is required.')
+                             .format(self.LOSS_PARAM))
+
+        metrics = []
+        if self.metrics is not None:
+            for metric in self.metrics:
+                metrics.append(metric['key'])
+
+            self.metrics = """,\nmetrics={metrics}"""\
+                .format(metrics=metrics)
+            functions_required_compile.append(self.metrics)
+        else:
+            raise ValueError(gettext('Parameter {} is required.')
+                             .format(self.METRICS_PARAM))
+
+        if 'sparse_top_k_categorical_accuracy' in metrics:
+            self.k = """,\nk={k}""" \
+                .format(k=self.k)
+            functions_required_compile.append(self.k)
+
+        if self.loss_weights is not None:
+            self.loss_weights = string_to_list(self.loss_weights)
+            if self.loss_weights is None:
+                self.loss_weights = string_to_dictionary(self.loss_weights)
+                if self.loss_weights is None:
+                    raise ValueError(gettext('Parameter {} is invalid.')
+                                     .format(self.LOSS_WEIGHTS_PARAM))
+
+            if self.loss_weights is not None:
+                self.loss_weights = """,\nloss_weights={loss_weights}""" \
+                    .format(loss_weights=self.loss_weights)
+                functions_required_compile.append(self.loss_weights)
+
+        if self.sample_weight_mode is not None:
+            if not self.sample_weight_mode == 'temporal':
+                self.sample_weight_mode = string_to_list(self.sample_weight_mode)
+                if self.sample_weight_mode is None:
+                    self.sample_weight_mode = string_to_dictionary(self.sample_weight_mode)
+                    if self.sample_weight_mode is None:
+                        raise ValueError(gettext('Parameter {} is invalid.')
+                                         .format(self.SAMPLE_WEIGHT_MODE_PARAM))
+
+            self.sample_weight_mode = """,\nsample_weight_mode=
+            {sample_weight_mode}"""\
+                .format(sample_weight_mode=self.sample_weight_mode)
+            functions_required_compile.append(self.sample_weight_mode)
+
+        if self.weighted_metrics is not None:
+            self.weighted_metrics = string_to_list(self.weighted_metrics)
+            if self.weighted_metrics is None:
+                raise ValueError(gettext('Parameter {} is invalid.')
+                                 .format(self.WEIGHTED_METRICS_PARAM))
+            self.weighted_metrics = """,\nweighted_metrics={weighted_metrics}"""\
+                .format(weighted_metrics=self.weighted_metrics)
+            functions_required_compile.append(self.weighted_metrics)
+
+        if self.target_tensors is not None:
+            self.target_tensors = """,\ntarget_tensors={target_tensors}"""\
+                .format(target_tensors=self.target_tensors)
+            functions_required_compile.append(self.target_tensors)
+
+        if self.kwargs is not None:
+            self.kwargs = kwargs(self.kwargs)
+
+            args = self.kwargs.split(',')
+            args_params = self.kwargs.split('=')
+            if len(args) >= 1 and ((len(args_params) - len(args)) == 1):
+                self.kwargs = """,\n{kwargs}""".format(kwargs=self.kwargs)
+                functions_required_compile.append(self.kwargs)
+            else:
+                raise ValueError(gettext('Parameter {} is invalid.')
+                                 .format(self.KWARGS_PARAM))
+
+        # Mount compile
+        length = len(functions_required_compile)
+        for i in range(0, length):
+            self.add_functions_required_compile += functions_required_compile[i]
+
+        # Mount fit
+        functions_required_fit = []
+        if self.batch_size is not None:
+            self.batch_size = """,\nbatch_size={batch_size}""" \
+                .format(batch_size=self.batch_size)
+            functions_required_fit.append(self.batch_size)
+        else:
+            raise ValueError(gettext('Parameter {} is required.')
+                             .format(self.BATCH_SIZE_PARAM))
+
+        if self.epochs is not None:
+            self.epochs = """,\nepochs={epochs}""".format(epochs=self.epochs)
+            functions_required_fit.append(self.epochs)
+        else:
+            raise ValueError(gettext('Parameter {} is required.')
+                             .format(self.EPOCHS_PARAM))
+
+        if self.verbose is not None:
+            self.verbose = int(self.verbose)
+            self.verbose = """,\nverbose={verbose}"""\
+                .format(verbose=self.verbose)
+            functions_required_fit.append(self.verbose)
+
+        callbacks = []
+        if self.callbacks is not None:
+            for callback in self.callbacks:
+                callbacks.append(callback['key'])
+
+            self.callbacks = """,\ncallbacks={callbacks}""" \
+                .format(callbacks=callbacks)
+            functions_required_compile.append(self.callbacks)
+
+        if self.validation_split is not None:
+            self.validation_split = float(self.validation_split)
+            if 0.0 < self.validation_split < 1.0:
+                self.validation_split = """,\nvalidation_split={validation_split}""".format(validation_split=self.validation_split)
+                functions_required_fit.append(self.validation_split)
+            else:
+                raise ValueError(gettext('Parameter {} is invalid.')
+                                 .format(self.VALIDATION_SPLIT_PARAM))
+
+        if self.validation_data is not None:
+            self.validation_data = get_tuple(self.validation_data)
+            self.validation_data = """,\nvalidation_data={validation_data}""" \
+                .format(validation_data=self.validation_data)
+            functions_required_fit.append(self.validation_data)
+
+            if self.validation_freq is not None:
+                self.validation_freq = get_int_or_tuple(self.validation_freq)
+                if self.validation_freq is None:
+                    self.validation_freq = string_to_list(self.validation_freq)
+
+                if self.validation_freq is not None:
+                    self.validation_freq = """,\nvalidation_freq={validation_freq}"""\
+                        .format(validation_freq=self.validation_freq)
+                    functions_required_fit.append(self.validation_freq)
+                else:
+                    raise ValueError(gettext('Parameter {} is invalid.')
+                                    .format(self.VALIDATION_FREQ_PARAM))
+
+        self.shuffle = True if int(self.shuffle) == 1 else False
+
+        if self.class_weight is not None:
+            self.class_weight = string_to_dictionary(self.class_weight)
+            if self.class_weight is not None:
+                self.class_weight = """,\nclass_weight={class_weight}""" \
+                    .format(class_weight=self.class_weight)
+                functions_required_fit.append(self.class_weight)
+            else:
+                raise ValueError(gettext('Parameter {} is invalid.')
+                                 .format(self.CLASS_WEIGHT_PARAM))
+
+        if self.sample_weight is not None:
+            self.sample_weight = """,\nsample_weight={sample_weight}""" \
+                .format(sample_weight=self.sample_weight)
+            functions_required_fit.append(self.sample_weight)
+
+        if self.initial_epoch is not None:
+            self.initial_epoch = int(self.initial_epoch)
+            self.initial_epoch = """,\ninitial_epoch={initial_epoch}""" \
+                .format(initial_epoch=self.initial_epoch)
+            functions_required_fit.append(self.initial_epoch)
+
+        if self.steps_per_epoch is not None:
+            self.steps_per_epoch = int(self.steps_per_epoch)
+            self.steps_per_epoch = """,\nsteps_per_epoch={steps_per_epoch}""" \
+                .format(steps_per_epoch=self.steps_per_epoch)
+            functions_required_fit.append(self.steps_per_epoch)
+
+            if self.validation_steps is not None:
+                self.validation_steps = int(self.validation_steps)
+                self.validation_steps = """,\nvalidation_steps={validation_steps}""" \
+                    .format(validation_steps=self.validation_steps)
+                functions_required_fit.append(self.validation_steps)
+
+        # Mount fit
+        length = len(functions_required_fit)
+        for i in range(0, length):
+            self.add_functions_required_fit += functions_required_fit[i]
+
+    def generate_code(self):
+        return dedent(
+            """
+            {var_name} = Model(inputs={inputs}, outputs={outputs})
+            {var_name}.compile({add_functions_required_compile})
+            {var_name}.fit(x={x},
+                           y={y}{add_functions_required_fit})
+            """
+        ).format(var_name=self.var_name,
+                 add_functions_required_compile=self.add_functions_required_compile,
+                 x=self.x,
+                 y=self.y,
+                 add_functions_required_fit=self.add_functions_required_fit)
+
+
+class ModelGenerator(Operation):
+    # Compile
+    OPTIMIZER_PARAM = 'optimizer'
+    LOSS_PARAM = 'loss'
+    METRICS_PARAM = 'metrics'
+    K_PARAM = 'k'
+    LOSS_WEIGHTS_PARAM = 'loss_weights'
+    SAMPLE_WEIGHT_MODE_PARAM = 'sample_weight_mode'
+    WEIGHTED_METRICS_PARAM = 'weighted_metrics'
+    TARGET_TENSORS_PARAM = 'target_tensors'
+    KWARGS_PARAM = 'kwargs'
+
+    # Fit Generator
+    GENERATOR_PARAM = 'generator'
+    STEPS_PER_EPOCH_PARAM = 'steps_per_epoch'
+    EPOCHS_PARAM = 'epochs'
+    VERBOSE_PARAM = 'verbose'
+    CALLBACKS_PARAM = 'callbacks'
+    VALIDATION_DATA_PARAM = 'validation_data'
+    VALIDATION_STEPS_PARAM = 'validation_steps'
+    VALIDATION_FREQ_PARAM = 'validation_freq'
+    CLASS_WEIGHT_PARAM = 'class_weight'
+    MAX_QUEUE_SIZE_PARAM = 'max_queue_size'
+    WORKERS_PARAM = 'workers'
+    USE_MULTIPROCESSING_PARAM = 'use_multiprocessing'
+    SHUFFLE_PARAM = 'shuffle'
+    INITIAL_EPOCH_PARAM = 'initial_epoch'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+        self.output = named_outputs.get('output data',
+                                        'out_task_{}'.format(self.order))
+
+        # Compile
+        self.optimizer = parameters.get(self.OPTIMIZER_PARAM, None) or None
+        self.loss = parameters.get(self.LOSS_PARAM, None) or None
+        self.metrics = parameters.get(self.METRICS_PARAM, None) or None
+        self.k = parameters.get(self.K_PARAM, None) or None
+        self.loss_weights = parameters.get(self.LOSS_WEIGHTS_PARAM, None) or None
+        self.sample_weight_mode = parameters.get(self.SAMPLE_WEIGHT_MODE_PARAM, None) or None
+        self.weighted_metrics = parameters.get(self.WEIGHTED_METRICS_PARAM, None) or None
+        self.target_tensors = parameters.get(self.TARGET_TENSORS_PARAM, None) or None
+        self.kwargs = parameters.get(self.KWARGS_PARAM, None) or None
+
+        # Fit Generator
+        self.generator = parameters.get(self.GENERATOR_PARAM, None) or None
+        self.steps_per_epoch = parameters.get(self.STEPS_PER_EPOCH_PARAM, None) or None
+        self.epochs = parameters.get(self.EPOCHS_PARAM, None) or None
+        self.verbose = parameters.get(self.VERBOSE_PARAM, None) or None
+        self.callbacks = parameters.get(self.CALLBACKS_PARAM, None) or None
+        self.validation_data = parameters.get(self.VALIDATION_DATA_PARAM, None) or None
+        self.validation_steps = parameters.get(self.VALIDATION_STEPS_PARAM, None) or None
+        self.validation_freq = parameters.get(self.VALIDATION_FREQ_PARAM, None) or None
+        self.class_weight = parameters.get(self.CLASS_WEIGHT_PARAM, None) or None
+        self.max_queue_size = parameters.get(self.MAX_QUEUE_SIZE_PARAM, None) or None
+        self.workers = parameters.get(self.WORKERS_PARAM, None) or None
+        self.use_multiprocessing = parameters.get(self.USE_MULTIPROCESSING_PARAM, None) or None
+        self.shuffle = parameters.get(self.SHUFFLE_PARAM, None) or None
+        self.initial_epoch = parameters.get(self.INITIAL_EPOCH_PARAM, None) or None
+
+        self.task_name = self.parameters.get('task').get('name')
+        self.parents = ""
+        self.var_name = ""
+        self.has_code = True
+
+        self.add_functions_required_compile = ""
+        self.add_functions_required_fit = ""
+
+        if self.OPTIMIZER_PARAM not in parameters or self.optimizer is None:
+            raise ValueError(gettext('Parameter {} is required.')
+                             .format(self.OPTIMIZER_PARAM))
+
+        if self.LOSS_PARAM not in parameters or self.loss is None:
+            raise ValueError(gettext('Parameter {} is required')
+                             .format(self.LOSS_PARAM))
+
+        if self.METRICS_PARAM not in parameters or self.metrics is None:
+            raise ValueError(gettext('Parameter {} is required')
+                             .format(self.METRICS_PARAM))
+
+        if self.STEPS_PER_EPOCH_PARAM not in parameters or self.steps_per_epoch is None:
+            raise ValueError(gettext('Parameter {} is required')
+                             .format(self.STEPS_PER_EPOCH_PARAM))
+
+        if self.EPOCHS_PARAM not in parameters or self.epochs is None:
+            raise ValueError(gettext('Parameter {} is required')
+                             .format(self.EPOCHS_PARAM))
+
+        self.parents_by_port = parameters.get('parents_by_port')
+
+        self.input_data = []
+        self.target = []
+
+        self.treatment()
+
+        import pdb
+        pdb.set_trace()
+
+    def treatment(self):
+        self.parents = convert_parents_to_variable_name(self.parameters
+                                                        .get('parents', []))
+        self.var_name = convert_variable_name(self.task_name)
+
+        for pp in self.parents_by_port:
+            if pp[0] is u'target':
+                self.target.append(pp[1])
+            else:
+                self.target.append(pp[1])
+
+        # Compile
+        functions_required_compile = []
+        if self.optimizer is not None:
+            self.optimizer = """optimizer='{optimizer}'""" \
+                .format(optimizer=self.optimizer)
+            functions_required_compile.append(self.optimizer)
+        else:
+            raise ValueError(gettext('Parameter {} is required.')
+                             .format(self.optimizer))
+
+        losses = []
+        if self.loss is not None:
+            for loss in self.loss:
+                losses.append(loss['key'])
+
+            self.loss = """,\nloss={loss}""".format(loss=losses)
+            functions_required_compile.append(self.loss)
+        else:
+            raise ValueError(gettext('Parameter {} is required.')
+                             .format(self.LOSS_PARAM))
+
+        metrics = []
+        if self.metrics is not None:
+            for metric in self.metrics:
+                metrics.append(metric['key'])
+
+            self.metrics = """,\nmetrics={metrics}""" \
+                .format(metrics=metrics)
+            functions_required_compile.append(self.metrics)
+        else:
+            raise ValueError(gettext('Parameter {} is required.')
+                             .format(self.METRICS_PARAM))
+
+        if 'sparse_top_k_categorical_accuracy' in metrics:
+            self.k = """,\nk={k}""" \
+                .format(k=self.k)
+            functions_required_compile.append(self.k)
+
+        if self.loss_weights is not None:
+            self.loss_weights = string_to_list(self.loss_weights)
+            if self.loss_weights is None:
+                self.loss_weights = string_to_dictionary(self.loss_weights)
+                if self.loss_weights is None:
+                    raise ValueError(gettext('Parameter {} is invalid.')
+                                     .format(self.LOSS_WEIGHTS_PARAM))
+
+            if self.loss_weights is not None:
+                self.loss_weights = """,\nloss_weights={loss_weights}""" \
+                    .format(loss_weights=self.loss_weights)
+                functions_required_compile.append(self.loss_weights)
+
+        if self.sample_weight_mode is not None:
+            if not self.sample_weight_mode == 'temporal':
+                self.sample_weight_mode = string_to_list(self.sample_weight_mode)
+                if self.sample_weight_mode is None:
+                    self.sample_weight_mode = string_to_dictionary(self.sample_weight_mode)
+                    if self.sample_weight_mode is None:
+                        raise ValueError(gettext('Parameter {} is invalid.')
+                                         .format(self.SAMPLE_WEIGHT_MODE_PARAM))
+
+            self.sample_weight_mode = """,\nsample_weight_mode=
+            {sample_weight_mode}""" \
+                .format(sample_weight_mode=self.sample_weight_mode)
+            functions_required_compile.append(self.sample_weight_mode)
+
+        if self.weighted_metrics is not None:
+            self.weighted_metrics = string_to_list(self.weighted_metrics)
+            if self.weighted_metrics is None:
+                raise ValueError(gettext('Parameter {} is invalid.')
+                                 .format(self.WEIGHTED_METRICS_PARAM))
+            self.weighted_metrics = """,\nweighted_metrics={weighted_metrics}""" \
+                .format(weighted_metrics=self.weighted_metrics)
+            functions_required_compile.append(self.weighted_metrics)
+
+        if self.target_tensors is not None:
+            self.target_tensors = """,\ntarget_tensors={target_tensors}""" \
+                .format(target_tensors=self.target_tensors)
+            functions_required_compile.append(self.target_tensors)
+
+        if self.kwargs is not None:
+            self.kwargs = kwargs(self.kwargs)
+
+            args = self.kwargs.split(',')
+            args_params = self.kwargs.split('=')
+            if len(args) >= 1 and ((len(args_params) - len(args)) == 1):
+                self.kwargs = """,\n{kwargs}""".format(kwargs=self.kwargs)
+                functions_required_compile.append(self.kwargs)
+            else:
+                raise ValueError(gettext('Parameter {} is invalid.')
+                                 .format(self.KWARGS_PARAM))
+
+        # Mount compile
+        length = len(functions_required_compile)
+        for i in range(0, length):
+            self.add_functions_required_compile += functions_required_compile[i]
+
+        # Fit Generator
+        # TO_DO - this part is equals to the fit model
+        # needs to remove and change same parameters
+        # and adjusts the method generate_code
+        functions_required_fit = []
+        if self.batch_size is not None:
+            self.batch_size = """,\nbatch_size={batch_size}""" \
+                .format(batch_size=self.batch_size)
+            functions_required_fit.append(self.batch_size)
+        else:
+            raise ValueError(gettext('Parameter {} is required.')
+                             .format(self.BATCH_SIZE_PARAM))
+
+        if self.epochs is not None:
+            self.epochs = """,\nepochs={epochs}""".format(epochs=self.epochs)
+            functions_required_fit.append(self.epochs)
+        else:
+            raise ValueError(gettext('Parameter {} is required.')
+                             .format(self.EPOCHS_PARAM))
+
+        if self.verbose is not None:
+            self.verbose = int(self.verbose)
+            self.verbose = """,\nverbose={verbose}""" \
+                .format(verbose=self.verbose)
+            functions_required_fit.append(self.verbose)
+
+        callbacks = []
+        if self.callbacks is not None:
+            for callback in self.callbacks:
+                callbacks.append(callback['key'])
+
+            self.callbacks = """,\ncallbacks={callbacks}""" \
+                .format(callbacks=callbacks)
+            functions_required_compile.append(self.callbacks)
+
+        if self.validation_split is not None:
+            self.validation_split = float(self.validation_split)
+            if 0.0 < self.validation_split < 1.0:
+                self.validation_split = """,\nvalidation_split={validation_split}""".format(validation_split=self.validation_split)
+                functions_required_fit.append(self.validation_split)
+            else:
+                raise ValueError(gettext('Parameter {} is invalid.')
+                                 .format(self.VALIDATION_SPLIT_PARAM))
+
+        if self.validation_data is not None:
+            self.validation_data = get_tuple(self.validation_data)
+            self.validation_data = """,\nvalidation_data={validation_data}""" \
+                .format(validation_data=self.validation_data)
+            functions_required_fit.append(self.validation_data)
+
+            if self.validation_freq is not None:
+                self.validation_freq = get_int_or_tuple(self.validation_freq)
+                if self.validation_freq is None:
+                    self.validation_freq = string_to_list(self.validation_freq)
+
+                if self.validation_freq is not None:
+                    self.validation_freq = """,\nvalidation_freq={validation_freq}""" \
+                        .format(validation_freq=self.validation_freq)
+                    functions_required_fit.append(self.validation_freq)
+                else:
+                    raise ValueError(gettext('Parameter {} is invalid.')
+                                     .format(self.VALIDATION_FREQ_PARAM))
+
+        self.shuffle = True if int(self.shuffle) == 1 else False
+
+        if self.class_weight is not None:
+            self.class_weight = string_to_dictionary(self.class_weight)
+            if self.class_weight is not None:
+                self.class_weight = """,\nclass_weight={class_weight}""" \
+                    .format(class_weight=self.class_weight)
+                functions_required_fit.append(self.class_weight)
+            else:
+                raise ValueError(gettext('Parameter {} is invalid.')
+                                 .format(self.CLASS_WEIGHT_PARAM))
+
+        if self.sample_weight is not None:
+            self.sample_weight = """,\nsample_weight={sample_weight}""" \
+                .format(sample_weight=self.sample_weight)
+            functions_required_fit.append(self.sample_weight)
+
+        if self.initial_epoch is not None:
+            self.initial_epoch = int(self.initial_epoch)
+            self.initial_epoch = """,\ninitial_epoch={initial_epoch}""" \
+                .format(initial_epoch=self.initial_epoch)
+            functions_required_fit.append(self.initial_epoch)
+
+        if self.steps_per_epoch is not None:
+            self.steps_per_epoch = int(self.steps_per_epoch)
+            self.steps_per_epoch = """,\nsteps_per_epoch={steps_per_epoch}""" \
+                .format(steps_per_epoch=self.steps_per_epoch)
+            functions_required_fit.append(self.steps_per_epoch)
+
+            if self.validation_steps is not None:
+                self.validation_steps = int(self.validation_steps)
+                self.validation_steps = """,\nvalidation_steps={validation_steps}""" \
+                    .format(validation_steps=self.validation_steps)
+                functions_required_fit.append(self.validation_steps)
+
+        # Mount fit
+        length = len(functions_required_fit)
+        for i in range(0, length):
+            self.add_functions_required_fit += functions_required_fit[i]
+
+    def generate_code(self):
+        return dedent(
+            """
+            {var_name} = Model(inputs={inputs}, outputs={outputs})
+            {var_name}.compile({add_functions_required_compile})
+            {var_name}.fit(x={x},
+                           y={y}{add_functions_required_fit})
+            """
+        ).format(var_name=self.var_name,
+                 add_functions_required_compile=self.add_functions_required_compile,
+                 x=self.x,
+                 y=self.y,
+                 add_functions_required_fit=self.add_functions_required_fit)
 
 '''
 class Hyperparameters(Operation):

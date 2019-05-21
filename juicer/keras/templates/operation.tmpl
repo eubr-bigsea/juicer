@@ -76,7 +76,6 @@ def preNN():
 {% endwith %}
 
 def main(session, cached_state, emit_event):
-    model = Sequential()
 
     {%- for instance in instances %}
     {%- if instance.has_code and instance.enabled %}

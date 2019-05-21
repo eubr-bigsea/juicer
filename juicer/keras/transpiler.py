@@ -69,6 +69,8 @@ class KerasTranspiler(Transpiler):
             'max-pooling-3d': core_operations.MaxPooling3D,
             'maximum': core_operations.Maximum,
             'minimum': core_operations.Minimum,
+            'model': core_operations.Model,
+            #'model-generator': core_operations.ModelGenerator,
             'multiply': core_operations.Multiply,
             #'optimizer': core_operations.OptimizerOperation,
             'output': core_operations.OutputOperation,

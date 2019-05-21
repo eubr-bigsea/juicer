@@ -176,10 +176,9 @@ class Transpiler(object):
             port = ports.get(task['id'], {})
             parameters['parents'] = port.get('parents', [])
             parameters['parents_slug'] = port.get('parents_slug', [])
+            parameters['parents_by_port'] = port.get('parents_by_port', [])
 
             #print task['name'], parameters['parents'] # port.get('parents', [])
-            #import pdb
-            #pdb.set_trace()
 
             instance = class_name(parameters, port.get('named_inputs', {}),
                                   port.get('named_outputs', {}))
@@ -273,11 +272,14 @@ class Transpiler(object):
                     if target_id not in ports:
                         ports[target_id] = {'outputs': [], 'inputs': [],
                                             'parents': [],
+                                            'parents_by_port': [],
                                             'parents_slug': [],
                                             'named_inputs': {},
                                             'named_outputs': {}}
                     ports[target_id]['parents'].append(source_name)
                     ports[target_id]['parents_slug'].append(source_slug)
+                    ports[target_id]['parents_by_port']\
+                        .append((flow['target_port_name'], source_name))
                     sequence = sequential_ports[flow_id]
 
                     source_port = ports[source_id]
@@ -304,7 +306,9 @@ class Transpiler(object):
                         else:
                             target_port['named_inputs'][flow_name] = sequence
                         target_port['inputs'].append(sequence)
-
+        #import pdb
+        #pdb.set_trace()
+        #print 'bla'
         self.generate_code(graph, job_id, out, params,
                            ports, nx.topological_sort(graph), state,
                            hashlib.sha1(),
