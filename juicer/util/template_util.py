@@ -13,6 +13,7 @@ from juicer.exceptions import JuicerException
 from six import reraise as raise_
 from ast import parse
 from gettext import gettext
+import json
 
 log = logging.getLogger(__name__)
 
@@ -152,6 +153,26 @@ def get_int_or_tuple(field):
                         .split(',')
                     return tuple([int(v) for v in values])
                 except:
-                    return False
+                    return None
     return None
+
+
+def string_to_list(field):
+    tmp_filed = field.replace('[', '').replace(']', '').replace(' ', '').split(',')
+    field = []
+
+    for item in tmp_filed:
+        try:
+            field.append(float(item))
+        except:
+            return None
+
+    return field
+
+
+def string_to_dictionary(field):
+    try:
+        return json.loads(field)
+    except:
+        return None
 
