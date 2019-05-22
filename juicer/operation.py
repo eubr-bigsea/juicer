@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import
+
 
 import logging
 from collections import namedtuple
@@ -7,7 +7,7 @@ from collections import namedtuple
 try:
     from itertools import zip_longest as zip_longest
 except ImportError:
-    from itertools import izip_longest as zip_longest
+    from itertools import zip_longest as zip_longest
 
 from juicer.deploy import Deployment, DeploymentFlow
 from juicer.deploy import DeploymentTask
@@ -114,7 +114,7 @@ class Operation(object):
 
     @property
     def get_inputs_names(self):
-        return ', '.join(self.named_inputs.values())
+        return ', '.join(list(self.named_inputs.values()))
 
     def get_audit_events(self):
         return []
@@ -123,7 +123,7 @@ class Operation(object):
         if self.output:
             return self.output
         else:
-            return sep.join(self.named_outputs.values())
+            return sep.join(list(self.named_outputs.values()))
 
     def get_data_out_names(self, sep=','):
         return self.get_output_names(sep)
@@ -159,7 +159,7 @@ class Operation(object):
         params = self.parameters['task']['forms']
         result = Deployment()
 
-        forms = [(k, v['category'], v['value']) for k, v in params.items() if v]
+        forms = [(k, v['category'], v['value']) for k, v in list(params.items()) if v]
         task = self.parameters['task']
         task_id = task['id']
 
@@ -181,7 +181,7 @@ class Operation(object):
         # All leaf output port with interface Data defined is considered
         # an output
         candidates = [p for p in
-                      self.parameters['task']['operation']['ports'].values()
+                      list(self.parameters['task']['operation']['ports'].values())
                       if 'Data' in p['interfaces'] and p[
                           'slug'] not in self.named_outputs and p[
                           'type'] == 'OUTPUT']

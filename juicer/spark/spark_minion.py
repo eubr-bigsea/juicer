@@ -324,7 +324,7 @@ class SparkMinion(Minion):
             if cluster_type == "KUBERNETES":
                 options['executors'] = 'spark.executor.instances'
 
-            for option, spark_name in options.items():
+            for option, spark_name in list(options.items()):
                 self.cluster_options[spark_name] = cluster_info[option]
 
             log.info("Cluster options: %s",

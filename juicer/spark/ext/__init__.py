@@ -1,5 +1,5 @@
 # coding=utf-8
-from __future__ import absolute_import
+
 import string
 import unicodedata
 
@@ -43,15 +43,15 @@ def translate_function_udf(v, missing='null', _type='string', pairs=None):
 
     lookup = dict(pairs)
     if _type == 'float':
-        t = types.FloatType
+        t = float
     elif _type == 'int':
         t = types.IntegerType
     elif _type == 'long':
-        t = types.LongType
+        t = int
     elif _type == 'timestamp':
         t = types.TimestampType
     elif _type == 'string':
-        t = types.StringType
+        t = bytes
     else:
         raise ValueError('Invalid type: {}'.format(_type))
 

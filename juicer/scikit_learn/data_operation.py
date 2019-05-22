@@ -13,8 +13,8 @@ try:
     from urllib.request import urlopen
     from urllib.parse import urlparse, parse_qs
 except ImportError:
-    from urlparse import urlparse, parse_qs
-    from urllib import urlopen
+    from urllib.parse import urlparse, parse_qs
+    from urllib.request import urlopen
 
 
 class DataReaderOperation(Operation):
@@ -156,7 +156,7 @@ class DataReaderOperation(Operation):
                     def custom_repr(elems):
                         result = '{{{d}}}'.format(d=','.join(
                             ['"{}": {}'.format(k, v) for k, v in
-                             elems.items()]))
+                             list(elems.items())]))
                         return result
 
                     code.append('converters = {}'.format(custom_repr(

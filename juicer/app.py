@@ -1,7 +1,7 @@
 # !/usr/bin/env python
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import
-from __future__ import print_function
+
+
 
 import argparse
 import gettext
@@ -96,7 +96,7 @@ if __name__ == "__main__":
     locales_path = os.path.join(os.path.dirname(__file__), 'i18n', 'locales')
     t = gettext.translation('messages', locales_path, [args.lang],
                             fallback=True)
-    t.install(unicode=True)
+    t.install()
 
     juicer_config = {}
     if args.config:

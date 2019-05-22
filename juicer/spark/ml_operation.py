@@ -1,5 +1,5 @@
 # coding=utf-8
-from __future__ import unicode_literals, absolute_import
+
 
 import json
 import logging
@@ -11,7 +11,7 @@ from juicer import auditing
 try:
     from itertools import zip_longest as zip_longest
 except ImportError:
-    from itertools import izip_longest as zip_longest
+    from itertools import zip_longest as zip_longest
 from textwrap import dedent
 
 from juicer.deploy import Deployment, DeploymentTask, DeploymentFlow
@@ -43,7 +43,7 @@ class DeployModelMixin(object):
         task_id = task['id']
 
         params = self.parameters['task']['forms']
-        forms = [(k, v['category'], v['value']) for k, v in params.items() if v]
+        forms = [(k, v['category'], v['value']) for k, v in list(params.items()) if v]
 
         ids_to_tasks = dict(
             [(t['id'], t) for t in self.parameters['workflow']['tasks']])

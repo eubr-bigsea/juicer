@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals, absolute_import
+
 
 import json
 import time
@@ -539,7 +539,7 @@ class ReplaceValueOperation(Operation):
     def generate_code(self):
         input_data = self.named_inputs['input data']
 
-        code = dedent(u"""
+        code = dedent("""
         try:
             {out} = {in1}.replace({original},
                 {replacement}, subset={subset})
@@ -1129,7 +1129,7 @@ class ExecuteSQLOperation(Operation):
         # return value.translate(_escape_table)
 
     def generate_code(self):
-        code = dedent(u"""
+        code = dedent("""
         from pyspark.sql import SQLContext
 
         # Input data

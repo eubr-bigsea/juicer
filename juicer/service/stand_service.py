@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import
+
 
 import json
 import logging
@@ -26,5 +26,5 @@ def save_job_source_code(base_url, token, job_id, source):
         return json.loads(r.text)
     else:
         raise RuntimeError(
-            u"Error loading data from stand: HTTP {} - {}  ({})".format(
+            "Error loading data from stand: HTTP {} - {}  ({})".format(
                 r.status_code, r.text, url))

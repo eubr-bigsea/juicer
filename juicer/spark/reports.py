@@ -1,5 +1,5 @@
 # coding=utf-8
-from __future__ import unicode_literals, absolute_import, division
+
 
 import base64
 import gettext
@@ -110,8 +110,8 @@ class ConfusionMatrixImageReport(BaseHtmlReport):
 
         fmt = '.2f' if self.normalize else 'd'
         thresh = self.cm.max() / 2.
-        for i, j in itertools.product(iter(range(self.cm.shape[0])),
-                                      iter(range(self.cm.shape[1]))):
+        for i, j in itertools.product(iter(list(range(self.cm.shape[0]))),
+                                      iter(list(range(self.cm.shape[1])))):
             ax1.text(j, i, format(int(self.cm[i, j]), fmt),
                      horizontalalignment="center",
                      color="white" if self.cm[i, j] > thresh else "black")
@@ -157,7 +157,7 @@ class SimpleTableReport(BaseHtmlReport):
             for col in row:
                 if isinstance(col, str):
                     col = col.decode('utf8')
-                code.append(u'<td>{}</td>'.format(col))
+                code.append('<td>{}</td>'.format(col))
             code.append('</tr>')
 
         code.append('</tbody>')
