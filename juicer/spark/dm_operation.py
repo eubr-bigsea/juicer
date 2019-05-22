@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals, absolute_import
+
 from textwrap import dedent
 
 from juicer.operation import Operation
@@ -51,7 +51,7 @@ class FrequentItemSetOperation(Operation):
         return self.get_output_names(sep)
 
     def generate_code(self):
-        code = u"""
+        code = """
             try:
                 from pyspark.ml.fpm import FPGrowth
                 algorithm = FPGrowth(itemsCol="{attr}",
@@ -118,7 +118,7 @@ class AssociationRulesOperation(Operation):
         return self.output
 
     def generate_code(self):
-        code = u"""
+        code = """
             try:
                 ext_pkg = spark_session._jvm.br.ufmg.dcc.lemonade.ext.fpm
                 associative_impl = ext_pkg.LemonadeAssociativeRules()
@@ -172,7 +172,7 @@ class SequenceMiningOperation(Operation):
         return self.output
 
     def generate_code(self):
-        code = dedent(u"""
+        code = dedent("""
             try:
                 # noinspection PyProtectedMember
                 ext_pkg = spark_session._jvm.br.ufmg.dcc.lemonade.ext.fpm

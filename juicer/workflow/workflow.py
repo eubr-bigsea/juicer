@@ -1,5 +1,5 @@
 # coding=utf-8
-from __future__ import absolute_import, print_function
+
 import collections
 import logging
 
@@ -128,7 +128,7 @@ class Workflow(object):
             return privaaas.ANONYMIZATION_TECHNIQUES[a.get(
                 'anonymization_technique', 'NO_TECHNIQUE')]
 
-        for attributes in attribute_group_set.values():
+        for attributes in list(attribute_group_set.values()):
             more_restrictive = sorted(
                 attributes, key=sort_attr_privacy, reverse=True)[0]
             # print(json.dumps(more_restrictive[0], indent=4))
@@ -193,7 +193,7 @@ class Workflow(object):
 
                     # Correct form field types if the interface (Citron) does
                     # not send this information
-                    for k, v in task.get('forms', {}).items():
+                    for k, v in list(task.get('forms', {}).items()):
                         v['category'] = form_fields.get(k, 'EXECUTION')
 
                     for port in ports_list:
@@ -241,13 +241,9 @@ class Workflow(object):
                     flow['target_id'] not in self.disabled_tasks]):
                 # Updates the source_port_name and target_port_name. They are
                 # used in the transpiler part instead of the id of the port.
-                source_port = list(filter(
-                    lambda p: int(p['id']) == int(flow['source_port']),
-                    task_map[flow['source_id']]['operation']['ports']))
+                source_port = list([p for p in task_map[flow['source_id']]['operation']['ports'] if int(p['id']) == int(flow['source_port'])])
 
-                target_port = list(filter(
-                    lambda p: int(p['id']) == int(flow['target_port']),
-                    task_map[flow['target_id']]['operation']['ports']))
+                target_port = list([p for p in task_map[flow['target_id']]['operation']['ports'] if int(p['id']) == int(flow['target_port'])])
 
                 if all([source_port, target_port]):
                     # Compatibility assertion, may be removed in future
@@ -377,7 +373,7 @@ class Workflow(object):
         for count_position, task in enumerate(self.workflow['tasks']):
             tasks_position[task['id']] = count_position
 
-        sorted_tasks_id = nx.topological_sort(self.graph, reverse=False)
+        sorted_tasks_id = reversed(list(nx.topological_sort(self.graph)))
 
         return sorted_tasks_id
 

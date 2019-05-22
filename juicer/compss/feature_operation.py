@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import
+
 from textwrap import dedent
 from juicer.operation import Operation
 try:
     from itertools import zip_longest as zip_longest
 except ImportError:
-    from itertools import izip_longest as zip_longest
+    from itertools import zip_longest as zip_longest
 
 
 class FeatureAssemblerOperation(Operation):
@@ -251,7 +251,7 @@ class MaxAbsScalerOperation(Operation):
         # name sufixed by _indexed.
         if len(self.alias) > 0:
             self.alias = [x[1] or '{}_norm'.format(x[0]) for x in
-                          izip_longest(self.attributes,
+                          zip_longest(self.attributes,
                                        self.alias[:len(self.attributes)])]
 
         self.has_code = len(self.named_inputs) == 1
@@ -319,7 +319,7 @@ class MinMaxScalerOperation(Operation):
         # name sufixed by _indexed.
         if len(self.alias) > 0:
             self.alias = [x[1] or '{}_norm'.format(x[0]) for x in
-                          izip_longest(self.attributes,
+                          zip_longest(self.attributes,
                                        self.alias[:len(self.attributes)])]
 
         self.min = parameters.get('min', 0)
@@ -394,7 +394,7 @@ class StandardScalerOperation(Operation):
         # name sufixed by _indexed.
         if len(self.alias) > 0:
             self.alias = [x[1] or '{}_norm'.format(x[0]) for x in
-                          izip_longest(self.attributes,
+                          zip_longest(self.attributes,
                                        self.alias[:len(self.attributes)])]
 
         self.has_code = len(self.named_inputs) == 1

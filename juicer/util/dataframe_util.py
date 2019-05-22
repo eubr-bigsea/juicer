@@ -1,5 +1,5 @@
 # coding=utf-8
-from __future__ import absolute_import
+
 
 import decimal
 import json
@@ -9,6 +9,7 @@ import datetime
 import re
 import simplejson
 from six import text_type
+import collections
 
 
 def is_numeric(schema, col):
@@ -82,7 +83,7 @@ def convert_to_csv(row):
         if isinstance(v, datetime.datetime):
             result.append(v.isoformat())
         elif isinstance(v, (str, text_type)):
-            result.append(u'"{}"'.format(v))
+            result.append('"{}"'.format(v))
         else:
             result.append(str(v))
     return ','.join(result)
@@ -223,7 +224,7 @@ def emit_sample_sklearn(task_id, df, emit_event, name, size=50, notebook=False):
         for col in row:
             if isinstance(col, str):
                 value = col
-            elif isinstance(col, unicode):
+            elif isinstance(col, str):
                 value = col
             elif isinstance(col, (datetime.datetime, datetime.date)):
                 value = col.isoformat()
@@ -307,7 +308,7 @@ class SparkObjectProxy(object):
                         target = r
 
                 method_to_call = getattr(target, name)
-                if callable(method_to_call):
+                if isinstance(method_to_call, collections.Callable):
                     result = method_to_call(*args, **kwargs)
                 else:
                     result = method_to_call
@@ -326,12 +327,12 @@ class SparkObjectProxy(object):
                 return result
             else:
                 method_to_call = getattr(self.wrapped_obj, name)
-                if callable(method_to_call):
+                if isinstance(method_to_call, collections.Callable):
                     return method_to_call(*args, **kwargs)
                 else:
                     return method_to_call
 
-        return wrapper if callable(member_to_call) else member_to_call
+        return wrapper if isinstance(member_to_call, collections.Callable) else member_to_call
 
 
 def spark_version(spark_session):
@@ -440,7 +441,7 @@ def handle_spark_exception(e):
                 raise ValueError(_('Invalid numeric data in at least one '
                                    'data source (value: {})').format(
                     value).encode('utf8'))
-            elif cause_msg == u'Malformed CSV record':
+            elif cause_msg == 'Malformed CSV record':
                 raise ValueError(_('At least one input data source is not in '
                                    'the correct format.'))
             elif inner_cause and inner_cause.getClass().getName() == npe:
@@ -492,4 +493,4 @@ def df_zip_with_index(df, offset=1, name="row_id"):
     zipped_rdd = df.rdd.zipWithIndex()
 
     return zipped_rdd.map(
-        lambda (row, row_id): ([row_id + offset] + list(row))).toDF(new_schema)
+        lambda row_row_id: ([row_row_id[1] + offset] + list(row_row_id[0]))).toDF(new_schema)
