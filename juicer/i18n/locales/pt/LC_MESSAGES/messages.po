@@ -8,7 +8,7 @@ msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
 "POT-Creation-Date: 2019-05-10 10:57-0300\n"
-"PO-Revision-Date: 2019-05-10 10:58-0300\n"
+"PO-Revision-Date: 2019-05-13 11:06-0300\n"
 "Last-Translator: \n"
 "Language-Team: pt_BR <LL@li.org>\n"
 "Language: pt_BR\n"
@@ -1093,7 +1093,7 @@ msgstr "Itens em uma transação devem ser únicos"
 
 #: juicer/spark/dm_operation.py:90
 msgid "relative_support"
-msgstr "suporte_relativo"
+msgstr "relative_support"
 
 #: juicer/spark/dm_operation.py:91 juicer/spark/dm_operation.py:142
 msgid "Model trained"
