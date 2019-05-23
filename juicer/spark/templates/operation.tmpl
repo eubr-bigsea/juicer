@@ -110,7 +110,7 @@ def {{task.operation.slug.replace('-', '_')}}_{{instance.order}}(spark_session, 
     {%- endif %}
 
     start = timer()
-    # First we verify whether this task's result is cached
+    # First we verify whether this task's result is cached.
     results = {% if instance.supports_cache -%}
     get_cached_state(
         task_id, cached_state, emit_event, spark_session,

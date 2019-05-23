@@ -497,7 +497,7 @@ class SaveOperation(Operation):
                    error_file_exists=_('File already exists'),
                    warn_ignored=_('File not written (already exists)'),
                    error_invalid_mode=_('Invalid mode {}').format(self.mode),
-                   uuid=uuid.uuid4().get_hex(),
+                   uuid=uuid.uuid4().hex,
                    storage_url=storage['url'],
                    task_id=self.parameters['task_id'],
                    )

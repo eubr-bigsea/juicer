@@ -568,7 +568,7 @@ class SaveOperation(Operation):
             """.format(
                 input=self.named_inputs['input data'],
                 url=final_url, header=self.header, mode=self.mode,
-                uuid=uuid.uuid4().get_hex(),
+                uuid=uuid.uuid4().hex,
                 storage_url=storage['url'],
                 task_id=self.parameters['task_id'],
                 error_file_exists=_('File already exists'),
