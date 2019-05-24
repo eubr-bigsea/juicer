@@ -75,6 +75,43 @@ class Transpiler(object):
     def get_deploy_template(self):
         return "templates/deploy.tmpl"
 
+    def get_audit_info(self, graph, workflow, task, parameters):
+        result = []
+        task['parents'] = nx.ancestors(graph, task['id'])
+        parents = [graph.node[task_id] for task_id in task['parents']]
+        parents_data_source = [int(p['forms']['data_source'].get('value', 0)) 
+                for p in parents if p['is_data_source']]
+        import pdb; pdb.set_trace()
+        if not parents_data_source:
+            return result
+        events = parameters['audit_events'] or []
+        if parameters['display_sample'] or parameters['display_schema']:
+            events.append('DISPLAY_DATA_OR_SCHEMA')
+
+        for event in events:
+            result.append({
+                'event': event,
+                'date': datetime.datetime.now(),
+                'context': parameters['configuration']['juicer'].get('context', 
+                    'NOT_SET'),
+                'data_sources': parents_data_source,
+                'workflow': {
+                    'id': workflow['id'],
+                    'name': workflow['name'],
+                },
+                'job': {'id': parameters['job_id']},
+                'task': {
+                    'id': task['id'],
+                    'name': task['operation']['name'], 
+                    'type': task['operation']['slug']
+                },
+                'user': workflow['user'],
+            })
+        return result
+    
+    def get_traceability_info(self, graph, workflow, task, parameters):
+        return []
+
     def generate_code(self, graph, job_id, out, params, ports,
                       sorted_tasks_id, state, task_hash, using_stdout,
                       workflow, deploy=False, export_notebook=False):
@@ -104,6 +141,7 @@ class Transpiler(object):
 
         for i, task_id in enumerate(tasks_ids):
             task = graph.node[task_id]
+
             self.current_task_id = task_id
             class_name = self.operations[task['operation']['slug']]
 
@@ -157,6 +195,7 @@ class Transpiler(object):
                 'display_schema': task['forms'].get('display_schema', {}).get(
                     'value') in true_values,
                 # Hash is used in order to avoid re-run task.
+                'export_notebook': export_notebook,
                 'hash': task_hash.hexdigest(),
                 'job_id': job_id,
                 'operation_id': task['operation']['id'],
@@ -171,14 +210,17 @@ class Transpiler(object):
                 'workflow_id': workflow['id'],
                 # Some operations require the complete workflow data
                 'workflow_name': TranspilerUtils.escape_chars(workflow['name']),
-                'export_notebook': export_notebook,
             })
             port = ports.get(task['id'], {})
 
             instance = class_name(parameters, port.get('named_inputs', {}),
                                   port.get('named_outputs', {}))
-            instance.out_degree = graph.out_degree(task_id)
+            graph.node[task['id']]['is_data_source'] = instance.is_data_source
+            parameters['audit_events'] = instance.get_audit_events()
 
+            print >> sys.stderr, self.get_audit_info(graph, workflow, task, parameters)
+
+            instance.out_degree = graph.out_degree(task_id)
             instances[task['id']] = instance
 
         env_setup = {
@@ -188,11 +230,11 @@ class Transpiler(object):
             'execute_main': params.get('execute_main', False),
             'instances': list(instances.values()),
             'instances_by_task_id': instances,
+            'job_id': job_id,
             'now': datetime.datetime.now(), 'user': workflow['user'],
             'plain': params.get('plain', False),
             'transpiler': TranspilerUtils(),
             'workflow_name': workflow['name'],
-            'job_id': job_id,
         }
         env_setup.update(self.get_context())
 
@@ -324,12 +366,10 @@ class TranspilerUtils(object):
     @staticmethod
     def _get_parent_tasks(instances_map, instance, only_enabled=True):
         if only_enabled:
-            dependency_controller = DependencyController([])
             result = []
             for parent_id in instance.parameters['task']['parents']:
                 parent = instances_map[parent_id]
-                is_satisfied = dependency_controller.is_satisfied(parent_id)
-                if is_satisfied and parent.has_code and parent.enabled:
+                if parent.has_code and parent.enabled:
                     method = '{}_{}'.format(
                         parent.parameters['task']['operation']['slug'].replace(
                             '-', '_'), parent.order)
