@@ -96,6 +96,9 @@ class PublishVisualizationOperation(Operation):
     def get_output_names(self, sep=", "):
         return ''
 
+    def get_audit_events(self):
+        return ['DASHBOARD']
+
     @property
     def get_inputs_names(self):
         if isinstance(self.named_inputs['visualizations'], (list, tuple)):
@@ -181,6 +184,8 @@ class VisualizationMethodOperation(Operation):
         self.supports_cache = False
         self.output = self.named_outputs.get('visualization',
                                              'vis_task_{}'.format(self.order))
+    def get_audit_events(self):
+        return ['VISUALIZATION']
 
     def get_model_parameters(self):
         result = {}

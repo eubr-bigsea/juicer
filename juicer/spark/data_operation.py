@@ -406,6 +406,10 @@ class DataReaderOperation(Operation):
                 result.add_flow(DeploymentFlow(**flow))
         return result
 
+    @property
+    def is_data_source(self):
+        return True
+
 
 class SaveOperation(Operation):
     """
