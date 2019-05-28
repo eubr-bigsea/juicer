@@ -1149,8 +1149,10 @@ class BoxPlotModel(ChartVisualization):
                 iqr = round(fact_quartiles[2] - fact_quartiles[0], 4)
 
                 # Calculates boundaries for identifying outliers
-                lower_bound = round(float(fact_quartiles[0]) - 1.5 * iqr, 4)
-                upper_bound = round(float(fact_quartiles[2]) + 1.5 * iqr, 4)
+                lower_bound = round(float(fact_quartiles[0]) - 
+                        1.5 * float(iqr), 4)
+                upper_bound = round(float(fact_quartiles[2]) + 
+                        1.5 * float(iqr), 4)
 
                 # Outliers are beyond boundaries
                 outliers_cond = (fns.col(facts[j]) < fns.lit(lower_bound)) | (
