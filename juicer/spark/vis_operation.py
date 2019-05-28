@@ -1146,6 +1146,7 @@ class BoxPlotModel(ChartVisualization):
             for j, fact_quartiles in enumerate(quartile_row[group_offset:]):
                 # Calculates inter quartile range (IQR)
                 iqr = round(fact_quartiles[2] - fact_quartiles[0], 4)
+
                 # Calculates boundaries for identifying outliers
                 lower_bound = round(float(fact_quartiles[0]) - 1.5 * iqr, 4)
                 upper_bound = round(float(fact_quartiles[2]) + 1.5 * iqr, 4)
@@ -1258,7 +1259,7 @@ class BoxPlotModel(ChartVisualization):
                     v['xAxis']['categories'].append(facts[j])
                 v['series'][0]['data'].append([s.min, s.q1, s.q2, s.q3, s.max])
                 if s.outliers:
-                    v['series'][1]['data'].extend([[i, o] for o in s.outliers])
+                    v['series'][1]['data'].extend([[j, o] for o in s.outliers])
 
         if not show_outliers:
             del v['series'][1]
