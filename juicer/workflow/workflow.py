@@ -216,14 +216,16 @@ class Workflow(object):
                                 result['PORT_NAMES'] = [
                                     (int(port['order']), port['name'])]
 
+                    port_names = [kv[1] for kv in sorted(
+                        result['PORT_NAMES'], key=lambda _kv: _kv[0])]
+                    task['port_names'] = port_names
                     self.graph.add_node(
                         task.get('id'),
                         in_degree_required=result['N_INPUT'],
                         in_degree_multiplicity_required=result['M_INPUT'],
                         out_degree_required=result['N_OUTPUT'],
                         out_degree_multiplicity_required=result['M_OUTPUT'],
-                        port_names=[kv[1] for kv in sorted(
-                            result['PORT_NAMES'], key=lambda _kv: _kv[0])],
+                        port_names=port_names,
                         parents=[],
                         attr_dict=task)
                 else:
