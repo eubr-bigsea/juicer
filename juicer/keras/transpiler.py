@@ -56,6 +56,8 @@ class KerasTranspiler(Transpiler):
             #'GRU': core_operations.GRU,
             #'GRUCell': core_operations.GRUCell,
             #'hyperparameters': core_operations.Hyperparameters,
+            'image-generator': core_operations.ImageGenerator,
+            'image-reader': core_operations.ImageReader,
             'inception-v3': core_operations.InceptionV3,
             'input': core_operations.InputOperation,
             'lambda': core_operations.LambdaOperation,
