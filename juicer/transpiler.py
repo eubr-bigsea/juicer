@@ -267,6 +267,7 @@ class Transpiler(object):
                         ports[source_id] = {'outputs': [], 'inputs': [],
                                             'parents': [],
                                             'parents_slug': [],
+                                            'parents_by_port': [],
                                             'named_inputs': {},
                                             'named_outputs': {}}
                     if target_id not in ports:
@@ -278,8 +279,7 @@ class Transpiler(object):
                                             'named_outputs': {}}
                     ports[target_id]['parents'].append(source_name)
                     ports[target_id]['parents_slug'].append(source_slug)
-                    ports[target_id]['parents_by_port']\
-                        .append((flow['target_port_name'], source_name))
+                    ports[target_id]['parents_by_port'].append((flow['source_port_name'], source_name))
                     sequence = sequential_ports[flow_id]
 
                     source_port = ports[source_id]
@@ -308,7 +308,7 @@ class Transpiler(object):
                         target_port['inputs'].append(sequence)
         #import pdb
         #pdb.set_trace()
-        #print 'bla'
+
         self.generate_code(graph, job_id, out, params,
                            ports, nx.topological_sort(graph), state,
                            hashlib.sha1(),

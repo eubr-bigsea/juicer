@@ -158,12 +158,15 @@ def get_int_or_tuple(field):
 
 
 def string_to_list(field):
-    tmp_filed = field.replace('[', '').replace(']', '').replace(' ', '').split(',')
+    tmp_field = re.sub(r"\s+|\[|\]|\(|\)|\{|\}", "", field).split(',')
     field = []
 
-    for item in tmp_filed:
+    for item in tmp_field:
         try:
-            field.append(float(item))
+            if '.' in item or 'e' in item:
+                field.append(float(item))
+            else:
+                field.append(int(item))
         except:
             return None
 
@@ -175,4 +178,41 @@ def string_to_dictionary(field):
         return json.loads(field)
     except:
         return None
+
+
+def string_to_int_float_list(field):
+    if '.' in field:
+        try:
+            return float(field)
+        except:
+            return None
+    else:
+        try:
+            return int(field)
+        except:
+            try:
+                field = re.sub(r"\s+|\[|\]|\(|\)|\{|\}", "", field).split(',')
+                field_list = []
+                for item in field_list:
+                    if '.' in item or 'e' in item:
+                        field_list.append(float(item))
+                    else:
+                        field_list.append(int(item))
+            except:
+                return None
+
+
+def rescale(field):
+    field = field.replace(',', '.')
+    try:
+        field = float(field)
+    except:
+        fields = field.split('/')
+
+        if len(fields) == 2:
+            return float(fields[0]) / float(fields[1])
+
+        return None
+
+
 
