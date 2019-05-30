@@ -32,14 +32,14 @@ import random as rn
 {%- endfor -%}
 
 
-np.random.seed(reproducible_seed)
-rn.seed(reproducible_seed)
-tf.set_random_seed(reproducible_seed)
+#np.random.seed(reproducible_seed)
+#rn.seed(reproducible_seed)
+#tf.set_random_seed(reproducible_seed)
 
-session_conf = tf.ConfigProto(intra_op_parallelism_threads=1,
-                              inter_op_parallelism_threads=1)
-sess = tf.Session(graph=tf.get_default_graph(), config=session_conf)
-K.set_session(sess)
+#session_conf = tf.ConfigProto(intra_op_parallelism_threads=1,
+#                              inter_op_parallelism_threads=1)
+#sess = tf.Session(graph=tf.get_default_graph(), config=session_conf)
+#K.set_session(sess)
 
 def emit_layer_before_add(task_id, emit_event):
     emit_event(name='update task', message=_('Adding layer'), status='RUNNING',
@@ -77,6 +77,9 @@ def preNN():
 
 def main(session, cached_state, emit_event):
 
+    tensorboard = TensorBoard(log_dir="/tmp/logs/{time}".format(time=time()))
+
+
     {%- for instance in instances %}
     {%- if instance.has_code and instance.enabled %}
     {%- set task = instance.parameters.task %}
@@ -87,40 +90,10 @@ def main(session, cached_state, emit_event):
     {% endif %}
     {%- endfor -%}
 
-    metrics_selected = {{workflow.forms.metrics.value}}
-    model_metrics = []
-    for metric in metrics_selected:
-        if metric["key"] not in model_metrics:
-            model_metrics.append(metric["key"])
-
-    model.compile(loss="{{workflow.forms.loss.value}}",
-                  optimizer="{{workflow.forms.optimizer.value}}",
-                  metrics=model_metrics)
-
-    #history = ExecutionHistory(emit_event, '{{instances[-1].parameters.task.id}}')
-
-    tensorboard = TensorBoard(log_dir="/tmp/logs/{time}".format(time=time()))
-
-    model.fit(input_var,
-              output_var,
-              epochs={{workflow.forms.number_of_epochs.value}},
-              batch_size={{workflow.forms.batch_size.value}},
-              verbose=1,
-              callbacks=[tensorboard])
-
 
     emit_event(name='update task', message='<a href="http://localhost:6006" target="_blank">TensorBoard</a>',
                     type='HTML',
                     status='COMPLETED', identifier=output_task_id)
-
-    scores = model.evaluate(input_var, output_var)
-
-    final_train_score = []
-    length = len(model.metrics_names)
-    for i in range(0, length):
-        final_train_score.append("%s: %.2f%%" % (model.metrics_names[i], scores[i]*100))
-
-    final_train_score = ' || '.join(final_train_score)
 
     emit_event(name='update task', message=final_train_score,
                type='TEXT',

@@ -177,6 +177,7 @@ class Transpiler(object):
             parameters['parents'] = port.get('parents', [])
             parameters['parents_slug'] = port.get('parents_slug', [])
             parameters['parents_by_port'] = port.get('parents_by_port', [])
+            parameters['my_ports'] = port.get('my_ports', [])
 
             #print task['name'], parameters['parents'] # port.get('parents', [])
 
@@ -256,6 +257,7 @@ class Transpiler(object):
             source_slug = graph.node[source_id]['operation']['slug']
             for target_id in graph.edge[source_id]:
                 # Nodes accept multiple edges from same source
+                target_name = graph.node[target_id]['name']
                 for flow in graph.edge[source_id][target_id].values():
                     flow_id = '[{}:{}]'.format(source_id, flow['source_port'], )
 
@@ -268,18 +270,21 @@ class Transpiler(object):
                                             'parents': [],
                                             'parents_slug': [],
                                             'parents_by_port': [],
+                                            'my_ports': [],
                                             'named_inputs': {},
                                             'named_outputs': {}}
                     if target_id not in ports:
                         ports[target_id] = {'outputs': [], 'inputs': [],
                                             'parents': [],
                                             'parents_by_port': [],
+                                            'my_ports': [],
                                             'parents_slug': [],
                                             'named_inputs': {},
                                             'named_outputs': {}}
                     ports[target_id]['parents'].append(source_name)
                     ports[target_id]['parents_slug'].append(source_slug)
                     ports[target_id]['parents_by_port'].append((flow['source_port_name'], source_name))
+                    ports[target_id]['my_ports'].append((flow['target_port_name'], source_name))
                     sequence = sequential_ports[flow_id]
 
                     source_port = ports[source_id]
