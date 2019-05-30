@@ -147,9 +147,7 @@ def get_int_or_tuple(field):
                 return int(field)
             except:
                 try:
-                    values = field.replace('(', '') \
-                        .replace(')', '') \
-                        .replace(' ', '') \
+                    values = re.sub(r"\s+|\(|\)|\[|\]|\{|\}", "", field)\
                         .split(',')
                     return tuple([int(v) for v in values])
                 except:
