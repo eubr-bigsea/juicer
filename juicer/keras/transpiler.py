@@ -75,7 +75,7 @@ class KerasTranspiler(Transpiler):
             #'model-generator': core_operations.ModelGenerator,
             'multiply': core_operations.Multiply,
             #'optimizer': core_operations.OptimizerOperation,
-            'output': core_operations.OutputOperation,
+            #'output': core_operations.OutputOperation,
             'permute': core_operations.PermuteOperation,
             'python-code': core_operations.PythonCode,
             'repeatVector': core_operations.RepeatVectorOperation,
