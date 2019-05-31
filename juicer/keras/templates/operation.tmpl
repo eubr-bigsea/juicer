@@ -18,6 +18,7 @@ from keras.layers import *
 from keras import metrics
 from keras.callbacks import TensorBoard
 from time import time
+from keras.preprocessing.image import ImageDataGenerator, array_to_img, img_to_array, load_img
 
 from keras import backend as K
 import numpy as np
@@ -95,9 +96,9 @@ def main(session, cached_state, emit_event):
                     type='HTML',
                     status='COMPLETED', identifier=output_task_id)
 
-    emit_event(name='update task', message=final_train_score,
-               type='TEXT',
-               status='COMPLETED', identifier=output_task_id)
+    #emit_event(name='update task', message=final_train_score,
+    #           type='TEXT',
+    #           status='COMPLETED', identifier=output_task_id)
 
     return {}
 
