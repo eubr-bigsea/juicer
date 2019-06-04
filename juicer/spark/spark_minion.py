@@ -463,10 +463,10 @@ class SparkMinion(Minion):
                                                      job_id),
                     self._state,
                     self._emit_event(room=job_id, namespace='/stand'))
-            except:
+            except Exception as ex:
                 if self.is_spark_session_available():
                     self.spark_session.sparkContext.cancelAllJobs()
-                raise
+                raise ex from None
 
             end = timer()
             # Mark job as completed
@@ -490,8 +490,7 @@ class SparkMinion(Minion):
             result = False
 
         except ValueError as ve:
-            msg = ve.message
-            txt = msg.decode('utf8') if isinstance(msg, str) else msg
+            txt = str(ve)
             message = _('Invalid or missing parameters: {}').format(txt)
             log.exception(message)
             if self.transpiler.current_task_id is not None:
