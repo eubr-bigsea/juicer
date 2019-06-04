@@ -155,8 +155,6 @@ class SimpleTableReport(BaseHtmlReport):
             if self.numbered:
                 code.append('<td>{}</td>'.format(i + 1))
             for col in row:
-                if isinstance(col, str):
-                    col = col.decode('utf8')
                 code.append('<td>{}</td>'.format(col))
             code.append('</tr>')
 
