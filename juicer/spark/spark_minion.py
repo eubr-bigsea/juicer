@@ -50,7 +50,6 @@ class SparkMinion(Minion):
     # max idle time allowed in seconds until this minion self termination
     IDLENESS_TIMEOUT = 600
     TIMEOUT = 'timeout'
-    DIST_ZIP_FILE = '/tmp/lemonade-lib-python.zip'
 
     def __init__(self, redis_conn, workflow_id, app_id, config, lang='en',
                  jars=None):
@@ -120,6 +119,8 @@ class SparkMinion(Minion):
 
         self.cluster_options = {}
         self.last_cluster_id = None
+        self.DIST_ZIP_FILE = '/tmp/lemonade-lib-pythoni_{}.zip'.format(
+            self.app_id)
 
     def _cleanup(self, pid, flag):
         log.warn(_('Finishing minion'))
