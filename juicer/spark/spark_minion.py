@@ -517,7 +517,7 @@ class SparkMinion(Minion):
                 message=_('Unhandled error'),
                 name='update job',
                 status='ERROR', identifier=job_id)
-            self._generate_output(str(ee), 'ERROR', code=1000)
+            self._generate_output(ee.message, 'ERROR', code=1000)
             result = False
 
         self.message_processed('execute')
@@ -559,7 +559,7 @@ class SparkMinion(Minion):
             app_name = '{name} (workflow_id={wf},app_id={app})'.format(
                 name=strip_accents(loader.workflow.get('name', '')),
                 wf=self.workflow_id, app=self.app_id)
-
+            app_name = ''.join([i if ord(i) < 128 else ' ' for i in app_name])
             spark_builder = SparkSession.builder.appName(
                 app_name)
 
