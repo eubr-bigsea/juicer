@@ -1280,6 +1280,8 @@ class ClassificationModelOperation(DeployModelMixin, Operation):
                 ))
 
             return dedent(code)
+        else:
+            return ''
 
 
 class ClassifierOperation(Operation):

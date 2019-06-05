@@ -13,7 +13,10 @@ from six import text_type
 
 def is_numeric(schema, col):
     import pyspark.sql.types as spark_types
-    return isinstance(schema[str(col)].dataType, spark_types.NumericType)
+    from pyspark.ml.linalg import VectorUDT
+    return isinstance(schema[str(col)].dataType, spark_types.NumericType) or \
+        isinstance(schema[str(col)].dataType, VectorUDT) 
+
 
 
 def default_encoder(obj):
