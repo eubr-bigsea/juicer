@@ -137,7 +137,7 @@ def get_tuple(field):
                 return tuple([str(v) for v in values])  # In case of the value be a flow variable
             return str(field)
         except:
-            return str(field)
+            return None
 
 
 def get_int_or_tuple(field):

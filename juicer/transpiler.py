@@ -362,6 +362,54 @@ class TranspilerUtils(object):
         else:
             return [instances_map[parent_id] for parent_id in
                     instance.parameters['task']['parents']]
+    @staticmethod
+    def get_imports(instances):
+        layer_import = "from keras.layers import "
+        layer_list = []
+        callbacks_import = "from keras.callbacks import "
+        callbacks_list = []
+        model_import = "from keras.models import "
+        model_list = []
+        preprocessing_image_import = "from keras.preprocessing.image import "
+        preprocessing_image_list = []
+        others_import = ""
+        others_list = []
+
+        for instance in instances:
+            if instance.import_code:
+                if instance.import_code['layer']:
+                    if not instance.import_code['layer'] in layer_list:
+                        layer_list.append(instance.import_code['layer'])
+                if instance.import_code['callbacks']:
+                    for callback in instance.import_code['callbacks']:
+                        if not callback in callbacks_list:
+                            callbacks_list.append(callback)
+                if instance.import_code['model']:
+                    if not instance.import_code['model'] in model_list:
+                        model_list.append(instance.import_code['model'])
+                if instance.import_code['preprocessing_image']:
+                    if not instance.import_code['preprocessing_image'] in preprocessing_image_list:
+                        preprocessing_image_list.append(instance.import_code['preprocessing_image'])
+                if instance.import_code['others']:
+                    if not instance.import_code['others'] in others_list:
+                        others_list.append(instance.import_code['others'])
+
+        imports = ""
+        if len(layer_list) > 0:
+            imports += layer_import + ', '.join(layer_list) + '\n'
+        if len(callbacks_list) > 0:
+            imports += callbacks_import + ', '.join(callbacks_list) + '\n'
+        if len(model_list) > 0:
+            imports += model_import + ', '.join(model_list) + '\n'
+        if len(preprocessing_image_list) > 0:
+            imports += preprocessing_image_import + ', '.join(preprocessing_image_list) + '\n'
+        if len(others_list) > 0:
+            imports += others_import + ', '.join(others_list)
+
+        imports = imports.replace(' , ', ', ')
+
+        return imports
+
 
     @staticmethod
     def get_ids_and_methods(instances):
