@@ -38,8 +38,8 @@ class AlgorithmOperation(Operation):
             'one_vs_rest') in [1, '1', 'True', True]
 
     def generate_code(self):
-        algorithm_code = self.algorithm.generate_code()
-        model_code = self.model.generate_code()
+        algorithm_code = self.algorithm.generate_code() or ''
+        model_code = self.model.generate_code() or ''
         if self.apply_one_versus_rest:
             # Only valid for classification
             # Code is generated here because it is simple
