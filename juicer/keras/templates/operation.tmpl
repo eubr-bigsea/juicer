@@ -13,39 +13,34 @@ Auto-generated Keras code from Lemonade Workflow
 More information about Lemonade to be provided
 """
 import keras
-from keras.models import Model, Input, Sequential
-from keras.layers import *
-from keras import metrics
-from keras.callbacks import TensorBoard
-from time import time
-from keras.preprocessing.image import ImageDataGenerator, array_to_img, img_to_array, load_img
-
 from keras import backend as K
-import numpy as np
+{{transpiler.get_imports(instances)}}
 import tensorflow as tf
+import numpy as np
 import random as rn
+from time import time
+from keras import metrics
 
+reproducible_seed = 1000
+np.random.seed(reproducible_seed)
+rn.seed(reproducible_seed)
+tf.set_random_seed(reproducible_seed)
 
+session_conf = tf.ConfigProto(intra_op_parallelism_threads=1,
+                              inter_op_parallelism_threads=1)
+sess = tf.Session(graph=tf.get_default_graph(), config=session_conf)
+K.set_session(sess)
+{{"\n"}}
 {%- for instance in instances %}
 {%- if instance.has_external_code and instance.enabled %}
 {{ instance.external_code().strip() | indent(width=4, indentfirst=False) }}
-{% endif %}
+{%- endif -%}
 {%- endfor -%}
-
-
-#np.random.seed(reproducible_seed)
-#rn.seed(reproducible_seed)
-#tf.set_random_seed(reproducible_seed)
-
-#session_conf = tf.ConfigProto(intra_op_parallelism_threads=1,
-#                              inter_op_parallelism_threads=1)
-#sess = tf.Session(graph=tf.get_default_graph(), config=session_conf)
-#K.set_session(sess)
-
+{{"\n"}}
 def emit_layer_before_add(task_id, emit_event):
     emit_event(name='update task', message=_('Adding layer'), status='RUNNING',
                identifier=task_id)
-
+{{"\n"}}
 def emit_layer_added(task_id, emit_event):
     emit_event(name='update task', message=_('Layer added'),
                status='COMPLETED', identifier=task_id)
@@ -78,23 +73,20 @@ def preNN():
 
 def main(session, cached_state, emit_event):
 
-    tensorboard = TensorBoard(log_dir="/tmp/logs/{time}".format(time=time()))
-
-
     {%- for instance in instances %}
     {%- if instance.has_code and instance.enabled %}
     {%- set task = instance.parameters.task %}
     {%- set task_id = task.id %}
+
     # Task {{task_id}}
     {{ instance.generate_code().strip() | indent(width=4, indentfirst=False) }}
     emit_layer_added('{{task_id}}', emit_event)
-    {% endif %}
-    {%- endfor -%}
-
-
-    emit_event(name='update task', message='<a href="http://localhost:6006" target="_blank">TensorBoard</a>',
-                    type='HTML',
-                    status='COMPLETED', identifier=output_task_id)
+    {%- endif -%}
+    {%- endfor %}
+    emit_event(name='update task',
+               message='<a href="http://localhost:6006" target="_blank">TensorBoard</a>',
+               type='HTML',
+               status='COMPLETED', identifier=output_task_id)
 
     #emit_event(name='update task', message=final_train_score,
     #           type='TEXT',

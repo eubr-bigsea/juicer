@@ -50,13 +50,19 @@ class DenseOperation(Operation):
         self.bias_constraint = parameters.get(self.BIAS_CONSTRAINT_PARAM,
                                               None) or None
 
-        self.add_functions_not_required = ""
+        self.add_functions_required = ""
         self.task_name = self.parameters.get('task').get('name')
         self.parent = ""
         self.var_name = ""
         self.has_code = True
 
         self.treatment()
+
+        self.import_code = {'layer': 'Dense',
+                            'callbacks': [],
+                            'model': None,
+                            'preprocessing_image': None,
+                            'others': None}
 
     def treatment(self):
         self.parent = convert_parents_to_variable_name(self.parameters
@@ -76,54 +82,54 @@ class DenseOperation(Operation):
 
         self.use_bias = True if int(self.use_bias) == 1 else False
 
-        functions_not_required = []
+        functions_required = []
         if self.kernel_initializer:
-            self.kernel_initializer = """,\nkernel_initializer='{kernel_initializer}'""".format(
+            self.kernel_initializer = """kernel_initializer='{kernel_initializer}'""".format(
                 kernel_initializer=self.kernel_initializer)
-            functions_not_required.append(self.kernel_initializer)
+            functions_required.append(self.kernel_initializer)
         if self.bias_initializer:
-            self.bias_initializer = """,\nbias_initializer='{bias_initializer}'""".format(
+            self.bias_initializer = """bias_initializer='{bias_initializer}'""".format(
                 bias_initializer=self.bias_initializer)
-            functions_not_required.append(self.bias_initializer)
+            functions_required.append(self.bias_initializer)
         if self.kernel_regularizer:
-            self.kernel_regularizer = """,\nkernel_regularizer='{kernel_regularizer}'""".format(
+            self.kernel_regularizer = """kernel_regularizer='{kernel_regularizer}'""".format(
                 kernel_regularizer=self.kernel_regularizer)
-            functions_not_required.append(self.kernel_regularizer)
+            functions_required.append(self.kernel_regularizer)
         if self.bias_regularizer:
-            self.bias_regularizer = """,\nbias_regularizer='{bias_regularizer}'""".format(
+            self.bias_regularizer = """bias_regularizer='{bias_regularizer}'""".format(
                 bias_regularizer=self.bias_regularizer)
-            functions_not_required.append(self.bias_regularizer)
+            functions_required.append(self.bias_regularizer)
         if self.activity_regularizer:
-            self.activity_regularizer = """,\nactivity_regularizer='{activity_regularizer}'""".format(
+            self.activity_regularizer = """activity_regularizer='{activity_regularizer}'""".format(
                 activity_regularizer=self.activity_regularizer)
-            functions_not_required.append(self.activity_regularizer)
+            functions_required.append(self.activity_regularizer)
         if self.kernel_constraint:
-            self.kernel_constraint = """,\nkernel_constraint='{kernel_constraint}'""".format(
+            self.kernel_constraint = """kernel_constraint='{kernel_constraint}'""".format(
                 kernel_constraint=self.kernel_constraint)
-            functions_not_required.append(self.kernel_constraint)
+            functions_required.append(self.kernel_constraint)
         if self.bias_constraint:
-            self.bias_constraint = """,\nbias_constraint='{bias_constraint}'""".format(
+            self.bias_constraint = """bias_constraint='{bias_constraint}'""".format(
                 bias_constraint=self.bias_constraint)
-            functions_not_required.append(self.bias_constraint)
+            functions_required.append(self.bias_constraint)
 
-        # Mount
-        length = len(functions_not_required)
-        for i in range(0, length):
-            self.add_functions_not_required += functions_not_required[i]
+        self.add_functions_required = ',\n    '.join(functions_required)
 
     def generate_code(self):
         return dedent(
             """
-            {var_name} = Dense(name='{task_name}',
-                               units={units}, 
-                               activation='{activation}', 
-                               use_bias={use_bias}{add_functions_not_required}){parent}
+            {var_name} = Dense(
+                name='{task_name}',
+                units={units}, 
+                activation='{activation}', 
+                use_bias={use_bias},
+                {add_functions_required}
+            ){parent}
             """).format(var_name=self.var_name,
                         task_name=self.task_name,
                         units=(self.units),
                         activation=(self.activation),
                         use_bias=(self.use_bias),
-                        add_functions_not_required=self.add_functions_not_required,
+                        add_functions_required=self.add_functions_required,
                         parent=self.parent)
 
 
@@ -149,8 +155,15 @@ class DropoutOperation(Operation):
         self.parent = ""
         self.var_name = ""
         self.has_code = True
-        self.add_functions_not_required = ""
+        self.add_functions_required = ""
+
         self.treatment()
+
+        self.import_code = {'layer': 'Dropout',
+                            'callbacks': [],
+                            'model': None,
+                            'preprocessing_image': None,
+                            'others': None}
 
     def treatment(self):
         self.parent = convert_parents_to_variable_name(self.parameters
@@ -163,32 +176,32 @@ class DropoutOperation(Operation):
         self.var_name = convert_variable_name(self.task_name)
         self.task_name = self.var_name
 
-        functions_not_required = []
+        functions_required = []
         if self.noise_shape:
-            self.noise_shape = """,\nnoise_shape='{noise_shape}'"""\
+            self.noise_shape = """noise_shape='{noise_shape}'"""\
                 .format(noise_shape=self.noise_shape)
-            functions_not_required.append(self.noise_shape)
+            functions_required.append(self.noise_shape)
 
         if self.seed:
-            self.seed = """,\nseed='{seed}'""" \
+            self.seed = """seed='{seed}'""" \
                 .format(seed=self.seed)
-            functions_not_required.append(self.seed)
+            functions_required.append(self.seed)
 
-        # Mount
-        length = len(functions_not_required)
-        for i in range(0, length):
-            self.add_functions_not_required += functions_not_required[i]
+        self.add_functions_required = ',\n    '.join(functions_required)
 
     def generate_code(self):
         return dedent(
             """
-            {var_name} = Dropout(name='{name}',
-                                 rate={rate}{add_functions_not_required}){parent}
+            {var_name} = Dropout(
+                name='{name}',
+                rate={rate},
+                {add_functions_not_required}
+            ){parent}
             """
         ).format(var_name=self.var_name,
                  name=self.task_name,
                  rate=self.rate,
-                 add_functions_not_required=self.add_functions_not_required,
+                 add_functions_not_required=self.add_functions_required,
                  parent=self.parent)
 
 
@@ -205,7 +218,14 @@ class FlattenOperation(Operation):
         self.parent = ""
         self.var_name = ""
         self.has_code = True
+
         self.treatment()
+
+        self.import_code = {'layer': 'Flatten',
+                            'callbacks': [],
+                            'model': None,
+                            'preprocessing_image': None,
+                            'others': None}
 
     def treatment(self):
         self.parent = convert_parents_to_variable_name(self.parameters
@@ -218,11 +238,19 @@ class FlattenOperation(Operation):
         self.var_name = convert_variable_name(self.task_name)
         self.task_name = self.var_name
 
+        if self.data_format:
+            self.data_format = get_tuple(self.data_format)
+            if not self.data_format:
+                raise ValueError(gettext('Parameter {} is invalid').format(
+                    self.DATA_FORMAT_PARAM))
+
     def generate_code(self):
         return dedent(
             """
-            {var_name} = Flatten(name='{name}',
-                                 data_format={data_format}){parent}
+            {var_name} = Flatten(
+                name='{name}',
+                data_format={data_format}
+            ){parent}
             """
         ).format(var_name=self.var_name,
                  name=self.task_name,
@@ -258,6 +286,12 @@ class InputOperation(Operation):
 
         self.treatment()
 
+        self.import_code = {'layer': 'Input',
+                            'callbacks': [],
+                            'model': None,
+                            'preprocessing_image': None,
+                            'others': None}
+
     def treatment(self):
         self.parent = convert_parents_to_variable_name(self.parameters
                                                         .get('parents', []))
@@ -272,36 +306,37 @@ class InputOperation(Operation):
         self.sparse = True if int(self.sparse) == 1 else False
 
         functions_required = []
+        self.sparse = """sparse={sparse}""".format(sparse=self.sparse)
+        functions_required.append(self.sparse)
+
         if self.shape is not None:
             self.shape = get_tuple(self.shape)
-            self.shape = """,\nshape={shape}""".format(shape=self.shape)
+            self.shape = """shape={shape}""".format(shape=self.shape)
             functions_required.append(self.shape)
 
         if self.batch_shape is not None:
             self.batch_shape = get_tuple(self.batch_shape)
-            self.batch_shape = """,\nbatch_shape={batch_shape}"""\
+            self.batch_shape = """batch_shape={batch_shape}"""\
                 .format(batch_shape=self.batch_shape)
             functions_required.append(self.batch_shape)
 
         if self.dtype is not None:
             self.dtype = get_tuple(self.dtype)
-            self.dtype = """,\ndtype={dtype}""".format(dtype=self.dtype)
+            self.dtype = """dtype={dtype}""".format(dtype=self.dtype)
             functions_required.append(self.dtype)
 
-        # Mount
-        length = len(functions_required)
-        for i in range(0, length):
-            self.add_functions_required += functions_required[i]
+        self.add_functions_required = ',\n    '.join(functions_required)
 
     def generate_code(self):
         return dedent(
             """
-            {var_name} = Input(name='{name}',
-                               sparse={sparse}{add_functions_required}){parent}
+            {var_name} = Input(
+                name='{name}',
+                {add_functions_required}
+            ){parent}
             """
         ).format(var_name=self.var_name,
                  name=self.task_name,
-                 sparse=self.sparse,
                  add_functions_required=self.add_functions_required,
                  parent=self.parent)
 
@@ -324,7 +359,14 @@ class ActivationOperation(Operation):
         self.has_code = True
         self.parent = ""
         self.var_name = ""
+
         self.treatment()
+
+        self.import_code = {'layer': 'Activation',
+                            'callbacks': [],
+                            'model': None,
+                            'preprocessing_image': None,
+                            'others': None}
 
     def treatment(self):
         self.parent = convert_parents_to_variable_name(self.parameters
@@ -341,8 +383,10 @@ class ActivationOperation(Operation):
     def generate_code(self):
         return dedent(
             """
-            {var_name} = Activation(name='{name}',
-                                    activation='{activation}'){parent}
+            {var_name} = Activation(
+                name='{name}',
+                activation='{activation}'
+            ){parent}
             """
         ).format(var_name=self.var_name,
                  name=self.task_name,
@@ -370,7 +414,14 @@ class ReshapeOperation(Operation):
 
         self.parent = ""
         self.var_name = ""
+
         self.treatment()
+
+        self.import_code = {'layer': 'Reshape',
+                            'callbacks': [],
+                            'model': None,
+                            'preprocessing_image': None,
+                            'others': None}
 
     def treatment(self):
         self.parent = convert_parents_to_variable_name(self.parameters
@@ -393,8 +444,10 @@ class ReshapeOperation(Operation):
     def generate_code(self):
         return dedent(
             """
-            {var_name} = Reshape(name='{name}',
-                                 target_shape={target_shape}){parent}
+            {var_name} = Reshape(
+                name='{name}',
+                target_shape={target_shape}
+            ){parent}
             """
         ).format(var_name=self.var_name,
                  name=self.task_name,
@@ -420,7 +473,14 @@ class PermuteOperation(Operation):
 
         self.parent = ""
         self.var_name = ""
+
         self.treatment()
+
+        self.import_code = {'layer': 'Permute',
+                            'callbacks': [],
+                            'model': None,
+                            'preprocessing_image': None,
+                            'others': None}
 
     def treatment(self):
         self.parent = convert_parents_to_variable_name(self.parameters
@@ -443,8 +503,10 @@ class PermuteOperation(Operation):
     def generate_code(self):
         return dedent(
             """
-            {var_name} = Permute(name='{name}',
-                                 dims={dims}){parent}
+            {var_name} = Permute(
+                name='{name}',
+                dims={dims}
+            ){parent}
             """
         ).format(var_name=self.var_name,
                  name=self.task_name,
@@ -470,7 +532,14 @@ class RepeatVectorOperation(Operation):
 
         self.parent = ""
         self.var_name = ""
+
         self.treatment()
+
+        self.import_code = {'layer': 'RepeatVector',
+                            'callbacks': [],
+                            'model': None,
+                            'preprocessing_image': None,
+                            'others': None}
 
     def treatment(self):
         self.parent = convert_parents_to_variable_name(self.parameters
@@ -486,8 +555,10 @@ class RepeatVectorOperation(Operation):
     def generate_code(self):
         return dedent(
             """
-            {var_name} = RepeatVector(name='{name}',
-                                      n={n}){parent}
+            {var_name} = RepeatVector(
+                name='{name}',
+                n={n}
+            ){parent}
             """
         ).format(var_name=self.var_name,
                  name=self.task_name,
@@ -517,10 +588,17 @@ class LambdaOperation(Operation):
 
         self.task_name = self.parameters.get('task').get('name')
         self.has_code = True
-        self.add_functions_not_required = ""
+        self.add_functions_required = ""
         self.parent = ""
         self.var_name = ""
+
         self.treatment()
+
+        self.import_code = {'layer': 'Lambda',
+                            'callbacks': [],
+                            'model': None,
+                            'preprocessing_image': None,
+                            'others': None}
 
     def treatment(self):
         self.parent = convert_parents_to_variable_name(self.parameters
@@ -545,33 +623,32 @@ class LambdaOperation(Operation):
             raise ValueError(
                 gettext('Parameter {} is required.').format(self.FUNCTION_PARAM))
 
-        functions_not_required = []
+        functions_required = []
+        functions_required.append('''function={function}'''
+                                  .format(function=self.function))
         if self.mask is not None:
-            functions_not_required.append(
-                ''',\nmask={mask}'''.format(mask=self.mask))
+            functions_required.append('''mask={mask}'''.format(mask=self.mask))
         if self.arguments is not None:
-            functions_not_required.append(
-                ''',\narguments={arguments}'''.format(arguments=self.arguments))
+            functions_required.append(
+                '''arguments={arguments}'''.format(arguments=self.arguments))
         if self.output_shape is not None:
             self.output_shape = get_tuple(self.output_shape)
-            functions_not_required.append(''',\noutput_shape={output_shape}'''
-                                          .format(output_shape=self.output_shape))
+            functions_required.append('''output_shape={output_shape}'''
+                                      .format(output_shape=self.output_shape))
 
-        # Mount
-        length = len(functions_not_required)
-        for i in range(0, length):
-            self.add_functions_not_required += functions_not_required[i]
+        self.add_functions_required = ',\n    '.join(functions_required)
 
     def generate_code(self):
         return dedent(
             """
-            {var_name} = Lambda(name='{name}',
-                                function={function}{functions_not_required}){parent}
+            {var_name} = Lambda(
+                name='{name}',
+                {add_functions_required}
+            ){parent}
             """
         ).format(var_name=self.var_name,
                  name=self.task_name,
-                 function=self.function,
-                 functions_not_required=self.add_functions_not_required,
+                 add_functions_required=self.add_functions_required,
                  parent=self.parent)
 
 
@@ -599,6 +676,12 @@ class ActivityRegularizationOperation(Operation):
 
         self.treatment()
 
+        self.import_code = {'layer': 'ActivityRegularization',
+                            'callbacks': [],
+                            'model': None,
+                            'preprocessing_image': None,
+                            'others': None}
+
     def treatment(self):
         self.parent = convert_parents_to_variable_name(self.parameters
                                                        .get('parents', []))
@@ -616,9 +699,11 @@ class ActivityRegularizationOperation(Operation):
     def generate_code(self):
         return dedent(
             """
-            {var_name} = ActivityRegularization(name='{name}',
-                                                l1={l1},
-                                                l2={l2}){parent}
+            {var_name} = ActivityRegularization(
+                name='{name}',
+                l1={l1},
+                l2={l2}
+            ){parent}
             """
         ).format(var_name=self.var_name,
                  name=self.task_name,
@@ -647,6 +732,12 @@ class MaskingOperation(Operation):
 
         self.treatment()
 
+        self.import_code = {'layer': 'Masking',
+                            'callbacks': [],
+                            'model': None,
+                            'preprocessing_image': None,
+                            'others': None}
+
     def treatment(self):
         self.parent = convert_parents_to_variable_name(self.parameters
                                                        .get('parents', []))
@@ -661,8 +752,10 @@ class MaskingOperation(Operation):
     def generate_code(self):
         return dedent(
             """
-            {var_name} = Masking(name='{name}',
-                                 mask_value={mask_value}){parent}
+            {var_name} = Masking(
+                name='{name}',
+                mask_value={mask_value}
+            ){parent}
             """
         ).format(var_name=self.var_name,
                  name=self.task_name,
@@ -690,6 +783,12 @@ class SpatialDropout1DOperation(Operation):
 
         self.treatment()
 
+        self.import_code = {'layer': 'SpatialDropout1D',
+                            'callbacks': [],
+                            'model': None,
+                            'preprocessing_image': None,
+                            'others': None}
+
     def treatment(self):
         self.parent = convert_parents_to_variable_name(self.parameters
                                                        .get('parents', []))
@@ -704,8 +803,10 @@ class SpatialDropout1DOperation(Operation):
     def generate_code(self):
         return dedent(
             """
-            {var_name} = SpatialDropout1D(name='{name}', 
-                                          rate={rate}){parent}
+            {var_name} = SpatialDropout1D(
+                name='{name}',
+                rate={rate}
+            ){parent}
             """
         ).format(var_name=self.var_name,
                  name=self.task_name,
@@ -733,6 +834,12 @@ class SpatialDropout2DOperation(Operation):
 
         self.treatment()
 
+        self.import_code = {'layer': 'SpatialDropout2D',
+                            'callbacks': [],
+                            'model': None,
+                            'preprocessing_image': None,
+                            'others': None}
+
     def treatment(self):
         self.parent = convert_parents_to_variable_name(self.parameters
                                                        .get('parents', []))
@@ -747,8 +854,10 @@ class SpatialDropout2DOperation(Operation):
     def generate_code(self):
         return dedent(
             """
-            {var_name} = SpatialDropout2D(name='{name}',
-                                          rate={rate}){parent}
+            {var_name} = SpatialDropout2D(
+                name='{name}',
+                rate={rate}
+            ){parent}
             """
         ).format(var_name=self.var_name,
                  name=self.task_name,
@@ -776,6 +885,12 @@ class SpatialDropout3DOperation(Operation):
 
         self.treatment()
 
+        self.import_code = {'layer': 'SpatialDropout3D',
+                            'callbacks': [],
+                            'model': None,
+                            'preprocessing_image': None,
+                            'others': None}
+
     def treatment(self):
         self.parent = convert_parents_to_variable_name(self.parameters
                                                        .get('parents', []))
@@ -790,8 +905,10 @@ class SpatialDropout3DOperation(Operation):
     def generate_code(self):
         return dedent(
             """
-            {var_name} = SpatialDropout3D(name='{name}',
-                                          rate={rate}){parent}
+            {var_name} = SpatialDropout3D(
+                name='{name}',
+                rate={rate}
+            ){parent}
             """
         ).format(var_name=self.var_name,
                  name=self.task_name,
@@ -876,6 +993,12 @@ class LSTM(Operation):
 
         self.treatment()
 
+        self.import_code = {'layer': 'LSTM ',
+                            'callbacks': [],
+                            'model': None,
+                            'preprocessing_image': None,
+                            'others': None}
+
     def treatment(self):
         self.parent = convert_parents_to_variable_name(self.parameters
                                                        .get('parents', []))
@@ -915,74 +1038,74 @@ class LSTM(Operation):
 
         functions_required = []
         if self.activation is not None:
-            self.activation = """,\nactivation='{activation}'""" \
+            self.activation = """activation='{activation}'""" \
                 .format(activation=self.activation)
             functions_required.append(self.activation)
         if self.recurrent_activation is not None:
-            self.recurrent_activation = """,\nrecurrent_activation='{recurrent_activation}'""" \
+            self.recurrent_activation = """recurrent_activation='{recurrent_activation}'""" \
                 .format(recurrent_activation=self.recurrent_activation)
             functions_required.append(self.recurrent_activation)
         if self.kernel_initializer is not None:
-            self.kernel_initializer = """,\nkernel_initializer='{kernel_initializer}'""" \
+            self.kernel_initializer = """kernel_initializer='{kernel_initializer}'""" \
                 .format(kernel_initializer=self.kernel_initializer)
             functions_required.append(self.kernel_initializer)
         if self.recurrent_initializer is not None:
-            self.recurrent_initializer = """,\nrecurrent_initializer='{recurrent_initializer}'""" \
+            self.recurrent_initializer = """recurrent_initializer='{recurrent_initializer}'""" \
                 .format(recurrent_initializer=self.recurrent_initializer)
             functions_required.append(self.recurrent_initializer)
         if self.bias_initializer is not None:
-            self.bias_initializer = """,\nbias_initializer='{bias_initializer}'""" \
+            self.bias_initializer = """bias_initializer='{bias_initializer}'""" \
                 .format(bias_initializer=self.bias_initializer)
             functions_required.append(self.bias_initializer)
         if self.kernel_regularizer is not None:
-            self.kernel_regularizer = """,\nkernel_regularizer='{kernel_regularizer}'""" \
+            self.kernel_regularizer = """kernel_regularizer='{kernel_regularizer}'""" \
                 .format(kernel_regularizer=self.kernel_regularizer)
             functions_required.append(self.kernel_regularizer)
         if self.recurrent_regularizer is not None:
-            self.recurrent_regularizer = """,\nrecurrent_regularizer='{recurrent_regularizer}'""" \
+            self.recurrent_regularizer = """recurrent_regularizer='{recurrent_regularizer}'""" \
                 .format(recurrent_regularizer=self.recurrent_regularizer)
             functions_required.append(self.recurrent_regularizer)
         if self.bias_regularizer is not None:
-            self.bias_regularizer = """,\nbias_regularizer='{bias_regularizer}'""" \
+            self.bias_regularizer = """bias_regularizer='{bias_regularizer}'""" \
                 .format(bias_regularizer=self.bias_regularizer)
             functions_required.append(self.bias_regularizer)
         if self.activity_regularizer is not None:
-            self.activity_regularizer = """,\nactivity_regularizer='{activity_regularizer}'""" \
+            self.activity_regularizer = """activity_regularizer='{activity_regularizer}'""" \
                 .format(activity_regularizer=self.activity_regularizer)
             functions_required.append(self.activity_regularizer)
         if self.kernel_constraint is not None:
-            self.kernel_constraint = """,\nkernel_constraint='{kernel_constraint}'""" \
+            self.kernel_constraint = """kernel_constraint='{kernel_constraint}'""" \
                 .format(kernel_constraint=self.kernel_constraint)
             functions_required.append(self.kernel_constraint)
         if self.recurrent_constraint is not None:
-            self.recurrent_constraint = """,\nrecurrent_constraint='{recurrent_constraint}'""" \
+            self.recurrent_constraint = """recurrent_constraint='{recurrent_constraint}'""" \
                 .format(recurrent_constraint=self.recurrent_constraint)
             functions_required.append(self.recurrent_constraint)
         if self.bias_constraint is not None:
-            self.bias_constraint = """,\nbias_constraint='{bias_constraint}'""" \
+            self.bias_constraint = """bias_constraint='{bias_constraint}'""" \
                 .format(bias_constraint=self.bias_constraint)
             functions_required.append(self.bias_constraint)
 
-        # Mount
-        length = len(functions_required)
-        for i in range(0, length):
-            self.add_functions_required += functions_required[i]
+        self.add_functions_required = ',\n               '.join(functions_required)
 
     def generate_code(self):
         return dedent(
             """
-            {var_name} = LSTM(name='{name}',
-                           units={units},
-                           use_bias={use_bias},
-                           unit_forget_bias={unit_forget_bias},
-                           return_sequences={return_sequences},
-                           return_state={return_state},
-                           go_backwards={go_backwards},
-                           stateful={stateful},
-                           unroll={unroll},
-                           implementation={implementation},
-                           dropout={dropout},
-                           recurrent_dropout={recurrent_dropout}{add_functions_required}){parent}
+            {var_name} = LSTM(
+                name='{name}',
+                units={units},
+                use_bias={use_bias},
+                unit_forget_bias={unit_forget_bias},
+                return_sequences={return_sequences},
+                return_state={return_state},
+                go_backwards={go_backwards},
+                stateful={stateful},
+                unroll={unroll},
+                implementation={implementation},
+                dropout={dropout},
+                recurrent_dropout={recurrent_dropout},
+                {add_functions_required}
+            ){parent}
             """
         ).format(var_name=self.var_name,
                  name=self.task_name,
@@ -1071,6 +1194,12 @@ class SimpleRNN(Operation):
 
         self.treatment()
 
+        self.import_code = {'layer': 'SimpleRNN ',
+                            'callbacks': [],
+                            'model': None,
+                            'preprocessing_image': None,
+                            'others': None}
+
     def treatment(self):
         self.parent = convert_parents_to_variable_name(self.parameters
                                                        .get('parents', []))
@@ -1106,70 +1235,70 @@ class SimpleRNN(Operation):
 
         functions_required = []
         if self.activation is not None:
-            self.activation = """,\nactivation='{activation}'""" \
+            self.activation = """activation='{activation}'""" \
                 .format(activation=self.activation)
             functions_required.append(self.activation)
         if self.kernel_initializer is not None:
-            self.kernel_initializer = """,\nkernel_initializer='{kernel_initializer}'""" \
+            self.kernel_initializer = """kernel_initializer='{kernel_initializer}'""" \
                 .format(kernel_initializer=self.kernel_initializer)
             functions_required.append(self.kernel_initializer)
         if self.recurrent_initializer is not None:
-            self.recurrent_initializer = """,\nrecurrent_initializer='{recurrent_initializer}'""" \
+            self.recurrent_initializer = """recurrent_initializer='{recurrent_initializer}'""" \
                 .format(recurrent_initializer=self.recurrent_initializer)
             functions_required.append(self.recurrent_initializer)
         if self.bias_initializer is not None:
-            self.bias_initializer = """,\nbias_initializer='{bias_initializer}'""" \
+            self.bias_initializer = """bias_initializer='{bias_initializer}'""" \
                 .format(bias_initializer=self.bias_initializer)
             functions_required.append(self.bias_initializer)
         if self.kernel_regularizer is not None:
-            self.kernel_regularizer = """,\nkernel_regularizer='{kernel_regularizer}'""" \
+            self.kernel_regularizer = """kernel_regularizer='{kernel_regularizer}'""" \
                 .format(kernel_regularizer=self.kernel_regularizer)
             functions_required.append(self.kernel_regularizer)
         if self.recurrent_regularizer is not None:
-            self.recurrent_regularizer = """,\nrecurrent_regularizer='{recurrent_regularizer}'""" \
+            self.recurrent_regularizer = """recurrent_regularizer='{recurrent_regularizer}'""" \
                 .format(recurrent_regularizer=self.recurrent_regularizer)
             functions_required.append(self.recurrent_regularizer)
         if self.bias_regularizer is not None:
-            self.bias_regularizer = """,\nbias_regularizer='{bias_regularizer}'""" \
+            self.bias_regularizer = """bias_regularizer='{bias_regularizer}'""" \
                 .format(bias_regularizer=self.bias_regularizer)
             functions_required.append(self.bias_regularizer)
         if self.activity_regularizer is not None:
-            self.activity_regularizer = """,\nactivity_regularizer='{activity_regularizer}'""" \
+            self.activity_regularizer = """activity_regularizer='{activity_regularizer}'""" \
                 .format(activity_regularizer=self.activity_regularizer)
             functions_required.append(self.activity_regularizer)
         if self.kernel_constraint is not None:
-            self.kernel_constraint = """,\nkernel_constraint='{kernel_constraint}'""" \
+            self.kernel_constraint = """kernel_constraint='{kernel_constraint}'""" \
                 .format(kernel_constraint=self.kernel_constraint)
             functions_required.append(self.kernel_constraint)
         if self.recurrent_constraint is not None:
-            self.recurrent_constraint = """,\nrecurrent_constraint='{recurrent_constraint}'""" \
+            self.recurrent_constraint = """recurrent_constraint='{recurrent_constraint}'""" \
                 .format(recurrent_constraint=self.recurrent_constraint)
             functions_required.append(self.recurrent_constraint)
         if self.bias_constraint is not None:
-            self.bias_constraint = """,\nbias_constraint='{bias_constraint}'""" \
+            self.bias_constraint = """bias_constraint='{bias_constraint}'""" \
                 .format(bias_constraint=self.bias_constraint)
             functions_required.append(self.bias_constraint)
 
-        # Mount
-        length = len(functions_required)
-        for i in range(0, length):
-            self.add_functions_required += functions_required[i]
+        self.add_functions_required = ',\n               '.join(functions_required)
 
     def generate_code(self):
         return dedent(
             """
-            {var_name} = LSTM(name='{name}',
-                           units={units},
-                           use_bias={use_bias},
-                           unit_forget_bias={unit_forget_bias},
-                           return_sequences={return_sequences},
-                           return_state={return_state},
-                           go_backwards={go_backwards},
-                           stateful={stateful},
-                           unroll={unroll},
-                           implementation={implementation},
-                           dropout={dropout},
-                           recurrent_dropout={recurrent_dropout}{add_functions_required}){parent}
+            {var_name} = SimpleRNN(
+                name='{name}',
+                units={units},
+                use_bias={use_bias},
+                unit_forget_bias={unit_forget_bias},
+                return_sequences={return_sequences},
+                return_state={return_state},
+                go_backwards={go_backwards},
+                stateful={stateful},
+                unroll={unroll},
+                implementation={implementation},
+                dropout={dropout},
+                recurrent_dropout={recurrent_dropout},
+                {add_functions_required}
+            ){parent}
             """
         ).format(var_name=self.var_name,
                  name=self.task_name,
@@ -1252,6 +1381,12 @@ class Convolution2D(Operation):
 
         self.treatment()
 
+        self.import_code = {'layer': 'Conv2D ',
+                            'callbacks': [],
+                            'model': None,
+                            'preprocessing_image': None,
+                            'others': None}
+
     def treatment(self):
         self.parent = convert_parents_to_variable_name(self.parameters
                                                        .get('parents', []))
@@ -1284,85 +1419,83 @@ class Convolution2D(Operation):
         functions_required = []
         if self.input_shape is not None:
             self.input_shape = get_int_or_tuple(self.input_shape)
-            self.input_shape = """,\ninput_shape='{input_shape}'""" \
+            self.input_shape = """input_shape='{input_shape}'""" \
                 .format(input_shape=self.input_shape)
             functions_required.append(self.input_shape)
 
         if self.padding is not None:
-            self.padding = """,\npadding='{padding}'""" \
+            self.padding = """padding='{padding}'""" \
                 .format(padding=self.padding)
             functions_required.append(self.padding)
 
         if self.data_format is not None:
-            self.data_format = """,\ndata_format='{data_format}'""" \
+            self.data_format = """data_format='{data_format}'""" \
                 .format(data_format=self.data_format)
             functions_required.append(self.data_format)
 
         if self.dilation_rate is not None:
-            self.dilation_rate = """,\ndilation_rate={dilation_rate}""" \
+            self.dilation_rate = """dilation_rate={dilation_rate}""" \
                 .format(dilation_rate=self.dilation_rate)
             functions_required.append(self.dilation_rate)
 
         if self.activation is not None:
-            self.activation = """,\nactivation='{activation}'""" \
+            self.activation = """activation='{activation}'""" \
                 .format(activation=self.activation)
             functions_required.append(self.activation)
 
         if self.kernel_initializer is not None:
-            self.kernel_initializer = """,\nkernel_initializer=
+            self.kernel_initializer = """kernel_initializer=
             '{kernel_initializer}'""" \
                 .format(kernel_initializer=self.kernel_initializer)
             functions_required.append(self.kernel_initializer)
 
         if self.bias_initializer is not None:
-            self.bias_initializer = """,\nbias_initializer='{bias_initializer}'""" \
+            self.bias_initializer = """bias_initializer='{bias_initializer}'""" \
                 .format(bias_initializer=self.bias_initializer)
             functions_required.append(self.bias_initializer)
 
         if self.kernel_regularizer is not None:
-            self.kernel_regularizer = """,\nkernel_regularizer=
+            self.kernel_regularizer = """kernel_regularizer=
             '{kernel_regularizer}'""" \
                 .format(kernel_regularizer=self.kernel_regularizer)
             functions_required.append(self.kernel_regularizer)
 
         if self.bias_regularizer is not None:
-            self.bias_regularizer = """,\nbias_regularizer=
+            self.bias_regularizer = """bias_regularizer=
             '{bias_regularizer}'""" \
                 .format(bias_regularizer=self.bias_regularizer)
             functions_required.append(self.bias_regularizer)
 
         if self.activity_regularizer is not None:
-            self.activity_regularizer = """,\nactivity_regularizer=
+            self.activity_regularizer = """activity_regularizer=
             '{activity_regularizer}'""" \
                 .format(activity_regularizer=self.activity_regularizer)
             functions_required.append(self.activity_regularizer)
 
         if self.kernel_constraint is not None:
-            self.kernel_constraint = """,\nkernel_constraint=
+            self.kernel_constraint = """kernel_constraint=
             '{kernel_constraint}'""" \
                 .format(kernel_constraint=self.kernel_constraint)
             functions_required.append(self.kernel_constraint)
 
         if self.bias_constraint is not None:
-            self.bias_constraint = """,\nbias_constraint='{bias_constraint}'""" \
+            self.bias_constraint = """bias_constraint='{bias_constraint}'""" \
                 .format(bias_constraint=self.bias_constraint)
             functions_required.append(self.bias_constraint)
 
-        # Mount
-        length = len(functions_required)
-        for i in range(0, length):
-            self.add_functions_required += functions_required[i]
-
-
+        self.add_functions_required = ',\n    '.join(functions_required)
 
     def generate_code(self):
         return dedent(
             """
-            {var_name} = Conv2D(name='{name}',
-                             filters={filters},
-                             kernel_size={kernel_size},
-                             strides={strides},
-                             use_bias={use_bias}{add_functions_required}){parent}
+            {var_name} = Conv2D(
+                name='{name}',
+                filters={filters},
+                kernel_size={kernel_size},
+                strides={strides},
+                use_bias={use_bias},
+                {add_functions_required}
+            ){parent}
             {var_name}.trainable = {trainable}
             """
         ).format(var_name=self.var_name,
@@ -1426,6 +1559,12 @@ class BatchNormalization(Operation):
 
         self.treatment()
 
+        self.import_code = {'layer': 'BatchNormalization ',
+                            'callbacks': [],
+                            'model': None,
+                            'preprocessing_image': None,
+                            'others': None}
+
     def treatment(self):
         self.parent = convert_parents_to_variable_name(self.parameters
                                                        .get('parents', []))
@@ -1456,63 +1595,63 @@ class BatchNormalization(Operation):
 
         functions_required = []
         if self.beta_initializer is not None:
-            self.beta_initializer = """,\nbeta_initializer='{beta_initializer}'""" \
+            self.beta_initializer = """beta_initializer='{beta_initializer}'""" \
                 .format(beta_initializer=self.beta_initializer)
             functions_required.append(self.beta_initializer)
 
         if self.gamma_initializer is not None:
-            self.gamma_initializer = """,\ngamma_initializer=
+            self.gamma_initializer = """gamma_initializer=
             '{gamma_initializer}'""" \
                 .format(gamma_initializer=self.gamma_initializer)
             functions_required.append(self.gamma_initializer)
 
         if self.moving_mean_initializer is not None:
-            self.moving_mean_initializer = """,\nmoving_mean_initializer=
+            self.moving_mean_initializer = """moving_mean_initializer=
             '{moving_mean_initializer}'""".format(
                 moving_mean_initializer=self.moving_mean_initializer)
             functions_required.append(self.moving_mean_initializer)
 
         if self.moving_variance_initializer is not None:
-            self.moving_variance_initializer = """,\nmoving_variance_initializer=
+            self.moving_variance_initializer = """moving_variance_initializer=
             '{moving_variance_initializer}'""".format(
                 moving_variance_initializer=self.moving_variance_initializer)
             functions_required.append(self.moving_variance_initializer)
 
         if self.beta_regularizer is not None:
-            self.beta_regularizer = """,\nbeta_regularizer='{beta_regularizer}'""" \
+            self.beta_regularizer = """beta_regularizer='{beta_regularizer}'""" \
                 .format(beta_regularizer=self.beta_regularizer)
             functions_required.append(self.beta_regularizer)
 
         if self.gamma_regularizer is not None:
-            self.gamma_regularizer = """,\ngamma_regularizer=
+            self.gamma_regularizer = """gamma_regularizer=
             '{gamma_regularizer}'""".format(
                 gamma_regularizer=self.gamma_regularizer)
             functions_required.append(self.gamma_regularizer)
 
         if self.beta_constraint is not None:
-            self.beta_constraint = """,\nbeta_constraint='{beta_constraint}'""" \
+            self.beta_constraint = """beta_constraint='{beta_constraint}'""" \
                 .format(beta_constraint=self.beta_constraint)
             functions_required.append(self.beta_constraint)
 
         if self.gamma_constraint is not None:
-            self.gamma_constraint = """,\ngamma_constraint='{gamma_constraint}'""" \
+            self.gamma_constraint = """gamma_constraint='{gamma_constraint}'""" \
                 .format(gamma_constraint=self.gamma_constraint)
             functions_required.append(self.gamma_constraint)
 
-        # Mount
-        length = len(functions_required)
-        for i in range(0, length):
-            self.add_functions_required += functions_required[i]
+        self.add_functions_required = ',\n    '.join(functions_required)
 
     def generate_code(self):
         return dedent(
             """
-            {var_name} = BatchNormalization(name='{name}',
-                                         axis={axis},
-                                         momentum={momentum},
-                                         epsilon={epsilon},
-                                         center={center},
-                                         scale={scale}{add_functions_required}){parent}
+            {var_name} = BatchNormalization(
+                name='{name}',
+                axis={axis},
+                momentum={momentum},
+                epsilon={epsilon},
+                center={center},
+                scale={scale},
+                {add_functions_required}
+            ){parent}
             """
         ).format(var_name=self.var_name,
                  name=self.task_name,
@@ -1556,6 +1695,12 @@ class VGG16(Operation):
 
         self.treatment()
 
+        self.import_code = {'layer': None,
+                            'callbacks': [],
+                            'model': None,
+                            'preprocessing_image': None,
+                            'others': 'from keras.applications.vgg16 import VGG16'}
+
     def treatment(self):
         self.parent = convert_parents_to_variable_name(self.parameters
                                                        .get('parents', []))
@@ -1584,35 +1729,36 @@ class VGG16(Operation):
 
         functions_required = []
         if self.input_tensor is not None:
-            self.input_tensor = """,\ninput_tensor={input_tensor}""" \
+            self.input_tensor = """input_tensor={input_tensor}""" \
                 .format(beta_initializer=self.input_tensor)
             functions_required.append(self.input_tensor)
 
         if self.input_shape is not None:
-            self.input_shape = """,\ninput_shape='{input_shape}'""" \
+            self.input_shape = """input_shape='{input_shape}'""" \
                 .format(input_shape=self.input_shape)
             functions_required.append(self.input_shape)
 
         if self.pooling is not None:
-            self.pooling = """,\npooling='{pooling}'""".format(
+            self.pooling = """pooling='{pooling}'""".format(
                 pooling=self.pooling)
             functions_required.append(self.pooling)
 
         if self.classes is not None:
-            self.classes = """,\nclasses={classes}""".format(classes=self.classes)
+            self.classes = """classes={classes}""".format(classes=self.classes)
             functions_required.append(self.classes)
 
-        # Mount
-        length = len(functions_required)
-        for i in range(0, length):
-            self.add_functions_required += functions_required[i]
+        self.add_functions_required = ',\n    '.join(functions_required)
 
     def generate_code(self):
         return dedent(
             """
-            {var_name} = VGG16(name='{name}',
-                                  include_top={include_top},
-                                  weights={weights}{add_functions_required}){parent}
+            {var_name} = VGG16(
+                name='{name}',
+                include_top={include_top},
+                weights={weights},
+                {add_functions_required}
+            ){parent}
+                
             {var_name}.trainable = {trainable}
             """
         ).format(var_name=self.var_name,
@@ -1656,6 +1802,12 @@ class InceptionV3(Operation):
 
         self.treatment()
 
+        self.import_code = {'layer': None,
+                            'callbacks': [],
+                            'model': None,
+                            'preprocessing_image': None,
+                            'others': 'from keras.applications.inception_v3 import InceptionV3'}
+
     def treatment(self):
         self.parent = convert_parents_to_variable_name(self.parameters
                                                        .get('parents', []))
@@ -1684,35 +1836,35 @@ class InceptionV3(Operation):
 
         functions_required = []
         if self.input_tensor is not None:
-            self.input_tensor = """,\ninput_tensor={input_tensor}""" \
+            self.input_tensor = """input_tensor={input_tensor}""" \
                 .format(beta_initializer=self.input_tensor)
             functions_required.append(self.input_tensor)
 
         if self.input_shape is not None:
-            self.input_shape = """,\ninput_shape='{input_shape}'""" \
+            self.input_shape = """input_shape='{input_shape}'""" \
                 .format(input_shape=self.input_shape)
             functions_required.append(self.input_shape)
 
         if self.pooling is not None:
-            self.pooling = """,\npooling='{pooling}'""".format(
+            self.pooling = """pooling='{pooling}'""".format(
                 pooling=self.pooling)
             functions_required.append(self.pooling)
 
         if self.classes is not None:
-            self.classes = """,\nclasses={classes}""".format(classes=self.classes)
+            self.classes = """classes={classes}""".format(classes=self.classes)
             functions_required.append(self.classes)
 
-        # Mount
-        length = len(functions_required)
-        for i in range(0, length):
-            self.add_functions_required += functions_required[i]
+        self.add_functions_required = ',\n    '.join(functions_required)
 
     def generate_code(self):
         return dedent(
             """
-            {var_name} = InceptionV3(name='{name}',
-                                       include_top={include_top},
-                                       weights={weights}{add_functions_required}){parent}
+            {var_name} = InceptionV3(
+                name='{name}',
+                include_top={include_top},
+                weights={weights},
+                {add_functions_required}
+            ){parent}
             {var_name}.trainable = {trainable}
             """
         ).format(var_name=self.var_name,
@@ -1745,6 +1897,12 @@ class PythonCode(Operation):
             )
 
         self.treatment()
+
+        self.import_code = {'layer': None,
+                            'callbacks': [],
+                            'model': None,
+                            'preprocessing_image': None,
+                            'others': None}
 
         self.has_code = not self.out_code
         self.has_external_python_code_operation = self.out_code
@@ -1798,6 +1956,12 @@ class MaxPooling1D(Operation):
 
         self.treatment()
 
+        self.import_code = {'layer': 'MaxPooling1D',
+                            'callbacks': [],
+                            'model': None,
+                            'preprocessing_image': None,
+                            'others': None}
+
     def treatment(self):
         self.parent = convert_parents_to_variable_name(self.parameters
                                                        .get('parents', []))
@@ -1827,29 +1991,29 @@ class MaxPooling1D(Operation):
 
         functions_required = []
         if self.strides is not None:
-            self.strides = """,\nstrides={strides}""" \
+            self.strides = """strides={strides}""" \
                 .format(strides=self.strides)
             functions_required.append(self.strides)
 
         if self.padding is not None:
-            self.padding = """,\npadding={padding}""" \
+            self.padding = """padding={padding}""" \
                 .format(padding=self.padding)
             functions_required.append(self.padding)
 
         if self.data_format is not None:
-            self.data_format = """,\ndata_format={data_format}""" \
+            self.data_format = """data_format={data_format}""" \
                 .format(data_format=self.data_format)
             functions_required.append(self.data_format)
 
-        # Mount
-        length = len(functions_required)
-        for i in range(0, length):
-            self.add_functions_required += functions_required[i]
+        self.add_functions_required = ',\n    '.join(functions_required)
 
     def generate_code(self):
         return dedent(
             """
-            {var_name} = MaxPooling1D(name='{name}'{add_functions_required}){parent}
+            {var_name} = MaxPooling1D(
+                name='{name}',
+                {add_functions_required}
+            ){parent}
             """
         ).format(var_name=self.var_name,
                  name=self.task_name,
@@ -1888,6 +2052,12 @@ class MaxPooling2D(Operation):
 
         self.treatment()
 
+        self.import_code = {'layer': 'MaxPooling2D',
+                            'callbacks': [],
+                            'model': None,
+                            'preprocessing_image': None,
+                            'others': None}
+
     def treatment(self):
         self.parent = convert_parents_to_variable_name(self.parameters
                                                        .get('parents', []))
@@ -1905,41 +2075,40 @@ class MaxPooling2D(Operation):
             raise ValueError(gettext('Parameter {} is invalid').format(
                 self.POOL_SIZE_PARAM))
         else:
-            self.pool_size = """,\npool_size={pool_size}"""\
+            self.pool_size = """pool_size={pool_size}"""\
                 .format(pool_size=self.pool_size)
             functions_required.append(self.pool_size)
 
         if self.strides:
-            #import pdb
-            #pdb.set_trace()
             self.strides = get_int_or_tuple(self.strides)
             if self.strides is None:
                 raise ValueError(gettext('Parameter {} is invalid').format(
                     self.STRIDES_PARAM))
 
         if self.strides is not None:
-            self.strides = """,\nstrides={strides}""" \
+            self.strides = """strides={strides}""" \
                 .format(strides=self.strides)
             functions_required.append(self.strides)
 
         if self.padding is not None:
-            self.padding = """,\npadding={padding}""" \
+            self.padding = """padding={padding}""" \
                 .format(padding=self.padding)
             functions_required.append(self.padding)
 
         if self.data_format is not None:
-            self.data_format = """,\ndata_format={data_format}""" \
+            self.data_format = """data_format={data_format}""" \
                 .format(data_format=self.data_format)
             functions_required.append(self.data_format)
 
-        # Mount
-        for function in functions_required:
-            self.add_functions_required += function
+        self.add_functions_required = ',\n    '.join(functions_required)
 
     def generate_code(self):
         return dedent(
             """
-            {var_name} = MaxPooling2D(name='{name}'{add_functions_required}){parent}
+            {var_name} = MaxPooling2D(
+                name='{name}',
+                {add_functions_required}
+            ){parent}
             """
         ).format(var_name=self.var_name,
                  name=self.task_name,
@@ -1977,6 +2146,12 @@ class MaxPooling3D(Operation):
 
         self.treatment()
 
+        self.import_code = {'layer': 'MaxPooling3D',
+                            'callbacks': [],
+                            'model': None,
+                            'preprocessing_image': None,
+                            'others': None}
+
     def treatment(self):
         self.parent = convert_parents_to_variable_name(self.parameters
                                                        .get('parents', []))
@@ -2000,33 +2175,32 @@ class MaxPooling3D(Operation):
 
         functions_required = []
         if self.strides is not None:
-            self.strides = """,\nstrides={strides}""" \
+            self.strides = """strides={strides}""" \
                 .format(strides=self.strides)
             functions_required.append(self.strides)
 
         if self.padding is not None:
-            self.padding = """,\npadding={padding}""" \
+            self.padding = """padding={padding}""" \
                 .format(padding=self.padding)
             functions_required.append(self.padding)
 
         if self.data_format is not None:
-            self.data_format = """,\ndata_format={data_format}""" \
+            self.data_format = """data_format={data_format}""" \
                 .format(data_format=self.data_format)
             functions_required.append(self.data_format)
 
-        # Mount
-        length = len(functions_required)
-        for i in range(0, length):
-            self.add_functions_required += functions_required[i]
+        self.add_functions_required = ',\n    '.join(functions_required)
 
     def generate_code(self):
         return dedent(
             """
-            {var_name} = MaxPooling3D(name='{name}'{add_functions_required}){parent}
+            {var_name} = MaxPooling3D(
+                name='{name}',
+                {add_functions_required}
+            ){parent}
             """
         ).format(var_name=self.var_name,
                  name=self.task_name,
-                 pool_size=self.pool_size,
                  add_functions_required=self.add_functions_required,
                  parent=self.parent)
 
@@ -2061,6 +2235,12 @@ class AveragePooling1D(Operation):
 
         self.treatment()
 
+        self.import_code = {'layer': 'AveragePooling1D',
+                            'callbacks': [],
+                            'model': None,
+                            'preprocessing_image': None,
+                            'others': None}
+
     def treatment(self):
         self.parent = convert_parents_to_variable_name(self.parameters
                                                        .get('parents', []))
@@ -2090,29 +2270,29 @@ class AveragePooling1D(Operation):
 
         functions_required = []
         if self.strides is not None:
-            self.strides = """,\nstrides={strides}""" \
+            self.strides = """strides={strides}""" \
                 .format(strides=self.strides)
             functions_required.append(self.strides)
 
         if self.padding is not None:
-            self.padding = """,\npadding={padding}""" \
+            self.padding = """padding={padding}""" \
                 .format(padding=self.padding)
             functions_required.append(self.padding)
 
         if self.data_format is not None:
-            self.data_format = """,\ndata_format={data_format}""" \
+            self.data_format = """data_format={data_format}""" \
                 .format(data_format=self.data_format)
             functions_required.append(self.data_format)
 
-        # Mount
-        length = len(functions_required)
-        for i in range(0, length):
-            self.add_functions_required += functions_required[i]
+        self.add_functions_required = ',\n    '.join(functions_required)
 
     def generate_code(self):
         return dedent(
             """
-            {var_name} = AveragePooling1D(name='{name}'{add_functions_required}){parent}
+            {var_name} = AveragePooling1D(
+                name='{name}',
+                {add_functions_required}
+            ){parent}
             """
         ).format(var_name=self.var_name,
                  name=self.task_name,
@@ -2151,6 +2331,12 @@ class AveragePooling2D(Operation):
 
         self.treatment()
 
+        self.import_code = {'layer': 'AveragePooling2D',
+                            'callbacks': [],
+                            'model': None,
+                            'preprocessing_image': None,
+                            'others': None}
+
     def treatment(self):
         self.parent = convert_parents_to_variable_name(self.parameters
                                                        .get('parents', []))
@@ -2174,29 +2360,29 @@ class AveragePooling2D(Operation):
 
         functions_required = []
         if self.strides is not None:
-            self.strides = """,\nstrides={strides}""" \
+            self.strides = """strides={strides}""" \
                 .format(strides=self.strides)
             functions_required.append(self.strides)
 
         if self.padding is not None:
-            self.padding = """,\npadding={padding}""" \
+            self.padding = """padding={padding}""" \
                 .format(padding=self.padding)
             functions_required.append(self.padding)
 
         if self.data_format is not None:
-            self.data_format = """,\ndata_format={data_format}""" \
+            self.data_format = """data_format={data_format}""" \
                 .format(data_format=self.data_format)
             functions_required.append(self.data_format)
 
-        # Mount
-        length = len(functions_required)
-        for i in range(0, length):
-            self.add_functions_required += functions_required[i]
+        self.add_functions_required = ',\n    '.join(functions_required)
 
     def generate_code(self):
         return dedent(
             """
-            {var_name} = AveragePooling2D(name='{name}'{add_functions_required}){parent}
+            {var_name} = AveragePooling2D(
+                name='{name}',
+                {add_functions_required}
+            ){parent}
             """
         ).format(var_name=self.var_name,
                  name=self.task_name,
@@ -2235,6 +2421,12 @@ class AveragePooling3D(Operation):
 
         self.treatment()
 
+        self.import_code = {'layer': 'AveragePooling3D',
+                            'callbacks': [],
+                            'model': None,
+                            'preprocessing_image': None,
+                            'others': None}
+
     def treatment(self):
         self.parent = convert_parents_to_variable_name(self.parameters
                                                        .get('parents', []))
@@ -2258,29 +2450,29 @@ class AveragePooling3D(Operation):
 
         functions_required = []
         if self.strides is not None:
-            self.strides = """,\nstrides={strides}""" \
+            self.strides = """strides={strides}""" \
                 .format(strides=self.strides)
             functions_required.append(self.strides)
 
         if self.padding is not None:
-            self.padding = """,\npadding={padding}""" \
+            self.padding = """padding={padding}""" \
                 .format(padding=self.padding)
             functions_required.append(self.padding)
 
         if self.data_format is not None:
-            self.data_format = """,\ndata_format={data_format}""" \
+            self.data_format = """data_format={data_format}""" \
                 .format(data_format=self.data_format)
             functions_required.append(self.data_format)
 
-        # Mount
-        length = len(functions_required)
-        for i in range(0, length):
-            self.add_functions_required += functions_required[i]
+        self.add_functions_required = ',\n    '.join(functions_required)
 
     def generate_code(self):
         return dedent(
             """
-            {var_name} = AveragePooling3D(name='{name}'{add_functions_required}){parent}
+            {var_name} = AveragePooling3D(
+                name='{name}',
+                {add_functions_required}
+            ){parent}
             """
         ).format(var_name=self.var_name,
                  name=self.task_name,
@@ -2308,6 +2500,12 @@ class GlobalMaxPooling1D(Operation):
 
         self.treatment()
 
+        self.import_code = {'layer': 'GlobalMaxPooling1D',
+                            'callbacks': [],
+                            'model': None,
+                            'preprocessing_image': None,
+                            'others': None}
+
     def treatment(self):
         self.parent = convert_parents_to_variable_name(self.parameters
                                                        .get('parents', []))
@@ -2321,19 +2519,19 @@ class GlobalMaxPooling1D(Operation):
 
         functions_required = []
         if self.data_format is not None:
-            self.data_format = """,\ndata_format={data_format}""" \
+            self.data_format = """data_format={data_format}""" \
                 .format(data_format=self.data_format)
             functions_required.append(self.data_format)
 
-        # Mount
-        length = len(functions_required)
-        for i in range(0, length):
-            self.add_functions_required += functions_required[i]
+        self.add_functions_required = ',\n    '.join(functions_required)
 
     def generate_code(self):
         return dedent(
             """
-            {var_name} = GlobalMaxPooling1D(name='{name}'{add_functions_required}){parent}
+            {var_name} = GlobalMaxPooling1D(
+                name='{name}',
+                {add_functions_required}
+            ){parent}
             """
         ).format(var_name=self.var_name,
                  name=self.task_name,
@@ -2360,6 +2558,12 @@ class GlobalMaxPooling2D(Operation):
 
         self.treatment()
 
+        self.import_code = {'layer': 'GlobalMaxPooling2D',
+                            'callbacks': [],
+                            'model': None,
+                            'preprocessing_image': None,
+                            'others': None}
+
     def treatment(self):
         self.parent = convert_parents_to_variable_name(self.parameters
                                                        .get('parents', []))
@@ -2373,19 +2577,19 @@ class GlobalMaxPooling2D(Operation):
 
         functions_required = []
         if self.data_format is not None:
-            self.data_format = """,\ndata_format={data_format}""" \
+            self.data_format = """data_format={data_format}""" \
                 .format(data_format=self.data_format)
             functions_required.append(self.data_format)
 
-        # Mount
-        length = len(functions_required)
-        for i in range(0, length):
-            self.add_functions_required += functions_required[i]
+        self.add_functions_required = ',\n    '.join(functions_required)
 
     def generate_code(self):
         return dedent(
             """
-            {var_name} = GlobalMaxPooling2D(name='{name}'{add_functions_required}){parent}
+            {var_name} = GlobalMaxPooling2D(
+                name='{name}',
+                {add_functions_required}
+            ){parent}
             """
         ).format(var_name=self.var_name,
                  name=self.task_name,
@@ -2412,6 +2616,12 @@ class GlobalMaxPooling3D(Operation):
 
         self.treatment()
 
+        self.import_code = {'layer': 'GlobalMaxPooling3D',
+                            'callbacks': [],
+                            'model': None,
+                            'preprocessing_image': None,
+                            'others': None}
+
     def treatment(self):
         self.parent = convert_parents_to_variable_name(self.parameters
                                                        .get('parents', []))
@@ -2425,19 +2635,19 @@ class GlobalMaxPooling3D(Operation):
 
         functions_required = []
         if self.data_format is not None:
-            self.data_format = """,\ndata_format={data_format}""" \
+            self.data_format = """data_format={data_format}""" \
                 .format(data_format=self.data_format)
             functions_required.append(self.data_format)
 
-        # Mount
-        length = len(functions_required)
-        for i in range(0, length):
-            self.add_functions_required += functions_required[i]
+        self.add_functions_required = ',\n    '.join(functions_required)
 
     def generate_code(self):
         return dedent(
             """
-            {var_name} = GlobalMaxPooling3D(name='{name}'{add_functions_required}){parent}
+            {var_name} = GlobalMaxPooling3D(
+                name='{name}',
+                {add_functions_required}
+            ){parent}
             """
         ).format(var_name=self.var_name,
                  name=self.task_name,
@@ -2464,6 +2674,12 @@ class GlobalAveragePooling1D(Operation):
 
         self.treatment()
 
+        self.import_code = {'layer': 'GlobalAveragePooling1D',
+                            'callbacks': [],
+                            'model': None,
+                            'preprocessing_image': None,
+                            'others': None}
+
     def treatment(self):
         self.parent = convert_parents_to_variable_name(self.parameters
                                                        .get('parents', []))
@@ -2477,19 +2693,19 @@ class GlobalAveragePooling1D(Operation):
 
         functions_required = []
         if self.data_format is not None:
-            self.data_format = """,\ndata_format={data_format}""" \
+            self.data_format = """data_format={data_format}""" \
                 .format(data_format=self.data_format)
             functions_required.append(self.data_format)
 
-        # Mount
-        length = len(functions_required)
-        for i in range(0, length):
-            self.add_functions_required += functions_required[i]
+        self.add_functions_required = ',\n    '.join(functions_required)
 
     def generate_code(self):
         return dedent(
             """
-            {var_name} = GlobalAveragePooling1D(name='{name}'{add_functions_required}){parent}
+            {var_name} = GlobalAveragePooling1D(
+                name='{name}',
+                {add_functions_required}
+            ){parent}
             """
         ).format(var_name=self.var_name,
                  name=self.task_name,
@@ -2516,6 +2732,12 @@ class GlobalAveragePooling2D(Operation):
 
         self.treatment()
 
+        self.import_code = {'layer': 'GlobalAveragePooling2D',
+                            'callbacks': [],
+                            'model': None,
+                            'preprocessing_image': None,
+                            'others': None}
+
     def treatment(self):
         self.parent = convert_parents_to_variable_name(self.parameters
                                                        .get('parents', []))
@@ -2529,19 +2751,19 @@ class GlobalAveragePooling2D(Operation):
 
         functions_required = []
         if self.data_format is not None:
-            self.data_format = """,\ndata_format={data_format}""" \
+            self.data_format = """data_format={data_format}""" \
                 .format(data_format=self.data_format)
             functions_required.append(self.data_format)
 
-        # Mount
-        length = len(functions_required)
-        for i in range(0, length):
-            self.add_functions_required += functions_required[i]
+        self.add_functions_required = ',\n    '.join(functions_required)
 
     def generate_code(self):
         return dedent(
             """
-            {var_name} = GlobalAveragePooling2D(name='{name}'{add_functions_required}){parent}
+            {var_name} = GlobalAveragePooling2D(
+                name='{name}',
+                {add_functions_required}
+            ){parent}
             """
         ).format(var_name=self.var_name,
                  name=self.task_name,
@@ -2568,6 +2790,12 @@ class GlobalAveragePooling3D(Operation):
 
         self.treatment()
 
+        self.import_code = {'layer': 'GlobalAveragePooling3D',
+                            'callbacks': [],
+                            'model': None,
+                            'preprocessing_image': None,
+                            'others': None}
+
     def treatment(self):
         self.parent = convert_parents_to_variable_name(self.parameters
                                                        .get('parents', []))
@@ -2581,19 +2809,19 @@ class GlobalAveragePooling3D(Operation):
 
         functions_required = []
         if self.data_format is not None:
-            self.data_format = """,\ndata_format={data_format}""" \
+            self.data_format = """data_format={data_format}""" \
                 .format(data_format=self.data_format)
             functions_required.append(self.data_format)
 
-        # Mount
-        length = len(functions_required)
-        for i in range(0, length):
-            self.add_functions_required += functions_required[i]
+        self.add_functions_required = ',\n    '.join(functions_required)
 
     def generate_code(self):
         return dedent(
             """
-            {var_name} = GlobalAveragePooling3D(name='{name}'{add_functions_required}){parent}
+            {var_name} = GlobalAveragePooling3D(
+                name='{name}',
+                {add_functions_required}
+            ){parent}
             """
         ).format(var_name=self.var_name,
                  name=self.task_name,
@@ -2622,6 +2850,12 @@ class Add(Operation):
 
         self.treatment()
 
+        self.import_code = {'layer': 'Add',
+                            'callbacks': [],
+                            'model': None,
+                            'preprocessing_image': None,
+                            'others': None}
+
     def treatment(self):
         self.parents = convert_parents_to_variable_name(self.parameters
                                                         .get('parents', []))
@@ -2647,7 +2881,7 @@ class Add(Operation):
 
         functions_required = []
         if self.inputs is not None:
-            self.inputs = """,\ninputs={inputs}""".format(inputs=self.inputs)
+            self.inputs = """inputs={inputs}""".format(inputs=self.inputs)
             functions_required.append(self.inputs)
         else:
             raise ValueError(gettext('Parameter {} requires at least 2.')
@@ -2663,18 +2897,18 @@ class Add(Operation):
             args = self.kwargs.split(',')
             args_params = self.kwargs.split('=')
             if len(args) >= 1 and ((len(args_params) - len(args)) == 1):
-                self.kwargs = """,\n{kwargs}""".format(kwargs=self.kwargs)
+                self.kwargs = """{kwargs}""".format(kwargs=self.kwargs)
                 functions_required.append(self.kwargs)
 
-        # Mount
-        length = len(functions_required)
-        for i in range(0, length):
-            self.add_functions_required += functions_required[i]
+        self.add_functions_required = ',\n    '.join(functions_required)
 
     def generate_code(self):
         return dedent(
             """
-            {var_name} = add(name='{name}'{add_functions_required})
+            {var_name} = add(
+                name='{name}',
+                {add_functions_required}
+            )
             """
         ).format(var_name=self.var_name,
                  name=self.task_name,
@@ -2702,6 +2936,12 @@ class Subtract(Operation):
 
         self.treatment()
 
+        self.import_code = {'layer': 'Subtract',
+                            'callbacks': [],
+                            'model': None,
+                            'preprocessing_image': None,
+                            'others': None}
+
     def treatment(self):
         self.parents = convert_parents_to_variable_name(self.parameters
                                                         .get('parents', []))
@@ -2726,7 +2966,7 @@ class Subtract(Operation):
 
         functions_required = []
         if self.inputs is not None:
-            self.inputs = """,\ninputs={inputs}""".format(inputs=self.inputs)
+            self.inputs = """inputs={inputs}""".format(inputs=self.inputs)
             functions_required.append(self.inputs)
         else:
             raise ValueError(gettext('Parameter {} requires at least 2.')
@@ -2742,18 +2982,18 @@ class Subtract(Operation):
             args = self.kwargs.split(',')
             args_params = self.kwargs.split('=')
             if len(args) >= 1 and ((len(args_params) - len(args)) == 1):
-                self.kwargs = """,\n{kwargs}""".format(kwargs=self.kwargs)
+                self.kwargs = """{kwargs}""".format(kwargs=self.kwargs)
                 functions_required.append(self.kwargs)
 
-        # Mount
-        length = len(functions_required)
-        for i in range(0, length):
-            self.add_functions_required += functions_required[i]
+        self.add_functions_required = ',\n    '.join(functions_required)
 
     def generate_code(self):
         return dedent(
             """
-            {var_name} = subtract(name='{name}'{add_functions_required})
+            {var_name} = subtract(
+                name='{name}',
+                {add_functions_required}
+            )
             """
         ).format(var_name=self.var_name,
                  name=self.task_name,
@@ -2781,6 +3021,12 @@ class Multiply(Operation):
 
         self.treatment()
 
+        self.import_code = {'layer': 'Multiply',
+                            'callbacks': [],
+                            'model': None,
+                            'preprocessing_image': None,
+                            'others': None}
+
     def treatment(self):
         self.parents = convert_parents_to_variable_name(self.parameters
                                                         .get('parents', []))
@@ -2805,7 +3051,7 @@ class Multiply(Operation):
 
         functions_required = []
         if self.inputs is not None:
-            self.inputs = """,\ninputs=[{inputs}]""".format(inputs=self.inputs)
+            self.inputs = """inputs=[{inputs}]""".format(inputs=self.inputs)
             functions_required.append(self.inputs)
         else:
             raise ValueError(gettext('Parameter {} requires at least 2.')
@@ -2821,18 +3067,18 @@ class Multiply(Operation):
             args = self.kwargs.split(',')
             args_params = self.kwargs.split('=')
             if len(args) >= 1 and ((len(args_params) - len(args)) == 1):
-                self.kwargs = """,\n{kwargs}""".format(kwargs=self.kwargs)
+                self.kwargs = """{kwargs}""".format(kwargs=self.kwargs)
                 functions_required.append(self.kwargs)
 
-        # Mount
-        length = len(functions_required)
-        for i in range(0, length):
-            self.add_functions_required += functions_required[i]
+        self.add_functions_required = ',\n    '.join(functions_required)
 
     def generate_code(self):
         return dedent(
             """
-            {var_name} = multiply(name='{name}'{add_functions_required})
+            {var_name} = multiply(
+                name='{name}',
+                {add_functions_required}
+            )
             """
         ).format(var_name=self.var_name,
                  name=self.task_name,
@@ -2860,6 +3106,12 @@ class Average(Operation):
 
         self.treatment()
 
+        self.import_code = {'layer': 'Average',
+                            'callbacks': [],
+                            'model': None,
+                            'preprocessing_image': None,
+                            'others': None}
+
     def treatment(self):
         self.parents = convert_parents_to_variable_name(self.parameters
                                                         .get('parents', []))
@@ -2884,7 +3136,7 @@ class Average(Operation):
 
         functions_required = []
         if self.inputs is not None:
-            self.inputs = """,\ninputs={inputs}""".format(inputs=self.inputs)
+            self.inputs = """inputs={inputs}""".format(inputs=self.inputs)
             functions_required.append(self.inputs)
         else:
             raise ValueError(gettext('Parameter {} requires at least 2.')
@@ -2900,18 +3152,18 @@ class Average(Operation):
             args = self.kwargs.split(',')
             args_params = self.kwargs.split('=')
             if len(args) >= 1 and ((len(args_params) - len(args)) == 1):
-                self.kwargs = """,\n{kwargs}""".format(kwargs=self.kwargs)
+                self.kwargs = """{kwargs}""".format(kwargs=self.kwargs)
                 functions_required.append(self.kwargs)
 
-        # Mount
-        length = len(functions_required)
-        for i in range(0, length):
-            self.add_functions_required += functions_required[i]
+        self.add_functions_required = ',\n    '.join(functions_required)
 
     def generate_code(self):
         return dedent(
             """
-            {var_name} = average(name='{name}'{add_functions_required})
+            {var_name} = average(
+                name='{name}',
+                {add_functions_required}
+            )
             """
         ).format(var_name=self.var_name,
                  name=self.task_name,
@@ -2939,6 +3191,12 @@ class Maximum(Operation):
 
         self.treatment()
 
+        self.import_code = {'layer': 'Maximum',
+                            'callbacks': [],
+                            'model': None,
+                            'preprocessing_image': None,
+                            'others': None}
+
     def treatment(self):
         self.parents = convert_parents_to_variable_name(self.parameters
                                                         .get('parents', []))
@@ -2963,7 +3221,7 @@ class Maximum(Operation):
 
         functions_required = []
         if self.inputs is not None:
-            self.inputs = """,\ninputs={inputs}""".format(inputs=self.inputs)
+            self.inputs = """inputs={inputs}""".format(inputs=self.inputs)
             functions_required.append(self.inputs)
         else:
             raise ValueError(gettext('Parameter {} requires at least 2.')
@@ -2979,18 +3237,18 @@ class Maximum(Operation):
             args = self.kwargs.split(',')
             args_params = self.kwargs.split('=')
             if len(args) >= 1 and ((len(args_params) - len(args)) == 1):
-                self.kwargs = """,\n{kwargs}""".format(kwargs=self.kwargs)
+                self.kwargs = """{kwargs}""".format(kwargs=self.kwargs)
                 functions_required.append(self.kwargs)
 
-        # Mount
-        length = len(functions_required)
-        for i in range(0, length):
-            self.add_functions_required += functions_required[i]
+        self.add_functions_required = ',\n    '.join(functions_required)
 
     def generate_code(self):
         return dedent(
             """
-            {var_name} = maximum(name='{name}'{add_functions_required})
+            {var_name} = maximum(
+                name='{name}',
+                {add_functions_required}
+            )
             """
         ).format(var_name=self.var_name,
                  name=self.task_name,
@@ -3018,6 +3276,12 @@ class Minimum(Operation):
 
         self.treatment()
 
+        self.import_code = {'layer': 'Minimum',
+                            'callbacks': [],
+                            'model': None,
+                            'preprocessing_image': None,
+                            'others': None}
+
     def treatment(self):
         self.parents = convert_parents_to_variable_name(self.parameters
                                                         .get('parents', []))
@@ -3042,7 +3306,7 @@ class Minimum(Operation):
 
         functions_required = []
         if self.inputs is not None:
-            self.inputs = """,\ninputs={inputs}""".format(inputs=self.inputs)
+            self.inputs = """inputs={inputs}""".format(inputs=self.inputs)
             functions_required.append(self.inputs)
         else:
             raise ValueError(gettext('Parameter {} requires at least 2.')
@@ -3058,18 +3322,18 @@ class Minimum(Operation):
             args = self.kwargs.split(',')
             args_params = self.kwargs.split('=')
             if len(args) >= 1 and ((len(args_params) - len(args)) == 1):
-                self.kwargs = """,\n{kwargs}""".format(kwargs=self.kwargs)
+                self.kwargs = """{kwargs}""".format(kwargs=self.kwargs)
                 functions_required.append(self.kwargs)
 
-        # Mount
-        length = len(functions_required)
-        for i in range(0, length):
-            self.add_functions_required += functions_required[i]
+        self.add_functions_required = ',\n    '.join(functions_required)
 
     def generate_code(self):
         return dedent(
             """
-            {var_name} = minimum(name='{name}'{add_functions_required})
+            {var_name} = minimum(
+                name='{name}',
+                {add_functions_required}
+            )
             """
         ).format(var_name=self.var_name,
                  name=self.task_name,
@@ -3099,6 +3363,12 @@ class Concatenate(Operation):
 
         self.treatment()
 
+        self.import_code = {'layer': 'Concatenate',
+                            'callbacks': [],
+                            'model': None,
+                            'preprocessing_image': None,
+                            'others': None}
+
     def treatment(self):
         self.parents = convert_parents_to_variable_name(self.parameters
                                                         .get('parents', []))
@@ -3123,7 +3393,7 @@ class Concatenate(Operation):
 
         functions_required = []
         if self.inputs is not None:
-            self.inputs = """,\ninputs={inputs}""".format(inputs=self.inputs)
+            self.inputs = """inputs={inputs}""".format(inputs=self.inputs)
             functions_required.append(self.inputs)
         else:
             raise ValueError(gettext('Parameter {} requires at least 2.')
@@ -3139,19 +3409,19 @@ class Concatenate(Operation):
             args = self.kwargs.split(',')
             args_params = self.kwargs.split('=')
             if len(args) >= 1 and ((len(args_params) - len(args)) == 1):
-                self.kwargs = """,\n{kwargs}""".format(kwargs=self.kwargs)
+                self.kwargs = """{kwargs}""".format(kwargs=self.kwargs)
                 functions_required.append(self.kwargs)
 
-        # Mount
-        length = len(functions_required)
-        for i in range(0, length):
-            self.add_functions_required += functions_required[i]
+        self.add_functions_required = ',\n    '.join(functions_required)
 
     def generate_code(self):
         return dedent(
             """
-            {var_name} = concatenate(name='{name}',
-                                     axis=axis{add_functions_required})
+            {var_name} = concatenate(
+                name='{name}',
+                axis=axis,
+                {add_functions_required}
+            )
             """
         ).format(var_name=self.var_name,
                  axis=self.axis,
@@ -3183,6 +3453,12 @@ class Dot(Operation):
 
         self.treatment()
 
+        self.import_code = {'layer': 'Dot',
+                            'callbacks': [],
+                            'model': None,
+                            'preprocessing_image': None,
+                            'others': None}
+
     def treatment(self):
         self.parents = convert_parents_to_variable_name(self.parameters
                                                         .get('parents', []))
@@ -3209,7 +3485,7 @@ class Dot(Operation):
 
         functions_required = []
         if self.inputs is not None:
-            self.inputs = """,\ninputs={inputs}""".format(inputs=self.inputs)
+            self.inputs = """inputs={inputs}""".format(inputs=self.inputs)
             functions_required.append(self.inputs)
         else:
             raise ValueError(gettext('Parameter {} requires at least 2.')
@@ -3229,24 +3505,19 @@ class Dot(Operation):
             args = self.kwargs.split(',')
             args_params = self.kwargs.split('=')
             if len(args) >= 1 and ((len(args_params) - len(args)) == 1):
-                self.kwargs = """,\n{kwargs}""".format(kwargs=self.kwargs)
+                self.kwargs = """{kwargs}""".format(kwargs=self.kwargs)
                 functions_required.append(self.kwargs)
 
-        # Mount
-        length = len(functions_required)
-        for i in range(0, length):
-            if not i == 0 and length > 1:
-                self.add_functions_required += ',\n'
-            if i == (length - 1):
-                self.add_functions_required += functions_required[i]
-            else:
-                self.add_functions_required += functions_required[i] + ",\n"
+        self.add_functions_required = ',\n    '.join(functions_required)
 
     def generate_code(self):
         return dedent(
             """
-            {var_name} = multiply(name='{name},
-                                  {normalize}=normalize{add_functions_required})
+            {var_name} = multiply(
+                name='{name},
+                {normalize}=normalize,
+                {add_functions_required}
+            )
             """
         ).format(var_name=self.var_name,
                  name=self.task_name,
@@ -3312,6 +3583,8 @@ class ModelGenerator(Operation):
         self.shuffle = parameters.get(self.SHUFFLE_PARAM, None) or None
         self.initial_epoch = parameters.get(self.INITIAL_EPOCH_PARAM, None) or None
 
+        self.callback_code = ''
+
         self.task_name = self.parameters.get('task').get('name')
         self.parents = ""
         self.var_name = ""
@@ -3352,12 +3625,19 @@ class ModelGenerator(Operation):
         self.train_generator = None
         self.validation_generator = None
 
+        self.import_code = {'layer': None,
+                            'callbacks': [],
+                            'model': 'Model',
+                            'preprocessing_image': None,
+                            'others': None}
+
         self.treatment()
 
     def treatment(self):
         self.var_name = convert_variable_name(self.task_name)
         self.task_name = self.var_name
 
+        validation = ''
         for parent in self.parents_by_port:
             if str(parent[0]) == 'input-layer':
                 self.input_layers.append(convert_variable_name(parent[1]))
@@ -3366,13 +3646,13 @@ class ModelGenerator(Operation):
             elif str(parent[0]) == 'train-generator':
                 self.train_generator = 'train_{var_name}' \
                     .format(var_name=convert_variable_name(parent[1]))
-                self.validation_generator = 'validation_{var_name}' \
-                    .format(var_name=convert_variable_name(parent[1]))
-            '''
+                if validation == '':
+                    validation = convert_variable_name(parent[1])
             elif str(parent[0]) == 'validation-generator':
-                self.validation_generator = 'validation_{var_name}'\
-                    .format(var_name=convert_variable_name(parent[1]))
-            '''
+                validation = convert_variable_name(parent[1])
+
+        self.validation_generator = 'validation_{var_name}' \
+            .format(var_name=validation)
 
         if self.train_generator is None:
             raise ValueError(gettext('It is necessary to inform the training '
@@ -3412,7 +3692,7 @@ class ModelGenerator(Operation):
             for loss in self.loss:
                 losses.append(loss['key'])
 
-            self.loss = """,\nloss={loss}""".format(loss=losses)
+            self.loss = """loss={loss}""".format(loss=losses)
             functions_required_compile.append(self.loss)
         else:
             raise ValueError(gettext('Parameter {} is required.')
@@ -3423,7 +3703,7 @@ class ModelGenerator(Operation):
             for metric in self.metrics:
                 metrics.append(str(metric['key']))
 
-            self.metrics = """,\nmetrics={metrics}""" \
+            self.metrics = """metrics={metrics}""" \
                 .format(metrics=metrics)
             functions_required_compile.append(self.metrics)
         else:
@@ -3431,7 +3711,7 @@ class ModelGenerator(Operation):
                              .format(self.METRICS_PARAM))
 
         if 'sparse_top_k_categorical_accuracy' in metrics:
-            self.k = """,\nk={k}""" \
+            self.k = """k={k}""" \
                 .format(k=self.k)
             functions_required_compile.append(self.k)
 
@@ -3444,7 +3724,7 @@ class ModelGenerator(Operation):
                                      .format(self.LOSS_WEIGHTS_PARAM))
 
             if self.loss_weights is not None:
-                self.loss_weights = """,\nloss_weights={loss_weights}""" \
+                self.loss_weights = """loss_weights={loss_weights}""" \
                     .format(loss_weights=self.loss_weights)
                 functions_required_compile.append(self.loss_weights)
 
@@ -3457,7 +3737,7 @@ class ModelGenerator(Operation):
                         raise ValueError(gettext('Parameter {} is invalid.')
                                          .format(self.SAMPLE_WEIGHT_MODE_PARAM))
 
-            self.sample_weight_mode = """,\nsample_weight_mode=
+            self.sample_weight_mode = """sample_weight_mode=
             {sample_weight_mode}""" \
                 .format(sample_weight_mode=self.sample_weight_mode)
             functions_required_compile.append(self.sample_weight_mode)
@@ -3467,12 +3747,12 @@ class ModelGenerator(Operation):
             if self.weighted_metrics is None:
                 raise ValueError(gettext('Parameter {} is invalid.')
                                  .format(self.WEIGHTED_METRICS_PARAM))
-            self.weighted_metrics = """,\nweighted_metrics={weighted_metrics}""" \
+            self.weighted_metrics = """weighted_metrics={weighted_metrics}""" \
                 .format(weighted_metrics=self.weighted_metrics)
             functions_required_compile.append(self.weighted_metrics)
 
         if self.target_tensors is not None:
-            self.target_tensors = """,\ntarget_tensors={target_tensors}""" \
+            self.target_tensors = """target_tensors={target_tensors}""" \
                 .format(target_tensors=self.target_tensors)
             functions_required_compile.append(self.target_tensors)
 
@@ -3482,15 +3762,14 @@ class ModelGenerator(Operation):
             args = self.kwargs.split(',')
             args_params = self.kwargs.split('=')
             if len(args) >= 1 and ((len(args_params) - len(args)) == 1):
-                self.kwargs = """,\n{kwargs}""".format(kwargs=self.kwargs)
+                self.kwargs = """{kwargs}""".format(kwargs=self.kwargs)
                 functions_required_compile.append(self.kwargs)
             else:
                 raise ValueError(gettext('Parameter {} is invalid.')
                                  .format(self.KWARGS_PARAM))
 
-        # Mount compile
-        for function in functions_required_compile:
-            self.add_functions_required_compile += function
+        self.add_functions_required_compile = ',\n    '\
+            .join(functions_required_compile)
 
         # Fit Generator
         functions_required_fit_generator = []
@@ -3500,7 +3779,7 @@ class ModelGenerator(Operation):
             functions_required_fit_generator.append(self.train_generator)
 
         if self.steps_per_epoch is not None:
-            self.steps_per_epoch = """,\nsteps_per_epoch={steps_per_epoch}"""\
+            self.steps_per_epoch = """steps_per_epoch={steps_per_epoch}"""\
                 .format(steps_per_epoch=self.steps_per_epoch)
             functions_required_fit_generator.append(self.steps_per_epoch)
         else:
@@ -3508,7 +3787,7 @@ class ModelGenerator(Operation):
                              .format(self.STEPS_PER_EPOCH_PARAM))
 
         if self.epochs is not None:
-            self.epochs = """,\nepochs={epochs}""".format(epochs=self.epochs)
+            self.epochs = """epochs={epochs}""".format(epochs=self.epochs)
             functions_required_fit_generator.append(self.epochs)
         else:
             raise ValueError(gettext('Parameter {} is required.')
@@ -3516,7 +3795,7 @@ class ModelGenerator(Operation):
 
         if self.verbose is not None:
             self.verbose = int(self.verbose)
-            self.verbose = """,\nverbose={verbose}""" \
+            self.verbose = """verbose={verbose}""" \
                 .format(verbose=self.verbose)
             functions_required_fit_generator.append(self.verbose)
 
@@ -3524,22 +3803,29 @@ class ModelGenerator(Operation):
         callbacks = '['
         if self.callbacks is not None:
             for callback in self.callbacks:
-                callbacks += str(callback['key']).lower() + ', '
+                callbacks += str(callback['key'].lower()) + ', '
+                self.import_code['callbacks'].append(callback['key'])
+
+                if callback['key'].lower() == 'tensorboard':
+                    self.callback_code += 'tensorboard = TensorBoard(log_dir=' \
+                                          '"/tmp/logs/{time}"' \
+                                          '.format(time=time()))' + '\n'
+
             callbacks += ']'
             callbacks = callbacks.replace(', ]', ']')
 
-            self.callbacks = """,\ncallbacks={callbacks}""" \
+            self.callbacks = """callbacks={callbacks}""" \
                 .format(callbacks=callbacks)
             functions_required_fit_generator.append(self.callbacks)
 
         if self.validation_generator is not None:
-            self.validation_generator = """,\nvalidation_data={validation_generator}""" \
+            self.validation_generator = """validation_data={validation_generator}""" \
                 .format(validation_generator=self.validation_generator)
             functions_required_fit_generator.append(self.validation_generator)
 
             if self.validation_steps is not None:
                 self.validation_steps = int(self.validation_steps)
-                self.validation_steps = """,\nvalidation_steps={validation_steps}""" \
+                self.validation_steps = """validation_steps={validation_steps}""" \
                     .format(validation_steps=self.validation_steps)
                 functions_required_fit_generator.append(self.validation_steps)
 
@@ -3549,7 +3835,7 @@ class ModelGenerator(Operation):
                     self.validation_freq = string_to_list(self.validation_freq)
 
                 if self.validation_freq is not None:
-                    self.validation_freq = """,\nvalidation_freq={validation_freq}""" \
+                    self.validation_freq = """validation_freq={validation_freq}""" \
                         .format(validation_freq=self.validation_freq)
                     functions_required_fit_generator.append(self.validation_freq)
                 else:
@@ -3559,7 +3845,7 @@ class ModelGenerator(Operation):
         if self.class_weight is not None:
             self.class_weight = string_to_dictionary(self.class_weight)
             if self.class_weight is not None:
-                self.class_weight = """,\nclass_weight={class_weight}""" \
+                self.class_weight = """class_weight={class_weight}""" \
                     .format(class_weight=self.class_weight)
                 functions_required_fit_generator.append(self.class_weight)
             else:
@@ -3568,42 +3854,44 @@ class ModelGenerator(Operation):
 
         if self.max_queue_size is not None:
             self.max_queue_size = int(self.max_queue_size)
-            self.max_queue_size = """,\nmax_queue_size={max_queue_size}""" \
+            self.max_queue_size = """max_queue_size={max_queue_size}""" \
                 .format(max_queue_size=self.max_queue_size)
             functions_required_fit_generator.append(self.max_queue_size)
 
         if self.workers is not None:
             self.workers = int(self.workers)
-            self.workers = """,\nworkers={workers}"""\
+            self.workers = """workers={workers}"""\
                 .format(workers=self.workers)
             functions_required_fit_generator.append(self.workers)
 
         self.use_multiprocessing = True if int(self.use_multiprocessing) == 1 else False
         if self.use_multiprocessing:
-            self.use_multiprocessing = """,\nuse_multiprocessing={use_multiprocessing}""" \
+            self.use_multiprocessing = """use_multiprocessing={use_multiprocessing}""" \
                 .format(use_multiprocessing=self.use_multiprocessing)
             functions_required_fit_generator.append(self.use_multiprocessing)
 
         self.shuffle = True if int(self.shuffle) == 1 else False
         if self.shuffle:
-            self.shuffle = """,\nshuffle={shuffle}""".format(shuffle=self.shuffle)
+            self.shuffle = """shuffle={shuffle}""".format(shuffle=self.shuffle)
             functions_required_fit_generator.append(self.shuffle)
 
         if self.initial_epoch is not None:
             self.initial_epoch = int(self.initial_epoch)
-            self.initial_epoch = """,\ninitial_epoch={initial_epoch}""" \
+            self.initial_epoch = """initial_epoch={initial_epoch}""" \
                 .format(initial_epoch=self.initial_epoch)
             functions_required_fit_generator.append(self.initial_epoch)
 
-        # Mount fit
-        for function in functions_required_fit_generator:
-            self.add_functions_required_fit_generator += function
+        self.add_functions_required_fit_generator = ',\n    '\
+            .join(functions_required_fit_generator)
 
     def generate_code(self):
         if not (self.train_generator and self.validation_generator):
             return dedent(
                 """
-                {var_name} = Model(inputs={inputs}, outputs={outputs})
+                {var_name} = Model(
+                    inputs={inputs},
+                    outputs={outputs}
+                )
                 """
             ).format(var_name=self.var_name,
                      inputs=self.input_layers,
@@ -3611,9 +3899,18 @@ class ModelGenerator(Operation):
         else:
             return dedent(
                 """
-                {var_name} = Model(inputs={inputs}, outputs={outputs})
-                {var_name}.compile({add_functions_required_compile})
-                {var_name}_history = {var_name}.fit_generator({add_functions_required_fit_generator})
+                {callback_code}
+                
+                {var_name} = Model(
+                    inputs={inputs},
+                    outputs={outputs}
+                )
+                {var_name}.compile(
+                    {add_functions_required_compile}
+                )
+                {var_name}_history = {var_name}.fit_generator(
+                    {add_functions_required_fit_generator}
+                )
                 output_task_id = '{output_task_id}'
                 """
             ).format(var_name=self.var_name,
@@ -3621,7 +3918,8 @@ class ModelGenerator(Operation):
                      outputs=self.output_layers,
                      add_functions_required_compile=self.add_functions_required_compile,
                      add_functions_required_fit_generator=self.add_functions_required_fit_generator,
-                     output_task_id=self.output_task_id)
+                     output_task_id=self.output_task_id,
+                     callback_code=self.callback_code)
 
 
 class ImageGenerator(Operation):
@@ -3716,6 +4014,12 @@ class ImageGenerator(Operation):
 
         self.treatment()
 
+        self.import_code = {'layer': None,
+                            'callbacks': [],
+                            'model': None,
+                            'preprocessing_image': 'ImageDataGenerator',
+                            'others': None}
+
     def treatment(self):
         parents_by_port = self.parameters.get('parents_by_port', [])
         if len(parents_by_port) == 1:
@@ -3760,43 +4064,42 @@ class ImageGenerator(Operation):
 
         if self.target_size:
             self.target_size = get_int_or_tuple(self.target_size)
-            self.target_size = """,\ntarget_size={target_size}""" \
+            self.target_size = """target_size={target_size}""" \
                 .format(target_size=self.target_size)
             functions_required_flow_from_directory.append(self.target_size)
 
         if self.color_mode:
-            self.color_mode = """,\ncolor_mode='{color_mode}'""" \
+            self.color_mode = """color_mode='{color_mode}'""" \
                 .format(color_mode=self.color_mode)
             functions_required_flow_from_directory.append(self.color_mode)
 
         if self.class_mode:
-            self.class_mode = """,\nclass_mode='{class_mode}'""" \
+            self.class_mode = """class_mode='{class_mode}'""" \
                 .format(class_mode=self.class_mode)
             functions_required_flow_from_directory.append(self.class_mode)
 
         if self.batch_size:
-            self.batch_size = """,\nbatch_size={batch_size}""" \
+            self.batch_size = """batch_size={batch_size}""" \
                 .format(batch_size=self.batch_size)
             functions_required_flow_from_directory.append(self.batch_size)
 
         if self.seed:
-            self.seed = """,\nseed={seed}""" \
+            self.seed = """seed={seed}""" \
                 .format(seed=self.seed)
             functions_required_flow_from_directory.append(self.seed)
 
         if self.subset:
-            self.subset = """,\nsubset='{subset}'""" \
+            self.subset = """subset='{subset}'""" \
                 .format(subset=self.subset)
             functions_required_flow_from_directory.append(self.subset)
 
         if self.interpolation:
-            self.interpolation = """,\ninterpolation='{interpolation}'""" \
+            self.interpolation = """interpolation='{interpolation}'""" \
                 .format(interpolation=self.interpolation)
             functions_required_flow_from_directory.append(self.interpolation)
 
-        # Mount functions required
-        for function in functions_required_flow_from_directory:
-            self.add_functions_required_flow_from_directory += function
+        self.add_functions_required_flow_from_directory = ',\n    '\
+            .join(functions_required_flow_from_directory)
 
         functions_required = []
         self.featurewise_center = True if int(self.featurewise_center) == 1 else False
@@ -3816,34 +4119,34 @@ class ImageGenerator(Operation):
             functions_required.append(self.zca_epsilon)
 
         if self.featurewise_center:
-            self.featurewise_center = """,\nfeaturewise_center={featurewise_center}""" \
+            self.featurewise_center = """featurewise_center={featurewise_center}""" \
                 .format(featurewise_center=self.featurewise_center)
             functions_required.append(self.featurewise_center)
 
         if self.samplewise_center:
-            self.samplewise_center = """,\nsamplewise_center={samplewise_center}""" \
+            self.samplewise_center = """samplewise_center={samplewise_center}""" \
                 .format(samplewise_center=self.samplewise_center)
             functions_required.append(self.samplewise_center)
 
         if self.featurewise_std_normalization:
-            self.featurewise_std_normalization = """,\nfeaturewise_std_normalization={featurewise_std_normalization}""" \
+            self.featurewise_std_normalization = """featurewise_std_normalization={featurewise_std_normalization}""" \
                 .format(featurewise_std_normalization=self.featurewise_std_normalization)
             functions_required.append(self.featurewise_std_normalization)
 
         if self.samplewise_std_normalization:
-            self.samplewise_std_normalization = """,\nsamplewise_std_normalization={samplewise_std_normalization}""" \
+            self.samplewise_std_normalization = """samplewise_std_normalization={samplewise_std_normalization}""" \
                 .format(samplewise_std_normalization=self.samplewise_std_normalization)
             functions_required.append(self.samplewise_std_normalization)
 
         self.zca_whitening = True if int(self.zca_whitening) == 1 else False
         if self.zca_whitening:
-            self.zca_whitening = """,\nzca_whitening={zca_whitening}""" \
+            self.zca_whitening = """zca_whitening={zca_whitening}""" \
                 .format(zca_whitening=self.zca_whitening)
             functions_required.append(self.zca_whitening)
 
         try:
             self.rotation_range = int(self.rotation_range)
-            self.rotation_range = """,\nrotation_range={rotation_range}""" \
+            self.rotation_range = """rotation_range={rotation_range}""" \
                 .format(rotation_range=self.rotation_range)
             functions_required.append(self.rotation_range)
         except:
@@ -3852,7 +4155,7 @@ class ImageGenerator(Operation):
 
         self.width_shift_range = string_to_int_float_list(self.width_shift_range)
         if self.width_shift_range is not None:
-            self.width_shift_range = """,\nwidth_shift_range={width_shift_range}""" \
+            self.width_shift_range = """width_shift_range={width_shift_range}""" \
                 .format(width_shift_range=self.width_shift_range)
             functions_required.append(self.width_shift_range)
         else:
@@ -3861,7 +4164,7 @@ class ImageGenerator(Operation):
 
         self.height_shift_range = string_to_int_float_list(self.height_shift_range)
         if self.height_shift_range is not None:
-            self.height_shift_range = """,\nheight_shift_range={height_shift_range}""" \
+            self.height_shift_range = """height_shift_range={height_shift_range}""" \
                 .format(height_shift_range=self.height_shift_range)
             functions_required.append(self.height_shift_range)
         else:
@@ -3872,7 +4175,7 @@ class ImageGenerator(Operation):
             self.brightness_range = string_to_list(self.brightness_range)
             if self.brightness_range is not None and \
                     len(self.brightness_range) == 2:
-                self.brightness_range = """,\nbrightness_range={brightness_range}""" \
+                self.brightness_range = """brightness_range={brightness_range}""" \
                     .format(brightness_range=self.brightness_range)
                 functions_required.append(self.brightness_range)
             else:
@@ -3884,7 +4187,7 @@ class ImageGenerator(Operation):
         except:
             raise ValueError(gettext('Parameter {} is invalid.')
                              .format(self.SHEAR_RANGE_PARAM))
-        self.shear_range = """,\nshear_range={shear_range}""" \
+        self.shear_range = """shear_range={shear_range}""" \
             .format(shear_range=self.shear_range)
         functions_required.append(self.shear_range)
 
@@ -3893,7 +4196,7 @@ class ImageGenerator(Operation):
             if len(self.zoom_range) == 1:
                 self.zoom_range = float(self.zoom_range[0])
 
-            self.zoom_range = """,\nzoom_range={zoom_range}""" \
+            self.zoom_range = """zoom_range={zoom_range}""" \
                 .format(zoom_range=self.zoom_range)
             functions_required.append(self.zoom_range)
         else:
@@ -3902,7 +4205,7 @@ class ImageGenerator(Operation):
 
         try:
             self.channel_shift_range = float(self.channel_shift_range)
-            self.channel_shift_range = """,\nchannel_shift_range={channel_shift_range}"""\
+            self.channel_shift_range = """channel_shift_range={channel_shift_range}"""\
                 .format(channel_shift_range=self.channel_shift_range)
             functions_required.append(self.channel_shift_range)
         except:
@@ -3910,7 +4213,7 @@ class ImageGenerator(Operation):
                              .format(self.CHANNEL_SHIFT_RANGE_PARAM))
 
         if self.fill_mode:
-            self.fill_mode = """,\nfill_mode='{fill_mode}'""" \
+            self.fill_mode = """fill_mode='{fill_mode}'""" \
                 .format(fill_mode=self.fill_mode)
             functions_required.append(self.fill_mode)
 
@@ -3920,32 +4223,32 @@ class ImageGenerator(Operation):
             except:
                 raise ValueError(gettext('Parameter {} is invalid.')
                                  .format(self.CVAL_PARAM))
-            self.cval = """,\ncval={cval}""".format(cval=self.cval)
+            self.cval = """cval={cval}""".format(cval=self.cval)
             functions_required.append(self.cval)
 
         self.horizontal_flip = True if int(self.horizontal_flip) == 1 else False
         if self.horizontal_flip:
-            self.horizontal_flip = """,\nhorizontal_flip={horizontal_flip}""" \
+            self.horizontal_flip = """horizontal_flip={horizontal_flip}""" \
                 .format(horizontal_flip=self.horizontal_flip)
             functions_required.append(self.horizontal_flip)
 
         self.vertical_flip = True if int(self.vertical_flip) == 1 else False
         if self.vertical_flip:
-            self.vertical_flip = """,\nvertical_flip={vertical_flip}""" \
+            self.vertical_flip = """vertical_flip={vertical_flip}""" \
                 .format(vertical_flip=self.vertical_flip)
             functions_required.append(self.vertical_flip)
 
         if self.rescale is not None:
             self.rescale = rescale(self.rescale)
             if self.rescale is not None:
-                self.rescale = """,\nrescale={rescale}""" \
+                self.rescale = """rescale={rescale}""" \
                     .format(rescale=self.rescale)
                 functions_required.append(self.rescale)
 
         '''TO_DO - ADD preprocessing_function IN THE FUTURE'''
 
         if self.data_format:
-            self.data_format = """,\ndata_format={data_format}""" \
+            self.data_format = """data_format={data_format}""" \
                 .format(data_format=self.data_format)
             functions_required.append(self.data_format)
 
@@ -3953,29 +4256,33 @@ class ImageGenerator(Operation):
         if self.image_train:
             self.validation_split = abs(float(self.validation_split))
             if self.validation_split > 0:
-                self.validation_split = """,\nvalidation_split={validation_split}""" \
+                self.validation_split = """validation_split={validation_split}""" \
                     .format(validation_split=self.validation_split)
                 functions_required.append(self.validation_split)
 
         if self.dtype is not None:
-            self.dtype = """,\ndtype={dtype}""" \
+            self.dtype = """dtype={dtype}""" \
                 .format(dtype=self.dtype)
             functions_required.append(self.dtype)
 
-        # Mount functions required
-        for function in functions_required:
-            self.add_functions_required += function
+        self.add_functions_required = ',\n    '.join(functions_required)
 
     def generate_code(self):
         if self.image_train:
             if self.validation_split > 0:
                 return dedent(
                     """
-                    {var_name}_datagen = ImageDataGenerator({add_functions_required})
-                    train_{var_name} = {var_name}_datagen.flow_from_directory({add_functions_required_flow_from_directory},
-                                                                               subset='training')
-                    validation_{var_name} = {var_name}_datagen.flow_from_directory({add_functions_required_flow_from_directory},
-                                                                                    subset='validation')
+                    {var_name}_datagen = ImageDataGenerator(
+                    {add_functions_required}
+                    )
+                    train_{var_name} = {var_name}_datagen.flow_from_directory(
+                        {add_functions_required_flow_from_directory},
+                        subset='training'
+                    )
+                    validation_{var_name} = {var_name}_datagen.flow_from_directory(
+                        {add_functions_required_flow_from_directory},
+                        subset='validation'
+                    )
                     """
                 ).format(var_name=self.var_name,
                          add_functions_required=self.add_functions_required,
@@ -3983,19 +4290,27 @@ class ImageGenerator(Operation):
             else:
                 return dedent(
                     """
-                    {var_name}_datagen = ImageDataGenerator({add_functions_required})
-                    train_{var_name} = {var_name}_datagen.flow_from_directory({add_functions_required_flow_from_directory})
+                    {var_name}_datagen = ImageDataGenerator(
+                        {add_functions_required}
+                    )
+                    train_{var_name} = {var_name}_datagen.flow_from_directory(
+                        {add_functions_required_flow_from_directory}
+                    )
                     validation_{var_name} = None
                     """
                 ).format(var_name=self.var_name,
                          add_functions_required=self.add_functions_required,
                          add_functions_required_flow_from_directory=self.add_functions_required_flow_from_directory)
 
-        elif self.image_validation:
+        if self.image_validation:
             return dedent(
                 """
-                {var_name}_datagen = ImageDataGenerator({add_functions_required})
-                validation_{var_name} = {var_name}_datagen.flow_from_directory({add_functions_required_flow_from_directory})
+                {var_name}_datagen = ImageDataGenerator(
+                    {add_functions_required}
+                )
+                validation_{var_name} = {var_name}_datagen.flow_from_directory(
+                    {add_functions_required_flow_from_directory}
+                )
                 """
             ).format(var_name=self.var_name,
                      add_functions_required=self.add_functions_required,
@@ -4024,6 +4339,12 @@ class ImageReader(Operation):
         self.task_name = self.parameters.get('task').get('name')
 
         self.treatment()
+
+        self.import_code = {'layer': None,
+                            'callbacks': [],
+                            'model': None,
+                            'preprocessing_image': None,
+                            'others': None}
 
     def treatment(self):
         self.var_name = convert_variable_name(self.task_name)
