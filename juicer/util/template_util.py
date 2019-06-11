@@ -149,9 +149,16 @@ def get_int_or_tuple(field):
                 try:
                     values = re.sub(r"\s+|\(|\)|\[|\]|\{|\}", "", field)\
                         .split(',')
-                    return tuple([int(v) for v in values])
+                    final_tuple = []
+                    for v in values:
+                        try:
+                            final_tuple.append(int(v))
+                        except:
+                            final_tuple.append(str(v))
+                    return tuple(final_tuple)
+                    #return tuple([int(v) for v in values])
                 except:
-                    return None
+                    return False
     return None
 
 
@@ -212,5 +219,50 @@ def rescale(field):
 
         return None
 
+
+def tuple_of_tuples(field):
+    final_tuple = []
+
+    if field is not None:
+        if isinstance(field, basestring) and field.strip():
+            try:
+                return int(field)
+            except:
+                field = re.sub(r"\s+|,$", "", field)
+                field = re.sub(r"\{|\[", "(", field)
+                field = re.sub(r"\}|\]", ")", field)
+
+                if not field.count("(") == field.count(")"):
+                    return False
+
+                values = re.sub(r"\),", "-", field).split('-')
+                if len(values) > 1:
+                    try:
+                        for v in values:
+                            in_tuple = re.sub(r"\(|\)", "", v).split(',')
+                            tmp_tuple = []
+                            for t in in_tuple:
+                                try:
+                                    tmp_tuple.append(int(t))
+                                except:
+                                    if t:
+                                        tmp_tuple.append(str(t))
+                            final_tuple.append(tuple(tmp_tuple))
+                        return tuple(final_tuple)
+                    except:
+                        return False
+                else:
+                    try:
+                        values = re.sub(r"\)|\(", "", values[-1]).split(',')
+                        for v in values:
+                            try:
+                                final_tuple.append(int(v))
+                            except:
+                                if v:
+                                    final_tuple.append(str(v))
+                        return tuple(final_tuple)
+                    except:
+                        return False
+    return None
 
 

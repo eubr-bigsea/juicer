@@ -10,7 +10,7 @@ from ast import parse
 from juicer.util.template_util import *
 
 
-class DenseOperation(Operation):
+class Dense(Operation):
     UNITS_PARAM = 'units'
     ACTIVATION_PARAM = 'activation'
     USE_BIAS_PARAM = 'use_bias'
@@ -133,7 +133,7 @@ class DenseOperation(Operation):
                         parent=self.parent)
 
 
-class DropoutOperation(Operation):
+class Dropout(Operation):
     RATE_PARAM = 'rate'
     NOISE_SHAPE_PARAM = 'noise_shape'
     SEED_PARAM = 'seed'
@@ -178,6 +178,7 @@ class DropoutOperation(Operation):
 
         functions_required = []
         if self.noise_shape:
+            self.noise_shape = get_int_or_tuple(self.noise_shape)
             self.noise_shape = """noise_shape='{noise_shape}'"""\
                 .format(noise_shape=self.noise_shape)
             functions_required.append(self.noise_shape)
@@ -205,7 +206,7 @@ class DropoutOperation(Operation):
                  parent=self.parent)
 
 
-class FlattenOperation(Operation):
+class Flatten(Operation):
     DATA_FORMAT_PARAM = 'data_format'
 
     def __init__(self, parameters, named_inputs, named_outputs):
@@ -258,7 +259,7 @@ class FlattenOperation(Operation):
                  parent=self.parent)
 
 
-class InputOperation(Operation):
+class Input(Operation):
     SHAPE_PARAM = 'shape'
     BATCH_SHAPE_PARAM = 'batch_shape'
     DTYPE_PARAM = 'dtype'
@@ -321,7 +322,6 @@ class InputOperation(Operation):
             functions_required.append(self.batch_shape)
 
         if self.dtype is not None:
-            self.dtype = get_tuple(self.dtype)
             self.dtype = """dtype={dtype}""".format(dtype=self.dtype)
             functions_required.append(self.dtype)
 
@@ -341,7 +341,7 @@ class InputOperation(Operation):
                  parent=self.parent)
 
 
-class ActivationOperation(Operation):
+class Activation(Operation):
     ACTIVATION_PARAM = 'activation'
 
     def __init__(self, parameters, named_inputs, named_outputs):
@@ -394,7 +394,7 @@ class ActivationOperation(Operation):
                  parent=self.parent)
 
 
-class ReshapeOperation(Operation):
+class Reshape(Operation):
     TARGET_SHAPE_PARAM = 'target_shape'
 
     def __init__(self, parameters, named_inputs, named_outputs):
@@ -455,7 +455,7 @@ class ReshapeOperation(Operation):
                  parent=self.parent)
 
 
-class PermuteOperation(Operation):
+class Permute(Operation):
     DIMS_PARAM = 'dims'
 
     def __init__(self, parameters, named_inputs, named_outputs):
@@ -514,7 +514,7 @@ class PermuteOperation(Operation):
                  parent=self.parent)
 
 
-class RepeatVectorOperation(Operation):
+class RepeatVector(Operation):
     N_PARAM = 'n'
 
     def __init__(self, parameters, named_inputs, named_outputs):
@@ -566,7 +566,7 @@ class RepeatVectorOperation(Operation):
                  parent=self.parent)
 
 
-class LambdaOperation(Operation):
+class Lambda(Operation):
     FUNCTION_PARAM = 'function'
     MASK_PARAM = 'mask'
     ARGUMENTS_PARAM = 'arguments'
@@ -652,7 +652,7 @@ class LambdaOperation(Operation):
                  parent=self.parent)
 
 
-class ActivityRegularizationOperation(Operation):
+class ActivityRegularization(Operation):
     L1_PARAM = 'l1'
     L2_PARAM = 'l2'
 
@@ -712,7 +712,7 @@ class ActivityRegularizationOperation(Operation):
                  parent=self.parent)
 
 
-class MaskingOperation(Operation):
+class Masking(Operation):
     MASK_VALUE_PARAM = 'mask_value'
 
     def __init__(self, parameters, named_inputs, named_outputs):
@@ -763,7 +763,7 @@ class MaskingOperation(Operation):
                  parent=self.parent)
 
 
-class SpatialDropout1DOperation(Operation):
+class SpatialDropout1D(Operation):
     RATE_PARAM = 'rate'
 
     def __init__(self, parameters, named_inputs, named_outputs):
@@ -814,7 +814,7 @@ class SpatialDropout1DOperation(Operation):
                  parent=self.parent)
 
 
-class SpatialDropout2DOperation(Operation):
+class SpatialDropout2D(Operation):
     RATE_PARAM = 'rate'
 
     def __init__(self, parameters, named_inputs, named_outputs):
@@ -865,7 +865,7 @@ class SpatialDropout2DOperation(Operation):
                  parent=self.parent)
 
 
-class SpatialDropout3DOperation(Operation):
+class SpatialDropout3D(Operation):
     RATE_PARAM = 'rate'
 
     def __init__(self, parameters, named_inputs, named_outputs):
@@ -1312,200 +1312,6 @@ class SimpleRNN(Operation):
                  unroll=self.unroll,
                  dropout=self.dropout,
                  recurrent_dropout=self.recurrent_dropout,
-                 parent=self.parent)
-
-
-class Convolution2D(Operation):
-    FILTERS_PARAM = 'filters'
-    KERNEL_SIZE_PARAM = 'kernel_size'
-    STRIDES_PARAM = 'strides'
-    INPUT_SHAPE_PARAM = 'input_shape'
-    PADDING_PARAM = 'padding'
-    DATA_FORMAT_PARAM = 'data_format'
-    DILATION_RATE_PARAM = 'dilation_rate'
-    ACTIVATION_PARAM = 'activation'
-    USE_BIAS_PARAM = 'use_bias'
-    TRAINABLE_PARAM = 'use_bias'
-    KERNEL_INITIALIZER_PARAM = 'kernel_initializer'
-    BIAS_INITIALIZER_PARAM = 'bias_initializer'
-    KERNEL_REGULARIZER_PARAM = 'kernel_regularizer'
-    BIAS_REGULARIZER_PARAM = 'bias_regularizer'
-    ACTIVITY_REGULARIZER_PARAM = 'activity_regularizer'
-    KERNEL_CONSTRAINT_PARAM = 'kernel_constraint'
-    BIAS_CONSTRAINT_PARAM = 'bias_constraint'
-
-    def __init__(self, parameters, named_inputs, named_outputs):
-        Operation.__init__(self, parameters, named_inputs, named_outputs)
-        self.output = named_outputs.get('output data',
-                                        'out_task_{}'.format(self.order))
-
-        if self.FILTERS_PARAM not in parameters or \
-                self.KERNEL_SIZE_PARAM not in parameters or \
-                self.STRIDES_PARAM not in parameters:
-            raise ValueError(gettext('Parameter {} {} {} are required').format(
-                self.FILTERS_PARAM, self.KERNEL_SIZE_PARAM, self.STRIDES_PARAM)
-            )
-
-        self.filters = parameters.get(self.FILTERS_PARAM)
-        self.kernel_size = parameters.get(self.KERNEL_SIZE_PARAM)
-        self.strides = parameters.get(self.STRIDES_PARAM)
-        self.input_shape = parameters.get(self.INPUT_SHAPE_PARAM, None) or None
-        self.padding = parameters.get(self.PADDING_PARAM)
-        self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None) or None
-        self.dilation_rate = parameters.get(self.DILATION_RATE_PARAM, None) or \
-                             None
-        self.activation = parameters.get(self.ACTIVATION_PARAM, None) or None
-        self.trainable = parameters.get(self.TRAINABLE_PARAM)
-        self.use_bias = parameters.get(self.USE_BIAS_PARAM)
-        self.kernel_initializer = parameters.get(self.KERNEL_INITIALIZER_PARAM,
-                                                 None) or None
-        self.bias_initializer = parameters.get(self.BIAS_INITIALIZER_PARAM,
-                                               None) or None
-        self.kernel_regularizer = parameters.get(self.KERNEL_REGULARIZER_PARAM,
-                                                 None) or None
-        self.bias_regularizer = parameters.get(self.BIAS_REGULARIZER_PARAM,
-                                               None) or None
-        self.activity_regularizer = parameters.get(self.
-                                                   ACTIVITY_REGULARIZER_PARAM,
-                                                   None) or None
-        self.kernel_constraint = parameters.get(self.KERNEL_CONSTRAINT_PARAM,
-                                                None) or None
-        self.bias_constraint = parameters.get(self.BIAS_CONSTRAINT_PARAM, None) \
-                               or None
-
-        self.add_functions_required = ""
-        self.task_name = self.parameters.get('task').get('name')
-        self.parent = ""
-        self.var_name = ""
-        self.has_code = True
-
-        self.treatment()
-
-        self.import_code = {'layer': 'Conv2D ',
-                            'callbacks': [],
-                            'model': None,
-                            'preprocessing_image': None,
-                            'others': None}
-
-    def treatment(self):
-        self.parent = convert_parents_to_variable_name(self.parameters
-                                                       .get('parents', []))
-        self.var_name = convert_variable_name(self.task_name)
-        self.task_name = self.var_name
-        if self.parent:
-            self.parent = '({})'.format(self.parent[0])
-        else:
-            self.parent = ''
-
-        self.kernel_size = get_int_or_tuple(self.kernel_size)
-        self.strides = get_int_or_tuple(self.strides)
-        self.dilation_rate = get_int_or_tuple(self.dilation_rate)
-
-        if self.filters < 0:
-            raise ValueError(gettext('Parameter {} is invalid').format(
-                self.FILTERS_PARAM))
-
-        if self.kernel_size is False:
-            raise ValueError(gettext('Parameter {} is invalid').format(
-                self.KERNEL_SIZE_PARAM))
-
-        if self.strides is False:
-            raise ValueError(gettext('Parameter {} is invalid').format(
-                self.STRIDES_PARAM))
-
-        self.use_bias = True if int(self.use_bias) == 1 else False
-        self.trainable = True if int(self.trainable) == 1 else False
-
-        functions_required = []
-        if self.input_shape is not None:
-            self.input_shape = get_int_or_tuple(self.input_shape)
-            self.input_shape = """input_shape='{input_shape}'""" \
-                .format(input_shape=self.input_shape)
-            functions_required.append(self.input_shape)
-
-        if self.padding is not None:
-            self.padding = """padding='{padding}'""" \
-                .format(padding=self.padding)
-            functions_required.append(self.padding)
-
-        if self.data_format is not None:
-            self.data_format = """data_format='{data_format}'""" \
-                .format(data_format=self.data_format)
-            functions_required.append(self.data_format)
-
-        if self.dilation_rate is not None:
-            self.dilation_rate = """dilation_rate={dilation_rate}""" \
-                .format(dilation_rate=self.dilation_rate)
-            functions_required.append(self.dilation_rate)
-
-        if self.activation is not None:
-            self.activation = """activation='{activation}'""" \
-                .format(activation=self.activation)
-            functions_required.append(self.activation)
-
-        if self.kernel_initializer is not None:
-            self.kernel_initializer = """kernel_initializer=
-            '{kernel_initializer}'""" \
-                .format(kernel_initializer=self.kernel_initializer)
-            functions_required.append(self.kernel_initializer)
-
-        if self.bias_initializer is not None:
-            self.bias_initializer = """bias_initializer='{bias_initializer}'""" \
-                .format(bias_initializer=self.bias_initializer)
-            functions_required.append(self.bias_initializer)
-
-        if self.kernel_regularizer is not None:
-            self.kernel_regularizer = """kernel_regularizer=
-            '{kernel_regularizer}'""" \
-                .format(kernel_regularizer=self.kernel_regularizer)
-            functions_required.append(self.kernel_regularizer)
-
-        if self.bias_regularizer is not None:
-            self.bias_regularizer = """bias_regularizer=
-            '{bias_regularizer}'""" \
-                .format(bias_regularizer=self.bias_regularizer)
-            functions_required.append(self.bias_regularizer)
-
-        if self.activity_regularizer is not None:
-            self.activity_regularizer = """activity_regularizer=
-            '{activity_regularizer}'""" \
-                .format(activity_regularizer=self.activity_regularizer)
-            functions_required.append(self.activity_regularizer)
-
-        if self.kernel_constraint is not None:
-            self.kernel_constraint = """kernel_constraint=
-            '{kernel_constraint}'""" \
-                .format(kernel_constraint=self.kernel_constraint)
-            functions_required.append(self.kernel_constraint)
-
-        if self.bias_constraint is not None:
-            self.bias_constraint = """bias_constraint='{bias_constraint}'""" \
-                .format(bias_constraint=self.bias_constraint)
-            functions_required.append(self.bias_constraint)
-
-        self.add_functions_required = ',\n    '.join(functions_required)
-
-    def generate_code(self):
-        return dedent(
-            """
-            {var_name} = Conv2D(
-                name='{name}',
-                filters={filters},
-                kernel_size={kernel_size},
-                strides={strides},
-                use_bias={use_bias},
-                {add_functions_required}
-            ){parent}
-            {var_name}.trainable = {trainable}
-            """
-        ).format(var_name=self.var_name,
-                 name=self.task_name,
-                 filters=self.filters,
-                 kernel_size=self.kernel_size,
-                 strides=self.strides,
-                 use_bias=self.use_bias,
-                 add_functions_required=self.add_functions_required,
-                 trainable=self.trainable,
                  parent=self.parent)
 
 
