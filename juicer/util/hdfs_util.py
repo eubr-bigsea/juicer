@@ -17,6 +17,32 @@ HarDirInfo = namedtuple('HarDirInfo',
                         'group, files')
 
 
+class HdfsUtil(object):
+    __slots__ = ['hdfs_url', '_server', '_port']
+
+    def __init__(self, hdfs_url):
+        self.hdfs_url = hdfs_url
+
+        parsed_url = urlparse(self.hdfs_url)
+        self._server = parsed_url.hostname
+        self._port = parsed_url.port
+
+    def copy_from_local(self, local_path, hdfs_path):
+        fs = pa.hdfs.connect(self._server, self._port)
+        with open(local_path) as f:
+            fs.upload(hdfs_path, f)
+
+    def copy_to_local(self, local_path, hdfs_path):
+        fs = pa.hdfs.connect(self._server, self._port)
+        with open(local_path, 'wb') as f:
+            fs.download(hdfs_path, f)
+
+    def read(self, hdfs_path):
+        fs = pa.hdfs.connect(self._server, self._port)
+        with fs.open(hdfs_path, 'rb') as f:
+            return f.read()
+
+
 class HdfsHarFileSystem(object):
     """
     Requires pyarrow, but it doesn't support HAR files natively. So, in this
@@ -109,5 +135,3 @@ class HdfsHarFileSystem(object):
             return [os.path.join(path, name) for name in file_info.files]
         else:
             return file_info.name
-
-
