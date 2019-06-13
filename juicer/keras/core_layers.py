@@ -1,12 +1,8 @@
 # -*- coding: utf-8 -*-
-from gettext import gettext
 from textwrap import dedent
 
 from juicer.operation import Operation
-
-import re
-from ast import parse
-
+from juicer.service import limonero_service
 from juicer.util.template_util import *
 
 
@@ -179,7 +175,7 @@ class Dropout(Operation):
         functions_required = []
         if self.noise_shape:
             self.noise_shape = get_int_or_tuple(self.noise_shape)
-            self.noise_shape = """noise_shape='{noise_shape}'"""\
+            self.noise_shape = """noise_shape='{noise_shape}'""" \
                 .format(noise_shape=self.noise_shape)
             functions_required.append(self.noise_shape)
 
@@ -283,7 +279,7 @@ class Input(Operation):
 
         self.add_functions_required = ""
 
-        self.cant_be_a_tensor = ['python_code']# slugs
+        self.cant_be_a_tensor = ['python_code']  # slugs
 
         self.treatment()
 
@@ -295,7 +291,7 @@ class Input(Operation):
 
     def treatment(self):
         self.parent = convert_parents_to_variable_name(self.parameters
-                                                        .get('parents', []))
+                                                       .get('parents', []))
         if self.parent:
             self.parent = '({})'.format(self.parent[0])
         else:
@@ -317,7 +313,7 @@ class Input(Operation):
 
         if self.batch_shape is not None:
             self.batch_shape = get_tuple(self.batch_shape)
-            self.batch_shape = """batch_shape={batch_shape}"""\
+            self.batch_shape = """batch_shape={batch_shape}""" \
                 .format(batch_shape=self.batch_shape)
             functions_required.append(self.batch_shape)
 
@@ -584,7 +580,8 @@ class Lambda(Operation):
         self.function = parameters.get(self.FUNCTION_PARAM, None) or None
         self.mask = parameters.get(self.MASK_PARAM, None) or None
         self.arguments = parameters.get(self.ARGUMENTS_PARAM, None) or None
-        self.output_shape = parameters.get(self.OUTPUT_SHAPE_PARAM, None) or None
+        self.output_shape = parameters.get(self.OUTPUT_SHAPE_PARAM,
+                                           None) or None
 
         self.task_name = self.parameters.get('task').get('name')
         self.has_code = True
@@ -621,7 +618,8 @@ class Lambda(Operation):
 
         if self.function is None:
             raise ValueError(
-                gettext('Parameter {} is required.').format(self.FUNCTION_PARAM))
+                gettext('Parameter {} is required.').format(
+                    self.FUNCTION_PARAM))
 
         functions_required = []
         functions_required.append('''function={function}'''
@@ -1086,7 +1084,8 @@ class LSTM(Operation):
                 .format(bias_constraint=self.bias_constraint)
             functions_required.append(self.bias_constraint)
 
-        self.add_functions_required = ',\n               '.join(functions_required)
+        self.add_functions_required = ',\n               '.join(
+            functions_required)
 
     def generate_code(self):
         return dedent(
@@ -1279,7 +1278,8 @@ class SimpleRNN(Operation):
                 .format(bias_constraint=self.bias_constraint)
             functions_required.append(self.bias_constraint)
 
-        self.add_functions_required = ',\n               '.join(functions_required)
+        self.add_functions_required = ',\n               '.join(
+            functions_required)
 
     def generate_code(self):
         return dedent(
@@ -1881,7 +1881,7 @@ class MaxPooling2D(Operation):
             raise ValueError(gettext('Parameter {} is invalid').format(
                 self.POOL_SIZE_PARAM))
         else:
-            self.pool_size = """pool_size={pool_size}"""\
+            self.pool_size = """pool_size={pool_size}""" \
                 .format(pool_size=self.pool_size)
             functions_required.append(self.pool_size)
 
@@ -3368,26 +3368,38 @@ class ModelGenerator(Operation):
         self.loss = parameters.get(self.LOSS_PARAM, None) or None
         self.metrics = parameters.get(self.METRICS_PARAM, None) or None
         self.k = parameters.get(self.K_PARAM, None) or None
-        self.loss_weights = parameters.get(self.LOSS_WEIGHTS_PARAM, None) or None
-        self.sample_weight_mode = parameters.get(self.SAMPLE_WEIGHT_MODE_PARAM, None) or None
-        self.weighted_metrics = parameters.get(self.WEIGHTED_METRICS_PARAM, None) or None
-        self.target_tensors = parameters.get(self.TARGET_TENSORS_PARAM, None) or None
+        self.loss_weights = parameters.get(self.LOSS_WEIGHTS_PARAM,
+                                           None) or None
+        self.sample_weight_mode = parameters.get(self.SAMPLE_WEIGHT_MODE_PARAM,
+                                                 None) or None
+        self.weighted_metrics = parameters.get(self.WEIGHTED_METRICS_PARAM,
+                                               None) or None
+        self.target_tensors = parameters.get(self.TARGET_TENSORS_PARAM,
+                                             None) or None
         self.kwargs = parameters.get(self.KWARGS_PARAM, None) or None
 
         # Fit Generator
-        self.steps_per_epoch = parameters.get(self.STEPS_PER_EPOCH_PARAM, None) or None
+        self.steps_per_epoch = parameters.get(self.STEPS_PER_EPOCH_PARAM,
+                                              None) or None
         self.epochs = parameters.get(self.EPOCHS_PARAM, None) or None
         self.verbose = parameters.get(self.VERBOSE_PARAM, None) or None
         self.callbacks = parameters.get(self.CALLBACKS_PARAM, None) or None
-        self.validation_data = parameters.get(self.VALIDATION_DATA_PARAM, None) or None
-        self.validation_steps = parameters.get(self.VALIDATION_STEPS_PARAM, None) or None
-        self.validation_freq = parameters.get(self.VALIDATION_FREQ_PARAM, None) or None
-        self.class_weight = parameters.get(self.CLASS_WEIGHT_PARAM, None) or None
-        self.max_queue_size = parameters.get(self.MAX_QUEUE_SIZE_PARAM, None) or None
+        self.validation_data = parameters.get(self.VALIDATION_DATA_PARAM,
+                                              None) or None
+        self.validation_steps = parameters.get(self.VALIDATION_STEPS_PARAM,
+                                               None) or None
+        self.validation_freq = parameters.get(self.VALIDATION_FREQ_PARAM,
+                                              None) or None
+        self.class_weight = parameters.get(self.CLASS_WEIGHT_PARAM,
+                                           None) or None
+        self.max_queue_size = parameters.get(self.MAX_QUEUE_SIZE_PARAM,
+                                             None) or None
         self.workers = parameters.get(self.WORKERS_PARAM, None) or None
-        self.use_multiprocessing = parameters.get(self.USE_MULTIPROCESSING_PARAM, None) or None
+        self.use_multiprocessing = parameters.get(
+            self.USE_MULTIPROCESSING_PARAM, None) or None
         self.shuffle = parameters.get(self.SHUFFLE_PARAM, None) or None
-        self.initial_epoch = parameters.get(self.INITIAL_EPOCH_PARAM, None) or None
+        self.initial_epoch = parameters.get(self.INITIAL_EPOCH_PARAM,
+                                            None) or None
 
         self.callback_code = ''
 
@@ -3536,9 +3548,11 @@ class ModelGenerator(Operation):
 
         if self.sample_weight_mode is not None:
             if not self.sample_weight_mode == 'temporal':
-                self.sample_weight_mode = string_to_list(self.sample_weight_mode)
+                self.sample_weight_mode = string_to_list(
+                    self.sample_weight_mode)
                 if self.sample_weight_mode is None:
-                    self.sample_weight_mode = string_to_dictionary(self.sample_weight_mode)
+                    self.sample_weight_mode = string_to_dictionary(
+                        self.sample_weight_mode)
                     if self.sample_weight_mode is None:
                         raise ValueError(gettext('Parameter {} is invalid.')
                                          .format(self.SAMPLE_WEIGHT_MODE_PARAM))
@@ -3574,7 +3588,7 @@ class ModelGenerator(Operation):
                 raise ValueError(gettext('Parameter {} is invalid.')
                                  .format(self.KWARGS_PARAM))
 
-        self.add_functions_required_compile = ',\n    '\
+        self.add_functions_required_compile = ',\n    ' \
             .join(functions_required_compile)
 
         # Fit Generator
@@ -3585,7 +3599,7 @@ class ModelGenerator(Operation):
             functions_required_fit_generator.append(self.train_generator)
 
         if self.steps_per_epoch is not None:
-            self.steps_per_epoch = """steps_per_epoch={steps_per_epoch}"""\
+            self.steps_per_epoch = """steps_per_epoch={steps_per_epoch}""" \
                 .format(steps_per_epoch=self.steps_per_epoch)
             functions_required_fit_generator.append(self.steps_per_epoch)
         else:
@@ -3605,7 +3619,7 @@ class ModelGenerator(Operation):
                 .format(verbose=self.verbose)
             functions_required_fit_generator.append(self.verbose)
 
-        #TO_DO ADD CALLBACKS CODE GENERATOR
+        # TO_DO ADD CALLBACKS CODE GENERATOR
         callbacks = '['
         if self.callbacks is not None:
             for callback in self.callbacks:
@@ -3643,7 +3657,8 @@ class ModelGenerator(Operation):
                 if self.validation_freq is not None:
                     self.validation_freq = """validation_freq={validation_freq}""" \
                         .format(validation_freq=self.validation_freq)
-                    functions_required_fit_generator.append(self.validation_freq)
+                    functions_required_fit_generator.append(
+                        self.validation_freq)
                 else:
                     raise ValueError(gettext('Parameter {} is invalid.')
                                      .format(self.VALIDATION_FREQ_PARAM))
@@ -3666,11 +3681,12 @@ class ModelGenerator(Operation):
 
         if self.workers is not None:
             self.workers = int(self.workers)
-            self.workers = """workers={workers}"""\
+            self.workers = """workers={workers}""" \
                 .format(workers=self.workers)
             functions_required_fit_generator.append(self.workers)
 
-        self.use_multiprocessing = True if int(self.use_multiprocessing) == 1 else False
+        self.use_multiprocessing = True if int(
+            self.use_multiprocessing) == 1 else False
         if self.use_multiprocessing:
             self.use_multiprocessing = """use_multiprocessing={use_multiprocessing}""" \
                 .format(use_multiprocessing=self.use_multiprocessing)
@@ -3687,7 +3703,7 @@ class ModelGenerator(Operation):
                 .format(initial_epoch=self.initial_epoch)
             functions_required_fit_generator.append(self.initial_epoch)
 
-        self.add_functions_required_fit_generator = ',\n    '\
+        self.add_functions_required_fit_generator = ',\n    ' \
             .join(functions_required_fit_generator)
 
     def generate_code(self):
@@ -3761,32 +3777,49 @@ class ImageGenerator(Operation):
     SUBSET_PARAM = 'subset'
     INTERPOLATION_PARAM = 'interpolation'
 
+    TRAIN_IMAGES_PARAM = 'train_images'
+    VALIDATION_IMAGES_PARAM = 'validation_images'
+
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
         self.output = named_outputs.get('output data',
                                         'out_task_{}'.format(self.order))
 
-        self.featurewise_center = parameters.get(self.FEATUREWISE_CENTER_PARAM, None) or None
-        self.samplewise_center = parameters.get(self.SAMPLEWISE_CENTER_PARAM, None) or None
-        self.featurewise_std_normalization = parameters.get(self.FEATUREWISE_STD_NORMALIZATION_PARAM, None) or None
-        self.samplewise_std_normalization = parameters.get(self.SAMPLEWISE_STD_NORMALIZATION_PARAM, None) or None
+        self.featurewise_center = parameters.get(self.FEATUREWISE_CENTER_PARAM,
+                                                 None) or None
+        self.samplewise_center = parameters.get(self.SAMPLEWISE_CENTER_PARAM,
+                                                None) or None
+        self.featurewise_std_normalization = parameters.get(
+            self.FEATUREWISE_STD_NORMALIZATION_PARAM, None) or None
+        self.samplewise_std_normalization = parameters.get(
+            self.SAMPLEWISE_STD_NORMALIZATION_PARAM, None) or None
         self.zca_epsilon = parameters.get(self.ZCA_EPSILON_PARAM, None) or None
-        self.zca_whitening = parameters.get(self.ZCA_WHITENING_PARAM, None) or None
-        self.rotation_range = parameters.get(self.ROTATION_RANGE_PARAM, None) or None
-        self.width_shift_range = parameters.get(self.WIDTH_SHIFT_RANGE_PARAM, None) or None
-        self.height_shift_range = parameters.get(self.HEIGHT_SHIFT_RANGE_PARAM, None) or None
-        self.brightness_range = parameters.get(self.BRIGHTNESS_RANGE_PARAM, None) or None
+        self.zca_whitening = parameters.get(self.ZCA_WHITENING_PARAM,
+                                            None) or None
+        self.rotation_range = parameters.get(self.ROTATION_RANGE_PARAM,
+                                             None) or None
+        self.width_shift_range = parameters.get(self.WIDTH_SHIFT_RANGE_PARAM,
+                                                None) or None
+        self.height_shift_range = parameters.get(self.HEIGHT_SHIFT_RANGE_PARAM,
+                                                 None) or None
+        self.brightness_range = parameters.get(self.BRIGHTNESS_RANGE_PARAM,
+                                               None) or None
         self.shear_range = parameters.get(self.SHEAR_RANGE_PARAM, None) or None
         self.zoom_range = parameters.get(self.ZOOM_RANGE_PARAM, None) or None
-        self.channel_shift_range = parameters.get(self.CHANNEL_SHIFT_RANGE_PARAM, None) or None
+        self.channel_shift_range = parameters.get(
+            self.CHANNEL_SHIFT_RANGE_PARAM, None) or None
         self.fill_mode = parameters.get(self.FILL_MODE_PARAM, None) or None
         self.cval = parameters.get(self.CVAL_PARAM, None) or None
-        self.horizontal_flip = parameters.get(self.HORIZONTAL_FLIP_PARAM, None) or None
-        self.vertical_flip = parameters.get(self.VERTICAL_FLIP_PARAM, None) or None
+        self.horizontal_flip = parameters.get(self.HORIZONTAL_FLIP_PARAM,
+                                              None) or None
+        self.vertical_flip = parameters.get(self.VERTICAL_FLIP_PARAM,
+                                            None) or None
         self.rescale = parameters.get(self.RESCALE_PARAM, None) or None
-        self.preprocessing_function = parameters.get(self.PREPROCESSING_FUNCTION_PARAM, None) or None
+        self.preprocessing_function = parameters.get(
+            self.PREPROCESSING_FUNCTION_PARAM, None) or None
         self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None) or None
-        self.validation_split = parameters.get(self.VALIDATION_SPLIT_PARAM, None) or None
+        self.validation_split = parameters.get(self.VALIDATION_SPLIT_PARAM,
+                                               None) or None
         self.dtype = parameters.get(self.DTYPE_PARAM, None) or None
 
         self.target_size = parameters.get(self.TARGET_SIZE_PARAM, None) or None
@@ -3796,17 +3829,20 @@ class ImageGenerator(Operation):
         self.shuffle = parameters.get(self.SHUFFLE_PARAM, None) or None
         self.seed = parameters.get(self.SEED_PARAM, None) or None
         self.subset = parameters.get(self.SUBSET_PARAM, None) or None
-        self.interpolation = parameters.get(self.INTERPOLATION_PARAM, None) or None
+        self.interpolation = parameters.get(self.INTERPOLATION_PARAM,
+                                            None) or None
 
-        self.image_train = None
-        self.image_validation = None
+        self.train_images = 0
+        self.validation_images = 0
 
         self.task_name = self.parameters.get('task').get('name')
         self.parents = ""
         self.var_name = ""
         self.has_code = True
         self.add_functions_required = ''
-        self.add_functions_required_flow_from_directory = ''
+
+        self.image_transformations = {}
+        self.type = None
 
         if self.TARGET_SIZE_PARAM not in parameters or \
                 self.TARGET_SIZE_PARAM is None:
@@ -3823,95 +3859,68 @@ class ImageGenerator(Operation):
         self.import_code = {'layer': None,
                             'callbacks': [],
                             'model': None,
-                            'preprocessing_image': 'ImageDataGenerator',
-                            'others': None}
+                            'preprocessing_image': None,
+                            'others': None
+                            }
 
     def treatment(self):
         parents_by_port = self.parameters.get('parents_by_port', [])
         if len(parents_by_port) == 1:
             if str(parents_by_port[0][0]) == 'train-image':
-                self.image_train = parents_by_port[0]
-                self.image_validation = None
+                self.train_images = parents_by_port[0]
+                self.validation_images = None
             elif str(parents_by_port[0][0]) == 'validation-image':
-                self.image_train = None
-                self.image_validation = parents_by_port[0]
+                self.train_images = None
+                self.validation_images = parents_by_port[0]
 
-        if not (self.image_train or self.image_validation):
+        if not (self.train_images or self.validation_images):
             raise ValueError(gettext('You need to correctly specify the '
                                      'ports for training and/or validation.'))
-        
-        if self.image_train:
-            self.image_train = convert_variable_name(self.image_train[1])\
-                               + '_'\
-                               + convert_variable_name(self.image_train[0])
 
-        if self.image_validation:
-            self.image_validation = convert_variable_name(
-                self.image_validation[1]) + '_' + convert_variable_name(
-                self.image_validation[0])
+        if self.train_images:
+            self.train_images = convert_variable_name(
+                self.train_images[1]) + '_' + convert_variable_name(
+                self.train_images[0])
+
+        if self.validation_images:
+            self.validation_images = convert_variable_name(
+                self.validation_images[1]) + '_' + convert_variable_name(
+                self.validation_images[0])
 
         self.parents = convert_parents_to_variable_name(self.parameters
                                                         .get('parents', []))
         self.var_name = convert_variable_name(self.task_name)
         self.task_name = self.var_name
 
-        #TO_DO ADD PARAMETER FOR FLOW_FROM_DIRECTORY
-
-        functions_required_flow_from_directory = []
-        if self.image_train:
-            self.image_train = """directory={image_train}""" \
-                .format(image_train=self.image_train)
-            functions_required_flow_from_directory.append(self.image_train)
-
-        if self.image_validation:
-            self.image_validation = """directory={image_validation}""" \
-                .format(image_validation=self.image_validation)
-            functions_required_flow_from_directory.append(self.image_validation)
-
         if self.target_size:
             self.target_size = get_int_or_tuple(self.target_size)
-            self.target_size = """target_size={target_size}""" \
-                .format(target_size=self.target_size)
-            functions_required_flow_from_directory.append(self.target_size)
+            self.image_transformations['target_size'] = self.target_size
+        else:
+            self.image_transformations['target_size'] = None
 
         if self.color_mode:
-            self.color_mode = """color_mode='{color_mode}'""" \
-                .format(color_mode=self.color_mode)
-            functions_required_flow_from_directory.append(self.color_mode)
+            self.image_transformations['color_mode'] = self.color_mode
+        else:
+            self.image_transformations['color_mode'] = None
 
-        if self.class_mode:
-            self.class_mode = """class_mode='{class_mode}'""" \
-                .format(class_mode=self.class_mode)
-            functions_required_flow_from_directory.append(self.class_mode)
-
-        if self.batch_size:
-            self.batch_size = """batch_size={batch_size}""" \
-                .format(batch_size=self.batch_size)
-            functions_required_flow_from_directory.append(self.batch_size)
-
-        if self.seed:
-            self.seed = """seed={seed}""" \
-                .format(seed=self.seed)
-            functions_required_flow_from_directory.append(self.seed)
-
-        if self.subset:
-            self.subset = """subset='{subset}'""" \
-                .format(subset=self.subset)
-            functions_required_flow_from_directory.append(self.subset)
+        if self.batch_size <= 0:
+            raise ValueError(gettext('Parameter {} is invalid.')
+                             .format(self.BATCH_SIZE_PARAM))
 
         if self.interpolation:
-            self.interpolation = """interpolation='{interpolation}'""" \
-                .format(interpolation=self.interpolation)
-            functions_required_flow_from_directory.append(self.interpolation)
-
-        self.add_functions_required_flow_from_directory = ',\n    '\
-            .join(functions_required_flow_from_directory)
+            self.image_transformations['interpolation'] = self.interpolation
+        else:
+            self.image_transformations['interpolation'] = None
 
         functions_required = []
-        self.featurewise_center = True if int(self.featurewise_center) == 1 else False
-        self.samplewise_center = True if int(self.samplewise_center) == 1 else False
-        self.featurewise_std_normalization = True if int(self.featurewise_std_normalization) == 1 else False
-        self.samplewise_std_normalization = True if int(self.samplewise_std_normalization) == 1 else False
+        self.featurewise_center = True if int(
+            self.featurewise_center) == 1 else False
+        self.samplewise_center = True if int(
+            self.samplewise_center) == 1 else False
+        self.featurewise_std_normalization = True if int(
+            self.featurewise_std_normalization) == 1 else False
+        self.samplewise_std_normalization = True if int(
+            self.samplewise_std_normalization) == 1 else False
 
         if self.zca_epsilon is not None:
             try:
@@ -3936,12 +3945,14 @@ class ImageGenerator(Operation):
 
         if self.featurewise_std_normalization:
             self.featurewise_std_normalization = """featurewise_std_normalization={featurewise_std_normalization}""" \
-                .format(featurewise_std_normalization=self.featurewise_std_normalization)
+                .format(
+                featurewise_std_normalization=self.featurewise_std_normalization)
             functions_required.append(self.featurewise_std_normalization)
 
         if self.samplewise_std_normalization:
             self.samplewise_std_normalization = """samplewise_std_normalization={samplewise_std_normalization}""" \
-                .format(samplewise_std_normalization=self.samplewise_std_normalization)
+                .format(
+                samplewise_std_normalization=self.samplewise_std_normalization)
             functions_required.append(self.samplewise_std_normalization)
 
         self.zca_whitening = True if int(self.zca_whitening) == 1 else False
@@ -3959,7 +3970,8 @@ class ImageGenerator(Operation):
             raise ValueError(gettext(',\nParameter {} is invalid.')
                              .format(self.ROTATION_RANGE_PARAM))
 
-        self.width_shift_range = string_to_int_float_list(self.width_shift_range)
+        self.width_shift_range = string_to_int_float_list(
+            self.width_shift_range)
         if self.width_shift_range is not None:
             self.width_shift_range = """width_shift_range={width_shift_range}""" \
                 .format(width_shift_range=self.width_shift_range)
@@ -3968,7 +3980,8 @@ class ImageGenerator(Operation):
             raise ValueError(gettext('Parameter {} is invalid.')
                              .format(self.WIDTH_SHIFT_RANGE_PARAM))
 
-        self.height_shift_range = string_to_int_float_list(self.height_shift_range)
+        self.height_shift_range = string_to_int_float_list(
+            self.height_shift_range)
         if self.height_shift_range is not None:
             self.height_shift_range = """height_shift_range={height_shift_range}""" \
                 .format(height_shift_range=self.height_shift_range)
@@ -4011,7 +4024,7 @@ class ImageGenerator(Operation):
 
         try:
             self.channel_shift_range = float(self.channel_shift_range)
-            self.channel_shift_range = """channel_shift_range={channel_shift_range}"""\
+            self.channel_shift_range = """channel_shift_range={channel_shift_range}""" \
                 .format(channel_shift_range=self.channel_shift_range)
             functions_required.append(self.channel_shift_range)
         except:
@@ -4059,7 +4072,7 @@ class ImageGenerator(Operation):
             functions_required.append(self.data_format)
 
         # In case of the operation is creating the image data
-        if self.image_train:
+        if self.train_images:
             self.validation_split = abs(float(self.validation_split))
             if self.validation_split > 0:
                 self.validation_split = """validation_split={validation_split}""" \
@@ -4074,53 +4087,103 @@ class ImageGenerator(Operation):
         self.add_functions_required = ',\n    '.join(functions_required)
 
     def generate_code(self):
-        if self.image_train:
+        if self.train_images:
             if self.validation_split > 0:
                 return dedent(
                     """
                     {var_name}_datagen = ImageDataGenerator(
                     {add_functions_required}
                     )
-                    train_{var_name} = {var_name}_datagen.flow_from_directory(
-                        {add_functions_required_flow_from_directory},
+                    
+                    train_{var_name} = {dataset_generator}(
+                        tar_path={train_path},
+                        batch_size={batch_size},
+                        image_data_generator={var_name}_datagen, 
+                        seed={seed},
+                        split={split},
+                        image_transformations={image_transformations},
                         subset='training'
                     )
-                    validation_{var_name} = {var_name}_datagen.flow_from_directory(
-                        {add_functions_required_flow_from_directory},
+                    train_{var_name} = train_{var_name}.read()
+                        
+                    validation_{var_name} = {dataset_generator}(
+                        tar_path={validation_path},
+                        batch_size={batch_size},
+                        image_data_generator={var_name}_datagen, 
+                        seed={seed},
+                        split={split},
+                        image_transformations={image_transformations},
                         subset='validation'
                     )
+                    validation_{var_name} = validation_{var_name}.read()
                     """
                 ).format(var_name=self.var_name,
                          add_functions_required=self.add_functions_required,
-                         add_functions_required_flow_from_directory=self.add_functions_required_flow_from_directory)
+                         dataset_generator='{parent}_dataset_generator'
+                         .format(parent=self.parents[0]),
+                         train_path='{parent}_train_images'
+                         .format(parent=self.parents[0]),
+                         validation_path='{parent}_validation_images'
+                         .format(parent=self.parents[0]),
+                         batch_size=self.batch_size,
+                         seed=self.seed,
+                         split=self.validation_split,
+                         image_transformations=self.image_transformations)
             else:
                 return dedent(
                     """
                     {var_name}_datagen = ImageDataGenerator(
                         {add_functions_required}
                     )
-                    train_{var_name} = {var_name}_datagen.flow_from_directory(
-                        {add_functions_required_flow_from_directory}
+                    
+                    train_{var_name} = {dataset_generator}(
+                        tar_path={train_path},
+                        batch_size={batch_size},
+                        image_data_generator={var_name}_datagen, 
+                        seed={seed},
+                        image_transformations={image_transformations},
+                        subset='training'
                     )
+                    train_{var_name} = train_{var_name}.read()
+                    
                     validation_{var_name} = None
                     """
                 ).format(var_name=self.var_name,
                          add_functions_required=self.add_functions_required,
-                         add_functions_required_flow_from_directory=self.add_functions_required_flow_from_directory)
+                         dataset_generator='{parent}_dataset_generator'
+                         .format(parent=self.parents[0]),
+                         train_path='{parent}_train_images'
+                         .format(parent=self.parents[0]),
+                         batch_size=self.batch_size,
+                         seed=self.seed,
+                         image_transformations=self.image_transformations)
 
-        if self.image_validation:
+        if self.validation_images:
             return dedent(
                 """
                 {var_name}_datagen = ImageDataGenerator(
                     {add_functions_required}
                 )
-                validation_{var_name} = {var_name}_datagen.flow_from_directory(
-                    {add_functions_required_flow_from_directory}
+                
+                validation_{var_name} = {dataset_generator}(
+                    tar_path={validation_path},
+                    batch_size={batch_size},
+                    image_data_generator={var_name}_datagen, 
+                    seed={seed},
+                    image_transformations={image_transformations},
+                    subset='validation'
                 )
+                validation_{var_name} = validation_{var_name}.read()
                 """
             ).format(var_name=self.var_name,
                      add_functions_required=self.add_functions_required,
-                     add_functions_required_flow_from_directory=self.add_functions_required_flow_from_directory)
+                     dataset_generator='{parent}_dataset_generator'
+                     .format(parent=self.parents[0]),
+                     validation_path='{parent}_validation_images'
+                     .format(parent=self.parents[0]),
+                     batch_size=self.batch_size,
+                     seed=self.seed,
+                     image_transformations=self.image_transformations)
 
 
 class ImageReader(Operation):
@@ -4136,51 +4199,120 @@ class ImageReader(Operation):
             raise ValueError(gettext('Parameter {} is required')
                              .format(self.TRAIN_IMAGES_PARAM))
 
-        self.train_images = parameters.get(self.TRAIN_IMAGES_PARAM, None) or None
-        self.validation_images = parameters.get(self.VALIDATION_IMAGES_PARAM, None) or None
+        self.train_images = parameters.get(self.TRAIN_IMAGES_PARAM,
+                                           None) or None
+        self.validation_images = parameters.get(self.VALIDATION_IMAGES_PARAM,
+                                                None) or None
 
         self.has_code = True
         self.var_name = ""
-        self.add_functions_required = ""
         self.task_name = self.parameters.get('task').get('name')
+
+        supported_formats = ('HAR_IMAGE_FOLDER', 'TAR_IMAGE_FOLDER')
+
+        if self.train_images != 0 and self.train_images is not None:
+            self.metadata_train = self.get_data_source(
+                data_source_id=self.train_images)
+
+            if self.metadata_train.get('format') not in supported_formats:
+                raise ValueError(gettext('Unsupported image format: {}').format(
+                    self.metadata_train.get('format')))
+
+            self.format = self.metadata_train.get('format')
+
+        if self.validation_images != 0 and self.validation_images is not None:
+            self.metadata_validation = self.get_data_source(
+                data_source_id=self.validation_images)
+
+            if self.metadata_validation.get('format') not in supported_formats:
+                raise ValueError(gettext('Unsupported image format: {}').format(
+                    self.metadata_validation.get('format')))
+
+            self.format = self.metadata_validation.get('format')
+        else:
+            self.metadata_validation = None
+
+        if self.metadata_validation is not None:
+            if not (self.metadata_train.get('format') ==
+                    self.metadata_validation.get('format')):
+                raise ValueError(gettext('Training and validation images files '
+                                         'are in different formats.'))
 
         self.treatment()
 
         self.import_code = {'layer': None,
                             'callbacks': [],
                             'model': None,
-                            'preprocessing_image': None,
-                            'others': None}
+                            'preprocessing_image': 'ImageDataGenerator',
+                            'others': 'from juicer.keras.persistence import '
+                                      '{}'.format(self.get_generator_name())
+                            }
+
+    def get_generator_name(self):
+        if self.format == 'HAR_IMAGE_FOLDER':
+            return 'har_image_generator'
+        elif self.format == 'TAR_IMAGE_FOLDER':
+            return 'ArchiveImageGenerator'
+
+    def get_data_source(self, data_source_id):
+        # Retrieve metadata from Limonero.
+        limonero_config = \
+        self.parameters['configuration']['juicer']['services']['limonero']
+
+        metadata = limonero_service.get_data_source_info(
+            limonero_config['url'], str(limonero_config['auth_token']),
+            data_source_id)
+
+        if not metadata.get('url'):
+            raise ValueError(
+                gettext('Incorrect data source configuration (empty url)'))
+
+        return metadata
 
     def treatment(self):
         self.var_name = convert_variable_name(self.task_name)
         self.task_name = self.var_name
 
-        functions_required = []
         if self.train_images is not None:
-            self.train_images = """'{train_images}'""" \
-                .format(train_images=self.train_images)
-            functions_required.append(self.train_images)
+            self.train_images = """'{storage_url}{file_url}'""".format(
+                storage_url=self.metadata_train.get('storage').get('url'),
+                file_url=self.metadata_train.get('url')
+            )
 
         if self.validation_images is not None:
-            self.validation_images = """'{validation_images}'""" \
-                .format(validation_images=self.validation_images)
-            functions_required.append(self.validation_images)
+            self.validation_images = """'{storage_url}{file_url}'""".format(
+                storage_url=self.metadata_validation.get('storage').get('url'),
+                file_url=self.metadata_validation.get('url')
+            )
 
-        for funct in functions_required:
-            self.add_functions_required += funct
-
-        #import pdb
-        #pdb.set_trace()
+        self.train_images = self.train_images.replace('file://','')
+        self.validation_images = self.validation_images.replace('file://','')
 
     def generate_code(self):
-        return dedent(
-            """
-            {var_name}_train_image = {train_images}
-            {var_name}_validation_image = {validation_images}
-            """.format(var_name=self.var_name,
-                       train_images=self.train_images,
-                       validation_images=self.validation_images))
+        if self.train_images and self.validation_images:
+            return dedent(
+                """                
+                {var_name}_train_images = {train_images}
+                {var_name}_validation_images = {validation_images}
+                
+                {var_name}_dataset_generator = {dataset_generator}
+                """.format(var_name=self.var_name,
+                           dataset_generator=self.get_generator_name(),
+                           train_images=self.train_images,
+                           validation_images=self.validation_images)
+            )
+
+        if self.train_images:
+            return dedent(
+                """
+                {var_name}_train_images = {train_images}
+                
+                {var_name}_dataset_generator = {dataset_generator}
+                """.format(var_name=self.var_name,
+                           dataset_generator=self.get_generator_name(),
+                           train_images=self.train_images)
+            )
+
 
 '''
 class Hyperparameters(Operation):
