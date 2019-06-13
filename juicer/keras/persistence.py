@@ -4,6 +4,7 @@ import random
 import tarfile
 import tempfile
 from collections import namedtuple, OrderedDict
+from gettext import gettext
 
 import numpy as np
 import os
@@ -21,8 +22,8 @@ TarDirInfo = namedtuple('TarDirInfo',
                         'group, files')
 
 
-def har_image_generator(hdfs_url, har_path, bs=32, mode='train', aug=None,
-                        seed=None):
+def har_image_generator(hdfs_url, har_path, batch_size=32, mode='train',
+                        image_data_generator=None, seed=None):
     """
     An image loader generator that reads images from HDFS stored in the HAR
     format.
@@ -32,67 +33,115 @@ def har_image_generator(hdfs_url, har_path, bs=32, mode='train', aug=None,
     :type har_path: str
     :param hdfs_url: hdfs_url URL for the HDFS server
     :type hdfs_url: str
-    :param bs: The batch size
-    :type bs: int
+    :param batch_size: The batch size
+    :type batch_size: int
     :param seed: Random number generator seed
     :param mode: mode 'test' or 'train'
     :type mode: str
     :seed seed for random number generator
     :type seed: int
     :arg mode test of train
-    :arg bs The batch size
-    :param aug (default is None ) If an augmentation object is specified,
+    :arg batch_size The batch size
+    :param image_data_generator (default is None ) If an augmentation object is specified,
         then we’ll apply it before we yield our images and labels.
-    :type aug Augmentation
+    :type image_data_generator Augmentation
     """
     h = HdfsHarFileSystem(hdfs_url, har_path)
     h.load()
-    return archive_image_generator(h.read, h.file_list, bs, mode, aug, seed)
+    return archive_image_generator(h.read, h.file_list, batch_size, mode,
+                                   image_data_generator, seed)
 
 
-def tar_image_generator(tar_path, bs=32, mode='train', aug=None, seed=None):
+class ArchiveImageGenerator(object):
     """
     An image loader generator that reads images from TAR files (gzipped or not) 
     format.
     The structure in TAR file must follow the layout described in 
     archive_image_generator()
     :arg tar_path Path for the TAR file. If ends with .gz, it will be expanded.
-    :arg mode test of train
     :arg bs The batch size
     :arg aug (default is None ) If an augmentation object is specified,
         then we’ll apply it before we yield our images and labels.
     :arg seed seed for random number generator
     """
-    if tar_path.endswith('.gz'):
-        tar = tarfile.open(tar_path, 'r:gz')
-    else:
-        tar = tarfile.open(tar_path, 'r')
-    files = OrderedDict()
-    for m in tar.getmembers():
-        if m.isfile():
-            files['/' + m.name] = TarFileInfo(
-                '/' + m.name, 'file', None, None, m.size, m.mtime, None,
-                m.uname, m.gname)
-        elif m.isdir():
-            files['/' + m.name] = TarDirInfo(
-                '/' + m.name, 'dir', m.mtime, None, m.uname, m.gname, [])
+    __slots__ = ['train', 'validation', 'files', 'batch_size',
+                 'image_data_generator', 'image_transformations',
+                 'tar', 'split', 'dataset', 'subset', 'tar_path']
+
+    def __init__(self, tar_path, batch_size=32, image_data_generator=None,
+                 seed=None, split=None, shuffle=True, image_transformations={},
+                 subset=None):
+
+        if subset is None:
+            raise ValueError(
+                gettext("It's necessary inform the subset parameter.")
+            )
+
+        supported_subset = ('training', 'validation')
+
+        if subset not in supported_subset:
+            raise ValueError(gettext('Unsupported subset type.'))
+
+        if tar_path.endswith('.gz') or tar_path.endswith('.tgz'):
+            self.tar = tarfile.open(tar_path, 'r:gz')
         else:
+            self.tar = tarfile.open(tar_path, 'r')
+        files = OrderedDict()
+        for m in self.tar.getmembers():
+            name = '/{}'.format(m.name)
+            if m.isfile():
+                files[name] = TarFileInfo(
+                    name, 'file', None, None, m.size,
+                    m.mtime, None, m.uname, m.gname
+                )
+            elif m.isdir():
+                files[name] = TarDirInfo(
+                    name, 'dir', m.mtime, None, m.uname, m.gname, []
+                )
+
+        if seed:
+            random.seed(seed)
+        if shuffle:
+            #random.shuffle(files)
             pass
 
-    def read_tar(part_info, path):
-        tar_info = tar.getmember(path[1:])
-        img = load_img(io.BytesIO(tar.extractfile(tar_info).read()))
-        img = img.resize((150, 150))
+        self.batch_size = batch_size
+        self.image_data_generator = image_data_generator
+        self.files = files
+        self.image_transformations = image_transformations
+        self.subset = subset
+        self.tar_path = tar_path
+        self.dataset = {}
+
+        if split is not None:
+            part = int(len(files) * self.split)
+            items = files.items()
+            if self.subset == 'training':
+                self.dataset[self.subset] = dict(items[:part])
+            else:
+                self.dataset[self.subset] = dict(items[part:])
+        else:
+            self.dataset[self.subset] = files
+
+    def read_tar(self, file_path):
+        tar_info = self.tar.getmember(file_path[1:])
+
+        img = load_img(path=io.BytesIO(self.tar.extractfile(tar_info).read()),
+                       **self.image_transformations
+                       )
         img_array = img_to_array(img)
-        # img_array = img_array.reshape((1,) + img_array.shape)
 
         return img_array
 
-    return archive_image_generator(read_tar, files, bs, mode, aug, seed)
+    def read(self):
+        return archive_image_generator(reader_function=self.read_tar,
+                                       files=self.dataset[self.subset],
+                                       batch_size=self.batch_size,
+                                       data_generator=self.image_data_generator)
 
 
-def archive_image_generator(read_fn, files, bs=32, mode='train', aug=None,
-                            seed=None):
+def archive_image_generator(reader_function, files, batch_size=32,
+                            data_generator=None):
     """
     An image loader generator that reads a archive file format.
     The structure in file must follow the layout:
@@ -129,47 +178,41 @@ def archive_image_generator(read_fn, files, bs=32, mode='train', aug=None,
     │   |   ├── image2.jpg
     │   |   ├── ...
     │   |   ├── imageK.jpg
-    :arg read_fn function to read to archive file
+    :arg reader_function function to read to archive file
     :arg files dictionary with files information
-    :arg mode test of train
-    :arg bs The batch size
-    :arg aug (default is None ) If an augmentation object is specified,
-        then we’ll apply it before we yield our images and labels.
-    :arg seed seed for random number generator
+    :arg batch_size The batch size
+    :arg data_generator (default is None ) If an ImageDataGenerator
+         object is specified, then we’ll apply it before we yield our images
+         and labels.
     """
-    if mode not in ['train', 'test']:
-        raise ValueError(_('Invalid stage for generator: {}'.format(mode)))
-
-    def files_in_mode(_info, _mode):
-        return _info.type == 'file' and _info.name.startswith('/' + _mode + '/')
 
     file_list = [info.name for info in files.values() if
-                 files_in_mode(info, mode)]
-    if seed:
-        random.seed(seed)
-        random.shuffle(file_list)
+                 info.type == 'file']
+
     total = len(file_list)
-    consumed = 1990
+    consumed = 0
+
     while consumed < total:
-        names = file_list[consumed:consumed + bs]
+        names = file_list[consumed:consumed + batch_size]
         labels = []
         images = []
         for name in names:
             parts = name.split('/', 3)
             labels.append(parts[2])
-            info = files[name]
-            images.append(read_fn(info.part_name, name))
+            print name
+            print labels
+            images.append(reader_function(name))
         images = np.array(images)
 
-        # if the data augmentation object is not None, apply it
-        if aug is not None:
-            (images, labels) = next(aug.flow(images,
-                                             labels, batch_size=bs,
-                                             save_to_dir='/tmp/preview'))
+        # if the ImageDataGenerator object is not None, apply it
+        if data_generator is not None:
+            (images, labels) = next(data_generator.flow(images,
+                                                        labels,
+                                                        batch_size=batch_size,
+                                                        save_to_dir='/tmp/preview'))
 
         yield (np.array(images), np.array(labels))
-        consumed += int(bs)
-        print(consumed)
+        consumed += int(batch_size)
 
 
 def load_keras_model(limonero_url, token, storage_id, path):
@@ -183,7 +226,8 @@ def load_keras_model(limonero_url, token, storage_id, path):
     """
     storage = limonero_service.get_storage_info(limonero_url, token, storage_id)
     if storage.type not in ['HDFS', 'LOCAL']:
-        raise ValueError(_('Unsupported storage type: {}'.format(storage.type)))
+        raise ValueError(
+            gettext('Unsupported storage type: {}'.format(storage.type)))
 
     final_path = os.path.join(storage.url, 'models', path)
 
@@ -211,7 +255,8 @@ def save_keras_model(limonero_url, token, storage_id, path, keras_model):
     """
     storage = limonero_service.get_storage_info(limonero_url, token, storage_id)
     if storage.type not in ['HDFS', 'LOCAL']:
-        raise ValueError(_('Unsupported storage type: {}'.format(storage.type)))
+        raise ValueError(
+            gettext('Unsupported storage type: {}'.format(storage.type)))
 
     if not path.endswith('.h5'):
         path += '.h5'
@@ -240,7 +285,7 @@ def main():
 
 
 def main1():
-    path = '/var/tmp/dogs_cats.tar.gz'
+    path = '/src/datadogs_cats_validation.tar.gz'
     total = 0
     data_gen = ImageDataGenerator(
         rotation_range=40,
@@ -250,8 +295,20 @@ def main1():
         zoom_range=0.2,
         horizontal_flip=True,
         fill_mode='nearest')
-    for block in tar_image_generator(path, aug=data_gen):
-        total += len(block)
+
+    train_image_generator_train = ArchiveImageGenerator(
+        tar_path='/src/datadogs_cats_train.tar.gz',
+        batch_size=32,
+        image_data_generator=data_gen,
+        seed=None,
+        image_transformations={'target_size': (256, 256), 'color_mode': u'rgb', 'interpolation': u'nearest'},
+        subset='training'
+    )
+    train_image_generator_train = train_image_generator_train.read()
+    print train_image_generator_train
+
+    # for block in archive_image_generator(path, aug=data_gen):
+    #     total += len(block)
 
 
 if __name__ == '__main__':
