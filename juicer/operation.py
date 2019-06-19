@@ -97,7 +97,7 @@ class Operation(object):
 
     @property
     def is_data_source(self):
-        """ Operation is a data source and must be audit? """
+        """ Operation is a data source and must be audited? """
         return False
 
     @property

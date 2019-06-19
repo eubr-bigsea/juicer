@@ -10,6 +10,7 @@ from textwrap import dedent
 import datetime
 
 from future.backports.urllib.parse import urlparse, parse_qs
+from juicer import auditing
 from juicer.deploy import Deployment, DeploymentFlow, DeploymentTask
 from juicer.operation import Operation
 from juicer.privaaas import PrivacyPreservingDecorator
@@ -498,6 +499,9 @@ class SaveOperation(Operation):
 
     def get_output_names(self, sep=", "):
         return self.output
+
+    def get_audit_events(self):
+        return [auditing.SAVE_DATA]
 
     def generate_code(self):
         # Retrieve Storage URL

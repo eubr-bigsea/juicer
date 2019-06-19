@@ -6,6 +6,8 @@ import logging
 import string
 from gettext import gettext
 
+from juicer import auditing
+
 try:
     from itertools import zip_longest as zip_longest
 except ImportError:
@@ -471,6 +473,9 @@ class ApplyModelOperation(Operation):
 
     def get_data_out_names(self, sep=','):
         return self.output
+
+    def get_audit_events(self):
+        return [auditing.APPLY_MODEL]
 
     def generate_code(self):
         input_data1 = self.named_inputs['input data']
@@ -1118,6 +1123,11 @@ class ClassificationModelOperation(DeployModelMixin, Operation):
             raise ValueError(
                 _('Model is being used, but at least one input is missing'))
 
+    def get_audit_events(self):
+        parent_events = super(ClassificationModelOperation,
+                              self).get_audit_events()
+        return parent_events + [auditing.CREATE_MODEL]
+
     def get_data_out_names(self, sep=','):
         return self.output
 
@@ -1756,6 +1766,10 @@ class ClusteringModelOperation(Operation):
     def get_output_names(self, sep=', '):
         return sep.join([self.output, self.model, self.centroids])
 
+    def get_audit_events(self):
+        parent_events = super(ClusteringModelOperation, self).get_audit_events()
+        return parent_events + [auditing.CREATE_MODEL]
+
     def generate_code(self):
 
         if self.has_code:
@@ -2365,6 +2379,10 @@ class RegressionModelOperation(DeployModelMixin, Operation):
         # because otherwise, it can cause concurrency problems.
         # But when used in the AlgorithmOperation subclasses, it is not needed.
         self.clone_algorithm = True
+
+    def get_audit_events(self):
+        parent_events = super(RegressionModelOperation, self).get_audit_events()
+        return parent_events + [auditing.CREATE_MODEL]
 
     @property
     def get_inputs_names(self):
@@ -2986,6 +3004,9 @@ class SaveModelOperation(Operation):
         self.job_id = parameters.get(self.JOB_ID_PARAM)
 
         self.has_code = any([len(named_inputs) > 0, self.contains_results()])
+
+    def get_audit_events(self):
+        return [auditing.SAVE_MODEL]
 
     def generate_code(self):
         limonero_config = self.parameters.get('configuration') \
