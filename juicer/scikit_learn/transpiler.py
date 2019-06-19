@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+import os
+
 import juicer.scikit_learn.associative_operation as associative
 import juicer.scikit_learn.classification_operation as classifiers
 import juicer.scikit_learn.clustering_operation as clustering
@@ -11,7 +13,6 @@ import juicer.scikit_learn.model_operation as model
 import juicer.scikit_learn.regression_operation as regression
 import juicer.scikit_learn.text_operation as text_operations
 import juicer.scikit_learn.vis_operation as vis_operation
-import os
 from juicer import operation
 from juicer.transpiler import Transpiler
 

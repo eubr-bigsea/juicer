@@ -3599,6 +3599,9 @@ class ModelGenerator(Operation):
             functions_required_fit_generator.append(self.train_generator)
 
         if self.steps_per_epoch is not None:
+            if self.steps_per_epoch == 0:
+                raise ValueError(gettext('Parameter {} is invalid.')
+                                 .format(self.STEPS_PER_EPOCH_PARAM))
             self.steps_per_epoch = """steps_per_epoch={steps_per_epoch}""" \
                 .format(steps_per_epoch=self.steps_per_epoch)
             functions_required_fit_generator.append(self.steps_per_epoch)
@@ -4104,7 +4107,7 @@ class ImageGenerator(Operation):
                         image_transformations={image_transformations},
                         subset='training'
                     )
-                    train_{var_name} = train_{var_name}.read()
+                    train_{var_name} = train_{var_name}.__next__()
                         
                     validation_{var_name} = {dataset_generator}(
                         tar_path={validation_path},
@@ -4115,7 +4118,7 @@ class ImageGenerator(Operation):
                         image_transformations={image_transformations},
                         subset='validation'
                     )
-                    validation_{var_name} = validation_{var_name}.read()
+                    validation_{var_name} = validation_{var_name}.__next__()
                     """
                 ).format(var_name=self.var_name,
                          add_functions_required=self.add_functions_required,
@@ -4144,7 +4147,7 @@ class ImageGenerator(Operation):
                         image_transformations={image_transformations},
                         subset='training'
                     )
-                    train_{var_name} = train_{var_name}.read()
+                    train_{var_name} = train_{var_name}.__next__()
                     
                     validation_{var_name} = None
                     """
@@ -4173,7 +4176,7 @@ class ImageGenerator(Operation):
                     image_transformations={image_transformations},
                     subset='validation'
                 )
-                validation_{var_name} = validation_{var_name}.read()
+                validation_{var_name} = validation_{var_name}.__next__()
                 """
             ).format(var_name=self.var_name,
                      add_functions_required=self.add_functions_required,
@@ -4274,13 +4277,13 @@ class ImageReader(Operation):
         self.task_name = self.var_name
 
         if self.train_images is not None:
-            self.train_images = """'{storage_url}{file_url}'""".format(
+            self.train_images = """'{storage_url}/{file_url}'""".format(
                 storage_url=self.metadata_train.get('storage').get('url'),
                 file_url=self.metadata_train.get('url')
             )
 
         if self.validation_images is not None:
-            self.validation_images = """'{storage_url}{file_url}'""".format(
+            self.validation_images = """'{storage_url}/{file_url}'""".format(
                 storage_url=self.metadata_validation.get('storage').get('url'),
                 file_url=self.metadata_validation.get('url')
             )

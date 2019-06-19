@@ -113,7 +113,7 @@ class JuicerServer:
 
             if msg_type in (juicer_protocol.EXECUTE, juicer_protocol.DELIVER):
                 self.platform = msg_info['workflow'].get('platform', {}).get(
-                        'slug', 'spark')
+                    'slug', 'spark')
                 self._forward_to_minion(msg_type, workflow_id, app_id, msg,
                                         self.platform)
 

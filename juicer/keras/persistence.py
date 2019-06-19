@@ -12,11 +12,11 @@ from juicer.service import limonero_service
 from juicer.util.hdfs_util import HdfsHarFileSystem, HdfsUtil
 from keras.models import load_model
 from keras.preprocessing.image import ImageDataGenerator, load_img, img_to_array
-
-import numpy
-import pandas
-from keras.utils import np_utils
-from sklearn.preprocessing import LabelEncoder
+from sklearn.preprocessing import LabelBinarizer
+from multiprocessing import Lock
+# import threading
+# import tensorflow as tf
+# sess = tf.Session()
 
 TarFileInfo = namedtuple('TarFileInfo',
                          'name, type, part_name, offset, size, '
@@ -26,13 +26,20 @@ TarDirInfo = namedtuple('TarDirInfo',
                         'name, type, modified, permissions, owner, '
                         'group, files')
 
+consumed_val = 0
+consumed_train = 0
+# consumed_val = tf.Variable(consumed_val)
+#
+# consumed_train = tf.Variable(consumed_train)
+# lock_train = Lock()
+# lock_val = Lock()
 
 def har_image_generator(hdfs_url, har_path, batch_size=32, mode='train',
                         image_data_generator=None, seed=None):
     """
     An image loader generator that reads images from HDFS stored in the HAR
     format.
-    The structure in HAR file must follow the layout described in 
+    The structure in HAR file must follow the layout described in
     archive_image_generator()
     :param har_path: Path for the HAR file
     :type har_path: str
@@ -59,9 +66,9 @@ def har_image_generator(hdfs_url, har_path, batch_size=32, mode='train',
 
 class ArchiveImageGenerator(object):
     """
-    An image loader generator that reads images from TAR files (gzipped or not) 
+    An image loader generator that reads images from TAR files (gzipped or not)
     format.
-    The structure in TAR file must follow the layout described in 
+    The structure in TAR file must follow the layout described in
     archive_image_generator()
     :arg tar_path Path for the TAR file. If ends with .gz, it will be expanded.
     :arg bs The batch size
@@ -72,11 +79,12 @@ class ArchiveImageGenerator(object):
     __slots__ = ['train', 'validation', 'files', 'batch_size',
                  'image_data_generator', 'image_transformations',
                  'tar', 'split', 'dataset', 'subset', 'tar_path', 'dir_list',
-                 'shuffle']
+                 'shuffle', 'lock']
 
     def __init__(self, tar_path, batch_size=32, image_data_generator=None,
                  seed=None, split=None, shuffle=True, image_transformations={},
                  subset=None):
+        self.lock = Lock()
 
         if subset is None:
             raise ValueError(
@@ -112,6 +120,7 @@ class ArchiveImageGenerator(object):
                 )
 
         self.dir_list = list(self.dir_list)
+        # self.tar.close()
 
         if seed:
             random.seed(seed)
@@ -135,27 +144,42 @@ class ArchiveImageGenerator(object):
         else:
             self.dataset[self.subset] = files
 
-    def read_tar(self, file_path):
-        tar_info = self.tar.getmember(file_path[1:])
+    def read_tar(self, handler, file_path):
+        tar_info = handler.getmember(file_path[1:])
 
-        img = load_img(path=io.BytesIO(self.tar.extractfile(tar_info).read()),
+        img = load_img(path=io.BytesIO(handler.extractfile(tar_info).read()),
                        **self.image_transformations
                        )
         img_array = img_to_array(img)
 
         return img_array
 
-    def read(self):
-        return archive_image_generator(reader_function=self.read_tar,
-                                       files=self.dataset[self.subset],
-                                       batch_size=self.batch_size,
-                                       data_generator=self.image_data_generator,
-                                       dir_list=self.dir_list,
-                                       shuffle=self.shuffle)
+    def open_function(self):
+        if self.tar_path.endswith('.gz') or self.tar_path.endswith('.tgz'):
+            tar = tarfile.open(self.tar_path, 'r:gz')
+        else:
+            tar = tarfile.open(self.tar_path, 'r')
+        return tar
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        with self.lock:
+            yield archive_image_generator(reader_function=self.read_tar,
+                                           open_function=self.open_function,
+                                           files=self.dataset[self.subset],
+                                           batch_size=self.batch_size,
+                                           data_generator=self.image_data_generator,
+                                           dir_list=self.dir_list,
+                                           shuffle=self.shuffle,
+                                           subset=self.subset)
 
 
-def archive_image_generator(reader_function, files, batch_size=32,
-                            data_generator=None, dir_list=[], shuffle=True):
+def archive_image_generator(reader_function, open_function, files,
+                            batch_size=32,
+                            data_generator=None, dir_list=None, shuffle=True,
+                            subset=None):
     """
     An image loader generator that reads a archive file format.
     The structure in file must follow the layout:
@@ -199,66 +223,124 @@ def archive_image_generator(reader_function, files, batch_size=32,
          object is specified, then we’ll apply it before we yield our images
          and labels.
     """
+    global consumed_train, consumed_val, lock_val, lock_train
 
-    files_by_class = {}
-    for d in dir_list:
-        files_by_class[d] = []
-
-
-    total = 0
-    for info in files.values():
-        if info.type == 'file':
-            files_by_class[info.dir].append(info.name)
-            total += 1
-
+    filenames = [name for name, info in files.items() if info.type == 'file']
     if shuffle:
-        for d in dir_list:
-            random.shuffle(files_by_class[d])
+        random.shuffle(filenames)
 
-    consumed = 0
-    number_of_classes = len(dir_list)
-    mapping = {}
-    c = 0
+    lenght_filenames = len(filenames)
 
-    while consumed < total:
-        file_list = []
-        for cls in files_by_class:
-            file_list += files_by_class[cls][consumed:
-                                             consumed/number_of_classes +
-                                             batch_size/number_of_classes]
-        if shuffle:
-            random.shuffle(file_list)
+    if subset == 'validation':
+        while True:
+            global consumed_val
+            # lock_val.acquire()
+            handler = open_function()
+            labels = []
+            images = []
+            for name in filenames[consumed_val: consumed_val + batch_size]:
+                parts = name.split('/')
+                _cls = u'{}'.format('_'.join(parts[2:len(parts)-1]))
+                labels.append(_cls)
+                images.append(reader_function(handler, name))
+            images = np.array(images)
+            lb = LabelBinarizer()
+            lb.fit(list(set(labels)))
+            labels = lb.transform(labels)
+            handler.close()
 
-        labels = []
-        images = []
-        for name in file_list:
-            parts = name.split('/')
-            _cls = u'{}'.format('_'.join(parts[2:len(parts)-1]))
-            labels.append(_cls)
-            images.append(reader_function(name))
-        images = np.array(images)
+            return (images, labels)
+            # print '=' * 20
+            # print os.getpid(), subset, consumed_val, consumed_val + batch_size
+            # print '=' * 20
+            consumed_val += int(batch_size)
+            if consumed_val >= lenght_filenames:
+                consumed_val = 0
+            # lock_val.release()
+    else:
+        while True:
+            global consumed_train
+            # lock_train.acquire()
+            handler = open_function()
+            labels = []
+            images = []
+            for name in filenames[consumed_train: consumed_train + batch_size]:
+                parts = name.split('/')
+                _cls = u'{}'.format('_'.join(parts[2:len(parts)-1]))
+                labels.append(_cls)
+                images.append(reader_function(handler, name))
+            images = np.array(images)
+            lb = LabelBinarizer()
+            lb.fit(list(set(labels)))
+            labels = lb.transform(labels)
+            handler.close()
 
-        print labels
+            return (images, labels)
+            # print '=' * 20
+            # print os.getpid(), subset, consumed_train, consumed_train + batch_size
+            # print '=' * 20
+            consumed_train += int(batch_size)
+            if consumed_train >= lenght_filenames:
+                consumed_train = 0
+            # lock_train.release()
 
-        labels = np.asarray(labels)
-        encoder = LabelEncoder()
-        encoder.fit(labels)
-        encoded_labels = encoder.transform(labels)
-        labels = np_utils.to_categorical(encoded_labels)
 
-        images, labels = (np.array(images), np.array(labels))
-
-        # if the ImageDataGenerator object is not None, apply it
-        if data_generator is not None:
-            (images, labels) = data_generator.flow(images,
-                                                   labels,
-                                                   batch_size=batch_size,
-                                                   save_to_dir='/tmp/preview')\
-                                                   .next()
-
-        print (np.array(images), np.array(labels))
-        yield (images, labels)
-        consumed += int(batch_size)
+    # files_by_class = {}
+    # for d in dir_list:
+    #     files_by_class[d] = []
+    #
+    # total = 0
+    # for info in files.values():
+    #     if info.type == 'file':
+    #         files_by_class[info.dir].append(info.name)
+    #         total += 1
+    #
+    # if shuffle:
+    #     for d in dir_list:
+    #         random.shuffle(files_by_class[d])
+    #
+    # consumed = 0
+    # number_of_classes = len(dir_list)
+    #
+    # while True:
+    #     file_list = []
+    #     tam = 0
+    #     for cls in files_by_class:
+    #         file_list += files_by_class[cls][consumed//number_of_classes:
+    #                                          consumed//number_of_classes +
+    #                                          batch_size//number_of_classes]
+    #         #print '!'*20, cls, len(files_by_class[cls])
+    #         tam += len(files_by_class[cls])
+    #
+    #     if shuffle:
+    #         random.shuffle(file_list)
+    #
+    #     labels = []
+    #     images = []
+    #
+    #     for name in file_list:
+    #         parts = name.split('/')
+    #         _cls = u'{}'.format('_'.join(parts[2:len(parts)-1]))
+    #         labels.append(_cls)
+    #         images.append(reader_function(name))
+    #     images = np.array(images)
+    #
+    #     lb = LabelBinarizer()
+    #     lb.fit(list(set(labels)))
+    #     labels = lb.transform(labels)
+    #
+    #     # if the ImageDataGenerator object is not None, apply it
+    #     print '#'*40
+    #     print (subset, tam, '[', consumed, ':', consumed + batch_size, ']')
+    #     print '#'*40
+    #
+    #     (images, labels) = data_generator.flow(images,
+    #                                            labels,
+    #                                            batch_size=batch_size
+    #                                            ).next()
+    #
+    #     yield (images, labels)
+    #     consumed += int(batch_size)
 
 
 def load_keras_model(limonero_url, token, storage_id, path):
@@ -320,44 +402,3 @@ def save_keras_model(limonero_url, token, storage_id, path, keras_model):
     elif storage.type == 'LOCAL':
         keras_model.save(path)
 
-
-def main():
-    url = 'hdfs://spark01.ctweb.inweb.org.br:9000'
-    path = '/keras/dogs_cats.har'
-
-    total = 0
-    for block in har_image_generator(url, path):
-        total += len(block)
-
-
-def main1():
-    path = '/src/datadogs_cats_validation.tar.gz'
-    total = 0
-    data_gen = ImageDataGenerator(
-        rotation_range=40,
-        width_shift_range=0.2,
-        height_shift_range=0.2,
-        shear_range=0.2,
-        zoom_range=0.2,
-        horizontal_flip=True,
-        fill_mode='nearest')
-
-    train_image_generator_train = ArchiveImageGenerator(
-        tar_path='/src/datadogs_cats_train.tar.gz',
-        batch_size=32,
-        image_data_generator=data_gen,
-        seed=None,
-        image_transformations={'target_size': (256, 256), 'color_mode': u'rgb',
-                               'interpolation': u'nearest'},
-        subset='training'
-    )
-    train_image_generator_train = train_image_generator_train.read()
-    print train_image_generator_train
-
-    # for block in archive_image_generator(path, aug=data_gen):
-    #     total += len(block)
-
-
-if __name__ == '__main__':
-    print "bla"
-main1()

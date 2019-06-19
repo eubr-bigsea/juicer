@@ -1,4 +1,7 @@
 # coding=utf-8
+import codecs
+# noinspection PyUnresolvedReferences
+import datetime
 import gc
 import gettext
 import imp
@@ -6,22 +9,18 @@ import importlib
 import json
 import logging.config
 import multiprocessing
+import os
 import signal
 import sys
 import time
 import traceback
-
-# noinspection PyUnresolvedReferences
-import datetime
-
-import codecs
-import os
-import socketio
 from timeit import default_timer as timer
+
+import socketio
 from concurrent.futures import ThreadPoolExecutor
+
 from juicer.runner import configuration
 from juicer.runner import protocol as juicer_protocol
-
 from juicer.runner.minion_base import Minion
 from juicer.scikit_learn.transpiler import ScikitLearnTranspiler
 from juicer.util import dataframe_util
