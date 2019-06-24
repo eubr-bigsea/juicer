@@ -10,6 +10,7 @@ from textwrap import dedent
 
 import datetime
 
+from juicer import auditing
 from juicer.operation import Operation
 from juicer.service import limonero_service
 from juicer.util import chunks
@@ -96,6 +97,9 @@ class PublishVisualizationOperation(Operation):
     def get_output_names(self, sep=", "):
         return ''
 
+    def get_audit_events(self):
+        return ['DASHBOARD']
+
     @property
     def get_inputs_names(self):
         if isinstance(self.named_inputs['visualizations'], (list, tuple)):
@@ -181,6 +185,9 @@ class VisualizationMethodOperation(Operation):
         self.supports_cache = False
         self.output = self.named_outputs.get('visualization',
                                              'vis_task_{}'.format(self.order))
+
+    def get_audit_events(self):
+        return [auditing.SAVE_VISUALIZATION]
 
     def get_model_parameters(self):
         result = {}
@@ -448,7 +455,8 @@ class ChartVisualization(VisualizationModel):
                     "{{name}}"
                 ],
                 "body": [
-                    "<span class='metric'>{{x}}</span><span class='number'>{{y}}</span>"
+                    "<span class='metric'>{{x}}</span>"
+                    "<span class='number'>{{y}}</span>"
                 ]
             },
         }
@@ -544,10 +552,6 @@ class BarChartModel(ChartVisualization):
             result['x']["inFormat"] = self.default_time_format
             result['x']["outFormat"] = self.default_time_format
 
-            # result['x']["outFormat"] = self.params.get("x_format", {}).get(
-            #     'key')
-            # result['x']["inFormat"] = self.params.get("x_format", {}).get('key')
-
         for inx_row, row in enumerate(rows):
             x_value = row[x_attr.name]
             if x_value not in colors:
@@ -628,7 +632,7 @@ class PieChartModel(ChartVisualization):
         return label_attr, None, value_attr
 
     def get_data(self):
-        label_attr, _, value_attr = self._get_axis_info()
+        label_attr, ignored, value_attr = self._get_axis_info()
 
         # @FIXME Spark 2.2.0 is raising an exception if self.data.collect()
         # is called directly when the output port is used multiple times.
@@ -749,9 +753,6 @@ class MapModel(ChartVisualization):
         if self.params.get('value'):
             value_attr = next((c for c in self.data.schema if
                                c.name == self.params['value'][0]), None)
-            value_type = ChartVisualization._get_attr_type(value_attr)
-        else:
-            value_type = 'number'
 
         param_map_type = self.params.get('type', 'heatmap')
 
@@ -1110,7 +1111,7 @@ class BoxPlotModel(ChartVisualization):
 
     # noinspection PyUnresolvedReferences
     def get_data(self):
-        from pyspark.sql import functions as F
+        from pyspark.sql import functions as fns
 
         def _alias(attribute, counter, suffix):
             return '{}_{}_{}'.format(attribute, counter, suffix)
@@ -1124,8 +1125,8 @@ class BoxPlotModel(ChartVisualization):
                 _('Input attribute(s) must be informed for box plot.'))
 
         quartiles_expr = [
-            F.expr('percentile_approx({}, array(.25, .5, .75))'.format(fact)
-                   ).alias(fact) for fact in facts]
+            fns.expr('percentile_approx({}, array(.25, .5, .75))'.format(fact)
+                     ).alias(fact) for fact in facts]
 
         group = self.params.get('group_attribute')
         # Calculates the quartiles for fact attributes
@@ -1152,32 +1153,34 @@ class BoxPlotModel(ChartVisualization):
                 upper_bound = round(float(fact_quartiles[2]) + 1.5 * iqr, 4)
 
                 # Outliers are beyond boundaries
-                outliers_cond = (F.col(facts[j]) < F.lit(lower_bound)) | (
-                    F.col(facts[j]) > F.lit(upper_bound))
+                outliers_cond = (fns.col(facts[j]) < fns.lit(lower_bound)) | (
+                    fns.col(facts[j]) > fns.lit(upper_bound))
 
                 # If grouping is not specified, uses True when combining
                 # conditions
                 if group is not None:
-                    value_cond = F.col(group) == F.lit(quartile_row[0])
+                    value_cond = fns.col(group) == fns.lit(quartile_row[0])
                 else:
-                    value_cond = F.lit(True)
+                    value_cond = fns.lit(True)
 
                 if show_outliers:
-                    outliers = F.collect_list(
-                        F.when(outliers_cond & value_cond,
-                               F.col(facts[j]))).alias(
+                    outliers = fns.collect_list(
+                        fns.when(outliers_cond & value_cond,
+                                 fns.col(facts[j]))).alias(
                         _alias(facts[j], i, 'outliers'))
                 else:
-                    outliers = F.lit(None).alias(
+                    outliers = fns.lit(None).alias(
                         _alias(facts[j], i, 'outliers'))
                 computed_cols.append(outliers)
 
-                min_val = F.min(
-                    F.when(~outliers_cond & value_cond, F.col(facts[j]))).alias(
+                min_val = fns.min(
+                    fns.when(~outliers_cond & value_cond,
+                             fns.col(facts[j]))).alias(
                     _alias(facts[j], i, 'min'))
                 computed_cols.append(min_val)
-                max_val = F.max(
-                    F.when(~outliers_cond & value_cond, F.col(facts[j]))).alias(
+                max_val = fns.max(
+                    fns.when(~outliers_cond & value_cond,
+                             fns.col(facts[j]))).alias(
                     _alias(facts[j], i, 'max'))
                 computed_cols.append(max_val)
         if group is not None:

@@ -4,6 +4,7 @@ from __future__ import unicode_literals, absolute_import
 import logging
 from textwrap import dedent
 
+from juicer import auditing
 from juicer.spark.ml_operation import SvmClassifierOperation, \
     LogisticRegressionClassifierOperation, DecisionTreeClassifierOperation, \
     GBTClassifierOperation, NaiveBayesClassifierOperation, \
@@ -13,8 +14,7 @@ from juicer.spark.ml_operation import SvmClassifierOperation, \
     LdaClusteringOperation, RegressionModelOperation, LinearRegressionOperation, \
     GeneralizedLinearRegressionOperation, DecisionTreeRegressionOperation, \
     GBTRegressorOperation, AFTSurvivalRegressionOperation, \
-    RandomForestRegressorOperation, IsotonicRegressionOperation, \
-    OneVsRestClassifier
+    RandomForestRegressorOperation, IsotonicRegressionOperation
 
 try:
     from itertools import zip_longest as zip_longest
@@ -57,6 +57,10 @@ class AlgorithmOperation(Operation):
         models = self.named_outputs.get('model',
                                         'model_task_{}'.format(self.order))
         return sep.join([output, models])
+
+    def get_audit_events(self):
+        parent_events = super(AlgorithmOperation, self).get_audit_events()
+        return parent_events + [auditing.CREATE_MODEL, auditing.APPLY_MODEL]
 
 
 class ClassificationOperation(AlgorithmOperation):
