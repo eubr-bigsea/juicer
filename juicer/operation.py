@@ -96,6 +96,11 @@ class Operation(object):
         return self.parameters.get('task', {}).get('enabled', True)
 
     @property
+    def is_data_source(self):
+        """ Operation is a data source and must be audited? """
+        return False
+
+    @property
     def is_stream_consumer(self):
         return False
 
@@ -106,6 +111,9 @@ class Operation(object):
     @property
     def get_inputs_names(self):
         return ', '.join(self.named_inputs.values())
+
+    def get_audit_events(self):
+        return []
 
     def get_output_names(self, sep=", "):
         if self.output:

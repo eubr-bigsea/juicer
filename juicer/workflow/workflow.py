@@ -264,68 +264,74 @@ class Workflow(object):
                         op=task_map[flow['source_id']]['operation']['name'],
                         s=flow['source_port'], t=flow['target_port']))
 
-        for nodes in self.graph.nodes():
-            self.graph.node[nodes]['in_degree'] = self.graph. \
-                in_degree(nodes)
+        for node in self.graph.nodes():
+            self.graph.node[node]['in_degree'] = self.graph. \
+                in_degree(node)
 
-            self.graph.node[nodes]['out_degree'] = self.graph. \
-                out_degree(nodes)
+            self.graph.node[node]['out_degree'] = self.graph. \
+                out_degree(node)
+            #self.graph.node[node]['parents'] = list(
+            #        nx.edge_dfs(self.graph, node, orientation='reverse'))    
 
         return self.graph
 
-    def builds_sorted_workflow_graph(self, tasks, flows):
+    # def builds_sorted_workflow_graph(self, tasks, flows):
 
-        # Querying all operations from tahiti one time
-        operations_tahiti = dict(
-            [(op['id'], op) for op in self._get_operations()])
-        for task in tasks:
-            operation = operations_tahiti.get(task.get('operation')['id'])
-            if operation is not None:
-                ports_list = operations_tahiti[operation]['ports']
-                # Get operation requirements in tahiti
-                result = {
-                    'N_INPUT': 0,
-                    'N_OUTPUT': 0,
-                    'M_INPUT': 'None',
-                    'M_OUTPUT': 'None'
-                }
+    #     # Querying all operations from tahiti one time
+    #     operations_tahiti = dict(
+    #         [(op['id'], op) for op in self._get_operations()])
+    #     for task in tasks:
+    #         operation = operations_tahiti.get(task.get('operation')['id'])
+    #         if operation is not None:
+    #             ports_list = operations_tahiti[operation]['ports']
+    #             # Get operation requirements in tahiti
+    #             result = {
+    #                 'N_INPUT': 0,
+    #                 'N_OUTPUT': 0,
+    #                 'M_INPUT': 'None',
+    #                 'M_OUTPUT': 'None'
+    #             }
 
-                for port in ports_list:
-                    if port['type'] == 'INPUT':
-                        result['M_INPUT'] = port['multiplicity']
-                        if 'N_INPUT' in result:
-                            result['N_INPUT'] += 1
-                        else:
-                            result['N_INPUT'] = 1
-                    elif port['type'] == 'OUTPUT':
-                        result['M_OUTPUT'] = port['multiplicity']
-                        if 'N_OUTPUT' in result:
-                            result['N_OUTPUT'] += 1
-                        else:
-                            result['N_OUTPUT'] = 1
-                # return result
-                self.graph.add_node(
-                    task.get('id'),
-                    in_degree_required=result['N_INPUT'],
-                    in_degree_multiplicity_required=result['M_INPUT'],
-                    out_degree_required=result['N_OUTPUT'],
-                    out_degree_multiplicity_required=result['M_OUTPUT'],
-                    attr_dict=task)
+    #             for port in ports_list:
+    #                 if port['type'] == 'INPUT':
+    #                     result['M_INPUT'] = port['multiplicity']
+    #                     if 'N_INPUT' in result:
+    #                         result['N_INPUT'] += 1
+    #                     else:
+    #                         result['N_INPUT'] = 1
+    #                 elif port['type'] == 'OUTPUT':
+    #                     result['M_OUTPUT'] = port['multiplicity']
+    #                     if 'N_OUTPUT' in result:
+    #                         result['N_OUTPUT'] += 1
+    #                     else:
+    #                         result['N_OUTPUT'] = 1
+    #             # return result
+    #             self.graph.add_node(
+    #                 task.get('id'),
+    #                 in_degree_required=result['N_INPUT'],
+    #                 in_degree_multiplicity_required=result['M_INPUT'],
+    #                 out_degree_required=result['N_OUTPUT'],
+    #                 out_degree_multiplicity_required=result['M_OUTPUT'],
+    #                 attr_dict=task)
 
-        for flow in flows:
-            self.graph.add_edge(flow['source_id'],
-                                flow['target_id'],
-                                attr_dict=flow)
-            parents = self.graph.node[flow['target_id']].get('parents', [])
-            parents.append(flow['source_id'])
-            self.graph.node[flow['target_id']]['parents'] = parents
+    #     for flow in flows:
+    #         self.graph.add_edge(flow['source_id'],
+    #                             flow['target_id'],
+    #                             attr_dict=flow)
+    #         #parents = self.graph.node[flow['target_id']].get('parents', [])
+    #         #parents.append(flow['source_id'])
+    #         #self.graph.node[flow['target_id']]['parents'] = parents
 
-        # updating in_degree and out_degree
-        for nodes in self.graph.nodes():
-            self.graph.node[nodes]['in_degree'] = self.graph. \
-                in_degree(nodes)
-            self.graph.node[nodes]['out_degree'] = self.graph. \
-                out_degree(nodes)
+    #     # updating in_degree and out_degree
+    #     for node in self.graph.nodes():
+    #         self.graph.node[node]['in_degree'] = self.graph. \
+    #             in_degree(node)
+    #         self.graph.node[node]['out_degree'] = self.graph. \
+    #             out_degree(node)
+    #         import pdb; pdb.set_trace()
+    #         self.graph.node[node]['parents'] = list(
+    #                 nx.edge_dfs(self.graph, node, orientation='reverse'))
+
 
     def plot_workflow_graph_image(self):
         """
