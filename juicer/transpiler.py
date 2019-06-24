@@ -2,7 +2,9 @@
 from __future__ import absolute_import
 
 import hashlib
+import json
 import sys
+import urlparse
 import uuid
 from collections import OrderedDict
 
@@ -10,10 +12,15 @@ import datetime
 
 import jinja2
 import networkx as nx
-
+import redis
+from juicer import auditing
 from juicer.util.jinja2_custom import AutoPep8Extension
+from rq import Queue
 from .service import stand_service
 from .util.template_util import HandleExceptionExtension
+
+AUDITING_QUEUE_NAME = 'auditing'
+AUDITING_JOB_NAME = 'seed.jobs.auditing'
 
 
 class DependencyController(object):
@@ -79,21 +86,27 @@ class Transpiler(object):
         result = []
         task['parents'] = nx.ancestors(graph, task['id'])
         parents = [graph.node[task_id] for task_id in task['parents']]
-        parents_data_source = [int(p['forms']['data_source'].get('value', 0)) 
-                for p in parents if p['is_data_source']]
-        import pdb; pdb.set_trace()
+        parents_data_source = [int(p['forms']['data_source'].get('value', 0))
+                               for p in parents if p['is_data_source']]
+
+        # If it doesn't have a data source implies no auditing info generated
         if not parents_data_source:
             return result
         events = parameters['audit_events'] or []
-        if parameters['display_sample'] or parameters['display_schema']:
-            events.append('DISPLAY_DATA_OR_SCHEMA')
+        if parameters['display_sample']:
+            events.append(auditing.DISPLAY_DATA)
+
+        if parameters['display_schema']:
+            events.append(auditing.DISPLAY_SCHEMA)
 
         for event in events:
             result.append({
+                'module': 'JUICER',
+                'platform_id': parameters['workflow']['platform']['id'],
                 'event': event,
                 'date': datetime.datetime.now(),
-                'context': parameters['configuration']['juicer'].get('context', 
-                    'NOT_SET'),
+                'context': parameters['configuration']['juicer'].get(
+                    'context', 'NOT_SET'),
                 'data_sources': parents_data_source,
                 'workflow': {
                     'id': workflow['id'],
@@ -102,15 +115,12 @@ class Transpiler(object):
                 'job': {'id': parameters['job_id']},
                 'task': {
                     'id': task['id'],
-                    'name': task['operation']['name'], 
+                    'name': task['operation']['name'],
                     'type': task['operation']['slug']
                 },
                 'user': workflow['user'],
             })
         return result
-    
-    def get_traceability_info(self, graph, workflow, task, parameters):
-        return []
 
     def generate_code(self, graph, job_id, out, params, ports,
                       sorted_tasks_id, state, task_hash, using_stdout,
@@ -139,6 +149,7 @@ class Transpiler(object):
 
         instances = OrderedDict()
 
+        audit_events = []
         for i, task_id in enumerate(tasks_ids):
             task = graph.node[task_id]
 
@@ -218,10 +229,23 @@ class Transpiler(object):
             graph.node[task['id']]['is_data_source'] = instance.is_data_source
             parameters['audit_events'] = instance.get_audit_events()
 
-            print >> sys.stderr, self.get_audit_info(graph, workflow, task, parameters)
+            if self.configuration['juicer'].get('auditing', False):
+                audit_events.extend(self.get_audit_info(graph, workflow, task,
+                                                        parameters))
 
             instance.out_degree = graph.out_degree(task_id)
             instances[task['id']] = instance
+
+        if audit_events:
+
+            redis_url = self.configuration['juicer']['servers']['redis_url']
+            parsed = urlparse.urlparse(redis_url)
+            redis_conn = redis.Redis(host=parsed.hostname,
+                                     port=parsed.port)
+            q = Queue(AUDITING_QUEUE_NAME, connection=redis_conn)
+            for event in audit_events:
+                event['date'] = event['date'].isoformat()
+            q.enqueue(AUDITING_JOB_NAME, json.dumps(audit_events))
 
         env_setup = {
             'dependency_controller': DependencyController(
