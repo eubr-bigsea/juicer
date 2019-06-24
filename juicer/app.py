@@ -60,7 +60,7 @@ def main(workflow_id, execute_main, params, config, deploy, export_notebook):
         transpiler.execute_main = execute_main
         transpiler.transpile(
             loader.workflow, loader.graph, params=params, deploy=deploy,
-            export_notebook=export_notebook)
+            export_notebook=export_notebook, job_id=1000)
 
     except ValueError as ve:
         log.exception(_("At least one parameter is missing"), exc_info=ve)
