@@ -15,21 +15,16 @@ More information about Lemonade to be provided
 import keras
 from keras import backend as K
 {{transpiler.get_imports(instances)}}
-import tensorflow as tf
 import numpy as np
 import random as rn
+from tabulate import tabulate
 from time import time
 from keras import metrics
 
 reproducible_seed = 1000
 np.random.seed(reproducible_seed)
 rn.seed(reproducible_seed)
-tf.set_random_seed(reproducible_seed)
 
-session_conf = tf.ConfigProto(intra_op_parallelism_threads=1,
-                              inter_op_parallelism_threads=1)
-sess = tf.Session(graph=tf.get_default_graph(), config=session_conf)
-K.set_session(sess)
 {{"\n"}}
 {%- for instance in instances %}
 {%- if instance.has_external_code and instance.enabled %}
@@ -44,6 +39,23 @@ def emit_layer_before_add(task_id, emit_event):
 def emit_layer_added(task_id, emit_event):
     emit_event(name='update task', message=_('Layer added'),
                status='COMPLETED', identifier=task_id)
+
+def tab(history):
+    key = history.keys()[0]
+    length = len(history[key])
+
+    headers=history.keys()
+    headers.insert(0, 'epoch')
+
+    result = tabulate(
+        history,
+        headers=headers,
+        showindex=range(1, length+1),
+        numalign="center",
+        floatfmt=".4f",
+        tablefmt="html"
+    )
+    return result
 
 class ExecutionHistory(Callback):
     def __init__(self, emit_event, output_task_id):
@@ -80,17 +92,24 @@ def main(session, cached_state, emit_event):
 
     # Task {{task_id}}
     {{ instance.generate_code().strip() | indent(width=4, indentfirst=False) }}
-    emit_layer_added('{{task_id}}', emit_event)
-    {%- endif -%}
-    {%- endfor %}
+    {%- if instance.show_results %}
     emit_event(name='update task',
-               message='<a href="http://localhost:6006" target="_blank">TensorBoard</a>',
+               message='<a href="http://zeppelin:6006" target="_blank">TensorBoard</a>',
                type='HTML',
-               status='COMPLETED', identifier=output_task_id)
+               status='RESULTS',
+               identifier='{{task_id}}')
 
-    #emit_event(name='update task', message=final_train_score,
-    #           type='TEXT',
-    #           status='COMPLETED', identifier=output_task_id)
+    {{ instance.generate_history_code().strip() | indent(width=4, indentfirst=False) }}
+    emit_event(name='update task',
+               message=tab(history.history),
+               type='HTML',
+               status='RESULTS',
+               identifier='{{task_id}}')
+    {%- endif %}
+    emit_layer_added('{{task_id}}', emit_event)
+    {%- endif %}
+    {%- endfor %}
+
 
     return {}
 

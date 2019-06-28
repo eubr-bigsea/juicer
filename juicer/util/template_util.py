@@ -266,3 +266,12 @@ def tuple_of_tuples(field):
     return None
 
 
+def convert_to_list(field):
+    if field is not None:
+        if isinstance(field, basestring) and field.strip():
+            field = re.sub(r"\{|\[|\}|\]|\s+", "", field)
+            if len(field.split(',')) > 0:
+                return True
+    return False
+
+
