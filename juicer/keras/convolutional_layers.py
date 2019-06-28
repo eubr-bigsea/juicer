@@ -41,29 +41,29 @@ class Convolution1D(Operation):
         self.filters = parameters.get(self.FILTERS_PARAM)
         self.kernel_size = parameters.get(self.KERNEL_SIZE_PARAM)
         self.strides = parameters.get(self.STRIDES_PARAM)
-        self.input_shape = parameters.get(self.INPUT_SHAPE_PARAM, None) or None
+        self.input_shape = parameters.get(self.INPUT_SHAPE_PARAM, None)
         self.padding = parameters.get(self.PADDING_PARAM)
-        self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None) or None
+        self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None)
         self.dilation_rate = parameters.get(self.DILATION_RATE_PARAM, None) or \
                              None
-        self.activation = parameters.get(self.ACTIVATION_PARAM, None) or None
+        self.activation = parameters.get(self.ACTIVATION_PARAM, None)
         self.trainable = parameters.get(self.TRAINABLE_PARAM)
         self.use_bias = parameters.get(self.USE_BIAS_PARAM)
         self.kernel_initializer = parameters.get(self.KERNEL_INITIALIZER_PARAM,
-                                                 None) or None
+                                                 None)
         self.bias_initializer = parameters.get(self.BIAS_INITIALIZER_PARAM,
-                                               None) or None
+                                               None)
         self.kernel_regularizer = parameters.get(self.KERNEL_REGULARIZER_PARAM,
-                                                 None) or None
+                                                 None)
         self.bias_regularizer = parameters.get(self.BIAS_REGULARIZER_PARAM,
-                                               None) or None
+                                               None)
         self.activity_regularizer = parameters.get(self.
                                                    ACTIVITY_REGULARIZER_PARAM,
-                                                   None) or None
+                                                   None)
         self.kernel_constraint = parameters.get(self.KERNEL_CONSTRAINT_PARAM,
-                                                None) or None
+                                                None)
         self.bias_constraint = parameters.get(self.BIAS_CONSTRAINT_PARAM, None)\
-                               or None
+                              
 
         self.add_functions_required = ""
         self.task_name = self.parameters.get('task').get('name')
@@ -197,13 +197,14 @@ class Convolution1D(Operation):
             functions_required.append(self.bias_constraint)
 
         self.add_functions_required = ',\n    '.join(functions_required)
+        if self.add_functions_required:
+            self.add_functions_required = ',\n    ' + self.add_functions_required
 
     def generate_code(self):
         return dedent(
             """
             {var_name} = Conv1D(
-                name='{name}',
-                {add_functions_required}
+                name='{name}'{add_functions_required}
             ){parent}
             {var_name}.trainable = {trainable}
             """
@@ -232,6 +233,7 @@ class Convolution2D(Operation):
     ACTIVITY_REGULARIZER_PARAM = 'activity_regularizer'
     KERNEL_CONSTRAINT_PARAM = 'kernel_constraint'
     BIAS_CONSTRAINT_PARAM = 'bias_constraint'
+    WEIGHTS_PARAM = 'weights'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
@@ -248,29 +250,28 @@ class Convolution2D(Operation):
         self.filters = parameters.get(self.FILTERS_PARAM)
         self.kernel_size = parameters.get(self.KERNEL_SIZE_PARAM)
         self.strides = parameters.get(self.STRIDES_PARAM)
-        self.input_shape = parameters.get(self.INPUT_SHAPE_PARAM, None) or None
+        self.input_shape = parameters.get(self.INPUT_SHAPE_PARAM, None)
         self.padding = parameters.get(self.PADDING_PARAM)
-        self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None) or None
-        self.dilation_rate = parameters.get(self.DILATION_RATE_PARAM, None) or \
-                             None
-        self.activation = parameters.get(self.ACTIVATION_PARAM, None) or None
+        self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None)
+        self.dilation_rate = parameters.get(self.DILATION_RATE_PARAM, None)
+        self.activation = parameters.get(self.ACTIVATION_PARAM, None)
         self.trainable = parameters.get(self.TRAINABLE_PARAM)
         self.use_bias = parameters.get(self.USE_BIAS_PARAM)
         self.kernel_initializer = parameters.get(self.KERNEL_INITIALIZER_PARAM,
-                                                 None) or None
+                                                 None)
         self.bias_initializer = parameters.get(self.BIAS_INITIALIZER_PARAM,
-                                               None) or None
+                                               None)
         self.kernel_regularizer = parameters.get(self.KERNEL_REGULARIZER_PARAM,
-                                                 None) or None
+                                                 None)
         self.bias_regularizer = parameters.get(self.BIAS_REGULARIZER_PARAM,
-                                               None) or None
+                                               None)
         self.activity_regularizer = parameters.get(self.
                                                    ACTIVITY_REGULARIZER_PARAM,
-                                                   None) or None
+                                                   None)
         self.kernel_constraint = parameters.get(self.KERNEL_CONSTRAINT_PARAM,
-                                                None) or None
-        self.bias_constraint = parameters.get(self.BIAS_CONSTRAINT_PARAM, None) \
-                               or None
+                                                None)
+        self.bias_constraint = parameters.get(self.BIAS_CONSTRAINT_PARAM, None)
+        self.weights = parameters.get(self.WEIGHTS_PARAM, None)
 
         self.add_functions_required = ""
         self.task_name = self.parameters.get('task').get('name')
@@ -300,9 +301,13 @@ class Convolution2D(Operation):
         self.strides = get_int_or_tuple(self.strides)
         self.dilation_rate = get_int_or_tuple(self.dilation_rate)
 
-        if self.filters < 0:
-            raise ValueError(gettext('Parameter {} is invalid').format(
-                self.FILTERS_PARAM))
+        try:
+            self.filters = int(self.filters)
+            if self.filters < 0:
+                raise ValueError(gettext('Parameter {} is invalid').format(
+                    self.FILTERS_PARAM))
+        except:
+            pass # The user possibly is using a var defined in PythonCode Layer
 
         if self.kernel_size is False:
             raise ValueError(gettext('Parameter {} is invalid').format(
@@ -403,14 +408,21 @@ class Convolution2D(Operation):
                 .format(bias_constraint=self.bias_constraint)
             functions_required.append(self.bias_constraint)
 
+        if self.weights is not None and self.weights.strip():
+            if convert_to_list(self.weights):
+                self.weights = """weights={weights}"""\
+                    .format(weights=self.weights)
+                functions_required.append(self.weights)
+
         self.add_functions_required = ',\n    '.join(functions_required)
+        if self.add_functions_required:
+            self.add_functions_required = ',\n    ' + self.add_functions_required
 
     def generate_code(self):
         return dedent(
             """
             {var_name} = Conv2D(
-                name='{name}',
-                {add_functions_required}
+                name='{name}'{add_functions_required}
             ){parent}
             {var_name}.trainable = {trainable}
             """
@@ -459,42 +471,42 @@ class SeparableConv1D(Operation):
         self.filters = abs(parameters.get(self.FILTERS_PARAM))
         self.kernel_size = parameters.get(self.KERNEL_SIZE_PARAM)
         self.strides = parameters.get(self.STRIDES_PARAM)
-        self.input_shape = parameters.get(self.INPUT_SHAPE_PARAM, None) or None
+        self.input_shape = parameters.get(self.INPUT_SHAPE_PARAM, None)
         self.padding = parameters.get(self.PADDING_PARAM)
-        self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None) or None
+        self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None)
         self.dilation_rate = parameters.get(self.DILATION_RATE_PARAM, None) or \
                              None
         self.depth_multiplier = abs(parameters.get(self.DEPTH_MULTIPLIER_PARAM,
-                                                   None) or None)
-        self.activation = parameters.get(self.ACTIVATION_PARAM, None) or None
+                                                   None))
+        self.activation = parameters.get(self.ACTIVATION_PARAM, None)
         self.use_bias = parameters.get(self.USE_BIAS_PARAM)
         self.depthwise_initializer = parameters.get(self.
                                                     DEPTHWISE_INITIALIZER_PARAM,
-                                                    None) or None
+                                                    None)
         self.pointwise_initializer = parameters.get(self.
                                                     POINTWISE_INITIALIZER_PARAM,
-                                                    None) or None
+                                                    None)
         self.bias_initializer = parameters.get(self.BIAS_INITIALIZER_PARAM,
-                                               None) or None
+                                               None)
         self.depthwise_regularizer = parameters.get(self.
                                                     DEPTHWISE_REGULARIZER_PARAM,
-                                                    None) or None
+                                                    None)
         self.pointwise_regularizer = parameters.get(self.
                                                     POINTWISE_REGULARIZER_PARAM,
-                                                    None) or None
+                                                    None)
         self.bias_regularizer = parameters.get(self.BIAS_REGULARIZER_PARAM,
-                                               None) or None
+                                               None)
         self.activity_regularizer = parameters.get(self.
                                                    ACTIVITY_REGULARIZER_PARAM,
-                                                   None) or None
+                                                   None)
         self.depthwise_constraint = parameters.get(self.
                                                    DEPTHWISE_CONSTRAINT_PARAM,
-                                                   None) or None
+                                                   None)
         self.pointwise_constraint = parameters.get(self.
                                                    POINTWISE_CONSTRAINT_PARAM,
-                                                   None) or None
+                                                   None)
         self.bias_constraint = parameters.get(self.BIAS_CONSTRAINT_PARAM, None)\
-                               or None
+                              
         self.trainable = parameters.get(self.TRAINABLE_PARAM)
 
         self.add_functions_required = ""
@@ -652,13 +664,14 @@ class SeparableConv1D(Operation):
             functions_required.append(self.bias_constraint)
 
         self.add_functions_required = ',\n    '.join(functions_required)
+        if self.add_functions_required:
+            self.add_functions_required = ',\n    ' + self.add_functions_required
 
     def generate_code(self):
         return dedent(
             """
             {var_name} = SeparableConv1D(
-                name='{name}',
-                {add_functions_required}
+                name='{name}'{add_functions_required}
             ){parent}
             """
         ).format(var_name=self.var_name,
@@ -704,42 +717,42 @@ class SeparableConv2D(Operation):
         self.filters = abs(parameters.get(self.FILTERS_PARAM))
         self.kernel_size = parameters.get(self.KERNEL_SIZE_PARAM)
         self.strides = parameters.get(self.STRIDES_PARAM)
-        self.input_shape = parameters.get(self.INPUT_SHAPE_PARAM, None) or None
+        self.input_shape = parameters.get(self.INPUT_SHAPE_PARAM, None)
         self.padding = parameters.get(self.PADDING_PARAM)
-        self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None) or None
+        self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None)
         self.dilation_rate = parameters.get(self.DILATION_RATE_PARAM, None) or \
                              None
         self.depth_multiplier = abs(parameters.get(self.DEPTH_MULTIPLIER_PARAM,
-                                                   None) or None)
-        self.activation = parameters.get(self.ACTIVATION_PARAM, None) or None
+                                                   None))
+        self.activation = parameters.get(self.ACTIVATION_PARAM, None)
         self.use_bias = parameters.get(self.USE_BIAS_PARAM)
         self.depthwise_initializer = parameters.get(self.
                                                     DEPTHWISE_INITIALIZER_PARAM,
-                                                    None) or None
+                                                    None)
         self.pointwise_initializer = parameters.get(self.
                                                     POINTWISE_INITIALIZER_PARAM,
-                                                    None) or None
+                                                    None)
         self.bias_initializer = parameters.get(self.BIAS_INITIALIZER_PARAM,
-                                               None) or None
+                                               None)
         self.depthwise_regularizer = parameters.get(self.
                                                     DEPTHWISE_REGULARIZER_PARAM,
-                                                    None) or None
+                                                    None)
         self.pointwise_regularizer = parameters.get(self.
                                                     POINTWISE_REGULARIZER_PARAM,
-                                                    None) or None
+                                                    None)
         self.bias_regularizer = parameters.get(self.BIAS_REGULARIZER_PARAM,
-                                               None) or None
+                                               None)
         self.activity_regularizer = parameters.get(self.
                                                    ACTIVITY_REGULARIZER_PARAM,
-                                                   None) or None
+                                                   None)
         self.depthwise_constraint = parameters.get(self.
                                                    DEPTHWISE_CONSTRAINT_PARAM,
-                                                   None) or None
+                                                   None)
         self.pointwise_constraint = parameters.get(self.
                                                    POINTWISE_CONSTRAINT_PARAM,
-                                                   None) or None
+                                                   None)
         self.bias_constraint = parameters.get(self.BIAS_CONSTRAINT_PARAM, None) \
-                               or None
+                              
         self.trainable = parameters.get(self.TRAINABLE_PARAM)
 
         self.add_functions_required = ""
@@ -897,13 +910,14 @@ class SeparableConv2D(Operation):
             functions_required.append(self.bias_constraint)
 
         self.add_functions_required = ',\n    '.join(functions_required)
+        if self.add_functions_required:
+            self.add_functions_required = ',\n    ' + self.add_functions_required
 
     def generate_code(self):
         return dedent(
             """
             {var_name} = SeparableConv2D(
-                name='{name}',
-                {add_functions_required}
+                name='{name}'{add_functions_required}
             ){parent}
             """
         ).format(var_name=self.var_name,
@@ -942,31 +956,31 @@ class DepthwiseConv2D(Operation):
 
         self.kernel_size = parameters.get(self.KERNEL_SIZE_PARAM)
         self.strides = parameters.get(self.STRIDES_PARAM)
-        self.input_shape = parameters.get(self.INPUT_SHAPE_PARAM, None) or None
+        self.input_shape = parameters.get(self.INPUT_SHAPE_PARAM, None)
         self.padding = parameters.get(self.PADDING_PARAM)
-        self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None) or None
+        self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None)
         self.depth_multiplier = abs(parameters.get(self.DEPTH_MULTIPLIER_PARAM,
-                                                   None) or None)
-        self.activation = parameters.get(self.ACTIVATION_PARAM, None) or None
+                                                   None))
+        self.activation = parameters.get(self.ACTIVATION_PARAM, None)
         self.use_bias = parameters.get(self.USE_BIAS_PARAM)
         self.depthwise_initializer = parameters.get(self.
                                                     DEPTHWISE_INITIALIZER_PARAM,
-                                                    None) or None
+                                                    None)
         self.bias_initializer = parameters.get(self.BIAS_INITIALIZER_PARAM,
-                                               None) or None
+                                               None)
         self.depthwise_regularizer = parameters.get(self.
                                                     DEPTHWISE_REGULARIZER_PARAM,
-                                                    None) or None
+                                                    None)
         self.bias_regularizer = parameters.get(self.BIAS_REGULARIZER_PARAM,
-                                               None) or None
+                                               None)
         self.activity_regularizer = parameters.get(self.
                                                    ACTIVITY_REGULARIZER_PARAM,
-                                                   None) or None
+                                                   None)
         self.depthwise_constraint = parameters.get(self.
                                                    DEPTHWISE_CONSTRAINT_PARAM,
-                                                   None) or None
+                                                   None)
         self.bias_constraint = parameters.get(self.BIAS_CONSTRAINT_PARAM, None) \
-                               or None
+                              
 
         self.add_functions_required = ""
         self.task_name = self.parameters.get('task').get('name')
@@ -1088,13 +1102,14 @@ class DepthwiseConv2D(Operation):
             functions_required.append(self.bias_constraint)
 
         self.add_functions_required = ',\n    '.join(functions_required)
+        if self.add_functions_required:
+            self.add_functions_required = ',\n    ' + self.add_functions_required
 
     def generate_code(self):
         return dedent(
             """
             {var_name} = DepthwiseConv2D(
-                name='{name}',
-                {add_functions_required}
+                name='{name}'{add_functions_required}
             ){parent}
             """
         ).format(var_name=self.var_name,
@@ -1137,29 +1152,29 @@ class Conv2DTranspose(Operation):
         self.filters = abs(parameters.get(self.FILTERS_PARAM))
         self.kernel_size = parameters.get(self.KERNEL_SIZE_PARAM)
         self.strides = parameters.get(self.STRIDES_PARAM)
-        self.input_shape = parameters.get(self.INPUT_SHAPE_PARAM, None) or None
+        self.input_shape = parameters.get(self.INPUT_SHAPE_PARAM, None)
         self.padding = parameters.get(self.PADDING_PARAM)
         self.output_padding = parameters.get(self.OUTPUT_PADDING_PARAM)
-        self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None) or None
+        self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None)
         self.dilation_rate = parameters.get(self.DILATION_RATE_PARAM, None) or \
                              None
-        self.activation = parameters.get(self.ACTIVATION_PARAM, None) or None
+        self.activation = parameters.get(self.ACTIVATION_PARAM, None)
         self.use_bias = parameters.get(self.USE_BIAS_PARAM)
         self.kernel_initializer = parameters.get(self.KERNEL_INITIALIZER_PARAM,
-                                                 None) or None
+                                                 None)
         self.bias_initializer = parameters.get(self.BIAS_INITIALIZER_PARAM,
-                                               None) or None
+                                               None)
         self.kernel_regularizer = parameters.get(self.KERNEL_REGULARIZER_PARAM,
-                                                 None) or None
+                                                 None)
         self.bias_regularizer = parameters.get(self.BIAS_REGULARIZER_PARAM,
-                                               None) or None
+                                               None)
         self.activity_regularizer = parameters.get(self.
                                                    ACTIVITY_REGULARIZER_PARAM,
-                                                   None) or None
+                                                   None)
         self.kernel_constraint = parameters.get(self.KERNEL_CONSTRAINT_PARAM,
-                                                None) or None
+                                                None)
         self.bias_constraint = parameters.get(self.BIAS_CONSTRAINT_PARAM, None)\
-                               or None
+                              
 
         self.add_functions_required = ""
         self.task_name = self.parameters.get('task').get('name')
@@ -1302,13 +1317,14 @@ class Conv2DTranspose(Operation):
             functions_required.append(self.bias_constraint)
 
         self.add_functions_required = ',\n    '.join(functions_required)
+        if self.add_functions_required:
+            self.add_functions_required = ',\n    ' + self.add_functions_required
 
     def generate_code(self):
         return dedent(
             """
             {var_name} = Conv2DTranspose(
-                name='{name}',
-                {add_functions_required}
+                name='{name}'{add_functions_required}
             ){parent}
             """
         ).format(var_name=self.var_name,
@@ -1350,28 +1366,28 @@ class Conv3D(Operation):
         self.filters = abs(parameters.get(self.FILTERS_PARAM))
         self.kernel_size = parameters.get(self.KERNEL_SIZE_PARAM)
         self.strides = parameters.get(self.STRIDES_PARAM)
-        self.input_shape = parameters.get(self.INPUT_SHAPE_PARAM, None) or None
+        self.input_shape = parameters.get(self.INPUT_SHAPE_PARAM, None)
         self.padding = parameters.get(self.PADDING_PARAM)
-        self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None) or None
+        self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None)
         self.dilation_rate = parameters.get(self.DILATION_RATE_PARAM, None) or \
                              None
-        self.activation = parameters.get(self.ACTIVATION_PARAM, None) or None
+        self.activation = parameters.get(self.ACTIVATION_PARAM, None)
         self.use_bias = parameters.get(self.USE_BIAS_PARAM)
         self.kernel_initializer = parameters.get(self.KERNEL_INITIALIZER_PARAM,
-                                                 None) or None
+                                                 None)
         self.bias_initializer = parameters.get(self.BIAS_INITIALIZER_PARAM,
-                                               None) or None
+                                               None)
         self.kernel_regularizer = parameters.get(self.KERNEL_REGULARIZER_PARAM,
-                                                 None) or None
+                                                 None)
         self.bias_regularizer = parameters.get(self.BIAS_REGULARIZER_PARAM,
-                                               None) or None
+                                               None)
         self.activity_regularizer = parameters.get(self.
                                                    ACTIVITY_REGULARIZER_PARAM,
-                                                   None) or None
+                                                   None)
         self.kernel_constraint = parameters.get(self.KERNEL_CONSTRAINT_PARAM,
-                                                None) or None
+                                                None)
         self.bias_constraint = parameters.get(self.BIAS_CONSTRAINT_PARAM, None)\
-                               or None
+                              
 
         self.add_functions_required = ""
         self.task_name = self.parameters.get('task').get('name')
@@ -1504,13 +1520,14 @@ class Conv3D(Operation):
             functions_required.append(self.bias_constraint)
 
         self.add_functions_required = ',\n    '.join(functions_required)
+        if self.add_functions_required:
+            self.add_functions_required = ',\n    ' + self.add_functions_required
 
     def generate_code(self):
         return dedent(
             """
             {var_name} = Conv3D(
-                name='{name}',
-                {add_functions_required}
+                name='{name}'{add_functions_required}
             ){parent}
             """
         ).format(var_name=self.var_name,
@@ -1553,29 +1570,29 @@ class Conv3DTranspose(Operation):
         self.filters = abs(parameters.get(self.FILTERS_PARAM))
         self.kernel_size = parameters.get(self.KERNEL_SIZE_PARAM)
         self.strides = parameters.get(self.STRIDES_PARAM)
-        self.input_shape = parameters.get(self.INPUT_SHAPE_PARAM, None) or None
+        self.input_shape = parameters.get(self.INPUT_SHAPE_PARAM, None)
         self.padding = parameters.get(self.PADDING_PARAM)
         self.output_padding = parameters.get(self.OUTPUT_PADDING_PARAM)
-        self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None) or None
+        self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None)
         self.dilation_rate = parameters.get(self.DILATION_RATE_PARAM, None) or \
                              None
-        self.activation = parameters.get(self.ACTIVATION_PARAM, None) or None
+        self.activation = parameters.get(self.ACTIVATION_PARAM, None)
         self.use_bias = parameters.get(self.USE_BIAS_PARAM)
         self.kernel_initializer = parameters.get(self.KERNEL_INITIALIZER_PARAM,
-                                                 None) or None
+                                                 None)
         self.bias_initializer = parameters.get(self.BIAS_INITIALIZER_PARAM,
-                                               None) or None
+                                               None)
         self.kernel_regularizer = parameters.get(self.KERNEL_REGULARIZER_PARAM,
-                                                 None) or None
+                                                 None)
         self.bias_regularizer = parameters.get(self.BIAS_REGULARIZER_PARAM,
-                                               None) or None
+                                               None)
         self.activity_regularizer = parameters.get(self.
                                                    ACTIVITY_REGULARIZER_PARAM,
-                                                   None) or None
+                                                   None)
         self.kernel_constraint = parameters.get(self.KERNEL_CONSTRAINT_PARAM,
-                                                None) or None
+                                                None)
         self.bias_constraint = parameters.get(self.BIAS_CONSTRAINT_PARAM, None) \
-                               or None
+                              
 
         self.add_functions_required = ""
         self.task_name = self.parameters.get('task').get('name')
@@ -1718,13 +1735,14 @@ class Conv3DTranspose(Operation):
             functions_required.append(self.bias_constraint)
 
         self.add_functions_required = ',\n    '.join(functions_required)
+        if self.add_functions_required:
+            self.add_functions_required = ',\n    ' + self.add_functions_required
 
     def generate_code(self):
         return dedent(
             """
             {var_name} = Conv3DTranspose(
-                name='{name}',
-                {add_functions_required}
+                name='{name}'{add_functions_required}
             ){parent}
             """
         ).format(var_name=self.var_name,
@@ -1748,7 +1766,7 @@ class Cropping1D(Operation):
             )
 
         self.cropping = abs(parameters.get(self.CROPPING_PARAM))
-        self.input_shape = parameters.get(self.INPUT_SHAPE_PARAM, None) or None
+        self.input_shape = parameters.get(self.INPUT_SHAPE_PARAM, None)
 
         self.add_functions_required = ""
         self.task_name = self.parameters.get('task').get('name')
@@ -1795,13 +1813,14 @@ class Cropping1D(Operation):
             functions_required.append(self.input_shape)
 
         self.add_functions_required = ',\n    '.join(functions_required)
+        if self.add_functions_required:
+            self.add_functions_required = ',\n    ' + self.add_functions_required
 
     def generate_code(self):
         return dedent(
             """
             {var_name} = Cropping1D(
-                name='{name}',
-                {add_functions_required}
+                name='{name}'{add_functions_required}
             ){parent}
             """
         ).format(var_name=self.var_name,
@@ -1826,8 +1845,8 @@ class Cropping2D(Operation):
             )
 
         self.cropping = abs(parameters.get(self.CROPPING_PARAM))
-        self.input_shape = parameters.get(self.INPUT_SHAPE_PARAM, None) or None
-        self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None) or None
+        self.input_shape = parameters.get(self.INPUT_SHAPE_PARAM, None)
+        self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None)
 
         self.add_functions_required = ""
         self.task_name = self.parameters.get('task').get('name')
@@ -1879,13 +1898,14 @@ class Cropping2D(Operation):
             functions_required.append(self.data_format)
 
         self.add_functions_required = ',\n    '.join(functions_required)
+        if self.add_functions_required:
+            self.add_functions_required = ',\n    ' + self.add_functions_required
 
     def generate_code(self):
         return dedent(
             """
             {var_name} = Cropping2D(
-                name='{name}',
-                {add_functions_required}
+                name='{name}'{add_functions_required}
             ){parent}
             """
         ).format(var_name=self.var_name,
@@ -1910,8 +1930,8 @@ class Cropping3D(Operation):
             )
 
         self.cropping = abs(parameters.get(self.CROPPING_PARAM))
-        self.input_shape = parameters.get(self.INPUT_SHAPE_PARAM, None) or None
-        self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None) or None
+        self.input_shape = parameters.get(self.INPUT_SHAPE_PARAM, None)
+        self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None)
 
         self.add_functions_required = ""
         self.task_name = self.parameters.get('task').get('name')
@@ -1963,13 +1983,14 @@ class Cropping3D(Operation):
             functions_required.append(self.data_format)
 
         self.add_functions_required = ',\n    '.join(functions_required)
+        if self.add_functions_required:
+            self.add_functions_required = ',\n    ' + self.add_functions_required
 
     def generate_code(self):
         return dedent(
             """
             {var_name} = Cropping3D(
-                name='{name}',
-                {add_functions_required}
+                name='{name}'{add_functions_required}
             ){parent}
             """
         ).format(var_name=self.var_name,
