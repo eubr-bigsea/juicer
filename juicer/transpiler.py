@@ -184,7 +184,8 @@ class Transpiler(object):
                 # escape invalid characters for code generation
                 # except JSON (starting with {)
                 if definition['value'] is not None and not isinstance(
-                        definition['value'], (bool, float, int)):
+                        definition['value'], bool) and not isinstance(
+                            definition['value'], int):
                     if '"' in definition['value'] or "'" in definition['value']:
                         if definition['value'][0] != '{':
                             definition['value'] = TranspilerUtils.escape_chars(
@@ -223,6 +224,12 @@ class Transpiler(object):
                 'workflow_name': TranspilerUtils.escape_chars(workflow['name']),
             })
             port = ports.get(task['id'], {})
+            parameters['parents'] = port.get('parents', [])
+            parameters['parents_slug'] = port.get('parents_slug', [])
+            parameters['parents_by_port'] = port.get('parents_by_port', [])
+            parameters['my_ports'] = port.get('my_ports', [])
+
+            #print task['name'], parameters['parents'] # port.get('parents', [])
 
             instance = class_name(parameters, port.get('named_inputs', {}),
                                   port.get('named_outputs', {}))
@@ -259,6 +266,8 @@ class Transpiler(object):
             'plain': params.get('plain', False),
             'transpiler': TranspilerUtils(),
             'workflow_name': workflow['name'],
+            'workflow': workflow,
+            'job_id': job_id,
         }
         env_setup.update(self.get_context())
 
@@ -310,9 +319,13 @@ class Transpiler(object):
         ports = {}
         sequential_ports = {}
         counter = 0
+
         for source_id in graph.edge:
+            source_name = graph.node[source_id]['name']
+            source_slug = graph.node[source_id]['operation']['slug']
             for target_id in graph.edge[source_id]:
                 # Nodes accept multiple edges from same source
+                target_name = graph.node[target_id]['name']
                 for flow in graph.edge[source_id][target_id].values():
                     flow_id = '[{}:{}]'.format(source_id, flow['source_port'], )
 
@@ -322,13 +335,24 @@ class Transpiler(object):
                         counter += 1
                     if source_id not in ports:
                         ports[source_id] = {'outputs': [], 'inputs': [],
+                                            'parents': [],
+                                            'parents_slug': [],
+                                            'parents_by_port': [],
+                                            'my_ports': [],
                                             'named_inputs': {},
                                             'named_outputs': {}}
                     if target_id not in ports:
                         ports[target_id] = {'outputs': [], 'inputs': [],
+                                            'parents': [],
+                                            'parents_by_port': [],
+                                            'my_ports': [],
+                                            'parents_slug': [],
                                             'named_inputs': {},
                                             'named_outputs': {}}
-
+                    ports[target_id]['parents'].append(source_name)
+                    ports[target_id]['parents_slug'].append(source_slug)
+                    ports[target_id]['parents_by_port'].append((flow['source_port_name'], source_name))
+                    ports[target_id]['my_ports'].append((flow['target_port_name'], source_name))
                     sequence = sequential_ports[flow_id]
 
                     source_port = ports[source_id]
@@ -355,6 +379,8 @@ class Transpiler(object):
                         else:
                             target_port['named_inputs'][flow_name] = sequence
                         target_port['inputs'].append(sequence)
+        #import pdb
+        #pdb.set_trace()
 
         self.generate_code(graph, job_id, out, params,
                            ports, nx.topological_sort(graph), state,
@@ -402,6 +428,54 @@ class TranspilerUtils(object):
         else:
             return [instances_map[parent_id] for parent_id in
                     instance.parameters['task']['parents']]
+    @staticmethod
+    def get_imports(instances):
+        layer_import = "from keras.layers import "
+        layer_list = []
+        callbacks_import = "from keras.callbacks import "
+        callbacks_list = []
+        model_import = "from keras.models import "
+        model_list = []
+        preprocessing_image_import = "from keras.preprocessing.image import "
+        preprocessing_image_list = []
+        others_import = ""
+        others_list = []
+
+        for instance in instances:
+            if instance.import_code:
+                if instance.import_code['layer']:
+                    if not instance.import_code['layer'] in layer_list:
+                        layer_list.append(instance.import_code['layer'])
+                if instance.import_code['callbacks']:
+                    for callback in instance.import_code['callbacks']:
+                        if not callback in callbacks_list:
+                            callbacks_list.append(callback)
+                if instance.import_code['model']:
+                    if not instance.import_code['model'] in model_list:
+                        model_list.append(instance.import_code['model'])
+                if instance.import_code['preprocessing_image']:
+                    if not instance.import_code['preprocessing_image'] in preprocessing_image_list:
+                        preprocessing_image_list.append(instance.import_code['preprocessing_image'])
+                if instance.import_code['others']:
+                    if not instance.import_code['others'] in others_list:
+                        others_list.append(instance.import_code['others'])
+
+        imports = ""
+        if len(layer_list) > 0:
+            imports += layer_import + ', '.join(layer_list) + '\n'
+        if len(callbacks_list) > 0:
+            imports += callbacks_import + ', '.join(callbacks_list) + '\n'
+        if len(model_list) > 0:
+            imports += model_import + ', '.join(model_list) + '\n'
+        if len(preprocessing_image_list) > 0:
+            imports += preprocessing_image_import + ', '.join(preprocessing_image_list) + '\n'
+        if len(others_list) > 0:
+            imports += others_import + ', '.join(others_list)
+
+        imports = imports.replace(' , ', ', ')
+
+        return imports
+
 
     @staticmethod
     def get_ids_and_methods(instances):
