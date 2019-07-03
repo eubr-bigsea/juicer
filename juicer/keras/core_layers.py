@@ -52,6 +52,8 @@ class Dense(Operation):
         self.var_name = ""
         self.has_code = True
 
+        self.parents_by_port = parameters.get('my_ports', [])
+        self.python_code_to_remove = self.remove_python_code_parent()
         self.treatment()
 
         self.import_code = {'layer': 'Dense',
@@ -60,9 +62,21 @@ class Dense(Operation):
                             'preprocessing_image': None,
                             'others': None}
 
+    def remove_python_code_parent(self):
+        python_code_to_remove = []
+        for parent in self.parents_by_port:
+            if parent[0] == 'python code':
+                python_code_to_remove.append(convert_parents_to_variable_name(
+                    [parent[1]])
+                )
+        return python_code_to_remove
+
     def treatment(self):
         self.parent = convert_parents_to_variable_name(self.parameters
                                                        .get('parents', []))
+        for python_code in self.python_code_to_remove:
+            self.parent.remove(python_code[0])
+
         if self.parent:
             self.parent = '({})'.format(self.parent[0])
         else:
@@ -154,6 +168,8 @@ class Dropout(Operation):
         self.has_code = True
         self.add_functions_required = ""
 
+        self.parents_by_port = parameters.get('my_ports', [])
+        self.python_code_to_remove = self.remove_python_code_parent()
         self.treatment()
 
         self.import_code = {'layer': 'Dropout',
@@ -162,9 +178,21 @@ class Dropout(Operation):
                             'preprocessing_image': None,
                             'others': None}
 
+    def remove_python_code_parent(self):
+        python_code_to_remove = []
+        for parent in self.parents_by_port:
+            if parent[0] == 'python code':
+                python_code_to_remove.append(convert_parents_to_variable_name(
+                    [parent[1]])
+                )
+        return python_code_to_remove
+
     def treatment(self):
         self.parent = convert_parents_to_variable_name(self.parameters
                                                        .get('parents', []))
+        for python_code in self.python_code_to_remove:
+            self.parent.remove(python_code[0])
+
         if self.parent:
             self.parent = '({})'.format(self.parent[0])
         else:
@@ -218,6 +246,8 @@ class Flatten(Operation):
         self.var_name = ""
         self.has_code = True
 
+        self.parents_by_port = parameters.get('my_ports', [])
+        self.python_code_to_remove = self.remove_python_code_parent()
         self.treatment()
 
         self.import_code = {'layer': 'Flatten',
@@ -226,9 +256,21 @@ class Flatten(Operation):
                             'preprocessing_image': None,
                             'others': None}
 
+    def remove_python_code_parent(self):
+        python_code_to_remove = []
+        for parent in self.parents_by_port:
+            if parent[0] == 'python code':
+                python_code_to_remove.append(convert_parents_to_variable_name(
+                    [parent[1]])
+                )
+        return python_code_to_remove
+
     def treatment(self):
         self.parent = convert_parents_to_variable_name(self.parameters
                                                        .get('parents', []))
+        for python_code in self.python_code_to_remove:
+            self.parent.remove(python_code[0])
+
         if self.parent:
             self.parent = '({})'.format(self.parent[0])
         else:
@@ -283,6 +325,8 @@ class Input(Operation):
 
         self.cant_be_a_tensor = ['python_code']  # slugs
 
+        self.parents_by_port = parameters.get('my_ports', [])
+        self.python_code_to_remove = self.remove_python_code_parent()
         self.treatment()
 
         self.import_code = {'layer': 'Input',
@@ -291,9 +335,21 @@ class Input(Operation):
                             'preprocessing_image': None,
                             'others': None}
 
+    def remove_python_code_parent(self):
+        python_code_to_remove = []
+        for parent in self.parents_by_port:
+            if parent[0] == 'python code':
+                python_code_to_remove.append(convert_parents_to_variable_name(
+                    [parent[1]])
+                )
+        return python_code_to_remove
+
     def treatment(self):
         self.parent = convert_parents_to_variable_name(self.parameters
                                                        .get('parents', []))
+        for python_code in self.python_code_to_remove:
+            self.parent.remove(python_code[0])
+
         if self.parent:
             self.parent = '({})'.format(self.parent[0])
         else:
@@ -359,6 +415,8 @@ class Activation(Operation):
         self.parent = ""
         self.var_name = ""
 
+        self.parents_by_port = parameters.get('my_ports', [])
+        self.python_code_to_remove = self.remove_python_code_parent()
         self.treatment()
 
         self.import_code = {'layer': 'Activation',
@@ -367,9 +425,21 @@ class Activation(Operation):
                             'preprocessing_image': None,
                             'others': None}
 
+    def remove_python_code_parent(self):
+        python_code_to_remove = []
+        for parent in self.parents_by_port:
+            if parent[0] == 'python code':
+                python_code_to_remove.append(convert_parents_to_variable_name(
+                    [parent[1]])
+                )
+        return python_code_to_remove
+
     def treatment(self):
         self.parent = convert_parents_to_variable_name(self.parameters
                                                        .get('parents', []))
+        for python_code in self.python_code_to_remove:
+            self.parent.remove(python_code[0])
+
 
         if self.parent:
             self.parent = '({})'.format(self.parent[0])
@@ -414,6 +484,8 @@ class Reshape(Operation):
         self.parent = ""
         self.var_name = ""
 
+        self.parents_by_port = parameters.get('my_ports', [])
+        self.python_code_to_remove = self.remove_python_code_parent()
         self.treatment()
 
         self.import_code = {'layer': 'Reshape',
@@ -422,9 +494,21 @@ class Reshape(Operation):
                             'preprocessing_image': None,
                             'others': None}
 
+    def remove_python_code_parent(self):
+        python_code_to_remove = []
+        for parent in self.parents_by_port:
+            if parent[0] == 'python code':
+                python_code_to_remove.append(convert_parents_to_variable_name(
+                    [parent[1]])
+                )
+        return python_code_to_remove
+
     def treatment(self):
         self.parent = convert_parents_to_variable_name(self.parameters
                                                        .get('parents', []))
+        for python_code in self.python_code_to_remove:
+            self.parent.remove(python_code[0])
+
         if self.parent:
             self.parent = '({})'.format(self.parent[0])
         else:
@@ -473,6 +557,8 @@ class Permute(Operation):
         self.parent = ""
         self.var_name = ""
 
+        self.parents_by_port = parameters.get('my_ports', [])
+        self.python_code_to_remove = self.remove_python_code_parent()
         self.treatment()
 
         self.import_code = {'layer': 'Permute',
@@ -481,9 +567,21 @@ class Permute(Operation):
                             'preprocessing_image': None,
                             'others': None}
 
+    def remove_python_code_parent(self):
+        python_code_to_remove = []
+        for parent in self.parents_by_port:
+            if parent[0] == 'python code':
+                python_code_to_remove.append(convert_parents_to_variable_name(
+                    [parent[1]])
+                )
+        return python_code_to_remove
+
     def treatment(self):
         self.parent = convert_parents_to_variable_name(self.parameters
                                                        .get('parents', []))
+        for python_code in self.python_code_to_remove:
+            self.parent.remove(python_code[0])
+
         if self.parent:
             self.parent = '({})'.format(self.parent[0])
         else:
@@ -532,6 +630,8 @@ class RepeatVector(Operation):
         self.parent = ""
         self.var_name = ""
 
+        self.parents_by_port = parameters.get('my_ports', [])
+        self.python_code_to_remove = self.remove_python_code_parent()
         self.treatment()
 
         self.import_code = {'layer': 'RepeatVector',
@@ -540,9 +640,21 @@ class RepeatVector(Operation):
                             'preprocessing_image': None,
                             'others': None}
 
+    def remove_python_code_parent(self):
+        python_code_to_remove = []
+        for parent in self.parents_by_port:
+            if parent[0] == 'python code':
+                python_code_to_remove.append(convert_parents_to_variable_name(
+                    [parent[1]])
+                )
+        return python_code_to_remove
+
     def treatment(self):
         self.parent = convert_parents_to_variable_name(self.parameters
                                                        .get('parents', []))
+        for python_code in self.python_code_to_remove:
+            self.parent.remove(python_code[0])
+
         if self.parent:
             self.parent = '({})'.format(self.parent[0])
         else:
@@ -592,6 +704,8 @@ class Lambda(Operation):
         self.parent = ""
         self.var_name = ""
 
+        self.parents_by_port = parameters.get('my_ports', [])
+        self.python_code_to_remove = self.remove_python_code_parent()
         self.treatment()
 
         self.import_code = {'layer': 'Lambda',
@@ -600,9 +714,21 @@ class Lambda(Operation):
                             'preprocessing_image': None,
                             'others': None}
 
+    def remove_python_code_parent(self):
+        python_code_to_remove = []
+        for parent in self.parents_by_port:
+            if parent[0] == 'python code':
+                python_code_to_remove.append(convert_parents_to_variable_name(
+                    [parent[1]])
+                )
+        return python_code_to_remove
+
     def treatment(self):
         self.parent = convert_parents_to_variable_name(self.parameters
                                                        .get('parents', []))
+        for python_code in self.python_code_to_remove:
+            self.parent.remove(python_code[0])
+
         if self.parent:
             if len(self.parent) < 2:
                 self.parent = '({})'.format(self.parent[0])
@@ -671,6 +797,8 @@ class ActivityRegularization(Operation):
         self.var_name = ""
         self.has_code = True
 
+        self.parents_by_port = parameters.get('my_ports', [])
+        self.python_code_to_remove = self.remove_python_code_parent()
         self.treatment()
 
         self.import_code = {'layer': 'ActivityRegularization',
@@ -679,9 +807,21 @@ class ActivityRegularization(Operation):
                             'preprocessing_image': None,
                             'others': None}
 
+    def remove_python_code_parent(self):
+        python_code_to_remove = []
+        for parent in self.parents_by_port:
+            if parent[0] == 'python code':
+                python_code_to_remove.append(convert_parents_to_variable_name(
+                    [parent[1]])
+                )
+        return python_code_to_remove
+
     def treatment(self):
         self.parent = convert_parents_to_variable_name(self.parameters
                                                        .get('parents', []))
+        for python_code in self.python_code_to_remove:
+            self.parent.remove(python_code[0])
+
         if self.parent:
             self.parent = '({})'.format(self.parent[0])
         else:
@@ -727,6 +867,8 @@ class Masking(Operation):
         self.var_name = ""
         self.has_code = True
 
+        self.parents_by_port = parameters.get('my_ports', [])
+        self.python_code_to_remove = self.remove_python_code_parent()
         self.treatment()
 
         self.import_code = {'layer': 'Masking',
@@ -735,9 +877,21 @@ class Masking(Operation):
                             'preprocessing_image': None,
                             'others': None}
 
+    def remove_python_code_parent(self):
+        python_code_to_remove = []
+        for parent in self.parents_by_port:
+            if parent[0] == 'python code':
+                python_code_to_remove.append(convert_parents_to_variable_name(
+                    [parent[1]])
+                )
+        return python_code_to_remove
+
     def treatment(self):
         self.parent = convert_parents_to_variable_name(self.parameters
                                                        .get('parents', []))
+        for python_code in self.python_code_to_remove:
+            self.parent.remove(python_code[0])
+
         if self.parent:
             self.parent = '({})'.format(self.parent[0])
         else:
@@ -778,6 +932,8 @@ class SpatialDropout1D(Operation):
         self.var_name = ""
         self.has_code = True
 
+        self.parents_by_port = parameters.get('my_ports', [])
+        self.python_code_to_remove = self.remove_python_code_parent()
         self.treatment()
 
         self.import_code = {'layer': 'SpatialDropout1D',
@@ -786,9 +942,21 @@ class SpatialDropout1D(Operation):
                             'preprocessing_image': None,
                             'others': None}
 
+    def remove_python_code_parent(self):
+        python_code_to_remove = []
+        for parent in self.parents_by_port:
+            if parent[0] == 'python code':
+                python_code_to_remove.append(convert_parents_to_variable_name(
+                    [parent[1]])
+                )
+        return python_code_to_remove
+
     def treatment(self):
         self.parent = convert_parents_to_variable_name(self.parameters
                                                        .get('parents', []))
+        for python_code in self.python_code_to_remove:
+            self.parent.remove(python_code[0])
+
         if self.parent:
             self.parent = '({})'.format(self.parent[0])
         else:
@@ -829,6 +997,8 @@ class SpatialDropout2D(Operation):
         self.var_name = ""
         self.has_code = True
 
+        self.parents_by_port = parameters.get('my_ports', [])
+        self.python_code_to_remove = self.remove_python_code_parent()
         self.treatment()
 
         self.import_code = {'layer': 'SpatialDropout2D',
@@ -837,9 +1007,21 @@ class SpatialDropout2D(Operation):
                             'preprocessing_image': None,
                             'others': None}
 
+    def remove_python_code_parent(self):
+        python_code_to_remove = []
+        for parent in self.parents_by_port:
+            if parent[0] == 'python code':
+                python_code_to_remove.append(convert_parents_to_variable_name(
+                    [parent[1]])
+                )
+        return python_code_to_remove
+
     def treatment(self):
         self.parent = convert_parents_to_variable_name(self.parameters
                                                        .get('parents', []))
+        for python_code in self.python_code_to_remove:
+            self.parent.remove(python_code[0])
+
         if self.parent:
             self.parent = '({})'.format(self.parent[0])
         else:
@@ -880,6 +1062,8 @@ class SpatialDropout3D(Operation):
         self.var_name = ""
         self.has_code = True
 
+        self.parents_by_port = parameters.get('my_ports', [])
+        self.python_code_to_remove = self.remove_python_code_parent()
         self.treatment()
 
         self.import_code = {'layer': 'SpatialDropout3D',
@@ -888,9 +1072,21 @@ class SpatialDropout3D(Operation):
                             'preprocessing_image': None,
                             'others': None}
 
+    def remove_python_code_parent(self):
+        python_code_to_remove = []
+        for parent in self.parents_by_port:
+            if parent[0] == 'python code':
+                python_code_to_remove.append(convert_parents_to_variable_name(
+                    [parent[1]])
+                )
+        return python_code_to_remove
+
     def treatment(self):
         self.parent = convert_parents_to_variable_name(self.parameters
                                                        .get('parents', []))
+        for python_code in self.python_code_to_remove:
+            self.parent.remove(python_code[0])
+
         if self.parent:
             self.parent = '({})'.format(self.parent[0])
         else:
@@ -988,6 +1184,8 @@ class LSTM(Operation):
         self.var_name = ""
         self.has_code = True
 
+        self.parents_by_port = parameters.get('my_ports', [])
+        self.python_code_to_remove = self.remove_python_code_parent()
         self.treatment()
 
         self.import_code = {'layer': 'LSTM ',
@@ -996,9 +1194,21 @@ class LSTM(Operation):
                             'preprocessing_image': None,
                             'others': None}
 
+    def remove_python_code_parent(self):
+        python_code_to_remove = []
+        for parent in self.parents_by_port:
+            if parent[0] == 'python code':
+                python_code_to_remove.append(convert_parents_to_variable_name(
+                    [parent[1]])
+                )
+        return python_code_to_remove
+
     def treatment(self):
         self.parent = convert_parents_to_variable_name(self.parameters
                                                        .get('parents', []))
+        for python_code in self.python_code_to_remove:
+            self.parent.remove(python_code[0])
+
         if self.parent:
             self.parent = '({})'.format(self.parent[0])
         else:
@@ -1190,6 +1400,8 @@ class SimpleRNN(Operation):
         self.var_name = ""
         self.has_code = True
 
+        self.parents_by_port = parameters.get('my_ports', [])
+        self.python_code_to_remove = self.remove_python_code_parent()
         self.treatment()
 
         self.import_code = {'layer': 'SimpleRNN ',
@@ -1198,9 +1410,21 @@ class SimpleRNN(Operation):
                             'preprocessing_image': None,
                             'others': None}
 
+    def remove_python_code_parent(self):
+        python_code_to_remove = []
+        for parent in self.parents_by_port:
+            if parent[0] == 'python code':
+                python_code_to_remove.append(convert_parents_to_variable_name(
+                    [parent[1]])
+                )
+        return python_code_to_remove
+
     def treatment(self):
         self.parent = convert_parents_to_variable_name(self.parameters
                                                        .get('parents', []))
+        for python_code in self.python_code_to_remove:
+            self.parent.remove(python_code[0])
+
         if self.parent:
             self.parent = '({})'.format(self.parent[0])
         else:
@@ -1362,6 +1586,8 @@ class BatchNormalization(Operation):
         self.var_name = ""
         self.has_code = True
 
+        self.parents_by_port = parameters.get('my_ports', [])
+        self.python_code_to_remove = self.remove_python_code_parent()
         self.treatment()
 
         self.import_code = {'layer': 'BatchNormalization ',
@@ -1370,9 +1596,21 @@ class BatchNormalization(Operation):
                             'preprocessing_image': None,
                             'others': None}
 
+    def remove_python_code_parent(self):
+        python_code_to_remove = []
+        for parent in self.parents_by_port:
+            if parent[0] == 'python code':
+                python_code_to_remove.append(convert_parents_to_variable_name(
+                    [parent[1]])
+                )
+        return python_code_to_remove
+
     def treatment(self):
         self.parent = convert_parents_to_variable_name(self.parameters
                                                        .get('parents', []))
+        for python_code in self.python_code_to_remove:
+            self.parent.remove(python_code[0])
+
         if self.parent:
             self.parent = '({})'.format(self.parent[0])
         else:
@@ -1499,6 +1737,8 @@ class VGG16(Operation):
         self.var_name = ""
         self.has_code = True
 
+        self.parents_by_port = parameters.get('my_ports', [])
+        self.python_code_to_remove = self.remove_python_code_parent()
         self.treatment()
 
         self.import_code = {'layer': None,
@@ -1507,9 +1747,21 @@ class VGG16(Operation):
                             'preprocessing_image': None,
                             'others': 'from keras.applications.vgg16 import VGG16'}
 
+    def remove_python_code_parent(self):
+        python_code_to_remove = []
+        for parent in self.parents_by_port:
+            if parent[0] == 'python code':
+                python_code_to_remove.append(convert_parents_to_variable_name(
+                    [parent[1]])
+                )
+        return python_code_to_remove
+
     def treatment(self):
         self.parent = convert_parents_to_variable_name(self.parameters
                                                        .get('parents', []))
+        for python_code in self.python_code_to_remove:
+            self.parent.remove(python_code[0])
+
         if self.parent:
             self.parent = '({})'.format(self.parent[0])
         else:
@@ -1612,6 +1864,8 @@ class InceptionV3(Operation):
         self.var_name = ""
         self.has_code = True
 
+        self.parents_by_port = parameters.get('my_ports', [])
+        self.python_code_to_remove = self.remove_python_code_parent()
         self.treatment()
 
         self.import_code = {'layer': None,
@@ -1620,9 +1874,21 @@ class InceptionV3(Operation):
                             'preprocessing_image': None,
                             'others': 'from keras.applications.inception_v3 import InceptionV3'}
 
+    def remove_python_code_parent(self):
+        python_code_to_remove = []
+        for parent in self.parents_by_port:
+            if parent[0] == 'python code':
+                python_code_to_remove.append(convert_parents_to_variable_name(
+                    [parent[1]])
+                )
+        return python_code_to_remove
+
     def treatment(self):
         self.parent = convert_parents_to_variable_name(self.parameters
                                                        .get('parents', []))
+        for python_code in self.python_code_to_remove:
+            self.parent.remove(python_code[0])
+
         if self.parent:
             self.parent = '({})'.format(self.parent[0])
         else:
@@ -1713,6 +1979,8 @@ class PythonCode(Operation):
                 self.CODE_PARAM)
             )
 
+        self.parents_by_port = parameters.get('my_ports', [])
+        self.python_code_to_remove = self.remove_python_code_parent()
         self.treatment()
 
         self.import_code = {'layer': None,
@@ -1723,6 +1991,15 @@ class PythonCode(Operation):
 
         self.has_code = not self.out_code
         self.has_external_python_code_operation = self.out_code
+
+    def remove_python_code_parent(self):
+        python_code_to_remove = []
+        for parent in self.parents_by_port:
+            if parent[0] == 'python code':
+                python_code_to_remove.append(convert_parents_to_variable_name(
+                    [parent[1]])
+                )
+        return python_code_to_remove
 
     def treatment(self):
         self.out_code = True if int(self.out_code) == 1 else False
@@ -1771,6 +2048,8 @@ class MaxPooling1D(Operation):
             raise ValueError(gettext('Parameter {} are required')
                              .format(self.POOL_SIZE_PARAM))
 
+        self.parents_by_port = parameters.get('my_ports', [])
+        self.python_code_to_remove = self.remove_python_code_parent()
         self.treatment()
 
         self.import_code = {'layer': 'MaxPooling1D',
@@ -1779,9 +2058,21 @@ class MaxPooling1D(Operation):
                             'preprocessing_image': None,
                             'others': None}
 
+    def remove_python_code_parent(self):
+        python_code_to_remove = []
+        for parent in self.parents_by_port:
+            if parent[0] == 'python code':
+                python_code_to_remove.append(convert_parents_to_variable_name(
+                    [parent[1]])
+                )
+        return python_code_to_remove
+
     def treatment(self):
         self.parent = convert_parents_to_variable_name(self.parameters
                                                        .get('parents', []))
+        for python_code in self.python_code_to_remove:
+            self.parent.remove(python_code[0])
+
         if self.parent:
             self.parent = '({})'.format(self.parent[0])
         else:
@@ -1868,6 +2159,8 @@ class MaxPooling2D(Operation):
             raise ValueError(gettext('Parameter {} are required')
                              .format(self.POOL_SIZE_PARAM))
 
+        self.parents_by_port = parameters.get('my_ports', [])
+        self.python_code_to_remove = self.remove_python_code_parent()
         self.treatment()
 
         self.import_code = {'layer': 'MaxPooling2D',
@@ -1876,9 +2169,21 @@ class MaxPooling2D(Operation):
                             'preprocessing_image': None,
                             'others': None}
 
+    def remove_python_code_parent(self):
+        python_code_to_remove = []
+        for parent in self.parents_by_port:
+            if parent[0] == 'python code':
+                python_code_to_remove.append(convert_parents_to_variable_name(
+                    [parent[1]])
+                )
+        return python_code_to_remove
+
     def treatment(self):
         self.parent = convert_parents_to_variable_name(self.parameters
                                                        .get('parents', []))
+        for python_code in self.python_code_to_remove:
+            self.parent.remove(python_code[0])
+
         if self.parent:
             self.parent = '({})'.format(self.parent[0])
         else:
@@ -1963,6 +2268,8 @@ class MaxPooling3D(Operation):
             raise ValueError(gettext('Parameter {} are required')
                              .format(self.POOL_SIZE_PARAM))
 
+        self.parents_by_port = parameters.get('my_ports', [])
+        self.python_code_to_remove = self.remove_python_code_parent()
         self.treatment()
 
         self.import_code = {'layer': 'MaxPooling3D',
@@ -1971,9 +2278,21 @@ class MaxPooling3D(Operation):
                             'preprocessing_image': None,
                             'others': None}
 
+    def remove_python_code_parent(self):
+        python_code_to_remove = []
+        for parent in self.parents_by_port:
+            if parent[0] == 'python code':
+                python_code_to_remove.append(convert_parents_to_variable_name(
+                    [parent[1]])
+                )
+        return python_code_to_remove
+
     def treatment(self):
         self.parent = convert_parents_to_variable_name(self.parameters
                                                        .get('parents', []))
+        for python_code in self.python_code_to_remove:
+            self.parent.remove(python_code[0])
+
         if self.parent:
             self.parent = '({})'.format(self.parent[0])
         else:
@@ -2053,6 +2372,8 @@ class AveragePooling1D(Operation):
             raise ValueError(gettext('Parameter {} are required')
                              .format(self.POOL_SIZE_PARAM))
 
+        self.parents_by_port = parameters.get('my_ports', [])
+        self.python_code_to_remove = self.remove_python_code_parent()
         self.treatment()
 
         self.import_code = {'layer': 'AveragePooling1D',
@@ -2061,9 +2382,21 @@ class AveragePooling1D(Operation):
                             'preprocessing_image': None,
                             'others': None}
 
+    def remove_python_code_parent(self):
+        python_code_to_remove = []
+        for parent in self.parents_by_port:
+            if parent[0] == 'python code':
+                python_code_to_remove.append(convert_parents_to_variable_name(
+                    [parent[1]])
+                )
+        return python_code_to_remove
+
     def treatment(self):
         self.parent = convert_parents_to_variable_name(self.parameters
                                                        .get('parents', []))
+        for python_code in self.python_code_to_remove:
+            self.parent.remove(python_code[0])
+
         if self.parent:
             self.parent = '({})'.format(self.parent[0])
         else:
@@ -2150,6 +2483,8 @@ class AveragePooling2D(Operation):
             raise ValueError(gettext('Parameter {} are required')
                              .format(self.POOL_SIZE_PARAM))
 
+        self.parents_by_port = parameters.get('my_ports', [])
+        self.python_code_to_remove = self.remove_python_code_parent()
         self.treatment()
 
         self.import_code = {'layer': 'AveragePooling2D',
@@ -2158,9 +2493,21 @@ class AveragePooling2D(Operation):
                             'preprocessing_image': None,
                             'others': None}
 
+    def remove_python_code_parent(self):
+        python_code_to_remove = []
+        for parent in self.parents_by_port:
+            if parent[0] == 'python code':
+                python_code_to_remove.append(convert_parents_to_variable_name(
+                    [parent[1]])
+                )
+        return python_code_to_remove
+
     def treatment(self):
         self.parent = convert_parents_to_variable_name(self.parameters
                                                        .get('parents', []))
+        for python_code in self.python_code_to_remove:
+            self.parent.remove(python_code[0])
+
         if self.parent:
             self.parent = '({})'.format(self.parent[0])
         else:
@@ -2241,6 +2588,8 @@ class AveragePooling3D(Operation):
             raise ValueError(gettext('Parameter {} are required')
                              .format(self.POOL_SIZE_PARAM))
 
+        self.parents_by_port = parameters.get('my_ports', [])
+        self.python_code_to_remove = self.remove_python_code_parent()
         self.treatment()
 
         self.import_code = {'layer': 'AveragePooling3D',
@@ -2249,9 +2598,21 @@ class AveragePooling3D(Operation):
                             'preprocessing_image': None,
                             'others': None}
 
+    def remove_python_code_parent(self):
+        python_code_to_remove = []
+        for parent in self.parents_by_port:
+            if parent[0] == 'python code':
+                python_code_to_remove.append(convert_parents_to_variable_name(
+                    [parent[1]])
+                )
+        return python_code_to_remove
+
     def treatment(self):
         self.parent = convert_parents_to_variable_name(self.parameters
                                                        .get('parents', []))
+        for python_code in self.python_code_to_remove:
+            self.parent.remove(python_code[0])
+
         if self.parent:
             self.parent = '({})'.format(self.parent[0])
         else:
@@ -2321,6 +2682,8 @@ class GlobalMaxPooling1D(Operation):
 
         self.add_functions_required = ""
 
+        self.parents_by_port = parameters.get('my_ports', [])
+        self.python_code_to_remove = self.remove_python_code_parent()
         self.treatment()
 
         self.import_code = {'layer': 'GlobalMaxPooling1D',
@@ -2329,9 +2692,21 @@ class GlobalMaxPooling1D(Operation):
                             'preprocessing_image': None,
                             'others': None}
 
+    def remove_python_code_parent(self):
+        python_code_to_remove = []
+        for parent in self.parents_by_port:
+            if parent[0] == 'python code':
+                python_code_to_remove.append(convert_parents_to_variable_name(
+                    [parent[1]])
+                )
+        return python_code_to_remove
+
     def treatment(self):
         self.parent = convert_parents_to_variable_name(self.parameters
                                                        .get('parents', []))
+        for python_code in self.python_code_to_remove:
+            self.parent.remove(python_code[0])
+
         if self.parent:
             self.parent = '({})'.format(self.parent[0])
         else:
@@ -2380,6 +2755,8 @@ class GlobalMaxPooling2D(Operation):
 
         self.add_functions_required = ""
 
+        self.parents_by_port = parameters.get('my_ports', [])
+        self.python_code_to_remove = self.remove_python_code_parent()
         self.treatment()
 
         self.import_code = {'layer': 'GlobalMaxPooling2D',
@@ -2388,9 +2765,21 @@ class GlobalMaxPooling2D(Operation):
                             'preprocessing_image': None,
                             'others': None}
 
+    def remove_python_code_parent(self):
+        python_code_to_remove = []
+        for parent in self.parents_by_port:
+            if parent[0] == 'python code':
+                python_code_to_remove.append(convert_parents_to_variable_name(
+                    [parent[1]])
+                )
+        return python_code_to_remove
+
     def treatment(self):
         self.parent = convert_parents_to_variable_name(self.parameters
                                                        .get('parents', []))
+        for python_code in self.python_code_to_remove:
+            self.parent.remove(python_code[0])
+
         if self.parent:
             self.parent = '({})'.format(self.parent[0])
         else:
@@ -2439,6 +2828,8 @@ class GlobalMaxPooling3D(Operation):
 
         self.add_functions_required = ""
 
+        self.parents_by_port = parameters.get('my_ports', [])
+        self.python_code_to_remove = self.remove_python_code_parent()
         self.treatment()
 
         self.import_code = {'layer': 'GlobalMaxPooling3D',
@@ -2447,9 +2838,21 @@ class GlobalMaxPooling3D(Operation):
                             'preprocessing_image': None,
                             'others': None}
 
+    def remove_python_code_parent(self):
+        python_code_to_remove = []
+        for parent in self.parents_by_port:
+            if parent[0] == 'python code':
+                python_code_to_remove.append(convert_parents_to_variable_name(
+                    [parent[1]])
+                )
+        return python_code_to_remove
+
     def treatment(self):
         self.parent = convert_parents_to_variable_name(self.parameters
                                                        .get('parents', []))
+        for python_code in self.python_code_to_remove:
+            self.parent.remove(python_code[0])
+
         if self.parent:
             self.parent = '({})'.format(self.parent[0])
         else:
@@ -2498,6 +2901,8 @@ class GlobalAveragePooling1D(Operation):
 
         self.add_functions_required = ""
 
+        self.parents_by_port = parameters.get('my_ports', [])
+        self.python_code_to_remove = self.remove_python_code_parent()
         self.treatment()
 
         self.import_code = {'layer': 'GlobalAveragePooling1D',
@@ -2506,9 +2911,21 @@ class GlobalAveragePooling1D(Operation):
                             'preprocessing_image': None,
                             'others': None}
 
+    def remove_python_code_parent(self):
+        python_code_to_remove = []
+        for parent in self.parents_by_port:
+            if parent[0] == 'python code':
+                python_code_to_remove.append(convert_parents_to_variable_name(
+                    [parent[1]])
+                )
+        return python_code_to_remove
+
     def treatment(self):
         self.parent = convert_parents_to_variable_name(self.parameters
                                                        .get('parents', []))
+        for python_code in self.python_code_to_remove:
+            self.parent.remove(python_code[0])
+
         if self.parent:
             self.parent = '({})'.format(self.parent[0])
         else:
@@ -2557,6 +2974,8 @@ class GlobalAveragePooling2D(Operation):
 
         self.add_functions_required = ""
 
+        self.parents_by_port = parameters.get('my_ports', [])
+        self.python_code_to_remove = self.remove_python_code_parent()
         self.treatment()
 
         self.import_code = {'layer': 'GlobalAveragePooling2D',
@@ -2565,9 +2984,21 @@ class GlobalAveragePooling2D(Operation):
                             'preprocessing_image': None,
                             'others': None}
 
+    def remove_python_code_parent(self):
+        python_code_to_remove = []
+        for parent in self.parents_by_port:
+            if parent[0] == 'python code':
+                python_code_to_remove.append(convert_parents_to_variable_name(
+                    [parent[1]])
+                )
+        return python_code_to_remove
+
     def treatment(self):
         self.parent = convert_parents_to_variable_name(self.parameters
                                                        .get('parents', []))
+        for python_code in self.python_code_to_remove:
+            self.parent.remove(python_code[0])
+
         if self.parent:
             self.parent = '({})'.format(self.parent[0])
         else:
@@ -2616,6 +3047,8 @@ class GlobalAveragePooling3D(Operation):
 
         self.add_functions_required = ""
 
+        self.parents_by_port = parameters.get('my_ports', [])
+        self.python_code_to_remove = self.remove_python_code_parent()
         self.treatment()
 
         self.import_code = {'layer': 'GlobalAveragePooling3D',
@@ -2624,9 +3057,21 @@ class GlobalAveragePooling3D(Operation):
                             'preprocessing_image': None,
                             'others': None}
 
+    def remove_python_code_parent(self):
+        python_code_to_remove = []
+        for parent in self.parents_by_port:
+            if parent[0] == 'python code':
+                python_code_to_remove.append(convert_parents_to_variable_name(
+                    [parent[1]])
+                )
+        return python_code_to_remove
+
     def treatment(self):
         self.parent = convert_parents_to_variable_name(self.parameters
                                                        .get('parents', []))
+        for python_code in self.python_code_to_remove:
+            self.parent.remove(python_code[0])
+
         if self.parent:
             self.parent = '({})'.format(self.parent[0])
         else:
@@ -2677,6 +3122,8 @@ class Add(Operation):
 
         self.add_functions_required = ""
 
+        self.parents_by_port = parameters.get('my_ports', [])
+        self.python_code_to_remove = self.remove_python_code_parent()
         self.treatment()
 
         self.import_code = {'layer': 'Add',
@@ -2684,6 +3131,15 @@ class Add(Operation):
                             'model': None,
                             'preprocessing_image': None,
                             'others': None}
+
+    def remove_python_code_parent(self):
+        python_code_to_remove = []
+        for parent in self.parents_by_port:
+            if parent[0] == 'python code':
+                python_code_to_remove.append(convert_parents_to_variable_name(
+                    [parent[1]])
+                )
+        return python_code_to_remove
 
     def treatment(self):
         self.parents = convert_parents_to_variable_name(self.parameters
@@ -2764,6 +3220,8 @@ class Subtract(Operation):
 
         self.add_functions_required = ""
 
+        self.parents_by_port = parameters.get('my_ports', [])
+        self.python_code_to_remove = self.remove_python_code_parent()
         self.treatment()
 
         self.import_code = {'layer': 'Subtract',
@@ -2772,9 +3230,21 @@ class Subtract(Operation):
                             'preprocessing_image': None,
                             'others': None}
 
+    def remove_python_code_parent(self):
+        python_code_to_remove = []
+        for parent in self.parents_by_port:
+            if parent[0] == 'python code':
+                python_code_to_remove.append(convert_parents_to_variable_name(
+                    [parent[1]])
+                )
+        return python_code_to_remove
+
     def treatment(self):
         self.parents = convert_parents_to_variable_name(self.parameters
                                                         .get('parents', []))
+        for python_code in self.python_code_to_remove:
+            self.parents.remove(python_code[0])
+
         self.var_name = convert_variable_name(self.task_name)
         self.task_name = self.var_name
 
@@ -2850,6 +3320,8 @@ class Multiply(Operation):
 
         self.add_functions_required = ""
 
+        self.parents_by_port = parameters.get('my_ports', [])
+        self.python_code_to_remove = self.remove_python_code_parent()
         self.treatment()
 
         self.import_code = {'layer': 'multiply',
@@ -2858,9 +3330,21 @@ class Multiply(Operation):
                             'preprocessing_image': None,
                             'others': None}
 
+    def remove_python_code_parent(self):
+        python_code_to_remove = []
+        for parent in self.parents_by_port:
+            if parent[0] == 'python code':
+                python_code_to_remove.append(convert_parents_to_variable_name(
+                    [parent[1]])
+                )
+        return python_code_to_remove
+
     def treatment(self):
         self.parents = convert_parents_to_variable_name(self.parameters
                                                         .get('parents', []))
+        for python_code in self.python_code_to_remove:
+            self.parents.remove(python_code[0])
+
         self.var_name = convert_variable_name(self.task_name)
         self.task_name = self.var_name
 
@@ -2936,6 +3420,8 @@ class Average(Operation):
 
         self.add_functions_required = ""
 
+        self.parents_by_port = parameters.get('my_ports', [])
+        self.python_code_to_remove = self.remove_python_code_parent()
         self.treatment()
 
         self.import_code = {'layer': 'Average',
@@ -2944,9 +3430,21 @@ class Average(Operation):
                             'preprocessing_image': None,
                             'others': None}
 
+    def remove_python_code_parent(self):
+        python_code_to_remove = []
+        for parent in self.parents_by_port:
+            if parent[0] == 'python code':
+                python_code_to_remove.append(convert_parents_to_variable_name(
+                    [parent[1]])
+                )
+        return python_code_to_remove
+
     def treatment(self):
         self.parents = convert_parents_to_variable_name(self.parameters
                                                         .get('parents', []))
+        for python_code in self.python_code_to_remove:
+            self.parents.remove(python_code[0])
+
         self.var_name = convert_variable_name(self.task_name)
         self.task_name = self.var_name
 
@@ -3022,6 +3520,8 @@ class Maximum(Operation):
 
         self.add_functions_required = ""
 
+        self.parents_by_port = parameters.get('my_ports', [])
+        self.python_code_to_remove = self.remove_python_code_parent()
         self.treatment()
 
         self.import_code = {'layer': 'Maximum',
@@ -3030,9 +3530,21 @@ class Maximum(Operation):
                             'preprocessing_image': None,
                             'others': None}
 
+    def remove_python_code_parent(self):
+        python_code_to_remove = []
+        for parent in self.parents_by_port:
+            if parent[0] == 'python code':
+                python_code_to_remove.append(convert_parents_to_variable_name(
+                    [parent[1]])
+                )
+        return python_code_to_remove
+
     def treatment(self):
         self.parents = convert_parents_to_variable_name(self.parameters
                                                         .get('parents', []))
+        for python_code in self.python_code_to_remove:
+            self.parents.remove(python_code[0])
+
         self.var_name = convert_variable_name(self.task_name)
         self.task_name = self.var_name
 
@@ -3108,6 +3620,8 @@ class Minimum(Operation):
 
         self.add_functions_required = ""
 
+        self.parents_by_port = parameters.get('my_ports', [])
+        self.python_code_to_remove = self.remove_python_code_parent()
         self.treatment()
 
         self.import_code = {'layer': 'Minimum',
@@ -3116,9 +3630,21 @@ class Minimum(Operation):
                             'preprocessing_image': None,
                             'others': None}
 
+    def remove_python_code_parent(self):
+        python_code_to_remove = []
+        for parent in self.parents_by_port:
+            if parent[0] == 'python code':
+                python_code_to_remove.append(convert_parents_to_variable_name(
+                    [parent[1]])
+                )
+        return python_code_to_remove
+
     def treatment(self):
         self.parents = convert_parents_to_variable_name(self.parameters
                                                         .get('parents', []))
+        for python_code in self.python_code_to_remove:
+            self.parents.remove(python_code[0])
+
         self.var_name = convert_variable_name(self.task_name)
         self.task_name = self.var_name
 
@@ -3196,6 +3722,8 @@ class Concatenate(Operation):
 
         self.add_functions_required = ""
 
+        self.parents_by_port = parameters.get('my_ports', [])
+        self.python_code_to_remove = self.remove_python_code_parent()
         self.treatment()
 
         self.import_code = {'layer': 'Concatenate',
@@ -3204,9 +3732,21 @@ class Concatenate(Operation):
                             'preprocessing_image': None,
                             'others': None}
 
+    def remove_python_code_parent(self):
+        python_code_to_remove = []
+        for parent in self.parents_by_port:
+            if parent[0] == 'python code':
+                python_code_to_remove.append(convert_parents_to_variable_name(
+                    [parent[1]])
+                )
+        return python_code_to_remove
+
     def treatment(self):
         self.parents = convert_parents_to_variable_name(self.parameters
                                                         .get('parents', []))
+        for python_code in self.python_code_to_remove:
+            self.parents.remove(python_code[0])
+
         self.var_name = convert_variable_name(self.task_name)
         self.task_name = self.var_name
 
@@ -3287,6 +3827,8 @@ class Dot(Operation):
 
         self.add_functions_required = ""
 
+        self.parents_by_port = parameters.get('my_ports', [])
+        self.python_code_to_remove = self.remove_python_code_parent()
         self.treatment()
 
         self.import_code = {'layer': 'Dot',
@@ -3295,9 +3837,21 @@ class Dot(Operation):
                             'preprocessing_image': None,
                             'others': None}
 
+    def remove_python_code_parent(self):
+        python_code_to_remove = []
+        for parent in self.parents_by_port:
+            if parent[0] == 'python code':
+                python_code_to_remove.append(convert_parents_to_variable_name(
+                    [parent[1]])
+                )
+        return python_code_to_remove
+
     def treatment(self):
         self.parents = convert_parents_to_variable_name(self.parameters
                                                         .get('parents', []))
+        for python_code in self.python_code_to_remove:
+            self.parents.remove(python_code[0])
+
         self.var_name = convert_variable_name(self.task_name)
         self.task_name = self.var_name
 
@@ -3481,6 +4035,7 @@ class ModelGenerator(Operation):
                             'preprocessing_image': None,
                             'others': None}
 
+        self.parents_by_port = parameters.get('my_ports', [])
         self.treatment()
 
     def treatment(self):
@@ -3489,9 +4044,9 @@ class ModelGenerator(Operation):
 
         validation = ''
         for parent in self.parents_by_port:
-            if str(parent[0]) == 'input-layer':
+            if str(parent[0]) == 'input layer':
                 self.input_layers.append(convert_variable_name(parent[1]))
-            elif str(parent[0]) == 'output-layer':
+            elif str(parent[0]) == 'output layer':
                 self.output_layers.append(convert_variable_name(parent[1]))
             elif str(parent[0]) == 'train-generator':
                 self.train_generator = 'train_{var_name}' \
@@ -3530,7 +4085,7 @@ class ModelGenerator(Operation):
         # Compile
         functions_required_compile = []
         if self.optimizer is not None:
-            self.optimizer = """optimizer='{optimizer}'""" \
+            self.optimizer = """    optimizer='{optimizer}'""" \
                 .format(optimizer=self.optimizer)
             functions_required_compile.append(self.optimizer)
         else:
@@ -3626,7 +4181,7 @@ class ModelGenerator(Operation):
         # Fit Generator
         functions_required_fit_generator = []
         if self.train_generator is not None:
-            self.train_generator = """generator={train_generator}""" \
+            self.train_generator = """    generator={train_generator}""" \
                 .format(train_generator=self.train_generator)
             functions_required_fit_generator.append(self.train_generator)
 
@@ -3787,9 +4342,6 @@ class ModelGenerator(Operation):
                      outputs=self.output_layers,
                      add_functions_required_compile=
                                         self.add_functions_required_compile,
-                     add_functions_required_fit_generator=
-                                        self.add_functions_required_fit_generator,
-                     output_task_id=self.output_task_id,
                      callback_code=self.callback_code)
 
     def generate_history_code(self):
@@ -3893,6 +4445,7 @@ class ImageGenerator(Operation):
             raise ValueError(gettext('Parameter {} is required').format(
                 self.BATCH_SIZE_PARAM))
 
+        self.parents_by_port = parameters.get('my_ports', [])
         self.treatment()
 
         self.import_code = {'layer': None,
@@ -4246,6 +4799,7 @@ class ImageReader(Operation):
                 raise ValueError(gettext('Training and validation images files '
                                          'are in different formats.'))
 
+        self.parents_by_port = parameters.get('my_ports', [])
         self.treatment()
 
         self.import_code = {'layer': None,
@@ -4335,7 +4889,18 @@ class Hyperparameters(Operation):
 
         self.has_code = True
 
+        self.parents_by_port = parameters.get('my_ports', [])
+        self.python_code_to_remove = self.remove_python_code_parent()
         self.treatment()
+
+    def remove_python_code_parent(self):
+        python_code_to_remove = []
+        for parent in self.parents_by_port:
+            if parent[0] == 'python code':
+                python_code_to_remove.append(convert_parents_to_variable_name(
+                    [parent[1]])
+                )
+        return python_code_to_remove
 
     def treatment(self):
         if self.number_of_epochs <= 0:
