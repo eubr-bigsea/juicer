@@ -60,7 +60,7 @@ def main(workflow_id, execute_main, params, config, deploy, export_notebook):
         transpiler.execute_main = execute_main
         transpiler.transpile(
             loader.workflow, loader.graph, params=params, deploy=deploy,
-            export_notebook=export_notebook)
+            export_notebook=export_notebook, job_id=1000)
 
     except ValueError as ve:
         log.exception(_("At least one parameter is missing"), exc_info=ve)
@@ -101,7 +101,8 @@ if __name__ == "__main__":
     juicer_config = {}
     if args.config:
         with open(args.config) as config_file:
-            juicer_config = yaml.load(config_file.read())
+            juicer_config = yaml.load(config_file.read(),
+                                      Loader=yaml.FullLoader)
 
     main(args.workflow, args.execute_main, {"plain": args.plain}, juicer_config,
          args.deploy, args.notebook)

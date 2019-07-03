@@ -24,7 +24,7 @@ def _update_caipirinha(base_url, item_path, token, item_id, data):
         return json.loads(r.text)
     else:
         raise RuntimeError(_(
-            u"Error in URL {}: HTTP {} - {}").format(
+            u"Error in URL {}: HTTP {} - {} ({})").format(
             item_id, url, r.status_code, r.text))
 
 

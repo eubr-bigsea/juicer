@@ -50,6 +50,8 @@ class ScikitLearnTranspiler(Transpiler):
             'clean-missing': etl.CleanMissingOperation,
             'difference': etl.DifferenceOperation,
             'drop': etl.DropOperation,
+            'execute-python': etl.ExecutePythonOperation,
+            'execute-sql': etl.ExecuteSQLOperation,
             'filter-selection': etl.FilterOperation,
             'join': etl.JoinOperation,
             'projection': etl.SelectOperation,
@@ -96,6 +98,7 @@ class ScikitLearnTranspiler(Transpiler):
             #
             # ------ Model Operations  ------#
             'apply-model': model.ApplyModelOperation,
+            'cross-validation': model.CrossValidationOperation,
             'evaluate-model': model.EvaluateModelOperation,
             'load-model': model.LoadModel,
             'save-model': model.SaveModel,
@@ -117,6 +120,7 @@ class ScikitLearnTranspiler(Transpiler):
             'gbt-classifier': classifiers.GBTClassifierOperation,
             'knn-classifier': classifiers.KNNClassifierOperation,
             'logistic-regression': classifiers.LogisticRegressionOperation,
+            'mlp-classifier': classifiers.MLPClassifierOperation,
             'naive-bayes-classifier': classifiers.NaiveBayesClassifierOperation,
             'perceptron-classifier': classifiers.PerceptronClassifierOperation,
             'random-forest-classifier':
@@ -130,6 +134,7 @@ class ScikitLearnTranspiler(Transpiler):
             'isotonic-regression':
                 regression.IsotonicRegressionOperation,
             'linear-regression': regression.LinearRegressionOperation,
+            'mlp-regressor': regression.MLPRegressorOperation,
             'random-forest-regressor':
                 regression.RandomForestRegressorOperation,
             'sgd-regressor': regression.SGDRegressorOperation,

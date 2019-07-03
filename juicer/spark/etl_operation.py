@@ -32,15 +32,17 @@ class SplitOperation(Operation):
             [len(self.named_outputs) > 0, self.contains_results()])
 
         self.output1 = self.named_outputs.get(
-            'splitted data 1',
+            'split 1',
             'split_1_task_{}'.format(self.order))
 
         self.output2 = self.named_outputs.get(
-            'splitted data 2',
+            'split 2',
             'split_2_task_{}'.format(self.order))
 
     def get_output_names(self, sep=", "):
-        return sep.join([self.output1, self.output2])
+        # Pay attention: order of ports is reversed in order to port 1
+        # be shown in top in interface!
+        return sep.join([self.output2, self.output1])
 
     def generate_code(self):
         code = "{out1}, {out2} = {input}.randomSplit({weights}, {seed})".format(
@@ -908,13 +910,13 @@ class AddColumnsOperation(Operation):
         input_data2 = self.named_inputs['input data 2']
 
         code = """
-            
+
             def _add_column_index(df, prefix):
                 # Create new attribute names
                 old_attrs = ['{{}}{{}}'.format(prefix, name)
                     for name in df.schema.names]
                 new_attrs = old_attrs + ['_inx']
-            
+
                 # Add attribute index
                 return df.rdd.zipWithIndex().map(
                     lambda row, inx: row + (inx,)).toDF(new_attrs)
@@ -1326,3 +1328,227 @@ class WindowTransformationOperation(Operation):
             new_attrs.append(built_expr)
             aliases.append(expr['alias'])
         return aliases, new_attrs, params
+
+
+class SplitKFoldOperation(Operation):
+    """
+    K-fold cross-validation  partitioned dataset into k equal sized
+    subsamples called folds, it can be randomly or stratified.
+    """
+    K_FOLD_PARAM = 'k_fold'
+    TYPE_PARAM = 'type'
+    FEATURES_PARAM = 'features'
+    LABEL_PARAM = 'label'
+    ALIAS_PARAM = 'alias'
+    SEED_PARAM = 'seed'
+
+    TYPE_RANDOM = 'random'
+    TYPE_STRATIFIED = 'stratified'
+    TYPE_STRATIFIED_EXACT = 'stratified_exact'
+    TYPE_RANDOM_EXACT = 'random_exact'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+
+        if self.K_FOLD_PARAM in parameters:
+            self.k_fold = parameters.get(self.K_FOLD_PARAM)
+            if self.k_fold < 2:
+                raise ValueError(_("Parameter '{}' informed for task '{}' \
+                                   must be at >= 2").format(self.K_FOLD_PARAM,
+                                                            self.__class__))
+        else:
+            raise ValueError(_("Parameter '{}' must be informed \
+                                for task {}").format(self.K_FOLD_PARAM,
+                                                     self.__class__))
+
+        self.type = parameters.get(self.TYPE_PARAM, self.TYPE_RANDOM)
+        self.label = (parameters.get(self.LABEL_PARAM) or ['label'])[0]
+        self.alias = parameters.get(self.ALIAS_PARAM, 'fold')
+        self.seed = parameters.get(self.SEED_PARAM, 'None') or 'None'
+
+        self.has_code = any(
+            [len(self.named_inputs) == 1, self.contains_results()])
+
+        self.output = self.named_outputs.get('output data',
+                                             'out_task_{}'.format(self.order))
+
+    def generate_code(self):
+        code = ""
+        input_data = self.named_inputs.get('input data')
+        display_text = self.parameters['task']['forms'].get(
+            'display_text', {'value': 1}).get('value', 1) in (1, '1')
+
+        if self.type == self.TYPE_RANDOM:
+            code = ("""
+                seed = {seed}
+                k = {k_fold}
+                weights = [1.0] * k # Spark normalizes weights to sum up to 1.0
+                split_dfs = {input}.randomSplit(weights, seed)
+                final_split = []
+                for i, split_df in enumerate(split_dfs):
+                    final_split.append(split_df.withColumn(
+                        '{alias}', functions.lit(i)))
+                {out} = functools.reduce(DataFrame.union, final_split)
+                # Emit a summary of partition
+                display_text = {display_text}
+                if display_text:
+                    summary = {out}.groupBy('{alias}').count().orderBy(
+                        '{alias}')
+                    dataframe_util.emit_sample(
+                        '{task_id}', summary, emit_event, None,
+                        title='{title}')
+                """.format(input=input_data,
+                           out=self.output,
+                           task_id=self.parameters['task_id'],
+                           title=_('Summary for K-fold'),
+                           display_text=display_text,
+                           k_fold=self.k_fold,
+                           alias=self.alias,
+                           seed=self.seed))
+        elif self.type == self.TYPE_RANDOM_EXACT:
+            code = ("""
+                def get_split_bounds(l, n):
+                    return [[(i*l)//n, ((i+1)*l)//n - 1] for i in range(n)]
+
+                seed = {seed}
+                k = {k_fold}
+
+                total = {input}.count()
+                # orderBy is required
+                w = Window().orderBy(functions.rand(seed=seed))
+                df = {input}.withColumn(
+                    'row_num_tmp', functions.row_number().over(w))
+
+                bounds = get_split_bounds(total, k)
+                when_col = None
+                for i, bound in enumerate(bounds):
+                    condition = (df.row_num_tmp - 1 >= bound[0]) & (
+                        df.row_num_tmp - 1 <= bound[1])
+                    if when_col is None:
+                        when_col = functions.when(condition, i)
+                    else:
+                        when_col = when_col.when(condition, i)
+                df = df.withColumn('{alias}', when_col)
+                {out} = df.drop('row_num_tmp')
+
+                # Emit a summary of partition
+                display_text = {display_text}
+                if display_text:
+                    summary = {out}.groupBy('{alias}').count().orderBy(
+                        '{alias}')
+                    dataframe_util.emit_sample(
+                        '{task_id}', summary, emit_event, None,
+                        title='{title}')
+                """.format(input=input_data,
+                           out=self.output,
+                           task_id=self.parameters['task_id'],
+                           title=_('Summary for K-fold'),
+                           display_text=display_text,
+                           k_fold=self.k_fold,
+                           alias=self.alias,
+                           seed=self.seed))
+        elif self.type == self.TYPE_STRATIFIED:
+
+            # Stratification seeks to ensure that each fold is
+            # representative of all strata of the data. Generally
+            # this is done in a supervised way for classification
+            # and aims to ensure each class is (approximately) equally
+            # represented across each test fold (which are of course
+            # combined in a complementary way to form training folds).
+
+            code = ("""
+                seed = {seed}
+                k = {k_fold}
+                weights = [1.0] * k # Spark normalizes weights to sum up to 1.0
+                distinct_labels = [row[0] for row in
+                    {input}.select('{label}').distinct().collect()]
+
+                # We will have a matrix MxK where M is the number of distinct
+                # labels and K is the number of folds
+                split_df_by_label = [
+                    {input}.where(functions.col('{label}').eqNullSafe(
+                        label)).randomSplit(weights, seed)
+                        for label in distinct_labels]
+
+                # Union of all datasets, partitioned by label and split in
+                # k folds
+                {out} = None
+                for df_by_label in split_df_by_label:
+                    for i, df_by_split in enumerate(df_by_label):
+                        df_by_split = df_by_split.withColumn(
+                            '{alias}', functions.lit(i))
+                        if {out} is None:
+                            {out} = df_by_split
+                        else:
+                            {out} = {out}.union(df_by_split)
+
+                # Emit a summary of partition
+                display_text = {display_text}
+                if display_text:
+                    summary = {out}.groupBy(
+                        '{label}', '{alias}').count().orderBy(
+                            '{label}', '{alias}')
+                    dataframe_util.emit_sample(
+                        '{task_id}', summary, emit_event, None,
+                        title='{title}')
+            """.format(input=input_data,
+                       out=self.output,
+                       k_fold=self.k_fold,
+                       display_text=display_text,
+                       label=self.label,
+                       alias=self.alias,
+                       seed=self.seed,
+                       task_id=self.parameters['task_id'],
+                       operation_id=self.parameters['operation_id'],
+                       title=_('Summary for K-fold')))
+
+        elif self.type == self.TYPE_STRATIFIED_EXACT:
+            code = ("""
+                def get_fold_number(k, count, row_num):
+                    for i in range(k):
+                        if (i*count)//k <= row_num - 1 <= ((i+1)*count)//k - 1:
+                            return i
+
+                udf_fold = functions.udf(get_fold_number, types.IntegerType())
+
+                seed = {seed}
+
+                # Requires 2 window specifications
+                # First to add a row number inside group and second to count
+                # the total of rows inside the group
+                w1 = Window().partitionBy('{label}').orderBy(
+                    functions.rand(seed=seed)).rowsBetween(
+                        Window.unboundedPreceding, Window.currentRow)
+                w2 = Window().partitionBy('{label}').rowsBetween(
+                        Window.unboundedPreceding, Window.unboundedFollowing)
+
+                df = {input}.withColumn(
+                    'row_num_tmp', functions.row_number().over(w1)).withColumn(
+                    'count_tmp', functions.count('*').over(w2))
+
+                df = df.withColumn('{alias}',
+                    udf_fold(
+                        functions.lit({k_fold}), df.count_tmp, df.row_num_tmp))
+
+                {out} = df.drop('count_tmp', 'row_num_tmp')
+                # Emit a summary of partition
+                display_text = {display_text}
+                if display_text:
+                    summary = {out}.groupBy(
+                        '{label}', '{alias}').count().orderBy(
+                            '{label}', '{alias}')
+                    dataframe_util.emit_sample(
+                        '{task_id}', summary, emit_event, None,
+                        title='{title}')
+            """.format(input=input_data,
+                       out=self.output,
+                       display_text=display_text,
+                       k_fold=self.k_fold,
+                       label=self.label,
+                       alias=self.alias,
+                       seed=self.seed,
+                       task_id=self.parameters['task_id'],
+                       operation_id=self.parameters['operation_id'],
+                       title=_('Summary for K-fold')))
+
+        return dedent(code)

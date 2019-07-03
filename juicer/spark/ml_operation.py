@@ -4,6 +4,9 @@ from __future__ import unicode_literals, absolute_import
 import json
 import logging
 import string
+from gettext import gettext
+
+from juicer import auditing
 
 try:
     from itertools import zip_longest as zip_longest
@@ -136,20 +139,13 @@ class DeployModelMixin(object):
         return result
 
 
-class FeatureIndexerOperation(Operation):
+class VectorIndexOperation(Operation):
     """
-    A label indexer that maps a string attribute of labels to an ML attribute of
-    label indices (attribute type = STRING) or a feature transformer that merges
-    multiple attributes into a vector attribute (attribute type = VECTOR). All
-    other attribute types are first converted to STRING and them indexed.
+    Class for indexing categorical feature columns in a dataset of Vector.
     """
     ATTRIBUTES_PARAM = 'attributes'
-    TYPE_PARAM = 'indexer_type'
     ALIAS_PARAM = 'alias'
     MAX_CATEGORIES_PARAM = 'max_categories'
-
-    TYPE_STRING = 'string'
-    TYPE_VECTOR = 'vector'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs,
@@ -160,7 +156,6 @@ class FeatureIndexerOperation(Operation):
             raise ValueError(
                 _("Parameter '{}' must be informed for task {}").format(
                     self.ATTRIBUTES_PARAM, self.__class__))
-        self.type = self.parameters.get(self.TYPE_PARAM, self.TYPE_STRING)
         self.alias = [alias.strip() for alias in
                       parameters.get(self.ALIAS_PARAM, '').split(',')]
 
@@ -185,56 +180,20 @@ class FeatureIndexerOperation(Operation):
 
         models = self.named_outputs.get('indexer models',
                                         'models_task_{}'.format(self.order))
-        if self.type == self.TYPE_STRING:
-            code = dedent("""
-                col_alias = dict(tuple({alias}))
-                indexers = [feature.StringIndexer(
-                    inputCol=col, outputCol=alias, handleInvalid='keep')
-                             for col, alias in col_alias.items()]
-
-                # Use Pipeline to process all attributes once
-                pipeline = Pipeline(stages=indexers)
-                {models} = dict([(c, indexers[i].fit({input})) for i, c in
-                                 enumerate(col_alias.values())])
-
-                # Spark ML 2.0.1 do not deal with null in indexer.
-                # See SPARK-11569
-                {input}_without_null = {input}.na.fill(
-                    'NA', subset=col_alias.keys())
-
-                {out} = pipeline.fit({input}_without_null)\\
-                    .transform({input}_without_null)
-            """.format(input=input_data, out=output, models=models,
-                       alias=json.dumps(list(zip(self.attributes, self.alias)),
-                                        indent=None)))
-        elif self.type == self.TYPE_VECTOR:
-            code = dedent("""
-                col_alias = dict({alias})
-                indexers = [feature.VectorIndexer(maxCategories={max_categ},
-                                inputCol=col, outputCol=alias)
-                                    for col, alias in col_alias.items()]
-
-                # Use Pipeline to process all attributes once
-                pipeline = Pipeline(stages=indexers)
-                {models} = dict([(col, indexers[i].fit({input})) for i, col in
-                                enumerate(col_alias.values())])
-                labels = None
-
-                # Spark ML 2.0.1 do not deal with null in indexer.
-                # See SPARK-11569
-                {input}_without_null = {input}.na.fill('NA',
-                    subset=col_alias.keys())
-
-                {out} = pipeline.fit({input}_without_null).transform(
-                    {input}_without_null)
-            """.format(input=input_data, out=output,
-                       alias=json.dumps(list(zip(self.attributes, self.alias))),
-                       max_categ=self.max_categories,
-                       models=models))
-        else:
-            # Only if the field be open to type
-            raise ValueError(
-                _("Parameter type has an invalid value {}").format(self.type))
+        code = dedent("""
+            col_alias = dict({alias})
+            indexers = [feature.VectorIndexer(maxCategories={max_categ},
+                            inputCol=col, outputCol=alias)
+                                for col, alias in col_alias.items()]
+            # Use Pipeline to process all attributes once
+            pipeline = Pipeline(stages=indexers)
+            {models} = dict([(col, indexers[i].fit({input})) for i, col in
+                            enumerate(col_alias.values())])
+            {out} = pipeline.fit({input}).transform({input})
+        """.format(input=input_data, out=output,
+                   alias=json.dumps(list(zip(self.attributes, self.alias))),
+                   max_categ=self.max_categories,
+                   models=models))
 
         return code
 
@@ -242,6 +201,76 @@ class FeatureIndexerOperation(Operation):
         output = self.named_outputs.get('output data',
                                         'out_task_{}'.format(self.order))
         models = self.named_outputs.get('indexer models',
+                                        'models_task_{}'.format(self.order))
+        return sep.join([output, models])
+
+    def get_data_out_names(self, sep=','):
+        return self.named_outputs.get('output data',
+                                      'out_task_{}'.format(self.order))
+
+
+class StringIndexerOperation(Operation):
+    """
+    A label indexer that maps a string attribute of labels to an ML attribute of
+    label indices (attribute type = STRING) or a feature transformer that merges
+    multiple attributes into a vector attribute (attribute type = VECTOR). All
+    other attribute types are first converted to STRING and them indexed.
+    """
+    ATTRIBUTES_PARAM = 'attributes'
+    ALIAS_PARAM = 'alias'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs,
+                           named_outputs)
+        if self.ATTRIBUTES_PARAM in parameters:
+            self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
+        else:
+            raise ValueError(
+                _("Parameter '{}' must be informed for task {}").format(
+                    self.ATTRIBUTES_PARAM, self.__class__))
+        self.alias = [alias.strip() for alias in
+                      parameters.get(self.ALIAS_PARAM, '').split(',')]
+
+        # Adjust alias in order to have the same number of aliases as attributes
+        # by filling missing alias with the attribute name suffixed by _indexed.
+        self.alias = [x[1] or '{}_indexed'.format(x[0]) for x in
+                      zip_longest(self.attributes,
+                                  self.alias[:len(self.attributes)])]
+
+    def generate_code(self):
+        input_data = self.named_inputs['input data']
+        output = self.named_outputs.get('output data',
+                                        'out_task_{}'.format(self.order))
+
+        models = self.named_outputs.get('models',
+                                        'models_task_{}'.format(self.order))
+        code = dedent("""
+            col_alias = dict(tuple({alias}))
+            indexers = [feature.StringIndexer(
+                inputCol=col, outputCol=alias, handleInvalid='keep')
+                         for col, alias in col_alias.items()]
+
+            # Use Pipeline to process all attributes once
+            pipeline = Pipeline(stages=indexers)
+            {models} = dict([(c, indexers[i].fit({input})) for i, c in
+                             enumerate(col_alias.values())])
+
+            # Spark ML 2.0.1 do not deal with null in indexer.
+            # See SPARK-11569
+            # {input}_without_null = {input}.na.fill(
+            #    'NA', subset=col_alias.keys())
+
+            {out} = pipeline.fit({input}).transform({input})
+        """.format(input=input_data, out=output, models=models,
+                   alias=json.dumps(list(zip(self.attributes, self.alias)),
+                                    indent=None)))
+
+        return code
+
+    def get_output_names(self, sep=','):
+        output = self.named_outputs.get('output data',
+                                        'out_task_{}'.format(self.order))
+        models = self.named_outputs.get('models',
                                         'models_task_{}'.format(self.order))
         return sep.join([output, models])
 
@@ -343,15 +372,47 @@ class OneHotEncoderOperation(Operation):
                                         'out_task_{}'.format(self.order))
 
         code = """
+            emit = functools.partial(
+                    emit_event, name='update task',
+                    status='RUNNING', type='TEXT',
+                    identifier='{task_id}',
+                    operation={{'id': {operation_id}}},
+                    operation_id={operation_id},
+                    task={{'id': '{task_id}'}},
+                    title='{title}')
             col_alias = dict({aliases})
-            encoders = [feature.OneHotEncoder(inputCol=col, outputCol=alias,
-                            dropLast=True)
-                        for col, alias in col_alias.items()]
+            stages = []
+            keep_at_end = [c.name for c in {input}.schema]
+            delete_tmp = False
+            for col, alias in col_alias.items():
+                if not dataframe_util.is_numeric({input}.schema, col):
+                    emit(message=_('Label attribute is categorical, it will be '
+                            'implicitly indexed as string.'),)
+                    final_label = '{{}}_tmp'.format(col)
+                    indexer = feature.StringIndexer(
+                                inputCol=col, outputCol=final_label,
+                                handleInvalid='keep')
+                    stages.append(indexer)
+                    delete_tmp = True
+                    stages.append(feature.OneHotEncoder(
+                        inputCol=final_label, outputCol=alias,dropLast=True))
+                else:
+                    stages.append(feature.OneHotEncoder(
+                        inputCol=col, outputCol=alias,dropLast=True))
+                keep_at_end.append(alias)
+
+            if delete_tmp:
+                sql = 'SELECT {{}} FROM __THIS__'.format(', '.join(keep_at_end))
+                stages.append(SQLTransformer(statement=sql))
 
             # Use Pipeline to process all attributes once
-            pipeline = Pipeline(stages=encoders)
+            pipeline = Pipeline(stages=stages)
             {out} = pipeline.fit({input}).transform({input})
             """.format(
+            task_id=self.parameters['task_id'],
+            operation_id=self.parameters['operation_id'],
+            title=_('Evaluation result'),
+
             input=input_data, out=output,
             aliases=json.dumps(list(zip(self.attributes, self.alias)),
                                indent=None))
@@ -412,6 +473,9 @@ class ApplyModelOperation(Operation):
 
     def get_data_out_names(self, sep=','):
         return self.output
+
+    def get_audit_events(self):
+        return [auditing.APPLY_MODEL]
 
     def generate_code(self):
         input_data1 = self.named_inputs['input data']
@@ -517,7 +581,6 @@ class EvaluateModelOperation(Operation):
                 'display_text', {'value': 1}).get('value', 1) in (1, '1')
             display_image = self.parameters['task']['forms'].get(
                 'display_image', {'value': 1}).get('value', 1) in (1, '1')
-
             code = [dedent("""
                 emit = functools.partial(
                     emit_event, name='update task',
@@ -533,6 +596,7 @@ class EvaluateModelOperation(Operation):
                 metric = '{metric}'
                 label_col = '{label_attr}'
                 prediction_col = str('{prediction_attr}')
+
 
                 stages = []
                 requires_pipeline = False
@@ -555,9 +619,9 @@ class EvaluateModelOperation(Operation):
 
                     label_col =  final_label
                     prediction_col = final_prediction
-
+                # Used in summary
+                df = {input}
                 """)]
-
             if self.metric in ['areaUnderROC', 'areaUnderPR']:
                 self._get_code_for_area_metric(code)
             elif self.metric in ['f1', 'weightedPrecision', 'weightedRecall',
@@ -576,7 +640,6 @@ class EvaluateModelOperation(Operation):
             {metric} = metric_value
             {model_output} = None
             """))
-
             code = "\n".join(code).format(
                 model_output=self.model_out,
                 model=self.model,
@@ -593,6 +656,13 @@ class EvaluateModelOperation(Operation):
                 headers=[_('Metric'), _('Value')],
                 evaluator=self.evaluator,
                 prediction_arg=self.param_prediction_arg,
+                f1=_('F1 measure'),
+                weightedPrecision=_('Weighted precision'),
+                weightedRecall=_('Weighted recall'),
+                accuracy=_('Accuracy'),
+                summary=_('Summary'),
+                prediction=_('Prediction'),
+                residual=_('Residual'),
             )
             return dedent(code)
 
@@ -649,10 +719,10 @@ class EvaluateModelOperation(Operation):
             if display_text:
                 headers = {headers}
                 rows = [
-                    ['F1', evaluator.weightedFMeasure()],
-                    ['Weighted Precision', evaluator.weightedPrecision],
-                    ['Weighted Recall', evaluator.weightedRecall],
-                    ['Accuracy', evaluator.accuracy],
+                    ['{f1}', evaluator.weightedFMeasure()],
+                    ['{weightedPrecision}', evaluator.weightedPrecision],
+                    ['{weightedRecall}', evaluator.weightedRecall],
+                    ['{accuracy}', evaluator.accuracy],
                 ]
 
                 content = SimpleTableReport(
@@ -739,15 +809,20 @@ class EvaluateModelOperation(Operation):
             plot_title=_('Actual versus Prediction'),
             plot_x_title=_('Actual'),
             plot_y_title=_('Prediction'),
+            summary=_('Summary'),
         )
         partial_code = """
-            summary = getattr({model}, 'summary', None)
+            if isinstance({model}, PipelineModel):
+                ml_model = {model}.stages[-1]
+            else:
+                ml_model = {model}
+            summary = getattr(ml_model, 'summary', None)
             if summary:
                 if summary.numInstances < 2000 and display_image:
                     predictions = [r[prediction_col] for r in
                         summary.predictions.collect()]
 
-                    if isinstance({model}, LinearRegressionModel):
+                    if isinstance(ml_model, LinearRegressionModel):
                         residuals_col = 'residuals'
                         df_residual = summary.residuals
                     else:
@@ -762,7 +837,9 @@ class EvaluateModelOperation(Operation):
                                 for x in zip(predictions, residuals)
                         ]
                     )
-
+                    pandas_df.rename(index=str, columns=dict(
+                        prediction='{join_plot_x_title}',
+                        residuals='{join_plot_y_title}'))
                     report = SeabornChartReport()
                     emit_event(
                         'update task', status='COMPLETED',
@@ -799,17 +876,19 @@ class EvaluateModelOperation(Operation):
                         operation_id={operation_id})
 
                 summary_rows = []
+                ignore = ['cluster', 'residuals', 'predictions']
+                from juicer.spark import spark_summary_translations as sst
                 for p in dir(summary):
-                    if not p.startswith('_') and p != "cluster":
+                    if not p.startswith('_') and p not in ignore:
                         try:
                             summary_rows.append(
-                                [p, getattr(summary, p)])
+                                [sst(p), getattr(summary, p)])
                         except Exception as e:
-                            summary_rows.append([p, e.message])
+                            summary_rows.append([sst(p), e])
                 summary_content = SimpleTableReport(
                     'table table-striped table-bordered', [],
                     summary_rows,
-                    title='Summary')
+                    title='{summary}')
                 emit_event('update task', status='COMPLETED',
                     identifier='{task_id}',
                     message=summary_content.generate(),
@@ -842,6 +921,7 @@ class CrossValidationOperation(Operation):
     SEED_PARAM = 'seed'
     PREDICTION_ATTRIBUTE_PARAM = 'prediction_attribute'
     LABEL_ATTRIBUTE_PARAM = 'label_attribute'
+    FEATURES_PARAM = 'features'
 
     METRIC_TO_EVALUATOR = {
         'areaUnderROC': (
@@ -889,6 +969,7 @@ class CrossValidationOperation(Operation):
                 _("Parameter '{}' must be informed for task {}").format(
                     self.LABEL_ATTRIBUTE_PARAM, self.__class__))
 
+        self.features = parameters.get(self.FEATURES_PARAM, ['features'])
         self.label_attr = parameters.get(self.LABEL_ATTRIBUTE_PARAM)
 
         self.num_folds = parameters.get(self.NUM_FOLDS_PARAM, 3)
@@ -900,7 +981,6 @@ class CrossValidationOperation(Operation):
             'models', 'models_task_{}'.format(self.order))
         self.best_model = self.named_outputs.get(
             'best model', 'best_model_{}'.format(self.order))
-
         self.algorithm_port = self.named_inputs.get(
             'algorithm', 'algo_{}'.format(self.order))
         self.input_port = self.named_inputs.get(
@@ -923,6 +1003,7 @@ class CrossValidationOperation(Operation):
         code = dedent("""
                 grid_builder = tuning.ParamGridBuilder()
                 estimator, param_grid, metric = {algorithm}
+                label_col = '{label_attr}'
 
                 for param_name, values in param_grid.items():
                     param = getattr(estimator, param_name)
@@ -933,7 +1014,9 @@ class CrossValidationOperation(Operation):
                     labelCol=label_col,
                     metricName='{metric}')
 
+                features = '{features}'
                 estimator.setLabelCol(label_col)
+                estimator.setFeaturesCol(features)
                 estimator.setPredictionCol('{prediction_attr}')
 
                 cross_validator = tuning.CrossValidator(
@@ -952,6 +1035,7 @@ class CrossValidationOperation(Operation):
                            output=self.output,
                            best_model=self.best_model,
                            models=self.models,
+                           features=self.features[0],
                            prediction_arg=self.param_prediction_arg,
                            prediction_attr=self.prediction_attr,
                            label_attr=self.label_attr[0],
@@ -1039,6 +1123,11 @@ class ClassificationModelOperation(DeployModelMixin, Operation):
             raise ValueError(
                 _('Model is being used, but at least one input is missing'))
 
+    def get_audit_events(self):
+        parent_events = super(ClassificationModelOperation,
+                              self).get_audit_events()
+        return parent_events + [auditing.CREATE_MODEL]
+
     def get_data_out_names(self, sep=','):
         return self.output
 
@@ -1064,16 +1153,19 @@ class ClassificationModelOperation(DeployModelMixin, Operation):
 
             # Clone the algorithm because it can be used more than once
             # and this may cause concurrency problems
-            params = dict([(p.name, v) for p, v in
-                alg.extractParamMap().items()])
+            if {clone}:
+                params = dict([(p.name, v) for p, v in
+                    alg.extractParamMap().items()])
 
-            # Perceptron does not support some parameters
-            if isinstance(alg, MultilayerPerceptronClassifier):
-                del params['rawPredictionCol']
+                # Perceptron does not support some parameters
+                if isinstance(alg, MultilayerPerceptronClassifier):
+                    del params['rawPredictionCol']
 
-            algorithm_cls = globals()[alg.__class__.__name__]
-            algorithm = algorithm_cls()
-            algorithm.setParams(**params)
+                algorithm_cls = globals()[alg.__class__.__name__]
+                algorithm = algorithm_cls()
+                algorithm.setParams(**params)
+            else:
+                algorithm = alg
 
             algorithm.setPredictionCol('{prediction}')
 
@@ -1162,15 +1254,17 @@ class ClassificationModelOperation(DeployModelMixin, Operation):
             if display_text:
                 rows = [[m, getattr({model}, m)] for m in metrics
                     if hasattr({model}, m)]
-                headers = {headers}
-                content = SimpleTableReport(
-                    'table table-striped table-bordered table-sm',
-                    headers, rows)
+                if rows and len(rows):
+                    headers = {headers}
+                    content = SimpleTableReport(
+                        'table table-striped table-bordered table-sm',
+                        headers, rows)
 
-                result = '<h4>{title}</h4>'
+                    result = '<h4>{title}</h4>'
 
-                emit(status='COMPLETED', message=result + content.generate(),
-                    type='HTML', title='{title}')
+                    emit(status='COMPLETED',
+                         message=result + content.generate(),
+                         type='HTML', title='{title}')
 
             """.format(
                 model=self.model,
@@ -1190,11 +1284,14 @@ class ClassificationModelOperation(DeployModelMixin, Operation):
                 headers=[_('Parameter'), _('Value'), ],
                 task_id=self.parameters['task_id'],
                 operation_id=self.parameters['operation_id'],
+                clone=self.clone_algorithm,
                 weights=repr(
                     [float(w) for w in self.ensemble_weights.split(',')]
                 ))
 
             return dedent(code)
+        else:
+            return ''
 
 
 class ClassifierOperation(Operation):
@@ -1307,7 +1404,8 @@ class LogisticRegressionClassifierOperation(ClassifierOperation):
         self.metrics = ['coefficientMatrix', 'coefficients', 'intercept',
                         'numClasses', 'numFeatures']
 
-        param_grid = parameters.get('paramgrid', {})
+        # param_grid = parameters.get('paramgrid', {})
+        param_grid = parameters
         ctor_params = {}
         params_name = [
             ['weightCol', self.WEIGHT_COL_PARAM, str],
@@ -1346,7 +1444,8 @@ class DecisionTreeClassifierOperation(ClassifierOperation):
         self.metrics = ['depth', 'featureImportances', 'numClasses',
                         'numFeatures', 'numNodes', ]
 
-        param_grid = parameters.get('paramgrid', {})
+        # param_grid = parameters.get('paramgrid', {})
+        param_grid = parameters
         ctor_params = {}
         params_name = [
             ['maxBins', self.MAX_BINS_PARAM, int],
@@ -1418,7 +1517,8 @@ class NaiveBayesClassifierOperation(ClassifierOperation):
                                      named_outputs)
         self.metrics = ['numClasses', 'numFeatures', 'pi', 'theta']
 
-        param_grid = parameters.get('paramgrid', {})
+        # param_grid = parameters.get('paramgrid', {})
+        param_grid = parameters
         ctor_params = {}
         params_name = [
             ['smoothing', self.SMOOTHING_PARAM, float],
@@ -1453,7 +1553,8 @@ class RandomForestClassifierOperation(ClassifierOperation):
         self.metrics = ['featureImportances', 'getNumTrees',
                         'numClasses', 'numFeatures', 'trees']
 
-        param_grid = parameters.get('paramgrid', {})
+        # param_grid = parameters.get('paramgrid', {})
+        param_grid = parameters
         ctor_params = {}
         params_name = [
             ['impurity', self.IMPURITY_PARAM, str],
@@ -1480,23 +1581,25 @@ class PerceptronClassifier(ClassifierOperation):
     MAX_ITER_PARAM = 'max_iter'
     SEED_PARAM = 'seed'
     SOLVER_PARAM = 'solver'
+    LAYERS_PARAM = 'layers'
 
     def __init__(self, parameters, named_inputs,
                  named_outputs):
         ClassifierOperation.__init__(self, parameters, named_inputs,
                                      named_outputs)
         self.metrics = ['layers', 'numFeatures', 'weights']
-        param_grid = parameters.get('paramgrid', {})
         ctor_params = {}
         params_name = [
             ['blockSize', self.BLOCK_SIZE_PARAM, int],
             ['maxIter', self.MAX_ITER_PARAM, int],
             ['seed', self.SEED_PARAM, int],
-            ['solver', self.SOLVER_PARAM, str]
+            ['solver', self.SOLVER_PARAM, str],
+            ['layers', self.LAYERS_PARAM,
+             lambda x: [int(v) for v in x.split(',') if v]]
         ]
         for spark_name, lemonade_name, f in params_name:
-            if lemonade_name in param_grid and param_grid.get(lemonade_name):
-                ctor_params[spark_name] = f(param_grid.get(lemonade_name))
+            if lemonade_name in parameters and parameters.get(lemonade_name):
+                ctor_params[spark_name] = f(parameters.get(lemonade_name))
 
         self.name = 'classification.MultilayerPerceptronClassifier(**{k})' \
             .format(k=ctor_params)
@@ -1663,6 +1766,10 @@ class ClusteringModelOperation(Operation):
     def get_output_names(self, sep=', '):
         return sep.join([self.output, self.model, self.centroids])
 
+    def get_audit_events(self):
+        parent_events = super(ClusteringModelOperation, self).get_audit_events()
+        return parent_events + [auditing.CREATE_MODEL]
+
     def generate_code(self):
 
         if self.has_code:
@@ -1761,7 +1868,7 @@ class ClusteringModelOperation(Operation):
                 summary_content = SimpleTableReport(
                     'table table-striped table-bordered', [],
                     summary_rows,
-                    title='Summary')
+                    title='{summary}')
                 emit_event('update task', status='COMPLETED',
                     identifier='{task_id}',
                     message=summary_content.generate(),
@@ -1779,12 +1886,13 @@ class ClusteringModelOperation(Operation):
                        operation_id=self.parameters['operation_id'],
                        title=_("Clustering result"),
                        centroids=self.centroids,
+                       summary=gettext('Summary'),
                        msg1=_('Regression only support numerical features.'),
                        msg2=_('Features are not assembled as a vector. '
                               'They will be implicitly assembled and rows with '
                               'null values will be discarded. If this is '
                               'undesirable, explicitly add a feature assembler '
-                              'in the workflow.'),)
+                              'in the workflow.'), )
 
             return dedent(code)
 
@@ -2263,9 +2371,18 @@ class RegressionModelOperation(DeployModelMixin, Operation):
             self.prediction = parameters.get(self.PREDICTION_COL_PARAM,
                                              'prediction') or 'prediction'
             self.model = self.named_outputs.get(
-                'model', 'model_{}'.format(self.order))
+                'model', 'model_task_{}'.format(self.order))
             self.output = self.named_outputs.get(
                 'output data', 'out_task_{}'.format(self.order))
+
+        # In some cases, it is necessary to clone algorithm instance
+        # because otherwise, it can cause concurrency problems.
+        # But when used in the AlgorithmOperation subclasses, it is not needed.
+        self.clone_algorithm = True
+
+    def get_audit_events(self):
+        parent_events = super(RegressionModelOperation, self).get_audit_events()
+        return parent_events + [auditing.CREATE_MODEL]
 
     @property
     def get_inputs_names(self):
@@ -2288,16 +2405,18 @@ class RegressionModelOperation(DeployModelMixin, Operation):
                 operation={{'id': {operation_id}}}, operation_id={operation_id},
                 task={{'id': '{task_id}'}},
                 title='{title}')
-            alg = {algorithm}
+            if {clone}:
+                alg = {algorithm}
 
-            # Clone the algorithm because it can be used more than once
-            # and this may cause concurrency problems
-            params = dict([(p.name, v) for p, v in
-                alg.extractParamMap().items()])
+                # Clone the algorithm because it can be used more than once
+                # and this may cause concurrency problems
+                params = dict([(p.name, v) for p, v in
+                    alg.extractParamMap().items()])
 
-            algorithm_cls = globals()[alg.__class__.__name__]
-            algorithm = algorithm_cls()
-            algorithm.setParams(**params)
+                algorithm_cls = globals()[alg.__class__.__name__]
+                algorithm = algorithm_cls()
+                algorithm.setParams(**params)
+
             algorithm.setPredictionCol('{prediction}')
             algorithm.setLabelCol('{label}')
 
@@ -2380,7 +2499,7 @@ class RegressionModelOperation(DeployModelMixin, Operation):
                         summary_content = SimpleTableReport(
                             'table table-striped table-bordered', [],
                             summary_rows,
-                            title='Summary')
+                            title='{summary}')
                         emit_event('update task', status='COMPLETED',
                             identifier='{task_id}',
                             message=summary_content.generate(),
@@ -2401,6 +2520,7 @@ class RegressionModelOperation(DeployModelMixin, Operation):
                        task_id=self.parameters['task_id'],
                        operation_id=self.parameters['operation_id'],
                        title="Regression result",
+                       summary=gettext('Summary'),
                        msg0=_('Assemble features in a vector before using a '
                               'regression model'),
                        msg1=_('Regression only support numerical features.'),
@@ -2409,6 +2529,7 @@ class RegressionModelOperation(DeployModelMixin, Operation):
                               'null values will be discarded. If this is '
                               'undesirable, explicitly add a feature assembler '
                               'in the workflow.'),
+                       clone=self.clone_algorithm,
                        display_text=self.parameters['task']['forms'].get(
                            'display_text', {}).get('value') in (1, '1'))
 
@@ -2842,6 +2963,9 @@ class SaveModelOperation(Operation):
     WRITE_MODE_OVERWRITE = 'OVERWRITE'
     WRITE_MODE_OPTIONS = [WRITE_MODE_ERROR,
                           WRITE_MODE_OVERWRITE]
+    WORKFLOW_ID_PARAM = 'workflow_id'
+    WORKFLOW_NAME_PARAM = 'workflow_name'
+    JOB_ID_PARAM = 'job_id'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
@@ -2875,7 +2999,14 @@ class SaveModelOperation(Operation):
                 _('Invalid value for parameter {param}: {value}').format(
                     param=self.SAVE_CRITERIA_PARAM, value=self.criteria))
 
+        self.workflow_id = parameters.get(self.WORKFLOW_ID_PARAM)
+        self.workflow_name = parameters.get(self.WORKFLOW_NAME_PARAM)
+        self.job_id = parameters.get(self.JOB_ID_PARAM)
+
         self.has_code = any([len(named_inputs) > 0, self.contains_results()])
+
+    def get_audit_events(self):
+        return [auditing.SAVE_MODEL]
 
     def generate_code(self):
         limonero_config = self.parameters.get('configuration') \
@@ -2933,7 +3064,11 @@ class SaveModelOperation(Operation):
                     "class_name": model_type,
                     "storage_id": {storage_id},
                     "path":  model_path,
-                    "type": "UNSPECIFIED"
+                    "type": "UNSPECIFIED",
+                    "task_id": '{task_id}',
+                    "job_id": {job_id},
+                    "workflow_id": {workflow_id},
+                    "workflow_name": '{workflow_name}'
                 }}
                 # Save model information in Limonero
                 register_model('{url}', model_payload, '{token}')
@@ -2961,6 +3096,10 @@ class SaveModelOperation(Operation):
                           'and criteria is different from ALL'),
                    msg1=_('You cannot mix models built using with '
                           'different metrics ({}).'),
+                   job_id=self.job_id,
+                   task_id=self.parameters['task_id'],
+                   workflow_id=self.workflow_id,
+                   workflow_name=self.workflow_name,
                    user_id=user.get('id'),
                    user_name=user.get('name'),
                    user_login=user.get('login')))
@@ -3013,6 +3152,9 @@ class LoadModelOperation(Operation):
         ))
         return code
 
+    def get_output_names(self, sep=','):
+        return self.output_model
+
 
 class PCAOperation(Operation):
     K_PARAM = 'k'
@@ -3045,16 +3187,23 @@ class PCAOperation(Operation):
     def generate_code(self):
         input_data = self.named_inputs['input data']
         code = dedent("""
+            features = {inputAttr}
             pca = PCA(k={k}, inputCol='{inputAttr}', outputCol='{outputAttr}')
-            model = pca.fit({input})
+            keep = ['{outputAttr}']
+
+            # handle categorical features (if it is the case)
+            model = assemble_features_pipeline_model(
+                {input}, features, None, pca, 'setInputCol', None, None, keep,
+                emit_event, '{task_id}')
+
             {out} = model.transform({input})
         """.format(
             k=self.k,
-            inputAttr=self.attribute[0],
+            inputAttr=json.dumps(self.attribute),
             outputAttr=self.output_attribute,
             input=input_data,
-            out=self.output
-
+            out=self.output,
+            task_id=self.parameters['task_id'],
         ))
         return code
 
@@ -3111,6 +3260,7 @@ class LSHOperation(Operation):
     def generate_code(self):
         input_data = self.named_inputs['input data']
         code = dedent("""
+            features = {inputAttr}
             hash_type = '{type}'
             if hash_type == 'bucketed-random':
                 lsh = BucketedRandomProjectionLSH(
@@ -3123,17 +3273,25 @@ class LSHOperation(Operation):
                     inputCol='{inputAttr}',
                     outputCol='{outputAttr}',
                     numHashTables={num_hash_tables})
-            {model} = lsh.fit({input})
+
+            keep = ['{outputAttr}']
+
+            # handle categorical features (if it is the case)
+            {model} = assemble_features_pipeline_model(
+                {input}, features, None, lsh, 'setInputCol', None, None, keep,
+                emit_event, '{task_id}')
+
             {out} = {model}.transform({input})
         """.format(
             num_hash_tables=self.num_hash_tables,
             bucket_length=self.bucket_length,
-            inputAttr=self.attribute[0],
+            inputAttr=json.dumps(self.attribute),
             outputAttr=self.output_attribute,
             input=input_data,
             out=self.output,
             model=self.output_model,
             type=self.type,
+            task_id=self.parameters['task_id'],
 
         ))
         return code

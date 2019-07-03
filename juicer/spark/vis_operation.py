@@ -1,13 +1,16 @@
 # coding=utf-8
 from __future__ import unicode_literals, absolute_import
 
+import collections
 import decimal
 import itertools
 import json
+from collections import Iterable
 from textwrap import dedent
 
 import datetime
 
+from juicer import auditing
 from juicer.operation import Operation
 from juicer.service import limonero_service
 from juicer.util import chunks
@@ -93,6 +96,9 @@ class PublishVisualizationOperation(Operation):
 
     def get_output_names(self, sep=", "):
         return ''
+
+    def get_audit_events(self):
+        return ['DASHBOARD']
 
     @property
     def get_inputs_names(self):
@@ -180,6 +186,9 @@ class VisualizationMethodOperation(Operation):
         self.output = self.named_outputs.get('visualization',
                                              'vis_task_{}'.format(self.order))
 
+    def get_audit_events(self):
+        return [auditing.SAVE_VISUALIZATION]
+
     def get_model_parameters(self):
         result = {}
         valid = ['x_axis_attribute', "y_title", "y_prefix", 'legend',
@@ -192,7 +201,9 @@ class VisualizationMethodOperation(Operation):
                  'latitude', 'longitude', 'value', 'label',
                  'y_axis_attribute', 'z_axis_attribute', 't_axis_attribute',
                  'series_attribute', 'extra_data', 'polygon', 'geojson_id',
-                 'polygon_url']
+                 'polygon_url', 'fact_attributes', 'group_attribute',
+                 'show_outliers', 'title', 'attributes', 'bins']
+
         for k, v in self.parameters.items():
             if k in valid:
                 result[k] = v
@@ -412,7 +423,9 @@ class ChartVisualization(VisualizationModel):
 
     @staticmethod
     def _get_attr_type(attr):
-        if attr.dataType.jsonValue() == 'date':
+        if isinstance(attr, Iterable):
+            return [ChartVisualization._get_attr_type(a) for a in attr]
+        elif attr.dataType.jsonValue() == 'date':
             attr_type = 'date'
         elif attr.dataType.jsonValue() == 'datetime':
             attr_type = 'time'
@@ -442,20 +455,26 @@ class ChartVisualization(VisualizationModel):
                     "{{name}}"
                 ],
                 "body": [
-                    "<span class='metric'>{{x}}</span><span class='number'>{{y}}</span>"
+                    "<span class='metric'>{{x}}</span>"
+                    "<span class='number'>{{y}}</span>"
                 ]
             },
         }
 
-    def _get_axis_info(self):
+    def _get_axis_info(self, single_x_attr=True):
         schema = self.data.schema
         if not self.params.get('x_axis_attribute'):
             raise ValueError(_('X-axis attribute not specified'))
-        x = self.params.get('x_axis_attribute')[0]
+        if single_x_attr:
+            x = self.params.get('x_axis_attribute')[0]
+        else:
+            x = self.params.get('x_axis_attributes')
+
         x_attr = [c for c in schema if c.name == x]
         y_attrs = [c for c in schema if c.name in self.column_names]
         if len(x_attr):
-            x_attr = x_attr[0]
+            if single_x_attr:
+                x_attr = x_attr[0]
         else:
             raise ValueError(
                 _('Attribute {} for X-axis does not exist in ({})').format(
@@ -532,10 +551,6 @@ class BarChartModel(ChartVisualization):
             # lets have this hardcoded for now
             result['x']["inFormat"] = self.default_time_format
             result['x']["outFormat"] = self.default_time_format
-
-            # result['x']["outFormat"] = self.params.get("x_format", {}).get(
-            #     'key')
-            # result['x']["inFormat"] = self.params.get("x_format", {}).get('key')
 
         for inx_row, row in enumerate(rows):
             x_value = row[x_attr.name]
@@ -617,7 +632,7 @@ class PieChartModel(ChartVisualization):
         return label_attr, None, value_attr
 
     def get_data(self):
-        label_attr, _, value_attr = self._get_axis_info()
+        label_attr, ignored, value_attr = self._get_axis_info()
 
         # @FIXME Spark 2.2.0 is raising an exception if self.data.collect()
         # is called directly when the output port is used multiple times.
@@ -738,9 +753,6 @@ class MapModel(ChartVisualization):
         if self.params.get('value'):
             value_attr = next((c for c in self.data.schema if
                                c.name == self.params['value'][0]), None)
-            value_type = ChartVisualization._get_attr_type(value_attr)
-        else:
-            value_type = 'number'
 
         param_map_type = self.params.get('type', 'heatmap')
 
@@ -947,10 +959,10 @@ class TableVisualizationModel(VisualizationModel):
         Returns data as tabular (list of lists in Python).
         """
         if self.column_names:
-            rows = self.data.limit(50).select(*self.column_names).rdd.map(
+            rows = self.data.limit(500).select(*self.column_names).rdd.map(
                 dataframe_util.convert_to_python).collect()
         else:
-            rows = self.data.limit(50).rdd.map(
+            rows = self.data.limit(500).rdd.map(
                 dataframe_util.convert_to_python).collect()
 
         return {"rows": rows,
@@ -1076,3 +1088,265 @@ class SummaryStatisticsModel(TableVisualizationModel):
         rows = [aggregated[i:i + n] for i in range(0, len(aggregated), n)]
 
         return {"rows": rows, "attributes": self.get_column_names().split(',')}
+
+
+class BoxPlotOperation(VisualizationMethodOperation):
+    def __init__(self, parameters, named_inputs, named_outputs):
+        VisualizationMethodOperation.__init__(self, parameters, named_inputs,
+                                              named_outputs)
+
+    def get_model_name(self):
+        return BoxPlotModel.__name__
+
+
+BoxPlotInfo = collections.namedtuple(
+    'BoxPlotInfo', ['fact', 'q1', 'q2', 'q3', 'outliers', 'min', 'max'])
+
+
+class BoxPlotModel(ChartVisualization):
+    """ Box plot model for visualization of data """
+
+    def get_icon(self):
+        return 'fa-chart'
+
+    # noinspection PyUnresolvedReferences
+    def get_data(self):
+        from pyspark.sql import functions as fns
+
+        def _alias(attribute, counter, suffix):
+            return '{}_{}_{}'.format(attribute, counter, suffix)
+
+        self.data.cache()
+
+        facts = self.params.get('fact_attributes')
+
+        if facts is None or not isinstance(facts, list) or len(facts) == 0:
+            raise ValueError(
+                _('Input attribute(s) must be informed for box plot.'))
+
+        quartiles_expr = [
+            fns.expr('percentile_approx({}, array(.25, .5, .75))'.format(fact)
+                     ).alias(fact) for fact in facts]
+
+        group = self.params.get('group_attribute')
+        # Calculates the quartiles for fact attributes
+        if group is not None and len(group) >= 1:
+            group = group[0]
+            quartiles = self.data.groupBy(group).agg(
+                *quartiles_expr).collect()
+        else:
+            group = None
+            quartiles = self.data.agg(*quartiles_expr).collect()
+
+        computed_cols = []
+
+        show_outliers = self.params.get('show_outliers') in (1, '1', True)
+        group_offset = 1 if group is not None else 0
+        for i, quartile_row in enumerate(quartiles):
+            # First column in row is the label for the group, so it's ignored
+            for j, fact_quartiles in enumerate(quartile_row[group_offset:]):
+                # Calculates inter quartile range (IQR)
+                iqr = round(fact_quartiles[2] - fact_quartiles[0], 4)
+
+                # Calculates boundaries for identifying outliers
+                lower_bound = round(float(fact_quartiles[0]) - 1.5 * iqr, 4)
+                upper_bound = round(float(fact_quartiles[2]) + 1.5 * iqr, 4)
+
+                # Outliers are beyond boundaries
+                outliers_cond = (fns.col(facts[j]) < fns.lit(lower_bound)) | (
+                    fns.col(facts[j]) > fns.lit(upper_bound))
+
+                # If grouping is not specified, uses True when combining
+                # conditions
+                if group is not None:
+                    value_cond = fns.col(group) == fns.lit(quartile_row[0])
+                else:
+                    value_cond = fns.lit(True)
+
+                if show_outliers:
+                    outliers = fns.collect_list(
+                        fns.when(outliers_cond & value_cond,
+                                 fns.col(facts[j]))).alias(
+                        _alias(facts[j], i, 'outliers'))
+                else:
+                    outliers = fns.lit(None).alias(
+                        _alias(facts[j], i, 'outliers'))
+                computed_cols.append(outliers)
+
+                min_val = fns.min(
+                    fns.when(~outliers_cond & value_cond,
+                             fns.col(facts[j]))).alias(
+                    _alias(facts[j], i, 'min'))
+                computed_cols.append(min_val)
+                max_val = fns.max(
+                    fns.when(~outliers_cond & value_cond,
+                             fns.col(facts[j]))).alias(
+                    _alias(facts[j], i, 'max'))
+                computed_cols.append(max_val)
+        if group is not None:
+            min_max_outliers = self.data.groupBy(group).agg(
+                *computed_cols).collect()
+        else:
+            min_max_outliers = self.data.agg(*computed_cols).collect()
+
+        # Organize all information
+        summary = {}
+        for i, quartile_row in enumerate(quartiles):
+            summary_row = []
+            if group:
+                summary[quartile_row[0]] = summary_row
+            else:
+                summary[i] = summary_row
+
+            # Data for min, max and outliers are organized in multiple columns,
+            # like a matrix represented as a vector. This offset is used to
+            # re-organize the data
+            offset = group_offset + 3 * len(facts) * i
+            for j, fact in enumerate(facts):
+                start_offset = offset + j * 3  # len(facts)
+                end_offset = offset + (1 + j) * 3  # len(facts)
+                min_max_outliers_part = min_max_outliers[i][
+                                        start_offset: end_offset]
+
+                box_plot_info = BoxPlotInfo(fact=fact,
+                                            q1=quartile_row[j + group_offset][
+                                                0],
+                                            q2=quartile_row[j + group_offset][
+                                                1],
+                                            q3=quartile_row[j + group_offset][
+                                                2],
+                                            outliers=min_max_outliers_part[0],
+                                            min=min_max_outliers_part[1],
+                                            max=min_max_outliers_part[2])
+                summary_row.append(box_plot_info)
+        # Format to JSON
+        result = []
+        v = {
+            'chart': {'type': 'boxplot'},
+            'title': {'text': self.params.get('title', '')},
+            'legend': {'enabled': False},
+            'xAxis': {
+                'categories': [],
+                'title': {'text': self.params.get('x_title')}
+            },
+            'yAxis': {
+                'title': {'text': self.params.get('y_title')},
+            },
+            'series': [
+                {
+                    'name': self.params.get('y_title'),
+                    'data': [],
+                    'tooltip': {'headerFormat': '<b>{point.key}</b><br/>'}
+                },
+                {
+                    'name': 'Outlier',
+                    'type': 'scatter',
+                    'data': [],
+                    'marker': {
+                        'fillColor': 'white',
+                        'lineWidth': 1
+                    },
+                    'tooltip': {
+                        'pointFormat': '{point.y}'
+                    }
+                }
+            ]
+        }
+        result.append(v)
+        for i, (k, rows) in enumerate(summary.items()):
+            for j, s in enumerate(rows):
+                if group:
+                    v['xAxis']['categories'].append(
+                        '{}: {}'.format(k, facts[j]))
+                else:
+                    v['xAxis']['categories'].append(facts[j])
+                v['series'][0]['data'].append([s.min, s.q1, s.q2, s.q3, s.max])
+                if s.outliers:
+                    v['series'][1]['data'].extend([[j, o] for o in s.outliers])
+
+        if not show_outliers:
+            del v['series'][1]
+        return {'data': result}
+
+
+class HistogramOperation(VisualizationMethodOperation):
+    def __init__(self, parameters, named_inputs, named_outputs):
+        VisualizationMethodOperation.__init__(self, parameters, named_inputs,
+                                              named_outputs)
+
+    def get_model_name(self):
+        return HistogramModel.__name__
+
+
+class HistogramModel(ChartVisualization):
+    """ Histogram model for visualization of data """
+
+    def get_icon(self):
+        return 'fa-chart'
+
+    # noinspection PyUnresolvedReferences
+    def get_data(self):
+        from pyspark.sql import functions
+
+        self.data.cache()
+
+        attributes = self.params.get('attributes')
+        bins = int(self.params.get('bins', '10'))
+
+        if attributes is None or not isinstance(attributes, list) or len(
+                attributes) == 0:
+            raise ValueError(
+                _('Input attribute(s) must be informed for histogram.'))
+        schema = dict((a.name, a) for a in self.data.schema)
+        cols = []
+        for attribute in attributes:
+            if attribute in schema:
+                type_name = schema[attribute].dataType.typeName()
+                if type_name == 'decimal':
+                    cols.append(functions.col(attribute).cast('float'))
+                elif type_name in ['int', 'float', "byte", "long", "short"]:
+                    cols.append(functions.col(attribute))
+                else:
+                    raise ValueError(_('Attribute {} must be numeric.'))
+            else:
+                raise ValueError(_('Attribute {} not found in input data.'))
+
+        def identity(x):
+            return x
+
+        hist_data = []
+        # For each attribute, it has to read input once
+        for i, col in enumerate(cols):
+            # data contains a vector with 2 elements:
+            # the first one, with the ranges' boundaries and the 2nd with
+            # frequencies.
+            data = self.data.select(col).rdd.flatMap(identity).histogram(bins)
+            v = {
+                'chart': {'type': 'column'},
+                'title': {'text': self.params.get('title', '')},
+                'xAxis': {
+                    'tickWidth': 1,
+                    'tickmarkPlacement': 'between',
+                    'title': {'text': '{} {}'.format(
+                        self.params.get('x_title'), attributes[i])
+                    },
+                    'categories': [round(boundary, 4) for boundary in data[0]],
+                },
+                'yAxis': {'title': {'text': self.params.get('y_title')}},
+                'plotOptions': {
+                    'column': {
+                        'pointPadding': 0,
+                        'borderWidth': 1,
+                        'groupPadding': 0,
+                        'shadow': False,
+                        'pointPlacement': 'between',
+                    }
+                },
+                'series': [{
+                    'name': _('Histogram'),
+                    'data': data[1]
+
+                }]
+            }
+            hist_data.append(v)
+        return {'data': hist_data}

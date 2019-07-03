@@ -13,7 +13,10 @@ from six import text_type
 
 def is_numeric(schema, col):
     import pyspark.sql.types as spark_types
-    return isinstance(schema[str(col)].dataType, spark_types.NumericType)
+    from pyspark.ml.linalg import VectorUDT
+    return isinstance(schema[str(col)].dataType, spark_types.NumericType) or \
+        isinstance(schema[str(col)].dataType, VectorUDT) 
+
 
 
 def default_encoder(obj):
@@ -136,10 +139,11 @@ def format_row_for_bar_chart_visualization(row):
 
 def emit_schema(task_id, df, emit_event, name, notebook=False):
     from juicer.spark.reports import SimpleTableReport
-    headers = [_('Attribute'), _('Type'), _('Metadata')]
+    headers = [_('Attribute'), _('Type'), _('Metadata (Spark)')]
     rows = [[f.name, str(f.dataType), json.dumps(f.metadata) if f else ''] for f
             in df.schema.fields]
-    css_class = 'table table-striped table-bordered' if not notebook else ''
+    css_class = 'table table-striped table-bordered w-auto' \
+        if not notebook else ''
     content = SimpleTableReport(
         css_class, headers, rows, _('Schema for {}').format(name),
         numbered=True)
@@ -155,7 +159,8 @@ def emit_schema_sklearn(task_id, df, emit_event, name, notebook=False):
     from juicer.spark.reports import SimpleTableReport
     headers = [_('Attribute'), _('Type')]
     rows = [[i, str(f)] for i, f in zip(df.columns, df.dtypes)]
-    css_class = 'table table-striped table-bordered' if not notebook else ''
+    css_class = 'table table-striped table-bordered w-auto' \
+        if not notebook else ''
     content = SimpleTableReport(
         css_class, headers, rows, _('Schema for {}').format(name),
         numbered=True)
@@ -167,7 +172,8 @@ def emit_schema_sklearn(task_id, df, emit_event, name, notebook=False):
                task={'id': task_id})
 
 
-def emit_sample(task_id, df, emit_event, name, size=50, notebook=False):
+def emit_sample(task_id, df, emit_event, name, size=50, notebook=False,
+                title=None):
     from juicer.spark.reports import SimpleTableReport
     headers = [f.name for f in df.schema.fields]
 
@@ -191,15 +197,16 @@ def emit_sample(task_id, df, emit_event, name, size=50, notebook=False):
                 value = value[:150] + ' ... ' + value[-50:]
             new_row.append(value)
 
-    css_class = 'table table-striped table-bordered' if not notebook else ''
-    content = SimpleTableReport(
-        css_class, headers, rows, _('Sample data for {}').format(name),
-        numbered=True)
+    css_class = 'table table-striped table-bordered w-auto' \
+        if not notebook else ''
+    if title is None:
+        title = _('Sample data for {}').format(name)
+    content = SimpleTableReport(css_class, headers, rows, title, numbered=True)
 
     emit_event('update task', status='COMPLETED',
                identifier=task_id,
                message=content.generate(),
-               type='HTML', title=_('Sample data for {}').format(name),
+               type='HTML', title=title,
                task={'id': task_id})
 
 
@@ -229,7 +236,8 @@ def emit_sample_sklearn(task_id, df, emit_event, name, size=50, notebook=False):
                 value = value[:150] + ' ... ' + value[-50:]
             new_row.append(value)
 
-    css_class = 'table table-striped table-bordered' if not notebook else ''
+    css_class = 'table table-striped table-bordered w-auto' \
+        if not notebook else ''
     content = SimpleTableReport(
         css_class, headers, rows, _('Sample data for {}').format(name),
         numbered=True)
@@ -340,6 +348,7 @@ def merge_dicts(x, y):
 def handle_spark_exception(e):
     from pyspark.sql.utils import AnalysisException, IllegalArgumentException
     result = False
+
     if isinstance(e, AnalysisException):
         value_expr = re.compile(r'[`"](.+)[`"].+columns:\s(.+)$')
         found = value_expr.findall(e.desc.split('\n')[0])
@@ -362,6 +371,16 @@ def handle_spark_exception(e):
                 raise ValueError(
                     _('When using Window Operation with range type, the order '
                       'option must include only one attribute.'))
+            found = 'Path does not exist' in e.desc
+            if found:
+                raise ValueError(
+                    _('Data source does not exist. It may have been deleted.'))
+    elif isinstance(e, KeyError):
+        value_expr = re.compile(r'No StructField named (.+)\'$')
+        found = value_expr.findall(str(e))
+        if found:
+            raise ValueError(
+                _('Attribute {} not found.').format(found[0]))
     elif isinstance(e, IllegalArgumentException):
         # Invalid column type
         if 'must be of type equal' in str(e):
@@ -375,6 +394,28 @@ def handle_spark_exception(e):
                                    ' [{correct}], but it is {used}').format(
                     attr=attr, used=used, correct=correct
                 ))
+        elif 'Available fields' in str(e):
+            value_expr = re.compile(
+                r'Field "(.+?)" does not exist.\nAvailable fields: (.+)',
+                re.MULTILINE)
+            found = value_expr.findall(e.desc)
+            if found:
+                used, correct = found[0]
+                raise ValueError(
+                    _('Attribute {} not found. Valid attributes: {}').format(
+                        used, correct))
+        elif 'Binomial family only supports' in str(e):
+            value_expr = re.compile(
+                r'outcome classes but found (\d+)',
+                re.MULTILINE)
+            found = value_expr.findall(e.desc)
+            if found:
+                total = found[0]
+                raise ValueError(
+                    _('Binomial family only supports 1 or 2 outcome '
+                      'classes but found {}').format(total))
+        else:
+            raise ValueError(e.desc)
     elif hasattr(e, 'java_exception'):
         cause = e.java_exception.getCause()
         if 'unwrapRemoteException' in dir(cause):
@@ -389,6 +430,7 @@ def handle_spark_exception(e):
             npe = 'java.lang.NullPointerException'
             bme = 'org.apache.hadoop.hdfs.BlockMissingException'
             ace = 'org.apache.hadoop.security.AccessControlException'
+            iae = 'java.lang.IllegalArgumentException'
 
             cause_msg = cause.getMessage()
             inner_cause = cause.getCause()
@@ -421,6 +463,13 @@ def handle_spark_exception(e):
                       'storage. Probably, it is a configuration problem. '
                       'Please, contact the support.')
                 )
+            elif cause.getClass().getName() == iae:
+                gbt_error = 'dataset with invalid label'
+                if gbt_error in cause_msg:
+                    raise ValueError(_('GBT classifier requires labels '
+                                       'to be in [0, 1] range.'))
+                else:
+                    raise ValueError(cause_msg)
         elif e.java_exception.getMessage():
             value_expr = re.compile(r'CSV data source does not support '
                                     r'(.+?) data type')
