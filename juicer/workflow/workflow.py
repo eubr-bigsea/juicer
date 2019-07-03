@@ -6,7 +6,7 @@ import logging
 import networkx as nx
 from juicer import privaaas
 from juicer.service import tahiti_service, limonero_service
-
+from gettext import gettext
 
 class Workflow(object):
     """
@@ -146,8 +146,16 @@ class Workflow(object):
         # Querying all operations from tahiti one time
         task_map = {}
 
+        all_task_names = []
+
         for task in self.workflow['tasks']:
-            if task.get('enabled', True) and task.get('environment') == 'DESIGN':
+            if not task.get('name') in all_task_names:
+                all_task_names.append(task.get('name'))
+            else:
+                raise ValueError(gettext('Task names must be unique.'))
+
+            if task.get('enabled', True) and task.get(
+                    'environment', 'DESIGN') == 'DESIGN':
                 operation = operations_tahiti.get(task['operation']['id'])
                 form_fields = {}
                 for form in operation['forms']:
