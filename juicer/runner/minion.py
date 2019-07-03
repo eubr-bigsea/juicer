@@ -12,8 +12,8 @@ import yaml
 from future.moves.urllib.parse import urlparse
 from juicer.compss.compss_minion import COMPSsMinion
 from juicer.keras.keras_minion import KerasMinion
-from juicer.spark.spark_minion import SparkMinion
 from juicer.scikit_learn.scikit_learn_minion import ScikitLearnMinion
+from juicer.spark.spark_minion import SparkMinion
 
 # Important!
 # See https://stackoverflow.com/a/29172195/1646932
@@ -49,7 +49,8 @@ if __name__ == '__main__':
     log.debug(_('(c) Lemonade - DCC UFMG'))
     try:
         with open(args.config) as config_file:
-            juicer_config = yaml.load(config_file.read())
+            juicer_config = yaml.load(config_file.read(),
+                                      Loader=yaml.FullLoader)
 
         parsed_url = urlparse(
             juicer_config['juicer']['servers']['redis_url'])

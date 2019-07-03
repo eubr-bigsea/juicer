@@ -10,6 +10,7 @@ from textwrap import dedent
 import datetime
 
 from future.backports.urllib.parse import urlparse, parse_qs
+from juicer import auditing
 from juicer.deploy import Deployment, DeploymentFlow, DeploymentTask
 from juicer.operation import Operation
 from juicer.privaaas import PrivacyPreservingDecorator
@@ -55,7 +56,8 @@ class DataReaderOperation(Operation):
 
     SEPARATORS = {
         '{tab}': '\\t',
-        '{new_line}': '\\n',
+        '{new_line \\n}': u'\n',
+        '{new_line \\r\\n}': u'\r\n'
     }
 
     def __init__(self, parameters, named_inputs, named_outputs):
@@ -112,6 +114,7 @@ class DataReaderOperation(Operation):
         self.null_values = [v.strip() for v in parameters.get(
             self.NULL_VALUES_PARAM, '').split(",")]
 
+        self.record_delimiter = self.metadata.get('record_delimiter')
         self.sep = parameters.get(
             self.SEPARATOR_PARAM,
             self.metadata.get('attribute_delimiter', ',')) or ','
@@ -136,6 +139,7 @@ class DataReaderOperation(Operation):
         infer_from_limonero = self.infer_schema == self.INFER_FROM_LIMONERO
 
         if self.has_code:
+            date_format = "yyyy/MM/dd HH:mm:ss"
             if infer_from_limonero:
                 if 'attributes' in self.metadata:
                     code.append(
@@ -144,6 +148,9 @@ class DataReaderOperation(Operation):
                     if attrs:
                         for attr in attrs:
                             self._add_attribute_to_schema(attr, code)
+                            if attr.get('type') == 'DATETIME':
+                                date_format = attr.get('format') or \
+                                    "yyyy/MM/dd HH:mm:ss"
                     else:
                         code.append(
                             "schema_{0}.add('value', "
@@ -176,14 +183,17 @@ class DataReaderOperation(Operation):
                     encoding = self.metadata.get('encoding', 'UTF-8') or 'UTF-8'
                     # Spark does not works with encoding + multiline options
                     # See https://github.com/databricks/spark-csv/issues/448
+                    # And there is no way to specify record delimiter!!!!!
                     code_csv = dedent("""
                         {output} = spark_session.read{null_option}.option(
                             'treatEmptyValuesAsNulls', 'true').option(
                             'wholeFile', True).option(
                                 'multiLine', {multiline}).option('escape',
-                                    '"').csv(
+                                    '"').option('timestampFormat', '{date_fmt}'
+                                    ).csv(
                                 url, schema=schema_{output},
                                 quote={quote},
+                                ignoreTrailingWhiteSpace=True, # Handles \r
                                 encoding='{encoding}',
                                 header={header}, sep='{sep}',
                                 inferSchema={infer_schema},
@@ -192,6 +202,7 @@ class DataReaderOperation(Operation):
                         header=self.header or self.metadata.get(
                             'is_first_line_header', False),
                         sep=self.sep,
+                        date_fmt=date_format,
                         quote='None' if self.quote is None else "'{}'".format(
                             self.quote),
                         infer_schema=infer_from_data,
@@ -396,6 +407,10 @@ class DataReaderOperation(Operation):
                 result.add_flow(DeploymentFlow(**flow))
         return result
 
+    @property
+    def is_data_source(self):
+        return True
+
 
 class SaveOperation(Operation):
     """
@@ -485,6 +500,9 @@ class SaveOperation(Operation):
     def get_output_names(self, sep=", "):
         return self.output
 
+    def get_audit_events(self):
+        return [auditing.SAVE_DATA]
+
     def generate_code(self):
         # Retrieve Storage URL
 
@@ -511,7 +529,7 @@ class SaveOperation(Operation):
             {input} = {input}.select(*cols)
             mode = '{mode}'
             # Write in a temporary directory
-            # Header configuration will be handled by LemondadeFileUtil class
+            # Header configuration will be handled by LemonadeFileUtil class
             {input}.write.csv('{url}{uuid}',
                          header=False, mode=mode)
             # Merge files using Hadoop HDFS API
@@ -604,6 +622,8 @@ class SaveOperation(Operation):
                   'scale': scale
                 }})
             parameters = {{
+                'attribute_delimiter': ',',
+                'is_first_line_header': write_header,
                 'name': "{name}",
                 'enabled': 1,
                 'is_public': 0,
@@ -614,6 +634,7 @@ class SaveOperation(Operation):
                 'user_login': "{user_login}",
                 'user_name': "{user_name}",
                 'workflow_id': "{workflow_id}",
+                'tags': '{tags}',
                 'url': "{final_url}",
                 'attributes': attributes
             }}
@@ -632,6 +653,7 @@ class SaveOperation(Operation):
             final_url=final_url,
             token=token,
             url=url,
+            tags=', '.join(self.tags or []),
             mode=self.mode,
             data_types=json.dumps(self.SPARK_TO_LIMONERO_DATA_TYPES))
         code += dedent(code_api)

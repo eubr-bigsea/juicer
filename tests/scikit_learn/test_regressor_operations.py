@@ -13,6 +13,7 @@ from juicer.scikit_learn.regression_operation import RegressionModelOperation, \
     HuberRegressorOperation, \
     IsotonicRegressionOperation, \
     LinearRegressionOperation, \
+    MLPRegressorOperation, \
     RandomForestRegressorOperation, \
     SGDRegressorOperation
 
@@ -216,6 +217,64 @@ def test_linearegression_wrong_value_param_failure():
     with pytest.raises(ValueError):
         LinearRegressionOperation(params, named_inputs=n_in,
                                   named_outputs=n_out)
+
+
+'''
+    MLP Regressor Operation
+'''
+
+
+def test_mlp_regressor_minimum_params_success():
+    params = {
+        MLPRegressorOperation.HIDDEN_LAYER_SIZES_PARAM: '(100,100,9)'
+    }
+    n_out = {'algorithm': 'regressor_1'}
+
+    instance_lr = MLPRegressorOperation(
+        params, named_inputs={}, named_outputs=n_out)
+
+    code = instance_lr.generate_code()
+    expected_code = dedent("""
+        regressor_1 = MLPRegressor(hidden_layer_sizes=(100,100,9),
+        activation='relu', solver='adam', alpha=0.0001,
+        max_iter=200, random_state=None, tol=0.0001)""")
+    result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
+    assert result, msg + format_code_comparison(code, expected_code)
+
+
+def test_mlp_regressor_with_params_success():
+    params = {
+        MLPRegressorOperation.HIDDEN_LAYER_SIZES_PARAM: '(100,10,9)',
+        MLPRegressorOperation.ACTIVATION_PARAM:
+            MLPRegressorOperation.ACTIVATION_PARAM_LOG,
+        MLPRegressorOperation.SEED_PARAM: 9,
+        MLPRegressorOperation.SOLVER_PARAM:
+            MLPRegressorOperation.SOLVER_PARAM_LBFGS,
+        MLPRegressorOperation.MAX_ITER_PARAM: 1000,
+        MLPRegressorOperation.ALPHA_PARAM: 0.01,
+        MLPRegressorOperation.TOLERANCE_PARAM: 0.1,
+    }
+    n_out = {'algorithm': 'regressor_1'}
+
+    instance_lr = MLPRegressorOperation(
+        params, named_inputs={}, named_outputs=n_out)
+
+    code = instance_lr.generate_code()
+    expected_code = dedent("""
+        regressor_1 = MLPRegressor(hidden_layer_sizes=(100,10,9),
+        activation='logistic', solver='lbfgs', alpha=0.01,
+        max_iter=1000, random_state=9, tol=0.1)""")
+    result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
+    assert result, msg + format_code_comparison(code, expected_code)
+
+
+def test_mlp_regressor_wrong_value_param_failure():
+    params = {
+        MLPRegressorOperation.HIDDEN_LAYER_SIZES_PARAM: '100.100,'
+    }
+    n_out = {'algorithm': 'regressor_1'}
+    with pytest.raises(ValueError):
+        MLPRegressorOperation(params, named_inputs={}, named_outputs=n_out)
 
 
 '''

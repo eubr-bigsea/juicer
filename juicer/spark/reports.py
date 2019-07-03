@@ -4,7 +4,6 @@ from __future__ import unicode_literals, absolute_import, division
 import base64
 import gettext
 import itertools
-from gettext import gettext as _
 from io import BytesIO
 
 import datetime
@@ -59,6 +58,8 @@ class SeabornChartReport(BaseHtmlReport):
         data_df = pd.DataFrame.from_records(data)
         sns.set(rc={'figure.figsize': (1, 1)})
         g = sns.jointplot(x=x, y=y, data=data_df)
+        g.set_axis_labels(x_label, y_label)
+
         g.fig.subplots_adjust(top=.9, left=.15)
         fig_file = BytesIO()
         plt.savefig(fig_file, format='png', dpi=75)
@@ -68,12 +69,14 @@ class SeabornChartReport(BaseHtmlReport):
 
 class ConfusionMatrixImageReport(BaseHtmlReport):
     def __init__(self, cm, classes, normalize=False,
-                 title='Confusion matrix', cmap=None,
+                 title=None, cmap=None,
                  axis=None):
         """
        This function prints and plots the confusion matrix.
        Normalization can be applied by setting `normalize=True`.
        """
+        if title is None:
+            title = _('Confusion matrix')
         self.cm = cm
         self.classes = classes
         self.normalize = normalize

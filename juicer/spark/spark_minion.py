@@ -50,7 +50,6 @@ class SparkMinion(Minion):
     # max idle time allowed in seconds until this minion self termination
     IDLENESS_TIMEOUT = 600
     TIMEOUT = 'timeout'
-    DIST_ZIP_FILE = '/tmp/lemonade-lib-python.zip'
 
     def __init__(self, redis_conn, workflow_id, app_id, config, lang='en',
                  jars=None):
@@ -120,6 +119,8 @@ class SparkMinion(Minion):
 
         self.cluster_options = {}
         self.last_cluster_id = None
+        self.DIST_ZIP_FILE = '/tmp/lemonade-lib-pythoni_{}.zip'.format(
+            self.app_id)
 
     def _cleanup(self, pid, flag):
         log.warn(_('Finishing minion'))
@@ -485,7 +486,7 @@ class SparkMinion(Minion):
             result = False
 
         except ValueError as ve:
-            msg = str(ve)
+            msg = ve.message
             txt = msg.decode('utf8') if isinstance(msg, str) else msg
             message = _('Invalid or missing parameters: {}').format(txt)
             log.exception(message)
@@ -513,9 +514,11 @@ class SparkMinion(Minion):
             tb = traceback.format_exception(*sys.exc_info())
             log.exception(_('Unhandled error'))
             self._emit_event(room=job_id, namespace='/stand')(
-                name='update job', message='\n'.join(tb),
+                exception_stack='\n'.join(tb),
+                message=_('Unhandled error'),
+                name='update job',
                 status='ERROR', identifier=job_id)
-            self._generate_output(str(ee), 'ERROR', code=1000)
+            self._generate_output(ee.message, 'ERROR', code=1000)
             result = False
 
         self.message_processed('execute')
@@ -557,7 +560,7 @@ class SparkMinion(Minion):
             app_name = '{name} (workflow_id={wf},app_id={app})'.format(
                 name=strip_accents(loader.workflow.get('name', '')),
                 wf=self.workflow_id, app=self.app_id)
-
+            app_name = ''.join([i if ord(i) < 128 else ' ' for i in app_name])
             spark_builder = SparkSession.builder.appName(
                 app_name)
 

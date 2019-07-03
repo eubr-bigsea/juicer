@@ -1,83 +1,55 @@
-FROM python:2.7-alpine3.8 as base
+FROM ubuntu:16.04 as base
 
-FROM base as pip_build
+LABEL maintainer="Vinicius Dias <viniciusvdias@dcc.ufmg.br>, \
+                  Guilherme Maluf <guimaluf@dcc.ufmg.br>, \
+                  Walter Santos <walter@dcc.ufmg.br>"
 
-ARG APK_EDGE_COMMUNITY_REPO=http://dl-cdn.alpinelinux.org/alpine/3.8/community
-ARG APK_EDGE_TESTING_REPO=http://dl-cdn.alpinelinux.org/alpine/edge/testing
-ARG APK_REPOS="${APK_EDGE_TESTING_REPO}\n${APK_EDGE_COMMUNITY_REPO}"
+ENV SPARK_HOME /usr/local/spark
+ENV JUICER_HOME /usr/local/juicer
+ENV PYTHONPATH $PYTHONPATH:$JUICER_HOME:$SPARK_HOME/python
 
-RUN echo -e $APK_REPOS >> /etc/apk/repositories \
-    && apk add --no-cache --virtual .build-deps \
-      cython-dev \
-      libc6-compat \
-      freetype-dev \
-      g++ \
-      hdf5-dev \
-      libpng-dev \
-      linux-headers \
-      musl-dev \
-      openblas-dev \
-      py-numpy-dev \
-      openssl-dev \
-      libffi-dev  \
-    && apk add --no-cache \
-      cython \
-      gfortran \
-      py-matplotlib \
-      py2-cycler \
-      py2-numpy \
-      py2-scipy \
-    && ln -s /usr/include/locale.h /usr/include/xlocale.h
-
-COPY requirements.txt /
-#numpy scipy pandas matplotlib
-ENV PYTHONPATH=/usr/lib/python2.7/site-packages
-RUN pip install --no-build-isolation $(grep pandas requirements.txt) \
-    && pip install -r /requirements.txt \
-    && apk del .build-deps
-
-#RUN pip install keras # tensorflow
-
-FROM base
-LABEL maintainer="Vinicius Dias <viniciusvdias@dcc.ufmg.br>, Guilherme Maluf <guimaluf@dcc.ufmg.br>, Walter Santos <walter@dcc.ufmg.br>"
-
-ENV LC_ALL=en_US.UTF-8 \
-    LANGUAGE=en_US.UTF-8 \
-    JUICER_HOME=/usr/local/juicer \
-    SPARK_HOME=/usr/local/spark
-ENV PYTHONPATH=${PYTHONPATH}:${JUICER_HOME}:${SPARK_HOME}/python
-
-COPY --from=pip_build /etc/apk/repositories /etc/apk/repositories
-COPY --from=pip_build /usr/lib /usr/lib
-RUN apk --no-cache add \
-      apr \
-      bash \
+RUN apt-key adv --keyserver keyserver.ubuntu.com --recv E56151BF \
+  && echo deb http://repos.mesosphere.io/ubuntu trusty main > /etc/apt/sources.list.d/mesosphere.list \
+  && apt-get update && apt-get install -y  \
+      python-pip \
+      python-tk \
+      openjdk-8-jdk \
       curl \
-      cyrus-sasl \
-      cython \
-      freetype \
-      fts \
-      hdf5 \
-      musl \
-      openblas \
-      openjdk8-jre \
-      subversion \
-      tcl \
-      tk \
-      zlib
+      locales \
+      mesos \
+  && sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen \
+  && locale-gen \
+  && update-locale LANG=en_US.UTF-8 \
+  && echo "LANG=en_US.UTF-8" >> /etc/default/locale \
+  && echo "LANGUAGE=en_US.UTF-8" >> /etc/default/locale \
+  && echo "LC_ALL=en_US.UTF-8" >> /etc/default/locale \
+  && rm -rf /var/lib/apt/lists/*
 
-COPY --from=eubrabigsea/mesos:alpine /usr/local/* /usr/local/
-COPY --from=pip_build /usr/local/* /usr/local/
+ENV SPARK_VERSION=2.4
+ENV HADOOP_VERSION=2.7
+ENV SPARK_BASE_URL=http://www.apache.org/dist/spark
 
-ARG HADOOP_VERSION=2.7
-ARG SPARK_VERSION=2.3.1
-ARG SPARK_HADOOP_PKG=spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION}
-ARG SPARK_HADOOP_URL=https://archive.apache.org/dist/spark/spark-${SPARK_VERSION}/${SPARK_HADOOP_PKG}.tgz
-
-RUN wget ${SPARK_HADOOP_URL} -O- | tar xz -C /usr/local/  \
-  && ln -s /usr/local/$SPARK_HADOOP_PKG $SPARK_HOME
+# Get latest spark based on major.minor version
+RUN SPARK_LATEST_VERSION=$(\
+      curl -sL ${SPARK_BASE_URL} | \
+      grep -Eo "spark-${SPARK_VERSION}\.[0-9]{1}" | \
+      head -1 \
+    ) \
+  && SPARK_HADOOP_PKG=${SPARK_LATEST_VERSION}-bin-hadoop${HADOOP_VERSION} \
+  && SPARK_HADOOP_URL=${SPARK_BASE_URL}/${SPARK_LATEST_VERSION}/${SPARK_HADOOP_PKG}.tgz \
+  && curl -s ${SPARK_HADOOP_URL} | tar -xz -C /usr/local/  \
+  && mv /usr/local/$SPARK_HADOOP_PKG $SPARK_HOME
 
 WORKDIR $JUICER_HOME
+COPY requirements.txt $JUICER_HOME
+
+RUN pip install -r $JUICER_HOME/requirements.txt
+
+ENV LC_ALL en_US.UTF-8
+ENV LANG en_US.UTF-8
+ENV LANGUAGE en_US.UTF-8
+
 COPY . $JUICER_HOME
+RUN pybabel compile -d $JUICER_HOME/juicer/i18n/locales
 
 CMD ["/usr/local/juicer/sbin/juicer-daemon.sh", "docker"]

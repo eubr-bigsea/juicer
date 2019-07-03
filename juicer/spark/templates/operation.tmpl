@@ -33,7 +33,7 @@ from pyspark.sql.utils import IllegalArgumentException
 from pyspark.sql.window import Window
 from pyspark.ml.linalg import Vectors, VectorUDT
 
-from pyspark.ml import Pipeline
+from pyspark.ml import Pipeline, PipelineModel
 from pyspark.ml.classification import *
 from pyspark.ml.clustering import *
 from pyspark.ml.evaluation import *
@@ -45,6 +45,7 @@ from pyspark.mllib.evaluation import *
 from juicer import privaaas
 from juicer.util import dataframe_util, get_emitter
 from juicer.spark.reports import *
+from juicer.spark.util import assemble_features_pipeline_model
 from juicer.spark.ml_operation import ModelsEvaluationResultList
 
 executor = ThreadPoolExecutor(max_workers={{instances|length}})
@@ -152,9 +153,9 @@ def {{task.operation.slug.replace('-', '_')}}_{{instance.order}}(spark_session, 
             'execution_date': datetime.datetime.utcnow(),
             'task_name': '{{task.name}}',
           {%- set is_leaf = instance.out_degree == 0 %}
-          {%- for port_name,out in zip(task.port_names, instance.get_output_names(',').split(',')) %}
+          {%- for port_name, out in zip(task.port_names, instance.get_output_names(',').split(',')) %}
             {%- if port_name and out %}
-             '{{port_name}}': {{out}},
+            '{{port_name}}': {{out}},
             {%- endif %}
           {%- endfor %}
         }

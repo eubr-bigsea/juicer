@@ -24,7 +24,7 @@ class ScalerOperation(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
         if self.ATTRIBUTE_PARAM in parameters:
-            self.attribute = parameters.get(self.ATTRIBUTE_PARAM)[0]
+            self.attribute = parameters.get(self.ATTRIBUTE_PARAM)
         else:
             raise ValueError(
                 _("Parameter '{}' must be informed for task {}").format(
@@ -50,7 +50,7 @@ class ScalerOperation(Operation):
 
     def generate_code(self):
         name_and_params = self._get_scaler_algorithm_and_parameters()
-        name_and_params.parameters['inputCol'] = self.attribute
+
         name_and_params.parameters['outputCol'] = self.scaled_attr
 
         input_data = self.named_inputs['input data']
@@ -59,7 +59,15 @@ class ScalerOperation(Operation):
             params = {params}
             metrics = {metrics}
             scaler = {scaler_impl}(**params)
-            {model} = scaler.fit({input})
+
+            features = {features}
+            keep = [c.name for c in {input}.schema] + [params['outputCol']]
+
+            # handle categorical features (if it is the case)
+            {model} = assemble_features_pipeline_model(
+                {input}, features, None, scaler, 'setInputCol', None, None,
+                keep, emit_event, '{task_id}')
+
 
             # Lazy execution in case of sampling the data in UI
             def call_transform(df):
@@ -68,8 +76,13 @@ class ScalerOperation(Operation):
                 {model}, {input}, call_transform)
             if metrics:
                 from juicer.spark.reports import SimpleTableReport
+                if isinstance({model}, PipelineModel):
+                    scaler_model = {model}.stages[0].stages[2]
+                else:
+                    scaler_model = {model}
+
                 headers = ['Metric', 'Value']
-                rows = [[m, getattr({model}, m)] for m in metrics]
+                rows = [[m, getattr(scaler_model, m)] for m in metrics]
 
                 content = SimpleTableReport(
                         'table table-striped table-bordered table-sm',
@@ -86,6 +99,7 @@ class ScalerOperation(Operation):
         """.format(
             params=name_and_params.parameters,  # str representation is ok here
             scaler_impl=name_and_params.name,
+            features=json.dumps(self.attribute),
             input=input_data,
             output=self.output,
             model=self.model,
@@ -328,5 +342,95 @@ class QuantileDiscretizerOperation(TransformModelOperation):
             input=input_data,
             output=self.output,
             model=self.model,
+        ))
+        return code
+
+
+class ChiSquaredSelectorOperation(Operation):
+    """
+    Chi-Squared feature selection, which selects categorical features to use
+    for predicting a categorical label
+    """
+
+    ATTRIBUTES_PARAM = 'attributes'
+    LABEL_PARAM = 'label'
+    ALIAS_PARAM = 'alias'
+    SELECTOR_TYPE_PARAM = 'selector_type'
+    NUM_TOP_FEATURES_PARAM = 'num_top_features'
+    PERCENTILE_PARAM = 'percentile'
+    FPR_PARAM = 'fpr'
+    FDR_PARAM = 'fdr'
+    FWE_PARAM = 'fwe'
+    VALID_TYPES = ['numTopFeatures', 'percentile', 'fpr', 'fdr', 'fwe']
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+
+        if self.ATTRIBUTES_PARAM in parameters:
+            self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
+        else:
+            raise ValueError(
+                _("Parameter '{}' must be informed for task {}").format(
+                    self.ATTRIBUTES_PARAM, self.__class__))
+
+        if self.LABEL_PARAM in parameters:
+            self.label = parameters.get(self.LABEL_PARAM)
+        else:
+            raise ValueError(
+                _("Parameter '{}' must be informed for task {}").format(
+                    self.LABEL_PARAM, self.__class__))
+
+        if self.ALIAS_PARAM in parameters:
+            self.alias = parameters.get(self.ALIAS_PARAM)
+        else:
+            raise ValueError(
+                _("Parameter '{}' must be informed for task {}").format(
+                    self.ALIAS_PARAM, self.__class__))
+
+        if self.SELECTOR_TYPE_PARAM in parameters:
+            self.selector_type = parameters.get(self.SELECTOR_TYPE_PARAM)
+        else:
+            raise ValueError(
+                _("Parameter '{}' must be informed for task {}").format(
+                    self.SELECTOR_TYPE_PARAM, self.__class__))
+        if self.selector_type not in self.VALID_TYPES:
+            raise ValueError(
+                _('Parameter {} must be one of these: {}').format(
+                    self.SELECTOR_TYPE_PARAM, ','.join(self.VALID_TYPES)
+                )
+            )
+        self.num_top_features = int(
+            parameters.get(self.NUM_TOP_FEATURES_PARAM, 50))
+        self.percentile = float(parameters.get(self.PERCENTILE_PARAM, 0.1))
+        self.fpr = float(parameters.get(self.FPR_PARAM, 0.05))
+        self.fdr = float(parameters.get(self.FDR_PARAM, 0.05))
+        self.fwe = float(parameters.get(self.FWE_PARAM, 0.05))
+
+        self.model = 'model'  # FIXME
+
+    def generate_code(self):
+        input_data = self.named_inputs['input data']
+        code = dedent("""
+                features = {features}
+                selector = ChiSqSelector(
+                    numTopFeatures={top_features}, featuresCol=features[0],
+                    outputCol='{alias}', labelCol='{label}',
+                    selectorType='{selector_type}', percentile={percentile},
+                    fpr={fpr}, fdr={fdr}, fwe={fwe})
+                {model} = selector.fit({input})
+                {output} = {model}.transform({input})
+            """.format(
+            alias=self.alias,
+            label=self.label[0],
+            input=input_data,
+            output=self.output,
+            model=self.model,
+            selector_type=self.selector_type,
+            percentile=self.percentile,
+            top_features=self.num_top_features,
+            fpr=self.fpr,
+            fdr=self.fdr,
+            fwe=self.fwe,
+            features=json.dumps(self.attributes)
         ))
         return code

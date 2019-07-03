@@ -8,6 +8,7 @@ import juicer.spark.etl_operation as etl_operation
 import juicer.spark.feature_operation as feature_operation
 import juicer.spark.geo_operation as geo_operation
 import juicer.spark.ml_operation as ml_operation
+import juicer.spark.ml_operation2 as ml_operation2
 import juicer.spark.statistic_operation as statistic_operation
 import juicer.spark.text_operation as text_operation
 import juicer.spark.trustworthy_operation as trustworthy_operation
@@ -57,6 +58,7 @@ class SparkTranspiler(Transpiler):
             'set-intersection': etl_operation.IntersectionOperation,
             'sort': etl_operation.SortOperation,
             'split': etl_operation.SplitOperation,
+            'split-k-fold': etl_operation.SplitKFoldOperation,
             'transformation': etl_operation.TransformationOperation,
             'window-transformation':
                 etl_operation.WindowTransformationOperation,
@@ -77,7 +79,8 @@ class SparkTranspiler(Transpiler):
             'one-vs-rest-classifier': ml_operation.OneVsRestClassifier,
             'evaluate-model': ml_operation.EvaluateModelOperation,
             'feature-assembler': ml_operation.FeatureAssemblerOperation,
-            'feature-indexer': ml_operation.FeatureIndexerOperation,
+            'vector-indexer': ml_operation.VectorIndexOperation,
+            'feature-indexer': ml_operation.StringIndexerOperation,
             'gaussian-mixture-clustering':
                 ml_operation.GaussianMixtureClusteringOperation,
             'gbt-classifier': ml_operation.GBTClassifierOperation,
@@ -150,22 +153,25 @@ class SparkTranspiler(Transpiler):
 
         }
         vis_ops = {
-            'publish-as-visualization':
-                vis_operation.PublishVisualizationOperation,
+            'area-chart': vis_operation.AreaChartOperation,
+            'box-plot': vis_operation.BoxPlotOperation,
             'bar-chart': vis_operation.BarChartOperation,
             'donut-chart': vis_operation.DonutChartOperation,
-            'pie-chart': vis_operation.PieChartOperation,
-            'area-chart': vis_operation.AreaChartOperation,
+            'histogram': vis_operation.HistogramOperation,
             'line-chart': vis_operation.LineChartOperation,
-            'table-visualization': vis_operation.TableVisualizationOperation,
-            'summary-statistics': vis_operation.SummaryStatisticsOperation,
-            'plot-chart': vis_operation.ScatterPlotOperation,
-            'scatter-plot': vis_operation.ScatterPlotOperation,
             'map-chart': vis_operation.MapOperation,
-            'map': vis_operation.MapOperation
+            'map': vis_operation.MapOperation,
+            'pie-chart': vis_operation.PieChartOperation,
+            'plot-chart': vis_operation.ScatterPlotOperation,
+            'publish-as-visualization':
+                vis_operation.PublishVisualizationOperation,
+            'scatter-plot': vis_operation.ScatterPlotOperation,
+            'summary-statistics': vis_operation.SummaryStatisticsOperation,
+            'table-visualization': vis_operation.TableVisualizationOperation,
         }
         feature_ops = {
             'bucketizer': feature_operation.BucketizerOperation,
+            'chi-squared': feature_operation.ChiSquaredSelectorOperation,
             'quantile-discretizer':
                 feature_operation.QuantileDiscretizerOperation,
             'standard-scaler': feature_operation.StandardScalerOperation,
@@ -177,8 +183,47 @@ class SparkTranspiler(Transpiler):
             'fairness-evaluator':
                 trustworthy_operation.FairnessEvaluationOperation
         }
+        ml_model_operations2 = {
+            'decision-tree-classifier-model':
+                ml_operation2.DecisionTreeModelOperation,
+            'logistic-regression-classifier-model':
+                ml_operation2.LogisticRegressionModelOperation,
+            'gbt-classifier-model': ml_operation2.GBTModelOperation,
+            'naive-bayes-classifier-model':
+                ml_operation2.NaiveBayesModelOperation,
+            'random-forest-classifier-model':
+                ml_operation2.RandomForestModelOperation,
+            'perceptron-classifier-model':
+                ml_operation2.PerceptronModelOperation,
+            'one-vs-rest-classifier-model-':
+                ml_operation2.OneVsRestModelOperation,
+            'svm-classification-model': ml_operation2.SvmModelOperation,
+
+            'k-means-clustering-model': ml_operation2.KMeansModelOperation,
+            'gaussian-mixture-clustering-model':
+                ml_operation2.GaussianMixtureModelOperation,
+            'lda-clustering-model': ml_operation2.LDAModelOperation,
+
+            'decision-tree-regression-model':
+                ml_operation2.DecisionTreeRegressionModelOperation,
+
+            'isotonic-regression-model':
+                ml_operation2.IsotonicRegressionModelOperation,
+            'aft-survival-regression-model':
+                ml_operation2.AFTSurvivalRegressionModelOperation,
+            'gbt-regressor-model':
+                ml_operation2.GBTRegressionModelOperation,
+            'random-forest-regressor-model':
+                ml_operation2.RandomForestRegressionModelOperation,
+            'generalized-linear-regressor-model':
+                ml_operation2.GeneralizedLinearRegressionModelOperation,
+            'linear-regression-model':
+                ml_operation2.LinearRegressionModelOperation,
+
+        }
+
         self.operations = {}
         for ops in [data_ops, etl_ops, geo_ops, ml_ops, other_ops, text_ops,
                     statistics_ops, ws_ops, vis_ops, dm_ops, data_quality_ops,
-                    feature_ops, trustworthy_operations]:
+                    feature_ops, trustworthy_operations, ml_model_operations2]:
             self.operations.update(ops)
