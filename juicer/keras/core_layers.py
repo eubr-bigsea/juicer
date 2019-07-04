@@ -4036,6 +4036,8 @@ class ModelGenerator(Operation):
                             'others': None}
 
         self.parents_by_port = parameters.get('my_ports', [])
+
+
         self.treatment()
 
     def treatment(self):
@@ -4688,7 +4690,8 @@ class ImageGenerator(Operation):
 
         # In case of the operation is creating the image data
         if self.image_train:
-            self.validation_split = abs(float(self.validation_split))
+            if self.validation_split:
+                self.validation_split = abs(float(self.validation_split))
             if self.validation_split > 0:
                 self.validation_split = """validation_split={validation_split}""" \
                     .format(validation_split=self.validation_split)
@@ -4832,15 +4835,14 @@ class ImageReader(Operation):
                 storage_url=self.metadata_train.get('storage').get('url'),
                 file_url=self.metadata_train.get('url')
             )
+            self.train_images = self.train_images.replace('file://','')
 
         if self.validation_images is not None:
             self.validation_images = """'{storage_url}/{file_url}'""".format(
                 storage_url=self.metadata_validation.get('storage').get('url'),
                 file_url=self.metadata_validation.get('url')
             )
-
-        self.train_images = self.train_images.replace('file://','')
-        self.validation_images = self.validation_images.replace('file://','')
+            self.validation_images = self.validation_images.replace('file://','')
 
     def generate_code(self):
         if self.train_images and self.validation_images:
@@ -4857,8 +4859,6 @@ class ImageReader(Operation):
             return dedent(
                 """
                 {var_name}_train_image = {train_images}
-                
-                {var_name}_dataset_generator = {dataset_generator}
                 """.format(var_name=self.var_name,
                            train_images=self.train_images)
             )
