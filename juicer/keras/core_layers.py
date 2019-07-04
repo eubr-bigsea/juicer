@@ -3943,6 +3943,15 @@ class ModelGenerator(Operation):
     SHUFFLE_PARAM = 'shuffle'
     INITIAL_EPOCH_PARAM = 'initial_epoch'
 
+    #Save Model
+    SAVE_ENABLED_PARAM = 'save_enabled'
+    SAVE_STORAGE_PARAM = 'storage'
+    SAVE_NAME_PARAM = 'save_name'
+    SAVE_ACTION_IF_EXISTS_PARAM = 'action_if_exists'
+    SAVE_WEIGHTS_ONLY_PARAM = 'save_weights_only'
+    SAVE_METRICS_PARAM = 'save_metrics'
+    SAVE_SUBSET_PARAM = 'save_subset'
+
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
         self.output = named_outputs.get('output data',
@@ -3985,6 +3994,16 @@ class ModelGenerator(Operation):
         self.shuffle = parameters.get(self.SHUFFLE_PARAM, None) or None
         self.initial_epoch = parameters.get(self.INITIAL_EPOCH_PARAM,
                                             None) or None
+
+        # Save params
+        self.save_enabled = parameters.get(self.SAVE_ENABLED_PARAM, None)
+        self.save_storage = parameters.get(self.SAVE_STORAGE_PARAM, None)
+        self.save_name = parameters.get(self.SAVE_NAME_PARAM, None)
+        self.save_action_if_exists = parameters.get(
+            self.SAVE_ACTION_IF_EXISTS_PARAM, None)
+        self.save_weights_only = parameters.get(self.SAVE_WEIGHTS_ONLY_PARAM, None)
+        self.save_metrics = parameters.get(self.SAVE_METRICS_PARAM, None)
+        self.save_subset = parameters.get(self.SAVE_SUBSET_PARAM, None)
 
         self.callback_code = ''
 
@@ -4036,7 +4055,6 @@ class ModelGenerator(Operation):
                             'others': None}
 
         self.parents_by_port = parameters.get('my_ports', [])
-
 
         self.treatment()
 
@@ -4208,6 +4226,117 @@ class ModelGenerator(Operation):
                 .format(verbose=self.verbose)
             functions_required_fit_generator.append(self.verbose)
 
+        # SAVE MODEL (USING CALLBACK ModelCheckpoint)
+        self.save_enabled = True if int(self.save_enabled) == 1 else False
+        self.save_weights_only = True if int(self.save_weights_only) == 1 else False
+
+        if self.save_enabled:
+            if self.SAVE_STORAGE_PARAM not in self.parameters:
+                raise ValueError(gettext('Parameter {} is required')
+                                 .format(self.SAVE_STORAGE_PARAM))
+            if self.SAVE_NAME_PARAM not in self.parameters:
+                raise ValueError(gettext('Parameter {} is required')
+                                 .format(self.SAVE_NAME_PARAM))
+            if self.SAVE_METRICS_PARAM not in self.parameters:
+                raise ValueError(gettext('Parameter {} is required')
+                                 .format(self.SAVE_METRICS_PARAM))
+
+            import os.path
+
+            map_storage = {'Defaul': 1,
+                           'Stand Database': 4,
+                           'File system': 5,
+                           'HDFS Local': 6,
+                           'Local File System': 7,
+                           'path': '/srv/models'}
+
+            # Hardcoded for a while - FIX_ME
+            if self.save_storage == map_storage['Local File System']:
+                self.import_code['callbacks'].append('ModelCheckpoint')
+
+                if self.save_storage is None:
+                    raise ValueError(gettext('Parameter {} is required.')
+                                     .format(self.SAVE_STORAGE_PARAM))
+                if self.save_name is None:
+                    raise ValueError(gettext('Parameter {} is required.')
+                                     .format(self.SAVE_NAME_PARAM))
+                if self.save_action_if_exists is None:
+                    raise ValueError(gettext('Parameter {} is required.')
+                                     .format(self.SAVE_ACTION_IF_EXISTS_PARAM))
+                if self.save_metrics is None:
+                    raise ValueError(gettext('Parameter {} is required.')
+                                     .format(self.SAVE_METRICS_PARAM))
+
+                subset = []
+                if self.save_subset.lower() == 'validation':
+                    subset.append('val')
+                elif self.save_subset.lower() == 'training':
+                    subset.append('train')
+                else:
+                    subset.append('train')
+                    subset.append('val')
+
+                monitor = []
+                for metric in self.save_metrics:
+                    for sub in subset:
+                        monitor.append(('{}_{}'.format(sub, metric['key']))
+                                       .replace('train_', ''))
+
+                if self.save_name.strip():
+                    file_names = []
+                    formats = []
+                    for metric in monitor:
+                        file_names.append('{}_{}'.format(self.save_name,
+                                                         metric))
+                        format = '{epoch:02d}-{' + metric + ':.2f}.hdf5'
+                        formats.append(format)
+
+                    file_models = []
+                    for i in range(0, len(file_names)):
+                        file_name = '{0}/{1}.{2}'.format(
+                                                        map_storage['path'],
+                                                        self.save_name,
+                                                        formats[i])
+
+                        if self.save_action_if_exists == 'Raise error':
+                            is_file = os.path.isfile(file_name)
+
+                            if is_file:
+                                raise ValueError(gettext('File {} exists.')
+                                                 .format(self.save_name))
+
+                        file_models.append(file_name)
+
+                        # Create the ModelCheckpoints
+                        mcp = ''
+                        count = 0
+                        mcp_var = ''
+                        for f in file_models:
+                            if mcp:
+                                mcp += '\n'
+
+                            mcp_var += 'modelcheckpoint_{0}'\
+                                           .format(monitor[count]) + ', '
+
+                            mcp += 'modelcheckpoint_{monitor} = ModelCheckpoint(\n' \
+                                   '    filepath="{file}",\n' \
+                                   '    monitor="{monitor}",\n' \
+                                   '    save_best_only=True,\n' \
+                                   '    save_weights_only={save_weights_only},\n' \
+                                   '    mode="auto",\n' \
+                                   '    period=1)'.format(
+                                        file=f,
+                                        monitor=monitor[count],
+                                        save_weights_only=self.save_weights_only
+                                    )
+                            count += 1
+                else:
+                    raise ValueError(gettext('Parameter {} invalid.')
+                                     .format(self.SAVE_NAME_PARAM))
+            else:
+                raise ValueError(gettext('Parameter {} not supported yet.')
+                                 .format(self.SAVE_STORAGE_PARAM))
+
         # TO_DO ADD CALLBACKS CODE GENERATOR
         callbacks = '['
         if self.callbacks is not None:
@@ -4236,6 +4365,11 @@ class ModelGenerator(Operation):
                     ht = 'history = {callbak}()'\
                         .format(callbak=self.import_code['callbacks'][-1])
                     self.callback_code += ht
+
+            # Add the ModelCheckpoint code (mcp)
+            if self.save_enabled:
+                self.callback_code += '\n' + mcp
+                callbacks += mcp_var
 
             callbacks += ']'
             callbacks = callbacks.replace(', ]', ']')
