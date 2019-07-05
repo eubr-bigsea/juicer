@@ -3952,6 +3952,9 @@ class ModelGenerator(Operation):
     SAVE_METRICS_PARAM = 'save_metrics'
     SAVE_SUBSET_PARAM = 'save_subset'
 
+    # Classification report
+    CLASSIFICATION_REPORT_PARAM = 'classification_report'
+
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
         self.output = named_outputs.get('output data',
@@ -4004,6 +4007,9 @@ class ModelGenerator(Operation):
         self.save_weights_only = parameters.get(self.SAVE_WEIGHTS_ONLY_PARAM, None)
         self.save_metrics = parameters.get(self.SAVE_METRICS_PARAM, None)
         self.save_subset = parameters.get(self.SAVE_SUBSET_PARAM, None)
+
+        self.classification_report = parameters.get(
+            self.CLASSIFICATION_REPORT_PARAM, None)
 
         self.callback_code = ''
 
@@ -4135,7 +4141,8 @@ class ModelGenerator(Operation):
             raise ValueError(gettext('Parameter {} is required.')
                              .format(self.METRICS_PARAM))
 
-        if 'sparse_top_k_categorical_accuracy' in metrics:
+        if 'sparse_top_k_categorical_accuracy' in metrics or \
+                'top_k_categorical_accuracy' in metrics:
             self.k = """k={k}""" \
                 .format(k=self.k)
             functions_required_compile.append(self.k)
@@ -4288,7 +4295,8 @@ class ModelGenerator(Operation):
                     for metric in monitor:
                         file_names.append('{}_{}'.format(self.save_name,
                                                          metric))
-                        format = '{epoch:02d}-{' + metric + ':.2f}.hdf5'
+                        format = 'epoch_{epoch:02d}-' + metric + '_{' + \
+                                 metric + ':.2f}.hdf5'
                         formats.append(format)
 
                     file_models = []
@@ -4315,11 +4323,11 @@ class ModelGenerator(Operation):
                             if mcp:
                                 mcp += '\n'
 
-                            mcp_var += 'modelcheckpoint_{0}'\
+                            mcp_var += 'modelcheckpoint_{0}_callback'\
                                            .format(monitor[count]) + ', '
 
-                            mcp += 'modelcheckpoint_{monitor} = ModelCheckpoint(\n' \
-                                   '    filepath="{file}",\n' \
+                            mcp += str('modelcheckpoint_{monitor}_callback = ModelCheckpoint(\n' \
+                                   '    filepath=str("{file}"),\n' \
                                    '    monitor="{monitor}",\n' \
                                    '    save_best_only=True,\n' \
                                    '    save_weights_only={save_weights_only},\n' \
@@ -4328,7 +4336,7 @@ class ModelGenerator(Operation):
                                         file=f,
                                         monitor=monitor[count],
                                         save_weights_only=self.save_weights_only
-                                    )
+                                    ))
                             count += 1
                 else:
                     raise ValueError(gettext('Parameter {} invalid.')
@@ -4344,14 +4352,14 @@ class ModelGenerator(Operation):
                 if self.callbacks:
                     self.callback_code += '\n'
 
-                callbacks += str(callback['key'].lower()) + ', '
+                callbacks += str(callback['key'].lower()) + '_callback, '
                 self.import_code['callbacks'].append(callback['key'])
 
                 username = self.parameters['user']['name'].lower().split()[0:2]
                 username = '_'.join(username)
 
                 if callback['key'].lower() == 'tensorboard':
-                    tb = 'tensorboard = {callbak}(log_dir="/tmp/tensorboard/' \
+                    tb = 'tensorboard_callback = {callbak}(log_dir="/tmp/tensorboard/' \
                          '{user_id}_{username}/{workflow_id}_{job_id}")'\
                         .format(
                         user_id=self.parameters['workflow']['user']['id'],
@@ -4362,7 +4370,7 @@ class ModelGenerator(Operation):
                     self.callback_code += tb
 
                 elif callback['key'].lower() == 'history':
-                    ht = 'history = {callbak}()'\
+                    ht = 'history_callback = {callbak}()'\
                         .format(callbak=self.import_code['callbacks'][-1])
                     self.callback_code += ht
 
@@ -4446,6 +4454,14 @@ class ModelGenerator(Operation):
         self.add_functions_required_fit_generator = ',\n    ' \
             .join(functions_required_fit_generator)
 
+        self.classification_report = True if \
+            int(self.classification_report) == 1 else False
+
+        if self.classification_report:
+            self.import_code['others'] = "from sklearn.metrics " \
+                                         "import classification_report, " \
+                                         "confusion_matrix"
+
     def generate_code(self):
         if not (self.train_generator and self.validation_generator):
             return dedent(
@@ -4478,18 +4494,83 @@ class ModelGenerator(Operation):
                      outputs=self.output_layers,
                      add_functions_required_compile=
                                         self.add_functions_required_compile,
-                     callback_code=self.callback_code)
+                     callback_code=self.callback_code,
+                     task_id=self.output_task_id)
 
     def generate_history_code(self):
-        return dedent(
-            """
-            history = {var_name}.fit_generator(
-            {add_functions_required_fit_generator}
-            )
-            """
-        ).format(var_name=self.var_name,
-                 add_functions_required_fit_generator=
-                 self.add_functions_required_fit_generator)
+        if self.classification_report:
+            return dedent(
+                """
+                history = {var_name}.fit_generator(
+                {add_functions_required_fit_generator}
+                )
+                emit_event(name='update task',
+                    message=tab(table=history.history, add_epoch=True),
+                    type='HTML',
+                    status='RESULTS',
+                    identifier='{task_id}'
+                )
+                
+                batch_size = {generator}.batch_size
+                number_of_classes = len({generator}.classes)
+                steps = (number_of_classes // batch_size) + 1
+                predictions = {var_name}.predict_generator(
+                    generator={generator},
+                    steps=steps,
+                    workers=2,
+                    use_multiprocessing=True
+                )
+                
+                predictions_to_matrix = np.argmax(predictions, axis=1)
+                matrix = confusion_matrix(
+                    {generator}.classes, 
+                    predictions_to_matrix
+                )
+                # emit_event(name='update task',
+                #     message=str(matrix),
+                #     type='HTML',
+                #     status='RESULTS',
+                #     identifier='{task_id}'
+                # )
+                
+                target_names = {generator}.class_indices.keys()
+                report = classification_report(
+                    {generator}.classes,
+                    predictions_to_matrix,
+                    target_names=target_names,
+                    output_dict=False
+                )
+                
+                emit_event(name='update task',
+                    message=report,
+                    type='HTML',
+                    status='RESULTS',
+                    identifier='{task_id}'
+                )                
+                """
+            ).format(var_name=self.var_name,
+                     add_functions_required_fit_generator=
+                     self.add_functions_required_fit_generator,
+                     generator=self.validation_generator
+                     .replace('validation_data=', ''),
+                     task_id=self.output_task_id)
+        else:
+            return dedent(
+                """
+                history = {var_name}.fit_generator(
+                {add_functions_required_fit_generator}
+                )
+                emit_event(name='update task',
+                    message=tab(history.history),
+                    type='HTML',
+                    status='RESULTS',
+                    identifier='{task_id}'
+                )
+                """
+            ).format(var_name=self.var_name,
+                     add_functions_required_fit_generator=
+                     self.add_functions_required_fit_generator,
+                     task_id='{{task_id}}')
 
 class ImageGenerator(Operation):
     FEATUREWISE_CENTER_PARAM = 'featurewise_center'

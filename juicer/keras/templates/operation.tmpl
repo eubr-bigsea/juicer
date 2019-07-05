@@ -40,15 +40,16 @@ def emit_layer_added(task_id, emit_event):
     emit_event(name='update task', message=_('Layer added'),
                status='COMPLETED', identifier=task_id)
 
-def tab(history):
-    key = history.keys()[0]
-    length = len(history[key])
+def tab(table, add_epoch=True):
+    key = table.keys()[0]
+    length = len(table[key])
 
-    headers=history.keys()
-    headers.insert(0, 'epoch')
+    headers=table.keys()
+    if add_epoch:
+        headers.insert(0, 'epoch')
 
     result = tabulate(
-        history,
+        table,
         headers=headers,
         showindex=range(1, length+1),
         numalign="center",
@@ -91,6 +92,7 @@ def main(session, cached_state, emit_event):
     {%- set task_id = task.id %}
 
     # Task {{task_id}}
+    emit_layer_added('{{task_id}}', emit_event)
     {{ instance.generate_code().strip() | indent(width=4, indentfirst=False) }}
     {%- if instance.show_results %}
     emit_event(name='update task',
@@ -100,13 +102,7 @@ def main(session, cached_state, emit_event):
                identifier='{{task_id}}')
 
     {{ instance.generate_history_code().strip() | indent(width=4, indentfirst=False) }}
-    emit_event(name='update task',
-               message=tab(history.history),
-               type='HTML',
-               status='RESULTS',
-               identifier='{{task_id}}')
     {%- endif %}
-    emit_layer_added('{{task_id}}', emit_event)
     {%- endif %}
     {%- endfor %}
 

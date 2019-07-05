@@ -470,7 +470,7 @@ class TranspilerUtils(object):
         if len(preprocessing_image_list) > 0:
             imports += preprocessing_image_import + ', '.join(preprocessing_image_list) + '\n'
         if len(others_list) > 0:
-            imports += others_import + ', '.join(others_list)
+            imports += others_import + '\n'.join(others_list)
 
         imports = imports.replace(' , ', ', ')
 
