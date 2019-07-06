@@ -20,6 +20,7 @@ import random as rn
 from tabulate import tabulate
 from time import time
 from keras import metrics
+from juicer.keras.callbacks import JuicerCallback
 
 reproducible_seed = 1000
 np.random.seed(reproducible_seed)
@@ -33,29 +34,31 @@ rn.seed(reproducible_seed)
 {%- endfor -%}
 {{"\n"}}
 def emit_layer_before_add(task_id, emit_event):
-    emit_event(name='update task', message=_('Adding layer'), status='RUNNING',
-               identifier=task_id)
+    emit_event(name='update task', message='', status='RUNNING',
+               identifier=task_id, type='SILENT')
 {{"\n"}}
 def emit_layer_added(task_id, emit_event):
-    emit_event(name='update task', message=_('Layer added'),
+    emit_event(name='update task', message='', type='SILENT',
                status='COMPLETED', identifier=task_id)
 
 def tab(history):
     key = history.keys()[0]
     length = len(history[key])
-
-    headers=history.keys()
+	
+    headers = history.keys()
     headers.insert(0, 'epoch')
 
     result = tabulate(
         history,
         headers=headers,
-        showindex=range(1, length+1),
+        showindex=range(1, length + 1),
         numalign="center",
         floatfmt=".4f",
-        tablefmt="html"
+        tablefmt="html",
+
     )
-    return result
+    return '<h5>History</h5>' + result.replace(
+		'<table', '<table class="table table-striped table-bordered w-auto"')
 
 class ExecutionHistory(Callback):
     def __init__(self, emit_event, output_task_id):
@@ -91,10 +94,13 @@ def main(session, cached_state, emit_event):
     {%- set task_id = task.id %}
 
     # Task {{task_id}}
+    emit_layer_before_add('{{task_id}}', emit_event)
     {{ instance.generate_code().strip() | indent(width=4, indentfirst=False) }}
     {%- if instance.show_results %}
     emit_event(name='update task',
-               message='<a href="http://zeppelin:6006" target="_blank">TensorBoard</a>',
+               message='<h5>TensorBoard</h5>' + 
+               '<p>TensorBoard provides the visualization and tooling needed for machine learning experimentation.</p>' + 
+               '<a href="http://zeppelin:6006" target="_blank">Click to open TensorBoard</a>',
                type='HTML',
                status='RESULTS',
                identifier='{{task_id}}')
