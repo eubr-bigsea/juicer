@@ -4195,6 +4195,7 @@ class ModelGenerator(Operation):
             raise ValueError(gettext('Parameter {} is required.')
                              .format(self.STEPS_PER_EPOCH_PARAM))
 
+        epochs = self.epochs
         if self.epochs is not None:
             self.epochs = """epochs={epochs}""".format(epochs=self.epochs)
             functions_required_fit_generator.append(self.epochs)
@@ -4209,7 +4210,9 @@ class ModelGenerator(Operation):
             functions_required_fit_generator.append(self.verbose)
 
         # TO_DO ADD CALLBACKS CODE GENERATOR
-        callbacks = '['
+        callbacks = '[JuicerCallback(emit_event, {}, "{}", {}), '.format(
+            self.parameters['job_id'], self.parameters.get('task').get('id'),
+            epochs)
         if self.callbacks is not None:
             for callback in self.callbacks:
                 if self.callbacks:
@@ -4336,15 +4339,25 @@ class ModelGenerator(Operation):
                 {var_name}.compile(
                 {add_functions_required_compile}
                 )
-                
-                summary = {var_name}.summary()
+
+                summary_list_{var_name} = ['<h5>Summary</h5><pre>']
+                summary = {var_name}.summary(
+                    print_fn=lambda x: summary_list_{var_name}.append(x))
+
+                summary_list_{var_name}.append('</pre>')
+                emit_event(name='update task',
+                    message='\\n'.join(summary_list_{var_name}),
+                    type='HTML',
+                    status='RESULTS',
+                    identifier='{task_id}')
                 """
             ).format(var_name=self.var_name,
                      inputs=self.input_layers,
                      outputs=self.output_layers,
                      add_functions_required_compile=
                                         self.add_functions_required_compile,
-                     callback_code=self.callback_code)
+                     callback_code=self.callback_code,
+                     task_id=self.parameters.get('task').get('id'))
 
     def generate_history_code(self):
         return dedent(
