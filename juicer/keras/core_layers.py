@@ -3943,6 +3943,18 @@ class ModelGenerator(Operation):
     SHUFFLE_PARAM = 'shuffle'
     INITIAL_EPOCH_PARAM = 'initial_epoch'
 
+    #Save Model
+    SAVE_ENABLED_PARAM = 'save_enabled'
+    SAVE_STORAGE_PARAM = 'storage'
+    SAVE_NAME_PARAM = 'save_name'
+    SAVE_ACTION_IF_EXISTS_PARAM = 'action_if_exists'
+    SAVE_WEIGHTS_ONLY_PARAM = 'save_weights_only'
+    SAVE_METRICS_PARAM = 'save_metrics'
+    SAVE_SUBSET_PARAM = 'save_subset'
+
+    # Classification report
+    CLASSIFICATION_REPORT_PARAM = 'classification_report'
+
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
         self.output = named_outputs.get('output data',
@@ -3985,6 +3997,19 @@ class ModelGenerator(Operation):
         self.shuffle = parameters.get(self.SHUFFLE_PARAM, None) or None
         self.initial_epoch = parameters.get(self.INITIAL_EPOCH_PARAM,
                                             None) or None
+
+        # Save params
+        self.save_enabled = parameters.get(self.SAVE_ENABLED_PARAM, None)
+        self.save_storage = parameters.get(self.SAVE_STORAGE_PARAM, None)
+        self.save_name = parameters.get(self.SAVE_NAME_PARAM, None)
+        self.save_action_if_exists = parameters.get(
+            self.SAVE_ACTION_IF_EXISTS_PARAM, None)
+        self.save_weights_only = parameters.get(self.SAVE_WEIGHTS_ONLY_PARAM, None)
+        self.save_metrics = parameters.get(self.SAVE_METRICS_PARAM, None)
+        self.save_subset = parameters.get(self.SAVE_SUBSET_PARAM, None)
+
+        self.classification_report = parameters.get(
+            self.CLASSIFICATION_REPORT_PARAM, None)
 
         self.callback_code = ''
 
@@ -4036,7 +4061,6 @@ class ModelGenerator(Operation):
                             'others': None}
 
         self.parents_by_port = parameters.get('my_ports', [])
-
 
         self.treatment()
 
@@ -4117,7 +4141,8 @@ class ModelGenerator(Operation):
             raise ValueError(gettext('Parameter {} is required.')
                              .format(self.METRICS_PARAM))
 
-        if 'sparse_top_k_categorical_accuracy' in metrics:
+        if 'sparse_top_k_categorical_accuracy' in metrics or \
+                'top_k_categorical_accuracy' in metrics:
             self.k = """k={k}""" \
                 .format(k=self.k)
             functions_required_compile.append(self.k)
@@ -4209,6 +4234,118 @@ class ModelGenerator(Operation):
                 .format(verbose=self.verbose)
             functions_required_fit_generator.append(self.verbose)
 
+        # SAVE MODEL (USING CALLBACK ModelCheckpoint)
+        self.save_enabled = True if int(self.save_enabled) == 1 else False
+        self.save_weights_only = True if int(self.save_weights_only) == 1 else False
+
+        if self.save_enabled:
+            if self.SAVE_STORAGE_PARAM not in self.parameters:
+                raise ValueError(gettext('Parameter {} is required')
+                                 .format(self.SAVE_STORAGE_PARAM))
+            if self.SAVE_NAME_PARAM not in self.parameters:
+                raise ValueError(gettext('Parameter {} is required')
+                                 .format(self.SAVE_NAME_PARAM))
+            if self.SAVE_METRICS_PARAM not in self.parameters:
+                raise ValueError(gettext('Parameter {} is required')
+                                 .format(self.SAVE_METRICS_PARAM))
+
+            import os.path
+
+            map_storage = {'Defaul': 1,
+                           'Stand Database': 4,
+                           'File system': 5,
+                           'HDFS Local': 6,
+                           'Local File System': 7,
+                           'path': '/srv/models'}
+
+            # Hardcoded for a while - FIX_ME
+            if self.save_storage == map_storage['Local File System']:
+                self.import_code['callbacks'].append('ModelCheckpoint')
+
+                if self.save_storage is None:
+                    raise ValueError(gettext('Parameter {} is required.')
+                                     .format(self.SAVE_STORAGE_PARAM))
+                if self.save_name is None:
+                    raise ValueError(gettext('Parameter {} is required.')
+                                     .format(self.SAVE_NAME_PARAM))
+                if self.save_action_if_exists is None:
+                    raise ValueError(gettext('Parameter {} is required.')
+                                     .format(self.SAVE_ACTION_IF_EXISTS_PARAM))
+                if self.save_metrics is None:
+                    raise ValueError(gettext('Parameter {} is required.')
+                                     .format(self.SAVE_METRICS_PARAM))
+
+                subset = []
+                if self.save_subset.lower() == 'validation':
+                    subset.append('val')
+                elif self.save_subset.lower() == 'training':
+                    subset.append('train')
+                else:
+                    subset.append('train')
+                    subset.append('val')
+
+                monitor = []
+                for metric in self.save_metrics:
+                    for sub in subset:
+                        monitor.append(('{}_{}'.format(sub, metric['key']))
+                                       .replace('train_', ''))
+
+                if self.save_name.strip():
+                    file_names = []
+                    formats = []
+                    for metric in monitor:
+                        file_names.append('{}_{}'.format(self.save_name,
+                                                         metric))
+                        format = 'epoch_{epoch:02d}-' + metric + '_{' + \
+                                 metric + ':.2f}.hdf5'
+                        formats.append(format)
+
+                    file_models = []
+                    for i in range(0, len(file_names)):
+                        file_name = '{0}/{1}.{2}'.format(
+                                                        map_storage['path'],
+                                                        self.save_name,
+                                                        formats[i])
+
+                        if self.save_action_if_exists == 'Raise error':
+                            is_file = os.path.isfile(file_name)
+
+                            if is_file:
+                                raise ValueError(gettext('File {} exists.')
+                                                 .format(self.save_name))
+
+                        file_models.append(file_name)
+
+                        # Create the ModelCheckpoints
+                        mcp = ''
+                        count = 0
+                        mcp_var = ''
+                        for f in file_models:
+                            if mcp:
+                                mcp += '\n'
+
+                            mcp_var += 'modelcheckpoint_{0}_callback'\
+                                           .format(monitor[count]) + ', '
+
+                            mcp += str('modelcheckpoint_{monitor}_callback = ModelCheckpoint(\n' \
+                                   '    filepath=str("{file}"),\n' \
+                                   '    monitor="{monitor}",\n' \
+                                   '    save_best_only=True,\n' \
+                                   '    save_weights_only={save_weights_only},\n' \
+                                   '    mode="auto",\n' \
+                                   '    period=1)'.format(
+                                        file=f,
+                                        monitor=monitor[count],
+                                        save_weights_only=self.save_weights_only
+                                    ))
+                            count += 1
+                else:
+                    raise ValueError(gettext('Parameter {} invalid.')
+                                     .format(self.SAVE_NAME_PARAM))
+            else:
+                raise ValueError(gettext('Parameter {} not supported yet.')
+                                 .format(self.SAVE_STORAGE_PARAM))
+
         # TO_DO ADD CALLBACKS CODE GENERATOR
         callbacks = '[JuicerCallback(emit_event, {}, "{}", {}), '.format(
             self.parameters['job_id'], self.parameters.get('task').get('id'),
@@ -4218,14 +4355,14 @@ class ModelGenerator(Operation):
                 if self.callbacks:
                     self.callback_code += '\n'
 
-                callbacks += str(callback['key'].lower()) + ', '
+                callbacks += str(callback['key'].lower()) + '_callback, '
                 self.import_code['callbacks'].append(callback['key'])
 
                 username = self.parameters['user']['name'].lower().split()[0:2]
                 username = '_'.join(username)
 
                 if callback['key'].lower() == 'tensorboard':
-                    tb = 'tensorboard = {callbak}(log_dir="/tmp/tensorboard/' \
+                    tb = 'tensorboard_callback = {callbak}(log_dir="/tmp/tensorboard/' \
                          '{user_id}_{username}/{workflow_id}_{job_id}")'\
                         .format(
                         user_id=self.parameters['workflow']['user']['id'],
@@ -4236,9 +4373,14 @@ class ModelGenerator(Operation):
                     self.callback_code += tb
 
                 elif callback['key'].lower() == 'history':
-                    ht = 'history = {callbak}()'\
+                    ht = 'history_callback = {callbak}()'\
                         .format(callbak=self.import_code['callbacks'][-1])
                     self.callback_code += ht
+
+            # Add the ModelCheckpoint code (mcp)
+            if self.save_enabled:
+                self.callback_code += '\n' + mcp
+                callbacks += mcp_var
 
             callbacks += ']'
             callbacks = callbacks.replace(', ]', ']')
@@ -4315,6 +4457,13 @@ class ModelGenerator(Operation):
         self.add_functions_required_fit_generator = ',\n    ' \
             .join(functions_required_fit_generator)
 
+        self.classification_report = self.classification_report in ['1', 1] 
+
+        if self.classification_report:
+            self.import_code['others'] = "from sklearn.metrics " \
+                                         "import classification_report, " \
+                                         "confusion_matrix"
+
     def generate_code(self):
         if not (self.train_generator and self.validation_generator):
             return dedent(
@@ -4357,18 +4506,82 @@ class ModelGenerator(Operation):
                      add_functions_required_compile=
                                         self.add_functions_required_compile,
                      callback_code=self.callback_code,
-                     task_id=self.parameters.get('task').get('id'))
+                     task_id=self.output_task_id)
 
     def generate_history_code(self):
-        return dedent(
-            """
-            history = {var_name}.fit_generator(
-            {add_functions_required_fit_generator}
-            )
-            """
-        ).format(var_name=self.var_name,
-                 add_functions_required_fit_generator=
-                 self.add_functions_required_fit_generator)
+        if self.classification_report:
+            return dedent(
+                """
+                history = {var_name}.fit_generator(
+                {add_functions_required_fit_generator}
+                )
+                emit_event(name='update task',
+                    message=tab(table=history.history, add_epoch=True),
+                    type='HTML',
+                    status='RESULTS',
+                    identifier='{task_id}'
+                )
+                
+                batch_size = {generator}.batch_size
+                number_of_classes = len({generator}.classes)
+                steps = (number_of_classes // batch_size) + 1
+                predictions = {var_name}.predict_generator(
+                    generator={generator},
+                    steps=steps,
+                    workers=2,
+                    use_multiprocessing=True
+                )
+                
+                predictions_to_matrix = np.argmax(predictions, axis=1)
+                matrix = confusion_matrix(
+                    {generator}.classes, 
+                    predictions_to_matrix
+                )
+                # emit_event(name='update task',
+                #     message=str(matrix),
+                #     type='HTML',
+                #     status='RESULTS',
+                #     identifier='{task_id}'
+                # )
+                
+                target_names = {generator}.class_indices.keys()
+                report = classification_report(
+                    {generator}.classes,
+                    predictions_to_matrix,
+                    target_names=target_names,
+                    output_dict=False
+                )
+                
+                emit_event(name='update task',
+                    message=report,
+                    type='HTML',
+                    status='RESULTS',
+                    identifier='{task_id}'
+                )                
+                """
+            ).format(var_name=self.var_name,
+                     add_functions_required_fit_generator=
+                     self.add_functions_required_fit_generator,
+                     generator=self.validation_generator
+                     .replace('validation_data=', ''),
+                     task_id=self.output_task_id)
+        else:
+            return dedent(
+                """
+                history = {var_name}.fit_generator(
+                {add_functions_required_fit_generator}
+                )
+                emit_event(name='update task',
+                    message=tab(history.history),
+                    type='HTML',
+                    status='RESULTS',
+                    identifier='{task_id}'
+                )
+                """
+            ).format(var_name=self.var_name,
+                     add_functions_required_fit_generator=
+                     self.add_functions_required_fit_generator,
+                     task_id='{{task_id}}')
 
 class ImageGenerator(Operation):
     FEATUREWISE_CENTER_PARAM = 'featurewise_center'
