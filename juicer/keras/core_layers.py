@@ -4515,8 +4515,13 @@ class ModelGenerator(Operation):
                 history = {var_name}.fit_generator(
                 {add_functions_required_fit_generator}
                 )
-                emit_event(name='update task',
-                    message=tab(table=history.history, add_epoch=True),
+                emit_event(
+                    name='update task',
+                    message=tab(table=history.history,
+                                add_epoch=True,
+                                metric='History',
+                                headers=history.history.keys()
+                    ),
                     type='HTML',
                     status='RESULTS',
                     identifier='{task_id}'
@@ -4537,12 +4542,6 @@ class ModelGenerator(Operation):
                     {generator}.classes, 
                     predictions_to_matrix
                 )
-                # emit_event(name='update task',
-                #     message=str(matrix),
-                #     type='HTML',
-                #     status='RESULTS',
-                #     identifier='{task_id}'
-                # )
                 
                 target_names = {generator}.class_indices.keys()
                 report = classification_report(
@@ -4552,12 +4551,16 @@ class ModelGenerator(Operation):
                     output_dict=False
                 )
                 
+                message = '\\n<h5>Classification Report</h5>'
+                message += '<pre>' + report + '</pre>'
                 emit_event(name='update task',
-                    message=report,
+                    message=message,
                     type='HTML',
                     status='RESULTS',
                     identifier='{task_id}'
-                )                
+                )
+                
+                              
                 """
             ).format(var_name=self.var_name,
                      add_functions_required_fit_generator=
@@ -4572,7 +4575,7 @@ class ModelGenerator(Operation):
                 {add_functions_required_fit_generator}
                 )
                 emit_event(name='update task',
-                    message=tab(history.history),
+                    message=tab(table=history.history, add_epoch=True, metric='History', headers=history.history.keys()),
                     type='HTML',
                     status='RESULTS',
                     identifier='{task_id}'
@@ -4582,6 +4585,7 @@ class ModelGenerator(Operation):
                      add_functions_required_fit_generator=
                      self.add_functions_required_fit_generator,
                      task_id='{{task_id}}')
+
 
 class ImageGenerator(Operation):
     FEATUREWISE_CENTER_PARAM = 'featurewise_center'
