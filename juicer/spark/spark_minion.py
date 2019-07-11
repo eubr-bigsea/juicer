@@ -273,8 +273,9 @@ class SparkMinion(Minion):
             # Checks if it's a valid cluster
             job_id = msg_info['job_id']
             cluster_info = msg_info.get('cluster', {})
-            if cluster_info.get('type', 'SPARK_LOCAL') not in (
-                    'SPARK_LOCAL', 'MESOS', 'YARN', 'KUBERNETES'):
+            cluster_type = cluster_info.get('type', 'SPARK_LOCAL')
+            if cluster_type not in ('SPARK_LOCAL', 'MESOS', 'YARN',
+                                    'KUBERNETES'):
                 self._emit_event(room=job_id, namespace='/stand')(
                     name='update job',
                     message=_('Unsupported cluster type, '
@@ -319,6 +320,9 @@ class SparkMinion(Minion):
                        'executor_cores': 'spark.executor.cores',
                        'executor_memory': 'spark.executor.memory',
                        }
+
+            if cluster_type == "KUBERNETES":
+                options['executors'] = 'spark.executor.instances'
 
             for option, spark_name in options.items():
                 self.cluster_options[spark_name] = cluster_info[option]
