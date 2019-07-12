@@ -2318,7 +2318,7 @@ class MaxPooling3D(Operation):
             functions_required.append(self.strides)
 
         if self.padding is not None:
-            self.padding = """padding={padding}""" \
+            self.padding = """padding='{padding}'""" \
                 .format(padding=self.padding)
             functions_required.append(self.padding)
 
@@ -4515,8 +4515,13 @@ class ModelGenerator(Operation):
                 history = {var_name}.fit_generator(
                 {add_functions_required_fit_generator}
                 )
-                emit_event(name='update task',
-                    message=tab(table=history.history, add_epoch=True),
+                emit_event(
+                    name='update task',
+                    message=tab(table=history.history,
+                                add_epoch=True,
+                                metric='History',
+                                headers=history.history.keys()
+                    ),
                     type='HTML',
                     status='RESULTS',
                     identifier='{task_id}'
@@ -4537,12 +4542,6 @@ class ModelGenerator(Operation):
                     {generator}.classes, 
                     predictions_to_matrix
                 )
-                # emit_event(name='update task',
-                #     message=str(matrix),
-                #     type='HTML',
-                #     status='RESULTS',
-                #     identifier='{task_id}'
-                # )
                 
                 target_names = {generator}.class_indices.keys()
                 report = classification_report(
@@ -4552,12 +4551,16 @@ class ModelGenerator(Operation):
                     output_dict=False
                 )
                 
+                message = '\\n<h5>Classification Report</h5>'
+                message += '<pre>' + report + '</pre>'
                 emit_event(name='update task',
-                    message=report,
+                    message=message,
                     type='HTML',
                     status='RESULTS',
                     identifier='{task_id}'
-                )                
+                )
+                
+                              
                 """
             ).format(var_name=self.var_name,
                      add_functions_required_fit_generator=
@@ -4572,7 +4575,7 @@ class ModelGenerator(Operation):
                 {add_functions_required_fit_generator}
                 )
                 emit_event(name='update task',
-                    message=tab(history.history),
+                    message=tab(table=history.history, add_epoch=True, metric='History', headers=history.history.keys()),
                     type='HTML',
                     status='RESULTS',
                     identifier='{task_id}'
@@ -4582,6 +4585,7 @@ class ModelGenerator(Operation):
                      add_functions_required_fit_generator=
                      self.add_functions_required_fit_generator,
                      task_id='{{task_id}}')
+
 
 class ImageGenerator(Operation):
     FEATUREWISE_CENTER_PARAM = 'featurewise_center'
@@ -5080,8 +5084,7 @@ class ImageReader(Operation):
                            train_images=self.train_images,
                            validation_images=self.validation_images)
             )
-
-        if self.train_images:
+        elif self.train_images:
             return dedent(
                 """
                 {var_name}_train_image = {train_images}
@@ -5090,52 +5093,116 @@ class ImageReader(Operation):
             )
 
 
-'''
-class Hyperparameters(Operation):
-    NUMBER_OF_EPOCHS_PARAM = 'number_of_epochs'
-    BATCH_SIZE_PARAM = 'batch_size'
-    LOSS_PARAM = 'loss'
-    OPTIMIZER_PARAM = 'optimizer'
+class VideoReader(Operation):
+    TRAIN_VIDEOS_PARAM = 'train_videos'
+    VALIDATION_VIDEOS_PARAM = 'validation_videos'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
         self.output = named_outputs.get('output data',
                                         'out_task_{}'.format(self.order))
 
-        if self.LOSS_PARAM not in parameters:
-            raise ValueError(gettext('Parameter {} is required').format(self.LOSS_PARAM))
+        if self.TRAIN_VIDEOS_PARAM not in parameters:
+            raise ValueError(gettext('Parameter {} is required')
+                             .format(self.TRAIN_VIDEOS_PARAM))
 
-        if self.OPTIMIZER_PARAM not in parameters:
-            raise ValueError(gettext('Parameter {} is required').format(self.OPTIMIZER_PARAM))
-
-        self.optimizer = parameters.get(self.OPTIMIZER_PARAM)
-        self.number_of_epochs = parameters.get(self.NUMBER_OF_EPOCHS_PARAM)
-        self.batch_size = parameters.get(self.BATCH_SIZE_PARAM)
-        self.loss = parameters.get(self.LOSS_PARAM)
+        self.train_videos = parameters.get(self.TRAIN_VIDEOS_PARAM,
+                                           None) or None
+        self.validation_videos = parameters.get(self.VALIDATION_VIDEOS_PARAM,
+                                                None) or None
 
         self.has_code = True
+        self.var_name = ""
+        self.task_name = self.parameters.get('task').get('name')
+
+        supported_formats = ('VIDEO_FOLDER',)
+
+        if self.train_videos != 0 and self.train_videos is not None:
+            self.metadata_train = self.get_data_source(
+                data_source_id=self.train_videos)
+
+            if self.metadata_train.get('format') not in supported_formats:
+                raise ValueError(gettext('Unsupported image format: {}').format(
+                    self.metadata_train.get('format')))
+
+            self.format = self.metadata_train.get('format')
+
+        if self.validation_videos != 0 and self.validation_videos is not None:
+            self.metadata_validation = self.get_data_source(
+                data_source_id=self.validation_videos)
+
+            if self.metadata_validation.get('format') not in supported_formats:
+                raise ValueError(gettext('Unsupported image format: {}').format(
+                    self.metadata_validation.get('format')))
+
+            self.format = self.metadata_validation.get('format')
+        else:
+            self.metadata_validation = None
+
+        if self.metadata_validation is not None:
+            if not (self.metadata_train.get('format') ==
+                    self.metadata_validation.get('format')):
+                raise ValueError(gettext('Training and validation images files '
+                                         'are in different formats.'))
 
         self.parents_by_port = parameters.get('my_ports', [])
-        self.python_code_to_remove = self.remove_python_code_parent()
         self.treatment()
 
-    def remove_python_code_parent(self):
-        python_code_to_remove = []
-        for parent in self.parents_by_port:
-            if parent[0] == 'python code':
-                python_code_to_remove.append(convert_parents_to_variable_name(
-                    [parent[1]])
-                )
-        return python_code_to_remove
+        self.import_code = {'layer': None,
+                            'callbacks': [],
+                            'model': None,
+                            'preprocessing_image': None,
+                            'others': None}
+
+    def get_data_source(self, data_source_id):
+        # Retrieve metadata from Limonero.
+        limonero_config = \
+            self.parameters['configuration']['juicer']['services']['limonero']
+
+        metadata = limonero_service.get_data_source_info(
+            limonero_config['url'], str(limonero_config['auth_token']),
+            str(data_source_id))
+
+        if not metadata.get('url'):
+            raise ValueError(
+                gettext('Incorrect data source configuration (empty url)'))
+
+        return metadata
 
     def treatment(self):
-        if self.number_of_epochs <= 0:
-            raise ValueError(gettext('Parameter {} requires a valid value').format(self.NUMBER_OF_EPOCHS_PARAM))
+        self.var_name = convert_variable_name(self.task_name)
+        self.task_name = self.var_name
+
+        if self.train_videos is not None:
+            self.train_videos = """'{storage_url}/{file_url}'""".format(
+                storage_url=self.metadata_train.get('storage').get('url'),
+                file_url=self.metadata_train.get('url')
+            )
+            self.train_videos = self.train_videos.replace('file://', '')
+
+        if self.validation_videos is not None:
+            self.validation_videos = """'{storage_url}/{file_url}'""".format(
+                storage_url=self.metadata_validation.get('storage').get('url'),
+                file_url=self.metadata_validation.get('url')
+            )
+            self.validation_videos = self.validation_videos.replace('file://', '')
 
     def generate_code(self):
-        return dedent(
-            """
-            loss_function = "{loss_function}"
-            optimizer_function = "{optimizer_function}"
-            """.format(loss_function=self.loss, optimizer_function=self.optimizer))
-'''
+        if self.train_videos and self.validation_videos:
+            return dedent(
+                """                
+                {var_name}_train_video = {train_videos}
+                {var_name}_validation_video = {validation_videos}
+                """.format(var_name=self.var_name,
+                           train_videos=self.train_videos,
+                           validation_videos=self.validation_videos)
+            )
+        elif self.train_videos:
+            return dedent(
+                """
+                {var_name}_train_video = {train_videos}
+                """.format(var_name=self.var_name,
+                           train_videos=self.train_videos)
+            )
+
+

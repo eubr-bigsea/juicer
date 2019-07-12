@@ -93,9 +93,10 @@ class KerasTranspiler(Transpiler):
             #'up-sampling-2d': core_layers.UpSampling2D,
             #'up-sampling-3d': core_layers.UpSampling3D,
             'vgg-16': core_layers.VGG16,
+            'video-reader': core_layers.VideoReader,
             #'zero-padding-1d': core_layersZeroPadding1D,
             #'zero-padding-2d': core_layersZeroPadding2D,
-            #'zero-padding-3d': core_layersZeroPadding3D,
+            'zero-padding-3d': convolutional_layers.ZeroPadding3D,
         }
 
         self.operations = {}

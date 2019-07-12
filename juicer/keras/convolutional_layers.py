@@ -1427,6 +1427,7 @@ class Conv3D(Operation):
     DILATION_RATE_PARAM = 'dilation_rate'
     ACTIVATION_PARAM = 'activation'
     USE_BIAS_PARAM = 'use_bias'
+    TRAINABLE_PARAM = 'trainable'
     KERNEL_INITIALIZER_PARAM = 'kernel_initializer'
     BIAS_INITIALIZER_PARAM = 'bias_initializer'
     KERNEL_REGULARIZER_PARAM = 'kernel_regularizer'
@@ -1434,6 +1435,7 @@ class Conv3D(Operation):
     ACTIVITY_REGULARIZER_PARAM = 'activity_regularizer'
     KERNEL_CONSTRAINT_PARAM = 'kernel_constraint'
     BIAS_CONSTRAINT_PARAM = 'bias_constraint'
+    WEIGHTS_PARAM = 'weights'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
@@ -1447,15 +1449,15 @@ class Conv3D(Operation):
                 self.FILTERS_PARAM, self.KERNEL_SIZE_PARAM, self.STRIDES_PARAM)
             )
 
-        self.filters = abs(parameters.get(self.FILTERS_PARAM))
+        self.filters = parameters.get(self.FILTERS_PARAM)
         self.kernel_size = parameters.get(self.KERNEL_SIZE_PARAM)
         self.strides = parameters.get(self.STRIDES_PARAM)
         self.input_shape = parameters.get(self.INPUT_SHAPE_PARAM, None)
         self.padding = parameters.get(self.PADDING_PARAM)
         self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None)
-        self.dilation_rate = parameters.get(self.DILATION_RATE_PARAM, None) or \
-                             None
+        self.dilation_rate = parameters.get(self.DILATION_RATE_PARAM, None)
         self.activation = parameters.get(self.ACTIVATION_PARAM, None)
+        self.trainable = parameters.get(self.TRAINABLE_PARAM)
         self.use_bias = parameters.get(self.USE_BIAS_PARAM)
         self.kernel_initializer = parameters.get(self.KERNEL_INITIALIZER_PARAM,
                                                  None)
@@ -1470,8 +1472,8 @@ class Conv3D(Operation):
                                                    None)
         self.kernel_constraint = parameters.get(self.KERNEL_CONSTRAINT_PARAM,
                                                 None)
-        self.bias_constraint = parameters.get(self.BIAS_CONSTRAINT_PARAM, None)\
-                              
+        self.bias_constraint = parameters.get(self.BIAS_CONSTRAINT_PARAM, None)
+        self.weights = parameters.get(self.WEIGHTS_PARAM, None)
 
         self.add_functions_required = ""
         self.task_name = self.parameters.get('task').get('name')
@@ -1502,7 +1504,7 @@ class Conv3D(Operation):
         self.parent = convert_parents_to_variable_name(self.parameters
                                                        .get('parents', []))
         for python_code in self.python_code_to_remove:
-            self.parent.remove(python_code)
+            self.parent.remove(python_code[0])
 
         self.var_name = convert_variable_name(self.task_name)
         self.task_name = self.var_name
@@ -1515,9 +1517,13 @@ class Conv3D(Operation):
         self.strides = get_int_or_tuple(self.strides)
         self.dilation_rate = get_int_or_tuple(self.dilation_rate)
 
-        if self.filters < 0:
-            raise ValueError(gettext('Parameter {} is invalid').format(
-                self.FILTERS_PARAM))
+        try:
+            self.filters = int(self.filters)
+            if self.filters < 0:
+                raise ValueError(gettext('Parameter {} is invalid').format(
+                    self.FILTERS_PARAM))
+        except:
+            pass # The user possibly is using a var defined in PythonCode Layer
 
         if self.kernel_size is False:
             raise ValueError(gettext('Parameter {} is invalid').format(
@@ -1532,6 +1538,7 @@ class Conv3D(Operation):
                 self.DILATION_RATE_PARAM))
 
         self.use_bias = True if int(self.use_bias) == 1 else False
+        self.trainable = True if int(self.trainable) == 1 else False
 
         functions_required = []
 
@@ -1544,6 +1551,9 @@ class Conv3D(Operation):
 
         self.strides = """strides={strides}""".format(strides=self.strides)
         functions_required.append(self.strides)
+
+        self.use_bias = """use_bias={use_bias}""".format(use_bias=self.use_bias)
+        functions_required.append(self.use_bias)
 
         if self.input_shape is not None:
             self.input_shape = get_int_or_tuple(self.input_shape)
@@ -1573,9 +1583,6 @@ class Conv3D(Operation):
             self.activation = """activation='{activation}'""" \
                 .format(activation=self.activation)
             functions_required.append(self.activation)
-
-        self.use_bias = """use_bias={use_bias}""".format(use_bias=self.use_bias)
-        functions_required.append(self.use_bias)
 
         if self.kernel_initializer is not None:
             self.kernel_initializer = """kernel_initializer=
@@ -1617,6 +1624,12 @@ class Conv3D(Operation):
                 .format(bias_constraint=self.bias_constraint)
             functions_required.append(self.bias_constraint)
 
+        if self.weights is not None and self.weights.strip():
+            if convert_to_list(self.weights):
+                self.weights = """weights={weights}""" \
+                    .format(weights=self.weights)
+                functions_required.append(self.weights)
+
         self.add_functions_required = ',\n    '.join(functions_required)
         if self.add_functions_required:
             self.add_functions_required = ',\n    ' + self.add_functions_required
@@ -1627,10 +1640,12 @@ class Conv3D(Operation):
             {var_name} = Conv3D(
                 name='{name}'{add_functions_required}
             ){parent}
+            {var_name}.trainable = {trainable}
             """
         ).format(var_name=self.var_name,
                  name=self.task_name,
                  add_functions_required=self.add_functions_required,
+                 trainable=self.trainable,
                  parent=self.parent)
 
 
@@ -2144,6 +2159,94 @@ class Cropping3D(Operation):
         return dedent(
             """
             {var_name} = Cropping3D(
+                name='{name}'{add_functions_required}
+            ){parent}
+            """
+        ).format(var_name=self.var_name,
+                 name=self.task_name,
+                 add_functions_required=self.add_functions_required,
+                 parent=self.parent)
+
+
+class ZeroPadding3D(Operation):
+    PADDING_PARAM = 'padding'
+    DATA_FORMAT_PARAM = 'data_format'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+        self.output = named_outputs.get('output data',
+                                        'out_task_{}'.format(self.order))
+
+        if self.PADDING_PARAM not in parameters:
+            raise ValueError(gettext('Parameter {} is required').format(
+                self.PADDING_PARAM)
+            )
+
+        self.padding = parameters.get(self.PADDING_PARAM)
+        self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None)
+
+        self.add_functions_required = ""
+        self.task_name = self.parameters.get('task').get('name')
+        self.parent = ""
+        self.var_name = ""
+        self.has_code = True
+
+        self.parents_by_port = parameters.get('my_ports', [])
+        self.python_code_to_remove = self.remove_python_code_parent()
+        self.treatment()
+
+        self.import_code = {'layer': 'ZeroPadding3D',
+                            'callbacks': [],
+                            'model': None,
+                            'preprocessing_image': None,
+                            'others': None}
+
+    def remove_python_code_parent(self):
+        python_code_to_remove = []
+        for parent in self.parents_by_port:
+            if parent[0] == 'python code':
+                python_code_to_remove.append(convert_parents_to_variable_name(
+                    [parent[1]])
+                )
+        return python_code_to_remove
+
+    def treatment(self):
+        self.parent = convert_parents_to_variable_name(self.parameters
+                                                       .get('parents', []))
+        for python_code in self.python_code_to_remove:
+            self.parent.remove(python_code)
+
+        self.var_name = convert_variable_name(self.task_name)
+        self.task_name = self.var_name
+        if self.parent:
+            self.parent = '({})'.format(self.parent[0])
+        else:
+            self.parent = ''
+
+        functions_required = []
+
+        if self.padding is not None:
+            self.padding = tuple_of_tuples(self.padding)
+            if self.padding is False:
+                raise ValueError(gettext('Parameter {} is invalid').format(
+                    self.PADDING_PARAM))
+            self.padding = """padding={padding}""" \
+                .format(padding=self.padding)
+            functions_required.append(self.padding)
+
+        if self.data_format is not None:
+            self.data_format = """data_format='{data_format}'""" \
+                .format(data_format=self.data_format)
+            functions_required.append(self.data_format)
+
+        self.add_functions_required = ',\n    '.join(functions_required)
+        if self.add_functions_required:
+            self.add_functions_required = ',\n    ' + self.add_functions_required
+
+    def generate_code(self):
+        return dedent(
+            """
+            {var_name} = ZeroPadding3D(
                 name='{name}'{add_functions_required}
             ){parent}
             """
