@@ -16,7 +16,7 @@ import keras
 from keras import backend as K
 {{transpiler.get_imports(instances)}}
 import numpy as np
-import random as rn
+import random
 from tabulate import tabulate
 from time import time
 from keras import metrics
@@ -24,12 +24,12 @@ from juicer.keras.callbacks import JuicerCallback
 
 reproducible_seed = 1000
 np.random.seed(reproducible_seed)
-rn.seed(reproducible_seed)
+random.seed(reproducible_seed)
 
 {{"\n"}}
 {%- for instance in instances %}
 {%- if instance.has_external_code and instance.enabled %}
-{{ instance.external_code().strip() | indent(width=4, indentfirst=False) }}
+{{ instance.external_code().strip() | indent(width=0, indentfirst=False) }}
 {%- endif -%}
 {%- endfor -%}
 {{"\n"}}

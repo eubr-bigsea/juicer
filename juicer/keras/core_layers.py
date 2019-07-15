@@ -245,6 +245,7 @@ class Flatten(Operation):
         self.parent = ""
         self.var_name = ""
         self.has_code = True
+        self.add_functions_required = ""
 
         self.parents_by_port = parameters.get('my_ports', [])
         self.python_code_to_remove = self.remove_python_code_parent()
@@ -279,23 +280,29 @@ class Flatten(Operation):
         self.var_name = convert_variable_name(self.task_name)
         self.task_name = self.var_name
 
+        functions_required = []
         if self.data_format:
             self.data_format = get_tuple(self.data_format)
-            if not self.data_format:
+            if self.data_format is not None:
+                self.data_format = """data_format={data_format}""" \
+                    .format(data_format=self.data_format)
+                functions_required.append(self.data_format)
+            else:
                 raise ValueError(gettext('Parameter {} is invalid').format(
                     self.DATA_FORMAT_PARAM))
+
+        self.add_functions_required = ',\n    '.join(functions_required)
 
     def generate_code(self):
         return dedent(
             """
             {var_name} = Flatten(
-                name='{name}',
-                data_format={data_format}
+                name='{name}'{add_functions_required}
             ){parent}
             """
         ).format(var_name=self.var_name,
                  name=self.task_name,
-                 data_format=self.data_format,
+                 add_functions_required=self.add_functions_required,
                  parent=self.parent)
 
 
@@ -2245,6 +2252,7 @@ class MaxPooling3D(Operation):
     STRIDES_PARAM = 'strides'
     PADDING_PARAM = 'padding'
     DATA_FORMAT_PARAM = 'data_format'
+    KWARGS_PARAM = 'kwargs'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
@@ -2255,6 +2263,7 @@ class MaxPooling3D(Operation):
         self.strides = parameters.get(self.STRIDES_PARAM, None) or None
         self.padding = parameters.get(self.PADDING_PARAM, None) or None
         self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None) or None
+        self.kwargs = parameters.get(self.KWARGS_PARAM, None) or None
 
         self.task_name = self.parameters.get('task').get('name')
         self.parent = ""
@@ -2312,6 +2321,11 @@ class MaxPooling3D(Operation):
                 self.STRIDES_PARAM))
 
         functions_required = []
+        if self.pool_size is not None:
+            self.pool_size = """pool_size={pool_size}""" \
+                .format(pool_size=self.pool_size)
+            functions_required.append(self.pool_size)
+
         if self.strides is not None:
             self.strides = """strides={strides}""" \
                 .format(strides=self.strides)
@@ -2326,6 +2340,11 @@ class MaxPooling3D(Operation):
             self.data_format = """data_format={data_format}""" \
                 .format(data_format=self.data_format)
             functions_required.append(self.data_format)
+
+        if self.kwargs is not None:
+            self.kwargs = self.kwargs.replace(' ', '').split(',')
+            for kwarg in self.kwargs:
+                functions_required.append(kwarg)
 
         self.add_functions_required = ',\n    '.join(functions_required)
         if self.add_functions_required:
@@ -5094,7 +5113,7 @@ class ImageReader(Operation):
 
 
 class VideoReader(Operation):
-    TRAIN_VIDEOS_PARAM = 'train_videos'
+    TRAIN_VIDEOS_PARAM = 'training_videos'
     VALIDATION_VIDEOS_PARAM = 'validation_videos'
 
     def __init__(self, parameters, named_inputs, named_outputs):
@@ -5206,3 +5225,330 @@ class VideoReader(Operation):
             )
 
 
+class VideoGenerator(Operation):
+    DIMENSIONS_PARAM = 'dimensions'
+    CHANNELS_PARAM = 'channels'
+    CROPPING_STRATEGY_PARAM = 'cropping_strategy'
+    BATCH_SIZE_PARAM = 'batch_size'
+    SHUFFLE_PARAM = 'shuffle'
+    VALIDATION_SPLIT_PARAM = 'validation_split'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+        self.output = named_outputs.get('output data',
+                                        'out_task_{}'.format(self.order))
+
+        self.dimensions = parameters.get(self.DIMENSIONS_PARAM, None)
+        self.channels = parameters.get(self.CHANNELS_PARAM, None)
+        self.cropping_strategy = parameters.get(self.CROPPING_STRATEGY_PARAM, None)
+        self.batch_size = parameters.get(self.BATCH_SIZE_PARAM, None)
+        self.shuffle = parameters.get(self.SHUFFLE_PARAM, None)
+        self.validation_split = parameters.get(self.VALIDATION_SPLIT_PARAM, None)
+
+        self.video_training = None
+        self.video_validation = None
+
+        self.task_name = self.parameters.get('task').get('name')
+        self.parents = ""
+        self.var_name = ""
+        self.has_code = True
+
+        if self.DIMENSIONS_PARAM not in parameters:
+            raise ValueError(gettext('Parameter {} is required').format(
+                self.DIMENSIONS_PARAM))
+        if self.CHANNELS_PARAM not in parameters:
+            raise ValueError(gettext('Parameter {} is required').format(
+                self.CHANNELS_PARAM))
+        if self.BATCH_SIZE_PARAM not in parameters:
+            raise ValueError(gettext('Parameter {} is required').format(
+                self.BATCH_SIZE_PARAM))
+
+        self.parents_by_port = parameters.get('my_ports', [])
+        self.treatment()
+
+        if self.video_training:
+            self.has_external_code = True
+        else:
+            self.has_external_code = False
+
+        self.import_code = {'layer': None,
+                            'callbacks': [],
+                            'model': None,
+                            'preprocessing_image': None,
+                            'others': ['from os import walk, listdir',
+                                       'from os.path import isfile, join',
+                                       'from tensorflow.python.keras.utils '
+                                       'import to_categorical']
+                            }
+
+    def treatment(self):
+        parents_by_port = self.parameters.get('parents_by_port', [])
+        if len(parents_by_port) == 1:
+            if str(parents_by_port[0][0]) == 'train-video':
+                self.video_training = parents_by_port[0]
+                self.video_validation = None
+            elif str(parents_by_port[0][0]) == 'validation-video':
+                self.video_training = None
+                self.video_validation = parents_by_port[0]
+
+        if not (self.video_training or self.video_validation):
+            raise ValueError(gettext('You need to correctly specify the '
+                                     'ports for training and/or validation.'))
+
+        if self.video_training and self.video_validation and self.validation_split:
+            raise ValueError(gettext('Is impossible to use validation split '
+                                     'option > 0 and video reader for training '
+                                     'and validation data.'))
+
+        if self.video_training:
+            self.video_training = convert_variable_name(self.video_training[1]) \
+                                  + '_' \
+                                  + convert_variable_name(self.video_training[0])
+
+        if self.video_validation:
+            self.video_validation = convert_variable_name(
+                self.video_validation[1]) + '_' + convert_variable_name(
+                self.video_validation[0])
+
+        self.parents = convert_parents_to_variable_name(self.parameters
+                                                        .get('parents', []))
+        self.var_name = convert_variable_name(self.task_name)
+        self.task_name = self.var_name
+
+        self.shuffle = True if int(self.shuffle) == 1 else False
+
+        self.dimensions = get_tuple(self.dimensions)
+        if self.dimensions is None:
+            raise ValueError(gettext('Parameter {} is invalid.')
+                             .format(self.DIMENSIONS_PARAM))
+
+        self.channels = int(self.channels)
+        if self.channels < 0:
+            raise ValueError(gettext('Parameter {} is invalid.')
+                             .format(self.CHANNELS_PARAM))
+
+        self.batch_size = int(self.batch_size)
+        if self.batch_size < 1:
+            raise ValueError(gettext('Parameter {} is invalid.')
+                             .format(self.BATCH_SIZE_PARAM))
+
+        self.validation_split = float(self.validation_split)
+        if self.validation_split < 0:
+            raise ValueError(gettext('Parameter {} is invalid.')
+                             .format(self.VALIDATION_SPLIT_PARAM))
+
+    def external_code(self):
+        return dedent(
+            """     
+            class VideoGenerator(object):
+                def __init__(self, videos_path=[],
+                                   batch_size=16,
+                                   data_shape=None,
+                                   n_classes=0, 
+                                   shuffle=True, 
+                                   cropping_strategy='center'):
+                                   
+                    self.videos_path = videos_path
+                    self.batch_size = batch_size
+                    self.data_shape = data_shape
+                    self.n_classes = n_classes
+                    self.shuffle = shuffle
+                    self.cropping_strategy = cropping_strategy
+                    self.class_names = set()
+                    
+                    if self.shuffle:
+                        random.shuffle(self.videos_path)
+                    
+                def next_video(self):
+                    while True:
+                        'Generates data containing batch_size samples' # X : (n_samples, *dim, n_channels)
+                        # Initialization
+                        data = np.empty(self.data_shape)
+                        classes = np.empty((self.batch_size), dtype=int)
+                        i = 0
+                        
+                        # Generate data    
+                        if self.cropping_strategy == 'random':
+                            for _file, cls in self.videos_path:
+                                x = np.load(_file)['frames']
+                                h_init = random.randint(0, 16)
+                                w_init = random.randint(0, 59)
+                                data[i,] = x[:, h_init:h_init+112, w_init:w_init+112, :] # (l, h, w, c)
+            
+                                classes[i] = cls
+                                self.class_names.add(cls)
+                                i += 1
+                                
+                                if i % self.batch_size == 0:
+                                    yield (data, 
+                                           to_categorical(classes,
+                                                          num_classes=self.n_classes
+                                           )
+                                    )
+                                    i = 0
+                                    
+                        elif self.cropping_strategy == 'center':
+                            for _file, cls in self.videos_path:
+                                x = np.load(_file)['frames']
+                                data[i,] = x[:, 8:120, 30:142, :] # (l, h, w, c)
+            
+                                classes[i] = class_mapping[cls]
+                                self.class_names.add(cls)
+                                i += 1
+                                
+                                if i % self.batch_size == 0:
+                                    yield (data, 
+                                           to_categorical(classes,
+                                                          num_classes=self.n_classes
+                                           )
+                                    )
+                                    i = 0
+            
+                        elif self.cropping_strategy is None:
+                            for _file, cls in self.videos_path:
+                                x = np.load(_file)['frames']
+                                data[i,] = x
+            
+                                classes[i] = class_mapping[cls]
+                                self.class_names.add(cls)
+                                i += 1
+                                
+                                if i % self.batch_size == 0:
+                                    yield (data, 
+                                           to_categorical(classes,
+                                                          num_classes=self.n_classes
+                                           )
+                                    )
+                                    i = 0
+            
+            class_mapping = {}
+        
+            def video_path_reader(path='', validation_split=0.0):
+                if path:
+                    classes = [x[0] for x in walk(path)][1:]
+                else:
+                    raise ValueError(gettext('Data set path is invalid.'))
+                
+                if classes:
+                    files = []
+                    id = 0
+                    for class_path in classes:
+                        cls = class_path.split('/')[-1] # Get only class name
+                        if not cls in class_mapping:
+                            class_mapping[cls] = id
+                            id += 1
+            
+                        files += [(class_path+'/'+f, cls) for f in listdir(class_path) if isfile(join(class_path, f))]
+                        
+                    if validation_split:
+                        _index = int(len(files)*validation_split)
+                        
+                        training_files = files[_index:]
+                        validation_files = files[0:_index]
+                        
+                        return {'training': training_files,
+                                'validation': validation_files}
+                    else:
+                        return files
+            """
+        )
+
+    def generate_code(self):
+        data_shape = [self.batch_size]
+        for dim in self.dimensions:
+            data_shape.append(dim)
+        data_shape.append(self.channels)
+        data_shape = tuple(data_shape)
+
+        if self.video_training:
+            if self.validation_split == 0:
+                return dedent(
+                    """
+                    training_videos_path = video_path_reader(
+                        path={path}
+                    )
+                    
+                    training_video_generator = VideoGenerator(
+                        videos_path=training_videos_path,
+                        batch_size={batch_size},
+                        data_shape={data_shape},
+                        n_classes=len(class_mapping),
+                        shuffle={shuffle},
+                        cropping_strategy={cropping_strategy}
+                    )
+                    
+                    train_{var_name} = training_video_generator.next_video()
+                    """
+                ).format(var_name=self.var_name,
+                         path=self.video_training,
+                         subset='training',
+                         batch_size=self.batch_size,
+                         data_shape=data_shape,
+                         shuffle=self.shuffle,
+                         cropping_strategy=self.cropping_strategy)
+            else:
+                return dedent(
+                    """
+                    videos_path = video_path_reader(
+                        path={path},
+                        validation_split={validation_split}
+                    )
+                    
+                    training_video_generator = VideoGenerator(
+                        videos_path=videos_path[{subset_training}],
+                        batch_size={batch_size},
+                        data_shape={data_shape},
+                        n_classes=len(class_mapping),
+                        shuffle={shuffle},
+                        cropping_strategy={cropping_strategy}
+                    )
+                    
+                    train_{var_name} = training_video_generator.next_video()
+                    
+                    validation_video_generator = VideoGenerator(
+                        videos_path=videos_path[{subset_validation}],
+                        batch_size={batch_size},
+                        data_shape={data_shape},
+                        n_classes=len(class_mapping),
+                        shuffle={shuffle},
+                        cropping_strategy={cropping_strategy}
+                    )
+                    
+                    validation_{var_name} = validation_video_generator.next_video()
+                    """
+                ).format(var_name=self.var_name,
+                         path=self.video_training,
+                         validation_split=self.validation_split,
+                         subset_training='training',
+                         subset_validation='validation',
+                         batch_size=self.batch_size,
+                         data_shape=data_shape,
+                         shuffle=self.shuffle,
+                         cropping_strategy=self.cropping_strategy)
+
+        if self.video_validation:
+            return dedent(
+                """
+                validation_videos_path = video_path_reader(
+                        path={path}
+                )
+                    
+                validation_video_generator = VideoGenerator(
+                    videos_path=validation_videos_path,
+                    batch_size={batch_size},
+                    data_shape={data_shape},
+                    n_classes=len(class_mapping),
+                    shuffle={shuffle},
+                    cropping_strategy={cropping_strategy}
+                )
+                
+                validation_{var_name} = validation_video_generator.next_video()
+                """
+            ).format(var_name=self.var_name,
+                     path=self.video_validation,
+                     validation_split=self.validation_split,
+                     subset='validation',
+                     batch_size=self.batch_size,
+                     data_shape=data_shape,
+                     shuffle=self.shuffle,
+                     cropping_strategy=self.cropping_strategy)
