@@ -430,13 +430,13 @@ class TranspilerUtils(object):
                     instance.parameters['task']['parents']]
     @staticmethod
     def get_imports(instances):
-        layer_import = "from keras.layers import "
+        layer_import = "from tensorflow.python.keras.layers import "
         layer_list = []
-        callbacks_import = "from keras.callbacks import "
+        callbacks_import = "from tensorflow.python.keras.callbacks import "
         callbacks_list = []
-        model_import = "from keras.models import "
+        model_import = "from tensorflow.python.keras.models import "
         model_list = []
-        preprocessing_image_import = "from keras.preprocessing.image import "
+        preprocessing_image_import = "from tensorflow.python.keras.preprocessing.image import "
         preprocessing_image_list = []
         others_import = ""
         others_list = []
@@ -448,7 +448,7 @@ class TranspilerUtils(object):
                         layer_list.append(instance.import_code['layer'])
                 if instance.import_code['callbacks']:
                     for callback in instance.import_code['callbacks']:
-                        if not callback in callbacks_list:
+                        if callback not in callbacks_list:
                             callbacks_list.append(callback)
                 if instance.import_code['model']:
                     if not instance.import_code['model'] in model_list:
@@ -457,8 +457,9 @@ class TranspilerUtils(object):
                     if not instance.import_code['preprocessing_image'] in preprocessing_image_list:
                         preprocessing_image_list.append(instance.import_code['preprocessing_image'])
                 if instance.import_code['others']:
-                    if not instance.import_code['others'] in others_list:
-                        others_list.append(instance.import_code['others'])
+                    for other in instance.import_code['others']:
+                        if other not in others_list:
+                            others_list.append(other)
 
         imports = ""
         if len(layer_list) > 0:
