@@ -170,7 +170,8 @@ class Transpiler(object):
                 cat = 'logging' if cat == 'execution logging' else cat
 
                 if all([cat in ["execution", 'paramgrid', 'param grid',
-                                'execution logging', 'logging', 'save'],
+                                'execution logging', 'logging', 'save',
+                                'transformation'],
                         definition['value'] is not None]):
 
                     task_hash.update(unicode(definition['value']).encode(

@@ -1559,6 +1559,7 @@ class BatchNormalization(Operation):
     GAMMA_REGULARIZER_PARAM = 'gamma_regularizer'
     BETA_CONSTRAINT_PARAM = 'beta_constraint'
     GAMMA_CONSTRAINT_PARAM = 'gamma_constraint'
+    KWARGS_PARAM = 'kwargs'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
@@ -1586,6 +1587,7 @@ class BatchNormalization(Operation):
                                               None) or None
         self.gamma_constraint = parameters.get(self.GAMMA_CONSTRAINT_PARAM,
                                                None) or None
+        self.kwargs = parameters.get(self.KWARGS_PARAM,None)
 
         self.add_functions_required = ""
         self.task_name = self.parameters.get('task').get('name')
@@ -1687,6 +1689,10 @@ class BatchNormalization(Operation):
             self.gamma_constraint = """gamma_constraint='{gamma_constraint}'""" \
                 .format(gamma_constraint=self.gamma_constraint)
             functions_required.append(self.gamma_constraint)
+
+        if self.kwargs is not None:
+            self.kwargs = ',\n    '.join(self.kwargs.replace(' ', '').split(','))
+            functions_required.append(self.kwargs)
 
         self.add_functions_required = ',\n    '.join(functions_required)
         if self.add_functions_required:
@@ -4073,6 +4079,8 @@ class ModelGenerator(Operation):
         self.train_generator = None
         self.validation_generator = None
 
+        self.is_video_generator = False
+
         self.import_code = {'layer': None,
                             'callbacks': [],
                             'model': 'Model',
@@ -4114,6 +4122,16 @@ class ModelGenerator(Operation):
         if len(self.output_layers) == 0:
             raise ValueError(gettext('It is necessary to inform the output(s) '
                                      'layer(s).'))
+
+        if 'video-generator' in self.parameters.get('parents_slug'):
+            self.is_video_generator = True
+            if self.workers > 1 and self.use_multiprocessing:
+                import warnings
+                warnings.warn('Parameters changed: use_multiprocessing=False, '
+                              'workers=1 -- The video generator does not (yet)'
+                              'support multiprocessing.')
+                self.workers = 1
+                self.use_multiprocessing = False
 
         input_layers_vector = '['
         for input_layer in self.input_layers:
@@ -4479,9 +4497,9 @@ class ModelGenerator(Operation):
         self.classification_report = self.classification_report in ['1', 1] 
 
         if self.classification_report:
-            self.import_code['others'] = "from sklearn.metrics " \
-                                         "import classification_report, " \
-                                         "confusion_matrix"
+            self.import_code['others'] = ["from sklearn.metrics import "
+                                          "classification_report, "
+                                          "confusion_matrix"]
 
     def generate_code(self):
         if not (self.train_generator and self.validation_generator):
@@ -4529,64 +4547,186 @@ class ModelGenerator(Operation):
 
     def generate_history_code(self):
         if self.classification_report:
-            return dedent(
-                """
-                history = {var_name}.fit_generator(
-                {add_functions_required_fit_generator}
-                )
-                emit_event(
-                    name='update task',
-                    message=tab(table=history.history,
-                                add_epoch=True,
-                                metric='History',
-                                headers=history.history.keys()
-                    ),
-                    type='HTML',
-                    status='RESULTS',
-                    identifier='{task_id}'
-                )
-                
-                batch_size = {generator}.batch_size
-                number_of_classes = len({generator}.classes)
-                steps = (number_of_classes // batch_size) + 1
-                predictions = {var_name}.predict_generator(
-                    generator={generator},
-                    steps=steps,
-                    workers=2,
-                    use_multiprocessing=True
-                )
-                
-                predictions_to_matrix = np.argmax(predictions, axis=1)
-                matrix = confusion_matrix(
-                    {generator}.classes, 
-                    predictions_to_matrix
-                )
-                
-                target_names = {generator}.class_indices.keys()
-                report = classification_report(
-                    {generator}.classes,
-                    predictions_to_matrix,
-                    target_names=target_names,
-                    output_dict=False
-                )
-                
-                message = '\\n<h5>Classification Report</h5>'
-                message += '<pre>' + report + '</pre>'
-                emit_event(name='update task',
-                    message=message,
-                    type='HTML',
-                    status='RESULTS',
-                    identifier='{task_id}'
-                )
-                
-                              
-                """
-            ).format(var_name=self.var_name,
-                     add_functions_required_fit_generator=
-                     self.add_functions_required_fit_generator,
-                     generator=self.validation_generator
-                     .replace('validation_data=', ''),
-                     task_id=self.output_task_id)
+            if self.is_video_generator:
+                return dedent(
+                    """
+                    history = {var_name}.fit_generator(
+                    {add_functions_required_fit_generator}
+                    )
+                    emit_event(
+                        name='update task',
+                        message=tab(table=history.history,
+                                    add_epoch=True,
+                                    metric='History',
+                                    headers=history.history.keys()
+                        ),
+                        type='HTML',
+                        status='RESULTS',
+                        identifier='{task_id}'
+                    )
+                    
+                    # Reports for the training
+                    batch_size = training_video_generator.batch_size
+                    number_of_classes = training_video_generator.n_classes
+                    steps = (len(training_video_generator.classes) // batch_size)
+                    
+                    predictions = {var_name}.predict_generator(
+                        generator=predict_{train_generator},
+                        steps=steps,
+                        max_queue_size=batch_size-1,
+                        verbose=1
+                    )
+                    
+                    predictions_to_matrix = np.argmax(predictions, axis=1)
+                    
+                    report = classification_report(
+                        predict_training_video_generator.classes[0:len(predictions_to_matrix)],
+                        predictions_to_matrix,
+                        labels=class_mapping.values(),
+                        target_names=class_mapping.keys(),
+                        output_dict=False
+                    )
+                    
+                    message = '\\n<h5>Classification Report - Training</h5>'
+                    message += '<pre>' + report + '</pre>'
+                    emit_event(name='update task',
+                        message=message,
+                        type='HTML',
+                        status='RESULTS',
+                        identifier='{task_id}'
+                    ) 
+                    
+                    # Reports for the validation
+                    batch_size = validation_video_generator.batch_size
+                    number_of_classes = validation_video_generator.n_classes
+                    steps = (len(validation_video_generator.classes) // batch_size)
+                    
+                    predictions = {var_name}.predict_generator(
+                        generator=predict_{val_generator},
+                        steps=steps,
+                        max_queue_size=batch_size-1,
+                        verbose=1
+                    )
+                    
+                    predictions_to_matrix = np.argmax(predictions, axis=1)
+                    
+                    report = classification_report(
+                        predict_validation_video_generator.classes[0:len(predictions_to_matrix)],
+                        predictions_to_matrix,
+                        labels=class_mapping.values(),
+                        target_names=class_mapping.keys(),
+                        output_dict=False
+                    )
+                    
+                    message = '\\n<h5>Classification Report - Validation</h5>'
+                    message += '<pre>' + report + '</pre>'
+                    emit_event(name='update task',
+                        message=message,
+                        type='HTML',
+                        status='RESULTS',
+                        identifier='{task_id}'
+                    )
+                    
+                    """
+                ).format(var_name=self.var_name,
+                         add_functions_required_fit_generator=
+                         self.add_functions_required_fit_generator,
+                         val_generator=self.validation_generator
+                         .replace('validation_data=', ''),
+                         train_generator=self.train_generator
+                         .replace('generator=', '').replace(' ', ''),
+                         task_id=self.output_task_id,
+                         workers=self.workers.replace('workers=', '')
+                         .replace(' ', ''))
+            else:
+                return dedent(
+                    """
+                    history = {var_name}.fit_generator(
+                    {add_functions_required_fit_generator}
+                    )
+                    emit_event(
+                        name='update task',
+                        message=tab(table=history.history,
+                                    add_epoch=True,
+                                    metric='History',
+                                    headers=history.history.keys()
+                        ),
+                        type='HTML',
+                        status='RESULTS',
+                        identifier='{task_id}'
+                    )
+                    
+                    # Reports for the training
+                    batch_size = {train_generator}.batch_size
+                    number_of_classes = len({train_generator}.classes)
+                    steps = (number_of_classes // batch_size) + 1
+                    predictions = {var_name}.predict_generator(
+                        generator={train_generator},
+                        steps=steps,
+                        workers={workers},
+                        use_multiprocessing=True
+                    )
+                    
+                    predictions_to_matrix = np.argmax(predictions, axis=1)
+                    
+                    target_names = {train_generator}.class_indices.keys()
+                    report = classification_report(
+                        {train_generator}.classes,
+                        predictions_to_matrix,
+                        target_names=target_names,
+                        output_dict=False
+                    )
+                    
+                    message = '\\n<h5>Classification Report - Training</h5>'
+                    message += '<pre>' + report + '</pre>'
+                    emit_event(name='update task',
+                        message=message,
+                        type='HTML',
+                        status='RESULTS',
+                        identifier='{task_id}'
+                    ) 
+                    
+                    # Reports for the validation
+                    batch_size = {val_generator}.batch_size
+                    number_of_classes = len({val_generator}.classes)
+                    steps = (number_of_classes // batch_size) + 1
+                    predictions = {var_name}.predict_generator(
+                        generator={val_generator},
+                        steps=steps,
+                        workers={workers},
+                        use_multiprocessing=True
+                    )
+                    
+                    predictions_to_matrix = np.argmax(predictions, axis=1)
+                    
+                    target_names = {val_generator}.class_indices.keys()
+                    report = classification_report(
+                        {val_generator}.classes,
+                        predictions_to_matrix,
+                        target_names=target_names,
+                        output_dict=False
+                    )
+                    
+                    message = '\\n<h5>Classification Report - Validation</h5>'
+                    message += '<pre>' + report + '</pre>'
+                    emit_event(name='update task',
+                        message=message,
+                        type='HTML',
+                        status='RESULTS',
+                        identifier='{task_id}'
+                    )
+                    
+                    """
+                ).format(var_name=self.var_name,
+                         add_functions_required_fit_generator=
+                         self.add_functions_required_fit_generator,
+                         val_generator=self.validation_generator
+                         .replace('validation_data=', ''),
+                         train_generator=self.train_generator
+                         .replace('generator=', '').replace(' ', ''),
+                         task_id=self.output_task_id,
+                         workers=self.workers.replace('workers=', '')
+                         .replace(' ', ''))
         else:
             return dedent(
                 """
@@ -4966,11 +5106,13 @@ class ImageGenerator(Operation):
                     validation_{var_name} = {var_name}_datagen.flow_from_directory({add_functions_required_flow_from_directory},
                         subset='validation'
                     )
+                    
                     """
                 ).format(var_name=self.var_name,
                          add_functions_required=self.add_functions_required,
                          add_functions_required_flow_from_directory=self.
-                         add_functions_required_flow_from_directory)
+                         add_functions_required_flow_from_directory,
+                         batch_size=self.batch_size)
             else:
                 return dedent(
                     """
@@ -4979,11 +5121,13 @@ class ImageGenerator(Operation):
                     train_{var_name} = {var_name}_datagen.flow_from_directory({add_functions_required_flow_from_directory}
                     )
                     validation_{var_name} = None
+                    
                     """
                 ).format(var_name=self.var_name,
                          add_functions_required=self.add_functions_required,
                          add_functions_required_flow_from_directory=self.
-                         add_functions_required_flow_from_directory)
+                         add_functions_required_flow_from_directory,
+                         batch_size=self.batch_size)
 
         if self.image_validation:
             return dedent(
@@ -4992,11 +5136,13 @@ class ImageGenerator(Operation):
                 )
                 validation_{var_name} = {var_name}_datagen.flow_from_directory({add_functions_required_flow_from_directory}
                 )
+                
                 """
             ).format(var_name=self.var_name,
                      add_functions_required=self.add_functions_required,
                      add_functions_required_flow_from_directory=self.
-                     add_functions_required_flow_from_directory)
+                     add_functions_required_flow_from_directory,
+                     batch_size=self.batch_size)
 
 
 class ImageReader(Operation):
@@ -5232,6 +5378,16 @@ class VideoGenerator(Operation):
     BATCH_SIZE_PARAM = 'batch_size'
     SHUFFLE_PARAM = 'shuffle'
     VALIDATION_SPLIT_PARAM = 'validation_split'
+    CROPPING_STRATEGY_PARAM = 'cropping_strategy'
+    RANDOM_FRAMES_PARAM = 'random_frames'
+    RANDOM_HEIGHT_PARAM = 'random_height'
+    RANDOM_WIDTH_PARAM = 'random_width'
+    RANDOM_CHANNEL_PARAM = 'random_channel'
+    FRAMES_PARAM = 'frames'
+    HEIGHT_PARAM = 'height'
+    WIDTH_PARAM = 'width'
+    CHANNEL_PARAM = 'channel'
+    APPLY_TRANSFORMATIONS_PARAM = 'apply_transformations'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
@@ -5244,6 +5400,17 @@ class VideoGenerator(Operation):
         self.batch_size = parameters.get(self.BATCH_SIZE_PARAM, None)
         self.shuffle = parameters.get(self.SHUFFLE_PARAM, None)
         self.validation_split = parameters.get(self.VALIDATION_SPLIT_PARAM, None)
+
+        self.cropping_strategy = parameters.get(self.CROPPING_STRATEGY_PARAM, None)
+        self.random_frames = parameters.get(self.RANDOM_FRAMES_PARAM, None)
+        self.random_height = parameters.get(self.RANDOM_HEIGHT_PARAM, None)
+        self.random_width = parameters.get(self.RANDOM_WIDTH_PARAM, None)
+        self.random_channel = parameters.get(self.RANDOM_CHANNEL_PARAM, None)
+        self.frames = parameters.get(self.FRAMES_PARAM, None)
+        self.height = parameters.get(self.HEIGHT_PARAM, None)
+        self.width = parameters.get(self.WIDTH_PARAM, None)
+        self.channel = parameters.get(self.CHANNEL_PARAM, None)
+        self.apply_transformations = parameters.get(self.APPLY_TRANSFORMATIONS_PARAM, None)
 
         self.video_training = None
         self.video_validation = None
@@ -5266,10 +5433,7 @@ class VideoGenerator(Operation):
         self.parents_by_port = parameters.get('my_ports', [])
         self.treatment()
 
-        if self.video_training:
-            self.has_external_code = True
-        else:
-            self.has_external_code = False
+        self.has_external_code = True
 
         self.import_code = {'layer': None,
                             'callbacks': [],
@@ -5337,121 +5501,501 @@ class VideoGenerator(Operation):
             raise ValueError(gettext('Parameter {} is invalid.')
                              .format(self.VALIDATION_SPLIT_PARAM))
 
-    def external_code(self):
-        return dedent(
-            """     
-            class VideoGenerator(object):
-                def __init__(self, videos_path=[],
-                                   batch_size=16,
-                                   data_shape=None,
-                                   n_classes=0, 
-                                   shuffle=True, 
-                                   cropping_strategy='center'):
-                                   
-                    self.videos_path = videos_path
-                    self.batch_size = batch_size
-                    self.data_shape = data_shape
-                    self.n_classes = n_classes
-                    self.shuffle = shuffle
-                    self.cropping_strategy = cropping_strategy
-                    self.class_names = set()
-                    
-                    if self.shuffle:
-                        random.shuffle(self.videos_path)
-                    
-                def next_video(self):
-                    while True:
-                        'Generates data containing batch_size samples' # X : (n_samples, *dim, n_channels)
-                        # Initialization
-                        data = np.empty(self.data_shape)
-                        classes = np.empty((self.batch_size), dtype=int)
-                        i = 0
-                        
-                        # Generate data    
-                        if self.cropping_strategy == 'random':
-                            for _file, cls in self.videos_path:
-                                x = np.load(_file)['frames']
-                                h_init = random.randint(0, 16)
-                                w_init = random.randint(0, 59)
-                                data[i,] = x[:, h_init:h_init+112, w_init:w_init+112, :] # (l, h, w, c)
-            
-                                classes[i] = cls
-                                self.class_names.add(cls)
-                                i += 1
-                                
-                                if i % self.batch_size == 0:
-                                    yield (data, 
-                                           to_categorical(classes,
-                                                          num_classes=self.n_classes
-                                           )
-                                    )
-                                    i = 0
-                                    
-                        elif self.cropping_strategy == 'center':
-                            for _file, cls in self.videos_path:
-                                x = np.load(_file)['frames']
-                                data[i,] = x[:, 8:120, 30:142, :] # (l, h, w, c)
-            
-                                classes[i] = class_mapping[cls]
-                                self.class_names.add(cls)
-                                i += 1
-                                
-                                if i % self.batch_size == 0:
-                                    yield (data, 
-                                           to_categorical(classes,
-                                                          num_classes=self.n_classes
-                                           )
-                                    )
-                                    i = 0
-            
-                        elif self.cropping_strategy is None:
-                            for _file, cls in self.videos_path:
-                                x = np.load(_file)['frames']
-                                data[i,] = x
-            
-                                classes[i] = class_mapping[cls]
-                                self.class_names.add(cls)
-                                i += 1
-                                
-                                if i % self.batch_size == 0:
-                                    yield (data, 
-                                           to_categorical(classes,
-                                                          num_classes=self.n_classes
-                                           )
-                                    )
-                                    i = 0
-            
-            class_mapping = {}
-        
-            def video_path_reader(path='', validation_split=0.0):
-                if path:
-                    classes = [x[0] for x in walk(path)][1:]
+        self.apply_transformations = True if int(self.apply_transformations) == 1 else False
+
+        if self.apply_transformations:
+            if self.cropping_strategy == 'random':
+                if self.random_frames is not None:
+                    self.random_frames = get_interval(self.random_frames)
+                    if not self.random_frames:
+                        raise ValueError(gettext('Parameter {} is invalid.')
+                                         .format(self.RANDOM_FRAMES_PARAM))
                 else:
-                    raise ValueError(gettext('Data set path is invalid.'))
+                    self.random_frames = ':'
+
+                self.random_height = get_random_interval(self.random_height)
+                if not self.random_height:
+                    raise ValueError(gettext('Parameter {} is invalid.')
+                                     .format(self.RANDOM_HEIGHT_PARAM))
+
+                self.random_width = get_random_interval(self.random_width)
+                if not self.random_width:
+                    raise ValueError(gettext('Parameter {} is invalid.')
+                                     .format(self.RANDOM_WIDTH_PARAM))
+
+                if self.random_channel is not None:
+                    self.random_channel = get_interval(self.random_channel)
+                    if not self.random_channel:
+                        raise ValueError(gettext('Parameter {} is invalid.')
+                                         .format(self.RANDOM_CHANNEL_PARAM))
+                else:
+                    self.random_channel = ':'
+
+            elif self.cropping_strategy == 'center':
+                if self.frames is not None:
+                    self.frames = get_interval(self.frames)
+                    if not self.frames:
+                        raise ValueError(gettext('Parameter {} is invalid.')
+                                         .format(self.FRAMES_PARAM))
+                else:
+                    self.frames = ':'
+
+                if self.height is not None:
+                    self.height = get_interval(self.height)
+                    if not self.height:
+                        raise ValueError(gettext('Parameter {} is invalid.')
+                                         .format(self.HEIGHT_PARAM))
+                else:
+                    self.height = ':'
+
+                if self.width is not None:
+                    self.width = get_interval(self.width)
+                    if not self.width:
+                        raise ValueError(gettext('Parameter {} is invalid.')
+                                         .format(self.WIDTH_PARAM))
+                else:
+                    self.width = ':'
+
+                if self.channel is not None:
+                    self.channel = get_interval(self.channel)
+                    if not self.channel:
+                        raise ValueError(gettext('Parameter {} is invalid.')
+                                         .format(self.CHANNEL_PARAM))
+                else:
+                    self.channel = ':'
+
+            elif self.cropping_strategy is None:
+                pass
+        else:
+            self.cropping_strategy = None
+
+    def external_code(self):
+        if self.video_training:
+            if self.validation_split == 0:
+                generator_name = 'VideoGeneratorTraining'
+            else:
+                generator_name = 'VideoGenerator'
+        if self.video_validation:
+            generator_name = 'VideoGeneratorValidation'
+
+        if self.cropping_strategy is None:
+            if self.video_training:
+                return dedent(
+                    """     
+                    class {generator_name}(object):
+                        def __init__(self, videos_path=[],
+                                           batch_size=16,
+                                           data_shape=None,
+                                           n_classes=0, 
+                                           shuffle=True):
+                                           
+                            self.videos_path = videos_path
+                            self.batch_size = batch_size
+                            self.data_shape = data_shape
+                            self.n_classes = n_classes
+                            self.shuffle = shuffle
+                            self.classes = []
+                            
+                            if self.shuffle:
+                                random.shuffle(self.videos_path)
+                            
+                        def next_video(self):
+                            while True:
+                                'Generates data containing batch_size samples' # X : (n_samples, *dim, n_channels)
+                                # Initialization
+                                data = np.empty(self.data_shape)
+                                classes = np.empty((self.batch_size), dtype=int)
+                                i = 0
+                                
+                                # Generate data
+                                for _file, cls in self.videos_path:
+                                    x = np.load(_file)['frames']
+                                    data[i,] = x
                 
-                if classes:
-                    files = []
-                    id = 0
-                    for class_path in classes:
-                        cls = class_path.split('/')[-1] # Get only class name
-                        if not cls in class_mapping:
-                            class_mapping[cls] = id
-                            id += 1
-            
-                        files += [(class_path+'/'+f, cls) for f in listdir(class_path) if isfile(join(class_path, f))]
+                                    classes[i] = class_mapping[cls]
+                                    self.classes.append(class_mapping[cls])
+                                    i += 1
+                                    
+                                    if i % self.batch_size == 0:
+                                        yield (
+                                            data,
+                                            to_categorical(
+                                                classes,
+                                                num_classes=self.n_classes
+                                            )
+                                        )
+                                        i = 0
+                    
+                    {class_mapping}
+                
+                    def video_path_reader(path='', validation_split=0.0):
+                        if path:
+                            classes = [x[0] for x in walk(path)][1:]
+                        else:
+                            raise ValueError(gettext('Data set path is invalid.'))
                         
-                    if validation_split:
-                        _index = int(len(files)*validation_split)
+                        if classes:
+                            files = []
+                            id = 0
+                            for class_path in classes:
+                                cls = class_path.split('/')[-1] # Get only class name
+                                if not cls in class_mapping:
+                                    class_mapping[cls] = id
+                                    id += 1
+                    
+                                files += [(class_path+'/'+f, cls) for f in listdir(class_path) if isfile(join(class_path, f))]
+                                
+                            if validation_split:
+                                _index = int(len(files)*validation_split)
+                                
+                                training_files = files[_index:]
+                                validation_files = files[0:_index]
+                                
+                                return {_return}
+                            else:
+                                return files
+                                
+                    """
+                ).format(generator_name=generator_name,
+                         _return='{"training": training_files, '
+                                 '"validation": validation_files}',
+                         class_mapping='class_mapping = {}')
+
+            elif self.video_validation:
+                return dedent(
+                    """     
+                    class {generator_name}(object):
+                        def __init__(self, videos_path=[],
+                                           batch_size=16,
+                                           data_shape=None,
+                                           n_classes=0, 
+                                           shuffle=True):
+                                           
+                            self.videos_path = videos_path
+                            self.batch_size = batch_size
+                            self.data_shape = data_shape
+                            self.n_classes = n_classes
+                            self.shuffle = shuffle
+                            self.classes = []
+                            
+                            if self.shuffle:
+                                random.shuffle(self.videos_path)
+                            
+                        def next_video(self):
+                            while True:
+                                'Generates data containing batch_size samples' # X : (n_samples, *dim, n_channels)
+                                # Initialization
+                                data = np.empty(self.data_shape)
+                                classes = np.empty((self.batch_size), dtype=int)
+                                i = 0
+                                
+                                # Generate data
+                                for _file, cls in self.videos_path:
+                                    x = np.load(_file)['frames']
+                                    data[i,] = x
+                
+                                    classes[i] = class_mapping[cls]
+                                    self.classes.append(class_mapping[cls])
+                                    i += 1
+                                    
+                                    if i % self.batch_size == 0:
+                                        yield (
+                                            data,
+                                            to_categorical(
+                                                classes,
+                                                num_classes=self.n_classes
+                                            )
+                                        )
+                                        i = 0
+                    """
+                ).format(generator_name=generator_name)
+
+        elif self.cropping_strategy == 'random':
+            if self.video_training:
+                return dedent(
+                    """     
+                    class {generator_name}(object):
+                        def __init__(self, videos_path=[],
+                                           batch_size=16,
+                                           data_shape=None,
+                                           n_classes=0, 
+                                           shuffle=True):
+                                           
+                            self.videos_path = videos_path
+                            self.batch_size = batch_size
+                            self.data_shape = data_shape
+                            self.n_classes = n_classes
+                            self.shuffle = shuffle
+                            self.classes = []
+                            
+                            if self.shuffle:
+                                random.shuffle(self.videos_path)
+                            
+                        def next_video(self):
+                            while True:
+                                'Generates data containing batch_size samples' # X : (n_samples, *dim, n_channels)
+                                # Initialization
+                                data = np.empty(self.data_shape)
+                                classes = np.empty((self.batch_size), dtype=int)
+                                i = 0
+                                
+                                # Generate data    
+                                for _file, cls in self.videos_path:
+                                    x = np.load(_file)['frames']
+                                    h_init = random.randint({height})
+                                    w_init = random.randint({width})
+                                    data[i,] = x[{frames}, h_init:h_init+{dim1}, w_init:w_init+{dim2}, {channel}] 
+                
+                                    classes[i] = cls
+                                    self.classes.append(class_mapping[cls])
+                                    i += 1
+                                    
+                                    if i % self.batch_size == 0:
+                                        yield (
+                                            data,
+                                            to_categorical(
+                                                classes,
+                                                num_classes=self.n_classes
+                                            )
+                                        )
+                                        i = 0
+                    
+                    {class_mapping}
+                
+                    def video_path_reader(path='', validation_split=0.0):
+                        if path:
+                            classes = [x[0] for x in walk(path)][1:]
+                        else:
+                            raise ValueError(gettext('Data set path is invalid.'))
                         
-                        training_files = files[_index:]
-                        validation_files = files[0:_index]
+                        if classes:
+                            files = []
+                            id = 0
+                            for class_path in classes:
+                                cls = class_path.split('/')[-1] # Get only class name
+                                if not cls in class_mapping:
+                                    class_mapping[cls] = id
+                                    id += 1
+                    
+                                files += [(class_path+'/'+f, cls) for f in listdir(class_path) if isfile(join(class_path, f))]
+                                
+                            if validation_split:
+                                _index = int(len(files)*validation_split)
+                                
+                                training_files = files[_index:]
+                                validation_files = files[0:_index]
+                                
+                                return {'training': training_files,
+                                        'validation': validation_files}
+                            else:
+                                return files
+                    """
+                ).format(generator_name=generator_name,
+                         height=self.random_height,
+                         width=self.random_width,
+                         frames=self.random_frames,
+                         channel=self.random_channel,
+                         dim1=self.dimensions[1],
+                         dim2=self.dimensions[2],
+                         _return='{"training": training_files, '
+                                 '"validation": validation_files}',
+                         class_mapping='class_mapping = {}')
+
+            elif self.video_validation:
+                return dedent(
+                    """   
+                    class {generator_name}(object):
+                        def __init__(self, videos_path=[],
+                                           batch_size=16,
+                                           data_shape=None,
+                                           n_classes=0, 
+                                           shuffle=True):
+                                           
+                            self.videos_path = videos_path
+                            self.batch_size = batch_size
+                            self.data_shape = data_shape
+                            self.n_classes = n_classes
+                            self.shuffle = shuffle
+                            self.classes = []
+                            
+                            if self.shuffle:
+                                random.shuffle(self.videos_path)
+                            
+                        def next_video(self):
+                            while True:
+                                'Generates data containing batch_size samples' # X : (n_samples, *dim, n_channels)
+                                # Initialization
+                                data = np.empty(self.data_shape)
+                                classes = np.empty((self.batch_size), dtype=int)
+                                i = 0
+                                
+                                # Generate data    
+                                for _file, cls in self.videos_path:
+                                    x = np.load(_file)['frames']
+                                    h_init = random.randint({height})
+                                    w_init = random.randint({width})
+                                    data[i,] = x[{frames}, h_init:h_init+{dim1}, w_init:w_init+{dim2}, {channel}] 
+                
+                                    classes[i] = cls
+                                    self.classes.append(class_mapping[cls])
+                                    i += 1
+                                    
+                                    if i % self.batch_size == 0:
+                                        yield (
+                                            data,
+                                            to_categorical(
+                                                classes,
+                                                num_classes=self.n_classes
+                                            )
+                                        )
+                                        i = 0
+                    """
+                ).format(generator_name=generator_name,
+                         height=self.random_height,
+                         width=self.random_width,
+                         frames=self.random_frames,
+                         channel=self.random_channel,
+                         dim1=self.dimensions[1],
+                         dim2=self.dimensions[2])
+
+        elif self.cropping_strategy == 'center':
+            if self.video_training:
+                return dedent(
+                    """     
+                    class {generator_name}(object):
+                        def __init__(self, videos_path=[],
+                                           batch_size=16,
+                                           data_shape=None,
+                                           n_classes=0, 
+                                           shuffle=True):
+                                           
+                            self.videos_path = videos_path
+                            self.batch_size = batch_size
+                            self.data_shape = data_shape
+                            self.n_classes = n_classes
+                            self.shuffle = shuffle
+                            self.classes = []
+                            
+                            if self.shuffle:
+                                random.shuffle(self.videos_path)
+                            
+                        def next_video(self):
+                            while True:
+                                'Generates data containing batch_size samples' # X : (n_samples, *dim, n_channels)
+                                # Initialization
+                                data = np.empty(self.data_shape)
+                                classes = np.empty((self.batch_size), dtype=int)
+                                i = 0
+                                
+                                # Generate data    
+                                for _file, cls in self.videos_path:
+                                    x = np.load(_file)['frames']
+                                    data[i,] = x[{frames}, {height}, {width}, {channel}] 
+                
+                                    classes[i] = class_mapping[cls]
+                                    self.classes.append(class_mapping[cls])
+                                    i += 1
+                                    
+                                    if i % self.batch_size == 0:
+                                        yield (
+                                            data,
+                                            to_categorical(
+                                                classes,
+                                                num_classes=self.n_classes
+                                            )
+                                        )
+                                        i = 0
+                    
+                    {class_mapping}
+                
+                    def video_path_reader(path='', validation_split=0.0):
+                        if path:
+                            classes = [x[0] for x in walk(path)][1:]
+                        else:
+                            raise ValueError(gettext('Data set path is invalid.'))
                         
-                        return {'training': training_files,
-                                'validation': validation_files}
-                    else:
-                        return files
-            """
-        )
+                        if classes:
+                            files = []
+                            id = 0
+                            for class_path in classes:
+                                cls = class_path.split('/')[-1] # Get only class name
+                                if not cls in class_mapping:
+                                    class_mapping[cls] = id
+                                    id += 1
+                    
+                                files += [(class_path+'/'+f, cls) for f in listdir(class_path) if isfile(join(class_path, f))]
+                                
+                            if validation_split:
+                                _index = int(len(files)*validation_split)
+                                
+                                training_files = files[_index:]
+                                validation_files = files[0:_index]
+                                
+                                return {_return}
+                            else:
+                                return files
+                    """
+                ).format(generator_name=generator_name,
+                         height=self.height,
+                         width=self.width,
+                         frames=self.frames,
+                         channel=self.channel,
+                         class_mapping='class_mapping = {}',
+                         _return='{"training": training_files, '
+                                 '"validation": validation_files}')
+            elif self.video_validation:
+                return dedent(
+                    """     
+                    class {generator_name}(object):
+                        def __init__(self, videos_path=[],
+                                           batch_size=16,
+                                           data_shape=None,
+                                           n_classes=0, 
+                                           shuffle=True):
+                                           
+                            self.videos_path = videos_path
+                            self.batch_size = batch_size
+                            self.data_shape = data_shape
+                            self.n_classes = n_classes
+                            self.shuffle = shuffle
+                            self.classes = []
+                            
+                            if self.shuffle:
+                                random.shuffle(self.videos_path)
+                            
+                        def next_video(self):
+                            while True:
+                                'Generates data containing batch_size samples' # X : (n_samples, *dim, n_channels)
+                                # Initialization
+                                data = np.empty(self.data_shape)
+                                classes = np.empty((self.batch_size), dtype=int)
+                                i = 0
+                                
+                                # Generate data    
+                                for _file, cls in self.videos_path:
+                                    x = np.load(_file)['frames']
+                                    data[i,] = x[{frames}, {height}, {width}, {channel}] 
+                
+                                    classes[i] = class_mapping[cls]
+                                    self.classes.append(class_mapping[cls])
+                                    i += 1
+                                    
+                                    if i % self.batch_size == 0:
+                                        yield (
+                                            data,
+                                            to_categorical(
+                                                classes,
+                                                num_classes=self.n_classes
+                                            )
+                                        )
+                                        i = 0
+                    """
+                ).format(generator_name=generator_name,
+                         height=self.height,
+                         width=self.width,
+                         frames=self.frames,
+                         channel=self.channel,
+                         class_mapping='class_mapping = {}')
 
     def generate_code(self):
         data_shape = [self.batch_size]
@@ -5468,24 +6012,32 @@ class VideoGenerator(Operation):
                         path={path}
                     )
                     
-                    training_video_generator = VideoGenerator(
+                    training_video_generator = VideoGeneratorTraining(
                         videos_path=training_videos_path,
                         batch_size={batch_size},
                         data_shape={data_shape},
                         n_classes=len(class_mapping),
-                        shuffle={shuffle},
-                        cropping_strategy={cropping_strategy}
+                        shuffle={shuffle}
                     )
                     
                     train_{var_name} = training_video_generator.next_video()
+                    
+                    predict_training_video_generator = VideoGeneratorTraining(
+                        videos_path=training_video_generator.videos_path,
+                        batch_size={batch_size},
+                        data_shape={data_shape},
+                        n_classes=len(class_mapping),
+                        shuffle=False
+                    )
+                    
+                    predict_train_{var_name} = predict_training_video_generator.next_video()
                     """
                 ).format(var_name=self.var_name,
                          path=self.video_training,
                          subset='training',
                          batch_size=self.batch_size,
                          data_shape=data_shape,
-                         shuffle=self.shuffle,
-                         cropping_strategy=self.cropping_strategy)
+                         shuffle=self.shuffle)
             else:
                 return dedent(
                     """
@@ -5499,22 +6051,40 @@ class VideoGenerator(Operation):
                         batch_size={batch_size},
                         data_shape={data_shape},
                         n_classes=len(class_mapping),
-                        shuffle={shuffle},
-                        cropping_strategy={cropping_strategy}
+                        shuffle={shuffle}
                     )
                     
                     train_{var_name} = training_video_generator.next_video()
+                    
+                    predict_training_video_generator = VideoGeneratorTraining(
+                        videos_path=training_video_generator.videos_path[{subset_training}],
+                        batch_size={batch_size},
+                        data_shape={data_shape},
+                        n_classes=len(class_mapping),
+                        shuffle=False
+                    )
+                    
+                    predict_train_{var_name} = predict_training_video_generator.next_video()
                     
                     validation_video_generator = VideoGenerator(
                         videos_path=videos_path[{subset_validation}],
                         batch_size={batch_size},
                         data_shape={data_shape},
                         n_classes=len(class_mapping),
-                        shuffle={shuffle},
-                        cropping_strategy={cropping_strategy}
+                        shuffle={shuffle}
                     )
                     
                     validation_{var_name} = validation_video_generator.next_video()
+                    
+                    predict_validation_video_generator = VideoGenerator(
+                        videos_path=validation_video_generator.videos_path[{subset_validation}],
+                        batch_size={batch_size},
+                        data_shape={data_shape},
+                        n_classes=len(class_mapping),
+                        shuffle=False
+                    )
+                    
+                    predict_validation_{var_name} = predict_validation_video_generator.next_video()
                     """
                 ).format(var_name=self.var_name,
                          path=self.video_training,
@@ -5523,8 +6093,7 @@ class VideoGenerator(Operation):
                          subset_validation='validation',
                          batch_size=self.batch_size,
                          data_shape=data_shape,
-                         shuffle=self.shuffle,
-                         cropping_strategy=self.cropping_strategy)
+                         shuffle=self.shuffle)
 
         if self.video_validation:
             return dedent(
@@ -5533,16 +6102,25 @@ class VideoGenerator(Operation):
                         path={path}
                 )
                     
-                validation_video_generator = VideoGenerator(
+                validation_video_generator = VideoGeneratorValidation(
                     videos_path=validation_videos_path,
                     batch_size={batch_size},
                     data_shape={data_shape},
                     n_classes=len(class_mapping),
-                    shuffle={shuffle},
-                    cropping_strategy={cropping_strategy}
+                    shuffle={shuffle}
                 )
                 
                 validation_{var_name} = validation_video_generator.next_video()
+                
+                predict_validation_video_generator = VideoGeneratorValidation(
+                    videos_path=validation_video_generator.videos_path,
+                    batch_size={batch_size},
+                    data_shape={data_shape},
+                    n_classes=len(class_mapping),
+                    shuffle=False
+                )
+                
+                predict_validation_{var_name} = predict_validation_video_generator.next_video()
                 """
             ).format(var_name=self.var_name,
                      path=self.video_validation,
@@ -5550,5 +6128,4 @@ class VideoGenerator(Operation):
                      subset='validation',
                      batch_size=self.batch_size,
                      data_shape=data_shape,
-                     shuffle=self.shuffle,
-                     cropping_strategy=self.cropping_strategy)
+                     shuffle=self.shuffle)

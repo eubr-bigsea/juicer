@@ -12,6 +12,7 @@ Auto-generated Keras code from Lemonade Workflow
     Universidade Federal de Minas Gerais
 More information about Lemonade to be provided
 """
+import tensorflow
 import keras
 from keras import backend as K
 {{transpiler.get_imports(instances)}}
@@ -21,10 +22,6 @@ from tabulate import tabulate
 from time import time
 from keras import metrics
 from juicer.keras.callbacks import JuicerCallback
-
-reproducible_seed = 1000
-np.random.seed(reproducible_seed)
-random.seed(reproducible_seed)
 
 {{"\n"}}
 {%- for instance in instances %}
