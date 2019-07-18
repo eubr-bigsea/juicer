@@ -793,7 +793,7 @@ class ActivityRegularization(Operation):
 
         if self.L1_PARAM not in parameters or self.L2_PARAM not in parameters:
             raise ValueError(
-                gettext('Parameter {l1} and {l2} are required').format(
+                gettext('Parameters {l1} and {l2} are required').format(
                     l1=self.L1_PARAM,
                     l2=self.L2_PARAM))
 
@@ -4016,7 +4016,7 @@ class ModelGenerator(Operation):
                                            None) or None
         self.max_queue_size = parameters.get(self.MAX_QUEUE_SIZE_PARAM,
                                              None) or None
-        self.workers = parameters.get(self.WORKERS_PARAM, None) or None
+        self.workers = int(parameters.get(self.WORKERS_PARAM, None) or None)
         self.use_multiprocessing = parameters.get(
             self.USE_MULTIPROCESSING_PARAM, None) or None
         self.shuffle = parameters.get(self.SHUFFLE_PARAM, None) or None
@@ -4123,8 +4123,13 @@ class ModelGenerator(Operation):
             raise ValueError(gettext('It is necessary to inform the output(s) '
                                      'layer(s).'))
 
+        self.shuffle = True if int(self.shuffle) == 1 else False
+        self.use_multiprocessing = True if int(
+            self.use_multiprocessing) == 1 else False
+
         if 'video-generator' in self.parameters.get('parents_slug'):
             self.is_video_generator = True
+            self.shuffle = False# Used not to impact the shuffle value in the video generator.
             if self.workers > 1 and self.use_multiprocessing:
                 import warnings
                 warnings.warn('Parameters changed: use_multiprocessing=False, '
@@ -4467,20 +4472,20 @@ class ModelGenerator(Operation):
                 .format(max_queue_size=self.max_queue_size)
             functions_required_fit_generator.append(self.max_queue_size)
 
-        if self.workers is not None:
+        if self.workers < 0:
+            raise ValueError(gettext('Parameter {} is invalid.')
+                             .format(self.WORKERS_PARAM))
+        if self.workers != 1:
             self.workers = int(self.workers)
             self.workers = """workers={workers}""" \
                 .format(workers=self.workers)
             functions_required_fit_generator.append(self.workers)
 
-        self.use_multiprocessing = True if int(
-            self.use_multiprocessing) == 1 else False
         if self.use_multiprocessing:
             self.use_multiprocessing = """use_multiprocessing={use_multiprocessing}""" \
                 .format(use_multiprocessing=self.use_multiprocessing)
             functions_required_fit_generator.append(self.use_multiprocessing)
 
-        self.shuffle = True if int(self.shuffle) == 1 else False
         if self.shuffle:
             self.shuffle = """shuffle={shuffle}""".format(shuffle=self.shuffle)
             functions_required_fit_generator.append(self.shuffle)
@@ -4635,9 +4640,7 @@ class ModelGenerator(Operation):
                          .replace('validation_data=', ''),
                          train_generator=self.train_generator
                          .replace('generator=', '').replace(' ', ''),
-                         task_id=self.output_task_id,
-                         workers=self.workers.replace('workers=', '')
-                         .replace(' ', ''))
+                         task_id=self.output_task_id)
             else:
                 return dedent(
                     """
