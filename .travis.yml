@@ -10,7 +10,7 @@ install:
 # command to run tests
 script:
    - export PYTHONPATH="$SPARK_HOME/python:$PYTHONPATH"
-   - pytest
+     #- pytest
    - unset PYTHONPATH
-   - pytest
+     #- pytest
 cache: pip
