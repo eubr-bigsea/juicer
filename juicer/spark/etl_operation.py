@@ -1011,7 +1011,7 @@ class ExecutePythonOperation(Operation):
         code = dedent("""
         import json
         from RestrictedPython.Guards import safe_builtins
-        from RestrictedPython.RCompile import compile_restricted
+        from RestrictedPython.compile import compile_restricted
         from RestrictedPython.PrintCollector import PrintCollector
 
         results = [r[1].result() for r in task_futures.items() if r[1].done()]
