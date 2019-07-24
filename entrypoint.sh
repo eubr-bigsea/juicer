@@ -126,7 +126,7 @@ case "$SPARK_K8S_CMD" in
 
   *)
     echo "Unknown command: $SPARK_K8S_CMD" 1>&2
-    exec /usr/local/juicer/sbin/juicer-daemon.sh 'docker'
+    exec "${CMD[@]}"
     exit 1
 esac
 
