@@ -46,6 +46,7 @@ class KerasTranspiler(Transpiler):
             'dense': core_layers.Dense,
             'dot': core_layers.Dot,
             'dropout': core_layers.Dropout,
+            'evaluate-model': core_layers.EvaluateModel,
             'flatten': core_layers.Flatten,
             'global-average-pooling-1d': core_layers.GlobalAveragePooling1D,
             'global-average-pooling-2d': core_layers.GlobalAveragePooling2D,
