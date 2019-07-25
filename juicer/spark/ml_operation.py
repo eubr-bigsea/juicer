@@ -2075,6 +2075,10 @@ class TopicReportOperation(ReportOperation):
 
         self.vocabulary_input = self.named_inputs.get(
             'vocabulary')
+        if not all([named_inputs.get('model'), named_inputs.get('input data'),
+                    named_inputs.get('vocabulary')]):
+            raise ValueError(
+                _('You must inform all input ports for this operation'))
 
     def get_output_names(self, sep=", "):
         return self.output
@@ -2086,27 +2090,12 @@ class TopicReportOperation(ReportOperation):
         code = dedent("""
             # TODO: evaluate if using broadcast() is more efficient
             terms_idx_to_str = functions.udf(lambda term_indexes:
-                [{vocabulary}.values()[0][inx]  for inx in term_indexes])
+                [{vocabulary}.values()[0][inx1] for inx1 in term_indexes])
             topic_df = {model}.stages[-1].describeTopics(
                 maxTermsPerTopic={tpt}).withColumn(
                     'terms', terms_idx_to_str(functions.col('termIndices')))
 
             {output} = topic_df
-
-            # See hack in ClusteringModelOperation
-            features = {model}.features
-
-            '''
-            for row in topic_df.collect():
-                topic_number = row[0]
-                topic_terms  = row[1]
-                print "Topic: ", topic_number
-                print '========================='
-                print '\\t',
-                for inx in topic_terms[:{tpt}]:
-                    print {vocabulary}[features][inx],
-                print
-            '''
         """.format(model=self.named_inputs['model'],
                    tpt=self.terms_per_topic,
                    vocabulary=self.vocabulary_input,
