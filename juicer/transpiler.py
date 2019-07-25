@@ -84,13 +84,13 @@ class Transpiler(object):
 
     def get_audit_info(self, graph, workflow, task, parameters):
         result = []
-        task['parents'] = nx.ancestors(graph, task['id'])
-        parents = [graph.node[task_id] for task_id in task['parents']]
-        parents_data_source = [int(p['forms']['data_source'].get('value', 0))
-                               for p in parents if p['is_data_source']]
+        task['ancestors'] = nx.ancestors(graph, task['id'])
+        ancestors = [graph.node[task_id] for task_id in task['ancestors']]
+        ancestors_data_source = [int(p['forms']['data_source'].get('value', 0))
+                                 for p in ancestors if p['is_data_source']]
 
         # If it doesn't have a data source implies no auditing info generated
-        if not parents_data_source:
+        if not ancestors_data_source:
             return result
         events = parameters['audit_events'] or []
         if parameters['display_sample']:
@@ -107,7 +107,7 @@ class Transpiler(object):
                 'date': datetime.datetime.now(),
                 'context': parameters['configuration']['juicer'].get(
                     'context', 'NOT_SET'),
-                'data_sources': parents_data_source,
+                'data_sources': ancestors_data_source,
                 'workflow': {
                     'id': workflow['id'],
                     'name': workflow['name'],
@@ -185,7 +185,7 @@ class Transpiler(object):
                 # except JSON (starting with {)
                 if definition['value'] is not None and not isinstance(
                         definition['value'], bool) and not isinstance(
-                            definition['value'], int):
+                    definition['value'], int):
                     if '"' in definition['value'] or "'" in definition['value']:
                         if definition['value'][0] != '{':
                             definition['value'] = TranspilerUtils.escape_chars(
@@ -229,7 +229,7 @@ class Transpiler(object):
             parameters['parents_by_port'] = port.get('parents_by_port', [])
             parameters['my_ports'] = port.get('my_ports', [])
 
-            #print task['name'], parameters['parents'] # port.get('parents', [])
+            # print task['name'], parameters['parents'] # port.get('parents', [])
 
             instance = class_name(parameters, port.get('named_inputs', {}),
                                   port.get('named_outputs', {}))
@@ -351,8 +351,10 @@ class Transpiler(object):
                                             'named_outputs': {}}
                     ports[target_id]['parents'].append(source_name)
                     ports[target_id]['parents_slug'].append(source_slug)
-                    ports[target_id]['parents_by_port'].append((flow['source_port_name'], source_name))
-                    ports[target_id]['my_ports'].append((flow['target_port_name'], source_name))
+                    ports[target_id]['parents_by_port'].append(
+                        (flow['source_port_name'], source_name))
+                    ports[target_id]['my_ports'].append(
+                        (flow['target_port_name'], source_name))
                     sequence = sequential_ports[flow_id]
 
                     source_port = ports[source_id]
@@ -379,8 +381,8 @@ class Transpiler(object):
                         else:
                             target_port['named_inputs'][flow_name] = sequence
                         target_port['inputs'].append(sequence)
-        #import pdb
-        #pdb.set_trace()
+        # import pdb
+        # pdb.set_trace()
 
         self.generate_code(graph, job_id, out, params,
                            ports, nx.topological_sort(graph), state,
@@ -414,10 +416,15 @@ class TranspilerUtils(object):
                 instance.has_code and instance.enabled]
 
     @staticmethod
-    def _get_parent_tasks(instances_map, instance, only_enabled=True):
+    def _get_parent_tasks(instances_map, instance, only_enabled=True,
+                          only_direct=True):
         if only_enabled:
             result = []
-            for parent_id in instance.parameters['task']['parents']:
+            if only_direct:
+                parents = instance.parameters['task']['parents']
+            else:
+                parents = instance.parameters['task']['ancestors']
+            for parent_id in parents:
                 parent = instances_map[parent_id]
                 if parent.has_code and parent.enabled:
                     method = '{}_{}'.format(
@@ -428,6 +435,7 @@ class TranspilerUtils(object):
         else:
             return [instances_map[parent_id] for parent_id in
                     instance.parameters['task']['parents']]
+
     @staticmethod
     def get_imports(instances):
         layer_import = "from keras.layers import "
@@ -454,8 +462,10 @@ class TranspilerUtils(object):
                     if not instance.import_code['model'] in model_list:
                         model_list.append(instance.import_code['model'])
                 if instance.import_code['preprocessing_image']:
-                    if not instance.import_code['preprocessing_image'] in preprocessing_image_list:
-                        preprocessing_image_list.append(instance.import_code['preprocessing_image'])
+                    if not instance.import_code[
+                        'preprocessing_image'] in preprocessing_image_list:
+                        preprocessing_image_list.append(
+                            instance.import_code['preprocessing_image'])
                 if instance.import_code['others']:
                     if not instance.import_code['others'] in others_list:
                         others_list.append(instance.import_code['others'])
@@ -468,14 +478,14 @@ class TranspilerUtils(object):
         if len(model_list) > 0:
             imports += model_import + ', '.join(model_list) + '\n'
         if len(preprocessing_image_list) > 0:
-            imports += preprocessing_image_import + ', '.join(preprocessing_image_list) + '\n'
+            imports += preprocessing_image_import + ', '.join(
+                preprocessing_image_list) + '\n'
         if len(others_list) > 0:
             imports += others_import + '\n'.join(others_list)
 
         imports = imports.replace(' , ', ', ')
 
         return imports
-
 
     @staticmethod
     def get_ids_and_methods(instances):
