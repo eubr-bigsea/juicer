@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
 
-import juicer.keras.core_layers as core_layers, convolutional_layers
 import os
 from juicer import operation
+from juicer.keras import merge_layers
+from juicer.keras import core_layers
+from juicer.keras import convolutional_layers
 from juicer.transpiler import Transpiler
 
 
@@ -24,13 +26,13 @@ class KerasTranspiler(Transpiler):
         core_ops = {
             'activation': core_layers.Activation,
             'activityRegularization': core_layers.ActivityRegularization,
-            'add': core_layers.Add,
-            'average': core_layers.Average,
+            'add': merge_layers.Add,
+            'average': merge_layers.Average,
             'average-pooling-1d': core_layers.AveragePooling1D,
             'average-pooling-2d': core_layers.AveragePooling2D,
             'average-pooling-3d': core_layers.AveragePooling3D,
             'batch-normalization': core_layers.BatchNormalization,
-            'concatenate': core_layers.Concatenate,
+            'concatenate': merge_layers.Concatenate,
             #'conv-lstm-2D': core_layers.ConvLSTM2D,
             'convolution-1d': convolutional_layers.Convolution1D,
             'convolution-2d': convolutional_layers.Convolution2D,
@@ -44,7 +46,7 @@ class KerasTranspiler(Transpiler):
             #'cu-dnn-lstm': core_layers.CUDNNLSTM,
             'depth-wise-conv-2d': convolutional_layers.DepthwiseConv2D,
             'dense': core_layers.Dense,
-            'dot': core_layers.Dot,
+            'dot': merge_layers.Dot,
             'dropout': core_layers.Dropout,
             'evaluate-model': core_layers.EvaluateModel,
             'flatten': core_layers.Flatten,
@@ -70,11 +72,11 @@ class KerasTranspiler(Transpiler):
             'max-pooling-1d': core_layers.MaxPooling1D,
             'max-pooling-2d': core_layers.MaxPooling2D,
             'max-pooling-3d': core_layers.MaxPooling3D,
-            'maximum': core_layers.Maximum,
-            'minimum': core_layers.Minimum,
+            'maximum': merge_layers.Maximum,
+            'minimum': merge_layers.Minimum,
             'model': core_layers.ModelGenerator,
             #'model-generator': core_layers.ModelGenerator,
-            'multiply': core_layers.Multiply,
+            'multiply': merge_layers.Multiply,
             #'optimizer': core_layers.OptimizerOperation,
             #'output': core_layers.OutputOperation,
             'permute': core_layers.Permute,
@@ -89,7 +91,7 @@ class KerasTranspiler(Transpiler):
             'spatialDropout1D': core_layers.SpatialDropout1D,
             'spatialDropout2D': core_layers.SpatialDropout2D,
             'spatialDropout3D': core_layers.SpatialDropout3D,
-            'subtract': core_layers.Subtract,
+            'subtract': merge_layers.Subtract,
             #'up-sampling-1d': core_layers.UpSampling1D,
             #'up-sampling-2d': core_layers.UpSampling2D,
             #'up-sampling-3d': core_layers.UpSampling3D,

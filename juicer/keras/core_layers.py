@@ -3128,819 +3128,6 @@ class GlobalAveragePooling3D(Operation):
                  parent=self.parent)
 
 
-class Add(Operation):
-    INPUTS_PARAM = 'inputs'
-    KWARGS_PARAM = 'kwargs'
-
-    def __init__(self, parameters, named_inputs, named_outputs):
-        Operation.__init__(self, parameters, named_inputs, named_outputs)
-        self.output = named_outputs.get('output data',
-                                        'out_task_{}'.format(self.order))
-
-        self.inputs = parameters.get(self.INPUTS_PARAM, None) or None
-        self.kwargs = parameters.get(self.KWARGS_PARAM, None) or None
-
-        self.task_name = self.parameters.get('task').get('name')
-        self.parents = ""
-        self.var_name = ""
-        self.has_code = True
-
-        self.add_functions_required = ""
-
-        self.parents_by_port = parameters.get('my_ports', [])
-        self.python_code_to_remove = self.remove_python_code_parent()
-        self.treatment()
-
-        self.import_code = {'layer': 'Add',
-                            'callbacks': [],
-                            'model': None,
-                            'preprocessing_image': None,
-                            'others': None}
-
-    def remove_python_code_parent(self):
-        python_code_to_remove = []
-        for parent in self.parents_by_port:
-            if parent[0] == 'python code':
-                python_code_to_remove.append(convert_parents_to_variable_name(
-                    [parent[1]])
-                )
-        return python_code_to_remove
-
-    def treatment(self):
-        self.parents = convert_parents_to_variable_name(self.parameters
-                                                        .get('parents', []))
-
-        self.var_name = convert_variable_name(self.task_name)
-        self.task_name = self.var_name
-
-        if self.inputs is not None:
-            self.inputs = re.sub(r"\{|\[|\(|\)|\]|\}|\s+", "", str(self.inputs))
-            self.inputs = self.inputs.split(',')
-
-        if self.parents:
-            if self.inputs:
-                self.inputs = self.inputs + self.parents
-            else:
-                self.inputs = self.parents
-
-            if len(self.inputs) < 2:
-                raise ValueError(
-                    gettext('Parameter {} requires at least 2.').format(
-                        self.INPUTS_PARAM))
-            self.inputs = '[{}]'.format(', '.join(self.inputs))
-
-        functions_required = []
-        if self.inputs is not None:
-            self.inputs = """inputs={inputs}""".format(inputs=self.inputs)
-            functions_required.append(self.inputs)
-        else:
-            raise ValueError(gettext('Parameter {} requires at least 2.')
-                             .format(self.INPUTS_PARAM))
-
-        if self.kwargs is not None:
-            # Format kwargs
-            self.kwargs = re.sub(r"^\s+|\s+$", "", self.kwargs)
-            self.kwargs = re.sub(r"\s+", " ", self.kwargs)
-            self.kwargs = re.sub(r"\s*,\s*", ", ", self.kwargs)
-            self.kwargs = re.sub(r"\s*=\s*", "=", self.kwargs)
-
-            args = self.kwargs.split(',')
-            args_params = self.kwargs.split('=')
-            if len(args) >= 1 and ((len(args_params) - len(args)) == 1):
-                self.kwargs = """{kwargs}""".format(kwargs=self.kwargs)
-                functions_required.append(self.kwargs)
-
-        self.add_functions_required = ',\n    '.join(functions_required)
-        if self.add_functions_required:
-            self.add_functions_required = ',\n    ' + self.add_functions_required
-
-    def generate_code(self):
-        return dedent(
-            """
-            {var_name} = add(
-                name='{name}'{add_functions_required}
-            )
-            """
-        ).format(var_name=self.var_name,
-                 name=self.task_name,
-                 add_functions_required=self.add_functions_required)
-
-
-class Subtract(Operation):
-    INPUTS_PARAM = 'inputs'
-    KWARGS_PARAM = 'kwargs'
-
-    def __init__(self, parameters, named_inputs, named_outputs):
-        Operation.__init__(self, parameters, named_inputs, named_outputs)
-        self.output = named_outputs.get('output data',
-                                        'out_task_{}'.format(self.order))
-
-        self.inputs = parameters.get(self.INPUTS_PARAM, None) or None
-        self.kwargs = parameters.get(self.KWARGS_PARAM, None) or None
-
-        self.task_name = self.parameters.get('task').get('name')
-        self.parents = ""
-        self.var_name = ""
-        self.has_code = True
-
-        self.add_functions_required = ""
-
-        self.parents_by_port = parameters.get('my_ports', [])
-        self.python_code_to_remove = self.remove_python_code_parent()
-        self.treatment()
-
-        self.import_code = {'layer': 'Subtract',
-                            'callbacks': [],
-                            'model': None,
-                            'preprocessing_image': None,
-                            'others': None}
-
-    def remove_python_code_parent(self):
-        python_code_to_remove = []
-        for parent in self.parents_by_port:
-            if parent[0] == 'python code':
-                python_code_to_remove.append(convert_parents_to_variable_name(
-                    [parent[1]])
-                )
-        return python_code_to_remove
-
-    def treatment(self):
-        self.parents = convert_parents_to_variable_name(self.parameters
-                                                        .get('parents', []))
-        for python_code in self.python_code_to_remove:
-            self.parents.remove(python_code[0])
-
-        self.var_name = convert_variable_name(self.task_name)
-        self.task_name = self.var_name
-
-        if self.inputs is not None:
-            self.inputs = re.sub(r"\{|\[|\(|\)|\]|\}|\s+", "", str(self.inputs))
-            self.inputs = self.inputs.split(',')
-
-        if self.parents:
-            if self.inputs:
-                self.inputs = self.inputs + self.parents
-            else:
-                self.inputs = self.parents
-
-            if len(self.inputs) < 2:
-                raise ValueError(
-                    gettext('Parameter {} requires at least 2.').format(
-                        self.INPUTS_PARAM))
-            self.inputs = '[{}]'.format(', '.join(self.inputs))
-
-        functions_required = []
-        if self.inputs is not None:
-            self.inputs = """inputs={inputs}""".format(inputs=self.inputs)
-            functions_required.append(self.inputs)
-        else:
-            raise ValueError(gettext('Parameter {} requires at least 2.')
-                             .format(self.INPUTS_PARAM))
-
-        if self.kwargs is not None:
-            # Format kwargs
-            self.kwargs = re.sub(r"^\s+|\s+$", "", self.kwargs)
-            self.kwargs = re.sub(r"\s+", " ", self.kwargs)
-            self.kwargs = re.sub(r"\s*,\s*", ", ", self.kwargs)
-            self.kwargs = re.sub(r"\s*=\s*", "=", self.kwargs)
-
-            args = self.kwargs.split(',')
-            args_params = self.kwargs.split('=')
-            if len(args) >= 1 and ((len(args_params) - len(args)) == 1):
-                self.kwargs = """{kwargs}""".format(kwargs=self.kwargs)
-                functions_required.append(self.kwargs)
-
-        self.add_functions_required = ',\n    '.join(functions_required)
-        if self.add_functions_required:
-            self.add_functions_required = ',\n    ' + self.add_functions_required
-
-    def generate_code(self):
-        return dedent(
-            """
-            {var_name} = subtract(
-                name='{name}'{add_functions_required}
-            )
-            """
-        ).format(var_name=self.var_name,
-                 name=self.task_name,
-                 add_functions_required=self.add_functions_required)
-
-
-class Multiply(Operation):
-    INPUTS_PARAM = 'inputs'
-    KWARGS_PARAM = 'kwargs'
-
-    def __init__(self, parameters, named_inputs, named_outputs):
-        Operation.__init__(self, parameters, named_inputs, named_outputs)
-        self.output = named_outputs.get('output data',
-                                        'out_task_{}'.format(self.order))
-
-        self.inputs = parameters.get(self.INPUTS_PARAM, None) or None
-        self.kwargs = parameters.get(self.KWARGS_PARAM, None) or None
-
-        self.task_name = self.parameters.get('task').get('name')
-        self.parents = ""
-        self.var_name = ""
-        self.has_code = True
-
-        self.add_functions_required = ""
-
-        self.parents_by_port = parameters.get('my_ports', [])
-        self.python_code_to_remove = self.remove_python_code_parent()
-        self.treatment()
-
-        self.import_code = {'layer': 'multiply',
-                            'callbacks': [],
-                            'model': None,
-                            'preprocessing_image': None,
-                            'others': None}
-
-    def remove_python_code_parent(self):
-        python_code_to_remove = []
-        for parent in self.parents_by_port:
-            if parent[0] == 'python code':
-                python_code_to_remove.append(convert_parents_to_variable_name(
-                    [parent[1]])
-                )
-        return python_code_to_remove
-
-    def treatment(self):
-        self.parents = convert_parents_to_variable_name(self.parameters
-                                                        .get('parents', []))
-        for python_code in self.python_code_to_remove:
-            self.parents.remove(python_code[0])
-
-        self.var_name = convert_variable_name(self.task_name)
-        self.task_name = self.var_name
-
-        if self.inputs is not None:
-            self.inputs = re.sub(r"\{|\[|\(|\)|\]|\}|\s+", "", str(self.inputs))
-            self.inputs = self.inputs.split(',')
-
-        if self.parents:
-            if self.inputs:
-                self.inputs = self.inputs + self.parents
-            else:
-                self.inputs = self.parents
-
-            if len(self.inputs) < 2:
-                raise ValueError(
-                    gettext('Parameter {} requires at least 2.').format(
-                        self.INPUTS_PARAM))
-            self.inputs = '{}'.format(', '.join(self.inputs))
-
-        functions_required = []
-        if self.inputs is not None:
-            self.inputs = """inputs=[{inputs}]""".format(inputs=self.inputs)
-            functions_required.append(self.inputs)
-        else:
-            raise ValueError(gettext('Parameter {} requires at least 2.')
-                             .format(self.INPUTS_PARAM))
-
-        if self.kwargs is not None:
-            # Format kwargs
-            self.kwargs = re.sub(r"^\s+|\s+$", "", self.kwargs)
-            self.kwargs = re.sub(r"\s+", " ", self.kwargs)
-            self.kwargs = re.sub(r"\s*,\s*", ", ", self.kwargs)
-            self.kwargs = re.sub(r"\s*=\s*", "=", self.kwargs)
-
-            args = self.kwargs.split(',')
-            args_params = self.kwargs.split('=')
-            if len(args) >= 1 and ((len(args_params) - len(args)) == 1):
-                self.kwargs = """{kwargs}""".format(kwargs=self.kwargs)
-                functions_required.append(self.kwargs)
-
-        self.add_functions_required = ',\n    '.join(functions_required)
-        if self.add_functions_required:
-            self.add_functions_required = ',\n    ' + self.add_functions_required
-
-    def generate_code(self):
-        return dedent(
-            """
-            {var_name} = multiply(
-                name='{name}'{add_functions_required}
-            )
-            """
-        ).format(var_name=self.var_name,
-                 name=self.task_name,
-                 add_functions_required=self.add_functions_required)
-
-
-class Average(Operation):
-    INPUTS_PARAM = 'inputs'
-    KWARGS_PARAM = 'kwargs'
-
-    def __init__(self, parameters, named_inputs, named_outputs):
-        Operation.__init__(self, parameters, named_inputs, named_outputs)
-        self.output = named_outputs.get('output data',
-                                        'out_task_{}'.format(self.order))
-
-        self.inputs = parameters.get(self.INPUTS_PARAM, None) or None
-        self.kwargs = parameters.get(self.KWARGS_PARAM, None) or None
-
-        self.task_name = self.parameters.get('task').get('name')
-        self.parents = ""
-        self.var_name = ""
-        self.has_code = True
-
-        self.add_functions_required = ""
-
-        self.parents_by_port = parameters.get('my_ports', [])
-        self.python_code_to_remove = self.remove_python_code_parent()
-        self.treatment()
-
-        self.import_code = {'layer': 'Average',
-                            'callbacks': [],
-                            'model': None,
-                            'preprocessing_image': None,
-                            'others': None}
-
-    def remove_python_code_parent(self):
-        python_code_to_remove = []
-        for parent in self.parents_by_port:
-            if parent[0] == 'python code':
-                python_code_to_remove.append(convert_parents_to_variable_name(
-                    [parent[1]])
-                )
-        return python_code_to_remove
-
-    def treatment(self):
-        self.parents = convert_parents_to_variable_name(self.parameters
-                                                        .get('parents', []))
-        for python_code in self.python_code_to_remove:
-            self.parents.remove(python_code[0])
-
-        self.var_name = convert_variable_name(self.task_name)
-        self.task_name = self.var_name
-
-        if self.inputs is not None:
-            self.inputs = re.sub(r"\{|\[|\(|\)|\]|\}|\s+", "", str(self.inputs))
-            self.inputs = self.inputs.split(',')
-
-        if self.parents:
-            if self.inputs:
-                self.inputs = self.inputs + self.parents
-            else:
-                self.inputs = self.parents
-
-            if len(self.inputs) < 2:
-                raise ValueError(
-                    gettext('Parameter {} requires at least 2.').format(
-                        self.INPUTS_PARAM))
-            self.inputs = '[{}]'.format(', '.join(self.inputs))
-
-        functions_required = []
-        if self.inputs is not None:
-            self.inputs = """inputs={inputs}""".format(inputs=self.inputs)
-            functions_required.append(self.inputs)
-        else:
-            raise ValueError(gettext('Parameter {} requires at least 2.')
-                             .format(self.INPUTS_PARAM))
-
-        if self.kwargs is not None:
-            # Format kwargs
-            self.kwargs = re.sub(r"^\s+|\s+$", "", self.kwargs)
-            self.kwargs = re.sub(r"\s+", " ", self.kwargs)
-            self.kwargs = re.sub(r"\s*,\s*", ", ", self.kwargs)
-            self.kwargs = re.sub(r"\s*=\s*", "=", self.kwargs)
-
-            args = self.kwargs.split(',')
-            args_params = self.kwargs.split('=')
-            if len(args) >= 1 and ((len(args_params) - len(args)) == 1):
-                self.kwargs = """{kwargs}""".format(kwargs=self.kwargs)
-                functions_required.append(self.kwargs)
-
-        self.add_functions_required = ',\n    '.join(functions_required)
-        if self.add_functions_required:
-            self.add_functions_required = ',\n    ' + self.add_functions_required
-
-    def generate_code(self):
-        return dedent(
-            """
-            {var_name} = average(
-                name='{name}'{add_functions_required}
-            )
-            """
-        ).format(var_name=self.var_name,
-                 name=self.task_name,
-                 add_functions_required=self.add_functions_required)
-
-
-class Maximum(Operation):
-    INPUTS_PARAM = 'inputs'
-    KWARGS_PARAM = 'kwargs'
-
-    def __init__(self, parameters, named_inputs, named_outputs):
-        Operation.__init__(self, parameters, named_inputs, named_outputs)
-        self.output = named_outputs.get('output data',
-                                        'out_task_{}'.format(self.order))
-
-        self.inputs = parameters.get(self.INPUTS_PARAM, None) or None
-        self.kwargs = parameters.get(self.KWARGS_PARAM, None) or None
-
-        self.task_name = self.parameters.get('task').get('name')
-        self.parents = ""
-        self.var_name = ""
-        self.has_code = True
-
-        self.add_functions_required = ""
-
-        self.parents_by_port = parameters.get('my_ports', [])
-        self.python_code_to_remove = self.remove_python_code_parent()
-        self.treatment()
-
-        self.import_code = {'layer': 'Maximum',
-                            'callbacks': [],
-                            'model': None,
-                            'preprocessing_image': None,
-                            'others': None}
-
-    def remove_python_code_parent(self):
-        python_code_to_remove = []
-        for parent in self.parents_by_port:
-            if parent[0] == 'python code':
-                python_code_to_remove.append(convert_parents_to_variable_name(
-                    [parent[1]])
-                )
-        return python_code_to_remove
-
-    def treatment(self):
-        self.parents = convert_parents_to_variable_name(self.parameters
-                                                        .get('parents', []))
-        for python_code in self.python_code_to_remove:
-            self.parents.remove(python_code[0])
-
-        self.var_name = convert_variable_name(self.task_name)
-        self.task_name = self.var_name
-
-        if self.inputs is not None:
-            self.inputs = re.sub(r"\{|\[|\(|\)|\]|\}|\s+", "", str(self.inputs))
-            self.inputs = self.inputs.split(',')
-
-        if self.parents:
-            if self.inputs:
-                self.inputs = self.inputs + self.parents
-            else:
-                self.inputs = self.parents
-
-            if len(self.inputs) < 2:
-                raise ValueError(
-                    gettext('Parameter {} requires at least 2.').format(
-                        self.INPUTS_PARAM))
-            self.inputs = '[{}]'.format(', '.join(self.inputs))
-
-        functions_required = []
-        if self.inputs is not None:
-            self.inputs = """inputs={inputs}""".format(inputs=self.inputs)
-            functions_required.append(self.inputs)
-        else:
-            raise ValueError(gettext('Parameter {} requires at least 2.')
-                             .format(self.INPUTS_PARAM))
-
-        if self.kwargs is not None:
-            # Format kwargs
-            self.kwargs = re.sub(r"^\s+|\s+$", "", self.kwargs)
-            self.kwargs = re.sub(r"\s+", " ", self.kwargs)
-            self.kwargs = re.sub(r"\s*,\s*", ", ", self.kwargs)
-            self.kwargs = re.sub(r"\s*=\s*", "=", self.kwargs)
-
-            args = self.kwargs.split(',')
-            args_params = self.kwargs.split('=')
-            if len(args) >= 1 and ((len(args_params) - len(args)) == 1):
-                self.kwargs = """{kwargs}""".format(kwargs=self.kwargs)
-                functions_required.append(self.kwargs)
-
-        self.add_functions_required = ',\n    '.join(functions_required)
-        if self.add_functions_required:
-            self.add_functions_required = ',\n    ' + self.add_functions_required
-
-    def generate_code(self):
-        return dedent(
-            """
-            {var_name} = maximum(
-                name='{name}'{add_functions_required}
-            )
-            """
-        ).format(var_name=self.var_name,
-                 name=self.task_name,
-                 add_functions_required=self.add_functions_required)
-
-
-class Minimum(Operation):
-    INPUTS_PARAM = 'inputs'
-    KWARGS_PARAM = 'kwargs'
-
-    def __init__(self, parameters, named_inputs, named_outputs):
-        Operation.__init__(self, parameters, named_inputs, named_outputs)
-        self.output = named_outputs.get('output data',
-                                        'out_task_{}'.format(self.order))
-
-        self.inputs = parameters.get(self.INPUTS_PARAM, None) or None
-        self.kwargs = parameters.get(self.KWARGS_PARAM, None) or None
-
-        self.task_name = self.parameters.get('task').get('name')
-        self.parents = ""
-        self.var_name = ""
-        self.has_code = True
-
-        self.add_functions_required = ""
-
-        self.parents_by_port = parameters.get('my_ports', [])
-        self.python_code_to_remove = self.remove_python_code_parent()
-        self.treatment()
-
-        self.import_code = {'layer': 'Minimum',
-                            'callbacks': [],
-                            'model': None,
-                            'preprocessing_image': None,
-                            'others': None}
-
-    def remove_python_code_parent(self):
-        python_code_to_remove = []
-        for parent in self.parents_by_port:
-            if parent[0] == 'python code':
-                python_code_to_remove.append(convert_parents_to_variable_name(
-                    [parent[1]])
-                )
-        return python_code_to_remove
-
-    def treatment(self):
-        self.parents = convert_parents_to_variable_name(self.parameters
-                                                        .get('parents', []))
-        for python_code in self.python_code_to_remove:
-            self.parents.remove(python_code[0])
-
-        self.var_name = convert_variable_name(self.task_name)
-        self.task_name = self.var_name
-
-        if self.inputs is not None:
-            self.inputs = re.sub(r"\{|\[|\(|\)|\]|\}|\s+", "", str(self.inputs))
-            self.inputs = self.inputs.split(',')
-
-        if self.parents:
-            if self.inputs:
-                self.inputs = self.inputs + self.parents
-            else:
-                self.inputs = self.parents
-
-            if len(self.inputs) < 2:
-                raise ValueError(
-                    gettext('Parameter {} requires at least 2.').format(
-                        self.INPUTS_PARAM))
-            self.inputs = '[{}]'.format(', '.join(self.inputs))
-
-        functions_required = []
-        if self.inputs is not None:
-            self.inputs = """inputs={inputs}""".format(inputs=self.inputs)
-            functions_required.append(self.inputs)
-        else:
-            raise ValueError(gettext('Parameter {} requires at least 2.')
-                             .format(self.INPUTS_PARAM))
-
-        if self.kwargs is not None:
-            # Format kwargs
-            self.kwargs = re.sub(r"^\s+|\s+$", "", self.kwargs)
-            self.kwargs = re.sub(r"\s+", " ", self.kwargs)
-            self.kwargs = re.sub(r"\s*,\s*", ", ", self.kwargs)
-            self.kwargs = re.sub(r"\s*=\s*", "=", self.kwargs)
-
-            args = self.kwargs.split(',')
-            args_params = self.kwargs.split('=')
-            if len(args) >= 1 and ((len(args_params) - len(args)) == 1):
-                self.kwargs = """{kwargs}""".format(kwargs=self.kwargs)
-                functions_required.append(self.kwargs)
-
-        self.add_functions_required = ',\n    '.join(functions_required)
-        if self.add_functions_required:
-            self.add_functions_required = ',\n    ' + self.add_functions_required
-
-    def generate_code(self):
-        return dedent(
-            """
-            {var_name} = minimum(
-                name='{name}'{add_functions_required}
-            )
-            """
-        ).format(var_name=self.var_name,
-                 name=self.task_name,
-                 add_functions_required=self.add_functions_required)
-
-
-class Concatenate(Operation):
-    INPUTS_PARAM = 'inputs'
-    AXIS_PARAM = 'axis'
-    KWARGS_PARAM = 'kwargs'
-
-    def __init__(self, parameters, named_inputs, named_outputs):
-        Operation.__init__(self, parameters, named_inputs, named_outputs)
-        self.output = named_outputs.get('output data',
-                                        'out_task_{}'.format(self.order))
-
-        self.inputs = parameters.get(self.INPUTS_PARAM, None) or None
-        self.axis = parameters.get(self.AXIS_PARAM, None) or None
-        self.kwargs = parameters.get(self.KWARGS_PARAM, None) or None
-
-        self.task_name = self.parameters.get('task').get('name')
-        self.parents = ""
-        self.var_name = ""
-        self.has_code = True
-
-        self.add_functions_required = ""
-
-        self.parents_by_port = parameters.get('my_ports', [])
-        self.python_code_to_remove = self.remove_python_code_parent()
-        self.treatment()
-
-        self.import_code = {'layer': 'Concatenate',
-                            'callbacks': [],
-                            'model': None,
-                            'preprocessing_image': None,
-                            'others': None}
-
-    def remove_python_code_parent(self):
-        python_code_to_remove = []
-        for parent in self.parents_by_port:
-            if parent[0] == 'python code':
-                python_code_to_remove.append(convert_parents_to_variable_name(
-                    [parent[1]])
-                )
-        return python_code_to_remove
-
-    def treatment(self):
-        self.parents = convert_parents_to_variable_name(self.parameters
-                                                        .get('parents', []))
-        for python_code in self.python_code_to_remove:
-            self.parents.remove(python_code[0])
-
-        self.var_name = convert_variable_name(self.task_name)
-        self.task_name = self.var_name
-
-        if self.inputs is not None:
-            self.inputs = re.sub(r"\{|\[|\(|\)|\]|\}|\s+", "", str(self.inputs))
-            self.inputs = self.inputs.split(',')
-
-        if self.parents:
-            if self.inputs:
-                self.inputs = self.inputs + self.parents
-            else:
-                self.inputs = self.parents
-
-            if len(self.inputs) < 2:
-                raise ValueError(
-                    gettext('Parameter {} requires at least 2.').format(
-                        self.INPUTS_PARAM))
-            self.inputs = '[{}]'.format(', '.join(self.inputs))
-
-        functions_required = []
-        if self.inputs is not None:
-            self.inputs = """inputs={inputs}""".format(inputs=self.inputs)
-            functions_required.append(self.inputs)
-        else:
-            raise ValueError(gettext('Parameter {} requires at least 2.')
-                             .format(self.INPUTS_PARAM))
-
-        if self.kwargs is not None:
-            # Format kwargs
-            self.kwargs = re.sub(r"^\s+|\s+$", "", self.kwargs)
-            self.kwargs = re.sub(r"\s+", " ", self.kwargs)
-            self.kwargs = re.sub(r"\s*,\s*", ", ", self.kwargs)
-            self.kwargs = re.sub(r"\s*=\s*", "=", self.kwargs)
-
-            args = self.kwargs.split(',')
-            args_params = self.kwargs.split('=')
-            if len(args) >= 1 and ((len(args_params) - len(args)) == 1):
-                self.kwargs = """{kwargs}""".format(kwargs=self.kwargs)
-                functions_required.append(self.kwargs)
-
-        self.add_functions_required = ',\n    '.join(functions_required)
-        if self.add_functions_required:
-            self.add_functions_required = ',\n    ' + self.add_functions_required
-
-    def generate_code(self):
-        return dedent(
-            """
-            {var_name} = concatenate(
-                name='{name}',
-                axis=axis{add_functions_required}
-            )
-            """
-        ).format(var_name=self.var_name,
-                 axis=self.axis,
-                 add_functions_required=self.add_functions_required)
-
-
-class Dot(Operation):
-    INPUTS_PARAM = 'inputs'
-    AXES_PARAM = 'axes'
-    NORMALIZE_PARAM = 'normalize'
-    KWARGS_PARAM = 'kwargs'
-
-    def __init__(self, parameters, named_inputs, named_outputs):
-        Operation.__init__(self, parameters, named_inputs, named_outputs)
-        self.output = named_outputs.get('output data',
-                                        'out_task_{}'.format(self.order))
-
-        self.inputs = parameters.get(self.INPUTS_PARAM, None) or None
-        self.axes = parameters.get(self.AXES_PARAM, None) or None
-        self.normalize = parameters.get(self.NORMALIZE_PARAM, None) or None
-        self.kwargs = parameters.get(self.KWARGS_PARAM, None) or None
-
-        self.task_name = self.parameters.get('task').get('name')
-        self.parents = ""
-        self.var_name = ""
-        self.has_code = True
-
-        self.add_functions_required = ""
-
-        self.parents_by_port = parameters.get('my_ports', [])
-        self.python_code_to_remove = self.remove_python_code_parent()
-        self.treatment()
-
-        self.import_code = {'layer': 'Dot',
-                            'callbacks': [],
-                            'model': None,
-                            'preprocessing_image': None,
-                            'others': None}
-
-    def remove_python_code_parent(self):
-        python_code_to_remove = []
-        for parent in self.parents_by_port:
-            if parent[0] == 'python code':
-                python_code_to_remove.append(convert_parents_to_variable_name(
-                    [parent[1]])
-                )
-        return python_code_to_remove
-
-    def treatment(self):
-        self.parents = convert_parents_to_variable_name(self.parameters
-                                                        .get('parents', []))
-        for python_code in self.python_code_to_remove:
-            self.parents.remove(python_code[0])
-
-        self.var_name = convert_variable_name(self.task_name)
-        self.task_name = self.var_name
-
-        self.normalize = True if int(self.normalize) == 1 else False
-
-        if self.inputs is not None:
-            self.inputs = re.sub(r"\{|\[|\(|\)|\]|\}|\s+", "", str(self.inputs))
-            self.inputs = self.inputs.split(',')
-
-        if self.parents:
-            if self.inputs:
-                self.inputs = self.inputs + self.parents
-            else:
-                self.inputs = self.parents
-
-            if len(self.inputs) < 2:
-                raise ValueError(
-                    gettext('Parameter {} requires at least 2.').format(
-                        self.INPUTS_PARAM))
-            self.inputs = '[{}]'.format(', '.join(self.inputs))
-
-        functions_required = []
-        if self.inputs is not None:
-            self.inputs = """inputs={inputs}""".format(inputs=self.inputs)
-            functions_required.append(self.inputs)
-        else:
-            raise ValueError(gettext('Parameter {} requires at least 2.')
-                             .format(self.INPUTS_PARAM))
-
-        if self.axes is not None:
-            self.axes = get_tuple(self.axes)
-            functions_required.append(self.axes)
-
-        if self.kwargs is not None:
-            # Format kwargs
-            self.kwargs = re.sub(r"^\s+|\s+$", "", self.kwargs)
-            self.kwargs = re.sub(r"\s+", " ", self.kwargs)
-            self.kwargs = re.sub(r"\s*,\s*", ", ", self.kwargs)
-            self.kwargs = re.sub(r"\s*=\s*", "=", self.kwargs)
-
-            args = self.kwargs.split(',')
-            args_params = self.kwargs.split('=')
-            if len(args) >= 1 and ((len(args_params) - len(args)) == 1):
-                self.kwargs = """{kwargs}""".format(kwargs=self.kwargs)
-                functions_required.append(self.kwargs)
-
-        self.add_functions_required = ',\n    '.join(functions_required)
-        if self.add_functions_required:
-            self.add_functions_required = ',\n    ' + self.add_functions_required
-
-    def generate_code(self):
-        return dedent(
-            """
-            {var_name} = multiply(
-                name='{name},
-                normalize={normalize}{add_functions_required}
-            )
-            """
-        ).format(var_name=self.var_name,
-                 name=self.task_name,
-                 normalize=self.normalize,
-                 add_functions_required=self.add_functions_required)
-
-
 class ModelGenerator(Operation):
     # Compile
     OPTIMIZER_PARAM = 'optimizer'
@@ -4070,6 +3257,7 @@ class ModelGenerator(Operation):
                              .format(self.EPOCHS_PARAM))
 
         self.parents_by_port = parameters.get('my_ports', [])
+        self.parents_slug = parameters.get('parents_slug', [])
 
         if len(self.parents_by_port) == 0:
             raise ValueError(gettext('The operation needs the inputs.'))
@@ -4109,12 +3297,21 @@ class ModelGenerator(Operation):
             elif str(parent[0]) == 'validation-generator':
                 validation = convert_variable_name(parent[1])
 
-        self.validation_generator = 'validation_{var_name}' \
-            .format(var_name=validation)
+        for i in range(len(self.input_layers)):
+            if self.parents_slug[i] == 'model':
+                self.parents[i] += '.output'
+
+        if validation:
+            self.validation_generator = 'validation_{var_name}' \
+                .format(var_name=validation)
 
         if self.train_generator is None:
-            raise ValueError(gettext('It is necessary to inform the training '
-                                     'data.'))
+            self.show_results = False
+            if self.validation_generator:
+                raise ValueError(gettext('It is not possible to use only '
+                                         'validation data.'))
+        #     raise ValueError(gettext('It is necessary to inform the training '
+        #                              'data.'))
 
         if len(self.input_layers) == 0:
             raise ValueError(gettext('It is necessary to inform the input(s) '
@@ -4551,220 +3748,348 @@ class ModelGenerator(Operation):
                      task_id=self.output_task_id)
 
     def generate_history_code(self):
-        if self.classification_report:
-            if self.is_video_generator:
-                return dedent(
-                    """
-                    history = {var_name}.fit_generator(
-                    {add_functions_required_fit_generator}
-                    )
-                    emit_event(
-                        name='update task',
-                        message=tab(table=history.history,
-                                    add_epoch=True,
-                                    metric='History',
-                                    headers=history.history.keys()
-                        ),
-                        type='HTML',
-                        status='RESULTS',
-                        identifier='{task_id}'
-                    )
-                    
-                    # Reports for the training
-                    batch_size = training_video_generator.batch_size
-                    number_of_videos = len(training_video_generator.classes)
-                    
-                    if number_of_videos % batch_size == 0:
-                        steps = number_of_videos // batch_size
+        if self.train_generator:
+            if self.classification_report:
+                if self.validation_generator:
+                    if self.is_video_generator:
+                        return dedent(
+                            """
+                            history = {var_name}.fit_generator(
+                            {add_functions_required_fit_generator}
+                            )
+                            emit_event(
+                                name='update task',
+                                message=tab(table=history.history,
+                                            add_epoch=True,
+                                            metric='History',
+                                            headers=history.history.keys()
+                                ),
+                                type='HTML',
+                                status='RESULTS',
+                                identifier='{task_id}'
+                            )
+                            
+                            # Reports for the training
+                            batch_size = training_video_generator.batch_size
+                            number_of_videos = len(training_video_generator.classes)
+                            
+                            if number_of_videos % batch_size == 0:
+                                steps = number_of_videos // batch_size
+                            else:
+                                steps = (number_of_videos // batch_size) + 1
+                                
+                            predictions = {var_name}.predict_generator(
+                                generator=predict_{train_generator},
+                                steps=steps,
+                                verbose=1
+                            )
+                            
+                            predictions_to_matrix = np.argmax(predictions, axis=1)
+                            
+                            report = classification_report(
+                                y_true=predict_training_video_generator.classes,
+                                y_pred=predictions_to_matrix,
+                                labels=class_mapping.values(),
+                                target_names=class_mapping.keys(),
+                                output_dict=False
+                            )
+                            
+                            message = '\\n<h5>Classification Report - Training</h5>'
+                            message += '<pre>' + report + '</pre>'
+                            emit_event(name='update task',
+                                message=message,
+                                type='HTML',
+                                status='RESULTS',
+                                identifier='{task_id}'
+                            ) 
+                            
+                            # Reports for the validation
+                            batch_size = validation_video_generator.batch_size
+                            number_of_videos = len(validation_video_generator.classes)
+                            
+                            if number_of_videos % batch_size == 0:
+                                steps = number_of_videos // batch_size
+                            else:
+                                steps = (number_of_videos // batch_size) + 1
+                            
+                            predictions = {var_name}.predict_generator(
+                                generator=predict_{val_generator},
+                                steps=steps,
+                                verbose=1
+                            )
+                            
+                            predictions_to_matrix = np.argmax(predictions, axis=1)
+                            
+                            report = classification_report(
+                                y_true=predict_validation_video_generator.classes,
+                                y_pred=predictions_to_matrix,
+                                labels=class_mapping.values(),
+                                target_names=class_mapping.keys(),
+                                output_dict=False
+                            )
+                            
+                            message = '\\n<h5>Classification Report - Validation</h5>'
+                            message += '<pre>' + report + '</pre>'
+                            emit_event(name='update task',
+                                message=message,
+                                type='HTML',
+                                status='RESULTS',
+                                identifier='{task_id}'
+                            )
+                            
+                            """
+                        ).format(var_name=self.var_name,
+                                 add_functions_required_fit_generator=
+                                 self.add_functions_required_fit_generator,
+                                 val_generator=self.validation_generator
+                                 .replace('validation_data=', ''),
+                                 train_generator=self.train_generator
+                                 .replace('generator=', '').replace(' ', ''),
+                                 task_id=self.output_task_id)
                     else:
-                        steps = (number_of_videos // batch_size) + 1
-                        
-                    predictions = {var_name}.predict_generator(
-                        generator=predict_{train_generator},
-                        steps=steps,
-                        verbose=1
-                    )
-                    
-                    predictions_to_matrix = np.argmax(predictions, axis=1)
-                    
-                    report = classification_report(
-                        y_true=predict_training_video_generator.classes,
-                        y_pred=predictions_to_matrix,
-                        labels=class_mapping.values(),
-                        target_names=class_mapping.keys(),
-                        output_dict=False
-                    )
-                    
-                    message = '\\n<h5>Classification Report - Training</h5>'
-                    message += '<pre>' + report + '</pre>'
-                    emit_event(name='update task',
-                        message=message,
-                        type='HTML',
-                        status='RESULTS',
-                        identifier='{task_id}'
-                    ) 
-                    
-                    # Reports for the validation
-                    batch_size = validation_video_generator.batch_size
-                    number_of_videos = len(validation_video_generator.classes)
-                    
-                    if number_of_videos % batch_size == 0:
-                        steps = number_of_videos // batch_size
+                        return dedent(
+                            """
+                            history = {var_name}.fit_generator(
+                            {add_functions_required_fit_generator}
+                            )
+                            emit_event(
+                                name='update task',
+                                message=tab(table=history.history,
+                                            add_epoch=True,
+                                            metric='History',
+                                            headers=history.history.keys()
+                                ),
+                                type='HTML',
+                                status='RESULTS',
+                                identifier='{task_id}'
+                            )
+                            
+                            # Reports for the training
+                            batch_size = {train_generator}.batch_size
+                            number_of_videos = len(training_video_generator.classes)
+                            
+                            if number_of_videos % batch_size == 0:
+                                steps = number_of_videos // batch_size
+                            else:
+                                steps = (number_of_videos // batch_size) + 1
+                                
+                            predictions = {var_name}.predict_generator(
+                                generator={train_generator},
+                                steps=steps
+                            )
+                            
+                            predictions_to_matrix = np.argmax(predictions, axis=1)
+                            
+                            target_names = {train_generator}.class_indices.keys()
+                            labels = {train_generator}.class_indices.values()
+                            report = classification_report(
+                                y_true={train_generator}.classes,
+                                y_pred=predictions_to_matrix,
+                                labels=labels,
+                                target_names=target_names,
+                                output_dict=False
+                            )
+                            
+                            message = '\\n<h5>Classification Report - Training</h5>'
+                            message += '<pre>' + report + '</pre>'
+                            emit_event(name='update task',
+                                message=message,
+                                type='HTML',
+                                status='RESULTS',
+                                identifier='{task_id}'
+                            ) 
+                            
+                            # Reports for the validation
+                            batch_size = {val_generator}.batch_size
+                            number_of_videos = len({val_generator}.classes)
+                            
+                            if number_of_videos % batch_size == 0:
+                                steps = number_of_videos // batch_size
+                            else:
+                                steps = (number_of_videos // batch_size) + 1
+                                
+                            predictions = {var_name}.predict_generator(
+                                generator={val_generator},
+                                steps=steps,
+                                workers={workers},
+                                use_multiprocessing=True
+                            )
+                            
+                            predictions_to_matrix = np.argmax(predictions, axis=1)
+                            
+                            target_names = {val_generator}.class_indices.keys()
+                            labels = {val_generator}.class_indices.values()
+                            report = classification_report(
+                                y_true={val_generator}.classes,
+                                y_pred=predictions_to_matrix,
+                                labels=labels,
+                                target_names=target_names,
+                                output_dict=False
+                            )
+                            
+                            message = '\\n<h5>Classification Report - Validation</h5>'
+                            message += '<pre>' + report + '</pre>'
+                            emit_event(name='update task',
+                                message=message,
+                                type='HTML',
+                                status='RESULTS',
+                                identifier='{task_id}'
+                            )
+                            
+                            """
+                        ).format(var_name=self.var_name,
+                                 add_functions_required_fit_generator=
+                                 self.add_functions_required_fit_generator,
+                                 val_generator=self.validation_generator
+                                 .replace('validation_data=', ''),
+                                 train_generator=self.train_generator
+                                 .replace('generator=', '').replace(' ', ''),
+                                 task_id=self.output_task_id,
+                                 workers=str(self.workers).replace('workers=', '')
+                                 .replace(' ', ''))
+                else:
+                    if self.is_video_generator:
+                        return dedent(
+                            """
+                            history = {var_name}.fit_generator(
+                            {add_functions_required_fit_generator}
+                            )
+                            emit_event(
+                                name='update task',
+                                message=tab(table=history.history,
+                                            add_epoch=True,
+                                            metric='History',
+                                            headers=history.history.keys()
+                                ),
+                                type='HTML',
+                                status='RESULTS',
+                                identifier='{task_id}'
+                            )
+                            
+                            # Reports for the training
+                            batch_size = training_video_generator.batch_size
+                            number_of_videos = len(training_video_generator.classes)
+                            
+                            if number_of_videos % batch_size == 0:
+                                steps = number_of_videos // batch_size
+                            else:
+                                steps = (number_of_videos // batch_size) + 1
+                                
+                            predictions = {var_name}.predict_generator(
+                                generator=predict_{train_generator},
+                                steps=steps,
+                                verbose=1
+                            )
+                            
+                            predictions_to_matrix = np.argmax(predictions, axis=1)
+                            
+                            report = classification_report(
+                                y_true=predict_training_video_generator.classes,
+                                y_pred=predictions_to_matrix,
+                                labels=class_mapping.values(),
+                                target_names=class_mapping.keys(),
+                                output_dict=False
+                            )
+                            
+                            message = '\\n<h5>Classification Report - Training</h5>'
+                            message += '<pre>' + report + '</pre>'
+                            emit_event(name='update task',
+                                message=message,
+                                type='HTML',
+                                status='RESULTS',
+                                identifier='{task_id}'
+                            )
+                            
+                            """
+                        ).format(var_name=self.var_name,
+                                 add_functions_required_fit_generator=
+                                 self.add_functions_required_fit_generator,
+                                 val_generator=self.validation_generator
+                                 .replace('validation_data=', ''),
+                                 train_generator=self.train_generator
+                                 .replace('generator=', '').replace(' ', ''),
+                                 task_id=self.output_task_id)
                     else:
-                        steps = (number_of_videos // batch_size) + 1
-                    
-                    predictions = {var_name}.predict_generator(
-                        generator=predict_{val_generator},
-                        steps=steps,
-                        verbose=1
-                    )
-                    
-                    predictions_to_matrix = np.argmax(predictions, axis=1)
-                    
-                    report = classification_report(
-                        y_true=predict_validation_video_generator.classes,
-                        y_pred=predictions_to_matrix,
-                        labels=class_mapping.values(),
-                        target_names=class_mapping.keys(),
-                        output_dict=False
-                    )
-                    
-                    message = '\\n<h5>Classification Report - Validation</h5>'
-                    message += '<pre>' + report + '</pre>'
-                    emit_event(name='update task',
-                        message=message,
-                        type='HTML',
-                        status='RESULTS',
-                        identifier='{task_id}'
-                    )
-                    
-                    """
-                ).format(var_name=self.var_name,
-                         add_functions_required_fit_generator=
-                         self.add_functions_required_fit_generator,
-                         val_generator=self.validation_generator
-                         .replace('validation_data=', ''),
-                         train_generator=self.train_generator
-                         .replace('generator=', '').replace(' ', ''),
-                         task_id=self.output_task_id)
+                        return dedent(
+                            """
+                            history = {var_name}.fit_generator(
+                            {add_functions_required_fit_generator}
+                            )
+                            emit_event(
+                                name='update task',
+                                message=tab(table=history.history,
+                                            add_epoch=True,
+                                            metric='History',
+                                            headers=history.history.keys()
+                                ),
+                                type='HTML',
+                                status='RESULTS',
+                                identifier='{task_id}'
+                            )
+                            
+                            # Reports for the training
+                            batch_size = {train_generator}.batch_size
+                            number_of_videos = len(training_video_generator.classes)
+                            
+                            if number_of_videos % batch_size == 0:
+                                steps = number_of_videos // batch_size
+                            else:
+                                steps = (number_of_videos // batch_size) + 1
+                                
+                            predictions = {var_name}.predict_generator(
+                                generator={train_generator},
+                                steps=steps
+                            )
+                            
+                            predictions_to_matrix = np.argmax(predictions, axis=1)
+                            
+                            target_names = {train_generator}.class_indices.keys()
+                            labels = {train_generator}.class_indices.values()
+                            report = classification_report(
+                                y_true={train_generator}.classes,
+                                y_pred=predictions_to_matrix,
+                                labels=labels,
+                                target_names=target_names,
+                                output_dict=False
+                            )
+                            
+                            message = '\\n<h5>Classification Report - Training</h5>'
+                            message += '<pre>' + report + '</pre>'
+                            emit_event(name='update task',
+                                message=message,
+                                type='HTML',
+                                status='RESULTS',
+                                identifier='{task_id}'
+                            ) 
+                            
+                            """
+                        ).format(var_name=self.var_name,
+                                 add_functions_required_fit_generator=
+                                 self.add_functions_required_fit_generator,
+                                 val_generator=self.validation_generator
+                                 .replace('validation_data=', ''),
+                                 train_generator=self.train_generator
+                                 .replace('generator=', '').replace(' ', ''),
+                                 task_id=self.output_task_id,
+                                 workers=self.workers.replace('workers=', '')
+                                 .replace(' ', ''))
             else:
                 return dedent(
                     """
                     history = {var_name}.fit_generator(
                     {add_functions_required_fit_generator}
                     )
-                    emit_event(
-                        name='update task',
-                        message=tab(table=history.history,
-                                    add_epoch=True,
-                                    metric='History',
-                                    headers=history.history.keys()
-                        ),
-                        type='HTML',
-                        status='RESULTS',
-                        identifier='{task_id}'
-                    )
-                    
-                    # Reports for the training
-                    batch_size = {train_generator}.batch_size
-                    number_of_videos = len(training_video_generator.classes)
-                    
-                    if number_of_videos % batch_size == 0:
-                        steps = number_of_videos // batch_size
-                    else:
-                        steps = (number_of_videos // batch_size) + 1
-                        
-                    predictions = {var_name}.predict_generator(
-                        generator={train_generator},
-                        steps=steps
-                    )
-                    
-                    predictions_to_matrix = np.argmax(predictions, axis=1)
-                    
-                    target_names = {train_generator}.class_indices.keys()
-                    labels = {train_generator}.class_indices.values()
-                    report = classification_report(
-                        y_true={train_generator}.classes,
-                        y_pred=predictions_to_matrix,
-                        labels=labels,
-                        target_names=target_names,
-                        output_dict=False
-                    )
-                    
-                    message = '\\n<h5>Classification Report - Training</h5>'
-                    message += '<pre>' + report + '</pre>'
                     emit_event(name='update task',
-                        message=message,
-                        type='HTML',
-                        status='RESULTS',
-                        identifier='{task_id}'
-                    ) 
-                    
-                    # Reports for the validation
-                    batch_size = {val_generator}.batch_size
-                    number_of_videos = len({val_generator}.classes)
-                    
-                    if number_of_videos % batch_size == 0:
-                        steps = number_of_videos // batch_size
-                    else:
-                        steps = (number_of_videos // batch_size) + 1
-                        
-                    predictions = {var_name}.predict_generator(
-                        generator={val_generator},
-                        steps=steps,
-                        workers={workers},
-                        use_multiprocessing=True
-                    )
-                    
-                    predictions_to_matrix = np.argmax(predictions, axis=1)
-                    
-                    target_names = {val_generator}.class_indices.keys()
-                    labels = {val_generator}.class_indices.values()
-                    report = classification_report(
-                        y_true={val_generator}.classes,
-                        y_pred=predictions_to_matrix,
-                        labels=labels,
-                        target_names=target_names,
-                        output_dict=False
-                    )
-                    
-                    message = '\\n<h5>Classification Report - Validation</h5>'
-                    message += '<pre>' + report + '</pre>'
-                    emit_event(name='update task',
-                        message=message,
+                        message=tab(table=history.history, add_epoch=True, metric='History', headers=history.history.keys()),
                         type='HTML',
                         status='RESULTS',
                         identifier='{task_id}'
                     )
-                    
                     """
                 ).format(var_name=self.var_name,
                          add_functions_required_fit_generator=
                          self.add_functions_required_fit_generator,
-                         val_generator=self.validation_generator
-                         .replace('validation_data=', ''),
-                         train_generator=self.train_generator
-                         .replace('generator=', '').replace(' ', ''),
-                         task_id=self.output_task_id,
-                         workers=self.workers.replace('workers=', '')
-                         .replace(' ', ''))
-        else:
-            return dedent(
-                """
-                history = {var_name}.fit_generator(
-                {add_functions_required_fit_generator}
-                )
-                emit_event(name='update task',
-                    message=tab(table=history.history, add_epoch=True, metric='History', headers=history.history.keys()),
-                    type='HTML',
-                    status='RESULTS',
-                    identifier='{task_id}'
-                )
-                """
-            ).format(var_name=self.var_name,
-                     add_functions_required_fit_generator=
-                     self.add_functions_required_fit_generator,
-                     task_id='{{task_id}}')
+                         task_id='{{task_id}}')
 
 
 class ImageGenerator(Operation):
@@ -5960,8 +5285,7 @@ class VideoGenerator(Operation):
                                 training_files = files[_index:]
                                 validation_files = files[0:_index]
                                 
-                                return {'training': training_files,
-                                        'validation': validation_files}
+                                return {_return}
                             else:
                                 return files
                     """
