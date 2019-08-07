@@ -1307,9 +1307,12 @@ class HistogramModel(ChartVisualization):
                 elif type_name in ['int', 'float', "byte", "long", "short"]:
                     cols.append(functions.col(attribute))
                 else:
-                    raise ValueError(_('Attribute {} must be numeric.'))
+                    raise ValueError(
+                        _('Attribute {} must be numeric.').format(attribute))
             else:
-                raise ValueError(_('Attribute {} not found in input data.'))
+                raise ValueError(
+                    _('Attribute {} not found in input data.').format(
+                        attribute))
 
         def identity(x):
             return x
