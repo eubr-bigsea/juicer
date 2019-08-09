@@ -1308,7 +1308,8 @@ class HistogramModel(ChartVisualization):
                     cols.append(functions.col(attribute))
                 else:
                     raise ValueError(
-                        _('Attribute {} must be numeric.').format(attribute))
+                        _('Attribute {} must be numeric (actual: {}).').format(
+                            attribute, type_name))
             else:
                 raise ValueError(
                     _('Attribute {} not found in input data.').format(
