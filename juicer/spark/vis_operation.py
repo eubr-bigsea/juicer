@@ -1299,12 +1299,13 @@ class HistogramModel(ChartVisualization):
                 _('Input attribute(s) must be informed for histogram.'))
         schema = dict((a.name, a) for a in self.data.schema)
         cols = []
+        numeric_types = ['integer', 'int', 'float', "byte", "long", "short"]
         for attribute in attributes:
             if attribute in schema:
                 type_name = schema[attribute].dataType.typeName()
                 if type_name == 'decimal':
                     cols.append(functions.col(attribute).cast('float'))
-                elif type_name in ['int', 'float', "byte", "long", "short"]:
+                elif type_name in numeric_types:
                     cols.append(functions.col(attribute))
                 else:
                     raise ValueError(
