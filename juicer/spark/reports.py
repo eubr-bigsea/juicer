@@ -268,3 +268,40 @@ class FairnessBiasReport(BaseHtmlReport):
                'summary': summary, 'explanations': self.explanations,
                'attributes': ', '.join(['race'])}
         return template.render(ctx)
+
+
+class AreaUnderCurveReport(BaseHtmlReport):
+    def __init__(self, x_val, y_val, title=None, curve_type='roc'):
+        """
+       This function prints and plots the confusion matrix.
+       Normalization can be applied by setting `normalize=True`.
+       """
+        if title is None:
+            title = _('Area under curve')
+        self.title = title
+        self.x_val = x_val
+        self.y_val = y_val
+        self.curve_type = curve_type
+
+    def generate(self):
+        plt.style.use("seaborn-whitegrid")
+        plt.figure()
+        plt.plot(self.x_val, self.y_val)
+        if self.curve_type == 'roc':
+            plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')
+            plt.xlabel(_('False positive rate'))
+            plt.ylabel(_('True positive rate'))
+        else:
+            plt.xlabel(_('Precision'))
+            plt.ylabel(_('Recall'))
+
+        plt.xlim([0.0, 1.0])
+        plt.ylim([0.0, 1.05])
+
+        plt.title(self.title)
+        plt.legend(loc="lower right")
+
+        fig_file = BytesIO()
+        plt.savefig(fig_file, format='png', dpi=75)
+        plt.close('all')
+        return base64.b64encode(fig_file.getvalue())

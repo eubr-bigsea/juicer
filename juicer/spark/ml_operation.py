@@ -603,8 +603,8 @@ class EvaluateModelOperation(Operation):
                 if not dataframe_util.is_numeric({input}.schema, label_col):
                     emit(message=_('Label attribute is categorical, it will be '
                             'implicitly indexed as string.'),)
-                    final_label = '{{}}_tmp'.format(label_col)
-                    final_prediction = '{{}}_tmp'.format(prediction_col)
+                    final_label = '{{}}_ev_tmp'.format(label_col)
+                    final_prediction = '{{}}_ev_tmp'.format(prediction_col)
 
                     indexer = feature.StringIndexer(
                                 inputCol=label_col, outputCol=final_label,
@@ -652,6 +652,7 @@ class EvaluateModelOperation(Operation):
                 display_text=display_text,
                 display_image=display_image,
                 prediction_attr=self.prediction_attribute,
+                prob_attr='probability',  # FIXME use a property
                 label_attr=self.label_attribute,
                 headers=[_('Metric'), _('Value')],
                 evaluator=self.evaluator,
@@ -760,6 +761,68 @@ class EvaluateModelOperation(Operation):
                     identifier='{task_id}',
                     message=result,
                     type='HTML', title='{title}',
+                    task={{'id': '{task_id}'}},
+                    operation={{'id': {operation_id}}},
+                    operation_id={operation_id})
+            if display_image:
+                label_prediction = {input}.select(
+                    functions.col(prediction_col).cast('Double'),
+                    functions.col(label_col).cast('Double'))
+                evaluator_matrix = MulticlassMetrics(label_prediction.rdd)
+
+                # Test if feature indexer is in global cache, because
+                # strings must be converted into numbers in order tho
+                # run algorithms, but they are cooler when displaying
+                # results.
+                all_labels = [l for l in {input}.schema[
+                    str(label_col)].metadata.get(
+                        'ml_attr', {{}}).get('vals', {{}}) if l[0] != '_']
+
+                if not all_labels:
+                    all_labels = sorted(
+                        [x[0] for x in label_prediction.select(
+                                label_col).distinct().collect()])
+
+                content = ConfusionMatrixImageReport(
+                    cm=evaluator_matrix.confusionMatrix().toArray(),
+                    classes=all_labels,)
+
+                emit_event(
+                    'update task', status='COMPLETED',
+                    identifier='{task_id}',
+                    message=content.generate(),
+                    type='IMAGE', title='{title}',
+                    task={{'id': '{task_id}'}},
+                    operation={{'id': {operation_id}}},
+                    operation_id={operation_id})
+
+                # Plots curves.
+                # See: https://stackoverflow.com/a/57342431/1646932
+                from juicer.spark.util.results import CurveMetrics
+                if metric == 'areaUnderPR':
+                    method = 'pr'
+                else:
+                    method = 'roc'
+                predictions = {input}.select(
+                    '{label_attr}','{prob_attr}').rdd.map(
+                        lambda row: (
+                            float(row['{prob_attr}'][1]),
+                            float(row['{label_attr}'])))
+                points = CurveMetrics(predictions).get_curve(method)
+                x_val = [x[0] for x in points]
+                y_val = [x[1] for x in points]
+
+                # FIXME translate title
+                curve_title = 'Area under {{}} curve (AUC = {{:1.4f}})'.format(
+                     method.upper(), metric_value)
+                content = AreaUnderCurveReport(
+                    x_val, y_val, curve_title, method)
+
+                emit_event(
+                    'update task', status='COMPLETED',
+                    identifier='{task_id}',
+                    message=content.generate(),
+                    type='IMAGE', title=method.upper(), # FIXME add title
                     task={{'id': '{task_id}'}},
                     operation={{'id': {operation_id}}},
                     operation_id={operation_id})
@@ -1119,9 +1182,16 @@ class ClassificationModelOperation(DeployModelMixin, Operation):
 
             self.model = named_outputs.get('model',
                                            'model_task_{}'.format(self.order))
+            self.perform_cross_validation = parameters.get(
+                'perform_cross_validation') in [True, '1', 1]
+            self.fold_col = parameters.get(
+                'attribute_cross_validation', 'folds')
+            self.cross_validation_metric = parameters.get('cross_validation')
+
         if not self.has_code and len(self.named_outputs) > 0:
             raise ValueError(
                 _('Model is being used, but at least one input is missing'))
+        self.clone_algorithm = True
 
     def get_audit_events(self):
         parent_events = super(ClassificationModelOperation,
@@ -1148,6 +1218,8 @@ class ClassificationModelOperation(DeployModelMixin, Operation):
                 operation={{'id': {operation_id}}}, operation_id={operation_id},
                 task={{'id': '{task_id}'}},
                 title='{title}')
+
+            display_text = {display_text}
 
             alg, param_grid, metrics = {algorithm}
 
@@ -1232,15 +1304,45 @@ class ClassificationModelOperation(DeployModelMixin, Operation):
                         labels={model}.stages[-2].labels))
 
                 # Remove temporary columns
-                sql = 'SELECT {{}} FROM __THIS__'.format(', '.join(keep_at_end))
-                last_stages.append(SQLTransformer(statement=sql))
+                # sql = 'SELECT {{}} FROM __THIS__'.format(', '.join(keep_at_end))
+                # last_stages.append(SQLTransformer(statement=sql))
 
-                pipeline = Pipeline(stages=last_stages)
-                {model} = pipeline.fit({train})
+                estimator = Pipeline(stages=last_stages)
             else:
                 algorithm.setLabelCol(final_label)
                 algorithm.setFeaturesCol(final_features)
-                {model} = algorithm.fit({train})
+                estimator = algorithm
+
+            perform_cross_validation = {perform_cross_validation}
+            if perform_cross_validation:
+                estimator_params = tuning.ParamGridBuilder().build()
+                processes = spark_session.sparkContext.defaultParallelism
+                evaluator = {evaluator_class[0]}(
+                    predictionCol=algorithm.getPredictionCol(),
+                    labelCol=algorithm.getLabelCol(),
+                    metricName='{evaluator_metric}')
+                cv_model = custom_cross_validation(
+                    {train}, '{fold_col[0]}', estimator, estimator_params,
+                    evaluator, True, processes)
+                if display_text:
+                    rows = [
+                        [str(cv_model.avgMetrics), '']
+                    ]
+                    if rows and len(rows):
+                        headers = {headers}
+                        content = SimpleTableReport(
+                            'table table-striped table-bordered table-sm',
+                            headers, rows)
+
+                        result = '<h4>{title}</h4>'
+
+                        emit(status='COMPLETED',
+                             message=result + content.generate(),
+                             type='HTML', title='{title}')
+
+                {model} = cv_model.bestModel
+            else:
+                {model} = estimator.fit({train})
 
             # Used in ensembles, e.g. VotingClassifierOperation
             setattr({model}, 'ensemble_weights', {weights})
@@ -1250,7 +1352,7 @@ class ClassificationModelOperation(DeployModelMixin, Operation):
                 return {model}.transform(df)
             {output} = dataframe_util.LazySparkTransformationDataframe(
                 {model}, {train}, call_transform)
-            display_text = {display_text}
+
             if display_text:
                 rows = [[m, getattr({model}, m)] for m in metrics
                     if hasattr({model}, m)]
@@ -1284,6 +1386,13 @@ class ClassificationModelOperation(DeployModelMixin, Operation):
                 headers=[_('Parameter'), _('Value'), ],
                 task_id=self.parameters['task_id'],
                 operation_id=self.parameters['operation_id'],
+                perform_cross_validation=self.perform_cross_validation,
+                fold_col=self.fold_col,
+                evaluator_metric=self.cross_validation_metric,
+                evaluator_class=EvaluateModelOperation.METRIC_TO_EVALUATOR.get(
+                    self.cross_validation_metric,
+                    ('evaluation.MulticlassClassificationEvaluator',
+                     'prediction')),
                 clone=self.clone_algorithm,
                 weights=repr(
                     [float(w) for w in self.ensemble_weights.split(',')]
@@ -1370,7 +1479,7 @@ class SvmClassifierOperation(ClassifierOperation):
              lambda x: x in ('1', 1, 'true', True)],
             ['threshold', self.THRESHOLD_PARAM, float],
             ['tol', self.TOL_PARAM, float],
-            ['weightAttr', self.WEIGHT_ATTR_PARAM, str],
+            ['weightCol', self.WEIGHT_ATTR_PARAM, str],
 
         ]
         for spark_name, lemonade_name, f in params_name:
@@ -1525,7 +1634,7 @@ class NaiveBayesClassifierOperation(ClassifierOperation):
             ['modelType', self.MODEL_TYPE_PARAM, str],
             ['thresholds', self.THRESHOLDS_PARAM,
              lambda x: [float(y) for y in x.split(',')]],
-            ['weightAttr', self.WEIGHT_ATTR_PARAM, str],
+            ['weightCol', self.WEIGHT_ATTR_PARAM, str],
         ]
         for spark_name, lemonade_name, f in params_name:
             if lemonade_name in param_grid and param_grid.get(lemonade_name):
