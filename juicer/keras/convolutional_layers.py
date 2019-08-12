@@ -269,8 +269,8 @@ class Convolution2D(Operation):
         self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None)
         self.dilation_rate = parameters.get(self.DILATION_RATE_PARAM, None)
         self.activation = parameters.get(self.ACTIVATION_PARAM, None)
-        self.trainable = parameters.get(self.TRAINABLE_PARAM)
-        self.use_bias = parameters.get(self.USE_BIAS_PARAM)
+        self.trainable = parameters.get(self.TRAINABLE_PARAM, 0)
+        self.use_bias = parameters.get(self.USE_BIAS_PARAM, 0)
         self.kernel_initializer = parameters.get(self.KERNEL_INITIALIZER_PARAM,
                                                  None)
         self.bias_initializer = parameters.get(self.BIAS_INITIALIZER_PARAM,
