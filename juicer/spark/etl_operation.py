@@ -1339,7 +1339,7 @@ class SplitKFoldOperation(Operation):
     TYPE_PARAM = 'type'
     FEATURES_PARAM = 'features'
     LABEL_PARAM = 'label'
-    ALIAS_PARAM = 'alias'
+    ALIAS_PARAM = 'alias_fold'
     SEED_PARAM = 'seed'
 
     TYPE_RANDOM = 'random'
