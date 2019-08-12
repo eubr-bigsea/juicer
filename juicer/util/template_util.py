@@ -125,19 +125,21 @@ def kwargs(kwargs_param):
 
 
 def get_tuple(field):
-    try:
-        values = field.replace('(', '') \
-            .replace(')', '') \
-            .replace(' ', '') \
+    if isinstance(field, tuple):
+        return field
+
+    if isinstance(field, basestring):
+        values = field.replace('(', '').replace(')', '').replace(' ', '')\
             .split(',')
-        return tuple([int(v) for v in values])
-    except:
         try:
-            if len(values) > 1:
-                return tuple([str(v) for v in values])  # In case of the value be a flow variable
-            return str(field)
+            return tuple([int(v) for v in values])
         except:
-            return None
+            try:
+                if len(values) > 1:
+                    return tuple([str(v) for v in values])
+                return str(field)
+            except:
+                return None
 
 
 def get_int_or_tuple(field):
