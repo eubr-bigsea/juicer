@@ -2,8 +2,147 @@
 from textwrap import dedent
 
 from juicer.operation import Operation
-from juicer.service import limonero_service
 from juicer.util.template_util import *
+
+
+class Activation(Operation):
+    ACTIVATION_PARAM = 'activation'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+        self.output = named_outputs.get('output data',
+                                        'out_task_{}'.format(self.order))
+
+        if self.ACTIVATION_PARAM not in parameters:
+            raise ValueError(gettext('Parameter {} is required').format(
+                self.ACTIVATION_PARAM))
+
+        self.activation = parameters.get(self.ACTIVATION_PARAM,
+                                         'linear') or 'linear'
+        self.task_name = self.parameters.get('task').get('name')
+        self.has_code = True
+        self.parent = ""
+        self.var_name = ""
+
+        self.parents_by_port = parameters.get('my_ports', [])
+        self.python_code_to_remove = self.remove_python_code_parent()
+        self.treatment()
+
+        self.import_code = {'layer': 'Activation',
+                            'callbacks': [],
+                            'model': None,
+                            'preprocessing_image': None,
+                            'others': None}
+
+    def remove_python_code_parent(self):
+        python_code_to_remove = []
+        for parent in self.parents_by_port:
+            if parent[0] == 'python code':
+                python_code_to_remove.append(convert_parents_to_variable_name(
+                    [parent[1]])
+                )
+        return python_code_to_remove
+
+    def treatment(self):
+        self.parent = convert_parents_to_variable_name(self.parameters
+                                                       .get('parents', []))
+        for python_code in self.python_code_to_remove:
+            self.parent.remove(python_code[0])
+
+        if self.parent:
+            self.parent = '({})'.format(self.parent[0])
+        else:
+            self.parent = ''
+
+        self.var_name = convert_variable_name(self.task_name)
+        self.task_name = self.var_name
+
+    def generate_code(self):
+        return dedent(
+            """
+            {var_name} = Activation(
+                name='{name}',
+                activation='{activation}'
+            ){parent}
+            """
+        ).format(var_name=self.var_name,
+                 name=self.task_name,
+                 activation=self.activation,
+                 parent=self.parent)
+
+
+class ActivityRegularization(Operation):
+    L1_PARAM = 'l1'
+    L2_PARAM = 'l2'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+        self.output = named_outputs.get('output data',
+                                        'out_task_{}'.format(self.order))
+
+        if self.L1_PARAM not in parameters or self.L2_PARAM not in parameters:
+            raise ValueError(
+                gettext('Parameters {l1} and {l2} are required').format(
+                    l1=self.L1_PARAM,
+                    l2=self.L2_PARAM))
+
+        self.l1 = parameters.get(self.L1_PARAM, 0.0) or 0.0
+        self.l2 = parameters.get(self.L2_PARAM, 0.0) or 0.0
+        self.task_name = self.parameters.get('task').get('name')
+        self.parent = ""
+        self.var_name = ""
+        self.has_code = True
+
+        self.parents_by_port = parameters.get('my_ports', [])
+        self.python_code_to_remove = self.remove_python_code_parent()
+        self.treatment()
+
+        self.import_code = {'layer': 'ActivityRegularization',
+                            'callbacks': [],
+                            'model': None,
+                            'preprocessing_image': None,
+                            'others': None}
+
+    def remove_python_code_parent(self):
+        python_code_to_remove = []
+        for parent in self.parents_by_port:
+            if parent[0] == 'python code':
+                python_code_to_remove.append(convert_parents_to_variable_name(
+                    [parent[1]])
+                )
+        return python_code_to_remove
+
+    def treatment(self):
+        self.parent = convert_parents_to_variable_name(self.parameters
+                                                       .get('parents', []))
+        for python_code in self.python_code_to_remove:
+            self.parent.remove(python_code[0])
+
+        if self.parent:
+            self.parent = '({})'.format(self.parent[0])
+        else:
+            self.parent = ''
+
+        self.var_name = convert_variable_name(self.task_name)
+        self.task_name = self.var_name
+
+        self.l1 = abs(self.l1)
+        self.l2 = abs(self.l2)
+
+    def generate_code(self):
+        return dedent(
+            """
+            {var_name} = ActivityRegularization(
+                name='{name}',
+                l1={l1},
+                l2={l2}
+            ){parent}
+            """
+        ).format(var_name=self.var_name,
+                 name=self.task_name,
+                 l1=self.l1,
+                 l2=self.l2,
+                 parent=self.parent)
 
 
 class Dense(Operation):
@@ -17,6 +156,7 @@ class Dense(Operation):
     ACTIVITY_REGULARIZER_PARAM = 'activity_regularizer'
     KERNEL_CONSTRAINT_PARAM = 'kernel_constraint'
     BIAS_CONSTRAINT_PARAM = 'bias_constraint'
+    ADVANCED_OPTIONS_PARAM = 'advanced_options'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
@@ -28,23 +168,24 @@ class Dense(Operation):
                 gettext('Parameter {} is required').format(self.UNITS_PARAM))
 
         self.units = parameters.get(self.UNITS_PARAM)
-        self.activation = parameters.get(self.ACTIVATION_PARAM,
-                                         'linear') or 'linear'
+        self.activation = parameters.get(self.ACTIVATION_PARAM, 'linear')
         self.use_bias = parameters.get(self.USE_BIAS_PARAM, False) or False
         self.kernel_initializer = parameters.get(self.KERNEL_INITIALIZER_PARAM,
-                                                 None) or None
+                                                 None)
         self.bias_initializer = parameters.get(self.BIAS_INITIALIZER_PARAM,
-                                               None) or None
+                                               None)
         self.kernel_regularizer = parameters.get(self.KERNEL_REGULARIZER_PARAM,
-                                                 None) or None
+                                                 None)
         self.bias_regularizer = parameters.get(self.BIAS_REGULARIZER_PARAM,
-                                               None) or None
+                                               None)
         self.activity_regularizer = parameters.get(
-            self.ACTIVITY_REGULARIZER_PARAM, None) or None
+            self.ACTIVITY_REGULARIZER_PARAM, None)
         self.kernel_constraint = parameters.get(self.KERNEL_CONSTRAINT_PARAM,
-                                                None) or None
+                                                None)
         self.bias_constraint = parameters.get(self.BIAS_CONSTRAINT_PARAM,
-                                              None) or None
+                                              None)
+
+        self.advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
 
         self.add_functions_required = ""
         self.task_name = self.parameters.get('task').get('name')
@@ -54,6 +195,7 @@ class Dense(Operation):
 
         self.parents_by_port = parameters.get('my_ports', [])
         self.python_code_to_remove = self.remove_python_code_parent()
+
         self.treatment()
 
         self.import_code = {'layer': 'Dense',
@@ -91,55 +233,70 @@ class Dense(Operation):
             pass
 
         self.use_bias = True if int(self.use_bias) == 1 else False
+        self.advanced_options = True if int(self.advanced_options) == 1 else \
+            False
 
-        functions_required = []
-        if self.kernel_initializer:
-            self.kernel_initializer = """kernel_initializer='{kernel_initializer}'""".format(
-                kernel_initializer=self.kernel_initializer)
-            functions_required.append(self.kernel_initializer)
-        if self.bias_initializer:
-            self.bias_initializer = """bias_initializer='{bias_initializer}'""".format(
-                bias_initializer=self.bias_initializer)
-            functions_required.append(self.bias_initializer)
-        if self.kernel_regularizer:
-            self.kernel_regularizer = """kernel_regularizer='{kernel_regularizer}'""".format(
-                kernel_regularizer=self.kernel_regularizer)
-            functions_required.append(self.kernel_regularizer)
-        if self.bias_regularizer:
-            self.bias_regularizer = """bias_regularizer='{bias_regularizer}'""".format(
-                bias_regularizer=self.bias_regularizer)
-            functions_required.append(self.bias_regularizer)
-        if self.activity_regularizer:
-            self.activity_regularizer = """activity_regularizer='{activity_regularizer}'""".format(
-                activity_regularizer=self.activity_regularizer)
-            functions_required.append(self.activity_regularizer)
-        if self.kernel_constraint:
-            self.kernel_constraint = """kernel_constraint='{kernel_constraint}'""".format(
-                kernel_constraint=self.kernel_constraint)
-            functions_required.append(self.kernel_constraint)
-        if self.bias_constraint:
-            self.bias_constraint = """bias_constraint='{bias_constraint}'""".format(
-                bias_constraint=self.bias_constraint)
-            functions_required.append(self.bias_constraint)
+        if self.advanced_options:
+            functions_required = []
+            if self.kernel_initializer:
+                self.kernel_initializer = """kernel_initializer=
+                '{kernel_initializer}'""".format(
+                    kernel_initializer=self.kernel_initializer)
+                functions_required.append(self.kernel_initializer)
+            if self.bias_initializer:
+                self.bias_initializer = """bias_initializer=
+                '{bias_initializer}'""".format(
+                    bias_initializer=self.bias_initializer)
+                functions_required.append(self.bias_initializer)
+            if self.kernel_regularizer:
+                self.kernel_regularizer = """kernel_regularizer=
+                '{kernel_regularizer}'""".format(
+                    kernel_regularizer=self.kernel_regularizer)
+                functions_required.append(self.kernel_regularizer)
+            if self.bias_regularizer:
+                self.bias_regularizer = """bias_regularizer=
+                '{bias_regularizer}'""".format(
+                    bias_regularizer=self.bias_regularizer)
+                functions_required.append(self.bias_regularizer)
+            if self.activity_regularizer:
+                self.activity_regularizer = """activity_regularizer=
+                '{activity_regularizer}'""".format(
+                    activity_regularizer=self.activity_regularizer)
+                functions_required.append(self.activity_regularizer)
+            if self.kernel_constraint:
+                self.kernel_constraint = """kernel_constraint=
+                '{kernel_constraint}'""".format(
+                    kernel_constraint=self.kernel_constraint)
+                functions_required.append(self.kernel_constraint)
+            if self.bias_constraint:
+                self.bias_constraint = """bias_constraint=
+                '{bias_constraint}'""".format(
+                    bias_constraint=self.bias_constraint)
+                functions_required.append(self.bias_constraint)
+            if self.activation:
+                self.activation = """activation='{activation}'""".format(
+                    activation=self.activation)
+                functions_required.append(self.activation)
 
-        self.add_functions_required = ',\n    '.join(functions_required)
-        if self.add_functions_required:
-            self.add_functions_required = ',\n    ' + self.add_functions_required
+            self.use_bias = """use_bias='{use_bias}'""".format(
+                use_bias=self.use_bias)
+            functions_required.append(self.use_bias)
+
+            self.add_functions_required = ',\n    '.join(functions_required)
+            if self.add_functions_required:
+                self.add_functions_required = ',\n    ' + \
+                                              self.add_functions_required
 
     def generate_code(self):
         return dedent(
             """
             {var_name} = Dense(
                 name='{task_name}',
-                units={units}, 
-                activation='{activation}', 
-                use_bias={use_bias}{add_functions_required}
+                units={units}{add_functions_required}
             ){parent}
             """).format(var_name=self.var_name,
                         task_name=self.task_name,
-                        units=(self.units),
-                        activation=(self.activation),
-                        use_bias=(self.use_bias),
+                        units=self.units,
                         add_functions_required=self.add_functions_required,
                         parent=self.parent)
 
@@ -148,6 +305,7 @@ class Dropout(Operation):
     RATE_PARAM = 'rate'
     NOISE_SHAPE_PARAM = 'noise_shape'
     SEED_PARAM = 'seed'
+    ADVANCED_OPTIONS_PARAM = 'advanced_options'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
@@ -161,6 +319,7 @@ class Dropout(Operation):
         self.rate = parameters[self.RATE_PARAM]
         self.noise_shape = parameters.get(self.NOISE_SHAPE_PARAM)
         self.seed = parameters.get(self.SEED_PARAM)
+        self.advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
 
         self.task_name = self.parameters.get('task').get('name')
         self.parent = ""
@@ -201,21 +360,26 @@ class Dropout(Operation):
         self.var_name = convert_variable_name(self.task_name)
         self.task_name = self.var_name
 
-        functions_required = []
-        if self.noise_shape:
-            self.noise_shape = get_int_or_tuple(self.noise_shape)
-            self.noise_shape = """noise_shape='{noise_shape}'""" \
-                .format(noise_shape=self.noise_shape)
-            functions_required.append(self.noise_shape)
+        self.advanced_options = True if int(self.advanced_options) == 1 else \
+            False
 
-        if self.seed:
-            self.seed = """seed='{seed}'""" \
-                .format(seed=self.seed)
-            functions_required.append(self.seed)
+        if self.advanced_options:
+            functions_required = []
+            if self.noise_shape:
+                self.noise_shape = get_int_or_tuple(self.noise_shape)
+                self.noise_shape = """noise_shape='{noise_shape}'""" \
+                    .format(noise_shape=self.noise_shape)
+                functions_required.append(self.noise_shape)
 
-        self.add_functions_required = ',\n    '.join(functions_required)
-        if self.add_functions_required:
-            self.add_functions_required = ',\n    ' + self.add_functions_required
+            if self.seed:
+                self.seed = """seed='{seed}'""" \
+                    .format(seed=self.seed)
+                functions_required.append(self.seed)
+
+            self.add_functions_required = ',\n    '.join(functions_required)
+            if self.add_functions_required:
+                self.add_functions_required = ',\n    ' + \
+                                              self.add_functions_required
 
     def generate_code(self):
         return dedent(
@@ -311,6 +475,7 @@ class Input(Operation):
     BATCH_SHAPE_PARAM = 'batch_shape'
     DTYPE_PARAM = 'dtype'
     SPARSE_PARAM = 'sparse'
+    ADVANCED_OPTIONS_PARAM = 'advanced_options'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
@@ -321,6 +486,7 @@ class Input(Operation):
         self.batch_shape = parameters.get(self.BATCH_SHAPE_PARAM, None) or None
         self.dtype = parameters.get(self.DTYPE_PARAM, None)
         self.sparse = parameters.get(self.SPARSE_PARAM, 0)
+        self.advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
         self.tensor = None
 
         self.task_name = self.parameters.get('task').get('name')
@@ -366,25 +532,28 @@ class Input(Operation):
         self.task_name = self.var_name
 
         self.sparse = True if int(self.sparse) == 1 else False
+        self.advanced_options = True if int(self.advanced_options) == 1 else \
+            False
 
         functions_required = []
-        self.sparse = """sparse={sparse}""".format(sparse=self.sparse)
-        functions_required.append(self.sparse)
-
         if self.shape is not None:
             self.shape = get_tuple(self.shape)
             self.shape = """shape={shape}""".format(shape=self.shape)
             functions_required.append(self.shape)
 
-        if self.batch_shape is not None:
-            self.batch_shape = get_tuple(self.batch_shape)
-            self.batch_shape = """batch_shape={batch_shape}""" \
-                .format(batch_shape=self.batch_shape)
-            functions_required.append(self.batch_shape)
+        if self.advanced_options:
+            self.sparse = """sparse={sparse}""".format(sparse=self.sparse)
+            functions_required.append(self.sparse)
 
-        if self.dtype is not None:
-            self.dtype = """dtype={dtype}""".format(dtype=self.dtype)
-            functions_required.append(self.dtype)
+            if self.batch_shape is not None:
+                self.batch_shape = get_tuple(self.batch_shape)
+                self.batch_shape = """batch_shape={batch_shape}""" \
+                    .format(batch_shape=self.batch_shape)
+                functions_required.append(self.batch_shape)
+
+            if self.dtype is not None:
+                self.dtype = """dtype={dtype}""".format(dtype=self.dtype)
+                functions_required.append(self.dtype)
 
         self.add_functions_required = ',\n    '.join(functions_required)
         if self.add_functions_required:
@@ -403,22 +572,32 @@ class Input(Operation):
                  parent=self.parent)
 
 
-class Activation(Operation):
-    ACTIVATION_PARAM = 'activation'
+class Lambda(Operation):
+    FUNCTION_PARAM = 'function'
+    MASK_PARAM = 'mask'
+    ARGUMENTS_PARAM = 'arguments'
+    OUTPUT_SHAPE_PARAM = 'output_shape'
+    ADVANCED_OPTIONS_PARAM = 'advanced_options'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
         self.output = named_outputs.get('output data',
                                         'out_task_{}'.format(self.order))
 
-        if self.ACTIVATION_PARAM not in parameters:
-            raise ValueError(gettext('Parameter {} is required').format(
-                self.ACTIVATION_PARAM))
+        if self.FUNCTION_PARAM not in parameters or self.FUNCTION_PARAM is None:
+            raise ValueError(
+                gettext('Parameter {} is required').format(self.FUNCTION_PARAM))
 
-        self.activation = parameters.get(self.ACTIVATION_PARAM,
-                                         'linear') or 'linear'
+        self.function = parameters.get(self.FUNCTION_PARAM, None) or None
+        self.mask = parameters.get(self.MASK_PARAM, None) or None
+        self.arguments = parameters.get(self.ARGUMENTS_PARAM, None) or None
+        self.output_shape = parameters.get(self.OUTPUT_SHAPE_PARAM,
+                                           None) or None
+        self.advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
+
         self.task_name = self.parameters.get('task').get('name')
         self.has_code = True
+        self.add_functions_required = ""
         self.parent = ""
         self.var_name = ""
 
@@ -426,7 +605,7 @@ class Activation(Operation):
         self.python_code_to_remove = self.remove_python_code_parent()
         self.treatment()
 
-        self.import_code = {'layer': 'Activation',
+        self.import_code = {'layer': 'Lambda',
                             'callbacks': [],
                             'model': None,
                             'preprocessing_image': None,
@@ -447,55 +626,83 @@ class Activation(Operation):
         for python_code in self.python_code_to_remove:
             self.parent.remove(python_code[0])
 
-
         if self.parent:
-            self.parent = '({})'.format(self.parent[0])
+            if len(self.parent) < 2:
+                self.parent = '({})'.format(self.parent[0])
+            else:
+                self.parent = '([{}])'.format(', '.join(self.parent))
         else:
             self.parent = ''
 
         self.var_name = convert_variable_name(self.task_name)
         self.task_name = self.var_name
 
+        if self.function is None:
+            raise ValueError(
+                gettext('Parameter {} is required.').format(
+                    self.FUNCTION_PARAM))
+
+        self.advanced_options = True if int(self.advanced_options) == 1 else \
+            False
+
+        functions_required = ['''function={function}'''.format(function=
+                                                               self.function)]
+
+        if self.advanced_options:
+            if self.mask is not None:
+                functions_required.append('''mask={mask}'''.format(mask=
+                                                                   self.mask))
+            if self.arguments is not None:
+                functions_required.append(
+                    '''arguments={arguments}'''.format(arguments=
+                                                       self.arguments))
+            if self.output_shape is not None:
+                self.output_shape = get_tuple(self.output_shape)
+                functions_required.append('''output_shape={output_shape}'''.
+                                          format(output_shape=self.output_shape)
+                                          )
+
+        self.add_functions_required = ',\n    '.join(functions_required)
+        if self.add_functions_required:
+            self.add_functions_required = ',\n    ' + \
+                                          self.add_functions_required
+
     def generate_code(self):
         return dedent(
             """
-            {var_name} = Activation(
-                name='{name}',
-                activation='{activation}'
+            {var_name} = Lambda(
+                name='{name}'{add_functions_required}
             ){parent}
             """
         ).format(var_name=self.var_name,
                  name=self.task_name,
-                 activation=self.activation,
+                 add_functions_required=self.add_functions_required,
                  parent=self.parent)
 
 
-class Reshape(Operation):
-    TARGET_SHAPE_PARAM = 'target_shape'
+class Masking(Operation):
+    MASK_VALUE_PARAM = 'mask_value'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
         self.output = named_outputs.get('output data',
                                         'out_task_{}'.format(self.order))
 
-        if self.TARGET_SHAPE_PARAM not in parameters or self.TARGET_SHAPE_PARAM is None:
-            raise ValueError(gettext('Parameter {} is required').format(
-                self.TARGET_SHAPE_PARAM))
+        if self.MASK_VALUE_PARAM not in parameters or self.MASK_VALUE_PARAM is None:
+            raise ValueError(gettext('Parameter {} are required').format(
+                self.MASK_VALUE_PARAM))
 
-        self.target_shape = parameters.get(self.TARGET_SHAPE_PARAM,
-                                           None) or None
+        self.mask_value = parameters.get(self.MASK_VALUE_PARAM, 0.0) or 0.0
         self.task_name = self.parameters.get('task').get('name')
-        self.task_workflow_order = self.parameters.get('task').get('order')
-        self.has_code = True
-
         self.parent = ""
         self.var_name = ""
+        self.has_code = True
 
         self.parents_by_port = parameters.get('my_ports', [])
         self.python_code_to_remove = self.remove_python_code_parent()
         self.treatment()
 
-        self.import_code = {'layer': 'Reshape',
+        self.import_code = {'layer': 'Masking',
                             'callbacks': [],
                             'model': None,
                             'preprocessing_image': None,
@@ -524,24 +731,17 @@ class Reshape(Operation):
         self.var_name = convert_variable_name(self.task_name)
         self.task_name = self.var_name
 
-        if self.target_shape is not None:
-            self.target_shape = get_tuple(self.target_shape)
-        else:
-            raise ValueError(gettext('Parameter {} is required. The format is: '
-                                     '(x, y) or (-1, x, y)').format(
-                self.TARGET_SHAPE_PARAM))
-
     def generate_code(self):
         return dedent(
             """
-            {var_name} = Reshape(
+            {var_name} = Masking(
                 name='{name}',
-                target_shape={target_shape}
+                mask_value={mask_value}
             ){parent}
             """
         ).format(var_name=self.var_name,
                  name=self.task_name,
-                 target_shape=self.target_shape,
+                 mask_value=self.mask_value,
                  parent=self.parent)
 
 
@@ -684,30 +884,24 @@ class RepeatVector(Operation):
                  parent=self.parent)
 
 
-class Lambda(Operation):
-    FUNCTION_PARAM = 'function'
-    MASK_PARAM = 'mask'
-    ARGUMENTS_PARAM = 'arguments'
-    OUTPUT_SHAPE_PARAM = 'output_shape'
+class Reshape(Operation):
+    TARGET_SHAPE_PARAM = 'target_shape'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
         self.output = named_outputs.get('output data',
                                         'out_task_{}'.format(self.order))
 
-        if self.FUNCTION_PARAM not in parameters or self.FUNCTION_PARAM is None:
-            raise ValueError(
-                gettext('Parameter {} is required').format(self.FUNCTION_PARAM))
+        if self.TARGET_SHAPE_PARAM not in parameters or self.TARGET_SHAPE_PARAM is None:
+            raise ValueError(gettext('Parameter {} is required').format(
+                self.TARGET_SHAPE_PARAM))
 
-        self.function = parameters.get(self.FUNCTION_PARAM, None) or None
-        self.mask = parameters.get(self.MASK_PARAM, None) or None
-        self.arguments = parameters.get(self.ARGUMENTS_PARAM, None) or None
-        self.output_shape = parameters.get(self.OUTPUT_SHAPE_PARAM,
+        self.target_shape = parameters.get(self.TARGET_SHAPE_PARAM,
                                            None) or None
-
         self.task_name = self.parameters.get('task').get('name')
+        self.task_workflow_order = self.parameters.get('task').get('order')
         self.has_code = True
-        self.add_functions_required = ""
+
         self.parent = ""
         self.var_name = ""
 
@@ -715,100 +909,7 @@ class Lambda(Operation):
         self.python_code_to_remove = self.remove_python_code_parent()
         self.treatment()
 
-        self.import_code = {'layer': 'Lambda',
-                            'callbacks': [],
-                            'model': None,
-                            'preprocessing_image': None,
-                            'others': None}
-
-    def remove_python_code_parent(self):
-        python_code_to_remove = []
-        for parent in self.parents_by_port:
-            if parent[0] == 'python code':
-                python_code_to_remove.append(convert_parents_to_variable_name(
-                    [parent[1]])
-                )
-        return python_code_to_remove
-
-    def treatment(self):
-        self.parent = convert_parents_to_variable_name(self.parameters
-                                                       .get('parents', []))
-        for python_code in self.python_code_to_remove:
-            self.parent.remove(python_code[0])
-
-        if self.parent:
-            if len(self.parent) < 2:
-                self.parent = '({})'.format(self.parent[0])
-            else:
-                self.parent = '([{}])'.format(', '.join(self.parent))
-        else:
-            self.parent = ''
-
-        self.var_name = convert_variable_name(self.task_name)
-        self.task_name = self.var_name
-
-        if self.function is None:
-            raise ValueError(
-                gettext('Parameter {} is required.').format(
-                    self.FUNCTION_PARAM))
-
-        functions_required = []
-        functions_required.append('''function={function}'''
-                                  .format(function=self.function))
-        if self.mask is not None:
-            functions_required.append('''mask={mask}'''.format(mask=self.mask))
-        if self.arguments is not None:
-            functions_required.append(
-                '''arguments={arguments}'''.format(arguments=self.arguments))
-        if self.output_shape is not None:
-            self.output_shape = get_tuple(self.output_shape)
-            functions_required.append('''output_shape={output_shape}'''
-                                      .format(output_shape=self.output_shape))
-
-        self.add_functions_required = ',\n    '.join(functions_required)
-        if self.add_functions_required:
-            self.add_functions_required = ',\n    ' + self.add_functions_required
-
-    def generate_code(self):
-        return dedent(
-            """
-            {var_name} = Lambda(
-                name='{name}'{add_functions_required}
-            ){parent}
-            """
-        ).format(var_name=self.var_name,
-                 name=self.task_name,
-                 add_functions_required=self.add_functions_required,
-                 parent=self.parent)
-
-
-class ActivityRegularization(Operation):
-    L1_PARAM = 'l1'
-    L2_PARAM = 'l2'
-
-    def __init__(self, parameters, named_inputs, named_outputs):
-        Operation.__init__(self, parameters, named_inputs, named_outputs)
-        self.output = named_outputs.get('output data',
-                                        'out_task_{}'.format(self.order))
-
-        if self.L1_PARAM not in parameters or self.L2_PARAM not in parameters:
-            raise ValueError(
-                gettext('Parameters {l1} and {l2} are required').format(
-                    l1=self.L1_PARAM,
-                    l2=self.L2_PARAM))
-
-        self.l1 = parameters.get(self.L1_PARAM, 0.0) or 0.0
-        self.l2 = parameters.get(self.L2_PARAM, 0.0) or 0.0
-        self.task_name = self.parameters.get('task').get('name')
-        self.parent = ""
-        self.var_name = ""
-        self.has_code = True
-
-        self.parents_by_port = parameters.get('my_ports', [])
-        self.python_code_to_remove = self.remove_python_code_parent()
-        self.treatment()
-
-        self.import_code = {'layer': 'ActivityRegularization',
+        self.import_code = {'layer': 'Reshape',
                             'callbacks': [],
                             'model': None,
                             'preprocessing_image': None,
@@ -837,87 +938,24 @@ class ActivityRegularization(Operation):
         self.var_name = convert_variable_name(self.task_name)
         self.task_name = self.var_name
 
-        self.l1 = abs(self.l1)
-        self.l2 = abs(self.l2)
-
-    def generate_code(self):
-        return dedent(
-            """
-            {var_name} = ActivityRegularization(
-                name='{name}',
-                l1={l1},
-                l2={l2}
-            ){parent}
-            """
-        ).format(var_name=self.var_name,
-                 name=self.task_name,
-                 l1=self.l1,
-                 l2=self.l2,
-                 parent=self.parent)
-
-
-class Masking(Operation):
-    MASK_VALUE_PARAM = 'mask_value'
-
-    def __init__(self, parameters, named_inputs, named_outputs):
-        Operation.__init__(self, parameters, named_inputs, named_outputs)
-        self.output = named_outputs.get('output data',
-                                        'out_task_{}'.format(self.order))
-
-        if self.MASK_VALUE_PARAM not in parameters or self.MASK_VALUE_PARAM is None:
-            raise ValueError(gettext('Parameter {} are required').format(
-                self.MASK_VALUE_PARAM))
-
-        self.mask_value = parameters.get(self.MASK_VALUE_PARAM, 0.0) or 0.0
-        self.task_name = self.parameters.get('task').get('name')
-        self.parent = ""
-        self.var_name = ""
-        self.has_code = True
-
-        self.parents_by_port = parameters.get('my_ports', [])
-        self.python_code_to_remove = self.remove_python_code_parent()
-        self.treatment()
-
-        self.import_code = {'layer': 'Masking',
-                            'callbacks': [],
-                            'model': None,
-                            'preprocessing_image': None,
-                            'others': None}
-
-    def remove_python_code_parent(self):
-        python_code_to_remove = []
-        for parent in self.parents_by_port:
-            if parent[0] == 'python code':
-                python_code_to_remove.append(convert_parents_to_variable_name(
-                    [parent[1]])
-                )
-        return python_code_to_remove
-
-    def treatment(self):
-        self.parent = convert_parents_to_variable_name(self.parameters
-                                                       .get('parents', []))
-        for python_code in self.python_code_to_remove:
-            self.parent.remove(python_code[0])
-
-        if self.parent:
-            self.parent = '({})'.format(self.parent[0])
+        if self.target_shape is not None:
+            self.target_shape = get_tuple(self.target_shape)
         else:
-            self.parent = ''
-
-        self.var_name = convert_variable_name(self.task_name)
-        self.task_name = self.var_name
+            raise ValueError(gettext('Parameter {} is required. The format is: '
+                                     '(x, y) or (-1, x, y)').format(
+                self.TARGET_SHAPE_PARAM))
 
     def generate_code(self):
         return dedent(
             """
-            {var_name} = Masking(
+            {var_name} = Reshape(
                 name='{name}',
-                mask_value={mask_value}
+                target_shape={target_shape}
             ){parent}
             """
         ).format(var_name=self.var_name,
                  name=self.task_name,
-                 mask_value=self.mask_value,
+                 target_shape=self.target_shape,
                  parent=self.parent)
 
 
