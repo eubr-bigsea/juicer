@@ -9,7 +9,7 @@ from textwrap import dedent
 import pytest
 # Import Operations to test
 from juicer.runner import configuration
-from juicer.spark.ml_operation import FeatureIndexerOperation, \
+from juicer.spark.ml_operation import VectorIndexOperation, \
     FeatureAssemblerOperation, \
     OneHotEncoderOperation, \
     IndexToStringOperation, \
@@ -36,17 +36,17 @@ from tests import compare_ast, format_code_comparison
 
 def test_feature_indexer_operation_success():
     params = {
-        FeatureIndexerOperation.TYPE_PARAM: 'string',
-        FeatureIndexerOperation.ATTRIBUTES_PARAM: ['col'],
-        FeatureIndexerOperation.ALIAS_PARAM: 'c',
-        FeatureIndexerOperation.MAX_CATEGORIES_PARAM: '20',
+        VectorIndexOperation.TYPE_PARAM: 'string',
+        VectorIndexOperation.ATTRIBUTES_PARAM: ['col'],
+        VectorIndexOperation.ALIAS_PARAM: 'c',
+        VectorIndexOperation.MAX_CATEGORIES_PARAM: '20',
     }
     n_in = {'input data': 'input_1'}
     n_out = {'output data': 'output_1'}
     in1 = n_in['input data']
     out = n_out['output data']
 
-    instance = FeatureIndexerOperation(params, named_inputs=n_in,
+    instance = VectorIndexOperation(params, named_inputs=n_in,
                                        named_outputs=n_out)
 
     code = instance.generate_code()
@@ -70,13 +70,13 @@ def test_feature_indexer_operation_success():
         {in1}_without_null = {in1}.na.fill('NA', subset=col_alias.keys())
         {out} = pipeline.fit({in1}_without_null).transform({in1}_without_null)
 
-        """.format(attr=params[FeatureIndexerOperation.ATTRIBUTES_PARAM],
+        """.format(attr=params[VectorIndexOperation.ATTRIBUTES_PARAM],
                    in1=in1,
                    out=out,
                    alias=json.dumps(
                        list(
-                           zip(params[FeatureIndexerOperation.ATTRIBUTES_PARAM],
-                               params[FeatureIndexerOperation.ALIAS_PARAM])))))
+                           zip(params[VectorIndexOperation.ATTRIBUTES_PARAM],
+                               params[VectorIndexOperation.ALIAS_PARAM])))))
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
     assert result, msg + format_code_comparison(code, expected_code)
@@ -84,76 +84,76 @@ def test_feature_indexer_operation_success():
 
 def test_feature_indexer_string_type_param_operation_failure():
     params = {
-        FeatureIndexerOperation.ATTRIBUTES_PARAM: ['col'],
-        FeatureIndexerOperation.TYPE_PARAM: 'XxX',
-        FeatureIndexerOperation.ALIAS_PARAM: 'c',
-        FeatureIndexerOperation.MAX_CATEGORIES_PARAM: '20',
+        VectorIndexOperation.ATTRIBUTES_PARAM: ['col'],
+        VectorIndexOperation.TYPE_PARAM: 'XxX',
+        VectorIndexOperation.ALIAS_PARAM: 'c',
+        VectorIndexOperation.MAX_CATEGORIES_PARAM: '20',
     }
 
     with pytest.raises(ValueError):
         n_in = {'input data': 'input_1'}
         n_out = {'output data': 'output_1'}
 
-        indexer = FeatureIndexerOperation(params, named_inputs=n_in,
+        indexer = VectorIndexOperation(params, named_inputs=n_in,
                                           named_outputs=n_out)
         indexer.generate_code()
 
 
 def test_feature_indexer_string_missing_attribute_param_operation_failure():
     params = {
-        FeatureIndexerOperation.TYPE_PARAM: 'string',
-        FeatureIndexerOperation.ALIAS_PARAM: 'c',
-        FeatureIndexerOperation.MAX_CATEGORIES_PARAM: '20',
+        VectorIndexOperation.TYPE_PARAM: 'string',
+        VectorIndexOperation.ALIAS_PARAM: 'c',
+        VectorIndexOperation.MAX_CATEGORIES_PARAM: '20',
     }
 
     with pytest.raises(ValueError):
         n_in = {'input data': 'input_1'}
         n_out = {'output data': 'output_1'}
-        FeatureIndexerOperation(params, named_inputs=n_in,
+        VectorIndexOperation(params, named_inputs=n_in,
                                 named_outputs=n_out)
 
 
 def test_feature_indexer_vector_missing_attribute_param_operation_failure():
     params = {
-        FeatureIndexerOperation.TYPE_PARAM: 'string',
-        FeatureIndexerOperation.ALIAS_PARAM: 'c',
-        FeatureIndexerOperation.MAX_CATEGORIES_PARAM: '20',
+        VectorIndexOperation.TYPE_PARAM: 'string',
+        VectorIndexOperation.ALIAS_PARAM: 'c',
+        VectorIndexOperation.MAX_CATEGORIES_PARAM: '20',
     }
     with pytest.raises(ValueError):
         n_in = {'input data': 'input_1'}
         n_out = {'output data': 'output_1'}
-        FeatureIndexerOperation(params, named_inputs=n_in,
+        VectorIndexOperation(params, named_inputs=n_in,
                                 named_outputs=n_out)
 
 
 def test_feature_indexer_missing_attribute_failure():
     params = {
-        FeatureIndexerOperation.TYPE_PARAM: 'vector',
-        FeatureIndexerOperation.ALIAS_PARAM: 'c',
-        FeatureIndexerOperation.MAX_CATEGORIES_PARAM: 20,
+        VectorIndexOperation.TYPE_PARAM: 'vector',
+        VectorIndexOperation.ALIAS_PARAM: 'c',
+        VectorIndexOperation.MAX_CATEGORIES_PARAM: 20,
     }
 
     n_in = {'input data': 'input_1'}
     n_out = {'output data': 'output_1', 'indexer models': 'models'}
 
     with pytest.raises(ValueError):
-        instance = FeatureIndexerOperation(params, named_inputs=n_in,
+        instance = VectorIndexOperation(params, named_inputs=n_in,
                                            named_outputs=n_out)
 
 
 def test_feature_indexer_output_names_success():
     params = {
 
-        FeatureIndexerOperation.TYPE_PARAM: 'vector',
-        FeatureIndexerOperation.ATTRIBUTES_PARAM: ['col'],
-        FeatureIndexerOperation.ALIAS_PARAM: 'c',
-        FeatureIndexerOperation.MAX_CATEGORIES_PARAM: 20,
+        VectorIndexOperation.TYPE_PARAM: 'vector',
+        VectorIndexOperation.ATTRIBUTES_PARAM: ['col'],
+        VectorIndexOperation.ALIAS_PARAM: 'c',
+        VectorIndexOperation.MAX_CATEGORIES_PARAM: 20,
     }
 
     n_in = {'input data': 'input_1'}
     n_out = {'output data': 'output_1', 'indexer models': 'models'}
 
-    instance = FeatureIndexerOperation(params, named_inputs=n_in,
+    instance = VectorIndexOperation(params, named_inputs=n_in,
                                        named_outputs=n_out)
     assert instance.get_data_out_names() == n_out['output data']
     assert instance.get_output_names() == ','.join([n_out['output data'],
@@ -163,10 +163,10 @@ def test_feature_indexer_output_names_success():
 def test_feature_indexer_vector_operation_success():
     params = {
 
-        FeatureIndexerOperation.TYPE_PARAM: 'vector',
-        FeatureIndexerOperation.ATTRIBUTES_PARAM: ['col'],
-        FeatureIndexerOperation.ALIAS_PARAM: 'c',
-        FeatureIndexerOperation.MAX_CATEGORIES_PARAM: 20,
+        VectorIndexOperation.TYPE_PARAM: 'vector',
+        VectorIndexOperation.ATTRIBUTES_PARAM: ['col'],
+        VectorIndexOperation.ALIAS_PARAM: 'c',
+        VectorIndexOperation.MAX_CATEGORIES_PARAM: 20,
     }
 
     n_in = {'input data': 'input_1'}
@@ -174,7 +174,7 @@ def test_feature_indexer_vector_operation_success():
     in1 = n_in['input data']
     out = n_out['output data']
 
-    instance = FeatureIndexerOperation(params, named_inputs=n_in,
+    instance = VectorIndexOperation(params, named_inputs=n_in,
                                        named_outputs=n_out)
 
     code = instance.generate_code()
@@ -197,14 +197,14 @@ def test_feature_indexer_vector_operation_success():
 
             {2} = pipeline.fit({1}_without_null).transform({1}_without_null)
 
-            """.format(params[FeatureIndexerOperation.ATTRIBUTES_PARAM],
+            """.format(params[VectorIndexOperation.ATTRIBUTES_PARAM],
                        in1,
                        out,
                        json.dumps(
                            list(zip(
-                               params[FeatureIndexerOperation.ATTRIBUTES_PARAM],
-                               params[FeatureIndexerOperation.ALIAS_PARAM]))),
-                       params[FeatureIndexerOperation.MAX_CATEGORIES_PARAM]))
+                               params[VectorIndexOperation.ATTRIBUTES_PARAM],
+                               params[VectorIndexOperation.ALIAS_PARAM]))),
+                       params[VectorIndexOperation.MAX_CATEGORIES_PARAM]))
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
 
@@ -214,16 +214,16 @@ def test_feature_indexer_vector_operation_success():
 def test_feature_indexer_vector_operation_failure():
     params = {
 
-        FeatureIndexerOperation.TYPE_PARAM: 'vector',
-        FeatureIndexerOperation.ATTRIBUTES_PARAM: ['col'],
-        FeatureIndexerOperation.ALIAS_PARAM: 'c',
-        FeatureIndexerOperation.MAX_CATEGORIES_PARAM: -1,
+        VectorIndexOperation.TYPE_PARAM: 'vector',
+        VectorIndexOperation.ATTRIBUTES_PARAM: ['col'],
+        VectorIndexOperation.ALIAS_PARAM: 'c',
+        VectorIndexOperation.MAX_CATEGORIES_PARAM: -1,
     }
 
     with pytest.raises(ValueError):
         n_in = {'input data': 'input_1'}
         n_out = {'output data': 'output_1'}
-        FeatureIndexerOperation(params, named_inputs=n_in,
+        VectorIndexOperation(params, named_inputs=n_in,
                                 named_outputs=n_out)
 
 
@@ -232,7 +232,7 @@ def test_feature_indexer_operation_failure():
     with pytest.raises(ValueError):
         n_in = {'input data': 'input_1'}
         n_out = {'output data': 'output_1'}
-        FeatureIndexerOperation(params, named_inputs=n_in,
+        VectorIndexOperation(params, named_inputs=n_in,
                                 named_outputs=n_out)
 
 
@@ -388,7 +388,7 @@ def test_feature_assembler_operation_success():
 
 
             """.format(features=json.dumps(
-        params[FeatureIndexerOperation.ATTRIBUTES_PARAM]),
+        params[VectorIndexOperation.ATTRIBUTES_PARAM]),
         alias=params[FeatureAssemblerOperation.ALIAS_PARAM],
         output_1=out,
         input_1=in1))
