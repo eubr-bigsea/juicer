@@ -37,6 +37,9 @@ class AlgorithmOperation(Operation):
         self.apply_one_versus_rest = parameters.get(
             'one_vs_rest') in [1, '1', 'True', True]
 
+        self.has_code = len(self.named_inputs) and any(
+            [len(self.named_outputs) > 1, self.contains_results()])
+
     def generate_code(self):
         algorithm_code = self.algorithm.generate_code() or ''
         model_code = self.model.generate_code() or ''
@@ -74,6 +77,15 @@ class ClassificationOperation(AlgorithmOperation):
         model.clone_algorithm = False
         super(ClassificationOperation, self).__init__(
             parameters, named_inputs, named_outputs, model, algorithm)
+
+    def get_auxiliary_code(self):
+        """
+        Extra code required by cross-validation
+        """
+        if self.parameters.get('perform_cross_validation') in [True, '1', 1]:
+            return ['templates/cross_validation.py']
+        else:
+            return []
 
 
 class SvmModelOperation(ClassificationOperation):
