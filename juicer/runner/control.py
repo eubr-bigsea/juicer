@@ -10,6 +10,8 @@ class StateControlRedis:
     user interface.
     """
     START_QUEUE_NAME = 'queue_start'
+    SCRIPT_QUEUE_NAME = 'queue_script'
+
     QUEUE_APP = 'queue_app_{}'
 
     def __init__(self, redis_conn):
@@ -104,18 +106,21 @@ class StateControlRedis:
         key = 'queue_master'
         return self.redis_conn.llen(key)
 
-    def pop_app_delivery_queue(self, app_id, block=True):
-        key = 'queue_delivery_app_{app_id}'.format(app_id=app_id)
-        if block:
-            result = self.redis_conn.blpop(key)[1]
-        else:
-            result = self.redis_conn.lpop(key)
-        return result
+    # def pop_app_delivery_queue(self, app_id, block=True):
+    #     key = 'queue_delivery_app_{app_id}'.format(app_id=app_id)
+    #     if block:
+    #         result = self.redis_conn.blpop(key)[1]
+    #     else:
+    #         result = self.redis_conn.lpop(key)
+    #     return result
 
-    def push_app_delivery_queue(self, app_id, data):
-        key = 'queue_delivery_app_{app_id}'.format(app_id=app_id)
-        self.redis_conn.rpush(key, data)
+    # def push_app_delivery_queue(self, app_id, data):
+    #     key = 'queue_delivery_app_{app_id}'.format(app_id=app_id)
+    #     self.redis_conn.rpush(key, data)
 
-    def get_app_delivery_queue_size(self, app_id):
-        key = 'queue_delivery_app_{app_id}'.format(app_id=app_id)
-        return self.redis_conn.llen(key)
+    # def get_app_delivery_queue_size(self, app_id):
+    #     key = 'queue_delivery_app_{app_id}'.format(app_id=app_id)
+    #     return self.redis_conn.llen(key)
+    def pop_script_queue(self, block=True):
+        return self.pop_queue(self.SCRIPT_QUEUE_NAME, block)
+
