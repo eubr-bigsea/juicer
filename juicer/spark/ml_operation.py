@@ -804,10 +804,10 @@ class EvaluateModelOperation(Operation):
                 else:
                     method = 'roc'
                 predictions = {input}.select(
-                    '{label_attr}','{prob_attr}').rdd.map(
+                    '{prediction_attr}_tmp','{prob_attr}').rdd.map(
                         lambda row: (
                             float(row['{prob_attr}'][1]),
-                            float(row['{label_attr}'])))
+                            float(row['{prediction_attr}_tmp'])))
                 points = CurveMetrics(predictions).get_curve(method)
                 x_val = [x[0] for x in points]
                 y_val = [x[1] for x in points]
@@ -881,7 +881,7 @@ class EvaluateModelOperation(Operation):
                 ml_model = {model}
             summary = getattr(ml_model, 'summary', None)
             if summary:
-                if summary.numInstances < 2000 and display_image:
+                if display_image: # LogReg: fail summary.numInstances < 2000
                     predictions = [r[prediction_col] for r in
                         summary.predictions.collect()]
 
@@ -1321,24 +1321,27 @@ class ClassificationModelOperation(DeployModelMixin, Operation):
                     predictionCol=algorithm.getPredictionCol(),
                     labelCol=algorithm.getLabelCol(),
                     metricName='{evaluator_metric}')
-                cv_model = custom_cross_validation(
+                cv_model, models_metrics, index, folds = cross_validation(
                     {train}, '{fold_col[0]}', estimator, estimator_params,
-                    evaluator, True, processes)
+                    evaluator, False, processes)
                 if display_text:
                     rows = [
-                        [str(cv_model.avgMetrics), '']
-                    ]
-                    if rows and len(rows):
-                        headers = {headers}
-                        content = SimpleTableReport(
-                            'table table-striped table-bordered table-sm',
-                            headers, rows)
+                        [fold_num, ', '.join([str(round(m, 4)) for m in ms]),
+                        round(sum(ms)/len(ms), 4)]
+                        for fold_num, ms in enumerate(models_metrics)]
 
-                        result = '<h4>{title}</h4>'
+                    headers = {headers2}
+                    content = SimpleTableReport(
+                        'table table-striped table-bordered w-auto',
+                        headers, rows)
 
-                        emit(status='COMPLETED',
-                             message=result + content.generate(),
-                             type='HTML', title='{title}')
+                    result = '<h4>{msg2}</h4>'.format(
+                        '{evaluator_metric}', folds,
+                        round(cv_model.avgMetrics[0], 4))
+
+                    emit(status='COMPLETED',
+                         message=result + content.generate(),
+                         type='HTML', title='{title}')
 
                 {model} = cv_model.bestModel
             else:
@@ -1381,9 +1384,11 @@ class ClassificationModelOperation(DeployModelMixin, Operation):
                        'feature assembler in the workflow.'),
                 msg1=_('Label attribute is categorical, it will be '
                        'implicitly indexed as string.'),
+                msg2=_('Metric ({}) average for {} folds: {}'),
                 display_text=display_text,
                 title=_('Generated classification model parameters'),
                 headers=[_('Parameter'), _('Value'), ],
+                headers2=[_('Fold'), _('Results'), _('Average')],
                 task_id=self.parameters['task_id'],
                 operation_id=self.parameters['operation_id'],
                 perform_cross_validation=self.perform_cross_validation,
