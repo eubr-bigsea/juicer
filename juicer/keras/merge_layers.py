@@ -7,14 +7,16 @@ from juicer.util.template_util import *
 class Add(Operation):
     INPUTS_PARAM = 'inputs'
     KWARGS_PARAM = 'kwargs'
+    ADVANCED_OPTIONS_PARAM = 'advanced_options'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
         self.output = named_outputs.get('output data',
                                         'out_task_{}'.format(self.order))
 
-        self.inputs = parameters.get(self.INPUTS_PARAM, None) or None
-        self.kwargs = parameters.get(self.KWARGS_PARAM, None) or None
+        self.inputs = parameters.get(self.INPUTS_PARAM, None)
+        self.kwargs = parameters.get(self.KWARGS_PARAM, None)
+        self.advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
 
         self.task_name = self.parameters.get('task').get('name')
         self.parents = ""
@@ -50,6 +52,9 @@ class Add(Operation):
         self.var_name = convert_variable_name(self.task_name)
         self.task_name = self.var_name
 
+        self.advanced_options = True if int(self.advanced_options) == 1 else \
+            False
+
         if self.inputs is not None:
             self.inputs = re.sub(r"\{|\[|\(|\)|\]|\}|\s+", "", str(self.inputs))
             self.inputs = self.inputs.split(',')
@@ -78,18 +83,19 @@ class Add(Operation):
             raise ValueError(gettext('Parameter {} requires at least 2.')
                              .format(self.INPUTS_PARAM))
 
-        if self.kwargs is not None:
-            # Format kwargs
-            self.kwargs = re.sub(r"^\s+|\s+$", "", self.kwargs)
-            self.kwargs = re.sub(r"\s+", " ", self.kwargs)
-            self.kwargs = re.sub(r"\s*,\s*", ", ", self.kwargs)
-            self.kwargs = re.sub(r"\s*=\s*", "=", self.kwargs)
+        if self.advanced_options:
+            if self.kwargs is not None:
+                # Format kwargs
+                self.kwargs = re.sub(r"^\s+|\s+$", "", self.kwargs)
+                self.kwargs = re.sub(r"\s+", " ", self.kwargs)
+                self.kwargs = re.sub(r"\s*,\s*", ", ", self.kwargs)
+                self.kwargs = re.sub(r"\s*=\s*", "=", self.kwargs)
 
-            args = self.kwargs.split(',')
-            args_params = self.kwargs.split('=')
-            if len(args) >= 1 and ((len(args_params) - len(args)) == 1):
-                self.kwargs = """{kwargs}""".format(kwargs=self.kwargs)
-                functions_required.append(self.kwargs)
+                args = self.kwargs.split(',')
+                args_params = self.kwargs.split('=')
+                if len(args) >= 1 and ((len(args_params) - len(args)) == 1):
+                    self.kwargs = """{kwargs}""".format(kwargs=self.kwargs)
+                    functions_required.append(self.kwargs)
 
         self.add_functions_required = ',\n    '.join(functions_required)
 
@@ -114,8 +120,8 @@ class Subtract(Operation):
         self.output = named_outputs.get('output data',
                                         'out_task_{}'.format(self.order))
 
-        self.inputs = parameters.get(self.INPUTS_PARAM, None) or None
-        self.kwargs = parameters.get(self.KWARGS_PARAM, None) or None
+        self.inputs = parameters.get(self.INPUTS_PARAM, None)
+        self.kwargs = parameters.get(self.KWARGS_PARAM, None)
 
         self.task_name = self.parameters.get('task').get('name')
         self.parents = ""
@@ -219,8 +225,8 @@ class Multiply(Operation):
         self.output = named_outputs.get('output data',
                                         'out_task_{}'.format(self.order))
 
-        self.inputs = parameters.get(self.INPUTS_PARAM, None) or None
-        self.kwargs = parameters.get(self.KWARGS_PARAM, None) or None
+        self.inputs = parameters.get(self.INPUTS_PARAM, None)
+        self.kwargs = parameters.get(self.KWARGS_PARAM, None)
 
         self.task_name = self.parameters.get('task').get('name')
         self.parents = ""
@@ -322,8 +328,8 @@ class Average(Operation):
         self.output = named_outputs.get('output data',
                                         'out_task_{}'.format(self.order))
 
-        self.inputs = parameters.get(self.INPUTS_PARAM, None) or None
-        self.kwargs = parameters.get(self.KWARGS_PARAM, None) or None
+        self.inputs = parameters.get(self.INPUTS_PARAM, None)
+        self.kwargs = parameters.get(self.KWARGS_PARAM, None)
 
         self.task_name = self.parameters.get('task').get('name')
         self.parents = ""
@@ -425,8 +431,8 @@ class Maximum(Operation):
         self.output = named_outputs.get('output data',
                                         'out_task_{}'.format(self.order))
 
-        self.inputs = parameters.get(self.INPUTS_PARAM, None) or None
-        self.kwargs = parameters.get(self.KWARGS_PARAM, None) or None
+        self.inputs = parameters.get(self.INPUTS_PARAM, None)
+        self.kwargs = parameters.get(self.KWARGS_PARAM, None)
 
         self.task_name = self.parameters.get('task').get('name')
         self.parents = ""
@@ -532,8 +538,8 @@ class Minimum(Operation):
         self.output = named_outputs.get('output data',
                                         'out_task_{}'.format(self.order))
 
-        self.inputs = parameters.get(self.INPUTS_PARAM, None) or None
-        self.kwargs = parameters.get(self.KWARGS_PARAM, None) or None
+        self.inputs = parameters.get(self.INPUTS_PARAM, None)
+        self.kwargs = parameters.get(self.KWARGS_PARAM, None)
 
         self.task_name = self.parameters.get('task').get('name')
         self.parents = ""
@@ -636,9 +642,9 @@ class Concatenate(Operation):
         self.output = named_outputs.get('output data',
                                         'out_task_{}'.format(self.order))
 
-        self.inputs = parameters.get(self.INPUTS_PARAM, None) or None
-        self.axis = parameters.get(self.AXIS_PARAM, None) or None
-        self.kwargs = parameters.get(self.KWARGS_PARAM, None) or None
+        self.inputs = parameters.get(self.INPUTS_PARAM, None)
+        self.axis = parameters.get(self.AXIS_PARAM, None)
+        self.kwargs = parameters.get(self.KWARGS_PARAM, None)
 
         self.task_name = self.parameters.get('task').get('name')
         self.parents = ""
@@ -750,10 +756,10 @@ class Dot(Operation):
         self.output = named_outputs.get('output data',
                                         'out_task_{}'.format(self.order))
 
-        self.inputs = parameters.get(self.INPUTS_PARAM, None) or None
-        self.axes = parameters.get(self.AXES_PARAM, None) or None
-        self.normalize = parameters.get(self.NORMALIZE_PARAM, None) or None
-        self.kwargs = parameters.get(self.KWARGS_PARAM, None) or None
+        self.inputs = parameters.get(self.INPUTS_PARAM, None)
+        self.axes = parameters.get(self.AXES_PARAM, None)
+        self.normalize = parameters.get(self.NORMALIZE_PARAM, None)
+        self.kwargs = parameters.get(self.KWARGS_PARAM, None)
 
         self.task_name = self.parameters.get('task').get('name')
         self.parents = ""

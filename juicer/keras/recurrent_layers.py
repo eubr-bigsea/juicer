@@ -30,6 +30,7 @@ class LSTM(Operation):
     GO_BACKWARDS_PARAM = 'go_backwards'
     STATEFUL_PARAM = 'stateful'
     UNROLL_PARAM = 'unroll'
+    ADVANCED_OPTIONS_PARAM = 'advanced_options'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
@@ -74,6 +75,7 @@ class LSTM(Operation):
         self.go_backwards = parameters.get(self.GO_BACKWARDS_PARAM)
         self.stateful = parameters.get(self.STATEFUL_PARAM)
         self.unroll = parameters.get(self.UNROLL_PARAM)
+        self.advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
 
         self.add_functions_required = ""
         self.task_name = self.parameters.get('task').get('name')
@@ -83,9 +85,14 @@ class LSTM(Operation):
 
         self.parents_by_port = parameters.get('my_ports', [])
         self.python_code_to_remove = self.remove_python_code_parent()
+
+        if self.UNITS_PARAM is None:
+            raise ValueError(
+                gettext('Parameter {} is required').format(self.UNITS_PARAM))
+
         self.treatment()
 
-        self.import_code = {'layer': 'LSTM ',
+        self.import_code = {'layer': 'LSTM',
                             'callbacks': [],
                             'model': None,
                             'preprocessing_image': None,
@@ -116,8 +123,16 @@ class LSTM(Operation):
 
         if self.units <= 0:
             raise ValueError(
-                gettext('Parameter {} needs to be positive integer').format(
+                gettext('Parameter {} needs to be a positive integer').format(
                     self.UNITS_PARAM))
+        if self.dropout <= 0:
+            raise ValueError(
+                gettext('Parameter {} needs to be positive float').format(
+                    self.DROPOUT_PARAM))
+        if self.recurrent_dropout <= 0:
+            raise ValueError(
+                gettext('Parameter {} needs to be positive float').format(
+                    self.RECURRENT_DROPOUT_PARAM))
 
         self.use_bias = True if int(self.use_bias) == 1 else False
         self.unit_forget_bias = True if int(
@@ -128,67 +143,117 @@ class LSTM(Operation):
         self.go_backwards = True if int(self.go_backwards) == 1 else False
         self.stateful = True if int(self.stateful) == 1 else False
         self.unroll = True if int(self.unroll) == 1 else False
+        self.advanced_options = True if int(self.advanced_options) == 1 else \
+            False
 
         self.implementation = int(self.implementation)
 
-        if self.dropout <= 0:
-            raise ValueError(
-                gettext('Parameter {} needs to be positive float').format(
-                    self.DROPOUT_PARAM))
-        if self.recurrent_dropout <= 0:
-            raise ValueError(
-                gettext('Parameter {} needs to be positive float').format(
-                    self.RECURRENT_DROPOUT_PARAM))
-
         functions_required = []
-        if self.activation is not None:
-            self.activation = """activation='{activation}'""" \
-                .format(activation=self.activation)
-            functions_required.append(self.activation)
-        if self.recurrent_activation is not None:
-            self.recurrent_activation = """recurrent_activation='{recurrent_activation}'""" \
-                .format(recurrent_activation=self.recurrent_activation)
-            functions_required.append(self.recurrent_activation)
-        if self.kernel_initializer is not None:
-            self.kernel_initializer = """kernel_initializer='{kernel_initializer}'""" \
-                .format(kernel_initializer=self.kernel_initializer)
-            functions_required.append(self.kernel_initializer)
-        if self.recurrent_initializer is not None:
-            self.recurrent_initializer = """recurrent_initializer='{recurrent_initializer}'""" \
-                .format(recurrent_initializer=self.recurrent_initializer)
-            functions_required.append(self.recurrent_initializer)
-        if self.bias_initializer is not None:
-            self.bias_initializer = """bias_initializer='{bias_initializer}'""" \
-                .format(bias_initializer=self.bias_initializer)
-            functions_required.append(self.bias_initializer)
-        if self.kernel_regularizer is not None:
-            self.kernel_regularizer = """kernel_regularizer='{kernel_regularizer}'""" \
-                .format(kernel_regularizer=self.kernel_regularizer)
-            functions_required.append(self.kernel_regularizer)
-        if self.recurrent_regularizer is not None:
-            self.recurrent_regularizer = """recurrent_regularizer='{recurrent_regularizer}'""" \
-                .format(recurrent_regularizer=self.recurrent_regularizer)
-            functions_required.append(self.recurrent_regularizer)
-        if self.bias_regularizer is not None:
-            self.bias_regularizer = """bias_regularizer='{bias_regularizer}'""" \
-                .format(bias_regularizer=self.bias_regularizer)
-            functions_required.append(self.bias_regularizer)
-        if self.activity_regularizer is not None:
-            self.activity_regularizer = """activity_regularizer='{activity_regularizer}'""" \
-                .format(activity_regularizer=self.activity_regularizer)
-            functions_required.append(self.activity_regularizer)
-        if self.kernel_constraint is not None:
-            self.kernel_constraint = """kernel_constraint='{kernel_constraint}'""" \
-                .format(kernel_constraint=self.kernel_constraint)
-            functions_required.append(self.kernel_constraint)
-        if self.recurrent_constraint is not None:
-            self.recurrent_constraint = """recurrent_constraint='{recurrent_constraint}'""" \
-                .format(recurrent_constraint=self.recurrent_constraint)
-            functions_required.append(self.recurrent_constraint)
-        if self.bias_constraint is not None:
-            self.bias_constraint = """bias_constraint='{bias_constraint}'""" \
-                .format(bias_constraint=self.bias_constraint)
-            functions_required.append(self.bias_constraint)
+        self.units = """units='{units}'""".format(units=self.units)
+        functions_required.append(self.units)
+
+        if self.advanced_options:
+            if self.activation is not None:
+                self.activation = """activation='{activation}'""" \
+                    .format(activation=self.activation)
+                functions_required.append(self.activation)
+            if self.recurrent_activation is not None:
+                self.recurrent_activation = """recurrent_activation=
+                '{recurrent_activation}'""".format(
+                    recurrent_activation=self.recurrent_activation)
+                functions_required.append(self.recurrent_activation)
+
+            self.use_bias = """use_bias={use_bias}""".format(
+                use_bias=self.use_bias)
+            functions_required.append(self.use_bias)
+
+            if self.kernel_initializer is not None:
+                self.kernel_initializer = """kernel_initializer=
+                '{kernel_initializer}'""".format(
+                    kernel_initializer=self.kernel_initializer)
+                functions_required.append(self.kernel_initializer)
+            if self.recurrent_initializer is not None:
+                self.recurrent_initializer = """recurrent_initializer=
+                '{recurrent_initializer}'""".format(
+                    recurrent_initializer=self.recurrent_initializer)
+                functions_required.append(self.recurrent_initializer)
+            if self.bias_initializer is not None:
+                self.bias_initializer = """bias_initializer=
+                '{bias_initializer}'""".format(
+                    bias_initializer=self.bias_initializer)
+                functions_required.append(self.bias_initializer)
+
+            self.unit_forget_bias = """unit_forget_bias=
+            {unit_forget_bias}""".format(unit_forget_bias=self.unit_forget_bias)
+            functions_required.append(self.unit_forget_bias)
+
+            if self.kernel_regularizer is not None:
+                self.kernel_regularizer = """kernel_regularizer=
+                '{kernel_regularizer}'""".format(
+                    kernel_regularizer=self.kernel_regularizer)
+                functions_required.append(self.kernel_regularizer)
+            if self.recurrent_regularizer is not None:
+                self.recurrent_regularizer = """recurrent_regularizer=
+                '{recurrent_regularizer}'""".format(
+                    recurrent_regularizer=self.recurrent_regularizer)
+                functions_required.append(self.recurrent_regularizer)
+            if self.bias_regularizer is not None:
+                self.bias_regularizer = """bias_regularizer=
+                '{bias_regularizer}'""".format(
+                    bias_regularizer=self.bias_regularizer)
+                functions_required.append(self.bias_regularizer)
+            if self.activity_regularizer is not None:
+                self.activity_regularizer = """activity_regularizer=
+                '{activity_regularizer}'""".format(
+                    activity_regularizer=self.activity_regularizer)
+                functions_required.append(self.activity_regularizer)
+            if self.kernel_constraint is not None:
+                self.kernel_constraint = """kernel_constraint=
+                '{kernel_constraint}'""".format(
+                    kernel_constraint=self.kernel_constraint)
+                functions_required.append(self.kernel_constraint)
+            if self.recurrent_constraint is not None:
+                self.recurrent_constraint = """recurrent_constraint=
+                '{recurrent_constraint}'""".format(
+                    recurrent_constraint=self.recurrent_constraint)
+                functions_required.append(self.recurrent_constraint)
+            if self.bias_constraint is not None:
+                self.bias_constraint = """bias_constraint=
+                '{bias_constraint}'""".format(
+                    bias_constraint=self.bias_constraint)
+                functions_required.append(self.bias_constraint)
+
+            self.dropout = """dropout={dropout}""".format(
+                dropout=self.dropout)
+            functions_required.append(self.dropout)
+
+            self.recurrent_dropout = """recurrent_dropout=
+            {recurrent_dropout}""".format(
+                recurrent_dropout=self.recurrent_dropout)
+            functions_required.append(self.recurrent_dropout)
+
+            self.implementation = """implementation={implementation}""".format(
+                implementation=self.implementation)
+            functions_required.append(self.implementation)
+
+            self.return_sequences = """return_sequences=
+            {return_sequences}""".format(return_sequences=self.return_sequences)
+            functions_required.append(self.return_sequences)
+
+            self.return_state = """return_state={return_state}""".format(
+                return_state=self.return_state)
+            functions_required.append(self.return_state)
+
+            self.go_backwards = """go_backwards={go_backwards}""".format(
+                go_backwards=self.go_backwards)
+            functions_required.append(self.go_backwards)
+
+            self.stateful = """stateful={stateful}""".format(
+                stateful=self.stateful)
+            functions_required.append(self.stateful)
+
+            self.unroll = """unroll={unroll}""".format(unroll=self.unroll)
+            functions_required.append(self.unroll)
 
         self.add_functions_required = ',\n    '.join(functions_required)
         if self.add_functions_required:
@@ -198,34 +263,12 @@ class LSTM(Operation):
         return dedent(
             """
             {var_name} = LSTM(
-                name='{name}',
-                units={units},
-                use_bias={use_bias},
-                unit_forget_bias={unit_forget_bias},
-                return_sequences={return_sequences},
-                return_state={return_state},
-                go_backwards={go_backwards},
-                stateful={stateful},
-                unroll={unroll},
-                implementation={implementation},
-                dropout={dropout},
-                recurrent_dropout={recurrent_dropout}{add_functions_required}
+                name='{name}'{add_functions_required}
             ){parent}
             """
         ).format(var_name=self.var_name,
                  name=self.task_name,
-                 units=self.units,
                  add_functions_required=self.add_functions_required,
-                 use_bias=self.use_bias,
-                 unit_forget_bias=self.unit_forget_bias,
-                 return_sequences=self.return_sequences,
-                 return_state=self.return_state,
-                 go_backwards=self.go_backwards,
-                 stateful=self.stateful,
-                 unroll=self.unroll,
-                 implementation=self.implementation,
-                 dropout=self.dropout,
-                 recurrent_dropout=self.recurrent_dropout,
                  parent=self.parent)
 
 
@@ -250,6 +293,7 @@ class SimpleRNN(Operation):
     GO_BACKWARDS_PARAM = 'go_backwards'
     STATEFUL_PARAM = 'stateful'
     UNROLL_PARAM = 'unroll'
+    ADVANCED_OPTIONS_PARAM = 'advanced_options'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
@@ -290,6 +334,7 @@ class SimpleRNN(Operation):
         self.go_backwards = parameters.get(self.GO_BACKWARDS_PARAM)
         self.stateful = parameters.get(self.STATEFUL_PARAM)
         self.unroll = parameters.get(self.UNROLL_PARAM)
+        self.advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
 
         self.add_functions_required = ""
         self.task_name = self.parameters.get('task').get('name')
@@ -299,9 +344,14 @@ class SimpleRNN(Operation):
 
         self.parents_by_port = parameters.get('my_ports', [])
         self.python_code_to_remove = self.remove_python_code_parent()
+
+        if self.UNITS_PARAM is None:
+            raise ValueError(
+                gettext('Parameter {} is required').format(self.UNITS_PARAM))
+
         self.treatment()
 
-        self.import_code = {'layer': 'SimpleRNN ',
+        self.import_code = {'layer': 'SimpleRNN',
                             'callbacks': [],
                             'model': None,
                             'preprocessing_image': None,
@@ -332,17 +382,8 @@ class SimpleRNN(Operation):
 
         if self.units <= 0:
             raise ValueError(
-                gettext('Parameter {} needs to be positive integer').format(
+                gettext('Parameter {} needs to be a positive integer').format(
                     self.UNITS_PARAM))
-
-        self.use_bias = True if int(self.use_bias) == 1 else False
-        self.return_sequences = True if int(
-            self.return_sequences) == 1 else False
-        self.return_state = True if int(self.return_state) == 1 else False
-        self.go_backwards = True if int(self.go_backwards) == 1 else False
-        self.stateful = True if int(self.stateful) == 1 else False
-        self.unroll = True if int(self.unroll) == 1 else False
-
         if self.dropout <= 0:
             raise ValueError(
                 gettext('Parameter {} needs to be positive float').format(
@@ -352,51 +393,111 @@ class SimpleRNN(Operation):
                 gettext('Parameter {} needs to be positive float').format(
                     self.RECURRENT_DROPOUT_PARAM))
 
+        self.use_bias = True if int(self.use_bias) == 1 else False
+        self.return_sequences = True if int(
+            self.return_sequences) == 1 else False
+        self.return_state = True if int(self.return_state) == 1 else False
+        self.go_backwards = True if int(self.go_backwards) == 1 else False
+        self.stateful = True if int(self.stateful) == 1 else False
+        self.unroll = True if int(self.unroll) == 1 else False
+        self.advanced_options = True if int(self.advanced_options) == 1 else \
+            False
+
+        self.implementation = int(self.implementation)
+
         functions_required = []
-        if self.activation is not None:
-            self.activation = """activation='{activation}'""" \
-                .format(activation=self.activation)
-            functions_required.append(self.activation)
-        if self.kernel_initializer is not None:
-            self.kernel_initializer = """kernel_initializer='{kernel_initializer}'""" \
-                .format(kernel_initializer=self.kernel_initializer)
-            functions_required.append(self.kernel_initializer)
-        if self.recurrent_initializer is not None:
-            self.recurrent_initializer = """recurrent_initializer='{recurrent_initializer}'""" \
-                .format(recurrent_initializer=self.recurrent_initializer)
-            functions_required.append(self.recurrent_initializer)
-        if self.bias_initializer is not None:
-            self.bias_initializer = """bias_initializer='{bias_initializer}'""" \
-                .format(bias_initializer=self.bias_initializer)
-            functions_required.append(self.bias_initializer)
-        if self.kernel_regularizer is not None:
-            self.kernel_regularizer = """kernel_regularizer='{kernel_regularizer}'""" \
-                .format(kernel_regularizer=self.kernel_regularizer)
-            functions_required.append(self.kernel_regularizer)
-        if self.recurrent_regularizer is not None:
-            self.recurrent_regularizer = """recurrent_regularizer='{recurrent_regularizer}'""" \
-                .format(recurrent_regularizer=self.recurrent_regularizer)
-            functions_required.append(self.recurrent_regularizer)
-        if self.bias_regularizer is not None:
-            self.bias_regularizer = """bias_regularizer='{bias_regularizer}'""" \
-                .format(bias_regularizer=self.bias_regularizer)
-            functions_required.append(self.bias_regularizer)
-        if self.activity_regularizer is not None:
-            self.activity_regularizer = """activity_regularizer='{activity_regularizer}'""" \
-                .format(activity_regularizer=self.activity_regularizer)
-            functions_required.append(self.activity_regularizer)
-        if self.kernel_constraint is not None:
-            self.kernel_constraint = """kernel_constraint='{kernel_constraint}'""" \
-                .format(kernel_constraint=self.kernel_constraint)
-            functions_required.append(self.kernel_constraint)
-        if self.recurrent_constraint is not None:
-            self.recurrent_constraint = """recurrent_constraint='{recurrent_constraint}'""" \
-                .format(recurrent_constraint=self.recurrent_constraint)
-            functions_required.append(self.recurrent_constraint)
-        if self.bias_constraint is not None:
-            self.bias_constraint = """bias_constraint='{bias_constraint}'""" \
-                .format(bias_constraint=self.bias_constraint)
-            functions_required.append(self.bias_constraint)
+        self.units = """units='{units}'""".format(units=self.units)
+        functions_required.append(self.units)
+
+        if self.advanced_options:
+            if self.activation is not None:
+                self.activation = """activation='{activation}'""" \
+                    .format(activation=self.activation)
+                functions_required.append(self.activation)
+
+            self.use_bias = """use_bias={use_bias}""".format(
+                use_bias=self.use_bias)
+            functions_required.append(self.use_bias)
+
+            if self.kernel_initializer is not None:
+                self.kernel_initializer = """kernel_initializer=
+                '{kernel_initializer}'""".format(
+                    kernel_initializer=self.kernel_initializer)
+                functions_required.append(self.kernel_initializer)
+            if self.recurrent_initializer is not None:
+                self.recurrent_initializer = """recurrent_initializer=
+                '{recurrent_initializer}'""".format(
+                    recurrent_initializer=self.recurrent_initializer)
+                functions_required.append(self.recurrent_initializer)
+            if self.bias_initializer is not None:
+                self.bias_initializer = """bias_initializer=
+                '{bias_initializer}'""".format(
+                    bias_initializer=self.bias_initializer)
+                functions_required.append(self.bias_initializer)
+
+            if self.kernel_regularizer is not None:
+                self.kernel_regularizer = """kernel_regularizer=
+                '{kernel_regularizer}'""".format(
+                    kernel_regularizer=self.kernel_regularizer)
+                functions_required.append(self.kernel_regularizer)
+            if self.recurrent_regularizer is not None:
+                self.recurrent_regularizer = """recurrent_regularizer=
+                '{recurrent_regularizer}'""".format(
+                    recurrent_regularizer=self.recurrent_regularizer)
+                functions_required.append(self.recurrent_regularizer)
+            if self.bias_regularizer is not None:
+                self.bias_regularizer = """bias_regularizer=
+                '{bias_regularizer}'""".format(
+                    bias_regularizer=self.bias_regularizer)
+                functions_required.append(self.bias_regularizer)
+            if self.activity_regularizer is not None:
+                self.activity_regularizer = """activity_regularizer=
+                '{activity_regularizer}'""".format(
+                    activity_regularizer=self.activity_regularizer)
+                functions_required.append(self.activity_regularizer)
+            if self.kernel_constraint is not None:
+                self.kernel_constraint = """kernel_constraint=
+                '{kernel_constraint}'""".format(
+                    kernel_constraint=self.kernel_constraint)
+                functions_required.append(self.kernel_constraint)
+            if self.recurrent_constraint is not None:
+                self.recurrent_constraint = """recurrent_constraint=
+                '{recurrent_constraint}'""".format(
+                    recurrent_constraint=self.recurrent_constraint)
+                functions_required.append(self.recurrent_constraint)
+            if self.bias_constraint is not None:
+                self.bias_constraint = """bias_constraint=
+                '{bias_constraint}'""".format(
+                    bias_constraint=self.bias_constraint)
+                functions_required.append(self.bias_constraint)
+
+            self.dropout = """dropout={dropout}""".format(
+                dropout=self.dropout)
+            functions_required.append(self.dropout)
+
+            self.recurrent_dropout = """recurrent_dropout=
+            {recurrent_dropout}""".format(
+                recurrent_dropout=self.recurrent_dropout)
+            functions_required.append(self.recurrent_dropout)
+
+            self.return_sequences = """return_sequences=
+            {return_sequences}""".format(return_sequences=self.return_sequences)
+            functions_required.append(self.return_sequences)
+
+            self.return_state = """return_state={return_state}""".format(
+                return_state=self.return_state)
+            functions_required.append(self.return_state)
+
+            self.go_backwards = """go_backwards={go_backwards}""".format(
+                go_backwards=self.go_backwards)
+            functions_required.append(self.go_backwards)
+
+            self.stateful = """stateful={stateful}""".format(
+                stateful=self.stateful)
+            functions_required.append(self.stateful)
+
+            self.unroll = """unroll={unroll}""".format(unroll=self.unroll)
+            functions_required.append(self.unroll)
 
         self.add_functions_required = ',\n    '.join(functions_required)
         if self.add_functions_required:
@@ -406,30 +507,10 @@ class SimpleRNN(Operation):
         return dedent(
             """
             {var_name} = SimpleRNN(
-                name='{name}',
-                units={units},
-                use_bias={use_bias},
-                unit_forget_bias={unit_forget_bias},
-                return_sequences={return_sequences},
-                return_state={return_state},
-                go_backwards={go_backwards},
-                stateful={stateful},
-                unroll={unroll},
-                implementation={implementation},
-                dropout={dropout},
-                recurrent_dropout={recurrent_dropout}{add_functions_required}
+                name='{name}'{add_functions_required}
             ){parent}
             """
         ).format(var_name=self.var_name,
                  name=self.task_name,
-                 units=self.units,
                  add_functions_required=self.add_functions_required,
-                 use_bias=self.use_bias,
-                 return_sequences=self.return_sequences,
-                 return_state=self.return_state,
-                 go_backwards=self.go_backwards,
-                 stateful=self.stateful,
-                 unroll=self.unroll,
-                 dropout=self.dropout,
-                 recurrent_dropout=self.recurrent_dropout,
                  parent=self.parent)

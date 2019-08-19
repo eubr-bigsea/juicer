@@ -482,8 +482,8 @@ class Input(Operation):
         self.output = named_outputs.get('output data',
                                         'out_task_{}'.format(self.order))
 
-        self.shape = parameters.get(self.SHAPE_PARAM, None) or None
-        self.batch_shape = parameters.get(self.BATCH_SHAPE_PARAM, None) or None
+        self.shape = parameters.get(self.SHAPE_PARAM, None)
+        self.batch_shape = parameters.get(self.BATCH_SHAPE_PARAM, None)
         self.dtype = parameters.get(self.DTYPE_PARAM, None)
         self.sparse = parameters.get(self.SPARSE_PARAM, 0)
         self.advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
@@ -584,15 +584,15 @@ class Lambda(Operation):
         self.output = named_outputs.get('output data',
                                         'out_task_{}'.format(self.order))
 
-        if self.FUNCTION_PARAM not in parameters or self.FUNCTION_PARAM is None:
+        if self.FUNCTION_PARAM is None:
             raise ValueError(
                 gettext('Parameter {} is required').format(self.FUNCTION_PARAM))
 
-        self.function = parameters.get(self.FUNCTION_PARAM, None) or None
-        self.mask = parameters.get(self.MASK_PARAM, None) or None
-        self.arguments = parameters.get(self.ARGUMENTS_PARAM, None) or None
+        self.function = parameters.get(self.FUNCTION_PARAM, None)
+        self.mask = parameters.get(self.MASK_PARAM, None)
+        self.arguments = parameters.get(self.ARGUMENTS_PARAM, None)
         self.output_shape = parameters.get(self.OUTPUT_SHAPE_PARAM,
-                                           None) or None
+                                           None)
         self.advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
 
         self.task_name = self.parameters.get('task').get('name')
@@ -757,7 +757,7 @@ class Permute(Operation):
             raise ValueError(
                 gettext('Parameter {} is required').format(self.DIMS_PARAM))
 
-        self.dims = parameters.get(self.DIMS_PARAM, None) or None
+        self.dims = parameters.get(self.DIMS_PARAM, None)
         self.task_name = self.parameters.get('task').get('name')
         self.has_code = True
 
@@ -897,7 +897,7 @@ class Reshape(Operation):
                 self.TARGET_SHAPE_PARAM))
 
         self.target_shape = parameters.get(self.TARGET_SHAPE_PARAM,
-                                           None) or None
+                                           None)
         self.task_name = self.parameters.get('task').get('name')
         self.task_workflow_order = self.parameters.get('task').get('order')
         self.has_code = True
