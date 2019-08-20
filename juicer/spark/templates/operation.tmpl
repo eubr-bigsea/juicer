@@ -52,6 +52,9 @@ executor = ThreadPoolExecutor(max_workers={{instances|length}})
 submission_lock = threading.Lock()
 task_futures = {}
 
+{% for auxiliary_code in transpiler.get_auxiliary_code(instances) %}
+{%- include auxiliary_code with context %}
+{%- endfor %}
 
 {%- for instance in instances %}
 {%-  handleinstance instance %}
@@ -238,7 +241,7 @@ def main(spark_session, cached_state, emit_event):
         {%- for disabled in transpiler.get_disabled_tasks(instances) %}
         emit_event(name='update task', message=_(
             'Task completed, but not executed (not used in the workflow).'),
-            status='COMPLETED',
+            status='COMPLETED', level='WARN',
             identifier='{{disabled.parameters.task.id}}')
         {%- endfor %}
 

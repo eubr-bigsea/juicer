@@ -125,7 +125,6 @@ class Transpiler(object):
     def generate_code(self, graph, job_id, out, params, ports,
                       sorted_tasks_id, state, task_hash, using_stdout,
                       workflow, deploy=False, export_notebook=False):
-
         if deploy:
             # To be able to convert, workflow must obey all these rules:
             # - 1 and exactly 1 data source;
@@ -264,10 +263,9 @@ class Transpiler(object):
             'job_id': job_id,
             'now': datetime.datetime.now(), 'user': workflow['user'],
             'plain': params.get('plain', False),
-            'transpiler': TranspilerUtils(),
+            'transpiler': TranspilerUtils(self),
             'workflow_name': workflow['name'],
             'workflow': workflow,
-            'job_id': job_id,
         }
         env_setup.update(self.get_context())
 
@@ -393,11 +391,17 @@ class Transpiler(object):
         return len(
             [t['slug'] in self.DATA_SOURCE_OPS for t in workflow['tasks']]) == 1
 
+    def generate_auxiliary_code(self):
+        return ""
+
 
 class TranspilerUtils(object):
     """ Utilities for using in Jinja2 related to transpiling and other useful
      functions.
      """
+
+    def __init__(self, transpiler=None):
+        self.transpiler = transpiler
 
     @staticmethod
     def _get_enabled_tasks_to_execute(instances):
@@ -414,6 +418,13 @@ class TranspilerUtils(object):
     def _get_enabled_tasks(instances):
         return [instance for instance in instances if
                 instance.has_code and instance.enabled]
+
+    @staticmethod
+    def get_auxiliary_code(instances):
+        result = []
+        for instance in instances:
+            result.extend(instance.get_auxiliary_code())
+        return set(result)
 
     @staticmethod
     def _get_parent_tasks(instances_map, instance, only_enabled=True,
