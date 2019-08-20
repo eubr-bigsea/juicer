@@ -142,7 +142,7 @@ def get_tuple(field):
 
 def get_int_or_tuple(field):
     if field is not None:
-        if isinstance(field, basestring) and field.strip():
+        if isinstance(field, str) and field.strip():
             try:
                 return int(field)
             except:

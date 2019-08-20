@@ -1351,7 +1351,7 @@ class SplitKFoldOperation(Operation):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         if self.K_FOLD_PARAM in parameters:
-            self.k_fold = parameters.get(self.K_FOLD_PARAM)
+            self.k_fold = int(parameters.get(self.K_FOLD_PARAM, 10))
             if self.k_fold < 2:
                 raise ValueError(_("Parameter '{}' informed for task '{}' \
                                    must be at >= 2").format(self.K_FOLD_PARAM,

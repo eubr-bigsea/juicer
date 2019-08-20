@@ -221,6 +221,9 @@ class Workflow(object):
                     task['port_names'] = port_names
                     self.graph.add_node(
                         task.get('id'),
+                        name=task.get('name'),
+                        forms=task.get('forms'),
+                        operation=task.get('operation'),
                         in_degree_required=result['N_INPUT'],
                         in_degree_multiplicity_required=result['M_INPUT'],
                         out_degree_required=result['N_OUTPUT'],
