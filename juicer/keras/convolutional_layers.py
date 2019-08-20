@@ -827,11 +827,11 @@ class Convolution2D(Operation):
         self.filters = """filters={filters}""".format(filters=self.filters)
         functions_required.append(self.filters)
 
-        if self.advanced_options:
-            self.kernel_size = """kernel_size={kernel_size}""" \
-                .format(kernel_size=self.kernel_size)
-            functions_required.append(self.kernel_size)
+        self.kernel_size = """kernel_size={kernel_size}""" \
+            .format(kernel_size=self.kernel_size)
+        functions_required.append(self.kernel_size)
 
+        if self.advanced_options:
             self.strides = """strides={strides}""".format(strides=self.strides)
             functions_required.append(self.strides)
 
@@ -909,7 +909,7 @@ class Convolution2D(Operation):
 
             if self.weights is not None and self.weights.strip():
                 if convert_to_list(self.weights):
-                    self.weights = """weights={weights}"""\
+                    self.weights = """weights={weights}""" \
                         .format(weights=self.weights)
                     functions_required.append(self.weights)
 
