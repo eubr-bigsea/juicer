@@ -2455,8 +2455,7 @@ class RegressionModelOperation(DeployModelMixin, Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-        self.has_code = any([len(named_outputs) > 0 and len(named_inputs) == 2,
-                             self.contains_results()])
+        self.has_code = any([len(named_outputs) > 0, self.contains_results()])
 
         if self.has_code:
             self.algorithm = self.named_inputs['algorithm']
