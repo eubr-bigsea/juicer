@@ -38,7 +38,7 @@ class AlgorithmOperation(Operation):
             'one_vs_rest') in [1, '1', 'True', True]
 
         self.has_code = len(self.named_inputs) and any(
-            [len(self.named_outputs) > 1, self.contains_results()])
+            [len(self.named_outputs) > 0, self.contains_results()])
 
     def generate_code(self):
         algorithm_code = self.algorithm.generate_code() or ''
