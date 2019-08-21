@@ -2527,8 +2527,8 @@ class RegressionModelOperation(DeployModelMixin, Operation):
             requires_pipeline = False
 
             stages = [] # record pipeline stages
-            if len(features) > 1 and not isinstance(
-                {input}.schema[str(features[0])].dataType, VectorUDT):
+            if not isinstance({input}.schema[str(features[0])].dataType,
+                VectorUDT):
                 emit(message='{msg2}')
                 for f in features:
                     if not dataframe_util.is_numeric({input}.schema, f):
