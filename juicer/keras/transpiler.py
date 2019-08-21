@@ -45,7 +45,7 @@ class KerasTranspiler(Transpiler):
             'convolution-1d': convolutional_layers.Convolution1D,
             'convolution-2d': convolutional_layers.Convolution2D,
             'conv-2d-transpose': convolutional_layers.Conv2DTranspose,
-            'conv-3d': convolutional_layers.Convolution3D,
+            'convolution-3d': convolutional_layers.Convolution3D,
             'conv-3d-transpose': convolutional_layers.Conv3DTranspose,
             'cropping-1d': convolutional_layers.Cropping1D,
             'cropping-2d': convolutional_layers.Cropping2D,
