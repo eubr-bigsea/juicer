@@ -93,6 +93,8 @@ class BatchNormalization(Operation):
 
         self.center = True if int(self.center) == 1 else False
         self.scale = True if int(self.scale) == 1 else False
+        self.advanced_options = True if int(self.advanced_options) == 1 else \
+            False
 
         if self.advanced_options:
             functions_required = []

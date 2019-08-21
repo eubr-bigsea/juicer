@@ -1199,33 +1199,32 @@ class MaxPooling3D(Operation):
             False
 
         functions_required = []
-        try:
-            self.pool_size = int(self.pool_size)
-        except:
+        self.pool_size = get_tuple(self.pool_size)
+        if self.pool_size:
+            self.pool_size = """pool_size={pool_size}""" \
+                .format(pool_size=self.pool_size)
+            functions_required.append(self.pool_size)
+        else:
             raise ValueError(gettext('Parameter {} is invalid').format(
                 self.POOL_SIZE_PARAM))
-        self.pool_size = """pool_size={pool_size}""" \
-            .format(pool_size=self.pool_size)
-        functions_required.append(self.pool_size)
 
         if self.advanced_options:
-            try:
-                self.strides = int(self.strides)
-            except:
-                raise ValueError(gettext('Parameter {} is invalid').format(
-                    self.STRIDES_PARAM))
+            self.strides = get_tuple(self.strides)
             if self.strides is not None:
                 self.strides = """strides={strides}""" \
                     .format(strides=self.strides)
                 functions_required.append(self.strides)
+            else:
+                raise ValueError(gettext('Parameter {} is invalid').format(
+                    self.STRIDES_PARAM))
 
             if self.padding is not None:
-                self.padding = """padding={padding}""" \
+                self.padding = """padding='{padding}'""" \
                     .format(padding=self.padding)
                 functions_required.append(self.padding)
 
             if self.data_format is not None:
-                self.data_format = """data_format={data_format}""" \
+                self.data_format = """data_format='{data_format}'""" \
                     .format(data_format=self.data_format)
                 functions_required.append(self.data_format)
 
