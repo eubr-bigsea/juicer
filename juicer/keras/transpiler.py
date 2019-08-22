@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
 
-import juicer.keras.core_layers as core_layers, convolutional_layers
+import juicer.keras.core_layers as core_layers, juicer.keras.convolutional_layers
 import os
 from juicer import operation
 from juicer.transpiler import Transpiler
