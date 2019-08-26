@@ -544,7 +544,7 @@ class ReplaceValueOperation(Operation):
             {out} = {in1}.replace({original},
                 {replacement}, subset={subset})
         except ValueError as ve:
-            if 'Mixed type replacements are not supported' in ve.message:
+            if 'Mixed type replacements are not supported' in str(ve):
                 raise ValueError('{replacement_same_type}')
             else:
                 raise""".format(

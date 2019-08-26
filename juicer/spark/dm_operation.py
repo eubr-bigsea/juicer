@@ -123,7 +123,7 @@ class AssociationRulesOperation(Operation):
                 ext_pkg = spark_session._jvm.br.ufmg.dcc.lemonade.ext.fpm
                 associative_impl = ext_pkg.LemonadeAssociativeRules()
             except TypeError as te:
-                if 'JavaPackage' in te.message:
+                if 'JavaPackage' in str(te):
                     raise ValueError('{required_pkg}')
                 else:
                     raise
@@ -178,7 +178,7 @@ class SequenceMiningOperation(Operation):
                 ext_pkg = spark_session._jvm.br.ufmg.dcc.lemonade.ext.fpm
                 prefix_span_impl = ext_pkg.LemonadePrefixSpan()
             except TypeError as te:
-                if 'JavaPackage' in te.message:
+                if 'JavaPackage' in str(te):
                     raise ValueError('{required_pkg}')
                 else:
                     raise
