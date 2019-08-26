@@ -727,7 +727,7 @@ class EvaluateModelOperation(Operation):
                 ]
 
                 content = SimpleTableReport(
-                        'table table-striped table-bordered table-sm',
+                        'table table-striped table-bordered table-sm w-auto',
                         headers, rows,
                         title='{title}')
 
