@@ -27,6 +27,12 @@ class JuicerCallback(keras.callbacks.Callback):
                   message='Training ended',
                   status='RUNNING')
 
+        self.emit(name='update job',
+                  identifier='',
+                  id=self.job_id,
+                  message='Generating the classification report',
+                  status='RUNNING')
+
     def on_epoch_begin(self, epoch, logs=None):
         self.epoch_time_start = time.time()
         self.emit(name='update job',
