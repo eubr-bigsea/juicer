@@ -30,7 +30,7 @@ class HtmlImageReport(BaseHtmlReport):
         self.image = image
 
     def generate(self):
-        return base64.encodestring(self.image)
+        return base64.encodebytes(self.image)
 
 
 class MatplotlibChartReport(BaseHtmlReport):
@@ -45,7 +45,7 @@ class MatplotlibChartReport(BaseHtmlReport):
         fig_file = BytesIO()
         plt.savefig(fig_file, format='png', dpi=75)
         plt.close('all')
-        return base64.b64encode(fig_file.getvalue())
+        return base64.b64encode(fig_file.getvalue()).decode('utf-8')
 
 
 class SeabornChartReport(BaseHtmlReport):
@@ -64,7 +64,7 @@ class SeabornChartReport(BaseHtmlReport):
         fig_file = BytesIO()
         plt.savefig(fig_file, format='png', dpi=75)
         plt.close('all')
-        return base64.b64encode(fig_file.getvalue())
+        return base64.b64encode(fig_file.getvalue()).decode('utf-8')
 
 
 class ConfusionMatrixImageReport(BaseHtmlReport):
@@ -126,7 +126,7 @@ class ConfusionMatrixImageReport(BaseHtmlReport):
         plt.close(fig)
         plt.close('all')
 
-        return base64.b64encode(fig_file.getvalue())
+        return base64.b64encode(fig_file.getvalue()).decode('utf-8')
 
 
 class SimpleTableReport(BaseHtmlReport):
@@ -302,4 +302,4 @@ class AreaUnderCurveReport(BaseHtmlReport):
         fig_file = BytesIO()
         plt.savefig(fig_file, format='png', dpi=75)
         plt.close('all')
-        return base64.b64encode(fig_file.getvalue())
+        return base64.b64encode(fig_file.getvalue()).decode('utf-8')
