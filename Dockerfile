@@ -12,12 +12,15 @@ ENV TERM=xterm\
     DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y \
-      python \
-      python-pip \
-      python-tk \
+      python3 \
+      python3-pip \
+      python3-dev \
+      python3-tk \
+      python3-setuptools \
       openjdk-8-jdk \
       curl \
       locales \
+  && update-alternatives --install /usr/bin/python python /usr/bin/python3.6 10 \
   && sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen \
   && locale-gen \
   && update-locale LANG=en_US.UTF-8 \
@@ -45,7 +48,7 @@ RUN SPARK_LATEST_VERSION=$(\
 WORKDIR $JUICER_HOME
 COPY requirements.txt $JUICER_HOME
 
-RUN pip install -r $JUICER_HOME/requirements.txt
+RUN pip3 install -r $JUICER_HOME/requirements.txt
 
 ENV LC_ALL en_US.UTF-8
 ENV LANG en_US.UTF-8
