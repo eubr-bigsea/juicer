@@ -2566,14 +2566,16 @@ class RegressionModelOperation(DeployModelMixin, Operation):
 
                 display_text = {display_text}
                 if display_text:
+                    regression_model = pipeline_model.stages[-1]
                     headers = []
                     row = []
                     metrics = ['coefficients', 'intercept', 'scale', ]
+                    metric_names = ['{coefficients}', '{intercept}', '{scale}', ]
 
-                    for metric in metrics:
-                        value = getattr({model}, metric, None)
+                    for i, metric in enumerate(metrics):
+                        value = getattr(regression_model, metric, None)
                         if value:
-                            headers.append(metric)
+                            headers.append(metric_names[i])
                             row.append(str(value))
 
                     if row:
@@ -2632,6 +2634,9 @@ class RegressionModelOperation(DeployModelMixin, Operation):
                               'undesirable, explicitly add a feature assembler '
                               'in the workflow.'),
                        clone=self.clone_algorithm,
+                       coefficients=_('Coefficients'),
+                       intercept=_('Intercept'),
+                       scale=_('Scale'),
                        display_text=self.parameters['task']['forms'].get(
                            'display_text', {}).get('value') in (1, '1'))
 
