@@ -98,7 +98,7 @@ class ScikitLearnMinion(Minion):
             except Exception as ee:
                 tb = traceback.format_exception(*sys.exc_info())
                 log.exception(_('Unhandled error (%s) \n>%s'),
-                              ee.message, '>\n'.join(tb))
+                              str(ee), '>\n'.join(tb))
 
     def _process_message(self):
         self._process_message_nb()
@@ -149,7 +149,7 @@ class ScikitLearnMinion(Minion):
 
             t = gettext.translation('messages', locales_path, [lang],
                                     fallback=True)
-            t.install(unicode=True)
+            t.install()
 
             app_configs = msg_info.get('app_configs', {})
 
@@ -261,11 +261,11 @@ class ScikitLearnMinion(Minion):
             result = False
 
         except ValueError as ve:
-            message = _('Invalid or missing parameters: {}').format(ve.message)
-            print('#' * 30)
+            message = _('Invalid or missing parameters: {}').format(str(ve))
+            print(('#' * 30))
             import traceback
             traceback.print_exc(file=sys.stdout)
-            print('#' * 30)
+            print(('#' * 30))
             log.warn(message)
             if self.transpiler.current_task_id is not None:
                 self._emit_event(room=job_id, namespace='/stand')(
@@ -294,7 +294,7 @@ class ScikitLearnMinion(Minion):
                 message=_('Internal error.'),
                 name='update job', exception_stack='\n'.join(tb),
                 status='ERROR', identifier=job_id)
-            self._generate_output(ee.message, 'ERROR', code=1000)
+            self._generate_output(str(ee), 'ERROR', code=1000)
             result = False
 
         self.message_processed('execute')

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import
+
 import ast
 import pprint
 from textwrap import dedent
@@ -7,7 +7,7 @@ from juicer.operation import Operation
 try:
     from itertools import zip_longest as zip_longest
 except ImportError:
-    from itertools import izip_longest as zip_longest
+    from itertools import zip_longest as zip_longest
 
 
 class TokenizerOperation(Operation):
@@ -51,7 +51,7 @@ class TokenizerOperation(Operation):
         # attributes by filling missing alias with the attribute name
         # sufixed by _indexed.
         self.alias = [x[1] or '{}_tok'.format(x[0]) for x in
-                      izip_longest(self.attributes,
+                      zip_longest(self.attributes,
                                    self.alias[:len(self.attributes)])]
 
         self.has_code = len(self.named_inputs) == 1

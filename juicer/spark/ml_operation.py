@@ -1,5 +1,5 @@
 # coding=utf-8
-from __future__ import unicode_literals, absolute_import
+
 
 import json
 import logging
@@ -11,7 +11,7 @@ from juicer import auditing
 try:
     from itertools import zip_longest as zip_longest
 except ImportError:
-    from itertools import izip_longest as zip_longest
+    from itertools import zip_longest as zip_longest
 from textwrap import dedent
 
 from juicer.deploy import Deployment, DeploymentTask, DeploymentFlow
@@ -43,7 +43,7 @@ class DeployModelMixin(object):
         task_id = task['id']
 
         params = self.parameters['task']['forms']
-        forms = [(k, v['category'], v['value']) for k, v in params.items() if v]
+        forms = [(k, v['category'], v['value']) for k, v in list(params.items()) if v]
 
         ids_to_tasks = dict(
             [(t['id'], t) for t in self.parameters['workflow']['tasks']])
@@ -727,7 +727,7 @@ class EvaluateModelOperation(Operation):
                 ]
 
                 content = SimpleTableReport(
-                        'table table-striped table-bordered table-sm',
+                        'table table-striped table-bordered table-sm w-auto',
                         headers, rows,
                         title='{title}')
 
@@ -923,7 +923,7 @@ class EvaluateModelOperation(Operation):
                         actual.append(r[label_col])
                         predicted.append(r[prediction_col])
 
-                    identity = range(int(max(actual[-1], predicted[-1])))
+                    identity = range(max(max(actual), max(predicted)))
                     emit_event(
                          'update task', status='COMPLETED',
                         identifier='{task_id}',
@@ -931,8 +931,8 @@ class EvaluateModelOperation(Operation):
                             '{plot_title}',
                             '{plot_x_title}',
                             '{plot_y_title}',
-                            identity, identity, 'r.',
-                            actual, predicted,'b.',),
+                            identity, identity, 'r-',
+                            actual, predicted,'b.', linewidth=1),
                         type='IMAGE', title='{join_plot_title}',
                         task=dict(id='{task_id}'),
                         operation=dict(id={operation_id}),

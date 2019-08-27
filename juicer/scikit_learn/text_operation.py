@@ -3,7 +3,7 @@ import ast
 import pprint
 from textwrap import dedent
 from juicer.operation import Operation
-from itertools import izip_longest
+from itertools import zip_longest
 
 
 class TokenizerOperation(Operation):
@@ -52,7 +52,7 @@ class TokenizerOperation(Operation):
             # attributes by filling missing alias with the attribute name
             # sufixed by _indexed.
             self.alias = [x[1] or '{}_tok'.format(x[0]) for x in
-                          izip_longest(self.attributes,
+                          zip_longest(self.attributes,
                                        self.alias[:len(self.attributes)])]
 
             self.expression_param = parameters.get(self.EXPRESSION_PARAM, '\s+')

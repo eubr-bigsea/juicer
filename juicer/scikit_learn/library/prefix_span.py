@@ -88,7 +88,7 @@ class PrefixSpan:
             item_appear = [0] * self.item_count
             for item in self.sdb[sid][pid:]:
                 item_appear[item] = 1
-            item_sups = map(lambda x, y: x + y, item_sups, item_appear)
+            item_sups = list(map(lambda x, y: x + y, item_sups, item_appear))
 
         prefixes = list()
         for i in range(len(item_sups)):

@@ -1,5 +1,5 @@
 # coding=utf-8
-from __future__ import absolute_import
+
 from textwrap import dedent
 
 
@@ -22,5 +22,5 @@ def copy(source, target):
     import pdb
     pdb.set_trace()
     for attr in source.schema:
-        for k, v in attr.metadata.items():
+        for k, v in list(attr.metadata.items()):
             target.schema[attr.name].metadata[k] = v

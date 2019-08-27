@@ -491,7 +491,7 @@ class ExecuteSQLOperation(Operation):
         # return value.translate(_escape_table)
 
     def generate_code(self):
-        code = dedent(u"""
+        code = dedent("""
 
         query = {query}
         {out} = sqldf(query, {{'ds1': {in1}, 'ds2': {in2}}})

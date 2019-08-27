@@ -1,12 +1,13 @@
 # coding=utf-8
-from __future__ import absolute_import, print_function
+
 import collections
 import logging
+from gettext import gettext
 
 import networkx as nx
 from juicer import privaaas
 from juicer.service import tahiti_service, limonero_service
-from gettext import gettext
+
 
 class Workflow(object):
     """
@@ -128,7 +129,7 @@ class Workflow(object):
             return privaaas.ANONYMIZATION_TECHNIQUES[a.get(
                 'anonymization_technique', 'NO_TECHNIQUE')]
 
-        for attributes in attribute_group_set.values():
+        for attributes in list(attribute_group_set.values()):
             more_restrictive = sorted(
                 attributes, key=sort_attr_privacy, reverse=True)[0]
             # print(json.dumps(more_restrictive[0], indent=4))
@@ -193,7 +194,7 @@ class Workflow(object):
 
                     # Correct form field types if the interface (Citron) does
                     # not send this information
-                    for k, v in task.get('forms', {}).items():
+                    for k, v in list(task.get('forms', {}).items()):
                         v['category'] = form_fields.get(k, 'EXECUTION')
 
                     for port in ports_list:
@@ -216,14 +217,19 @@ class Workflow(object):
                                 result['PORT_NAMES'] = [
                                     (int(port['order']), port['name'])]
 
+                    port_names = [kv[1] for kv in sorted(
+                        result['PORT_NAMES'], key=lambda _kv: _kv[0])]
+                    task['port_names'] = port_names
                     self.graph.add_node(
                         task.get('id'),
+                        name=task.get('name'),
+                        forms=task.get('forms'),
+                        operation=task.get('operation'),
                         in_degree_required=result['N_INPUT'],
                         in_degree_multiplicity_required=result['M_INPUT'],
                         out_degree_required=result['N_OUTPUT'],
                         out_degree_multiplicity_required=result['M_OUTPUT'],
-                        port_names=[kv[1] for kv in sorted(
-                            result['PORT_NAMES'], key=lambda _kv: _kv[0])],
+                        port_names=port_names,
                         parents=[],
                         attr_dict=task)
                 else:
@@ -241,13 +247,15 @@ class Workflow(object):
                     flow['target_id'] not in self.disabled_tasks]):
                 # Updates the source_port_name and target_port_name. They are
                 # used in the transpiler part instead of the id of the port.
-                source_port = list(filter(
-                    lambda p: int(p['id']) == int(flow['source_port']),
-                    task_map[flow['source_id']]['operation']['ports']))
+                source_port = list([p for p in
+                                    task_map[flow['source_id']]['operation'][
+                                        'ports'] if
+                                    int(p['id']) == int(flow['source_port'])])
 
-                target_port = list(filter(
-                    lambda p: int(p['id']) == int(flow['target_port']),
-                    task_map[flow['target_id']]['operation']['ports']))
+                target_port = list([p for p in
+                                    task_map[flow['target_id']]['operation'][
+                                        'ports'] if
+                                    int(p['id']) == int(flow['target_port'])])
 
                 if all([source_port, target_port]):
                     # Compatibility assertion, may be removed in future
@@ -261,7 +269,7 @@ class Workflow(object):
 
                     self.graph.add_edge(flow['source_id'], flow['target_id'],
                                         attr_dict=flow)
-                    self.graph.node[flow['target_id']]['parents'].append(
+                    self.graph.nodes[flow['target_id']]['parents'].append(
                         flow['source_id'])
                 else:
                     self.log.warn(
@@ -272,14 +280,12 @@ class Workflow(object):
                         op=task_map[flow['source_id']]['operation']['name'],
                         s=flow['source_port'], t=flow['target_port']))
 
-        for node in self.graph.nodes():
-            self.graph.node[node]['in_degree'] = self.graph. \
-                in_degree(node)
-
-            self.graph.node[node]['out_degree'] = self.graph. \
-                out_degree(node)
-            #self.graph.node[node]['parents'] = list(
-            #        nx.edge_dfs(self.graph, node, orientation='reverse'))    
+        # for node in self.graph.nodes():
+        #     self.graph.nodes[node]['in_degree'] = self.graph.in_degree(node)
+        #
+        #     self.graph.nodes[node]['out_degree'] = self.graph.out_degree(node)
+        #     # self.graph.node[node]['parents'] = list(
+        #     #        nx.edge_dfs(self.graph, node, orientation='reverse'))
 
         return self.graph
 
@@ -340,7 +346,6 @@ class Workflow(object):
     #         self.graph.node[node]['parents'] = list(
     #                 nx.edge_dfs(self.graph, node, orientation='reverse'))
 
-
     def plot_workflow_graph_image(self):
         """
              Show the image from workflow_graph
@@ -377,7 +382,7 @@ class Workflow(object):
         for count_position, task in enumerate(self.workflow['tasks']):
             tasks_position[task['id']] = count_position
 
-        sorted_tasks_id = nx.topological_sort(self.graph, reverse=False)
+        sorted_tasks_id = reversed(list(nx.topological_sort(self.graph)))
 
         return sorted_tasks_id
 
@@ -451,97 +456,26 @@ class Workflow(object):
         topological_sort = self.get_topological_sorted_tasks()
 
         for node_obj in topological_sort:
-            print (nx.ancestors(self.graph, node_obj),
-                   self.graph.predecessors(node_obj),
-                   node_obj,
-                   self.graph.node[node_obj]['in_degree_required'],
-                   self.graph.node[node_obj]['in_degree'],
-                   self.graph.node[node_obj]['out_degree_required'],
-                   self.graph.node[node_obj]['out_degree']
-                   )
+            print(nx.ancestors(self.graph, node_obj),
+                  self.graph.predecessors(node_obj),
+                  node_obj,
+                  self.graph.nodes[node_obj]['in_degree_required'],
+                  self.graph.nodes[node_obj]['in_degree'],
+                  self.graph.nodes[node_obj]['out_degree_required'],
+                  self.graph.nodes[node_obj]['out_degree']
+                  )
         return True
 
-    # only to debug
-    def check_outdegree_edges(self, atr):
-
-        if self.graph.has_node(atr):
-            return (self.graph.node[atr]['in_degree'],
-                    self.graph.node[atr]['out_degree'],
-                    self.graph.in_degree(atr),
-                    self.graph.out_degree(atr),
-                    self.graph.node[atr]['in_degree_required'],
-                    self.graph.node[atr]['out_degree_required']
-                    )
-        # Querying tahiti operations to get number of inputs and outputs
-        return tahiti_service.query_tahiti(params['base_url'],
-                                           params['item_path'],
-                                           params['token'],
-                                           params['item_id'])
-
-    def get_ports_from_operation_tasks(self, id_operation):
-        tahiti_conf = self.config['juicer']['services']['tahiti']
-        params = {
-            'base_url': tahiti_conf['url'],
-            'item_path': 'operations',
-            'token': str(tahiti_conf['auth_token']),
-            'item_id': id_operation
-        }
-
-        # Querying tahiti operations to get number of inputs and outputs
-        operations_ports = tahiti_service.query_tahiti(params['base_url'],
-                                                       params['item_path'],
-                                                       params['token'],
-                                                       params['item_id'])
-        # Get operation requirements in tahiti
-        result = {
-            'N_INPUT': 0,
-            'N_OUTPUT': 0,
-            'M_INPUT': 'None',
-            'M_OUTPUT': 'None'
-        }
-
-        for port in operations_ports['ports']:
-            if port['type'] == 'INPUT':
-                result['M_INPUT'] = port['multiplicity']
-                if 'N_INPUT' in result:
-                    result['N_INPUT'] += 1
-                else:
-                    result['N_INPUT'] = 1
-            elif port['type'] == 'OUTPUT':
-                result['M_OUTPUT'] = port['multiplicity']
-                if 'N_OUTPUT' in result:
-                    result['N_OUTPUT'] += 1
-                else:
-                    result['N_OUTPUT'] = 1
-        return result
-
-    def workflow_execution_parcial(self):
-
-        topological_sort = self.get_topological_sorted_tasks()
-
-        for node_obj in topological_sort:
-            # print self.workflow_graph.node[node]
-            print (nx.ancestors(self.graph, node_obj),
-                   self.graph.predecessors(node_obj),
-                   node_obj,
-                   self.graph.node[node_obj]['in_degree_required'],
-                   self.graph.node[node_obj]['in_degree'],
-                   self.graph.node[node_obj]['out_degree_required'],
-                   self.graph.node[node_obj]['out_degree']
-                   )
-        return True
-
-    # only to debug
-    def check_outdegree_edges(self, atr):
-
-        if self.graph.has_node(atr):
-            return (self.graph.node[atr]['in_degree'],
-                    self.graph.node[atr]['out_degree'],
-                    self.graph.in_degree(atr),
-                    self.graph.out_degree(atr),
-                    self.graph.node[atr]['in_degree_required'],
-                    self.graph.node[atr]['out_degree_required']
-                    )
-        if self.query_operations:
-            return self.query_operations()
-
+        # # only to debug
+        # def check_outdegree_edges(self, atr):
+        #
+        #     if self.graph.has_node(atr):
+        #         return (self.graph.node[atr]['in_degree'],
+        #                 self.graph.node[atr]['out_degree'],
+        #                 self.graph.in_degree(atr),
+        #                 self.graph.out_degree(atr),
+        #                 self.graph.node[atr]['in_degree_required'],
+        #                 self.graph.node[atr]['out_degree_required']
+        #                 )
+        #     if self.query_operations:
+        #         return self.query_operations()

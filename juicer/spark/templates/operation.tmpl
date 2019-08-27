@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals
 """
 Auto-generated Spark code from Lemonade Workflow
 (c) Speed Labs - Departamento de Ciência da Computação
@@ -111,7 +110,7 @@ def {{task.operation.slug.replace('-', '_')}}_{{instance.order}}(spark_session, 
     {%- endif %}
 
     start = timer()
-    # First we verify whether this task's result is cached
+    # First we verify whether this task's result is cached.
     results = {% if instance.supports_cache -%}
     get_cached_state(
         task_id, cached_state, emit_event, spark_session,

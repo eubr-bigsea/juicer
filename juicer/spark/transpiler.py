@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals
+
 
 import juicer.spark.data_operation as data_operation
 import juicer.spark.data_quality_operation as data_quality_operation

@@ -13,8 +13,8 @@ try:
     from urllib.request import urlopen
     from urllib.parse import urlparse, parse_qs
 except ImportError:
-    from urlparse import urlparse, parse_qs
-    from urllib import urlopen
+    from urllib.parse import urlparse, parse_qs
+    from urllib.request import urlopen
 
 
 class DataReaderOperation(Operation):
@@ -156,7 +156,7 @@ class DataReaderOperation(Operation):
                     def custom_repr(elems):
                         result = '{{{d}}}'.format(d=','.join(
                             ['"{}": {}'.format(k, v) for k, v in
-                             elems.items()]))
+                             list(elems.items())]))
                         return result
 
                     code.append('converters = {}'.format(custom_repr(
@@ -497,7 +497,7 @@ class SaveOperation(Operation):
                    error_file_exists=_('File already exists'),
                    warn_ignored=_('File not written (already exists)'),
                    error_invalid_mode=_('Invalid mode {}').format(self.mode),
-                   uuid=uuid.uuid4().get_hex(),
+                   uuid=uuid.uuid4().hex,
                    storage_url=storage['url'],
                    task_id=self.parameters['task_id'],
                    )

@@ -1,5 +1,5 @@
 # coding=utf-8
-from __future__ import unicode_literals
+
 
 import decimal
 import itertools
@@ -132,7 +132,7 @@ class PublishVisualizationOperation(Operation):
 
         # Register this new dashboard with Caipirinha
         code_lines.append(get_caipirinha_config(self.config))
-        code_lines.append(dedent(u"""
+        code_lines.append(dedent("""
             caipirinha_service.new_dashboard(config, '{title}', {user},
                 {workflow_id}, u'{workflow_name}',
                 {job_id}, '{task_id}', visualizations, emit_event)
@@ -193,7 +193,7 @@ class VisualizationMethodOperation(Operation):
                  'y_axis_attribute', 'z_axis_attribute', 't_axis_attribute',
                  'series_attribute', 'extra_data', 'polygon', 'geojson_id',
                  'polygon_url']
-        for k, v in self.parameters.items():
+        for k, v in list(self.parameters.items()):
             if k in valid:
                 result[k] = v
         return result
@@ -207,7 +207,7 @@ class VisualizationMethodOperation(Operation):
 
     def generate_code(self):
         code_lines = [dedent(
-            u"""
+            """
             from juicer.scikit_learn.vis_operation import {model}
             from juicer.util.dataframe_util import SimpleJsonEncoder as enc
 
@@ -249,7 +249,7 @@ class VisualizationMethodOperation(Operation):
             }}""").format(job_id=self.parameters['job_id'],
                           out=self.output))
 
-            code_lines.append(dedent(u"""
+            code_lines.append(dedent("""
             caipirinha_service.new_visualization(
                 config,
                 {user},
@@ -498,7 +498,7 @@ class BarChartModel(ChartVisualization):
         result.update(self._get_title_legend_tooltip())
 
         # For barcharts this is right option
-        result['legend']['text'] = u'{{x}}'
+        result['legend']['text'] = '{{x}}'
 
         result.update({
             "x": {
@@ -811,7 +811,7 @@ class ScatterPlotModel(ChartVisualization):
 
                 # this way we don't bind x_axis and y_axis types. Y is only
                 # going to be number for now
-                if axis == u'y':
+                if axis == 'y':
                     axis_type = 'number'
 
                 result[axis] = {
@@ -877,7 +877,7 @@ class ScatterPlotModel(ChartVisualization):
                 item[axis] = ScatterPlotModel._get_value(row, attrs[axis])
             data.append(item)
 
-        result['data'] = series.values()
+        result['data'] = list(series.values())
         return result
 
     @staticmethod

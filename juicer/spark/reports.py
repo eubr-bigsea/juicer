@@ -1,5 +1,5 @@
 # coding=utf-8
-from __future__ import unicode_literals, absolute_import, division
+
 
 import base64
 import gettext
@@ -30,7 +30,7 @@ class HtmlImageReport(BaseHtmlReport):
         self.image = image
 
     def generate(self):
-        return base64.encodestring(self.image)
+        return base64.encodebytes(self.image)
 
 
 class MatplotlibChartReport(BaseHtmlReport):
@@ -45,7 +45,7 @@ class MatplotlibChartReport(BaseHtmlReport):
         fig_file = BytesIO()
         plt.savefig(fig_file, format='png', dpi=75)
         plt.close('all')
-        return base64.b64encode(fig_file.getvalue())
+        return base64.b64encode(fig_file.getvalue()).decode('utf-8')
 
 
 class SeabornChartReport(BaseHtmlReport):
@@ -64,7 +64,7 @@ class SeabornChartReport(BaseHtmlReport):
         fig_file = BytesIO()
         plt.savefig(fig_file, format='png', dpi=75)
         plt.close('all')
-        return base64.b64encode(fig_file.getvalue())
+        return base64.b64encode(fig_file.getvalue()).decode('utf-8')
 
 
 class ConfusionMatrixImageReport(BaseHtmlReport):
@@ -110,8 +110,8 @@ class ConfusionMatrixImageReport(BaseHtmlReport):
 
         fmt = '.2f' if self.normalize else 'd'
         thresh = self.cm.max() / 2.
-        for i, j in itertools.product(iter(range(self.cm.shape[0])),
-                                      iter(range(self.cm.shape[1]))):
+        for i, j in itertools.product(iter(list(range(self.cm.shape[0]))),
+                                      iter(list(range(self.cm.shape[1])))):
             ax1.text(j, i, format(int(self.cm[i, j]), fmt),
                      horizontalalignment="center",
                      color="white" if self.cm[i, j] > thresh else "black")
@@ -126,7 +126,7 @@ class ConfusionMatrixImageReport(BaseHtmlReport):
         plt.close(fig)
         plt.close('all')
 
-        return base64.b64encode(fig_file.getvalue())
+        return base64.b64encode(fig_file.getvalue()).decode('utf-8')
 
 
 class SimpleTableReport(BaseHtmlReport):
@@ -155,9 +155,7 @@ class SimpleTableReport(BaseHtmlReport):
             if self.numbered:
                 code.append('<td>{}</td>'.format(i + 1))
             for col in row:
-                if isinstance(col, str):
-                    col = col.decode('utf8')
-                code.append(u'<td>{}</td>'.format(col))
+                code.append('<td>{}</td>'.format(col))
             code.append('</tr>')
 
         code.append('</tbody>')
@@ -304,4 +302,4 @@ class AreaUnderCurveReport(BaseHtmlReport):
         fig_file = BytesIO()
         plt.savefig(fig_file, format='png', dpi=75)
         plt.close('all')
-        return base64.b64encode(fig_file.getvalue())
+        return base64.b64encode(fig_file.getvalue()).decode('utf-8')

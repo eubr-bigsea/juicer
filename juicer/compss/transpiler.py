@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import
+
 import json
 import sys
 
@@ -90,7 +90,7 @@ class COMPSsTranspiler(object):
     def generate_parameters(self, task, workflow, i):
         parameters = {}
 
-        for parameter, definition in task['forms'].iteritems():
+        for parameter, definition in task['forms'].items():
             # @FIXME: Fix wrong name of form category
             # (using name instead of category)
             # print definition.get('category')
@@ -140,7 +140,7 @@ class COMPSsTranspiler(object):
         for i, task_id in enumerate(sorted_tasks_id):
             task_source = graph.node[task_id]
             target = graph.edge[task_id]
-            has_single_edge = len(target.keys()) == 1
+            has_single_edge = len(list(target.keys())) == 1
             source_candidate = task_source['operation']['slug']
             source_info = self.get_optimization_information(
                     source_candidate, task_source, workflow, port)
@@ -160,7 +160,7 @@ class COMPSsTranspiler(object):
                 if not task_id in map_candidates:
                     new_sorted_tasks_id.append(task_id)
             else:
-                target = target[target.keys()[0]][0]['target_id']
+                target = target[list(target.keys())[0]][0]['target_id']
                 target_candidate = graph.node[target]['operation']['slug']
                 task_target = graph.node[target]
                 target_info = self.get_optimization_information(
@@ -215,7 +215,7 @@ class COMPSsTranspiler(object):
                     # if cant be merged, check if the source is already merged
                     # with a previous function, if not, add in the sorted list
                     found = False
-                    for k, v in otm_candidate.items():
+                    for k, v in list(otm_candidate.items()):
                         if task_id in v:
                             found = True
 
@@ -255,7 +255,7 @@ class COMPSsTranspiler(object):
         for source_id in graph.edge:
             for target_id in graph.edge[source_id]:
                 # Nodes accept multiple edges from same source
-                for flow in graph.edge[source_id][target_id].values():
+                for flow in list(graph.edge[source_id][target_id].values()):
                     flow_id = '[{}:{}]'.format(source_id, flow['source_port'])
 
                     if flow_id not in sequential_ports:
