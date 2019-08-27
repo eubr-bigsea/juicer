@@ -1078,14 +1078,14 @@ class MaxPooling2D(Operation):
             False
 
         functions_required = []
-        try:
-            self.pool_size = int(self.pool_size)
-        except:
+        self.pool_size = get_int_or_tuple(self.pool_size)
+        if self.pool_size:
+            self.pool_size = """pool_size={pool_size}""" \
+                .format(pool_size=self.pool_size)
+            functions_required.append(self.pool_size)
+        else:
             raise ValueError(gettext('Parameter {} is invalid').format(
                 self.POOL_SIZE_PARAM))
-        self.pool_size = """pool_size={pool_size}""" \
-            .format(pool_size=self.pool_size)
-        functions_required.append(self.pool_size)
 
         if self.advanced_options:
             try:
