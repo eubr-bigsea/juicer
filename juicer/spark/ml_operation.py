@@ -1186,6 +1186,8 @@ class ClassificationModelOperation(DeployModelMixin, Operation):
                 'perform_cross_validation') in [True, '1', 1]
             self.fold_col = parameters.get(
                 'attribute_cross_validation', 'folds')
+            if isinstance(self.fold_col, list):
+                self.fold_col = self.fold_col[0]
             self.cross_validation_metric = parameters.get('cross_validation')
 
         if not self.has_code and len(self.named_outputs) > 0:
@@ -1322,7 +1324,7 @@ class ClassificationModelOperation(DeployModelMixin, Operation):
                     labelCol=algorithm.getLabelCol(),
                     metricName='{evaluator_metric}')
                 cv_model, models_metrics, index, folds = cross_validation(
-                    {train}, '{fold_col[0]}', estimator, estimator_params,
+                    {train}, '{fold_col}', estimator, estimator_params,
                     evaluator, False, processes)
                 if display_text:
                     rows = [
