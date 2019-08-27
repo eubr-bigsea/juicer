@@ -923,7 +923,7 @@ class EvaluateModelOperation(Operation):
                         actual.append(r[label_col])
                         predicted.append(r[prediction_col])
 
-                    identity = range(int(max(actual[-1], predicted[-1])))
+                    identity = range(max(max(actual), max(predicted)))
                     emit_event(
                          'update task', status='COMPLETED',
                         identifier='{task_id}',
@@ -931,8 +931,8 @@ class EvaluateModelOperation(Operation):
                             '{plot_title}',
                             '{plot_x_title}',
                             '{plot_y_title}',
-                            identity, identity, 'r.',
-                            actual, predicted,'b.',),
+                            identity, identity, 'r-',
+                            actual, predicted,'b.', linewidth=1),
                         type='IMAGE', title='{join_plot_title}',
                         task=dict(id='{task_id}'),
                         operation=dict(id={operation_id}),
