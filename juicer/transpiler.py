@@ -1,14 +1,14 @@
 # coding=utf-8
-from __future__ import absolute_import
 
-import hashlib
-import json
-import sys
-import urlparse
-import uuid
-from collections import OrderedDict
 
 import datetime
+import hashlib
+import json
+import logging
+import sys
+import uuid
+from collections import OrderedDict
+from urllib.parse import urlparse
 
 import jinja2
 import networkx as nx
@@ -21,6 +21,8 @@ from .util.template_util import HandleExceptionExtension
 
 AUDITING_QUEUE_NAME = 'auditing'
 AUDITING_JOB_NAME = 'seed.jobs.auditing'
+
+log = logging.getLogger(__name__)
 
 
 class DependencyController(object):
@@ -150,17 +152,18 @@ class Transpiler(object):
 
         audit_events = []
         for i, task_id in enumerate(tasks_ids):
-            task = graph.node[task_id]
-
+            task = graph.node[task_id]['attr_dict']
+            task['parents'] = graph.node[task_id]['parents']
             self.current_task_id = task_id
+
             class_name = self.operations[task['operation']['slug']]
 
             parameters = {}
-            not_empty_params = [(k, d) for k, d in task['forms'].items() if
-                                d['value']]
+            not_empty_params = [(k, d) for k, d in
+                                list(task['forms'].items()) if d['value']]
 
             task['forms'] = dict(not_empty_params)
-            for parameter, definition in task['forms'].items():
+            for parameter, definition in list(task['forms'].items()):
                 # @FIXME: Fix wrong name of form category
                 # (using name instead of category)
                 cat = definition.get('category',
@@ -172,7 +175,7 @@ class Transpiler(object):
                                 'execution logging', 'logging', 'save'],
                         definition['value'] is not None]):
 
-                    task_hash.update(unicode(definition['value']).encode(
+                    task_hash.update(str(definition['value']).encode(
                         'utf8', errors='ignore'))
                     if cat in ['paramgrid', 'logging']:
                         if cat not in parameters:
@@ -193,9 +196,9 @@ class Transpiler(object):
             if state is None or state.get(task_id) is None:
                 parameters['execution_date'] = None
             else:
-                v = state.get(task_id, [{}])[0]
-                if v:
-                    parameters['execution_date'] = v.get('execution_date')
+                gen_source_code = state.get(task_id, [{}])[0]
+                if gen_source_code:
+                    parameters['execution_date'] = gen_source_code.get('execution_date')
                 else:
                     parameters['execution_date'] = None
             true_values = (1, '1', True, 'true', 'True')
@@ -245,7 +248,7 @@ class Transpiler(object):
         if audit_events:
 
             redis_url = self.configuration['juicer']['servers']['redis_url']
-            parsed = urlparse.urlparse(redis_url)
+            parsed = urlparse(redis_url)
             redis_conn = redis.Redis(host=parsed.hostname,
                                      port=parsed.port)
             q = Queue(AUDITING_QUEUE_NAME, connection=redis_conn)
@@ -282,19 +285,19 @@ class Transpiler(object):
             # env_setup['slug_to_port_id'] = self.slug_to_port_id
             env_setup['id_mapping'] = {}
             template = template_env.get_template(self.get_deploy_template())
-            v = template.render(env_setup)
-            out.write(v.encode('utf8'))
+            gen_source_code = template.render(env_setup)
+            out.write(gen_source_code)
         elif export_notebook:
             template = template_env.get_template(self.get_notebook_template())
-            v = template.render(env_setup)
-            out.write(v.encode('utf8'))
+            gen_source_code = template.render(env_setup)
+            out.write(gen_source_code)
         else:
             template = template_env.get_template(self.get_code_template())
-            v = template.render(env_setup)
+            gen_source_code = template.render(env_setup)
             if using_stdout:
-                out.write(v.encode('utf8'))
+                out.write(gen_source_code)
             else:
-                out.write(v)
+                out.write(gen_source_code)
             stand_config = self.configuration.get('juicer', {}).get(
                 'services', {}).get('stand')
             if stand_config and job_id:
@@ -302,9 +305,9 @@ class Transpiler(object):
                 try:
                     stand_service.save_job_source_code(
                         stand_config['url'], stand_config['auth_token'], job_id,
-                        v.encode('utf8'))
-                except:
-                    pass
+                        gen_source_code)
+                except Exception as ex:
+                    log.exception(str(ex))
 
     def transpile(self, workflow, graph, params, out=None, job_id=None,
                   state=None, deploy=False, export_notebook=False):
@@ -317,70 +320,65 @@ class Transpiler(object):
         ports = {}
         sequential_ports = {}
         counter = 0
-
-        for source_id in graph.edge:
+        for edge_key in list(graph.edges.keys()):
+            source_id, target_id, index = edge_key
             source_name = graph.node[source_id]['name']
             source_slug = graph.node[source_id]['operation']['slug']
-            for target_id in graph.edge[source_id]:
-                # Nodes accept multiple edges from same source
-                target_name = graph.node[target_id]['name']
-                for flow in graph.edge[source_id][target_id].values():
-                    flow_id = '[{}:{}]'.format(source_id, flow['source_port'], )
+            flow = graph.edges[edge_key]['attr_dict']
+            flow_id = '[{}:{}]'.format(source_id, flow['source_port'], )
 
-                    if flow_id not in sequential_ports:
-                        sequential_ports[flow_id] = \
-                            TranspilerUtils.gen_port_name(flow, counter)
-                        counter += 1
-                    if source_id not in ports:
-                        ports[source_id] = {'outputs': [], 'inputs': [],
-                                            'parents': [],
-                                            'parents_slug': [],
-                                            'parents_by_port': [],
-                                            'my_ports': [],
-                                            'named_inputs': {},
-                                            'named_outputs': {}}
-                    if target_id not in ports:
-                        ports[target_id] = {'outputs': [], 'inputs': [],
-                                            'parents': [],
-                                            'parents_by_port': [],
-                                            'my_ports': [],
-                                            'parents_slug': [],
-                                            'named_inputs': {},
-                                            'named_outputs': {}}
-                    ports[target_id]['parents'].append(source_name)
-                    ports[target_id]['parents_slug'].append(source_slug)
-                    ports[target_id]['parents_by_port'].append(
-                        (flow['source_port_name'], source_name))
-                    ports[target_id]['my_ports'].append(
-                        (flow['target_port_name'], source_name))
-                    sequence = sequential_ports[flow_id]
+            if flow_id not in sequential_ports:
+                sequential_ports[flow_id] = \
+                    TranspilerUtils.gen_port_name(flow, counter)
+                counter += 1
+            if source_id not in ports:
+                ports[source_id] = {'outputs': [], 'inputs': [],
+                                    'parents': [],
+                                    'parents_slug': [],
+                                    'parents_by_port': [],
+                                    'my_ports': [],
+                                    'named_inputs': {},
+                                    'named_outputs': {}}
+            if target_id not in ports:
+                ports[target_id] = {'outputs': [], 'inputs': [],
+                                    'parents': [],
+                                    'parents_by_port': [],
+                                    'my_ports': [],
+                                    'parents_slug': [],
+                                    'named_inputs': {},
+                                    'named_outputs': {}}
+            ports[target_id]['parents'].append(source_name)
+            ports[target_id]['parents_slug'].append(source_slug)
+            ports[target_id]['parents_by_port'].append(
+                (flow['source_port_name'], source_name))
+            ports[target_id]['my_ports'].append(
+                (flow['target_port_name'], source_name))
+            sequence = sequential_ports[flow_id]
 
-                    source_port = ports[source_id]
-                    if sequence not in source_port['outputs']:
-                        source_port['named_outputs'][
-                            flow['source_port_name']] = sequence
-                        source_port['outputs'].append(sequence)
+            source_port = ports[source_id]
+            if sequence not in source_port['outputs']:
+                source_port['named_outputs'][
+                    flow['source_port_name']] = sequence
+                source_port['outputs'].append(sequence)
 
-                    target_port = ports[target_id]
-                    if sequence not in target_port['inputs']:
-                        flow_name = flow['target_port_name']
-                        # Test if multiple inputs connects to a port
-                        # because it may have multiplicity MANY
-                        if flow_name in target_port['named_inputs']:
-                            if not isinstance(
-                                    target_port['named_inputs'][flow_name],
-                                    list):
-                                target_port['named_inputs'][flow_name] = [
-                                    target_port['named_inputs'][flow_name],
-                                    sequence]
-                            else:
-                                target_port['named_inputs'][flow_name].append(
-                                    sequence)
-                        else:
-                            target_port['named_inputs'][flow_name] = sequence
-                        target_port['inputs'].append(sequence)
-        # import pdb
-        # pdb.set_trace()
+            target_port = ports[target_id]
+            if sequence not in target_port['inputs']:
+                flow_name = flow['target_port_name']
+                # Test if multiple inputs connects to a port
+                # because it may have multiplicity MANY
+                if flow_name in target_port['named_inputs']:
+                    if not isinstance(
+                            target_port['named_inputs'][flow_name],
+                            list):
+                        target_port['named_inputs'][flow_name] = [
+                            target_port['named_inputs'][flow_name],
+                            sequence]
+                    else:
+                        target_port['named_inputs'][flow_name].append(
+                            sequence)
+                else:
+                    target_port['named_inputs'][flow_name] = sequence
+                target_port['inputs'].append(sequence)
 
         self.generate_code(graph, job_id, out, params,
                            ports, nx.topological_sort(graph), state,
@@ -519,12 +517,8 @@ class TranspilerUtils(object):
 
     @staticmethod
     def escape_chars(text):
-        if isinstance(text, str):
-            return text.encode('string-escape').replace('"', '\\"').replace(
-                "'", "\\'")
-        else:
-            return text.encode('unicode-escape').replace('"', '\\"').replace(
-                "'", "\\'")
+        return text.replace('"', '\\"').replace("'", "\\'").encode(
+            'unicode-escape').decode('utf-8')
 
     @staticmethod
     def gen_port_name(flow, seq):
