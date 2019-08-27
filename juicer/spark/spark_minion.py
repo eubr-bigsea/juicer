@@ -347,7 +347,7 @@ class SparkMinion(Minion):
 
             t = gettext.translation('messages', locales_path, [lang],
                                     fallback=True)
-            t.install(unicode=True)
+            t.install()
 
             # TODO: We should consider the case in which the spark session is
             # already instantiated and this new request asks for a different set
