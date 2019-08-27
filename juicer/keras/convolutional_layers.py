@@ -7,1187 +7,6 @@ from ast import parse
 from juicer.util.template_util import *
 
 
-class Convolution1D(Operation):
-    FILTERS_PARAM = 'filters'
-    KERNEL_SIZE_PARAM = 'kernel_size'
-    STRIDES_PARAM = 'strides'
-    INPUT_SHAPE_PARAM = 'input_shape'
-    PADDING_PARAM = 'padding'
-    DATA_FORMAT_PARAM = 'data_format'
-    DILATION_RATE_PARAM = 'dilation_rate'
-    ACTIVATION_PARAM = 'activation'
-    USE_BIAS_PARAM = 'use_bias'
-    TRAINABLE_PARAM = 'trainable'
-    KERNEL_INITIALIZER_PARAM = 'kernel_initializer'
-    BIAS_INITIALIZER_PARAM = 'bias_initializer'
-    KERNEL_REGULARIZER_PARAM = 'kernel_regularizer'
-    BIAS_REGULARIZER_PARAM = 'bias_regularizer'
-    ACTIVITY_REGULARIZER_PARAM = 'activity_regularizer'
-    KERNEL_CONSTRAINT_PARAM = 'kernel_constraint'
-    BIAS_CONSTRAINT_PARAM = 'bias_constraint'
-
-    def __init__(self, parameters, named_inputs, named_outputs):
-        Operation.__init__(self, parameters, named_inputs, named_outputs)
-        self.output = named_outputs.get('output data',
-                                        'out_task_{}'.format(self.order))
-
-        if self.FILTERS_PARAM not in parameters or \
-                self.KERNEL_SIZE_PARAM not in parameters or \
-                self.STRIDES_PARAM not in parameters:
-            raise ValueError(gettext('Parameter {} {} {} are required').format(
-                self.FILTERS_PARAM, self.KERNEL_SIZE_PARAM, self.STRIDES_PARAM)
-            )
-
-        self.filters = parameters.get(self.FILTERS_PARAM)
-        self.kernel_size = parameters.get(self.KERNEL_SIZE_PARAM)
-        self.strides = parameters.get(self.STRIDES_PARAM)
-        self.input_shape = parameters.get(self.INPUT_SHAPE_PARAM, None)
-        self.padding = parameters.get(self.PADDING_PARAM)
-        self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None)
-        self.dilation_rate = parameters.get(self.DILATION_RATE_PARAM, None) or \
-                             None
-        self.activation = parameters.get(self.ACTIVATION_PARAM, None)
-        self.trainable = parameters.get(self.TRAINABLE_PARAM)
-        self.use_bias = parameters.get(self.USE_BIAS_PARAM)
-        self.kernel_initializer = parameters.get(self.KERNEL_INITIALIZER_PARAM,
-                                                 None)
-        self.bias_initializer = parameters.get(self.BIAS_INITIALIZER_PARAM,
-                                               None)
-        self.kernel_regularizer = parameters.get(self.KERNEL_REGULARIZER_PARAM,
-                                                 None)
-        self.bias_regularizer = parameters.get(self.BIAS_REGULARIZER_PARAM,
-                                               None)
-        self.activity_regularizer = parameters.get(self.
-                                                   ACTIVITY_REGULARIZER_PARAM,
-                                                   None)
-        self.kernel_constraint = parameters.get(self.KERNEL_CONSTRAINT_PARAM,
-                                                None)
-        self.bias_constraint = parameters.get(self.BIAS_CONSTRAINT_PARAM, None)\
-                              
-
-        self.add_functions_required = ""
-        self.task_name = self.parameters.get('task').get('name')
-        self.parent = ""
-        self.var_name = ""
-        self.has_code = True
-
-        self.parents_by_port = parameters.get('my_ports', [])
-        self.python_code_to_remove = self.remove_python_code_parent()
-        self.treatment()
-
-        self.import_code = {'layer': 'Conv1D',
-                            'callbacks': [],
-                            'model': None,
-                            'preprocessing_image': None,
-                            'others': None}
-
-    def remove_python_code_parent(self):
-        python_code_to_remove = []
-        for parent in self.parents_by_port:
-            if parent[0] == 'python code':
-                python_code_to_remove.append(convert_parents_to_variable_name(
-                    [parent[1]])
-                )
-        return python_code_to_remove
-
-    def treatment(self):
-        self.parent = convert_parents_to_variable_name(self.parameters
-                                                       .get('parents', []))
-        for python_code in self.python_code_to_remove:
-            self.parent.remove(python_code)
-
-        self.var_name = convert_variable_name(self.task_name)
-        self.task_name = self.var_name
-        if self.parent:
-            self.parent = '({})'.format(self.parent[0])
-        else:
-            self.parent = ''
-
-        self.kernel_size = get_int_or_tuple(self.kernel_size)
-        self.strides = get_int_or_tuple(self.strides)
-        self.dilation_rate = get_int_or_tuple(self.dilation_rate)
-
-        if self.filters < 0:
-            raise ValueError(gettext('Parameter {} is invalid').format(
-                self.FILTERS_PARAM))
-
-        if self.kernel_size is False:
-            raise ValueError(gettext('Parameter {} is invalid').format(
-                self.KERNEL_SIZE_PARAM))
-
-        if self.strides is False:
-            raise ValueError(gettext('Parameter {} is invalid').format(
-                self.STRIDES_PARAM))
-
-        if self.dilation_rate is False:
-            raise ValueError(gettext('Parameter {} is invalid').format(
-                self.DILATION_RATE_PARAM))
-
-        self.use_bias = True if int(self.use_bias) == 1 else False
-        self.trainable = True if int(self.trainable) == 1 else False
-
-        functions_required = []
-
-        self.filters = """filters={filters}""".format(filters=self.filters)
-        functions_required.append(self.filters)
-
-        self.kernel_size = """kernel_size={kernel_size}""" \
-            .format(kernel_size=self.kernel_size)
-        functions_required.append(self.kernel_size)
-
-        self.strides = """strides={strides}""".format(strides=self.strides)
-        functions_required.append(self.strides)
-
-        self.use_bias = """use_bias={use_bias}""".format(use_bias=self.use_bias)
-        functions_required.append(self.use_bias)
-
-        if self.input_shape is not None:
-            self.input_shape = get_int_or_tuple(self.input_shape)
-            if self.input_shape is False:
-                raise ValueError(gettext('Parameter {} is invalid').format(
-                    self.INPUT_SHAPE_PARAM))
-            self.input_shape = """input_shape='{input_shape}'""" \
-                .format(input_shape=self.input_shape)
-            functions_required.append(self.input_shape)
-
-        if self.padding is not None:
-            self.padding = """padding='{padding}'""" \
-                .format(padding=self.padding)
-            functions_required.append(self.padding)
-
-        if self.data_format is not None:
-            self.data_format = """data_format='{data_format}'""" \
-                .format(data_format=self.data_format)
-            functions_required.append(self.data_format)
-
-        if self.dilation_rate is not None:
-            self.dilation_rate = """dilation_rate={dilation_rate}""" \
-                .format(dilation_rate=self.dilation_rate)
-            functions_required.append(self.dilation_rate)
-
-        if self.activation is not None:
-            self.activation = """activation='{activation}'""" \
-                .format(activation=self.activation)
-            functions_required.append(self.activation)
-
-        if self.kernel_initializer is not None:
-            self.kernel_initializer = """kernel_initializer=
-            '{kernel_initializer}'""" \
-                .format(kernel_initializer=self.kernel_initializer)
-            functions_required.append(self.kernel_initializer)
-
-        if self.bias_initializer is not None:
-            self.bias_initializer = """bias_initializer='{bias_initializer}'""" \
-                .format(bias_initializer=self.bias_initializer)
-            functions_required.append(self.bias_initializer)
-
-        if self.kernel_regularizer is not None:
-            self.kernel_regularizer = """kernel_regularizer=
-            '{kernel_regularizer}'""" \
-                .format(kernel_regularizer=self.kernel_regularizer)
-            functions_required.append(self.kernel_regularizer)
-
-        if self.bias_regularizer is not None:
-            self.bias_regularizer = """bias_regularizer=
-            '{bias_regularizer}'""" \
-                .format(bias_regularizer=self.bias_regularizer)
-            functions_required.append(self.bias_regularizer)
-
-        if self.activity_regularizer is not None:
-            self.activity_regularizer = """activity_regularizer=
-            '{activity_regularizer}'""" \
-                .format(activity_regularizer=self.activity_regularizer)
-            functions_required.append(self.activity_regularizer)
-
-        if self.kernel_constraint is not None:
-            self.kernel_constraint = """kernel_constraint=
-            '{kernel_constraint}'""" \
-                .format(kernel_constraint=self.kernel_constraint)
-            functions_required.append(self.kernel_constraint)
-
-        if self.bias_constraint is not None:
-            self.bias_constraint = """bias_constraint='{bias_constraint}'""" \
-                .format(bias_constraint=self.bias_constraint)
-            functions_required.append(self.bias_constraint)
-
-        self.add_functions_required = ',\n    '.join(functions_required)
-        if self.add_functions_required:
-            self.add_functions_required = ',\n    ' + self.add_functions_required
-
-    def generate_code(self):
-        return dedent(
-            """
-            {var_name} = Conv1D(
-                name='{name}'{add_functions_required}
-            ){parent}
-            {var_name}.trainable = {trainable}
-            """
-        ).format(var_name=self.var_name,
-                 name=self.task_name,
-                 add_functions_required=self.add_functions_required,
-                 trainable=self.trainable,
-                 parent=self.parent)
-
-
-class Convolution2D(Operation):
-    FILTERS_PARAM = 'filters'
-    KERNEL_SIZE_PARAM = 'kernel_size'
-    STRIDES_PARAM = 'strides'
-    INPUT_SHAPE_PARAM = 'input_shape'
-    PADDING_PARAM = 'padding'
-    DATA_FORMAT_PARAM = 'data_format'
-    DILATION_RATE_PARAM = 'dilation_rate'
-    ACTIVATION_PARAM = 'activation'
-    USE_BIAS_PARAM = 'use_bias'
-    TRAINABLE_PARAM = 'trainable'
-    KERNEL_INITIALIZER_PARAM = 'kernel_initializer'
-    BIAS_INITIALIZER_PARAM = 'bias_initializer'
-    KERNEL_REGULARIZER_PARAM = 'kernel_regularizer'
-    BIAS_REGULARIZER_PARAM = 'bias_regularizer'
-    ACTIVITY_REGULARIZER_PARAM = 'activity_regularizer'
-    KERNEL_CONSTRAINT_PARAM = 'kernel_constraint'
-    BIAS_CONSTRAINT_PARAM = 'bias_constraint'
-    WEIGHTS_PARAM = 'weights'
-
-    def __init__(self, parameters, named_inputs, named_outputs):
-        Operation.__init__(self, parameters, named_inputs, named_outputs)
-        self.output = named_outputs.get('output data',
-                                        'out_task_{}'.format(self.order))
-
-        if self.FILTERS_PARAM not in parameters or \
-                self.KERNEL_SIZE_PARAM not in parameters or \
-                self.STRIDES_PARAM not in parameters:
-            raise ValueError(gettext('Parameter {} {} {} are required').format(
-                self.FILTERS_PARAM, self.KERNEL_SIZE_PARAM, self.STRIDES_PARAM)
-            )
-
-        self.filters = parameters.get(self.FILTERS_PARAM)
-        self.kernel_size = parameters.get(self.KERNEL_SIZE_PARAM)
-        self.strides = parameters.get(self.STRIDES_PARAM)
-        self.input_shape = parameters.get(self.INPUT_SHAPE_PARAM, None)
-        self.padding = parameters.get(self.PADDING_PARAM)
-        self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None)
-        self.dilation_rate = parameters.get(self.DILATION_RATE_PARAM, None)
-        self.activation = parameters.get(self.ACTIVATION_PARAM, None)
-        self.trainable = parameters.get(self.TRAINABLE_PARAM)
-        self.use_bias = parameters.get(self.USE_BIAS_PARAM)
-        self.kernel_initializer = parameters.get(self.KERNEL_INITIALIZER_PARAM,
-                                                 None)
-        self.bias_initializer = parameters.get(self.BIAS_INITIALIZER_PARAM,
-                                               None)
-        self.kernel_regularizer = parameters.get(self.KERNEL_REGULARIZER_PARAM,
-                                                 None)
-        self.bias_regularizer = parameters.get(self.BIAS_REGULARIZER_PARAM,
-                                               None)
-        self.activity_regularizer = parameters.get(self.
-                                                   ACTIVITY_REGULARIZER_PARAM,
-                                                   None)
-        self.kernel_constraint = parameters.get(self.KERNEL_CONSTRAINT_PARAM,
-                                                None)
-        self.bias_constraint = parameters.get(self.BIAS_CONSTRAINT_PARAM, None)
-        self.weights = parameters.get(self.WEIGHTS_PARAM, None)
-
-        self.add_functions_required = ""
-        self.task_name = self.parameters.get('task').get('name')
-        self.parent = ""
-        self.var_name = ""
-        self.has_code = True
-
-        self.parents_by_port = parameters.get('my_ports', [])
-        self.python_code_to_remove = self.remove_python_code_parent()
-        self.treatment()
-
-        self.import_code = {'layer': 'Conv2D',
-                            'callbacks': [],
-                            'model': None,
-                            'preprocessing_image': None,
-                            'others': None}
-
-    def remove_python_code_parent(self):
-        python_code_to_remove = []
-        for parent in self.parents_by_port:
-            if parent[0] == 'python code':
-                python_code_to_remove.append(convert_parents_to_variable_name(
-                    [parent[1]])
-                )
-        return python_code_to_remove
-
-    def treatment(self):
-        self.parent = convert_parents_to_variable_name(self.parameters
-                                                       .get('parents', []))
-        for python_code in self.python_code_to_remove:
-            self.parent.remove(python_code[0])
-
-        self.var_name = convert_variable_name(self.task_name)
-        self.task_name = self.var_name
-        if self.parent:
-            self.parent = '({})'.format(self.parent[0])
-        else:
-            self.parent = ''
-
-        self.kernel_size = get_int_or_tuple(self.kernel_size)
-        self.strides = get_int_or_tuple(self.strides)
-        self.dilation_rate = get_int_or_tuple(self.dilation_rate)
-
-        try:
-            self.filters = int(self.filters)
-            if self.filters < 0:
-                raise ValueError(gettext('Parameter {} is invalid').format(
-                    self.FILTERS_PARAM))
-        except:
-            pass # The user possibly is using a var defined in PythonCode Layer
-
-        if self.kernel_size is False:
-            raise ValueError(gettext('Parameter {} is invalid').format(
-                self.KERNEL_SIZE_PARAM))
-
-        if self.strides is False:
-            raise ValueError(gettext('Parameter {} is invalid').format(
-                self.STRIDES_PARAM))
-
-        if self.dilation_rate is False:
-            raise ValueError(gettext('Parameter {} is invalid').format(
-                self.DILATION_RATE_PARAM))
-
-        self.use_bias = True if int(self.use_bias) == 1 else False
-        self.trainable = True if int(self.trainable) == 1 else False
-
-        functions_required = []
-
-        self.filters = """filters={filters}""".format(filters=self.filters)
-        functions_required.append(self.filters)
-
-        self.kernel_size = """kernel_size={kernel_size}""" \
-            .format(kernel_size=self.kernel_size)
-        functions_required.append(self.kernel_size)
-
-        self.strides = """strides={strides}""".format(strides=self.strides)
-        functions_required.append(self.strides)
-
-        self.use_bias = """use_bias={use_bias}""".format(use_bias=self.use_bias)
-        functions_required.append(self.use_bias)
-
-        if self.input_shape is not None:
-            self.input_shape = get_int_or_tuple(self.input_shape)
-            if self.input_shape is False:
-                raise ValueError(gettext('Parameter {} is invalid').format(
-                    self.INPUT_SHAPE_PARAM))
-            self.input_shape = """input_shape='{input_shape}'""" \
-                .format(input_shape=self.input_shape)
-            functions_required.append(self.input_shape)
-
-        if self.padding is not None:
-            self.padding = """padding='{padding}'""" \
-                .format(padding=self.padding)
-            functions_required.append(self.padding)
-
-        if self.data_format is not None:
-            self.data_format = """data_format='{data_format}'""" \
-                .format(data_format=self.data_format)
-            functions_required.append(self.data_format)
-
-        if self.dilation_rate is not None:
-            self.dilation_rate = """dilation_rate={dilation_rate}""" \
-                .format(dilation_rate=self.dilation_rate)
-            functions_required.append(self.dilation_rate)
-
-        if self.activation is not None:
-            self.activation = """activation='{activation}'""" \
-                .format(activation=self.activation)
-            functions_required.append(self.activation)
-
-        if self.kernel_initializer is not None:
-            self.kernel_initializer = """kernel_initializer=
-            '{kernel_initializer}'""" \
-                .format(kernel_initializer=self.kernel_initializer)
-            functions_required.append(self.kernel_initializer)
-
-        if self.bias_initializer is not None:
-            self.bias_initializer = """bias_initializer='{bias_initializer}'""" \
-                .format(bias_initializer=self.bias_initializer)
-            functions_required.append(self.bias_initializer)
-
-        if self.kernel_regularizer is not None:
-            self.kernel_regularizer = """kernel_regularizer=
-            '{kernel_regularizer}'""" \
-                .format(kernel_regularizer=self.kernel_regularizer)
-            functions_required.append(self.kernel_regularizer)
-
-        if self.bias_regularizer is not None:
-            self.bias_regularizer = """bias_regularizer=
-            '{bias_regularizer}'""" \
-                .format(bias_regularizer=self.bias_regularizer)
-            functions_required.append(self.bias_regularizer)
-
-        if self.activity_regularizer is not None:
-            self.activity_regularizer = """activity_regularizer=
-            '{activity_regularizer}'""" \
-                .format(activity_regularizer=self.activity_regularizer)
-            functions_required.append(self.activity_regularizer)
-
-        if self.kernel_constraint is not None:
-            self.kernel_constraint = """kernel_constraint=
-            '{kernel_constraint}'""" \
-                .format(kernel_constraint=self.kernel_constraint)
-            functions_required.append(self.kernel_constraint)
-
-        if self.bias_constraint is not None:
-            self.bias_constraint = """bias_constraint='{bias_constraint}'""" \
-                .format(bias_constraint=self.bias_constraint)
-            functions_required.append(self.bias_constraint)
-
-        if self.weights is not None and self.weights.strip():
-            if convert_to_list(self.weights):
-                self.weights = """weights={weights}"""\
-                    .format(weights=self.weights)
-                functions_required.append(self.weights)
-
-        self.add_functions_required = ',\n    '.join(functions_required)
-        if self.add_functions_required:
-            self.add_functions_required = ',\n    ' + self.add_functions_required
-
-    def generate_code(self):
-        return dedent(
-            """
-            {var_name} = Conv2D(
-                name='{name}'{add_functions_required}
-            ){parent}
-            {var_name}.trainable = {trainable}
-            """
-        ).format(var_name=self.var_name,
-                 name=self.task_name,
-                 add_functions_required=self.add_functions_required,
-                 trainable=self.trainable,
-                 parent=self.parent)
-
-
-class SeparableConv1D(Operation):
-    FILTERS_PARAM = 'filters'
-    KERNEL_SIZE_PARAM = 'kernel_size'
-    STRIDES_PARAM = 'strides'
-    INPUT_SHAPE_PARAM = 'input_shape'
-    PADDING_PARAM = 'padding'
-    DATA_FORMAT_PARAM = 'data_format'
-    DILATION_RATE_PARAM = 'dilation_rate'
-    DEPTH_MULTIPLIER_PARAM = 'depth_multiplier'
-    ACTIVATION_PARAM = 'activation'
-    USE_BIAS_PARAM = 'use_bias'
-    DEPTHWISE_INITIALIZER_PARAM = 'depthwise_initializer'
-    POINTWISE_INITIALIZER_PARAM = 'pointwise_initializer'
-    BIAS_INITIALIZER_PARAM = 'bias_initializer'
-    DEPTHWISE_REGULARIZER_PARAM = 'depthwise_regularizer'
-    POINTWISE_REGULARIZER_PARAM = 'pointwise_regularizer'
-    BIAS_REGULARIZER_PARAM = 'bias_regularizer'
-    ACTIVITY_REGULARIZER_PARAM = 'activity_regularizer'
-    DEPTHWISE_CONSTRAINT_PARAM = 'depthwise_constraint'
-    POINTWISE_CONSTRAINT_PARAM = 'pointwise_constraint'
-    BIAS_CONSTRAINT_PARAM = 'bias_constraint'
-    TRAINABLE_PARAM = 'trainable'
-
-    def __init__(self, parameters, named_inputs, named_outputs):
-        Operation.__init__(self, parameters, named_inputs, named_outputs)
-        self.output = named_outputs.get('output data',
-                                        'out_task_{}'.format(self.order))
-
-        if self.FILTERS_PARAM not in parameters or \
-                self.KERNEL_SIZE_PARAM not in parameters or \
-                self.STRIDES_PARAM not in parameters:
-            raise ValueError(gettext('Parameter {} {} {} are required').format(
-                self.FILTERS_PARAM, self.KERNEL_SIZE_PARAM, self.STRIDES_PARAM)
-            )
-
-        self.filters = abs(parameters.get(self.FILTERS_PARAM))
-        self.kernel_size = parameters.get(self.KERNEL_SIZE_PARAM)
-        self.strides = parameters.get(self.STRIDES_PARAM)
-        self.input_shape = parameters.get(self.INPUT_SHAPE_PARAM, None)
-        self.padding = parameters.get(self.PADDING_PARAM)
-        self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None)
-        self.dilation_rate = parameters.get(self.DILATION_RATE_PARAM, None) or \
-                             None
-        self.depth_multiplier = abs(parameters.get(self.DEPTH_MULTIPLIER_PARAM,
-                                                   None))
-        self.activation = parameters.get(self.ACTIVATION_PARAM, None)
-        self.use_bias = parameters.get(self.USE_BIAS_PARAM)
-        self.depthwise_initializer = parameters.get(self.
-                                                    DEPTHWISE_INITIALIZER_PARAM,
-                                                    None)
-        self.pointwise_initializer = parameters.get(self.
-                                                    POINTWISE_INITIALIZER_PARAM,
-                                                    None)
-        self.bias_initializer = parameters.get(self.BIAS_INITIALIZER_PARAM,
-                                               None)
-        self.depthwise_regularizer = parameters.get(self.
-                                                    DEPTHWISE_REGULARIZER_PARAM,
-                                                    None)
-        self.pointwise_regularizer = parameters.get(self.
-                                                    POINTWISE_REGULARIZER_PARAM,
-                                                    None)
-        self.bias_regularizer = parameters.get(self.BIAS_REGULARIZER_PARAM,
-                                               None)
-        self.activity_regularizer = parameters.get(self.
-                                                   ACTIVITY_REGULARIZER_PARAM,
-                                                   None)
-        self.depthwise_constraint = parameters.get(self.
-                                                   DEPTHWISE_CONSTRAINT_PARAM,
-                                                   None)
-        self.pointwise_constraint = parameters.get(self.
-                                                   POINTWISE_CONSTRAINT_PARAM,
-                                                   None)
-        self.bias_constraint = parameters.get(self.BIAS_CONSTRAINT_PARAM, None)\
-                              
-        self.trainable = parameters.get(self.TRAINABLE_PARAM)
-
-        self.add_functions_required = ""
-        self.task_name = self.parameters.get('task').get('name')
-        self.parent = ""
-        self.var_name = ""
-        self.has_code = True
-
-        self.parents_by_port = parameters.get('my_ports', [])
-        self.python_code_to_remove = self.remove_python_code_parent()
-        self.treatment()
-
-        self.import_code = {'layer': 'SeparableConv1D',
-                            'callbacks': [],
-                            'model': None,
-                            'preprocessing_image': None,
-                            'others': None}
-
-    def remove_python_code_parent(self):
-        python_code_to_remove = []
-        for parent in self.parents_by_port:
-            if parent[0] == 'python code':
-                python_code_to_remove.append(convert_parents_to_variable_name(
-                    [parent[1]])
-                )
-        return python_code_to_remove
-
-    def treatment(self):
-        self.parent = convert_parents_to_variable_name(self.parameters
-                                                       .get('parents', []))
-        for python_code in self.python_code_to_remove:
-            self.parent.remove(python_code)
-
-        self.var_name = convert_variable_name(self.task_name)
-        self.task_name = self.var_name
-        if self.parent:
-            self.parent = '({})'.format(self.parent[0])
-        else:
-            self.parent = ''
-
-        self.kernel_size = get_int_or_tuple(self.kernel_size)
-        self.strides = get_int_or_tuple(self.strides)
-        self.dilation_rate = get_int_or_tuple(self.dilation_rate)
-
-        if self.filters < 0:
-            raise ValueError(gettext('Parameter {} is invalid').format(
-                self.FILTERS_PARAM))
-
-        if self.kernel_size is False:
-            raise ValueError(gettext('Parameter {} is invalid').format(
-                self.KERNEL_SIZE_PARAM))
-
-        if self.strides is False:
-            raise ValueError(gettext('Parameter {} is invalid').format(
-                self.STRIDES_PARAM))
-
-        if self.dilation_rate is False:
-            raise ValueError(gettext('Parameter {} is invalid').format(
-                self.DILATION_RATE_PARAM))
-
-        self.use_bias = True if int(self.use_bias) == 1 else False
-        self.trainable = True if int(self.trainable) == 1 else False
-
-        functions_required = []
-
-        self.filters = """filters={filters}""".format(filters=self.filters)
-        functions_required.append(self.filters)
-
-        self.kernel_size = """kernel_size={kernel_size}""" \
-            .format(kernel_size=self.kernel_size)
-        functions_required.append(self.kernel_size)
-
-        self.strides = """strides={strides}""".format(strides=self.strides)
-        functions_required.append(self.strides)
-
-        if self.input_shape is not None:
-            self.input_shape = get_int_or_tuple(self.input_shape)
-            if self.input_shape is False:
-                raise ValueError(gettext('Parameter {} is invalid').format(
-                    self.INPUT_SHAPE_PARAM))
-            self.input_shape = """input_shape='{input_shape}'""" \
-                .format(input_shape=self.input_shape)
-            functions_required.append(self.input_shape)
-
-        if self.padding is not None:
-            self.padding = """padding='{padding}'""" \
-                .format(padding=self.padding)
-            functions_required.append(self.padding)
-
-        if self.data_format is not None:
-            self.data_format = """data_format='{data_format}'""" \
-                .format(data_format=self.data_format)
-            functions_required.append(self.data_format)
-
-        if self.dilation_rate is not None:
-            self.dilation_rate = """dilation_rate={dilation_rate}""" \
-                .format(dilation_rate=self.dilation_rate)
-            functions_required.append(self.dilation_rate)
-
-        if self.depth_multiplier is not None:
-            self.depth_multiplier = """depth_multiplier={depth_multiplier}""" \
-                .format(depth_multiplier=self.depth_multiplier)
-            functions_required.append(self.depth_multiplier)
-
-        if self.activation is not None:
-            self.activation = """activation='{activation}'""" \
-                .format(activation=self.activation)
-            functions_required.append(self.activation)
-
-        self.use_bias = """use_bias={use_bias}""".format(use_bias=self.use_bias)
-        functions_required.append(self.use_bias)
-
-        if self.depthwise_initializer is not None:
-            self.depthwise_initializer = """depthwise_initializer=
-            '{depthwise_initializer}'""".format(depthwise_initializer=self
-                                                .depthwise_initializer)
-            functions_required.append(self.depthwise_initializer)
-
-        if self.pointwise_initializer is not None:
-            self.pointwise_initializer = """pointwise_initializer=
-            '{pointwise_initializer}'""".format(pointwise_initializer=self
-                                                .pointwise_initializer)
-            functions_required.append(self.pointwise_initializer)
-
-        if self.bias_initializer is not None:
-            self.bias_initializer = """bias_initializer='{bias_initializer}'"""\
-                .format(bias_initializer=self.bias_initializer)
-            functions_required.append(self.bias_initializer)
-
-        if self.depthwise_regularizer is not None:
-            self.depthwise_regularizer = """depthwise_regularizer=
-            '{depthwise_regularizer}'""" \
-                .format(depthwise_regularizer=self.depthwise_regularizer)
-            functions_required.append(self.depthwise_regularizer)
-
-        if self.pointwise_regularizer is not None:
-            self.pointwise_regularizer = """pointwise_regularizer=
-            '{pointwise_regularizer}'""".format(pointwise_regularizer=self.
-                                                pointwise_regularizer)
-            functions_required.append(self.pointwise_regularizer)
-
-        if self.bias_regularizer is not None:
-            self.bias_regularizer = """bias_regularizer=
-            '{bias_regularizer}'""".format(bias_regularizer=self.
-                                           bias_regularizer)
-            functions_required.append(self.bias_regularizer)
-
-        if self.activity_regularizer is not None:
-            self.activity_regularizer = """activity_regularizer=
-            '{activity_regularizer}'""" \
-                .format(activity_regularizer=self.activity_regularizer)
-            functions_required.append(self.activity_regularizer)
-
-        if self.depthwise_constraint is not None:
-            self.depthwise_constraint = """depthwise_constraint=
-            '{depthwise_constraint}'""".format(depthwise_constraint=self.
-                                               depthwise_constraint)
-            functions_required.append(self.depthwise_constraint)
-
-        if self.pointwise_constraint is not None:
-            self.pointwise_constraint = """pointwise_constraint=
-            '{pointwise_constraint}'""".format(pointwise_constraint=self.
-                                               pointwise_constraint)
-            functions_required.append(self.pointwise_constraint)
-
-        if self.bias_constraint is not None:
-            self.bias_constraint = """bias_constraint='{bias_constraint}'""" \
-                .format(bias_constraint=self.bias_constraint)
-            functions_required.append(self.bias_constraint)
-
-        self.add_functions_required = ',\n    '.join(functions_required)
-        if self.add_functions_required:
-            self.add_functions_required = ',\n    ' + self.add_functions_required
-
-    def generate_code(self):
-        return dedent(
-            """
-            {var_name} = SeparableConv1D(
-                name='{name}'{add_functions_required}
-            ){parent}
-            """
-        ).format(var_name=self.var_name,
-                 name=self.task_name,
-                 add_functions_required=self.add_functions_required,
-                 parent=self.parent)
-
-
-class SeparableConv2D(Operation):
-    FILTERS_PARAM = 'filters'
-    KERNEL_SIZE_PARAM = 'kernel_size'
-    STRIDES_PARAM = 'strides'
-    INPUT_SHAPE_PARAM = 'input_shape'
-    PADDING_PARAM = 'padding'
-    DATA_FORMAT_PARAM = 'data_format'
-    DILATION_RATE_PARAM = 'dilation_rate'
-    DEPTH_MULTIPLIER_PARAM = 'depth_multiplier'
-    ACTIVATION_PARAM = 'activation'
-    USE_BIAS_PARAM = 'use_bias'
-    DEPTHWISE_INITIALIZER_PARAM = 'depthwise_initializer'
-    POINTWISE_INITIALIZER_PARAM = 'pointwise_initializer'
-    BIAS_INITIALIZER_PARAM = 'bias_initializer'
-    DEPTHWISE_REGULARIZER_PARAM = 'depthwise_regularizer'
-    POINTWISE_REGULARIZER_PARAM = 'pointwise_regularizer'
-    BIAS_REGULARIZER_PARAM = 'bias_regularizer'
-    ACTIVITY_REGULARIZER_PARAM = 'activity_regularizer'
-    DEPTHWISE_CONSTRAINT_PARAM = 'depthwise_constraint'
-    POINTWISE_CONSTRAINT_PARAM = 'pointwise_constraint'
-    BIAS_CONSTRAINT_PARAM = 'bias_constraint'
-
-    def __init__(self, parameters, named_inputs, named_outputs):
-        Operation.__init__(self, parameters, named_inputs, named_outputs)
-        self.output = named_outputs.get('output data',
-                                        'out_task_{}'.format(self.order))
-
-        if self.FILTERS_PARAM not in parameters or \
-                self.KERNEL_SIZE_PARAM not in parameters or \
-                self.STRIDES_PARAM not in parameters:
-            raise ValueError(gettext('Parameter {} {} {} are required').format(
-                self.FILTERS_PARAM, self.KERNEL_SIZE_PARAM, self.STRIDES_PARAM)
-            )
-
-        self.filters = abs(parameters.get(self.FILTERS_PARAM))
-        self.kernel_size = parameters.get(self.KERNEL_SIZE_PARAM)
-        self.strides = parameters.get(self.STRIDES_PARAM)
-        self.input_shape = parameters.get(self.INPUT_SHAPE_PARAM, None)
-        self.padding = parameters.get(self.PADDING_PARAM)
-        self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None)
-        self.dilation_rate = parameters.get(self.DILATION_RATE_PARAM, None) or \
-                             None
-        self.depth_multiplier = abs(parameters.get(self.DEPTH_MULTIPLIER_PARAM,
-                                                   None))
-        self.activation = parameters.get(self.ACTIVATION_PARAM, None)
-        self.use_bias = parameters.get(self.USE_BIAS_PARAM)
-        self.depthwise_initializer = parameters.get(self.
-                                                    DEPTHWISE_INITIALIZER_PARAM,
-                                                    None)
-        self.pointwise_initializer = parameters.get(self.
-                                                    POINTWISE_INITIALIZER_PARAM,
-                                                    None)
-        self.bias_initializer = parameters.get(self.BIAS_INITIALIZER_PARAM,
-                                               None)
-        self.depthwise_regularizer = parameters.get(self.
-                                                    DEPTHWISE_REGULARIZER_PARAM,
-                                                    None)
-        self.pointwise_regularizer = parameters.get(self.
-                                                    POINTWISE_REGULARIZER_PARAM,
-                                                    None)
-        self.bias_regularizer = parameters.get(self.BIAS_REGULARIZER_PARAM,
-                                               None)
-        self.activity_regularizer = parameters.get(self.
-                                                   ACTIVITY_REGULARIZER_PARAM,
-                                                   None)
-        self.depthwise_constraint = parameters.get(self.
-                                                   DEPTHWISE_CONSTRAINT_PARAM,
-                                                   None)
-        self.pointwise_constraint = parameters.get(self.
-                                                   POINTWISE_CONSTRAINT_PARAM,
-                                                   None)
-        self.bias_constraint = parameters.get(self.BIAS_CONSTRAINT_PARAM, None) \
-                              
-        self.trainable = parameters.get(self.TRAINABLE_PARAM)
-
-        self.add_functions_required = ""
-        self.task_name = self.parameters.get('task').get('name')
-        self.parent = ""
-        self.var_name = ""
-        self.has_code = True
-
-        self.parents_by_port = parameters.get('my_ports', [])
-        self.python_code_to_remove = self.remove_python_code_parent()
-        self.treatment()
-
-        self.import_code = {'layer': 'SeparableConv2D',
-                            'callbacks': [],
-                            'model': None,
-                            'preprocessing_image': None,
-                            'others': None}
-
-    def remove_python_code_parent(self):
-        python_code_to_remove = []
-        for parent in self.parents_by_port:
-            if parent[0] == 'python code':
-                python_code_to_remove.append(convert_parents_to_variable_name(
-                    [parent[1]])
-                )
-        return python_code_to_remove
-
-    def treatment(self):
-        self.parent = convert_parents_to_variable_name(self.parameters
-                                                       .get('parents', []))
-        for python_code in self.python_code_to_remove:
-            self.parent.remove(python_code)
-
-        self.var_name = convert_variable_name(self.task_name)
-        self.task_name = self.var_name
-        if self.parent:
-            self.parent = '({})'.format(self.parent[0])
-        else:
-            self.parent = ''
-
-        self.kernel_size = get_int_or_tuple(self.kernel_size)
-        self.strides = get_int_or_tuple(self.strides)
-        self.dilation_rate = get_int_or_tuple(self.dilation_rate)
-
-        if self.filters < 0:
-            raise ValueError(gettext('Parameter {} is invalid').format(
-                self.FILTERS_PARAM))
-
-        if self.kernel_size is False:
-            raise ValueError(gettext('Parameter {} is invalid').format(
-                self.KERNEL_SIZE_PARAM))
-
-        if self.strides is False:
-            raise ValueError(gettext('Parameter {} is invalid').format(
-                self.STRIDES_PARAM))
-
-        if self.dilation_rate is False:
-            raise ValueError(gettext('Parameter {} is invalid').format(
-                self.DILATION_RATE_PARAM))
-
-        self.use_bias = True if int(self.use_bias) == 1 else False
-        self.trainable = True if int(self.trainable) == 1 else False
-
-        functions_required = []
-
-        self.filters = """filters={filters}""".format(filters=self.filters)
-        functions_required.append(self.filters)
-
-        self.kernel_size = """kernel_size={kernel_size}""" \
-            .format(kernel_size=self.kernel_size)
-        functions_required.append(self.kernel_size)
-
-        self.strides = """strides={strides}""".format(strides=self.strides)
-        functions_required.append(self.strides)
-
-        if self.input_shape is not None:
-            self.input_shape = get_int_or_tuple(self.input_shape)
-            if self.input_shape is False:
-                raise ValueError(gettext('Parameter {} is invalid').format(
-                    self.INPUT_SHAPE_PARAM))
-            self.input_shape = """input_shape='{input_shape}'""" \
-                .format(input_shape=self.input_shape)
-            functions_required.append(self.input_shape)
-
-        if self.padding is not None:
-            self.padding = """padding='{padding}'""" \
-                .format(padding=self.padding)
-            functions_required.append(self.padding)
-
-        if self.data_format is not None:
-            self.data_format = """data_format='{data_format}'""" \
-                .format(data_format=self.data_format)
-            functions_required.append(self.data_format)
-
-        if self.dilation_rate is not None:
-            self.dilation_rate = """dilation_rate={dilation_rate}""" \
-                .format(dilation_rate=self.dilation_rate)
-            functions_required.append(self.dilation_rate)
-
-        if self.depth_multiplier is not None:
-            self.depth_multiplier = """depth_multiplier={depth_multiplier}""" \
-                .format(depth_multiplier=self.depth_multiplier)
-            functions_required.append(self.depth_multiplier)
-
-        if self.activation is not None:
-            self.activation = """activation='{activation}'""" \
-                .format(activation=self.activation)
-            functions_required.append(self.activation)
-
-        self.use_bias = """use_bias={use_bias}""".format(use_bias=self.use_bias)
-        functions_required.append(self.use_bias)
-
-        if self.depthwise_initializer is not None:
-            self.depthwise_initializer = """depthwise_initializer=
-            '{depthwise_initializer}'""".format(depthwise_initializer=self
-                                                .depthwise_initializer)
-            functions_required.append(self.depthwise_initializer)
-
-        if self.pointwise_initializer is not None:
-            self.pointwise_initializer = """pointwise_initializer=
-            '{pointwise_initializer}'""".format(pointwise_initializer=self
-                                                .pointwise_initializer)
-            functions_required.append(self.pointwise_initializer)
-
-        if self.bias_initializer is not None:
-            self.bias_initializer = """bias_initializer='{bias_initializer}'""" \
-                .format(bias_initializer=self.bias_initializer)
-            functions_required.append(self.bias_initializer)
-
-        if self.depthwise_regularizer is not None:
-            self.depthwise_regularizer = """depthwise_regularizer=
-            '{depthwise_regularizer}'""" \
-                .format(depthwise_regularizer=self.depthwise_regularizer)
-            functions_required.append(self.depthwise_regularizer)
-
-        if self.pointwise_regularizer is not None:
-            self.pointwise_regularizer = """pointwise_regularizer=
-            '{pointwise_regularizer}'""".format(pointwise_regularizer=self.
-                                                pointwise_regularizer)
-            functions_required.append(self.pointwise_regularizer)
-
-        if self.bias_regularizer is not None:
-            self.bias_regularizer = """bias_regularizer=
-            '{bias_regularizer}'""".format(bias_regularizer=self.
-                                           bias_regularizer)
-            functions_required.append(self.bias_regularizer)
-
-        if self.activity_regularizer is not None:
-            self.activity_regularizer = """activity_regularizer=
-            '{activity_regularizer}'""" \
-                .format(activity_regularizer=self.activity_regularizer)
-            functions_required.append(self.activity_regularizer)
-
-        if self.depthwise_constraint is not None:
-            self.depthwise_constraint = """depthwise_constraint=
-            '{depthwise_constraint}'""".format(depthwise_constraint=self.
-                                               depthwise_constraint)
-            functions_required.append(self.depthwise_constraint)
-
-        if self.pointwise_constraint is not None:
-            self.pointwise_constraint = """pointwise_constraint=
-            '{pointwise_constraint}'""".format(pointwise_constraint=self.
-                                               pointwise_constraint)
-            functions_required.append(self.pointwise_constraint)
-
-        if self.bias_constraint is not None:
-            self.bias_constraint = """bias_constraint='{bias_constraint}'""" \
-                .format(bias_constraint=self.bias_constraint)
-            functions_required.append(self.bias_constraint)
-
-        self.add_functions_required = ',\n    '.join(functions_required)
-        if self.add_functions_required:
-            self.add_functions_required = ',\n    ' + self.add_functions_required
-
-    def generate_code(self):
-        return dedent(
-            """
-            {var_name} = SeparableConv2D(
-                name='{name}'{add_functions_required}
-            ){parent}
-            """
-        ).format(var_name=self.var_name,
-                 name=self.task_name,
-                 add_functions_required=self.add_functions_required,
-                 parent=self.parent)
-
-
-class DepthwiseConv2D(Operation):
-    KERNEL_SIZE_PARAM = 'kernel_size'
-    STRIDES_PARAM = 'strides'
-    INPUT_SHAPE_PARAM = 'input_shape'
-    PADDING_PARAM = 'padding'
-    DEPTH_MULTIPLIER_PARAM = 'depth_multiplier'
-    DATA_FORMAT_PARAM = 'data_format'
-    ACTIVATION_PARAM = 'activation'
-    USE_BIAS_PARAM = 'use_bias'
-    DEPTHWISE_INITIALIZER_PARAM = 'depthwise_initializer'
-    BIAS_INITIALIZER_PARAM = 'bias_initializer'
-    DEPTHWISE_REGULARIZER_PARAM = 'depthwise_regularizer'
-    BIAS_REGULARIZER_PARAM = 'bias_regularizer'
-    ACTIVITY_REGULARIZER_PARAM = 'activity_regularizer'
-    DEPTHWISE_CONSTRAINT_PARAM = 'depthwise_constraint'
-    BIAS_CONSTRAINT_PARAM = 'bias_constraint'
-
-    def __init__(self, parameters, named_inputs, named_outputs):
-        Operation.__init__(self, parameters, named_inputs, named_outputs)
-        self.output = named_outputs.get('output data',
-                                        'out_task_{}'.format(self.order))
-
-        if self.KERNEL_SIZE_PARAM not in parameters or \
-                self.STRIDES_PARAM not in parameters:
-            raise ValueError(gettext('Parameter {} {} are required').format(
-                self.KERNEL_SIZE_PARAM, self.STRIDES_PARAM)
-            )
-
-        self.kernel_size = parameters.get(self.KERNEL_SIZE_PARAM)
-        self.strides = parameters.get(self.STRIDES_PARAM)
-        self.input_shape = parameters.get(self.INPUT_SHAPE_PARAM, None)
-        self.padding = parameters.get(self.PADDING_PARAM)
-        self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None)
-        self.depth_multiplier = abs(parameters.get(self.DEPTH_MULTIPLIER_PARAM,
-                                                   None))
-        self.activation = parameters.get(self.ACTIVATION_PARAM, None)
-        self.use_bias = parameters.get(self.USE_BIAS_PARAM)
-        self.depthwise_initializer = parameters.get(self.
-                                                    DEPTHWISE_INITIALIZER_PARAM,
-                                                    None)
-        self.bias_initializer = parameters.get(self.BIAS_INITIALIZER_PARAM,
-                                               None)
-        self.depthwise_regularizer = parameters.get(self.
-                                                    DEPTHWISE_REGULARIZER_PARAM,
-                                                    None)
-        self.bias_regularizer = parameters.get(self.BIAS_REGULARIZER_PARAM,
-                                               None)
-        self.activity_regularizer = parameters.get(self.
-                                                   ACTIVITY_REGULARIZER_PARAM,
-                                                   None)
-        self.depthwise_constraint = parameters.get(self.
-                                                   DEPTHWISE_CONSTRAINT_PARAM,
-                                                   None)
-        self.bias_constraint = parameters.get(self.BIAS_CONSTRAINT_PARAM, None) \
-                              
-
-        self.add_functions_required = ""
-        self.task_name = self.parameters.get('task').get('name')
-        self.parent = ""
-        self.var_name = ""
-        self.has_code = True
-
-        self.parents_by_port = parameters.get('my_ports', [])
-        self.python_code_to_remove = self.remove_python_code_parent()
-        self.treatment()
-
-        self.import_code = {'layer': 'DepthwiseConv2D',
-                            'callbacks': [],
-                            'model': None,
-                            'preprocessing_image': None,
-                            'others': None}
-
-    def remove_python_code_parent(self):
-        python_code_to_remove = []
-        for parent in self.parents_by_port:
-            if parent[0] == 'python code':
-                python_code_to_remove.append(convert_parents_to_variable_name(
-                    [parent[1]])
-                )
-        return python_code_to_remove
-
-    def treatment(self):
-        self.parent = convert_parents_to_variable_name(self.parameters
-                                                       .get('parents', []))
-        for python_code in self.python_code_to_remove:
-            self.parent.remove(python_code)
-
-        self.var_name = convert_variable_name(self.task_name)
-        self.task_name = self.var_name
-        if self.parent:
-            self.parent = '({})'.format(self.parent[0])
-        else:
-            self.parent = ''
-
-        self.kernel_size = get_int_or_tuple(self.kernel_size)
-        self.strides = get_int_or_tuple(self.strides)
-        self.dilation_rate = get_int_or_tuple(self.dilation_rate)
-
-        if self.kernel_size is False:
-            raise ValueError(gettext('Parameter {} is invalid').format(
-                self.KERNEL_SIZE_PARAM))
-
-        if self.strides is False:
-            raise ValueError(gettext('Parameter {} is invalid').format(
-                self.STRIDES_PARAM))
-
-        self.use_bias = True if int(self.use_bias) == 1 else False
-
-        functions_required = []
-
-        self.kernel_size = """kernel_size={kernel_size}""" \
-            .format(kernel_size=self.kernel_size)
-        functions_required.append(self.kernel_size)
-
-        self.strides = """strides={strides}""".format(strides=self.strides)
-        functions_required.append(self.strides)
-
-        if self.input_shape is not None:
-            self.input_shape = get_int_or_tuple(self.input_shape)
-            if self.input_shape is False:
-                raise ValueError(gettext('Parameter {} is invalid').format(
-                    self.INPUT_SHAPE_PARAM))
-            self.input_shape = """input_shape='{input_shape}'""" \
-                .format(input_shape=self.input_shape)
-            functions_required.append(self.input_shape)
-
-        if self.padding is not None:
-            self.padding = """padding='{padding}'""" \
-                .format(padding=self.padding)
-            functions_required.append(self.padding)
-
-        if self.depth_multiplier is not None:
-            self.depth_multiplier = """depth_multiplier={depth_multiplier}""" \
-                .format(depth_multiplier=self.depth_multiplier)
-            functions_required.append(self.depth_multiplier)
-
-        if self.data_format is not None:
-            self.data_format = """data_format='{data_format}'""" \
-                .format(data_format=self.data_format)
-            functions_required.append(self.data_format)
-
-        if self.activation is not None:
-            self.activation = """activation='{activation}'""" \
-                .format(activation=self.activation)
-            functions_required.append(self.activation)
-
-        self.use_bias = """use_bias={use_bias}""".format(use_bias=self.use_bias)
-        functions_required.append(self.use_bias)
-
-        if self.depthwise_initializer is not None:
-            self.depthwise_initializer = """depthwise_initializer=
-            '{depthwise_initializer}'""".format(depthwise_initializer=self
-                                                .depthwise_initializer)
-            functions_required.append(self.depthwise_initializer)
-
-        if self.bias_initializer is not None:
-            self.bias_initializer = """bias_initializer='{bias_initializer}'""" \
-                .format(bias_initializer=self.bias_initializer)
-            functions_required.append(self.bias_initializer)
-
-        if self.depthwise_regularizer is not None:
-            self.depthwise_regularizer = """depthwise_regularizer=
-            '{depthwise_regularizer}'""" \
-                .format(depthwise_regularizer=self.depthwise_regularizer)
-            functions_required.append(self.depthwise_regularizer)
-
-        if self.bias_regularizer is not None:
-            self.bias_regularizer = """bias_regularizer=
-            '{bias_regularizer}'""".format(bias_regularizer=self.
-                                           bias_regularizer)
-            functions_required.append(self.bias_regularizer)
-
-        if self.activity_regularizer is not None:
-            self.activity_regularizer = """activity_regularizer=
-            '{activity_regularizer}'""" \
-                .format(activity_regularizer=self.activity_regularizer)
-            functions_required.append(self.activity_regularizer)
-
-        if self.depthwise_constraint is not None:
-            self.depthwise_constraint = """depthwise_constraint=
-            '{depthwise_constraint}'""".format(depthwise_constraint=self.
-                                               depthwise_constraint)
-            functions_required.append(self.depthwise_constraint)
-
-        if self.bias_constraint is not None:
-            self.bias_constraint = """bias_constraint='{bias_constraint}'""" \
-                .format(bias_constraint=self.bias_constraint)
-            functions_required.append(self.bias_constraint)
-
-        self.add_functions_required = ',\n    '.join(functions_required)
-        if self.add_functions_required:
-            self.add_functions_required = ',\n    ' + self.add_functions_required
-
-    def generate_code(self):
-        return dedent(
-            """
-            {var_name} = DepthwiseConv2D(
-                name='{name}'{add_functions_required}
-            ){parent}
-            """
-        ).format(var_name=self.var_name,
-                 name=self.task_name,
-                 add_functions_required=self.add_functions_required,
-                 parent=self.parent)
-
-
 class Conv2DTranspose(Operation):
     FILTERS_PARAM = 'filters'
     KERNEL_SIZE_PARAM = 'kernel_size'
@@ -1206,6 +25,7 @@ class Conv2DTranspose(Operation):
     ACTIVITY_REGULARIZER_PARAM = 'activity_regularizer'
     KERNEL_CONSTRAINT_PARAM = 'kernel_constraint'
     BIAS_CONSTRAINT_PARAM = 'bias_constraint'
+    ADVANCED_OPTIONS_PARAM = 'advanced_options'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
@@ -1243,8 +63,8 @@ class Conv2DTranspose(Operation):
                                                    None)
         self.kernel_constraint = parameters.get(self.KERNEL_CONSTRAINT_PARAM,
                                                 None)
-        self.bias_constraint = parameters.get(self.BIAS_CONSTRAINT_PARAM, None)\
-                              
+        self.bias_constraint = parameters.get(self.BIAS_CONSTRAINT_PARAM, None)
+        self.advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
 
         self.add_functions_required = ""
         self.task_name = self.parameters.get('task').get('name')
@@ -1310,95 +130,97 @@ class Conv2DTranspose(Operation):
                 self.OUTPUT_PADDING_PARAM))
 
         self.use_bias = True if int(self.use_bias) == 1 else False
+        self.advanced_options = True if int(self.advanced_options) == 1 else \
+            False
 
         functions_required = []
-
         self.filters = """filters={filters}""".format(filters=self.filters)
         functions_required.append(self.filters)
 
-        self.kernel_size = """kernel_size={kernel_size}""" \
-            .format(kernel_size=self.kernel_size)
-        functions_required.append(self.kernel_size)
+        if self.advanced_options:
+            self.kernel_size = """kernel_size={kernel_size}""" \
+                .format(kernel_size=self.kernel_size)
+            functions_required.append(self.kernel_size)
 
-        self.strides = """strides={strides}""".format(strides=self.strides)
-        functions_required.append(self.strides)
+            self.strides = """strides={strides}""".format(strides=self.strides)
+            functions_required.append(self.strides)
 
-        if self.input_shape is not None:
-            self.input_shape = get_int_or_tuple(self.input_shape)
-            if self.input_shape is False:
-                raise ValueError(gettext('Parameter {} is invalid').format(
-                    self.INPUT_SHAPE_PARAM))
-            self.input_shape = """input_shape='{input_shape}'""" \
-                .format(input_shape=self.input_shape)
-            functions_required.append(self.input_shape)
+            if self.input_shape is not None:
+                self.input_shape = get_int_or_tuple(self.input_shape)
+                if self.input_shape is False:
+                    raise ValueError(gettext('Parameter {} is invalid').format(
+                        self.INPUT_SHAPE_PARAM))
+                self.input_shape = """input_shape='{input_shape}'""" \
+                    .format(input_shape=self.input_shape)
+                functions_required.append(self.input_shape)
 
-        if self.padding is not None:
-            self.padding = """padding='{padding}'""" \
-                .format(padding=self.padding)
-            functions_required.append(self.padding)
+            if self.padding is not None:
+                self.padding = """padding='{padding}'""" \
+                    .format(padding=self.padding)
+                functions_required.append(self.padding)
 
-        if self.output_padding is not None:
-            self.output_padding = """output_padding={output_padding}""" \
-                .format(output_padding=self.output_padding)
-            functions_required.append(self.output_padding)
+            if self.output_padding is not None:
+                self.output_padding = """output_padding={output_padding}""" \
+                    .format(output_padding=self.output_padding)
+                functions_required.append(self.output_padding)
 
-        if self.data_format is not None:
-            self.data_format = """data_format='{data_format}'""" \
-                .format(data_format=self.data_format)
-            functions_required.append(self.data_format)
+            if self.data_format is not None:
+                self.data_format = """data_format='{data_format}'""" \
+                    .format(data_format=self.data_format)
+                functions_required.append(self.data_format)
 
-        if self.dilation_rate is not None:
-            self.dilation_rate = """dilation_rate={dilation_rate}""" \
-                .format(dilation_rate=self.dilation_rate)
-            functions_required.append(self.dilation_rate)
+            if self.dilation_rate is not None:
+                self.dilation_rate = """dilation_rate={dilation_rate}""" \
+                    .format(dilation_rate=self.dilation_rate)
+                functions_required.append(self.dilation_rate)
 
-        if self.activation is not None:
-            self.activation = """activation='{activation}'""" \
-                .format(activation=self.activation)
-            functions_required.append(self.activation)
+            if self.activation is not None:
+                self.activation = """activation='{activation}'""" \
+                    .format(activation=self.activation)
+                functions_required.append(self.activation)
 
-        self.use_bias = """use_bias={use_bias}""".format(use_bias=self.use_bias)
-        functions_required.append(self.use_bias)
+            self.use_bias = """use_bias={use_bias}""".format(use_bias=self.use_bias)
+            functions_required.append(self.use_bias)
 
-        if self.kernel_initializer is not None:
-            self.kernel_initializer = """kernel_initializer=
-            '{kernel_initializer}'""" \
-                .format(kernel_initializer=self.kernel_initializer)
-            functions_required.append(self.kernel_initializer)
+            if self.kernel_initializer is not None:
+                self.kernel_initializer = """kernel_initializer=
+                '{kernel_initializer}'""" \
+                    .format(kernel_initializer=self.kernel_initializer)
+                functions_required.append(self.kernel_initializer)
 
-        if self.bias_initializer is not None:
-            self.bias_initializer = """bias_initializer='{bias_initializer}'""" \
-                .format(bias_initializer=self.bias_initializer)
-            functions_required.append(self.bias_initializer)
+            if self.bias_initializer is not None:
+                self.bias_initializer = """bias_initializer='{bias_initializer}'""" \
+                    .format(bias_initializer=self.bias_initializer)
+                functions_required.append(self.bias_initializer)
 
-        if self.kernel_regularizer is not None:
-            self.kernel_regularizer = """kernel_regularizer=
-            '{kernel_regularizer}'""" \
-                .format(kernel_regularizer=self.kernel_regularizer)
-            functions_required.append(self.kernel_regularizer)
+            if self.kernel_regularizer is not None:
+                self.kernel_regularizer = """kernel_regularizer=
+                '{kernel_regularizer}'""" \
+                    .format(kernel_regularizer=self.kernel_regularizer)
+                functions_required.append(self.kernel_regularizer)
 
-        if self.bias_regularizer is not None:
-            self.bias_regularizer = """bias_regularizer=
-            '{bias_regularizer}'""" \
-                .format(bias_regularizer=self.bias_regularizer)
-            functions_required.append(self.bias_regularizer)
+            if self.bias_regularizer is not None:
+                self.bias_regularizer = """bias_regularizer=
+                '{bias_regularizer}'""" \
+                    .format(bias_regularizer=self.bias_regularizer)
+                functions_required.append(self.bias_regularizer)
 
-        if self.activity_regularizer is not None:
-            self.activity_regularizer = """activity_regularizer=
-            '{activity_regularizer}'""" \
-                .format(activity_regularizer=self.activity_regularizer)
-            functions_required.append(self.activity_regularizer)
+            if self.activity_regularizer is not None:
+                self.activity_regularizer = """activity_regularizer=
+                '{activity_regularizer}'""" \
+                    .format(activity_regularizer=self.activity_regularizer)
+                functions_required.append(self.activity_regularizer)
 
-        if self.kernel_constraint is not None:
-            self.kernel_constraint = """kernel_constraint=
-            '{kernel_constraint}'""" \
-                .format(kernel_constraint=self.kernel_constraint)
-            functions_required.append(self.kernel_constraint)
+            if self.kernel_constraint is not None:
+                self.kernel_constraint = """kernel_constraint=
+                '{kernel_constraint}'""" \
+                    .format(kernel_constraint=self.kernel_constraint)
+                functions_required.append(self.kernel_constraint)
 
-        if self.bias_constraint is not None:
-            self.bias_constraint = """bias_constraint='{bias_constraint}'""" \
-                .format(bias_constraint=self.bias_constraint)
-            functions_required.append(self.bias_constraint)
+            if self.bias_constraint is not None:
+                self.bias_constraint = """bias_constraint='{bias_constraint}'""" \
+                    .format(bias_constraint=self.bias_constraint)
+                functions_required.append(self.bias_constraint)
 
         self.add_functions_required = ',\n    '.join(functions_required)
         if self.add_functions_required:
@@ -1414,238 +236,6 @@ class Conv2DTranspose(Operation):
         ).format(var_name=self.var_name,
                  name=self.task_name,
                  add_functions_required=self.add_functions_required,
-                 parent=self.parent)
-
-
-class Conv3D(Operation):
-    FILTERS_PARAM = 'filters'
-    KERNEL_SIZE_PARAM = 'kernel_size'
-    STRIDES_PARAM = 'strides'
-    INPUT_SHAPE_PARAM = 'input_shape'
-    PADDING_PARAM = 'padding'
-    DATA_FORMAT_PARAM = 'data_format'
-    DILATION_RATE_PARAM = 'dilation_rate'
-    ACTIVATION_PARAM = 'activation'
-    USE_BIAS_PARAM = 'use_bias'
-    TRAINABLE_PARAM = 'trainable'
-    KERNEL_INITIALIZER_PARAM = 'kernel_initializer'
-    BIAS_INITIALIZER_PARAM = 'bias_initializer'
-    KERNEL_REGULARIZER_PARAM = 'kernel_regularizer'
-    BIAS_REGULARIZER_PARAM = 'bias_regularizer'
-    ACTIVITY_REGULARIZER_PARAM = 'activity_regularizer'
-    KERNEL_CONSTRAINT_PARAM = 'kernel_constraint'
-    BIAS_CONSTRAINT_PARAM = 'bias_constraint'
-    WEIGHTS_PARAM = 'weights'
-
-    def __init__(self, parameters, named_inputs, named_outputs):
-        Operation.__init__(self, parameters, named_inputs, named_outputs)
-        self.output = named_outputs.get('output data',
-                                        'out_task_{}'.format(self.order))
-
-        if self.FILTERS_PARAM not in parameters or \
-                self.KERNEL_SIZE_PARAM not in parameters or \
-                self.STRIDES_PARAM not in parameters:
-            raise ValueError(gettext('Parameter {} {} {} are required').format(
-                self.FILTERS_PARAM, self.KERNEL_SIZE_PARAM, self.STRIDES_PARAM)
-            )
-
-        self.filters = parameters.get(self.FILTERS_PARAM)
-        self.kernel_size = parameters.get(self.KERNEL_SIZE_PARAM)
-        self.strides = parameters.get(self.STRIDES_PARAM)
-        self.input_shape = parameters.get(self.INPUT_SHAPE_PARAM, None)
-        self.padding = parameters.get(self.PADDING_PARAM)
-        self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None)
-        self.dilation_rate = parameters.get(self.DILATION_RATE_PARAM, None)
-        self.activation = parameters.get(self.ACTIVATION_PARAM, None)
-        self.trainable = parameters.get(self.TRAINABLE_PARAM)
-        self.use_bias = parameters.get(self.USE_BIAS_PARAM)
-        self.kernel_initializer = parameters.get(self.KERNEL_INITIALIZER_PARAM,
-                                                 None)
-        self.bias_initializer = parameters.get(self.BIAS_INITIALIZER_PARAM,
-                                               None)
-        self.kernel_regularizer = parameters.get(self.KERNEL_REGULARIZER_PARAM,
-                                                 None)
-        self.bias_regularizer = parameters.get(self.BIAS_REGULARIZER_PARAM,
-                                               None)
-        self.activity_regularizer = parameters.get(self.
-                                                   ACTIVITY_REGULARIZER_PARAM,
-                                                   None)
-        self.kernel_constraint = parameters.get(self.KERNEL_CONSTRAINT_PARAM,
-                                                None)
-        self.bias_constraint = parameters.get(self.BIAS_CONSTRAINT_PARAM, None)
-        self.weights = parameters.get(self.WEIGHTS_PARAM, None)
-
-        self.add_functions_required = ""
-        self.task_name = self.parameters.get('task').get('name')
-        self.parent = ""
-        self.var_name = ""
-        self.has_code = True
-
-        self.parents_by_port = parameters.get('my_ports', [])
-        self.python_code_to_remove = self.remove_python_code_parent()
-        self.treatment()
-
-        self.import_code = {'layer': 'Conv3D',
-                            'callbacks': [],
-                            'model': None,
-                            'preprocessing_image': None,
-                            'others': None}
-
-    def remove_python_code_parent(self):
-        python_code_to_remove = []
-        for parent in self.parents_by_port:
-            if parent[0] == 'python code':
-                python_code_to_remove.append(convert_parents_to_variable_name(
-                    [parent[1]])
-                )
-        return python_code_to_remove
-
-    def treatment(self):
-        self.parent = convert_parents_to_variable_name(self.parameters
-                                                       .get('parents', []))
-        for python_code in self.python_code_to_remove:
-            self.parent.remove(python_code[0])
-
-        self.var_name = convert_variable_name(self.task_name)
-        self.task_name = self.var_name
-        if self.parent:
-            self.parent = '({})'.format(self.parent[0])
-        else:
-            self.parent = ''
-
-        self.kernel_size = get_int_or_tuple(self.kernel_size)
-        self.strides = get_int_or_tuple(self.strides)
-        self.dilation_rate = get_int_or_tuple(self.dilation_rate)
-
-        try:
-            self.filters = int(self.filters)
-            if self.filters < 0:
-                raise ValueError(gettext('Parameter {} is invalid').format(
-                    self.FILTERS_PARAM))
-        except:
-            pass # The user possibly is using a var defined in PythonCode Layer
-
-        if self.kernel_size is False:
-            raise ValueError(gettext('Parameter {} is invalid').format(
-                self.KERNEL_SIZE_PARAM))
-
-        if self.strides is False:
-            raise ValueError(gettext('Parameter {} is invalid').format(
-                self.STRIDES_PARAM))
-
-        if self.dilation_rate is False:
-            raise ValueError(gettext('Parameter {} is invalid').format(
-                self.DILATION_RATE_PARAM))
-
-        self.use_bias = True if int(self.use_bias) == 1 else False
-        self.trainable = True if int(self.trainable) == 1 else False
-
-        functions_required = []
-
-        self.filters = """filters={filters}""".format(filters=self.filters)
-        functions_required.append(self.filters)
-
-        self.kernel_size = """kernel_size={kernel_size}""" \
-            .format(kernel_size=self.kernel_size)
-        functions_required.append(self.kernel_size)
-
-        self.strides = """strides={strides}""".format(strides=self.strides)
-        functions_required.append(self.strides)
-
-        self.use_bias = """use_bias={use_bias}""".format(use_bias=self.use_bias)
-        functions_required.append(self.use_bias)
-
-        if self.input_shape is not None:
-            self.input_shape = get_int_or_tuple(self.input_shape)
-            if self.input_shape is False:
-                raise ValueError(gettext('Parameter {} is invalid').format(
-                    self.INPUT_SHAPE_PARAM))
-            self.input_shape = """input_shape='{input_shape}'""" \
-                .format(input_shape=self.input_shape)
-            functions_required.append(self.input_shape)
-
-        if self.padding is not None:
-            self.padding = """padding='{padding}'""" \
-                .format(padding=self.padding)
-            functions_required.append(self.padding)
-
-        if self.data_format is not None:
-            self.data_format = """data_format='{data_format}'""" \
-                .format(data_format=self.data_format)
-            functions_required.append(self.data_format)
-
-        if self.dilation_rate is not None:
-            self.dilation_rate = """dilation_rate={dilation_rate}""" \
-                .format(dilation_rate=self.dilation_rate)
-            functions_required.append(self.dilation_rate)
-
-        if self.activation is not None:
-            self.activation = """activation='{activation}'""" \
-                .format(activation=self.activation)
-            functions_required.append(self.activation)
-
-        if self.kernel_initializer is not None:
-            self.kernel_initializer = """kernel_initializer=
-            '{kernel_initializer}'""" \
-                .format(kernel_initializer=self.kernel_initializer)
-            functions_required.append(self.kernel_initializer)
-
-        if self.bias_initializer is not None:
-            self.bias_initializer = """bias_initializer='{bias_initializer}'""" \
-                .format(bias_initializer=self.bias_initializer)
-            functions_required.append(self.bias_initializer)
-
-        if self.kernel_regularizer is not None:
-            self.kernel_regularizer = """kernel_regularizer=
-            '{kernel_regularizer}'""" \
-                .format(kernel_regularizer=self.kernel_regularizer)
-            functions_required.append(self.kernel_regularizer)
-
-        if self.bias_regularizer is not None:
-            self.bias_regularizer = """bias_regularizer=
-            '{bias_regularizer}'""" \
-                .format(bias_regularizer=self.bias_regularizer)
-            functions_required.append(self.bias_regularizer)
-
-        if self.activity_regularizer is not None:
-            self.activity_regularizer = """activity_regularizer=
-            '{activity_regularizer}'""" \
-                .format(activity_regularizer=self.activity_regularizer)
-            functions_required.append(self.activity_regularizer)
-
-        if self.kernel_constraint is not None:
-            self.kernel_constraint = """kernel_constraint=
-            '{kernel_constraint}'""" \
-                .format(kernel_constraint=self.kernel_constraint)
-            functions_required.append(self.kernel_constraint)
-
-        if self.bias_constraint is not None:
-            self.bias_constraint = """bias_constraint='{bias_constraint}'""" \
-                .format(bias_constraint=self.bias_constraint)
-            functions_required.append(self.bias_constraint)
-
-        if self.weights is not None and self.weights.strip():
-            if convert_to_list(self.weights):
-                self.weights = """weights={weights}""" \
-                    .format(weights=self.weights)
-                functions_required.append(self.weights)
-
-        self.add_functions_required = ',\n    '.join(functions_required)
-        if self.add_functions_required:
-            self.add_functions_required = ',\n    ' + self.add_functions_required
-
-    def generate_code(self):
-        return dedent(
-            """
-            {var_name} = Conv3D(
-                name='{name}'{add_functions_required}
-            ){parent}
-            {var_name}.trainable = {trainable}
-            """
-        ).format(var_name=self.var_name,
-                 name=self.task_name,
-                 add_functions_required=self.add_functions_required,
-                 trainable=self.trainable,
                  parent=self.parent)
 
 
@@ -1667,6 +257,7 @@ class Conv3DTranspose(Operation):
     ACTIVITY_REGULARIZER_PARAM = 'activity_regularizer'
     KERNEL_CONSTRAINT_PARAM = 'kernel_constraint'
     BIAS_CONSTRAINT_PARAM = 'bias_constraint'
+    ADVANCED_OPTIONS_PARAM = 'advanced_options'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
@@ -1704,8 +295,8 @@ class Conv3DTranspose(Operation):
                                                    None)
         self.kernel_constraint = parameters.get(self.KERNEL_CONSTRAINT_PARAM,
                                                 None)
-        self.bias_constraint = parameters.get(self.BIAS_CONSTRAINT_PARAM, None) \
-                              
+        self.bias_constraint = parameters.get(self.BIAS_CONSTRAINT_PARAM, None)
+        self.advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
 
         self.add_functions_required = ""
         self.task_name = self.parameters.get('task').get('name')
@@ -1771,95 +362,97 @@ class Conv3DTranspose(Operation):
                 self.OUTPUT_PADDING_PARAM))
 
         self.use_bias = True if int(self.use_bias) == 1 else False
+        self.advanced_options = True if int(self.advanced_options) == 1 else \
+            False
 
         functions_required = []
-
         self.filters = """filters={filters}""".format(filters=self.filters)
         functions_required.append(self.filters)
 
-        self.kernel_size = """kernel_size={kernel_size}""" \
-            .format(kernel_size=self.kernel_size)
-        functions_required.append(self.kernel_size)
+        if self.advanced_options:
+            self.kernel_size = """kernel_size={kernel_size}""" \
+                .format(kernel_size=self.kernel_size)
+            functions_required.append(self.kernel_size)
 
-        self.strides = """strides={strides}""".format(strides=self.strides)
-        functions_required.append(self.strides)
+            self.strides = """strides={strides}""".format(strides=self.strides)
+            functions_required.append(self.strides)
 
-        if self.input_shape is not None:
-            self.input_shape = get_int_or_tuple(self.input_shape)
-            if self.input_shape is False:
-                raise ValueError(gettext('Parameter {} is invalid').format(
-                    self.INPUT_SHAPE_PARAM))
-            self.input_shape = """input_shape='{input_shape}'""" \
-                .format(input_shape=self.input_shape)
-            functions_required.append(self.input_shape)
+            if self.input_shape is not None:
+                self.input_shape = get_int_or_tuple(self.input_shape)
+                if self.input_shape is False:
+                    raise ValueError(gettext('Parameter {} is invalid').format(
+                        self.INPUT_SHAPE_PARAM))
+                self.input_shape = """input_shape='{input_shape}'""" \
+                    .format(input_shape=self.input_shape)
+                functions_required.append(self.input_shape)
 
-        if self.padding is not None:
-            self.padding = """padding='{padding}'""" \
-                .format(padding=self.padding)
-            functions_required.append(self.padding)
+            if self.padding is not None:
+                self.padding = """padding='{padding}'""" \
+                    .format(padding=self.padding)
+                functions_required.append(self.padding)
 
-        if self.output_padding is not None:
-            self.output_padding = """output_padding={output_padding}""" \
-                .format(output_padding=self.output_padding)
-            functions_required.append(self.output_padding)
+            if self.output_padding is not None:
+                self.output_padding = """output_padding={output_padding}""" \
+                    .format(output_padding=self.output_padding)
+                functions_required.append(self.output_padding)
 
-        if self.data_format is not None:
-            self.data_format = """data_format='{data_format}'""" \
-                .format(data_format=self.data_format)
-            functions_required.append(self.data_format)
+            if self.data_format is not None:
+                self.data_format = """data_format='{data_format}'""" \
+                    .format(data_format=self.data_format)
+                functions_required.append(self.data_format)
 
-        if self.dilation_rate is not None:
-            self.dilation_rate = """dilation_rate={dilation_rate}""" \
-                .format(dilation_rate=self.dilation_rate)
-            functions_required.append(self.dilation_rate)
+            if self.dilation_rate is not None:
+                self.dilation_rate = """dilation_rate={dilation_rate}""" \
+                    .format(dilation_rate=self.dilation_rate)
+                functions_required.append(self.dilation_rate)
 
-        if self.activation is not None:
-            self.activation = """activation='{activation}'""" \
-                .format(activation=self.activation)
-            functions_required.append(self.activation)
+            if self.activation is not None:
+                self.activation = """activation='{activation}'""" \
+                    .format(activation=self.activation)
+                functions_required.append(self.activation)
 
-        self.use_bias = """use_bias={use_bias}""".format(use_bias=self.use_bias)
-        functions_required.append(self.use_bias)
+            self.use_bias = """use_bias={use_bias}""".format(use_bias=self.use_bias)
+            functions_required.append(self.use_bias)
 
-        if self.kernel_initializer is not None:
-            self.kernel_initializer = """kernel_initializer=
-            '{kernel_initializer}'""" \
-                .format(kernel_initializer=self.kernel_initializer)
-            functions_required.append(self.kernel_initializer)
+            if self.kernel_initializer is not None:
+                self.kernel_initializer = """kernel_initializer=
+                '{kernel_initializer}'""" \
+                    .format(kernel_initializer=self.kernel_initializer)
+                functions_required.append(self.kernel_initializer)
 
-        if self.bias_initializer is not None:
-            self.bias_initializer = """bias_initializer='{bias_initializer}'""" \
-                .format(bias_initializer=self.bias_initializer)
-            functions_required.append(self.bias_initializer)
+            if self.bias_initializer is not None:
+                self.bias_initializer = """bias_initializer='{bias_initializer}'""" \
+                    .format(bias_initializer=self.bias_initializer)
+                functions_required.append(self.bias_initializer)
 
-        if self.kernel_regularizer is not None:
-            self.kernel_regularizer = """kernel_regularizer=
-            '{kernel_regularizer}'""" \
-                .format(kernel_regularizer=self.kernel_regularizer)
-            functions_required.append(self.kernel_regularizer)
+            if self.kernel_regularizer is not None:
+                self.kernel_regularizer = """kernel_regularizer=
+                '{kernel_regularizer}'""" \
+                    .format(kernel_regularizer=self.kernel_regularizer)
+                functions_required.append(self.kernel_regularizer)
 
-        if self.bias_regularizer is not None:
-            self.bias_regularizer = """bias_regularizer=
-            '{bias_regularizer}'""" \
-                .format(bias_regularizer=self.bias_regularizer)
-            functions_required.append(self.bias_regularizer)
+            if self.bias_regularizer is not None:
+                self.bias_regularizer = """bias_regularizer=
+                '{bias_regularizer}'""" \
+                    .format(bias_regularizer=self.bias_regularizer)
+                functions_required.append(self.bias_regularizer)
 
-        if self.activity_regularizer is not None:
-            self.activity_regularizer = """activity_regularizer=
-            '{activity_regularizer}'""" \
-                .format(activity_regularizer=self.activity_regularizer)
-            functions_required.append(self.activity_regularizer)
+            if self.activity_regularizer is not None:
+                self.activity_regularizer = """activity_regularizer=
+                '{activity_regularizer}'""" \
+                    .format(activity_regularizer=self.activity_regularizer)
+                functions_required.append(self.activity_regularizer)
 
-        if self.kernel_constraint is not None:
-            self.kernel_constraint = """kernel_constraint=
-            '{kernel_constraint}'""" \
-                .format(kernel_constraint=self.kernel_constraint)
-            functions_required.append(self.kernel_constraint)
+            if self.kernel_constraint is not None:
+                self.kernel_constraint = """kernel_constraint=
+                '{kernel_constraint}'""" \
+                    .format(kernel_constraint=self.kernel_constraint)
+                functions_required.append(self.kernel_constraint)
 
-        if self.bias_constraint is not None:
-            self.bias_constraint = """bias_constraint='{bias_constraint}'""" \
-                .format(bias_constraint=self.bias_constraint)
-            functions_required.append(self.bias_constraint)
+            if self.bias_constraint is not None:
+                self.bias_constraint = """bias_constraint='{bias_constraint}'""" \
+                    .format(bias_constraint=self.bias_constraint)
+                functions_required.append(self.bias_constraint)
 
         self.add_functions_required = ',\n    '.join(functions_required)
         if self.add_functions_required:
@@ -1878,9 +471,707 @@ class Conv3DTranspose(Operation):
                  parent=self.parent)
 
 
+class Convolution1D(Operation):
+    FILTERS_PARAM = 'filters'
+    KERNEL_SIZE_PARAM = 'kernel_size'
+    STRIDES_PARAM = 'strides'
+    INPUT_SHAPE_PARAM = 'input_shape'
+    PADDING_PARAM = 'padding'
+    DATA_FORMAT_PARAM = 'data_format'
+    DILATION_RATE_PARAM = 'dilation_rate'
+    ACTIVATION_PARAM = 'activation'
+    USE_BIAS_PARAM = 'use_bias'
+    TRAINABLE_PARAM = 'trainable'
+    KERNEL_INITIALIZER_PARAM = 'kernel_initializer'
+    BIAS_INITIALIZER_PARAM = 'bias_initializer'
+    KERNEL_REGULARIZER_PARAM = 'kernel_regularizer'
+    BIAS_REGULARIZER_PARAM = 'bias_regularizer'
+    ACTIVITY_REGULARIZER_PARAM = 'activity_regularizer'
+    KERNEL_CONSTRAINT_PARAM = 'kernel_constraint'
+    BIAS_CONSTRAINT_PARAM = 'bias_constraint'
+    ADVANCED_OPTIONS_PARAM = 'advanced_options'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+        self.output = named_outputs.get('output data',
+                                        'out_task_{}'.format(self.order))
+
+        if self.FILTERS_PARAM not in parameters or \
+                self.KERNEL_SIZE_PARAM not in parameters or \
+                self.STRIDES_PARAM not in parameters:
+            raise ValueError(gettext('Parameter {} {} {} are required').format(
+                self.FILTERS_PARAM, self.KERNEL_SIZE_PARAM, self.STRIDES_PARAM)
+            )
+
+        self.filters = parameters.get(self.FILTERS_PARAM)
+        self.kernel_size = parameters.get(self.KERNEL_SIZE_PARAM)
+        self.strides = parameters.get(self.STRIDES_PARAM)
+        self.input_shape = parameters.get(self.INPUT_SHAPE_PARAM, None)
+        self.padding = parameters.get(self.PADDING_PARAM)
+        self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None)
+        self.dilation_rate = parameters.get(self.DILATION_RATE_PARAM, None) or \
+                             None
+        self.activation = parameters.get(self.ACTIVATION_PARAM, None)
+        self.trainable = parameters.get(self.TRAINABLE_PARAM)
+        self.use_bias = parameters.get(self.USE_BIAS_PARAM)
+        self.kernel_initializer = parameters.get(self.KERNEL_INITIALIZER_PARAM,
+                                                 None)
+        self.bias_initializer = parameters.get(self.BIAS_INITIALIZER_PARAM,
+                                               None)
+        self.kernel_regularizer = parameters.get(self.KERNEL_REGULARIZER_PARAM,
+                                                 None)
+        self.bias_regularizer = parameters.get(self.BIAS_REGULARIZER_PARAM,
+                                               None)
+        self.activity_regularizer = parameters.get(self.
+                                                   ACTIVITY_REGULARIZER_PARAM,
+                                                   None)
+        self.kernel_constraint = parameters.get(self.KERNEL_CONSTRAINT_PARAM,
+                                                None)
+        self.bias_constraint = parameters.get(self.BIAS_CONSTRAINT_PARAM, None)
+        self.advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
+
+        self.add_functions_required = ""
+        self.task_name = self.parameters.get('task').get('name')
+        self.parent = ""
+        self.var_name = ""
+        self.has_code = True
+
+        self.parents_by_port = parameters.get('my_ports', [])
+        self.python_code_to_remove = self.remove_python_code_parent()
+        self.treatment()
+
+        self.import_code = {'layer': 'Conv1D',
+                            'callbacks': [],
+                            'model': None,
+                            'preprocessing_image': None,
+                            'others': None}
+
+    def remove_python_code_parent(self):
+        python_code_to_remove = []
+        for parent in self.parents_by_port:
+            if parent[0] == 'python code':
+                python_code_to_remove.append(convert_parents_to_variable_name(
+                    [parent[1]])
+                )
+        return python_code_to_remove
+
+    def treatment(self):
+        self.parent = convert_parents_to_variable_name(self.parameters
+                                                       .get('parents', []))
+        for python_code in self.python_code_to_remove:
+            self.parent.remove(python_code)
+
+        self.var_name = convert_variable_name(self.task_name)
+        self.task_name = self.var_name
+        if self.parent:
+            self.parent = '({})'.format(self.parent[0])
+        else:
+            self.parent = ''
+
+        self.kernel_size = get_int_or_tuple(self.kernel_size)
+        self.strides = get_int_or_tuple(self.strides)
+        self.dilation_rate = get_int_or_tuple(self.dilation_rate)
+
+        if self.filters < 0:
+            raise ValueError(gettext('Parameter {} is invalid').format(
+                self.FILTERS_PARAM))
+
+        if self.kernel_size is False:
+            raise ValueError(gettext('Parameter {} is invalid').format(
+                self.KERNEL_SIZE_PARAM))
+
+        if self.strides is False:
+            raise ValueError(gettext('Parameter {} is invalid').format(
+                self.STRIDES_PARAM))
+
+        if self.dilation_rate is False:
+            raise ValueError(gettext('Parameter {} is invalid').format(
+                self.DILATION_RATE_PARAM))
+
+        self.use_bias = True if int(self.use_bias) == 1 else False
+        self.trainable = True if int(self.trainable) == 1 else False
+        self.advanced_options = True if int(self.advanced_options) == 1 else \
+            False
+
+        functions_required = []
+        self.filters = """filters={filters}""".format(filters=self.filters)
+        functions_required.append(self.filters)
+
+        if self.advanced_options:
+            self.kernel_size = """kernel_size={kernel_size}""" \
+                .format(kernel_size=self.kernel_size)
+            functions_required.append(self.kernel_size)
+
+            self.strides = """strides={strides}""".format(strides=self.strides)
+            functions_required.append(self.strides)
+
+            self.use_bias = """use_bias={use_bias}""".format(use_bias=self.use_bias)
+            functions_required.append(self.use_bias)
+
+            if self.input_shape is not None:
+                self.input_shape = get_int_or_tuple(self.input_shape)
+                if self.input_shape is False:
+                    raise ValueError(gettext('Parameter {} is invalid').format(
+                        self.INPUT_SHAPE_PARAM))
+                self.input_shape = """input_shape='{input_shape}'""" \
+                    .format(input_shape=self.input_shape)
+                functions_required.append(self.input_shape)
+
+            if self.padding is not None:
+                self.padding = """padding='{padding}'""" \
+                    .format(padding=self.padding)
+                functions_required.append(self.padding)
+
+            if self.data_format is not None:
+                self.data_format = """data_format='{data_format}'""" \
+                    .format(data_format=self.data_format)
+                functions_required.append(self.data_format)
+
+            if self.dilation_rate is not None:
+                self.dilation_rate = """dilation_rate={dilation_rate}""" \
+                    .format(dilation_rate=self.dilation_rate)
+                functions_required.append(self.dilation_rate)
+
+            if self.activation is not None:
+                self.activation = """activation='{activation}'""" \
+                    .format(activation=self.activation)
+                functions_required.append(self.activation)
+
+            if self.kernel_initializer is not None:
+                self.kernel_initializer = """kernel_initializer=
+                '{kernel_initializer}'""" \
+                    .format(kernel_initializer=self.kernel_initializer)
+                functions_required.append(self.kernel_initializer)
+
+            if self.bias_initializer is not None:
+                self.bias_initializer = """bias_initializer='{bias_initializer}'""" \
+                    .format(bias_initializer=self.bias_initializer)
+                functions_required.append(self.bias_initializer)
+
+            if self.kernel_regularizer is not None:
+                self.kernel_regularizer = """kernel_regularizer=
+                '{kernel_regularizer}'""" \
+                    .format(kernel_regularizer=self.kernel_regularizer)
+                functions_required.append(self.kernel_regularizer)
+
+            if self.bias_regularizer is not None:
+                self.bias_regularizer = """bias_regularizer=
+                '{bias_regularizer}'""" \
+                    .format(bias_regularizer=self.bias_regularizer)
+                functions_required.append(self.bias_regularizer)
+
+            if self.activity_regularizer is not None:
+                self.activity_regularizer = """activity_regularizer=
+                '{activity_regularizer}'""" \
+                    .format(activity_regularizer=self.activity_regularizer)
+                functions_required.append(self.activity_regularizer)
+
+            if self.kernel_constraint is not None:
+                self.kernel_constraint = """kernel_constraint=
+                '{kernel_constraint}'""" \
+                    .format(kernel_constraint=self.kernel_constraint)
+                functions_required.append(self.kernel_constraint)
+
+            if self.bias_constraint is not None:
+                self.bias_constraint = """bias_constraint='{bias_constraint}'""" \
+                    .format(bias_constraint=self.bias_constraint)
+                functions_required.append(self.bias_constraint)
+
+        self.add_functions_required = ',\n    '.join(functions_required)
+        if self.add_functions_required:
+            self.add_functions_required = ',\n    ' + self.add_functions_required
+
+    def generate_code(self):
+        return dedent(
+            """
+            {var_name} = Conv1D(
+                name='{name}'{add_functions_required}
+            ){parent}
+            {var_name}.trainable = {trainable}
+            """
+        ).format(var_name=self.var_name,
+                 name=self.task_name,
+                 add_functions_required=self.add_functions_required,
+                 trainable=self.trainable,
+                 parent=self.parent)
+
+
+class Convolution2D(Operation):
+    FILTERS_PARAM = 'filters'
+    KERNEL_SIZE_PARAM = 'kernel_size'
+    STRIDES_PARAM = 'strides'
+    INPUT_SHAPE_PARAM = 'input_shape'
+    PADDING_PARAM = 'padding'
+    DATA_FORMAT_PARAM = 'data_format'
+    DILATION_RATE_PARAM = 'dilation_rate'
+    ACTIVATION_PARAM = 'activation'
+    USE_BIAS_PARAM = 'use_bias'
+    TRAINABLE_PARAM = 'trainable'
+    KERNEL_INITIALIZER_PARAM = 'kernel_initializer'
+    BIAS_INITIALIZER_PARAM = 'bias_initializer'
+    KERNEL_REGULARIZER_PARAM = 'kernel_regularizer'
+    BIAS_REGULARIZER_PARAM = 'bias_regularizer'
+    ACTIVITY_REGULARIZER_PARAM = 'activity_regularizer'
+    KERNEL_CONSTRAINT_PARAM = 'kernel_constraint'
+    BIAS_CONSTRAINT_PARAM = 'bias_constraint'
+    WEIGHTS_PARAM = 'weights'
+    ADVANCED_OPTIONS_PARAM = 'advanced_options'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+        self.output = named_outputs.get('output data',
+                                        'out_task_{}'.format(self.order))
+
+        if self.FILTERS_PARAM not in parameters or \
+                self.KERNEL_SIZE_PARAM not in parameters or \
+                self.STRIDES_PARAM not in parameters:
+            raise ValueError(gettext('Parameter {} {} {} are required').format(
+                self.FILTERS_PARAM, self.KERNEL_SIZE_PARAM, self.STRIDES_PARAM)
+            )
+
+        self.filters = parameters.get(self.FILTERS_PARAM)
+        self.kernel_size = parameters.get(self.KERNEL_SIZE_PARAM)
+        self.strides = parameters.get(self.STRIDES_PARAM)
+        self.input_shape = parameters.get(self.INPUT_SHAPE_PARAM, None)
+        self.padding = parameters.get(self.PADDING_PARAM)
+        self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None)
+        self.dilation_rate = parameters.get(self.DILATION_RATE_PARAM, None)
+        self.activation = parameters.get(self.ACTIVATION_PARAM, None)
+        self.trainable = parameters.get(self.TRAINABLE_PARAM, 0)
+        self.use_bias = parameters.get(self.USE_BIAS_PARAM, 0)
+        self.kernel_initializer = parameters.get(self.KERNEL_INITIALIZER_PARAM,
+                                                 None)
+        self.bias_initializer = parameters.get(self.BIAS_INITIALIZER_PARAM,
+                                               None)
+        self.kernel_regularizer = parameters.get(self.KERNEL_REGULARIZER_PARAM,
+                                                 None)
+        self.bias_regularizer = parameters.get(self.BIAS_REGULARIZER_PARAM,
+                                               None)
+        self.activity_regularizer = parameters.get(self.
+                                                   ACTIVITY_REGULARIZER_PARAM,
+                                                   None)
+        self.kernel_constraint = parameters.get(self.KERNEL_CONSTRAINT_PARAM,
+                                                None)
+        self.bias_constraint = parameters.get(self.BIAS_CONSTRAINT_PARAM, None)
+        self.weights = parameters.get(self.WEIGHTS_PARAM, None)
+        self.advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
+
+        self.add_functions_required = ""
+        self.task_name = self.parameters.get('task').get('name')
+        self.parent = ""
+        self.var_name = ""
+        self.has_code = True
+
+        self.parents_by_port = parameters.get('my_ports', [])
+        self.python_code_to_remove = self.remove_python_code_parent()
+        self.treatment()
+
+        self.import_code = {'layer': 'Conv2D',
+                            'callbacks': [],
+                            'model': None,
+                            'preprocessing_image': None,
+                            'others': None}
+
+    def remove_python_code_parent(self):
+        python_code_to_remove = []
+        for parent in self.parents_by_port:
+            if parent[0] == 'python code':
+                python_code_to_remove.append(convert_parents_to_variable_name(
+                    [parent[1]])
+                )
+        return python_code_to_remove
+
+    def treatment(self):
+        self.parent = convert_parents_to_variable_name(self.parameters
+                                                       .get('parents', []))
+        for python_code in self.python_code_to_remove:
+            self.parent.remove(python_code[0])
+
+        self.var_name = convert_variable_name(self.task_name)
+        self.task_name = self.var_name
+        if self.parent:
+            self.parent = '({})'.format(self.parent[0])
+        else:
+            self.parent = ''
+
+        self.kernel_size = get_int_or_tuple(self.kernel_size)
+        self.strides = get_int_or_tuple(self.strides)
+        self.dilation_rate = get_int_or_tuple(self.dilation_rate)
+
+        try:
+            self.filters = int(self.filters)
+            if self.filters < 0:
+                raise ValueError(gettext('Parameter {} is invalid').format(
+                    self.FILTERS_PARAM))
+        except:
+            pass # The user possibly is using a var defined in PythonCode Layer
+
+        if self.kernel_size is False:
+            raise ValueError(gettext('Parameter {} is invalid').format(
+                self.KERNEL_SIZE_PARAM))
+
+        if self.strides is False:
+            raise ValueError(gettext('Parameter {} is invalid').format(
+                self.STRIDES_PARAM))
+
+        if self.dilation_rate is False:
+            raise ValueError(gettext('Parameter {} is invalid').format(
+                self.DILATION_RATE_PARAM))
+
+        self.use_bias = True if int(self.use_bias) == 1 else False
+        self.trainable = True if int(self.trainable) == 1 else False
+        self.advanced_options = True if int(self.advanced_options) == 1 else \
+            False
+
+        functions_required = []
+        self.filters = """filters={filters}""".format(filters=self.filters)
+        functions_required.append(self.filters)
+
+        self.kernel_size = """kernel_size={kernel_size}""" \
+            .format(kernel_size=self.kernel_size)
+        functions_required.append(self.kernel_size)
+
+        if self.advanced_options:
+            self.strides = """strides={strides}""".format(strides=self.strides)
+            functions_required.append(self.strides)
+
+            self.use_bias = """use_bias={use_bias}""".format(use_bias=self.use_bias)
+            functions_required.append(self.use_bias)
+
+            if self.input_shape is not None:
+                self.input_shape = get_int_or_tuple(self.input_shape)
+                if self.input_shape is False:
+                    raise ValueError(gettext('Parameter {} is invalid').format(
+                        self.INPUT_SHAPE_PARAM))
+                self.input_shape = """input_shape='{input_shape}'""" \
+                    .format(input_shape=self.input_shape)
+                functions_required.append(self.input_shape)
+
+            if self.padding is not None:
+                self.padding = """padding='{padding}'""" \
+                    .format(padding=self.padding)
+                functions_required.append(self.padding)
+
+            if self.data_format is not None:
+                self.data_format = """data_format='{data_format}'""" \
+                    .format(data_format=self.data_format)
+                functions_required.append(self.data_format)
+
+            if self.dilation_rate is not None:
+                self.dilation_rate = """dilation_rate={dilation_rate}""" \
+                    .format(dilation_rate=self.dilation_rate)
+                functions_required.append(self.dilation_rate)
+
+            if self.activation is not None:
+                self.activation = """activation='{activation}'""" \
+                    .format(activation=self.activation)
+                functions_required.append(self.activation)
+
+            if self.kernel_initializer is not None:
+                self.kernel_initializer = """kernel_initializer=
+                '{kernel_initializer}'""" \
+                    .format(kernel_initializer=self.kernel_initializer)
+                functions_required.append(self.kernel_initializer)
+
+            if self.bias_initializer is not None:
+                self.bias_initializer = """bias_initializer='{bias_initializer}'""" \
+                    .format(bias_initializer=self.bias_initializer)
+                functions_required.append(self.bias_initializer)
+
+            if self.kernel_regularizer is not None:
+                self.kernel_regularizer = """kernel_regularizer=
+                '{kernel_regularizer}'""" \
+                    .format(kernel_regularizer=self.kernel_regularizer)
+                functions_required.append(self.kernel_regularizer)
+
+            if self.bias_regularizer is not None:
+                self.bias_regularizer = """bias_regularizer=
+                '{bias_regularizer}'""" \
+                    .format(bias_regularizer=self.bias_regularizer)
+                functions_required.append(self.bias_regularizer)
+
+            if self.activity_regularizer is not None:
+                self.activity_regularizer = """activity_regularizer=
+                '{activity_regularizer}'""" \
+                    .format(activity_regularizer=self.activity_regularizer)
+                functions_required.append(self.activity_regularizer)
+
+            if self.kernel_constraint is not None:
+                self.kernel_constraint = """kernel_constraint=
+                '{kernel_constraint}'""" \
+                    .format(kernel_constraint=self.kernel_constraint)
+                functions_required.append(self.kernel_constraint)
+
+            if self.bias_constraint is not None:
+                self.bias_constraint = """bias_constraint='{bias_constraint}'""" \
+                    .format(bias_constraint=self.bias_constraint)
+                functions_required.append(self.bias_constraint)
+
+            if self.weights is not None and self.weights.strip():
+                if convert_to_list(self.weights):
+                    self.weights = """weights={weights}""" \
+                        .format(weights=self.weights)
+                    functions_required.append(self.weights)
+
+        self.add_functions_required = ',\n    '.join(functions_required)
+        if self.add_functions_required:
+            self.add_functions_required = ',\n    ' + self.add_functions_required
+
+    def generate_code(self):
+        return dedent(
+            """
+            {var_name} = Conv2D(
+                name='{name}'{add_functions_required}
+            ){parent}
+            {var_name}.trainable = {trainable}
+            """
+        ).format(var_name=self.var_name,
+                 name=self.task_name,
+                 add_functions_required=self.add_functions_required,
+                 trainable=self.trainable,
+                 parent=self.parent)
+
+
+class Convolution3D(Operation):
+    FILTERS_PARAM = 'filters'
+    KERNEL_SIZE_PARAM = 'kernel_size'
+    STRIDES_PARAM = 'strides'
+    INPUT_SHAPE_PARAM = 'input_shape'
+    PADDING_PARAM = 'padding'
+    DATA_FORMAT_PARAM = 'data_format'
+    DILATION_RATE_PARAM = 'dilation_rate'
+    ACTIVATION_PARAM = 'activation'
+    USE_BIAS_PARAM = 'use_bias'
+    TRAINABLE_PARAM = 'trainable'
+    KERNEL_INITIALIZER_PARAM = 'kernel_initializer'
+    BIAS_INITIALIZER_PARAM = 'bias_initializer'
+    KERNEL_REGULARIZER_PARAM = 'kernel_regularizer'
+    BIAS_REGULARIZER_PARAM = 'bias_regularizer'
+    ACTIVITY_REGULARIZER_PARAM = 'activity_regularizer'
+    KERNEL_CONSTRAINT_PARAM = 'kernel_constraint'
+    BIAS_CONSTRAINT_PARAM = 'bias_constraint'
+    WEIGHTS_PARAM = 'weights'
+    ADVANCED_OPTIONS_PARAM = 'advanced_options'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+        self.output = named_outputs.get('output data',
+                                        'out_task_{}'.format(self.order))
+
+        if self.FILTERS_PARAM not in parameters or \
+                self.KERNEL_SIZE_PARAM not in parameters or \
+                self.STRIDES_PARAM not in parameters:
+            raise ValueError(gettext('Parameter {} {} {} are required').format(
+                self.FILTERS_PARAM, self.KERNEL_SIZE_PARAM, self.STRIDES_PARAM)
+            )
+
+        self.filters = parameters.get(self.FILTERS_PARAM)
+        self.kernel_size = parameters.get(self.KERNEL_SIZE_PARAM)
+        self.strides = parameters.get(self.STRIDES_PARAM)
+        self.input_shape = parameters.get(self.INPUT_SHAPE_PARAM, None)
+        self.padding = parameters.get(self.PADDING_PARAM)
+        self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None)
+        self.dilation_rate = parameters.get(self.DILATION_RATE_PARAM, None)
+        self.activation = parameters.get(self.ACTIVATION_PARAM, None)
+        self.trainable = parameters.get(self.TRAINABLE_PARAM)
+        self.use_bias = parameters.get(self.USE_BIAS_PARAM)
+        self.kernel_initializer = parameters.get(self.KERNEL_INITIALIZER_PARAM,
+                                                 None)
+        self.bias_initializer = parameters.get(self.BIAS_INITIALIZER_PARAM,
+                                               None)
+        self.kernel_regularizer = parameters.get(self.KERNEL_REGULARIZER_PARAM,
+                                                 None)
+        self.bias_regularizer = parameters.get(self.BIAS_REGULARIZER_PARAM,
+                                               None)
+        self.activity_regularizer = parameters.get(self.
+                                                   ACTIVITY_REGULARIZER_PARAM,
+                                                   None)
+        self.kernel_constraint = parameters.get(self.KERNEL_CONSTRAINT_PARAM,
+                                                None)
+        self.bias_constraint = parameters.get(self.BIAS_CONSTRAINT_PARAM, None)
+        self.weights = parameters.get(self.WEIGHTS_PARAM, None)
+        self.advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
+
+        self.add_functions_required = ""
+        self.task_name = self.parameters.get('task').get('name')
+        self.parent = ""
+        self.var_name = ""
+        self.has_code = True
+
+        self.parents_by_port = parameters.get('my_ports', [])
+        self.python_code_to_remove = self.remove_python_code_parent()
+        self.treatment()
+
+        self.import_code = {'layer': 'Conv3D',
+                            'callbacks': [],
+                            'model': None,
+                            'preprocessing_image': None,
+                            'others': None}
+
+    def remove_python_code_parent(self):
+        python_code_to_remove = []
+        for parent in self.parents_by_port:
+            if parent[0] == 'python code':
+                python_code_to_remove.append(convert_parents_to_variable_name(
+                    [parent[1]])
+                )
+        return python_code_to_remove
+
+    def treatment(self):
+        self.parent = convert_parents_to_variable_name(self.parameters
+                                                       .get('parents', []))
+        for python_code in self.python_code_to_remove:
+            self.parent.remove(python_code[0])
+
+        self.var_name = convert_variable_name(self.task_name)
+        self.task_name = self.var_name
+        if self.parent:
+            self.parent = '({})'.format(self.parent[0])
+        else:
+            self.parent = ''
+
+        self.kernel_size = get_int_or_tuple(self.kernel_size)
+        self.strides = get_int_or_tuple(self.strides)
+        self.dilation_rate = get_int_or_tuple(self.dilation_rate)
+
+        try:
+            self.filters = int(self.filters)
+            if self.filters < 0:
+                raise ValueError(gettext('Parameter {} is invalid').format(
+                    self.FILTERS_PARAM))
+        except:
+            pass # The user possibly is using a var defined in PythonCode Layer
+
+        if self.kernel_size is False:
+            raise ValueError(gettext('Parameter {} is invalid').format(
+                self.KERNEL_SIZE_PARAM))
+
+        if self.strides is False:
+            raise ValueError(gettext('Parameter {} is invalid').format(
+                self.STRIDES_PARAM))
+
+        if self.dilation_rate is False:
+            raise ValueError(gettext('Parameter {} is invalid').format(
+                self.DILATION_RATE_PARAM))
+
+        self.use_bias = True if int(self.use_bias) == 1 else False
+        self.trainable = True if int(self.trainable) == 1 else False
+        self.advanced_options = True if int(self.advanced_options) == 1 else \
+            False
+
+        functions_required = []
+        self.filters = """filters={filters}""".format(filters=self.filters)
+        functions_required.append(self.filters)
+
+        self.kernel_size = """kernel_size={kernel_size}""" \
+            .format(kernel_size=self.kernel_size)
+        functions_required.append(self.kernel_size)
+
+        if self.advanced_options:
+            self.strides = """strides={strides}""".format(strides=self.strides)
+            functions_required.append(self.strides)
+
+            self.use_bias = """use_bias={use_bias}""".format(use_bias=self.use_bias)
+            functions_required.append(self.use_bias)
+
+            if self.input_shape is not None:
+                self.input_shape = get_int_or_tuple(self.input_shape)
+                if self.input_shape is False:
+                    raise ValueError(gettext('Parameter {} is invalid').format(
+                        self.INPUT_SHAPE_PARAM))
+                self.input_shape = """input_shape='{input_shape}'""" \
+                    .format(input_shape=self.input_shape)
+                functions_required.append(self.input_shape)
+
+            if self.padding is not None:
+                self.padding = """padding='{padding}'""" \
+                    .format(padding=self.padding)
+                functions_required.append(self.padding)
+
+            if self.data_format is not None:
+                self.data_format = """data_format='{data_format}'""" \
+                    .format(data_format=self.data_format)
+                functions_required.append(self.data_format)
+
+            if self.dilation_rate is not None:
+                self.dilation_rate = """dilation_rate={dilation_rate}""" \
+                    .format(dilation_rate=self.dilation_rate)
+                functions_required.append(self.dilation_rate)
+
+            if self.activation is not None:
+                self.activation = """activation='{activation}'""" \
+                    .format(activation=self.activation)
+                functions_required.append(self.activation)
+
+            if self.kernel_initializer is not None:
+                self.kernel_initializer = """kernel_initializer=
+                '{kernel_initializer}'""" \
+                    .format(kernel_initializer=self.kernel_initializer)
+                functions_required.append(self.kernel_initializer)
+
+            if self.bias_initializer is not None:
+                self.bias_initializer = """bias_initializer='{bias_initializer}'""" \
+                    .format(bias_initializer=self.bias_initializer)
+                functions_required.append(self.bias_initializer)
+
+            if self.kernel_regularizer is not None:
+                self.kernel_regularizer = """kernel_regularizer=
+                '{kernel_regularizer}'""" \
+                    .format(kernel_regularizer=self.kernel_regularizer)
+                functions_required.append(self.kernel_regularizer)
+
+            if self.bias_regularizer is not None:
+                self.bias_regularizer = """bias_regularizer=
+                '{bias_regularizer}'""" \
+                    .format(bias_regularizer=self.bias_regularizer)
+                functions_required.append(self.bias_regularizer)
+
+            if self.activity_regularizer is not None:
+                self.activity_regularizer = """activity_regularizer=
+                '{activity_regularizer}'""" \
+                    .format(activity_regularizer=self.activity_regularizer)
+                functions_required.append(self.activity_regularizer)
+
+            if self.kernel_constraint is not None:
+                self.kernel_constraint = """kernel_constraint=
+                '{kernel_constraint}'""" \
+                    .format(kernel_constraint=self.kernel_constraint)
+                functions_required.append(self.kernel_constraint)
+
+            if self.bias_constraint is not None:
+                self.bias_constraint = """bias_constraint='{bias_constraint}'""" \
+                    .format(bias_constraint=self.bias_constraint)
+                functions_required.append(self.bias_constraint)
+
+            if self.weights is not None and self.weights.strip():
+                if convert_to_list(self.weights):
+                    self.weights = """weights={weights}""" \
+                        .format(weights=self.weights)
+                    functions_required.append(self.weights)
+
+        self.add_functions_required = ',\n    '.join(functions_required)
+        if self.add_functions_required:
+            self.add_functions_required = ',\n    ' + self.add_functions_required
+
+    def generate_code(self):
+        return dedent(
+            """
+            {var_name} = Conv3D(
+                name='{name}'{add_functions_required}
+            ){parent}
+            {var_name}.trainable = {trainable}
+            """
+        ).format(var_name=self.var_name,
+                 name=self.task_name,
+                 add_functions_required=self.add_functions_required,
+                 trainable=self.trainable,
+                 parent=self.parent)
+
+
 class Cropping1D(Operation):
     CROPPING_PARAM = 'cropping'
     INPUT_SHAPE_PARAM = 'input_shape'
+    ADVANCED_OPTIONS_PARAM = 'advanced_options'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
@@ -1894,6 +1185,7 @@ class Cropping1D(Operation):
 
         self.cropping = abs(parameters.get(self.CROPPING_PARAM))
         self.input_shape = parameters.get(self.INPUT_SHAPE_PARAM, None)
+        self.advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
 
         self.add_functions_required = ""
         self.task_name = self.parameters.get('task').get('name')
@@ -1939,19 +1231,23 @@ class Cropping1D(Operation):
             raise ValueError(gettext('Parameter {} is invalid').format(
                 self.CROPPING_PARAM))
 
-        functions_required = []
+        self.advanced_options = True if int(self.advanced_options) == 1 else \
+            False
 
+        functions_required = []
         self.cropping = """cropping={cropping}""".format(cropping=self.cropping)
         functions_required.append(self.cropping)
 
-        if self.input_shape is not None:
-            self.input_shape = get_int_or_tuple(self.input_shape)
-            if self.input_shape is False:
-                raise ValueError(gettext('Parameter {} is invalid').format(
-                    self.INPUT_SHAPE_PARAM))
-            self.input_shape = """input_shape='{input_shape}'""" \
-                .format(input_shape=self.input_shape)
-            functions_required.append(self.input_shape)
+        if self.advanced_options:
+            if self.input_shape is not None:
+                self.input_shape = get_int_or_tuple(self.input_shape)
+                if self.input_shape is False:
+                    raise ValueError(gettext('Parameter {} is invalid').format(
+                        self.INPUT_SHAPE_PARAM))
+                else:
+                    self.input_shape = """input_shape={input_shape}""" \
+                        .format(input_shape=self.input_shape)
+                functions_required.append(self.input_shape)
 
         self.add_functions_required = ',\n    '.join(functions_required)
         if self.add_functions_required:
@@ -1974,6 +1270,7 @@ class Cropping2D(Operation):
     CROPPING_PARAM = 'cropping'
     INPUT_SHAPE_PARAM = 'input_shape'
     DATA_FORMAT_PARAM = 'data_format'
+    ADVANCED_OPTIONS_PARAM = 'advanced_options'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
@@ -1988,6 +1285,7 @@ class Cropping2D(Operation):
         self.cropping = abs(parameters.get(self.CROPPING_PARAM))
         self.input_shape = parameters.get(self.INPUT_SHAPE_PARAM, None)
         self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None)
+        self.advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
 
         self.add_functions_required = ""
         self.task_name = self.parameters.get('task').get('name')
@@ -2033,24 +1331,28 @@ class Cropping2D(Operation):
             raise ValueError(gettext('Parameter {} is invalid').format(
                 self.CROPPING_PARAM))
 
-        functions_required = []
+        self.advanced_options = True if int(self.advanced_options) == 1 else \
+            False
 
+        functions_required = []
         self.cropping = """cropping={cropping}""".format(cropping=self.cropping)
         functions_required.append(self.cropping)
 
-        if self.input_shape is not None:
-            self.input_shape = get_int_or_tuple(self.input_shape)
-            if self.input_shape is False:
-                raise ValueError(gettext('Parameter {} is invalid').format(
-                    self.INPUT_SHAPE_PARAM))
-            self.input_shape = """input_shape='{input_shape}'""" \
-                .format(input_shape=self.input_shape)
-            functions_required.append(self.input_shape)
+        if self.advanced_options:
+            if self.input_shape is not None:
+                self.input_shape = get_int_or_tuple(self.input_shape)
+                if self.input_shape is False:
+                    raise ValueError(gettext('Parameter {} is invalid').format(
+                        self.INPUT_SHAPE_PARAM))
+                else:
+                    self.input_shape = """input_shape={input_shape}""" \
+                        .format(input_shape=self.input_shape)
+                functions_required.append(self.input_shape)
 
-        if self.data_format is not None:
-            self.data_format = """data_format='{data_format}'""" \
-                .format(data_format=self.data_format)
-            functions_required.append(self.data_format)
+            if self.data_format is not None:
+                self.data_format = """data_format='{data_format}'""" \
+                    .format(data_format=self.data_format)
+                functions_required.append(self.data_format)
 
         self.add_functions_required = ',\n    '.join(functions_required)
         if self.add_functions_required:
@@ -2073,6 +1375,7 @@ class Cropping3D(Operation):
     CROPPING_PARAM = 'cropping'
     INPUT_SHAPE_PARAM = 'input_shape'
     DATA_FORMAT_PARAM = 'data_format'
+    ADVANCED_OPTIONS_PARAM = 'advanced_options'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
@@ -2087,6 +1390,7 @@ class Cropping3D(Operation):
         self.cropping = abs(parameters.get(self.CROPPING_PARAM))
         self.input_shape = parameters.get(self.INPUT_SHAPE_PARAM, None)
         self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None)
+        self.advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
 
         self.add_functions_required = ""
         self.task_name = self.parameters.get('task').get('name')
@@ -2132,24 +1436,28 @@ class Cropping3D(Operation):
             raise ValueError(gettext('Parameter {} is invalid').format(
                 self.CROPPING_PARAM))
 
-        functions_required = []
+        self.advanced_options = True if int(self.advanced_options) == 1 else \
+            False
 
+        functions_required = []
         self.cropping = """cropping={cropping}""".format(cropping=self.cropping)
         functions_required.append(self.cropping)
 
-        if self.input_shape is not None:
-            self.input_shape = get_int_or_tuple(self.input_shape)
-            if self.input_shape is False:
-                raise ValueError(gettext('Parameter {} is invalid').format(
-                    self.INPUT_SHAPE_PARAM))
-            self.input_shape = """input_shape='{input_shape}'""" \
-                .format(input_shape=self.input_shape)
-            functions_required.append(self.input_shape)
+        if self.advanced_options:
+            if self.input_shape is not None:
+                self.input_shape = get_int_or_tuple(self.input_shape)
+                if self.input_shape is False:
+                    raise ValueError(gettext('Parameter {} is invalid').format(
+                        self.INPUT_SHAPE_PARAM))
+                else:
+                    self.input_shape = """input_shape={input_shape}""" \
+                        .format(input_shape=self.input_shape)
+                functions_required.append(self.input_shape)
 
-        if self.data_format is not None:
-            self.data_format = """data_format='{data_format}'""" \
-                .format(data_format=self.data_format)
-            functions_required.append(self.data_format)
+            if self.data_format is not None:
+                self.data_format = """data_format='{data_format}'""" \
+                    .format(data_format=self.data_format)
+                functions_required.append(self.data_format)
 
         self.add_functions_required = ',\n    '.join(functions_required)
         if self.add_functions_required:
@@ -2168,9 +1476,1091 @@ class Cropping3D(Operation):
                  parent=self.parent)
 
 
-class ZeroPadding3D(Operation):
+class DepthwiseConv2D(Operation):
+    KERNEL_SIZE_PARAM = 'kernel_size'
+    STRIDES_PARAM = 'strides'
+    INPUT_SHAPE_PARAM = 'input_shape'
+    PADDING_PARAM = 'padding'
+    DEPTH_MULTIPLIER_PARAM = 'depth_multiplier'
+    DATA_FORMAT_PARAM = 'data_format'
+    ACTIVATION_PARAM = 'activation'
+    USE_BIAS_PARAM = 'use_bias'
+    DEPTHWISE_INITIALIZER_PARAM = 'depthwise_initializer'
+    BIAS_INITIALIZER_PARAM = 'bias_initializer'
+    DEPTHWISE_REGULARIZER_PARAM = 'depthwise_regularizer'
+    BIAS_REGULARIZER_PARAM = 'bias_regularizer'
+    ACTIVITY_REGULARIZER_PARAM = 'activity_regularizer'
+    DEPTHWISE_CONSTRAINT_PARAM = 'depthwise_constraint'
+    BIAS_CONSTRAINT_PARAM = 'bias_constraint'
+    ADVANCED_OPTIONS_PARAM = 'advanced_options'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+        self.output = named_outputs.get('output data',
+                                        'out_task_{}'.format(self.order))
+
+        if self.KERNEL_SIZE_PARAM not in parameters:
+            raise ValueError(gettext('Parameter {} are required').format(
+                self.KERNEL_SIZE_PARAM)
+            )
+
+        self.kernel_size = parameters.get(self.KERNEL_SIZE_PARAM)
+        self.strides = parameters.get(self.STRIDES_PARAM)
+        self.input_shape = parameters.get(self.INPUT_SHAPE_PARAM, None)
+        self.padding = parameters.get(self.PADDING_PARAM)
+        self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None)
+        self.depth_multiplier = abs(parameters.get(self.DEPTH_MULTIPLIER_PARAM,
+                                                   None))
+        self.activation = parameters.get(self.ACTIVATION_PARAM, None)
+        self.use_bias = parameters.get(self.USE_BIAS_PARAM)
+        self.depthwise_initializer = parameters.get(self.
+                                                    DEPTHWISE_INITIALIZER_PARAM,
+                                                    None)
+        self.bias_initializer = parameters.get(self.BIAS_INITIALIZER_PARAM,
+                                               None)
+        self.depthwise_regularizer = parameters.get(self.
+                                                    DEPTHWISE_REGULARIZER_PARAM,
+                                                    None)
+        self.bias_regularizer = parameters.get(self.BIAS_REGULARIZER_PARAM,
+                                               None)
+        self.activity_regularizer = parameters.get(self.
+                                                   ACTIVITY_REGULARIZER_PARAM,
+                                                   None)
+        self.depthwise_constraint = parameters.get(self.
+                                                   DEPTHWISE_CONSTRAINT_PARAM,
+                                                   None)
+        self.bias_constraint = parameters.get(self.BIAS_CONSTRAINT_PARAM, None)
+        self.advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
+
+        self.add_functions_required = ""
+        self.task_name = self.parameters.get('task').get('name')
+        self.parent = ""
+        self.var_name = ""
+        self.has_code = True
+
+        self.parents_by_port = parameters.get('my_ports', [])
+        self.python_code_to_remove = self.remove_python_code_parent()
+        self.treatment()
+
+        self.import_code = {'layer': 'DepthwiseConv2D',
+                            'callbacks': [],
+                            'model': None,
+                            'preprocessing_image': None,
+                            'others': None}
+
+    def remove_python_code_parent(self):
+        python_code_to_remove = []
+        for parent in self.parents_by_port:
+            if parent[0] == 'python code':
+                python_code_to_remove.append(convert_parents_to_variable_name(
+                    [parent[1]])
+                )
+        return python_code_to_remove
+
+    def treatment(self):
+        self.parent = convert_parents_to_variable_name(self.parameters
+                                                       .get('parents', []))
+        for python_code in self.python_code_to_remove:
+            self.parent.remove(python_code)
+
+        self.var_name = convert_variable_name(self.task_name)
+        self.task_name = self.var_name
+        if self.parent:
+            self.parent = '({})'.format(self.parent[0])
+        else:
+            self.parent = ''
+
+        if self.KERNEL_SIZE_PARAM not in self.parameters:
+            raise ValueError(gettext('Parameter {} is required').format(
+                self.KERNEL_SIZE_PARAM)
+            )
+
+        self.use_bias = True if int(self.use_bias) == 1 else False
+        self.advanced_options = True if int(self.advanced_options) == 1 else \
+            False
+
+        functions_required = []
+        self.kernel_size = get_int_or_tuple(self.kernel_size)
+        if self.kernel_size is False:
+            raise ValueError(gettext('Parameter {} is invalid').format(
+                self.KERNEL_SIZE_PARAM))
+        else:
+            self.kernel_size = """kernel_size={kernel_size}""" \
+                .format(kernel_size=self.kernel_size)
+            functions_required.append(self.kernel_size)
+
+        if self.advanced_options:
+            if self.strides is not None:
+                self.strides = get_int_or_tuple(self.strides)
+                if self.strides is False:
+                    raise ValueError(gettext('Parameter {} is invalid').format(
+                        self.STRIDES_PARAM))
+                else:
+                    self.strides = """strides={strides}""".format(
+                        strides=self.strides)
+                    functions_required.append(self.strides)
+
+            if self.input_shape is not None:
+                self.input_shape = get_int_or_tuple(self.input_shape)
+                if self.input_shape is False:
+                    raise ValueError(gettext('Parameter {} is invalid').format(
+                        self.INPUT_SHAPE_PARAM))
+                self.input_shape = """input_shape='{input_shape}'""" \
+                    .format(input_shape=self.input_shape)
+                functions_required.append(self.input_shape)
+
+            if self.padding is not None:
+                self.padding = """padding='{padding}'""" \
+                    .format(padding=self.padding)
+                functions_required.append(self.padding)
+
+            if self.depth_multiplier is not None:
+                self.depth_multiplier = """depth_multiplier={depth_multiplier}
+                """.format(depth_multiplier=self.depth_multiplier)
+                functions_required.append(self.depth_multiplier)
+
+            if self.data_format is not None:
+                self.data_format = """data_format='{data_format}'""" \
+                    .format(data_format=self.data_format)
+                functions_required.append(self.data_format)
+
+            if self.activation is not None:
+                self.activation = """activation='{activation}'""" \
+                    .format(activation=self.activation)
+                functions_required.append(self.activation)
+
+            self.use_bias = """use_bias={use_bias}""".format(
+                use_bias=self.use_bias)
+            functions_required.append(self.use_bias)
+
+            if self.depthwise_initializer is not None:
+                self.depthwise_initializer = """depthwise_initializer=
+                '{depthwise_initializer}'""".format(depthwise_initializer=self
+                                                    .depthwise_initializer)
+                functions_required.append(self.depthwise_initializer)
+
+            if self.bias_initializer is not None:
+                self.bias_initializer = """bias_initializer='{bias_initializer}'
+                """.format(bias_initializer=self.bias_initializer)
+                functions_required.append(self.bias_initializer)
+
+            if self.depthwise_regularizer is not None:
+                self.depthwise_regularizer = """depthwise_regularizer=
+                '{depthwise_regularizer}'""" \
+                    .format(depthwise_regularizer=self.depthwise_regularizer)
+                functions_required.append(self.depthwise_regularizer)
+
+            if self.bias_regularizer is not None:
+                self.bias_regularizer = """bias_regularizer=
+                '{bias_regularizer}'""".format(bias_regularizer=self.
+                                               bias_regularizer)
+                functions_required.append(self.bias_regularizer)
+
+            if self.activity_regularizer is not None:
+                self.activity_regularizer = """activity_regularizer=
+                '{activity_regularizer}'""" \
+                    .format(activity_regularizer=self.activity_regularizer)
+                functions_required.append(self.activity_regularizer)
+
+            if self.depthwise_constraint is not None:
+                self.depthwise_constraint = """depthwise_constraint=
+                '{depthwise_constraint}'""".format(depthwise_constraint=self.
+                                                   depthwise_constraint)
+                functions_required.append(self.depthwise_constraint)
+
+            if self.bias_constraint is not None:
+                self.bias_constraint = """bias_constraint='{bias_constraint}'
+                """.format(bias_constraint=self.bias_constraint)
+                functions_required.append(self.bias_constraint)
+
+        self.add_functions_required = ',\n    '.join(functions_required)
+        if self.add_functions_required:
+            self.add_functions_required = ',\n    ' + \
+                                          self.add_functions_required
+
+    def generate_code(self):
+        return dedent(
+            """
+            {var_name} = DepthwiseConv2D(
+                name='{name}'{add_functions_required}
+            ){parent}
+            """
+        ).format(var_name=self.var_name,
+                 name=self.task_name,
+                 add_functions_required=self.add_functions_required,
+                 parent=self.parent)
+
+
+class SeparableConv1D(Operation):
+    FILTERS_PARAM = 'filters'
+    KERNEL_SIZE_PARAM = 'kernel_size'
+    STRIDES_PARAM = 'strides'
+    INPUT_SHAPE_PARAM = 'input_shape'
     PADDING_PARAM = 'padding'
     DATA_FORMAT_PARAM = 'data_format'
+    DILATION_RATE_PARAM = 'dilation_rate'
+    DEPTH_MULTIPLIER_PARAM = 'depth_multiplier'
+    ACTIVATION_PARAM = 'activation'
+    USE_BIAS_PARAM = 'use_bias'
+    DEPTHWISE_INITIALIZER_PARAM = 'depthwise_initializer'
+    POINTWISE_INITIALIZER_PARAM = 'pointwise_initializer'
+    BIAS_INITIALIZER_PARAM = 'bias_initializer'
+    DEPTHWISE_REGULARIZER_PARAM = 'depthwise_regularizer'
+    POINTWISE_REGULARIZER_PARAM = 'pointwise_regularizer'
+    BIAS_REGULARIZER_PARAM = 'bias_regularizer'
+    ACTIVITY_REGULARIZER_PARAM = 'activity_regularizer'
+    DEPTHWISE_CONSTRAINT_PARAM = 'depthwise_constraint'
+    POINTWISE_CONSTRAINT_PARAM = 'pointwise_constraint'
+    BIAS_CONSTRAINT_PARAM = 'bias_constraint'
+    TRAINABLE_PARAM = 'trainable'
+    ADVANCED_OPTIONS_PARAM = 'advanced_options'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+        self.output = named_outputs.get('output data',
+                                        'out_task_{}'.format(self.order))
+
+        if self.FILTERS_PARAM not in parameters or \
+                self.KERNEL_SIZE_PARAM not in parameters or \
+                self.STRIDES_PARAM not in parameters:
+            raise ValueError(gettext('Parameter {} {} {} are required').format(
+                self.FILTERS_PARAM, self.KERNEL_SIZE_PARAM, self.STRIDES_PARAM)
+            )
+
+        self.filters = abs(parameters.get(self.FILTERS_PARAM))
+        self.kernel_size = parameters.get(self.KERNEL_SIZE_PARAM)
+        self.strides = parameters.get(self.STRIDES_PARAM)
+        self.input_shape = parameters.get(self.INPUT_SHAPE_PARAM, None)
+        self.padding = parameters.get(self.PADDING_PARAM)
+        self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None)
+        self.dilation_rate = parameters.get(self.DILATION_RATE_PARAM, None) or \
+                             None
+        self.depth_multiplier = abs(parameters.get(self.DEPTH_MULTIPLIER_PARAM,
+                                                   None))
+        self.activation = parameters.get(self.ACTIVATION_PARAM, None)
+        self.use_bias = parameters.get(self.USE_BIAS_PARAM)
+        self.depthwise_initializer = parameters.get(self.
+                                                    DEPTHWISE_INITIALIZER_PARAM,
+                                                    None)
+        self.pointwise_initializer = parameters.get(self.
+                                                    POINTWISE_INITIALIZER_PARAM,
+                                                    None)
+        self.bias_initializer = parameters.get(self.BIAS_INITIALIZER_PARAM,
+                                               None)
+        self.depthwise_regularizer = parameters.get(self.
+                                                    DEPTHWISE_REGULARIZER_PARAM,
+                                                    None)
+        self.pointwise_regularizer = parameters.get(self.
+                                                    POINTWISE_REGULARIZER_PARAM,
+                                                    None)
+        self.bias_regularizer = parameters.get(self.BIAS_REGULARIZER_PARAM,
+                                               None)
+        self.activity_regularizer = parameters.get(self.
+                                                   ACTIVITY_REGULARIZER_PARAM,
+                                                   None)
+        self.depthwise_constraint = parameters.get(self.
+                                                   DEPTHWISE_CONSTRAINT_PARAM,
+                                                   None)
+        self.pointwise_constraint = parameters.get(self.
+                                                   POINTWISE_CONSTRAINT_PARAM,
+                                                   None)
+        self.bias_constraint = parameters.get(self.BIAS_CONSTRAINT_PARAM, None)
+                              
+        self.trainable = parameters.get(self.TRAINABLE_PARAM)
+        self.advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
+
+        self.add_functions_required = ""
+        self.task_name = self.parameters.get('task').get('name')
+        self.parent = ""
+        self.var_name = ""
+        self.has_code = True
+
+        self.parents_by_port = parameters.get('my_ports', [])
+        self.python_code_to_remove = self.remove_python_code_parent()
+        self.treatment()
+
+        self.import_code = {'layer': 'SeparableConv1D',
+                            'callbacks': [],
+                            'model': None,
+                            'preprocessing_image': None,
+                            'others': None}
+
+    def remove_python_code_parent(self):
+        python_code_to_remove = []
+        for parent in self.parents_by_port:
+            if parent[0] == 'python code':
+                python_code_to_remove.append(convert_parents_to_variable_name(
+                    [parent[1]])
+                )
+        return python_code_to_remove
+
+    def treatment(self):
+        self.parent = convert_parents_to_variable_name(self.parameters
+                                                       .get('parents', []))
+        for python_code in self.python_code_to_remove:
+            self.parent.remove(python_code)
+
+        self.var_name = convert_variable_name(self.task_name)
+        self.task_name = self.var_name
+        if self.parent:
+            self.parent = '({})'.format(self.parent[0])
+        else:
+            self.parent = ''
+
+        self.use_bias = True if int(self.use_bias) == 1 else False
+        self.trainable = True if int(self.trainable) == 1 else False
+        self.advanced_options = True if int(self.advanced_options) == 1 else \
+            False
+
+        if self.filters < 0:
+            raise ValueError(gettext('Parameter {} is invalid').format(
+                self.FILTERS_PARAM))
+        functions_required = []
+        self.filters = """filters={filters}""".format(filters=self.filters)
+        functions_required.append(self.filters)
+
+        if self.advanced_options:
+            if self.kernel_size is not None:
+                self.kernel_size = get_int_or_tuple(self.kernel_size)
+                if self.kernel_size is False:
+                    raise ValueError(gettext('Parameter {} is invalid').format(
+                        self.KERNEL_SIZE_PARAM))
+                else:
+                    self.kernel_size = """kernel_size={kernel_size}""" \
+                        .format(kernel_size=self.kernel_size)
+                    functions_required.append(self.kernel_size)
+
+            if self.strides is not None:
+                self.strides = get_int_or_tuple(self.strides)
+                if self.strides is False:
+                    raise ValueError(gettext('Parameter {} is invalid').format(
+                        self.STRIDES_PARAM))
+                else:
+                    self.strides = """strides={strides}""".format(
+                        strides=self.strides)
+                    functions_required.append(self.strides)
+
+            if self.dilation_rate is not None:
+                self.dilation_rate = get_int_or_tuple(self.dilation_rate)
+                if self.dilation_rate is False:
+                    raise ValueError(gettext('Parameter {} is invalid').format(
+                        self.DILATION_RATE_PARAM))
+                else:
+                    self.dilation_rate = """dilation_rate={dilation_rate}""" \
+                        .format(dilation_rate=self.dilation_rate)
+                    functions_required.append(self.dilation_rate)
+
+            if self.input_shape is not None:
+                self.input_shape = get_int_or_tuple(self.input_shape)
+                if self.input_shape is False:
+                    raise ValueError(gettext('Parameter {} is invalid').format(
+                        self.INPUT_SHAPE_PARAM))
+                self.input_shape = """input_shape='{input_shape}'""" \
+                    .format(input_shape=self.input_shape)
+                functions_required.append(self.input_shape)
+
+            if self.padding is not None:
+                self.padding = """padding='{padding}'""" \
+                    .format(padding=self.padding)
+                functions_required.append(self.padding)
+
+            if self.data_format is not None:
+                self.data_format = """data_format='{data_format}'""" \
+                    .format(data_format=self.data_format)
+                functions_required.append(self.data_format)
+
+            if self.depth_multiplier is not None:
+                self.depth_multiplier = """depth_multiplier={depth_multiplier}
+                """.format(depth_multiplier=self.depth_multiplier)
+                functions_required.append(self.depth_multiplier)
+
+            if self.activation is not None:
+                self.activation = """activation='{activation}'""" \
+                    .format(activation=self.activation)
+                functions_required.append(self.activation)
+
+            self.use_bias = """use_bias={use_bias}""".format(
+                use_bias=self.use_bias)
+            functions_required.append(self.use_bias)
+
+            if self.depthwise_initializer is not None:
+                self.depthwise_initializer = """depthwise_initializer=
+                '{depthwise_initializer}'""".format(depthwise_initializer=self
+                                                    .depthwise_initializer)
+                functions_required.append(self.depthwise_initializer)
+
+            if self.pointwise_initializer is not None:
+                self.pointwise_initializer = """pointwise_initializer=
+                '{pointwise_initializer}'""".format(pointwise_initializer=self
+                                                    .pointwise_initializer)
+                functions_required.append(self.pointwise_initializer)
+
+            if self.bias_initializer is not None:
+                self.bias_initializer = """bias_initializer='{bias_initializer}'
+                """.format(bias_initializer=self.bias_initializer)
+                functions_required.append(self.bias_initializer)
+
+            if self.depthwise_regularizer is not None:
+                self.depthwise_regularizer = """depthwise_regularizer=
+                '{depthwise_regularizer}'""" \
+                    .format(depthwise_regularizer=self.depthwise_regularizer)
+                functions_required.append(self.depthwise_regularizer)
+
+            if self.pointwise_regularizer is not None:
+                self.pointwise_regularizer = """pointwise_regularizer=
+                '{pointwise_regularizer}'""".format(pointwise_regularizer=self.
+                                                    pointwise_regularizer)
+                functions_required.append(self.pointwise_regularizer)
+
+            if self.bias_regularizer is not None:
+                self.bias_regularizer = """bias_regularizer=
+                '{bias_regularizer}'""".format(bias_regularizer=self.
+                                               bias_regularizer)
+                functions_required.append(self.bias_regularizer)
+
+            if self.activity_regularizer is not None:
+                self.activity_regularizer = """activity_regularizer=
+                '{activity_regularizer}'""" \
+                    .format(activity_regularizer=self.activity_regularizer)
+                functions_required.append(self.activity_regularizer)
+
+            if self.depthwise_constraint is not None:
+                self.depthwise_constraint = """depthwise_constraint=
+                '{depthwise_constraint}'""".format(depthwise_constraint=self.
+                                                   depthwise_constraint)
+                functions_required.append(self.depthwise_constraint)
+
+            if self.pointwise_constraint is not None:
+                self.pointwise_constraint = """pointwise_constraint=
+                '{pointwise_constraint}'""".format(pointwise_constraint=self.
+                                                   pointwise_constraint)
+                functions_required.append(self.pointwise_constraint)
+
+            if self.bias_constraint is not None:
+                self.bias_constraint = """bias_constraint='{bias_constraint}'
+                """.format(bias_constraint=self.bias_constraint)
+                functions_required.append(self.bias_constraint)
+
+        self.add_functions_required = ',\n    '.join(functions_required)
+        if self.add_functions_required:
+            self.add_functions_required = ',\n    ' + self.add_functions_required
+
+    def generate_code(self):
+        return dedent(
+            """
+            {var_name} = SeparableConv1D(
+                name='{name}'{add_functions_required}
+            ){parent}
+            """
+        ).format(var_name=self.var_name,
+                 name=self.task_name,
+                 add_functions_required=self.add_functions_required,
+                 parent=self.parent)
+
+
+class SeparableConv2D(Operation):
+    FILTERS_PARAM = 'filters'
+    KERNEL_SIZE_PARAM = 'kernel_size'
+    STRIDES_PARAM = 'strides'
+    INPUT_SHAPE_PARAM = 'input_shape'
+    PADDING_PARAM = 'padding'
+    DATA_FORMAT_PARAM = 'data_format'
+    DILATION_RATE_PARAM = 'dilation_rate'
+    DEPTH_MULTIPLIER_PARAM = 'depth_multiplier'
+    ACTIVATION_PARAM = 'activation'
+    USE_BIAS_PARAM = 'use_bias'
+    DEPTHWISE_INITIALIZER_PARAM = 'depthwise_initializer'
+    POINTWISE_INITIALIZER_PARAM = 'pointwise_initializer'
+    BIAS_INITIALIZER_PARAM = 'bias_initializer'
+    DEPTHWISE_REGULARIZER_PARAM = 'depthwise_regularizer'
+    POINTWISE_REGULARIZER_PARAM = 'pointwise_regularizer'
+    BIAS_REGULARIZER_PARAM = 'bias_regularizer'
+    ACTIVITY_REGULARIZER_PARAM = 'activity_regularizer'
+    DEPTHWISE_CONSTRAINT_PARAM = 'depthwise_constraint'
+    POINTWISE_CONSTRAINT_PARAM = 'pointwise_constraint'
+    BIAS_CONSTRAINT_PARAM = 'bias_constraint'
+    ADVANCED_OPTIONS_PARAM = 'advanced_options'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+        self.output = named_outputs.get('output data',
+                                        'out_task_{}'.format(self.order))
+
+        if self.FILTERS_PARAM not in parameters or \
+                self.KERNEL_SIZE_PARAM not in parameters or \
+                self.STRIDES_PARAM not in parameters:
+            raise ValueError(gettext('Parameter {} {} {} are required').format(
+                self.FILTERS_PARAM, self.KERNEL_SIZE_PARAM, self.STRIDES_PARAM)
+            )
+
+        self.filters = abs(parameters.get(self.FILTERS_PARAM))
+        self.kernel_size = parameters.get(self.KERNEL_SIZE_PARAM)
+        self.strides = parameters.get(self.STRIDES_PARAM)
+        self.input_shape = parameters.get(self.INPUT_SHAPE_PARAM, None)
+        self.padding = parameters.get(self.PADDING_PARAM)
+        self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None)
+        self.dilation_rate = parameters.get(self.DILATION_RATE_PARAM, None) or \
+                             None
+        self.depth_multiplier = abs(parameters.get(self.DEPTH_MULTIPLIER_PARAM,
+                                                   None))
+        self.activation = parameters.get(self.ACTIVATION_PARAM, None)
+        self.use_bias = parameters.get(self.USE_BIAS_PARAM)
+        self.depthwise_initializer = parameters.get(self.
+                                                    DEPTHWISE_INITIALIZER_PARAM,
+                                                    None)
+        self.pointwise_initializer = parameters.get(self.
+                                                    POINTWISE_INITIALIZER_PARAM,
+                                                    None)
+        self.bias_initializer = parameters.get(self.BIAS_INITIALIZER_PARAM,
+                                               None)
+        self.depthwise_regularizer = parameters.get(self.
+                                                    DEPTHWISE_REGULARIZER_PARAM,
+                                                    None)
+        self.pointwise_regularizer = parameters.get(self.
+                                                    POINTWISE_REGULARIZER_PARAM,
+                                                    None)
+        self.bias_regularizer = parameters.get(self.BIAS_REGULARIZER_PARAM,
+                                               None)
+        self.activity_regularizer = parameters.get(self.
+                                                   ACTIVITY_REGULARIZER_PARAM,
+                                                   None)
+        self.depthwise_constraint = parameters.get(self.
+                                                   DEPTHWISE_CONSTRAINT_PARAM,
+                                                   None)
+        self.pointwise_constraint = parameters.get(self.
+                                                   POINTWISE_CONSTRAINT_PARAM,
+                                                   None)
+        self.bias_constraint = parameters.get(self.BIAS_CONSTRAINT_PARAM, None) \
+                              
+        self.trainable = parameters.get(self.TRAINABLE_PARAM)
+        self.advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
+
+        self.add_functions_required = ""
+        self.task_name = self.parameters.get('task').get('name')
+        self.parent = ""
+        self.var_name = ""
+        self.has_code = True
+
+        self.parents_by_port = parameters.get('my_ports', [])
+        self.python_code_to_remove = self.remove_python_code_parent()
+        self.treatment()
+
+        self.import_code = {'layer': 'SeparableConv2D',
+                            'callbacks': [],
+                            'model': None,
+                            'preprocessing_image': None,
+                            'others': None}
+
+    def remove_python_code_parent(self):
+        python_code_to_remove = []
+        for parent in self.parents_by_port:
+            if parent[0] == 'python code':
+                python_code_to_remove.append(convert_parents_to_variable_name(
+                    [parent[1]])
+                )
+        return python_code_to_remove
+
+    def treatment(self):
+        self.parent = convert_parents_to_variable_name(self.parameters
+                                                       .get('parents', []))
+        for python_code in self.python_code_to_remove:
+            self.parent.remove(python_code)
+
+        self.var_name = convert_variable_name(self.task_name)
+        self.task_name = self.var_name
+        if self.parent:
+            self.parent = '({})'.format(self.parent[0])
+        else:
+            self.parent = ''
+
+        self.use_bias = True if int(self.use_bias) == 1 else False
+        self.trainable = True if int(self.trainable) == 1 else False
+        self.advanced_options = True if int(self.advanced_options) == 1 else \
+            False
+
+        if self.filters < 0:
+            raise ValueError(gettext('Parameter {} is invalid').format(
+                self.FILTERS_PARAM))
+        functions_required = []
+        self.filters = """filters={filters}""".format(filters=self.filters)
+        functions_required.append(self.filters)
+
+        if self.advanced_options:
+            if self.kernel_size is not None:
+                self.kernel_size = get_int_or_tuple(self.kernel_size)
+                if self.kernel_size is False:
+                    raise ValueError(gettext('Parameter {} is invalid').format(
+                        self.KERNEL_SIZE_PARAM))
+                else:
+                    self.kernel_size = """kernel_size={kernel_size}""" \
+                        .format(kernel_size=self.kernel_size)
+                    functions_required.append(self.kernel_size)
+
+            if self.strides is not None:
+                self.strides = get_int_or_tuple(self.strides)
+                if self.strides is False:
+                    raise ValueError(gettext('Parameter {} is invalid').format(
+                        self.STRIDES_PARAM))
+                else:
+                    self.strides = """strides={strides}""".format(
+                        strides=self.strides)
+                    functions_required.append(self.strides)
+
+            if self.input_shape is not None:
+                self.input_shape = get_int_or_tuple(self.input_shape)
+                if self.input_shape is False:
+                    raise ValueError(gettext('Parameter {} is invalid').format(
+                        self.INPUT_SHAPE_PARAM))
+                self.input_shape = """input_shape='{input_shape}'""" \
+                    .format(input_shape=self.input_shape)
+                functions_required.append(self.input_shape)
+
+            if self.padding is not None:
+                self.padding = """padding='{padding}'""" \
+                    .format(padding=self.padding)
+                functions_required.append(self.padding)
+
+            if self.data_format is not None:
+                self.data_format = """data_format='{data_format}'""" \
+                    .format(data_format=self.data_format)
+                functions_required.append(self.data_format)
+
+            if self.dilation_rate is not None:
+                self.dilation_rate = get_int_or_tuple(self.dilation_rate)
+                if self.dilation_rate is False:
+                    raise ValueError(gettext('Parameter {} is invalid').format(
+                        self.DILATION_RATE_PARAM))
+                else:
+                    self.dilation_rate = """dilation_rate={dilation_rate}""" \
+                        .format(dilation_rate=self.dilation_rate)
+                    functions_required.append(self.dilation_rate)
+
+            if self.depth_multiplier is not None:
+                self.depth_multiplier = """depth_multiplier={depth_multiplier}
+                """.format(depth_multiplier=self.depth_multiplier)
+                functions_required.append(self.depth_multiplier)
+
+            if self.activation is not None:
+                self.activation = """activation='{activation}'""" \
+                    .format(activation=self.activation)
+                functions_required.append(self.activation)
+
+            self.use_bias = """use_bias={use_bias}""".format(
+                use_bias=self.use_bias)
+            functions_required.append(self.use_bias)
+
+            if self.depthwise_initializer is not None:
+                self.depthwise_initializer = """depthwise_initializer=
+                '{depthwise_initializer}'""".format(depthwise_initializer=self
+                                                    .depthwise_initializer)
+                functions_required.append(self.depthwise_initializer)
+
+            if self.pointwise_initializer is not None:
+                self.pointwise_initializer = """pointwise_initializer=
+                '{pointwise_initializer}'""".format(pointwise_initializer=self
+                                                    .pointwise_initializer)
+                functions_required.append(self.pointwise_initializer)
+
+            if self.bias_initializer is not None:
+                self.bias_initializer = """bias_initializer='{bias_initializer}'
+                """.format(bias_initializer=self.bias_initializer)
+                functions_required.append(self.bias_initializer)
+
+            if self.depthwise_regularizer is not None:
+                self.depthwise_regularizer = """depthwise_regularizer=
+                '{depthwise_regularizer}'""" \
+                    .format(depthwise_regularizer=self.depthwise_regularizer)
+                functions_required.append(self.depthwise_regularizer)
+
+            if self.pointwise_regularizer is not None:
+                self.pointwise_regularizer = """pointwise_regularizer=
+                '{pointwise_regularizer}'""".format(pointwise_regularizer=self.
+                                                    pointwise_regularizer)
+                functions_required.append(self.pointwise_regularizer)
+
+            if self.bias_regularizer is not None:
+                self.bias_regularizer = """bias_regularizer=
+                '{bias_regularizer}'""".format(bias_regularizer=self.
+                                               bias_regularizer)
+                functions_required.append(self.bias_regularizer)
+
+            if self.activity_regularizer is not None:
+                self.activity_regularizer = """activity_regularizer=
+                '{activity_regularizer}'""" \
+                    .format(activity_regularizer=self.activity_regularizer)
+                functions_required.append(self.activity_regularizer)
+
+            if self.depthwise_constraint is not None:
+                self.depthwise_constraint = """depthwise_constraint=
+                '{depthwise_constraint}'""".format(depthwise_constraint=self.
+                                                   depthwise_constraint)
+                functions_required.append(self.depthwise_constraint)
+
+            if self.pointwise_constraint is not None:
+                self.pointwise_constraint = """pointwise_constraint=
+                '{pointwise_constraint}'""".format(pointwise_constraint=self.
+                                                   pointwise_constraint)
+                functions_required.append(self.pointwise_constraint)
+
+            if self.bias_constraint is not None:
+                self.bias_constraint = """bias_constraint='{bias_constraint}'
+                """.format(bias_constraint=self.bias_constraint)
+                functions_required.append(self.bias_constraint)
+
+        self.add_functions_required = ',\n    '.join(functions_required)
+        if self.add_functions_required:
+            self.add_functions_required = ',\n    ' + self.add_functions_required
+
+    def generate_code(self):
+        return dedent(
+            """
+            {var_name} = SeparableConv2D(
+                name='{name}'{add_functions_required}
+            ){parent}
+            """
+        ).format(var_name=self.var_name,
+                 name=self.task_name,
+                 add_functions_required=self.add_functions_required,
+                 parent=self.parent)
+
+
+class UpSampling1D(Operation):
+    SIZE_PARAM = 'size_up_sampling'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+        self.output = named_outputs.get('output data',
+                                        'out_task_{}'.format(self.order))
+
+        if self.SIZE_PARAM not in parameters:
+            raise ValueError(gettext('Parameter {} is required').format(
+                self.SIZE_PARAM)
+            )
+
+        self.size = parameters.get(self.SIZE_PARAM)
+
+        self.task_name = self.parameters.get('task').get('name')
+        self.parent = ""
+        self.var_name = ""
+        self.has_code = True
+
+        self.parents_by_port = parameters.get('my_ports', [])
+        self.python_code_to_remove = self.remove_python_code_parent()
+        self.treatment()
+
+        self.import_code = {'layer': 'UpSampling1D',
+                            'callbacks': [],
+                            'model': None,
+                            'preprocessing_image': None,
+                            'others': None}
+
+    def remove_python_code_parent(self):
+        python_code_to_remove = []
+        for parent in self.parents_by_port:
+            if parent[0] == 'python code':
+                python_code_to_remove.append(convert_parents_to_variable_name(
+                    [parent[1]])
+                )
+        return python_code_to_remove
+
+    def treatment(self):
+        self.parent = convert_parents_to_variable_name(self.parameters
+                                                       .get('parents', []))
+        for python_code in self.python_code_to_remove:
+            self.parent.remove(python_code)
+
+        self.var_name = convert_variable_name(self.task_name)
+        self.task_name = self.var_name
+        if self.parent:
+            self.parent = '({})'.format(self.parent[0])
+        else:
+            self.parent = ''
+
+    def generate_code(self):
+        return dedent(
+            """
+            {var_name} = UpSampling1D(
+                name='{name}',
+                size={size}
+            ){parent}
+            """
+        ).format(var_name=self.var_name,
+                 name=self.task_name,
+                 size=self.size,
+                 parent=self.parent)
+
+
+class UpSampling2D(Operation):
+    SIZE_PARAM = 'size_up_sampling'
+    DATA_FORMAT_PARAM = 'data_format'
+    INTERPOLATION_PARAM = 'interpolation'
+    ADVANCED_OPTIONS_PARAM = 'advanced_options'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+        self.output = named_outputs.get('output data',
+                                        'out_task_{}'.format(self.order))
+
+        if self.SIZE_PARAM not in parameters:
+            raise ValueError(gettext('Parameter {} is required').format(
+                self.SIZE_PARAM)
+            )
+
+        self.size = parameters.get(self.SIZE_PARAM)
+        self.data_format = parameters.get(self.DATA_FORMAT_PARAM)
+        self.interpolation = parameters.get(self.INTERPOLATION_PARAM)
+        self.advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
+
+        self.add_functions_required = ""
+        self.task_name = self.parameters.get('task').get('name')
+        self.parent = ""
+        self.var_name = ""
+        self.has_code = True
+
+        self.parents_by_port = parameters.get('my_ports', [])
+        self.python_code_to_remove = self.remove_python_code_parent()
+        self.treatment()
+
+        self.import_code = {'layer': 'UpSampling2D',
+                            'callbacks': [],
+                            'model': None,
+                            'preprocessing_image': None,
+                            'others': None}
+
+    def remove_python_code_parent(self):
+        python_code_to_remove = []
+        for parent in self.parents_by_port:
+            if parent[0] == 'python code':
+                python_code_to_remove.append(convert_parents_to_variable_name(
+                    [parent[1]])
+                )
+        return python_code_to_remove
+
+    def treatment(self):
+        self.parent = convert_parents_to_variable_name(self.parameters
+                                                       .get('parents', []))
+        for python_code in self.python_code_to_remove:
+            self.parent.remove(python_code)
+
+        self.var_name = convert_variable_name(self.task_name)
+        self.task_name = self.var_name
+        if self.parent:
+            self.parent = '({})'.format(self.parent[0])
+        else:
+            self.parent = ''
+
+        self.advanced_options = True if int(self.advanced_options) == 1 else \
+            False
+
+        functions_required = []
+        self.size = get_int_or_tuple(self.size)
+        if self.size is False:
+            raise ValueError(gettext('Parameter {} is invalid').format(
+                self.KERNEL_SIZE_PARAM))
+        else:
+            self.size = """size='{size}'""".format(size=self.size)
+            functions_required.append(self.size)
+
+        if self.advanced_options:
+            if self.data_format:
+                self.data_format = """data_format='{data_format}'""" \
+                    .format(data_format=self.data_format)
+                functions_required.append(self.data_format)
+
+            if self.interpolation:
+                self.interpolation = """interpolation='{interpolation}'""" \
+                    .format(interpolation=self.interpolation)
+                functions_required.append(self.interpolation)
+
+            self.add_functions_required = ',\n    '.join(functions_required)
+            if self.add_functions_required:
+                self.add_functions_required = ',\n    ' + \
+                                              self.add_functions_required
+
+    def generate_code(self):
+        return dedent(
+            """
+            {var_name} = UpSampling2D(
+                name='{name}',
+                size={size}{add_functions_not_required}
+            ){parent}
+            """
+        ).format(var_name=self.var_name,
+                 name=self.task_name,
+                 size=self.size,
+                 parent=self.parent)
+
+
+class UpSampling3D(Operation):
+    SIZE_PARAM = 'size_up_sampling'
+    DATA_FORMAT_PARAM = 'data_format'
+    ADVANCED_OPTIONS_PARAM = 'advanced_options'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+        self.output = named_outputs.get('output data',
+                                        'out_task_{}'.format(self.order))
+
+        if self.SIZE_PARAM not in parameters:
+            raise ValueError(gettext('Parameter {} is required').format(
+                self.SIZE_PARAM)
+            )
+
+        self.size = parameters.get(self.SIZE_PARAM)
+        self.data_format = parameters.get(self.DATA_FORMAT_PARAM)
+        self.advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
+
+        self.add_functions_required = ""
+        self.task_name = self.parameters.get('task').get('name')
+        self.parent = ""
+        self.var_name = ""
+        self.has_code = True
+
+        self.parents_by_port = parameters.get('my_ports', [])
+        self.python_code_to_remove = self.remove_python_code_parent()
+        self.treatment()
+
+        self.import_code = {'layer': 'UpSampling3D',
+                            'callbacks': [],
+                            'model': None,
+                            'preprocessing_image': None,
+                            'others': None}
+
+    def remove_python_code_parent(self):
+        python_code_to_remove = []
+        for parent in self.parents_by_port:
+            if parent[0] == 'python code':
+                python_code_to_remove.append(convert_parents_to_variable_name(
+                    [parent[1]])
+                )
+        return python_code_to_remove
+
+    def treatment(self):
+        self.parent = convert_parents_to_variable_name(self.parameters
+                                                       .get('parents', []))
+        for python_code in self.python_code_to_remove:
+            self.parent.remove(python_code)
+
+        self.var_name = convert_variable_name(self.task_name)
+        self.task_name = self.var_name
+        if self.parent:
+            self.parent = '({})'.format(self.parent[0])
+        else:
+            self.parent = ''
+
+        self.advanced_options = True if int(self.advanced_options) == 1 else \
+            False
+
+        functions_required = []
+        self.size = get_int_or_tuple(self.size)
+        if self.size is False:
+            raise ValueError(gettext('Parameter {} is invalid').format(
+                self.KERNEL_SIZE_PARAM))
+        else:
+            self.size = """size='{size}'""".format(size=self.size)
+            functions_required.append(self.size)
+
+        if self.advanced_options:
+            if self.data_format:
+                self.data_format = """data_format='{data_format}'""" \
+                    .format(data_format=self.data_format)
+                functions_required.append(self.data_format)
+
+            self.add_functions_required = ',\n    '.join(functions_required)
+            if self.add_functions_required:
+                self.add_functions_required = ',\n    ' + \
+                                              self.add_functions_required
+
+    def generate_code(self):
+        return dedent(
+            """
+            {var_name} = UpSampling3D(
+                name='{name}',
+                size={size}{add_functions_not_required}
+            ){parent}
+            """
+        ).format(var_name=self.var_name,
+                 name=self.task_name,
+                 size=self.size,
+                 parent=self.parent)
+
+
+class ZeroPadding1D(Operation):
+    PADDING_PARAM = 'padding'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+        self.output = named_outputs.get('output data',
+                                        'out_task_{}'.format(self.order))
+
+        if self.PADDING_PARAM not in parameters:
+            raise ValueError(gettext('Parameter {} is required').format(
+                self.PADDING_PARAM)
+            )
+
+        self.padding = parameters.get(self.PADDING_PARAM)
+
+        self.task_name = self.parameters.get('task').get('name')
+        self.parent = ""
+        self.var_name = ""
+        self.has_code = True
+
+        self.parents_by_port = parameters.get('my_ports', [])
+        self.python_code_to_remove = self.remove_python_code_parent()
+        self.treatment()
+
+        self.import_code = {'layer': 'ZeroPadding1D',
+                            'callbacks': [],
+                            'model': None,
+                            'preprocessing_image': None,
+                            'others': None}
+
+    def remove_python_code_parent(self):
+        python_code_to_remove = []
+        for parent in self.parents_by_port:
+            if parent[0] == 'python code':
+                python_code_to_remove.append(convert_parents_to_variable_name(
+                    [parent[1]])
+                )
+        return python_code_to_remove
+
+    def treatment(self):
+        self.parent = convert_parents_to_variable_name(self.parameters
+                                                       .get('parents', []))
+        for python_code in self.python_code_to_remove:
+            self.parent.remove(python_code)
+
+        self.var_name = convert_variable_name(self.task_name)
+        self.task_name = self.var_name
+        if self.parent:
+            self.parent = '({})'.format(self.parent[0])
+        else:
+            self.parent = ''
+
+        if self.padding is not None:
+            self.padding = tuple_of_tuples(self.padding)
+            if self.padding is False:
+                raise ValueError(gettext('Parameter {} is invalid').format(
+                    self.PADDING_PARAM))
+
+    def generate_code(self):
+        return dedent(
+            """
+            {var_name} = ZeroPadding1D(
+                name='{name}',
+                padding={padding}
+            ){parent}
+            """
+        ).format(var_name=self.var_name,
+                 name=self.task_name,
+                 padding=self.padding,
+                 parent=self.parent)
+
+
+class ZeroPadding2D(Operation):
+    PADDING_PARAM = 'padding'
+    DATA_FORMAT_PARAM = 'data_format'
+    ADVANCED_OPTIONS_PARAM = 'advanced_options'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
@@ -2184,6 +2574,105 @@ class ZeroPadding3D(Operation):
 
         self.padding = parameters.get(self.PADDING_PARAM)
         self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None)
+        self.advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
+
+        self.add_functions_required = ""
+        self.task_name = self.parameters.get('task').get('name')
+        self.parent = ""
+        self.var_name = ""
+        self.has_code = True
+
+        self.parents_by_port = parameters.get('my_ports', [])
+        self.python_code_to_remove = self.remove_python_code_parent()
+        self.treatment()
+
+        self.import_code = {'layer': 'ZeroPadding2D',
+                            'callbacks': [],
+                            'model': None,
+                            'preprocessing_image': None,
+                            'others': None}
+
+    def remove_python_code_parent(self):
+        python_code_to_remove = []
+        for parent in self.parents_by_port:
+            if parent[0] == 'python code':
+                python_code_to_remove.append(convert_parents_to_variable_name(
+                    [parent[1]])
+                )
+        return python_code_to_remove
+
+    def treatment(self):
+        self.parent = convert_parents_to_variable_name(self.parameters
+                                                       .get('parents', []))
+        for python_code in self.python_code_to_remove:
+            self.parent.remove(python_code)
+
+        self.var_name = convert_variable_name(self.task_name)
+        self.task_name = self.var_name
+        if self.parent:
+            self.parent = '({})'.format(self.parent[0])
+        else:
+            self.parent = ''
+
+        self.advanced_options = True if int(self.advanced_options) == 1 else \
+            False
+
+        functions_required = []
+
+        if self.padding is not None:
+            self.padding = tuple_of_tuples(self.padding)
+            if self.padding is False:
+                raise ValueError(gettext('Parameter {} is invalid').format(
+                    self.PADDING_PARAM))
+        else:
+            raise ValueError(gettext('Parameter {} is required').format(
+                self.PADDING_PARAM)
+            )
+
+        if self.advanced_options:
+            if self.data_format is not None:
+                self.data_format = """data_format='{data_format}'""" \
+                    .format(data_format=self.data_format)
+                functions_required.append(self.data_format)
+
+            self.add_functions_required = ',\n    '.join(functions_required)
+            if self.add_functions_required:
+                self.add_functions_required = ',\n    ' + \
+                                              self.add_functions_required
+
+    def generate_code(self):
+        return dedent(
+            """
+            {var_name} = ZeroPadding2D(
+                name='{name}',
+                padding={padding}{add_functions_required}
+            ){parent}
+            """
+        ).format(var_name=self.var_name,
+                 name=self.task_name,
+                 padding=self.padding,
+                 add_functions_required=self.add_functions_required,
+                 parent=self.parent)
+
+
+class ZeroPadding3D(Operation):
+    PADDING_PARAM = 'padding'
+    DATA_FORMAT_PARAM = 'data_format'
+    ADVANCED_OPTIONS_PARAM = 'advanced_options'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+        self.output = named_outputs.get('output data',
+                                        'out_task_{}'.format(self.order))
+
+        if self.PADDING_PARAM not in parameters:
+            raise ValueError(gettext('Parameter {} is required').format(
+                self.PADDING_PARAM)
+            )
+
+        self.padding = parameters.get(self.PADDING_PARAM)
+        self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None)
+        self.advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
 
         self.add_functions_required = ""
         self.task_name = self.parameters.get('task').get('name')
@@ -2223,6 +2712,9 @@ class ZeroPadding3D(Operation):
         else:
             self.parent = ''
 
+        self.advanced_options = True if int(self.advanced_options) == 1 else \
+            False
+
         functions_required = []
 
         if self.padding is not None:
@@ -2230,27 +2722,32 @@ class ZeroPadding3D(Operation):
             if self.padding is False:
                 raise ValueError(gettext('Parameter {} is invalid').format(
                     self.PADDING_PARAM))
-            self.padding = """padding={padding}""" \
-                .format(padding=self.padding)
-            functions_required.append(self.padding)
+        else:
+            raise ValueError(gettext('Parameter {} is required').format(
+                self.PADDING_PARAM)
+            )
 
-        if self.data_format is not None:
-            self.data_format = """data_format='{data_format}'""" \
-                .format(data_format=self.data_format)
-            functions_required.append(self.data_format)
+        if self.advanced_options:
+            if self.data_format is not None:
+                self.data_format = """data_format='{data_format}'""" \
+                    .format(data_format=self.data_format)
+                functions_required.append(self.data_format)
 
-        self.add_functions_required = ',\n    '.join(functions_required)
-        if self.add_functions_required:
-            self.add_functions_required = ',\n    ' + self.add_functions_required
+            self.add_functions_required = ',\n    '.join(functions_required)
+            if self.add_functions_required:
+                self.add_functions_required = ',\n    ' + \
+                                              self.add_functions_required
 
     def generate_code(self):
         return dedent(
             """
             {var_name} = ZeroPadding3D(
-                name='{name}'{add_functions_required}
+                name='{name}',
+                padding={padding}{add_functions_required}
             ){parent}
             """
         ).format(var_name=self.var_name,
                  name=self.task_name,
+                 padding=self.padding,
                  add_functions_required=self.add_functions_required,
                  parent=self.parent)
