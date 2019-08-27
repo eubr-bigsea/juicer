@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals, absolute_import
+
 
 import json
 import time
@@ -539,12 +539,12 @@ class ReplaceValueOperation(Operation):
     def generate_code(self):
         input_data = self.named_inputs['input data']
 
-        code = dedent(u"""
+        code = dedent("""
         try:
             {out} = {in1}.replace({original},
                 {replacement}, subset={subset})
         except ValueError as ve:
-            if 'Mixed type replacements are not supported' in ve.message:
+            if 'Mixed type replacements are not supported' in str(ve):
                 raise ValueError('{replacement_same_type}')
             else:
                 raise""".format(
@@ -1129,7 +1129,7 @@ class ExecuteSQLOperation(Operation):
         # return value.translate(_escape_table)
 
     def generate_code(self):
-        code = dedent(u"""
+        code = dedent("""
         from pyspark.sql import SQLContext
 
         # Input data
@@ -1351,7 +1351,7 @@ class SplitKFoldOperation(Operation):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         if self.K_FOLD_PARAM in parameters:
-            self.k_fold = parameters.get(self.K_FOLD_PARAM)
+            self.k_fold = int(parameters.get(self.K_FOLD_PARAM, 10))
             if self.k_fold < 2:
                 raise ValueError(_("Parameter '{}' informed for task '{}' \
                                    must be at >= 2").format(self.K_FOLD_PARAM,

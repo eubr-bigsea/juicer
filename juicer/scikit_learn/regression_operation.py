@@ -1,7 +1,7 @@
 from textwrap import dedent
 
 from juicer.operation import Operation
-from itertools import izip_longest
+from itertools import zip_longest
 import re
 
 

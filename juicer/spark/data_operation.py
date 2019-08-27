@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals, absolute_import
+
 
 import itertools
 import json
@@ -56,8 +56,8 @@ class DataReaderOperation(Operation):
 
     SEPARATORS = {
         '{tab}': '\\t',
-        '{new_line \\n}': u'\n',
-        '{new_line \\r\\n}': u'\r\n'
+        '{new_line \\n}': '\n',
+        '{new_line \\r\\n}': '\r\n'
     }
 
     def __init__(self, parameters, named_inputs, named_outputs):
@@ -388,7 +388,7 @@ class DataReaderOperation(Operation):
         params = self.parameters['task']['forms']
         result = Deployment()
 
-        forms = [(k, v['category'], v['value']) for k, v in params.items() if v]
+        forms = [(k, v['category'], v['value']) for k, v in list(params.items()) if v]
 
         task = self.parameters['task']
         task_id = task['id']
@@ -517,7 +517,7 @@ class SaveOperation(Operation):
             strip_accents(self.name.replace(' ', '_')))
         code_save = ''
         if self.format == self.FORMAT_CSV:
-            code_save = dedent(u"""
+            code_save = dedent("""
             cols = []
             for attr in {input}.schema:
                 if attr.dataType.typeName() in ['array']:
@@ -568,7 +568,7 @@ class SaveOperation(Operation):
             """.format(
                 input=self.named_inputs['input data'],
                 url=final_url, header=self.header, mode=self.mode,
-                uuid=uuid.uuid4().get_hex(),
+                uuid=uuid.uuid4().hex,
                 storage_url=storage['url'],
                 task_id=self.parameters['task_id'],
                 error_file_exists=_('File already exists'),
@@ -592,7 +592,7 @@ class SaveOperation(Operation):
 
         code = dedent(code_save)
 
-        code_api = u"""
+        code_api = """
             # Code to update Limonero metadata information
             from juicer.service.limonero_service import register_datasource
             types_names = {data_types}

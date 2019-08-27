@@ -324,7 +324,7 @@ class SparkMinion(Minion):
             if cluster_type == "KUBERNETES":
                 options['executors'] = 'spark.executor.instances'
 
-            for option, spark_name in options.items():
+            for option, spark_name in list(options.items()):
                 self.cluster_options[spark_name] = cluster_info[option]
 
             log.info("Cluster options: %s",
@@ -347,7 +347,7 @@ class SparkMinion(Minion):
 
             t = gettext.translation('messages', locales_path, [lang],
                                     fallback=True)
-            t.install(unicode=True)
+            t.install()
 
             # TODO: We should consider the case in which the spark session is
             # already instantiated and this new request asks for a different set
@@ -463,10 +463,10 @@ class SparkMinion(Minion):
                                                      job_id),
                     self._state,
                     self._emit_event(room=job_id, namespace='/stand'))
-            except:
+            except Exception as ex:
                 if self.is_spark_session_available():
                     self.spark_session.sparkContext.cancelAllJobs()
-                raise
+                raise ex from None
 
             end = timer()
             # Mark job as completed
@@ -490,8 +490,7 @@ class SparkMinion(Minion):
             result = False
 
         except ValueError as ve:
-            msg = ve.message
-            txt = msg.decode('utf8') if isinstance(msg, str) else msg
+            txt = str(ve)
             message = _('Invalid or missing parameters: {}').format(txt)
             log.exception(message)
             if self.transpiler.current_task_id is not None:
@@ -522,7 +521,7 @@ class SparkMinion(Minion):
                 message=_('Unhandled error'),
                 name='update job',
                 status='ERROR', identifier=job_id)
-            self._generate_output(ee.message, 'ERROR', code=1000)
+            self._generate_output(ee, 'ERROR', code=1000)
             result = False
 
         self.message_processed('execute')

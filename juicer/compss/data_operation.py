@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import
+
 
 import ast
 import pprint
@@ -7,7 +7,7 @@ from textwrap import dedent
 try:
     from itertools import zip_longest as zip_longest
 except ImportError:
-    from itertools import izip_longest as zip_longest
+    from itertools import zip_longest as zip_longest
 
 from juicer.operation import Operation
 
@@ -306,7 +306,7 @@ class ChangeAttributesOperation(Operation):
         if len(self.name) > 0:
             size = len(self.attributes)
             self.name = [x[1] or '{}_new'.format(x[0]) for x in
-                         izip_longest(self.attributes, self.name[:size])]
+                         zip_longest(self.attributes, self.name[:size])]
 
         self.new_type = parameters.get('new_data_type', 'keep')
         self.has_code = len(named_inputs) == 1

@@ -1,5 +1,5 @@
 # coding=utf-8
-from __future__ import unicode_literals, absolute_import
+
 
 import logging
 from textwrap import dedent
@@ -19,7 +19,7 @@ from juicer.spark.ml_operation import SvmClassifierOperation, \
 try:
     from itertools import zip_longest as zip_longest
 except ImportError:
-    from itertools import izip_longest as zip_longest
+    from itertools import zip_longest as zip_longest
 
 from juicer.operation import Operation
 

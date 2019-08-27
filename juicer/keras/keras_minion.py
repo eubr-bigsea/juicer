@@ -1,5 +1,5 @@
 # coding=utf-8
-from __future__ import unicode_literals, absolute_import
+
 
 import codecs
 import gc
@@ -245,7 +245,7 @@ class KerasMinion(Minion):
 
             t = gettext.translation('messages', locales_path, [lang],
                                     fallback=True)
-            t.install(unicode=True)
+            t.install(str=True)
 
             app_configs = msg_info.get('app_configs', {})
 

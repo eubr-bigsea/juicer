@@ -1,5 +1,5 @@
 # coding=utf-8
-from __future__ import absolute_import
+
 
 import argparse
 import errno
@@ -280,7 +280,7 @@ class JuicerServer:
 
     def _get_next_available_port(self):
         used_ports = set(
-            [minion['port'] for minion in self.active_minions.values()])
+            [minion['port'] for minion in list(self.active_minions.values())])
         for i in self.port_range:
             if i not in used_ports:
                 return i
@@ -300,7 +300,7 @@ class JuicerServer:
             pub_sub.psubscribe('__keyspace*__:key_minion_app*')
             for msg in pub_sub.listen():
                 # print '|{}|'.format(msg.get('channel'))
-                app_id = msg.get('channel', '').split('_')[-1]
+                app_id = msg.get(b'channel', '').split('_')[-1]
                 if app_id.isdigit():
                     app_id = int(app_id)
                     key = (app_id, app_id)
@@ -395,7 +395,7 @@ if __name__ == '__main__':
 
     t = gettext.translation('messages', locales_path, [args.lang],
                             fallback=True)
-    t.install(unicode=True)
+    t.install()
 
     with open(args.config) as config_file:
         juicer_config = yaml.load(config_file.read(), Loader=yaml.FullLoader)

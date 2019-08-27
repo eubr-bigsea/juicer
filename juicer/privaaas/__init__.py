@@ -6,7 +6,7 @@ This module implements methods to guarantee data privacy during the execution
 of Lemonade's workflows.
 
 """
-from __future__ import absolute_import, division
+
 
 import hashlib
 import json
@@ -45,7 +45,7 @@ def generate_group_by_key_function(df, col_name):
     def key_gen_float(row):
         return row[col_name] % 1 if row[col_name] else 0
 
-    if isinstance(col_type, types.StringType):
+    if isinstance(col_type, bytes):
         key_gen = key_gen_str
     elif isinstance(col_type, types.IntegralType):
         key_gen = key_gen_int
