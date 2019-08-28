@@ -100,3 +100,4 @@ logs/
 
 metastore_db/
 *.swp
+juicer*.yaml
