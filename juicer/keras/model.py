@@ -507,8 +507,8 @@ class FitGenerator(Operation):
             functions_required_fit_generator.append(self.callbacks)
 
         if self.validation_generator is not None:
-            self.validation_generator = """validation_data={
-            validation_generator}""".format(validation_generator=self.
+            self.validation_generator = """validation_data=
+            {validation_generator}""".format(validation_generator=self.
                                             validation_generator)
             functions_required_fit_generator.append(self.validation_generator)
 
@@ -1082,8 +1082,8 @@ class Model(Operation):
                             'others': None}
 
         self.parents_by_port = parameters.get('my_ports', [])
-        import pdb
-        pdb.set_trace()
+        # import pdb
+        # pdb.set_trace()
         self.treatment()
 
     def treatment(self):

@@ -35,8 +35,6 @@ class ImageGenerator(Operation):
     CLASS_MODE_PARAM = 'class_mode'
     BATCH_SIZE_PARAM = 'batch_size'
     SHUFFLE_PARAM = 'shuffle'
-    SEED_PARAM = 'seed'
-    SUBSET_PARAM = 'subset'
     INTERPOLATION_PARAM = 'interpolation'
 
     def __init__(self, parameters, named_inputs, named_outputs):
@@ -72,8 +70,6 @@ class ImageGenerator(Operation):
         self.class_mode = parameters.get(self.CLASS_MODE_PARAM, None) or None
         self.batch_size = parameters.get(self.BATCH_SIZE_PARAM, None) or None
         self.shuffle = parameters.get(self.SHUFFLE_PARAM, None) or None
-        self.seed = parameters.get(self.SEED_PARAM, None) or None
-        self.subset = parameters.get(self.SUBSET_PARAM, None) or None
         self.interpolation = parameters.get(self.INTERPOLATION_PARAM, None) or None
 
         self.image_train = None
@@ -134,222 +130,187 @@ class ImageGenerator(Operation):
         self.var_name = convert_variable_name(self.task_name)
         self.task_name = self.var_name
 
-        #TO_DO ADD PARAMETER FOR FLOW_FROM_DIRECTORY
-
         functions_required_flow_from_directory = []
         if self.image_train:
-            self.image_train = """directory={image_train}""" \
-                .format(image_train=self.image_train)
-            functions_required_flow_from_directory.append(self.image_train)
+            functions_required_flow_from_directory.append("""directory=
+            {image_train}""".format(image_train=self.image_train))
 
         if self.image_validation:
-            self.image_validation = """directory={image_validation}""" \
-                .format(image_validation=self.image_validation)
-            functions_required_flow_from_directory.append(self.image_validation)
+            functions_required_flow_from_directory.append("""directory=
+            {image_validation}""".format(image_validation=self.image_validation
+                                         ))
 
         if self.target_size:
-            self.target_size = get_int_or_tuple(self.target_size)
-            self.target_size = """target_size={target_size}""" \
-                .format(target_size=self.target_size)
-            functions_required_flow_from_directory.append(self.target_size)
+            target_size = get_int_or_tuple(self.target_size)
+            if target_size:
+                functions_required_flow_from_directory.append("""target_size=
+                {target_size}""".format(target_size=target_size))
+            else:
+                raise ValueError(gettext('Parameter {} is invalid.')
+                                 .format(self.TARGET_SIZE_PARAM))
 
         if self.color_mode:
-            self.color_mode = """color_mode='{color_mode}'""" \
-                .format(color_mode=self.color_mode)
-            functions_required_flow_from_directory.append(self.color_mode)
+            functions_required_flow_from_directory.append("""color_mode=
+            '{color_mode}'""".format(color_mode=self.color_mode))
 
         if self.class_mode:
-            self.class_mode = """class_mode='{class_mode}'""" \
-                .format(class_mode=self.class_mode)
-            functions_required_flow_from_directory.append(self.class_mode)
+            functions_required_flow_from_directory.append("""class_mode=
+            '{class_mode}'""".format(class_mode=self.class_mode))
 
         if self.batch_size:
-            self.batch_size = """batch_size={batch_size}""" \
-                .format(batch_size=self.batch_size)
-            functions_required_flow_from_directory.append(self.batch_size)
-
-        if self.seed:
-            self.seed = """seed={seed}""" \
-                .format(seed=self.seed)
-            functions_required_flow_from_directory.append(self.seed)
-
-        # if self.subset:
-        #     self.subset = """subset='{subset}'""" \
-        #         .format(subset=self.subset)
-        #     functions_required_flow_from_directory.append(self.subset)
+            functions_required_flow_from_directory.append("""batch_size=
+            {batch_size}""".format(batch_size=self.batch_size))
 
         if self.interpolation:
-            self.interpolation = """interpolation='{interpolation}'""" \
-                .format(interpolation=self.interpolation)
-            functions_required_flow_from_directory.append(self.interpolation)
+            functions_required_flow_from_directory.append("""interpolation=
+            '{interpolation}'""".format(interpolation=self.interpolation))
 
-        self.add_functions_required_flow_from_directory = ',\n    ' \
-            .join(functions_required_flow_from_directory)
+        self.add_functions_required_flow_from_directory = ',\n    '.join(
+            functions_required_flow_from_directory)
 
         functions_required = []
-        self.featurewise_center = True if int(self.featurewise_center) == 1 else False
-        self.samplewise_center = True if int(self.samplewise_center) == 1 else False
-        self.featurewise_std_normalization = True if int(self.featurewise_std_normalization) == 1 else False
-        self.samplewise_std_normalization = True if int(self.samplewise_std_normalization) == 1 else False
 
         if self.zca_epsilon is not None:
             try:
-                self.zca_epsilon = float(self.zca_epsilon)
+                functions_required.append("""zca_epsilon={zca_epsilon}
+                """.format(zca_epsilon=float(self.zca_epsilon)))
             except:
                 raise ValueError(gettext('Parameter {} is invalid.')
                                  .format(self.ZCA_EPSILON_PARAM))
 
-            self.zca_epsilon = """zca_epsilon={zca_epsilon}""" \
-                .format(zca_epsilon=self.zca_epsilon)
-            functions_required.append(self.zca_epsilon)
+        featurewise_center = True \
+            if int(self.featurewise_center) == 1 else False
+        functions_required.append("""featurewise_center={featurewise_center}
+        """.format(featurewise_center=featurewise_center))
 
-        if self.featurewise_center:
-            self.featurewise_center = """featurewise_center={featurewise_center}""" \
-                .format(featurewise_center=self.featurewise_center)
-            functions_required.append(self.featurewise_center)
+        samplewise_center = True \
+            if int(self.samplewise_center) == 1 else False
+        functions_required.append("""samplewise_center={samplewise_center}
+        """.format(samplewise_center=samplewise_center))
 
-        if self.samplewise_center:
-            self.samplewise_center = """samplewise_center={samplewise_center}""" \
-                .format(samplewise_center=self.samplewise_center)
-            functions_required.append(self.samplewise_center)
+        featurewise_std_normalization = True \
+            if int(self.featurewise_std_normalization) == 1 else False
+        functions_required.append("""featurewise_std_normalization=
+        {featurewise_std_normalization}""".format(
+            featurewise_std_normalization=featurewise_std_normalization
+        ))
 
-        if self.featurewise_std_normalization:
-            self.featurewise_std_normalization = """featurewise_std_normalization={featurewise_std_normalization}""" \
-                .format(featurewise_std_normalization=self.featurewise_std_normalization)
-            functions_required.append(self.featurewise_std_normalization)
+        samplewise_std_normalization = True \
+            if int(self.samplewise_std_normalization) == 1 else False
+        functions_required.append("""samplewise_std_normalization=
+        {samplewise_std_normalization}""".format(
+            samplewise_std_normalization=samplewise_std_normalization))
 
-        if self.samplewise_std_normalization:
-            self.samplewise_std_normalization = """samplewise_std_normalization={samplewise_std_normalization}""" \
-                .format(samplewise_std_normalization=self.samplewise_std_normalization)
-            functions_required.append(self.samplewise_std_normalization)
-
-        self.zca_whitening = True if int(self.zca_whitening) == 1 else False
-        if self.zca_whitening:
-            self.zca_whitening = """zca_whitening={zca_whitening}""" \
-                .format(zca_whitening=self.zca_whitening)
-            functions_required.append(self.zca_whitening)
+        zca_whitening = True if int(self.zca_whitening) == 1 else False
+        functions_required.append("""zca_whitening=
+        {zca_whitening}""".format(zca_whitening=zca_whitening))
 
         try:
-            self.rotation_range = int(self.rotation_range)
-            self.rotation_range = """rotation_range={rotation_range}""" \
-                .format(rotation_range=self.rotation_range)
-            functions_required.append(self.rotation_range)
+            functions_required.append("""rotation_range=
+            {rotation_range}""".format(rotation_range=int(self.rotation_range)))
         except:
-            raise ValueError(gettext(',\nParameter {} is invalid.')
+            raise ValueError(gettext('Parameter {} is invalid.')
                              .format(self.ROTATION_RANGE_PARAM))
 
-        self.width_shift_range = string_to_int_float_list(self.width_shift_range)
-        if self.width_shift_range is not None:
-            self.width_shift_range = """width_shift_range={width_shift_range}""" \
-                .format(width_shift_range=self.width_shift_range)
-            functions_required.append(self.width_shift_range)
+        width_shift_range = string_to_int_float_list(self.width_shift_range)
+        if width_shift_range is not None:
+            functions_required.append("""width_shift_range={width_shift_range}
+            """.format(width_shift_range=width_shift_range))
         else:
             raise ValueError(gettext('Parameter {} is invalid.')
                              .format(self.WIDTH_SHIFT_RANGE_PARAM))
 
-        self.height_shift_range = string_to_int_float_list(self.height_shift_range)
-        if self.height_shift_range is not None:
-            self.height_shift_range = """height_shift_range={height_shift_range}""" \
-                .format(height_shift_range=self.height_shift_range)
-            functions_required.append(self.height_shift_range)
+        height_shift_range = string_to_int_float_list(self.height_shift_range)
+        if height_shift_range is not None:
+            functions_required.append("""height_shift_range={height_shift_range}
+            """.format(height_shift_range=height_shift_range))
         else:
             raise ValueError(gettext('Parameter {} is invalid.')
                              .format(self.HEIGHT_SHIFT_RANGE_PARAM))
 
         if self.brightness_range is not None:
-            self.brightness_range = string_to_list(self.brightness_range)
-            if self.brightness_range is not None and \
-                    len(self.brightness_range) == 2:
-                self.brightness_range = """brightness_range={brightness_range}""" \
-                    .format(brightness_range=self.brightness_range)
-                functions_required.append(self.brightness_range)
+            brightness_range = string_to_list(self.brightness_range)
+            if brightness_range is not None and len(brightness_range) == 2:
+                functions_required.append("""brightness_range={brightness_range}
+                """.format(brightness_range=self.brightness_range))
             else:
                 raise ValueError(gettext('Parameter {} is invalid.')
                                  .format(self.BRIGHTNESS_RANGE_PARAM))
 
         try:
-            self.shear_range = float(self.shear_range)
+            shear_range = float(self.shear_range)
         except:
             raise ValueError(gettext('Parameter {} is invalid.')
                              .format(self.SHEAR_RANGE_PARAM))
-        self.shear_range = """shear_range={shear_range}""" \
-            .format(shear_range=self.shear_range)
-        functions_required.append(self.shear_range)
+        functions_required.append("""shear_range=
+        {shear_range}""".format(shear_range=shear_range))
 
-        self.zoom_range = string_to_list(self.zoom_range)
-        if self.zoom_range and len(self.zoom_range) <= 2:
-            if len(self.zoom_range) == 1:
-                self.zoom_range = float(self.zoom_range[0])
-
-            self.zoom_range = """zoom_range={zoom_range}""" \
-                .format(zoom_range=self.zoom_range)
-            functions_required.append(self.zoom_range)
+        zoom_range = string_to_list(self.zoom_range)
+        if zoom_range and len(zoom_range) <= 2:
+            if len(zoom_range) == 1:
+                functions_required.append("""zoom_range={zoom_range}
+                """.format(zoom_range=zoom_range[0]))
+            else:
+                functions_required.append("""zoom_range={zoom_range}
+                """.format(zoom_range=zoom_range))
         else:
             raise ValueError(gettext('Parameter {} is invalid.')
                              .format(self.ZOOM_RANGE_PARAM))
 
         try:
-            self.channel_shift_range = float(self.channel_shift_range)
-            self.channel_shift_range = """channel_shift_range={channel_shift_range}""" \
-                .format(channel_shift_range=self.channel_shift_range)
-            functions_required.append(self.channel_shift_range)
+            functions_required.append("""channel_shift_range=
+            {channel_shift_range}""".format(channel_shift_range=float(
+                self.channel_shift_range)))
         except:
             raise ValueError(gettext('Parameter {} is invalid.')
                              .format(self.CHANNEL_SHIFT_RANGE_PARAM))
 
         if self.fill_mode:
-            self.fill_mode = """fill_mode='{fill_mode}'""" \
-                .format(fill_mode=self.fill_mode)
-            functions_required.append(self.fill_mode)
+            functions_required.append("""fill_mode='{fill_mode}'
+            """.format(fill_mode=self.fill_mode))
 
         if self.fill_mode == 'constant':
             try:
-                self.cval = float(self.cval)
+                functions_required.append("""cval={cval}
+                """.format(cval=float(self.cval)))
             except:
                 raise ValueError(gettext('Parameter {} is invalid.')
                                  .format(self.CVAL_PARAM))
-            self.cval = """cval={cval}""".format(cval=self.cval)
-            functions_required.append(self.cval)
 
-        self.horizontal_flip = True if int(self.horizontal_flip) == 1 else False
-        if self.horizontal_flip:
-            self.horizontal_flip = """horizontal_flip={horizontal_flip}""" \
-                .format(horizontal_flip=self.horizontal_flip)
-            functions_required.append(self.horizontal_flip)
+        horizontal_flip = True if int(self.horizontal_flip) == 1 else False
+        functions_required.append("""horizontal_flip={horizontal_flip}
+        """.format(horizontal_flip=horizontal_flip))
 
-        self.vertical_flip = True if int(self.vertical_flip) == 1 else False
-        if self.vertical_flip:
-            self.vertical_flip = """vertical_flip={vertical_flip}""" \
-                .format(vertical_flip=self.vertical_flip)
-            functions_required.append(self.vertical_flip)
+        vertical_flip = True if int(self.vertical_flip) == 1 else False
+        functions_required.append("""vertical_flip={vertical_flip}
+        """.format(vertical_flip=vertical_flip))
 
         if self.rescale is not None:
-            self.rescale = rescale(self.rescale)
-            if self.rescale is not None:
-                self.rescale = """rescale={rescale}""" \
-                    .format(rescale=self.rescale)
-                functions_required.append(self.rescale)
+            _rescale = rescale(self.rescale)
+            if _rescale is not None:
+                functions_required.append("""rescale={rescale}
+                """.format(rescale=_rescale))
+            else:
+                raise ValueError(gettext('Parameter {} is invalid.')
+                                 .format(self.RESCALE_PARAM))
 
         '''TO_DO - ADD preprocessing_function IN THE FUTURE'''
 
         if self.data_format:
-            self.data_format = """data_format={data_format}""" \
-                .format(data_format=self.data_format)
-            functions_required.append(self.data_format)
+            functions_required.append("""data_format={data_format}
+            """.format(data_format=self.data_format))
 
         # In case of the operation is creating the image data
         if self.image_train:
             if self.validation_split:
-                self.validation_split = abs(float(self.validation_split))
-            if self.validation_split > 0:
-                self.validation_split = """validation_split={validation_split}""" \
-                    .format(validation_split=self.validation_split)
-                functions_required.append(self.validation_split)
+                if self.validation_split > 0:
+                    functions_required.append("""validation_split=
+                    {validation_split}""".format(validation_split=abs(float(
+                        self.validation_split))))
 
         if self.dtype is not None:
-            self.dtype = """dtype='{dtype}'""" \
-                .format(dtype=self.dtype)
-            functions_required.append(self.dtype)
+            functions_required.append("""dtype='{dtype}'""".format(
+                dtype=self.dtype))
 
         self.add_functions_required = ',\n    '.join(functions_required)
 
@@ -374,8 +335,7 @@ class ImageGenerator(Operation):
                 ).format(var_name=self.var_name,
                          add_functions_required=self.add_functions_required,
                          add_functions_required_flow_from_directory=self.
-                         add_functions_required_flow_from_directory,
-                         batch_size=self.batch_size)
+                         add_functions_required_flow_from_directory)
             else:
                 return dedent(
                     """
@@ -391,8 +351,7 @@ class ImageGenerator(Operation):
                 ).format(var_name=self.var_name,
                          add_functions_required=self.add_functions_required,
                          add_functions_required_flow_from_directory=self.
-                         add_functions_required_flow_from_directory,
-                         batch_size=self.batch_size)
+                         add_functions_required_flow_from_directory)
 
         if self.image_validation:
             return dedent(
@@ -408,8 +367,7 @@ class ImageGenerator(Operation):
             ).format(var_name=self.var_name,
                      add_functions_required=self.add_functions_required,
                      add_functions_required_flow_from_directory=self.
-                     add_functions_required_flow_from_directory,
-                     batch_size=self.batch_size)
+                     add_functions_required_flow_from_directory)
 
 
 class VideoGenerator(Operation):
@@ -437,12 +395,15 @@ class VideoGenerator(Operation):
 
         self.dimensions = parameters.get(self.DIMENSIONS_PARAM, None)
         self.channels = parameters.get(self.CHANNELS_PARAM, None)
-        self.cropping_strategy = parameters.get(self.CROPPING_STRATEGY_PARAM, None)
+        self.cropping_strategy = parameters.get(self.CROPPING_STRATEGY_PARAM,
+                                                None)
         self.batch_size = parameters.get(self.BATCH_SIZE_PARAM, None)
         self.shuffle = parameters.get(self.SHUFFLE_PARAM, None)
-        self.validation_split = parameters.get(self.VALIDATION_SPLIT_PARAM, None)
+        self.validation_split = parameters.get(self.VALIDATION_SPLIT_PARAM,
+                                               None)
 
-        self.cropping_strategy = parameters.get(self.CROPPING_STRATEGY_PARAM, None)
+        self.cropping_strategy = parameters.get(self.CROPPING_STRATEGY_PARAM,
+                                                None)
         self.random_frames = parameters.get(self.RANDOM_FRAMES_PARAM, None)
         self.random_height = parameters.get(self.RANDOM_HEIGHT_PARAM, None)
         self.random_width = parameters.get(self.RANDOM_WIDTH_PARAM, None)
@@ -451,7 +412,8 @@ class VideoGenerator(Operation):
         self.height = parameters.get(self.HEIGHT_PARAM, None)
         self.width = parameters.get(self.WIDTH_PARAM, None)
         self.channel = parameters.get(self.CHANNEL_PARAM, None)
-        self.apply_transformations = parameters.get(self.APPLY_TRANSFORMATIONS_PARAM, None)
+        self.apply_transformations = parameters.get(
+            self.APPLY_TRANSFORMATIONS_PARAM, None)
 
         self.video_training = None
         self.video_validation = None
@@ -504,22 +466,24 @@ class VideoGenerator(Operation):
                 self.video_validation = None
                 self.video_test = parents_by_port[0]
 
-        if not (self.video_training or self.video_validation or self.video_test):
+        if not (self.video_training or self.video_validation or
+                self.video_test):
             raise ValueError(gettext('You need to correctly specify the '
                                      'ports for training or validation or '
                                      'test.'
                                      )
                              )
 
-        if self.video_training and self.video_validation and self.validation_split:
+        if self.video_training and self.video_validation and \
+                self.validation_split:
             raise ValueError(gettext('Is impossible to use validation split '
                                      'option > 0 and video reader for training '
                                      'and validation data.'))
 
         if self.video_training:
-            self.video_training = convert_variable_name(self.video_training[1]) \
-                                  + '_' \
-                                  + convert_variable_name(self.video_training[0])
+            self.video_training = convert_variable_name(self.video_training[1])\
+                                  + '_' + \
+                                  convert_variable_name(self.video_training[0])
 
         if self.video_validation:
             self.video_validation = convert_variable_name(
