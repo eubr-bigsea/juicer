@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2019-08-09 08:43-0300\n"
-"PO-Revision-Date: 2019-08-09 08:49-0300\n"
+"POT-Creation-Date: 2019-08-28 08:45-0300\n"
+"PO-Revision-Date: 2019-08-28 08:48-0300\n"
 "Last-Translator: \n"
 "Language-Team: pt_BR <LL@li.org>\n"
 "Language: pt_BR\n"
@@ -41,7 +41,7 @@ msgstr "Método generate_code pode ser implementado na subclasse {}"
 msgid "This implementation of traceability do not support multiple inputs"
 msgstr "Esta implementação de rastreabilidade não suporta entradas múltiplas"
 
-#: juicer/transpiler.py:143
+#: juicer/transpiler.py:142
 msgid "Workflow must have at least 1 data source to be deployed."
 msgstr ""
 "Para ser implantado, o fluxo de trabalho precisa de pelo menos uma fonte de "
@@ -101,10 +101,10 @@ msgstr ""
 #: juicer/spark/ml_operation.py:157 juicer/spark/ml_operation.py:229
 #: juicer/spark/ml_operation.py:294 juicer/spark/ml_operation.py:301
 #: juicer/spark/ml_operation.py:358 juicer/spark/ml_operation.py:438
-#: juicer/spark/ml_operation.py:950 juicer/spark/ml_operation.py:969
-#: juicer/spark/ml_operation.py:1785 juicer/spark/ml_operation.py:3207
-#: juicer/spark/ml_operation.py:3212 juicer/spark/ml_operation.py:3264
-#: juicer/spark/ml_operation.py:3270 juicer/spark/ml_operation.py:3347
+#: juicer/spark/ml_operation.py:1013 juicer/spark/ml_operation.py:1032
+#: juicer/spark/ml_operation.py:1853 juicer/spark/ml_operation.py:3279
+#: juicer/spark/ml_operation.py:3284 juicer/spark/ml_operation.py:3336
+#: juicer/spark/ml_operation.py:3342 juicer/spark/ml_operation.py:3419
 #: juicer/spark/statistic_operation.py:30
 #: juicer/spark/statistic_operation.py:189 juicer/spark/text_operation.py:38
 #: juicer/spark/text_operation.py:110 juicer/spark/text_operation.py:228
@@ -145,9 +145,9 @@ msgstr "Parâmetros '{}' devem ser informados para a tarefa {}"
 #: juicer/scikit_learn/model_operation.py:140
 #: juicer/scikit_learn/regression_operation.py:25
 #: juicer/scikit_learn/regression_operation.py:60
-#: juicer/spark/ml_operation.py:1108 juicer/spark/ml_operation.py:2341
-#: juicer/spark/ml_operation.py:2371 juicer/spark/ml_operation.py:2399
-#: juicer/spark/ml_operation.py:2591
+#: juicer/spark/ml_operation.py:1171 juicer/spark/ml_operation.py:2409
+#: juicer/spark/ml_operation.py:2439 juicer/spark/ml_operation.py:2466
+#: juicer/spark/ml_operation.py:2663
 msgid "Parameters '{}' and '{}' must be informed for task {}"
 msgstr "Parâmetros '{}' e '{}' devem ser informado para a tarefa {}"
 
@@ -776,7 +776,7 @@ msgstr "Matando subprocessos do servidor juicer e finalizando"
 #: juicer/scikit_learn/classification_operation.py:39
 #: juicer/scikit_learn/model_operation.py:26
 #: juicer/scikit_learn/model_operation.py:179 juicer/spark/ml_operation.py:472
-#: juicer/spark/ml_operation.py:566 juicer/spark/ml_operation.py:1130
+#: juicer/spark/ml_operation.py:566 juicer/spark/ml_operation.py:1193
 msgid "Model is being used, but at least one input is missing"
 msgstr "Model está sendo usado, mas falta pelo menos uma entrada."
 
@@ -817,7 +817,7 @@ msgstr ""
 "{}"
 
 #: juicer/scikit_learn/clustering_operation.py:336
-#: juicer/spark/ml_operation.py:1995
+#: juicer/spark/ml_operation.py:2063
 msgid "Invalid optimizer value {} for class {}"
 msgstr "Valor de optimizer inválido {} para classe {}"
 
@@ -902,22 +902,22 @@ msgstr ""
 
 #: juicer/scikit_learn/model_operation.py:146
 #: juicer/scikit_learn/model_operation.py:530 juicer/spark/ml_operation.py:555
-#: juicer/spark/ml_operation.py:961
+#: juicer/spark/ml_operation.py:1024
 msgid "Invalid metric value {}"
 msgstr "Valor de métrica inválido {}"
 
-#: juicer/scikit_learn/model_operation.py:231 juicer/spark/ml_operation.py:805
+#: juicer/scikit_learn/model_operation.py:231 juicer/spark/ml_operation.py:868
 msgid "Prediction versus Residual"
 msgstr "Predição versus Resíduo"
 
-#: juicer/scikit_learn/model_operation.py:232 juicer/spark/ml_operation.py:665
-#: juicer/spark/ml_operation.py:807
+#: juicer/scikit_learn/model_operation.py:232 juicer/spark/ml_operation.py:666
+#: juicer/spark/ml_operation.py:870
 msgid "Residual"
 msgstr "Resíduo"
 
 #: juicer/scikit_learn/model_operation.py:233
-#: juicer/scikit_learn/model_operation.py:244 juicer/spark/ml_operation.py:664
-#: juicer/spark/ml_operation.py:806 juicer/spark/ml_operation.py:811
+#: juicer/scikit_learn/model_operation.py:244 juicer/spark/ml_operation.py:665
+#: juicer/spark/ml_operation.py:869 juicer/spark/ml_operation.py:874
 msgid "Prediction"
 msgstr "Predição"
 
@@ -930,20 +930,20 @@ msgid "Parameters"
 msgstr "Parâmetros"
 
 #: juicer/scikit_learn/model_operation.py:241
-#: juicer/scikit_learn/model_operation.py:246 juicer/spark/ml_operation.py:656
-#: juicer/spark/ml_operation.py:1323
+#: juicer/scikit_learn/model_operation.py:246 juicer/spark/ml_operation.py:657
+#: juicer/spark/ml_operation.py:1390
 msgid "Value"
 msgstr "Valor"
 
-#: juicer/scikit_learn/model_operation.py:242 juicer/spark/ml_operation.py:809
+#: juicer/scikit_learn/model_operation.py:242 juicer/spark/ml_operation.py:872
 msgid "Actual versus Prediction"
 msgstr "Real versus Predito"
 
-#: juicer/scikit_learn/model_operation.py:243 juicer/spark/ml_operation.py:810
+#: juicer/scikit_learn/model_operation.py:243 juicer/spark/ml_operation.py:873
 msgid "Actual"
 msgstr "Real"
 
-#: juicer/scikit_learn/model_operation.py:246 juicer/spark/ml_operation.py:656
+#: juicer/scikit_learn/model_operation.py:246 juicer/spark/ml_operation.py:657
 msgid "Metric"
 msgstr "Métrica"
 
@@ -1468,29 +1468,29 @@ msgstr "Parâmetro '{}' deve estar na faixa [x>=0] para tarefa {}"
 msgid "Parameters '{}', '{}' and '{}' must be informed for task {}"
 msgstr "Parâmetro '{}' , '{}' e '{}' devem ser informado para a tarefa {}"
 
-#: juicer/spark/ml_operation.py:659
+#: juicer/spark/ml_operation.py:660
 msgid "F1 measure"
 msgstr "Medida F (F1)"
 
-#: juicer/spark/ml_operation.py:660
+#: juicer/spark/ml_operation.py:661
 msgid "Weighted precision"
 msgstr "Precisão ponderada"
 
-#: juicer/spark/ml_operation.py:661
+#: juicer/spark/ml_operation.py:662
 msgid "Weighted recall"
 msgstr "Revocação ponderada"
 
-#: juicer/spark/ml_operation.py:662
+#: juicer/spark/ml_operation.py:663
 msgid "Accuracy"
 msgstr "Acurácia"
 
-#: juicer/spark/ml_operation.py:663 juicer/spark/ml_operation.py:812
-#: juicer/spark/ml_operation.py:1935 juicer/spark/ml_operation.py:2558
+#: juicer/spark/ml_operation.py:664 juicer/spark/ml_operation.py:875
+#: juicer/spark/ml_operation.py:2003 juicer/spark/ml_operation.py:2627
 msgid "Summary"
 msgstr "Sumário"
 
-#: juicer/spark/ml_operation.py:1315 juicer/spark/ml_operation.py:1937
-#: juicer/spark/ml_operation.py:2562
+#: juicer/spark/ml_operation.py:1381 juicer/spark/ml_operation.py:2005
+#: juicer/spark/ml_operation.py:2631
 msgid ""
 "Features are not assembled as a vector. They will be implicitly assembled "
 "and rows with null values will be discarded. If this is undesirable, "
@@ -1501,52 +1501,68 @@ msgstr ""
 "comportamento não é desejável, adicione explicitamente um montador de "
 "features ao fluxo."
 
-#: juicer/spark/ml_operation.py:1319
+#: juicer/spark/ml_operation.py:1385
 msgid ""
 "Label attribute is categorical, it will be implicitly indexed as string."
 msgstr ""
 "Atributo usado como rótulo é categórico e portanto será implicitamente "
 "indexado."
 
-#: juicer/spark/ml_operation.py:1322
+#: juicer/spark/ml_operation.py:1387
+msgid "Metric ({}) average for {} folds: {}"
+msgstr "Média da métrica ({}) para {} folds: {}"
+
+#: juicer/spark/ml_operation.py:1389
 msgid "Generated classification model parameters"
 msgstr "Parâmetros gerados para o modelo de classificação"
 
-#: juicer/spark/ml_operation.py:1323
+#: juicer/spark/ml_operation.py:1390
 msgid "Parameter"
 msgstr "Parâmetro"
 
-#: juicer/spark/ml_operation.py:1389 juicer/spark/ml_operation.py:2658
-#: juicer/spark/ml_operation.py:2736 juicer/spark/ml_operation.py:2799
-#: juicer/spark/ml_operation.py:2858 juicer/spark/ml_operation.py:2912
+#: juicer/spark/ml_operation.py:1391
+msgid "Fold"
+msgstr "Fold (partição)"
+
+#: juicer/spark/ml_operation.py:1391
+msgid "Results"
+msgstr "Resultados"
+
+#: juicer/spark/ml_operation.py:1391
+msgid "Average"
+msgstr "Média"
+
+#: juicer/spark/ml_operation.py:1457 juicer/spark/ml_operation.py:2730
+#: juicer/spark/ml_operation.py:2808 juicer/spark/ml_operation.py:2871
+#: juicer/spark/ml_operation.py:2930 juicer/spark/ml_operation.py:2984
 msgid "Parameter output must be informed for classifier {}"
 msgstr "Parâmetro de saída deve ser informado para o classificador {}"
 
-#: juicer/spark/ml_operation.py:1744
+#: juicer/spark/ml_operation.py:1812
 msgid "Models used in ensemble classification"
 msgstr "Modelos usados na classificação por comitê"
 
-#: juicer/spark/ml_operation.py:1747
+#: juicer/spark/ml_operation.py:1815
 msgid "name"
 msgstr "nome"
 
-#: juicer/spark/ml_operation.py:1747
+#: juicer/spark/ml_operation.py:1815
 msgid "order"
 msgstr "ordem"
 
-#: juicer/spark/ml_operation.py:1747
+#: juicer/spark/ml_operation.py:1815
 msgid "weight"
 msgstr "peso"
 
-#: juicer/spark/ml_operation.py:1933
+#: juicer/spark/ml_operation.py:2001
 msgid "Clustering result"
 msgstr "Resultado do agrupamento"
 
-#: juicer/spark/ml_operation.py:1936 juicer/spark/ml_operation.py:2561
+#: juicer/spark/ml_operation.py:2004 juicer/spark/ml_operation.py:2630
 msgid "Regression only support numerical features."
 msgstr "Regressão suporta apenas features numéricas."
 
-#: juicer/spark/ml_operation.py:2020
+#: juicer/spark/ml_operation.py:2088
 msgid ""
 "Invalid document concentration: {}. It must be a single decimal value or a "
 "list of decimal numbers separated by comma."
@@ -1554,29 +1570,41 @@ msgstr ""
 "Parâmetro \"concentração de documentos\" inválido: {}. Ele deve ser um único "
 "valor decimal ou uma lista de valores decimais separados por vírgula."
 
-#: juicer/spark/ml_operation.py:2078
+#: juicer/spark/ml_operation.py:2146
 msgid "Invalid type {} for class {}"
 msgstr "Tipo inválido {} para a classe {}"
 
-#: juicer/spark/ml_operation.py:2127
+#: juicer/spark/ml_operation.py:2195
 msgid "You must inform all input ports for this operation"
 msgstr "Você deve informar todas as portas de entrada para esta operação"
 
-#: juicer/spark/ml_operation.py:2559
+#: juicer/spark/ml_operation.py:2628
 msgid "Assemble features in a vector before using a regression model"
 msgstr "Monte um vetor de features antes de usar um modelo de regressão"
 
-#: juicer/spark/ml_operation.py:3014
+#: juicer/spark/ml_operation.py:2637
+msgid "Coefficients"
+msgstr "Coeficientes"
+
+#: juicer/spark/ml_operation.py:2638
+msgid "Intercept"
+msgstr "Interseção"
+
+#: juicer/spark/ml_operation.py:2639
+msgid "Scale"
+msgstr "Escala"
+
+#: juicer/spark/ml_operation.py:3086
 msgid "Missing parameters. Check if values for parameters {} were informed"
 msgstr ""
 "Parâmetros ausentes. Verifique se os valores para os parâmetros {} foram "
 "informados"
 
-#: juicer/spark/ml_operation.py:3026 juicer/spark/ml_operation.py:3034
+#: juicer/spark/ml_operation.py:3098 juicer/spark/ml_operation.py:3106
 msgid "Invalid value for parameter {param}: {value}"
 msgstr "Valor inválido para o parâmetro {param}: {value}"
 
-#: juicer/spark/ml_operation.py:3129
+#: juicer/spark/ml_operation.py:3201
 msgid ""
 "You cannot mix models with and without evaluation (e.g. indexers) when "
 "saving models and criteria is different from ALL"
@@ -1584,12 +1612,12 @@ msgstr ""
 "Você não pode misturar modelos com e sem avaliação (por exemplo, "
 "indexadores) ao salvar modelos e sendo o critério diferente de ALL"
 
-#: juicer/spark/ml_operation.py:3132
+#: juicer/spark/ml_operation.py:3204
 msgid "You cannot mix models built using with different metrics ({})."
 msgstr ""
 "Você não pode misturar modelos construídos usando métricas diferentes ({})."
 
-#: juicer/spark/ml_operation.py:3276
+#: juicer/spark/ml_operation.py:3348
 msgid "Invalid type '{}' for class {}"
 msgstr "Tipo inválido '{}' para classe {}"
 
@@ -1604,6 +1632,26 @@ msgstr "Rótulo"
 #: juicer/spark/reports.py:88
 msgid "Predicted"
 msgstr "Predição"
+
+#: juicer/spark/reports.py:280
+msgid "Area under curve"
+msgstr "Área sob a curva "
+
+#: juicer/spark/reports.py:292
+msgid "False positive rate"
+msgstr "Taxa de falsos positivos"
+
+#: juicer/spark/reports.py:293
+msgid "True positive rate"
+msgstr "Taxa de positivos verdadeiros"
+
+#: juicer/spark/reports.py:295
+msgid "Precision"
+msgstr "Precisão"
+
+#: juicer/spark/reports.py:296
+msgid "Recall"
+msgstr "Revocação"
 
 #: juicer/spark/spark_minion.py:78
 #, python-format
@@ -1672,178 +1720,17 @@ msgstr "Atributo(s) de  entrada deve(m) ser informado(s) para o box plot."
 msgid "Input attribute(s) must be informed for histogram."
 msgstr "O atributo de entrada deve ser informado para o histograma."
 
-#: juicer/spark/vis_operation.py:1311
+#: juicer/spark/vis_operation.py:1312
 msgid "Attribute {} must be numeric (actual: {})."
 msgstr "Atributo {} deve ser numérico (atual: {})."
 
-#: juicer/spark/vis_operation.py:1315
+#: juicer/spark/vis_operation.py:1316
 msgid "Attribute {} not found in input data."
 msgstr "Atributo {} não encontrado nos dados de entrada."
 
-#: juicer/spark/vis_operation.py:1350
+#: juicer/spark/vis_operation.py:1351
 msgid "Histogram"
 msgstr "Histograma"
-
-#: juicer/spark/templates/bias-report.html:4
-msgid "Bias Report"
-msgstr "Relatório de viés"
-
-#: juicer/spark/templates/bias-report.html:9
-msgid "Audit Date"
-msgstr "Data da auditoria"
-
-#: juicer/spark/templates/bias-report.html:13
-msgid "Data Audited"
-msgstr "Dados auditados"
-
-#: juicer/spark/templates/bias-report.html:14
-msgid "rows"
-msgstr "linhas"
-
-#: juicer/spark/templates/bias-report.html:17
-msgid "Attribute(s) Audited"
-msgstr "Atributo(s) auditado(s)"
-
-#: juicer/spark/templates/bias-report.html:21
-msgid "Audit Goal(s)"
-msgstr "Meta(s) da auditoria"
-
-#: juicer/spark/templates/bias-report.html:23
-#: juicer/spark/templates/bias-report.html:54
-msgid "Equal Parity"
-msgstr "Paridade equalitária"
-
-#: juicer/spark/templates/bias-report.html:24
-#: juicer/spark/templates/bias-report.html:58
-msgid "Proportional Parity"
-msgstr "Paridade proporcional"
-
-#: juicer/spark/templates/bias-report.html:25
-#: juicer/spark/templates/bias-report.html:63
-msgid "False Positive Rate Parity"
-msgstr "Paridade baseada em taxa de falso-positivos"
-
-#: juicer/spark/templates/bias-report.html:26
-#: juicer/spark/templates/bias-report.html:67
-msgid "False Discovery Rate Parity"
-msgstr "Paridade baseada em taxa de falsa descoberta"
-
-#: juicer/spark/templates/bias-report.html:27
-#: juicer/spark/templates/bias-report.html:71
-msgid "False Negative Rate Parity"
-msgstr "Paridade baseada em taxa de falso-negative"
-
-#: juicer/spark/templates/bias-report.html:28
-#: juicer/spark/templates/bias-report.html:75
-msgid "False Omission Rate Parity"
-msgstr "Paridade baseada em taxa de falsa-omissão"
-
-#: juicer/spark/templates/bias-report.html:37
-msgid "Reference Groups"
-msgstr "Grupos de referência"
-
-#: juicer/spark/templates/bias-report.html:41
-msgid "Fairness Threshold"
-msgstr "Limiar de justiça"
-
-#: juicer/spark/templates/bias-report.html:42
-#, python-format
-msgid ""
-"If disparity for a group is within {tau:,.2f}%% and {inverse_tau:,.2f}%% of "
-"the value of the reference group on a group metric (e.g. False Positive "
-"Rate), this audit will pass."
-msgstr ""
-"Se a disparidade para o grupo está entre  {tau:,.2f}%% e "
-"{inverse_tau:,.2f}%% do valor do grupo de referência em uma métrica de grupo "
-"(ex. taxa de falso-positivos), este item passará na auditoria."
-
-#: juicer/spark/templates/bias-report.html:48
-msgid "Audit Summary"
-msgstr "Resumido da auditoria"
-
-#: juicer/spark/templates/bias-report.html:55
-msgid ""
-"Ensure all protected groups are have equal representation in the selected "
-"set."
-msgstr ""
-"Garantir que todos os grupos protegidos têm representação igual no conjunto "
-"selecionado."
-
-#: juicer/spark/templates/bias-report.html:59
-msgid ""
-"Ensure all protected groups are selected proportional to their percentage of "
-"the population."
-msgstr ""
-"Garantir que todos os grupos são selecionados de forma proporcional ao "
-"respectivo percentual da população."
-
-#: juicer/spark/templates/bias-report.html:64
-msgid ""
-"Ensure all protected groups have the same false positive rates as the "
-"reference group)."
-msgstr ""
-"Garantir que todos os grupos tenham a mesma taxa de falso-positivos como o "
-"grupo de referência."
-
-#: juicer/spark/templates/bias-report.html:68
-msgid ""
-"Ensure all protected groups have equally proportional false positives within "
-"the selected set (compared to the reference group)."
-msgstr ""
-"Garantir que todos os grupos protegidos tenham, proporcionalmente, a mesma  "
-"quantidade de falsos-positivos dentro do conjunto selecionado (comparado ao "
-"grupo de referência)."
-
-#: juicer/spark/templates/bias-report.html:72
-msgid ""
-"Ensure all protected groups have the same false negative rates (as the "
-"reference group)."
-msgstr ""
-"Garantir que todos os grupos protegidos tenham a mesma taxa de falso-"
-"negativos (como o grupo de referência)."
-
-#: juicer/spark/templates/bias-report.html:76
-msgid ""
-"Ensure all protected groups have equally proportional false negatives within "
-"the non-selected set (compared to the reference group)."
-msgstr ""
-"Garantir que todos os grupos protegidos tenham, proporcionalmente, a mesma  "
-"quantidade de falsos-negativos dentro do conjunto selecionado (comparado ao "
-"grupo de referência)."
-
-#: juicer/spark/templates/bias-report.html:80
-msgid "Passed"
-msgstr "Passou"
-
-#: juicer/spark/templates/bias-report.html:80
-#: juicer/spark/templates/bias-report.html:98
-msgid "Failed"
-msgstr "Falhou"
-
-#: juicer/spark/templates/bias-report.html:83
-msgid "Details"
-msgstr "Detalhes"
-
-#: juicer/spark/templates/bias-report.html:91
-msgid "Audit Results: Details by Fairness Measures"
-msgstr "Resultado de auditoria: detalhes por medidas de justiça"
-
-#: juicer/spark/templates/bias-report.html:98
-msgid "Success"
-msgstr "Sucesso"
-
-#: juicer/spark/templates/bias-report.html:109
-msgid "When does it matter?"
-msgstr "Quando é relevante?"
-
-#: juicer/spark/templates/bias-report.html:169
-#: juicer/spark/templates/bias-report.html:170
-#: juicer/spark/templates/bias-report.html:171
-#: juicer/spark/templates/bias-report.html:172
-#: juicer/spark/templates/bias-report.html:173
-#: juicer/spark/templates/bias-report.html:174
-msgid "Ref"
-msgstr "Referência"
 
 #: juicer/spark/util/__init__.py:40
 msgid ""
@@ -2022,6 +1909,125 @@ msgstr "Configuração incorreta para as portas: %s, %s"
 #: juicer/workflow/workflow.py:270
 msgid "Invalid or non-existing port: '{op}' {s} {t}"
 msgstr "Porta inválida ou inexistente: '{op}' {s} {t}"
+
+#~ msgid "Bias Report"
+#~ msgstr "Relatório de viés"
+
+#~ msgid "Audit Date"
+#~ msgstr "Data da auditoria"
+
+#~ msgid "Data Audited"
+#~ msgstr "Dados auditados"
+
+#~ msgid "rows"
+#~ msgstr "linhas"
+
+#~ msgid "Attribute(s) Audited"
+#~ msgstr "Atributo(s) auditado(s)"
+
+#~ msgid "Audit Goal(s)"
+#~ msgstr "Meta(s) da auditoria"
+
+#~ msgid "Equal Parity"
+#~ msgstr "Paridade equalitária"
+
+#~ msgid "Proportional Parity"
+#~ msgstr "Paridade proporcional"
+
+#~ msgid "False Positive Rate Parity"
+#~ msgstr "Paridade baseada em taxa de falso-positivos"
+
+#~ msgid "False Discovery Rate Parity"
+#~ msgstr "Paridade baseada em taxa de falsa descoberta"
+
+#~ msgid "False Negative Rate Parity"
+#~ msgstr "Paridade baseada em taxa de falso-negative"
+
+#~ msgid "False Omission Rate Parity"
+#~ msgstr "Paridade baseada em taxa de falsa-omissão"
+
+#~ msgid "Reference Groups"
+#~ msgstr "Grupos de referência"
+
+#~ msgid "Fairness Threshold"
+#~ msgstr "Limiar de justiça"
+
+#~ msgid ""
+#~ "If disparity for a group is within {tau:,.2f}%% and {inverse_tau:,.2f}%% "
+#~ "of the value of the reference group on a group metric (e.g. False "
+#~ "Positive Rate), this audit will pass."
+#~ msgstr ""
+#~ "Se a disparidade para o grupo está entre  {tau:,.2f}%% e "
+#~ "{inverse_tau:,.2f}%% do valor do grupo de referência em uma métrica de "
+#~ "grupo (ex. taxa de falso-positivos), este item passará na auditoria."
+
+#~ msgid "Audit Summary"
+#~ msgstr "Resumido da auditoria"
+
+#~ msgid ""
+#~ "Ensure all protected groups are have equal representation in the selected "
+#~ "set."
+#~ msgstr ""
+#~ "Garantir que todos os grupos protegidos têm representação igual no "
+#~ "conjunto selecionado."
+
+#~ msgid ""
+#~ "Ensure all protected groups are selected proportional to their percentage "
+#~ "of the population."
+#~ msgstr ""
+#~ "Garantir que todos os grupos são selecionados de forma proporcional ao "
+#~ "respectivo percentual da população."
+
+#~ msgid ""
+#~ "Ensure all protected groups have the same false positive rates as the "
+#~ "reference group)."
+#~ msgstr ""
+#~ "Garantir que todos os grupos tenham a mesma taxa de falso-positivos como "
+#~ "o grupo de referência."
+
+#~ msgid ""
+#~ "Ensure all protected groups have equally proportional false positives "
+#~ "within the selected set (compared to the reference group)."
+#~ msgstr ""
+#~ "Garantir que todos os grupos protegidos tenham, proporcionalmente, a "
+#~ "mesma  quantidade de falsos-positivos dentro do conjunto selecionado "
+#~ "(comparado ao grupo de referência)."
+
+#~ msgid ""
+#~ "Ensure all protected groups have the same false negative rates (as the "
+#~ "reference group)."
+#~ msgstr ""
+#~ "Garantir que todos os grupos protegidos tenham a mesma taxa de falso-"
+#~ "negativos (como o grupo de referência)."
+
+#~ msgid ""
+#~ "Ensure all protected groups have equally proportional false negatives "
+#~ "within the non-selected set (compared to the reference group)."
+#~ msgstr ""
+#~ "Garantir que todos os grupos protegidos tenham, proporcionalmente, a "
+#~ "mesma  quantidade de falsos-negativos dentro do conjunto selecionado "
+#~ "(comparado ao grupo de referência)."
+
+#~ msgid "Passed"
+#~ msgstr "Passou"
+
+#~ msgid "Failed"
+#~ msgstr "Falhou"
+
+#~ msgid "Details"
+#~ msgstr "Detalhes"
+
+#~ msgid "Audit Results: Details by Fairness Measures"
+#~ msgstr "Resultado de auditoria: detalhes por medidas de justiça"
+
+#~ msgid "Success"
+#~ msgstr "Sucesso"
+
+#~ msgid "When does it matter?"
+#~ msgstr "Quando é relevante?"
+
+#~ msgid "Ref"
+#~ msgstr "Referência"
 
 #~ msgid "Parameter {} needs to be like 60%-20%-20%"
 #~ msgstr "Parâmetro {} precisa ser algo como 60%-20%-20%"
