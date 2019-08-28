@@ -128,7 +128,7 @@ def get_tuple(field):
     if isinstance(field, tuple):
         return field
 
-    if isinstance(field, basestring):
+    if isinstance(field, str):
         values = field.replace('(', '').replace(')', '').replace(' ', '')\
             .split(',')
         try:
