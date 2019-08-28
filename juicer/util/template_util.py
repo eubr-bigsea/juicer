@@ -226,7 +226,7 @@ def tuple_of_tuples(field):
     final_tuple = []
 
     if field is not None:
-        if isinstance(field, basestring) and field.strip():
+        if isinstance(field, str) and field.strip():
             try:
                 return int(field)
             except:
@@ -270,7 +270,7 @@ def tuple_of_tuples(field):
 
 def convert_to_list(field):
     if field is not None:
-        if isinstance(field, basestring) and field.strip():
+        if isinstance(field, str) and field.strip():
             field = re.sub(r"\{|\[|\}|\]|\s+", "", field)
             if len(field.split(',')) > 0:
                 return True
@@ -279,7 +279,7 @@ def convert_to_list(field):
 
 def get_random_interval(field):
     if field is not None:
-        if isinstance(field, basestring) and field.strip():
+        if isinstance(field, str) and field.strip():
             field = re.sub(r"\{|\[|\}|\]||\(|\)|\s+", "", field)
             field = field.split(',')
             if len(field) == 2:
@@ -289,7 +289,7 @@ def get_random_interval(field):
 
 def get_interval(field):
     if field is not None:
-        if isinstance(field, basestring) and field.strip():
+        if isinstance(field, str) and field.strip():
             field = re.sub(r"\{|\[|\}|\]||\(|\)|\s+", "", field)
             field = field.split(':')
             if len(field) == 2:
