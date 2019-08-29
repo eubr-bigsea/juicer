@@ -70,13 +70,13 @@ def convert_variable_name(task_name):
 
     variable_name = ""
     for c in name:
-        if c.isalnum():
-            variable_name += ''.join(c)
-        elif c is not '_':
+        if c.isalnum() or c is '_':
             variable_name += ''.join(c)
 
+    variable_name = variable_name.lower()
+
     if is_valid_var_name(variable_name):
-        return str(variable_name.lower())
+        return str(variable_name)
     else:
         raise ValueError(gettext('Parameter task name is invalid.'))
 
@@ -94,13 +94,13 @@ def convert_parents_to_variable_name(parents=[]):
         for c in name:
             if c.isalnum():
                 variable_name += ''.join(c)
-            elif c is not '_':
+            elif c is '_':
                 variable_name += ''.join(c)
 
         variable_name = variable_name.lower()
 
         if is_valid_var_name(variable_name):
-            parents_var_name.append(str(variable_name.lower()))
+            parents_var_name.append(str(variable_name))
         else:
             raise ValueError(gettext('Parameter task name is invalid.'))
 
