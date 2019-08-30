@@ -20,15 +20,22 @@ class InceptionV3(Operation):
         self.output = named_outputs.get('output data',
                                         'out_task_{}'.format(self.order))
 
-        self.include_top = parameters.get(self.INCLUDE_TOP_PARAM, None)
+        self._include_top = parameters.get(self.INCLUDE_TOP_PARAM, None)
         self.weights = parameters.get(self.WEIGHTS_PARAM, None)
-        self.input_tensor = parameters.get(self.INPUT_TENSOR_PARAM,
-                                           None)
-        self.input_shape = parameters.get(self.INPUT_SHAPE_PARAM, None)
-        self.pooling = parameters.get(self.POOLING_PARAM, None)
-        self.classes = parameters.get(self.CLASSES_PARAM, None)
-        self.trainable = parameters.get(self.TRAINABLE_PARAM, None)
-        self.advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
+        self._input_tensor = parameters.get(self.INPUT_TENSOR_PARAM, None)
+        self._input_shape = parameters.get(self.INPUT_SHAPE_PARAM, None)
+        self._pooling = parameters.get(self.POOLING_PARAM, None)
+        self._classes = parameters.get(self.CLASSES_PARAM, None)
+        self._trainable = parameters.get(self.TRAINABLE_PARAM, None)
+        self._advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
+
+        self.include_top = None
+        self.input_tensor = None
+        self.input_shape = None
+        self.pooling = None
+        self.classes = None
+        self.trainable = None
+        self.advanced_options = None
 
         self.add_functions_required = ""
         self.task_name = self.parameters.get('task').get('name')
@@ -75,54 +82,49 @@ class InceptionV3(Operation):
         self.var_name = convert_variable_name(self.task_name)
         self.task_name = self.var_name
 
-        self.include_top = True if int(self.include_top) == 1 else False
-        self.trainable = True if int(self.trainable) == 1 else False
-        self.advanced_options = True if int(self.advanced_options) == 1 else \
-            False
+        self.trainable = True if int(self._trainable) == 1 else False
 
-        functions_required = []
-        self.include_top = """include_top={include_top}""" \
-            .format(include_top=self.include_top)
-        functions_required.append(self.include_top)
+        self.include_top = True if int(self._include_top) == 1 else False
+        functions_required = ["""include_top={include_top}""".format(
+            include_top=self.include_top)]
 
-        if self.weights is not None and len(self.weights) > 1:
-            self.weights.replace("'", "").replace('"', '')
-            self.weights = """weights='{weights}'""" \
-                .format(weights=self.weights)
+        if self.weights is not None and self.weights.strip():
+            self.weights = self.weights.replace("'", "").replace('"', '')
+            self.weights = """weights='{weights}'""".format(
+                weights=self.weights)
             functions_required.append(self.weights)
 
+        self.advanced_options = True if int(self._advanced_options) == 1 else \
+            False
         if self.advanced_options:
-            if self.input_tensor:
-                self.input_tensor = get_tuple(self.input_tensor)
+            if self._input_tensor:
+                self.input_tensor = get_tuple(self._input_tensor)
                 if not self.input_tensor:
                     raise ValueError(gettext('Parameter {} is invalid').format(
                         self.INPUT_TENSOR_PARAM))
                 else:
-                    if self.input_tensor is not None and \
-                            len(self.input_tensor) > 1:
-                        self.input_tensor = """input_tensor={input_tensor}""" \
-                            .format(input_tensor=self.input_tensor)
-                        functions_required.append(self.input_tensor)
+                    if self.input_tensor is not None and len(
+                            self.input_tensor) > 1:
+                        functions_required.append("""input_tensor={}""".format(
+                            self.input_tensor))
 
             if not self.include_top:
-                self.input_shape = get_tuple(self.input_shape)
-                if self.input_shape is not None and \
-                        len(self.input_shape) > 1:
-                    self.input_shape = """input_shape={input_shape}""" \
-                        .format(input_shape=self.input_shape)
-                    functions_required.append(self.input_shape)
+                self.input_shape = get_tuple(self._input_shape)
+                if self.input_shape is not None and len(
+                        self.input_shape) > 1:
+                    functions_required.append("""input_shape={}""".format(
+                        self.input_shape))
 
-                if self.pooling is not None:
-                    self.pooling = """pooling='{pooling}'""".format(
-                        pooling=self.pooling)
+                if self._pooling is not None:
+                    self.pooling = """pooling='{}'""".format(self.pooling)
                     functions_required.append(self.pooling)
             else:
                 self.input_shape = None
                 self.pooling = None
                 if self.weights is None:
-                    if self.classes is not None:
-                        self.classes = """classes={classes}""".format(
-                            classes=self.classes)
+                    if self._classes is not None:
+                        self.classes = """classes={}""".format(
+                            self._classes)
                         functions_required.append(self.classes)
 
         self.add_functions_required = ',\n    '.join(functions_required)
@@ -156,15 +158,22 @@ class VGG16(Operation):
         self.output = named_outputs.get('output data',
                                         'out_task_{}'.format(self.order))
 
-        self.include_top = parameters.get(self.INCLUDE_TOP_PARAM, None)
+        self._include_top = parameters.get(self.INCLUDE_TOP_PARAM, None)
         self.weights = parameters.get(self.WEIGHTS_PARAM, None)
-        self.input_tensor = parameters.get(self.INPUT_TENSOR_PARAM,
-                                           None)
-        self.input_shape = parameters.get(self.INPUT_SHAPE_PARAM, None)
-        self.pooling = parameters.get(self.POOLING_PARAM, None)
-        self.classes = parameters.get(self.CLASSES_PARAM, None)
-        self.trainable = parameters.get(self.TRAINABLE_PARAM, None)
-        self.advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
+        self._input_tensor = parameters.get(self.INPUT_TENSOR_PARAM, None)
+        self._input_shape = parameters.get(self.INPUT_SHAPE_PARAM, None)
+        self._pooling = parameters.get(self.POOLING_PARAM, None)
+        self._classes = parameters.get(self.CLASSES_PARAM, None)
+        self._trainable = parameters.get(self.TRAINABLE_PARAM, None)
+        self._advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
+
+        self.include_top = None
+        self.input_tensor = None
+        self.input_shape = None
+        self.pooling = None
+        self.classes = None
+        self.trainable = None
+        self.advanced_options = None
 
         self.add_functions_required = ""
         self.task_name = self.parameters.get('task').get('name')
@@ -211,54 +220,49 @@ class VGG16(Operation):
         self.var_name = convert_variable_name(self.task_name)
         self.task_name = self.var_name
 
-        self.include_top = True if int(self.include_top) == 1 else False
-        self.trainable = True if int(self.trainable) == 1 else False
-        self.advanced_options = True if int(self.advanced_options) == 1 else \
-            False
+        self.trainable = True if int(self._trainable) == 1 else False
 
-        functions_required = []
-        self.include_top = """include_top={include_top}""" \
-            .format(include_top=self.include_top)
-        functions_required.append(self.include_top)
+        self.include_top = True if int(self._include_top) == 1 else False
+        functions_required = ["""include_top={include_top}""".format(
+            include_top=self.include_top)]
 
-        if self.weights is not None and len(self.weights) > 1:
-            self.weights.replace("'", "").replace('"', '')
-            self.weights = """weights='{weights}'""" \
-                .format(weights=self.weights)
+        if self.weights is not None and self.weights.strip():
+            self.weights = self.weights.replace("'", "").replace('"', '')
+            self.weights = """weights='{weights}'""".format(
+                weights=self.weights)
             functions_required.append(self.weights)
 
+        self.advanced_options = True if int(self._advanced_options) == 1 else \
+            False
         if self.advanced_options:
-            if self.input_tensor:
-                self.input_tensor = get_tuple(self.input_tensor)
+            if self._input_tensor:
+                self.input_tensor = get_tuple(self._input_tensor)
                 if not self.input_tensor:
                     raise ValueError(gettext('Parameter {} is invalid').format(
                         self.INPUT_TENSOR_PARAM))
                 else:
-                    if self.input_tensor is not None and \
-                            len(self.input_tensor) > 1:
-                        self.input_tensor = """input_tensor={input_tensor}""" \
-                            .format(input_tensor=self.input_tensor)
-                        functions_required.append(self.input_tensor)
+                    if self.input_tensor is not None and len(
+                            self.input_tensor) > 1:
+                        functions_required.append("""input_tensor={}""".format(
+                            self.input_tensor))
 
             if not self.include_top:
-                self.input_shape = get_tuple(self.input_shape)
-                if self.input_shape is not None and \
-                        len(self.input_shape) > 1:
-                    self.input_shape = """input_shape={input_shape}""" \
-                        .format(input_shape=self.input_shape)
-                    functions_required.append(self.input_shape)
+                self.input_shape = get_tuple(self._input_shape)
+                if self.input_shape is not None and len(
+                        self.input_shape) > 1:
+                    functions_required.append("""input_shape={}""".format(
+                        self.input_shape))
 
-                if self.pooling is not None:
-                    self.pooling = """pooling='{pooling}'""".format(
-                        pooling=self.pooling)
+                if self._pooling is not None:
+                    self.pooling = """pooling='{}'""".format(self.pooling)
                     functions_required.append(self.pooling)
             else:
                 self.input_shape = None
                 self.pooling = None
                 if self.weights is None:
-                    if self.classes is not None:
-                        self.classes = """classes={classes}""".format(
-                            classes=self.classes)
+                    if self._classes is not None:
+                        self.classes = """classes={}""".format(
+                            self._classes)
                         functions_required.append(self.classes)
 
         self.add_functions_required = ',\n    '.join(functions_required)
