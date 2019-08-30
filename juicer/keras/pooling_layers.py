@@ -18,12 +18,19 @@ class AveragePooling1D(Operation):
         self.output = named_outputs.get('output data',
                                         'out_task_{}'.format(self.order))
 
-        self.pool_size = parameters.get(self.POOL_SIZE_PARAM, None)
-        self.strides = parameters.get(self.STRIDES_PARAM, None)
-        self.padding = parameters.get(self.PADDING_PARAM, None)
-        self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None)
-        self.kwargs = parameters.get(self.KWARG_PARAM, None)
-        self.advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
+        self._pool_size = parameters.get(self.POOL_SIZE_PARAM, None)
+        self._strides = parameters.get(self.STRIDES_PARAM, None)
+        self._padding = parameters.get(self.PADDING_PARAM, None)
+        self._data_format = parameters.get(self.DATA_FORMAT_PARAM, None)
+        self._kwargs = parameters.get(self.KWARG_PARAM, None)
+        self._advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
+
+        self.pool_size = None
+        self.strides = None
+        self.padding = None
+        self.data_format = None
+        self.kwargs = None
+        self.advanced_options = None
 
         self.task_name = self.parameters.get('task').get('name')
         self.parent = ""
@@ -33,7 +40,7 @@ class AveragePooling1D(Operation):
         self.add_functions_required = ""
 
         if self.POOL_SIZE_PARAM is None:
-            raise ValueError(gettext('Parameter {} are required')
+            raise ValueError(gettext('Parameter {} is required.')
                              .format(self.POOL_SIZE_PARAM))
 
         self.parents_by_port = parameters.get('my_ports', [])
@@ -69,44 +76,40 @@ class AveragePooling1D(Operation):
         self.var_name = convert_variable_name(self.task_name)
         self.task_name = self.var_name
 
-        self.advanced_options = True if int(self.advanced_options) == 1 else \
-            False
-
         functions_required = []
         try:
-            self.pool_size = int(self.pool_size)
-            self.strides = """pool_size={pool_size}""" \
-                .format(pool_size=self.pool_size)
-            functions_required.append(self.pool_size)
+            self.pool_size = int(self._pool_size)
+            functions_required.append("""pool_size={pool_size}""".format(
+                pool_size=self.pool_size))
         except:
-            raise ValueError(gettext('Parameter {} is invalid').format(
+            raise ValueError(gettext('Parameter {} is invalid.').format(
                 self.POOL_SIZE_PARAM))
 
+        self.advanced_options = True if int(self._advanced_options) == 1 else \
+            False
         if self.advanced_options:
-            if self.strides is not None:
+            if self._strides is not None:
                 try:
-                    self.strides = int(self.strides)
+                    self.strides = int(self._strides)
                 except:
-                    raise ValueError(gettext('Parameter {} is invalid').format(
+                    raise ValueError(gettext('Parameter {} is invalid.').format(
                         self.STRIDES_PARAM))
-                self.strides = """strides={strides}""" \
-                    .format(strides=self.strides)
-                functions_required.append(self.strides)
+                functions_required.append("""strides={strides}""".format(
+                    strides=self.strides))
 
-            if self.padding is not None:
-                self.padding = """padding={padding}""" \
-                    .format(padding=self.padding)
+            if self._padding is not None:
+                self.padding = """padding={padding}""".format(
+                    padding=self._padding)
                 functions_required.append(self.padding)
 
-            if self.data_format is not None:
-                self.data_format = """data_format={data_format}""" \
-                    .format(data_format=self.data_format)
+            if self._data_format is not None:
+                self.data_format = """data_format={data_format}""".format(
+                    data_format=self._data_format)
                 functions_required.append(self.data_format)
 
-            if self.kwargs is not None:
-                self.kwargs = self.kwargs.replace(' ', '').split(',')
-                self.kwargs = ',\n    '.join(self.kwargs)
-                functions_required.append(self.kwargs)
+            if self._kwargs is not None:
+                self.kwargs = self._kwargs.replace(' ', '').split(',')
+                functions_required.append(',\n    '.join(self.kwargs))
 
         self.add_functions_required = ',\n    '.join(functions_required)
         if self.add_functions_required:
@@ -140,12 +143,19 @@ class AveragePooling2D(Operation):
         self.output = named_outputs.get('output data',
                                         'out_task_{}'.format(self.order))
 
-        self.pool_size = parameters.get(self.POOL_SIZE_PARAM, None) or None
-        self.strides = parameters.get(self.STRIDES_PARAM, None) or None
-        self.padding = parameters.get(self.PADDING_PARAM, None) or None
-        self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None) or None
-        self.advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
-        self.kwargs = parameters.get(self.KWARG_PARAM, None)
+        self._pool_size = parameters.get(self.POOL_SIZE_PARAM, None)
+        self._strides = parameters.get(self.STRIDES_PARAM, None)
+        self._padding = parameters.get(self.PADDING_PARAM, None)
+        self._data_format = parameters.get(self.DATA_FORMAT_PARAM, None)
+        self._kwargs = parameters.get(self.KWARG_PARAM, None)
+        self._advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
+
+        self.pool_size = None
+        self.strides = None
+        self.padding = None
+        self.data_format = None
+        self.kwargs = None
+        self.advanced_options = None
 
         self.task_name = self.parameters.get('task').get('name')
         self.parent = ""
@@ -155,7 +165,7 @@ class AveragePooling2D(Operation):
         self.add_functions_required = ""
 
         if self.POOL_SIZE_PARAM is None:
-            raise ValueError(gettext('Parameter {} are required')
+            raise ValueError(gettext('Parameter {} is required.')
                              .format(self.POOL_SIZE_PARAM))
 
         self.parents_by_port = parameters.get('my_ports', [])
@@ -191,43 +201,39 @@ class AveragePooling2D(Operation):
         self.var_name = convert_variable_name(self.task_name)
         self.task_name = self.var_name
 
-        self.advanced_options = True if int(self.advanced_options) == 1 else \
-            False
-
         functions_required = []
-        self.pool_size = get_int_or_tuple(self.pool_size)
+        self.pool_size = get_int_or_tuple(self._pool_size)
         if not self.pool_size:
-            raise ValueError(gettext('Parameter {} is invalid').format(
+            raise ValueError(gettext('Parameter {} is invalid.').format(
                 self.POOL_SIZE_PARAM))
         else:
-            self.pool_size = """pool_size={pool_size}""" \
-                .format(pool_size=self.pool_size)
-            functions_required.append(self.pool_size)
+            functions_required.append("""pool_size={pool_size}""".format(
+                pool_size=self.pool_size))
 
+        self.advanced_options = True if int(self._advanced_options) == 1 else \
+            False
         if self.advanced_options:
-            self.strides = get_int_or_tuple(self.strides)
+            self.strides = get_int_or_tuple(self._strides)
             if not self.strides:
-                raise ValueError(gettext('Parameter {} is invalid').format(
+                raise ValueError(gettext('Parameter {} is invalid.').format(
                     self.STRIDES_PARAM))
             else:
-                self.strides = """strides={strides}""" \
-                    .format(strides=self.strides)
-                functions_required.append(self.strides)
+                functions_required.append("""strides={strides}""".format(
+                    strides=self.strides))
 
-            if self.padding is not None:
-                self.padding = """padding={padding}""" \
-                    .format(padding=self.padding)
+            if self._padding is not None:
+                self.padding = """padding={padding}""".format(
+                    padding=self._padding)
                 functions_required.append(self.padding)
 
-            if self.data_format is not None:
-                self.data_format = """data_format={data_format}""" \
-                    .format(data_format=self.data_format)
+            if self._data_format is not None:
+                self.data_format = """data_format={data_format}""".format(
+                    data_format=self._data_format)
                 functions_required.append(self.data_format)
 
-            if self.kwargs is not None:
-                self.kwargs = self.kwargs.replace(' ', '').split(',')
-                self.kwargs = ',\n    '.join(self.kwargs)
-                functions_required.append(self.kwargs)
+            if self._kwargs is not None:
+                self.kwargs = self._kwargs.replace(' ', '').split(',')
+                functions_required.append(',\n    '.join(self.kwargs))
 
         self.add_functions_required = ',\n    '.join(functions_required)
         if self.add_functions_required:
@@ -260,12 +266,19 @@ class AveragePooling3D(Operation):
         self.output = named_outputs.get('output data',
                                         'out_task_{}'.format(self.order))
 
-        self.pool_size = parameters.get(self.POOL_SIZE_PARAM, None) or None
-        self.strides = parameters.get(self.STRIDES_PARAM, None) or None
-        self.padding = parameters.get(self.PADDING_PARAM, None) or None
-        self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None) or None
-        self.advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
-        self.kwargs = parameters.get(self.KWARG_PARAM, None)
+        self._pool_size = parameters.get(self.POOL_SIZE_PARAM, None)
+        self._strides = parameters.get(self.STRIDES_PARAM, None)
+        self._padding = parameters.get(self.PADDING_PARAM, None)
+        self._data_format = parameters.get(self.DATA_FORMAT_PARAM, None)
+        self._kwargs = parameters.get(self.KWARG_PARAM, None)
+        self._advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
+
+        self.pool_size = None
+        self.strides = None
+        self.padding = None
+        self.data_format = None
+        self.kwargs = None
+        self.advanced_options = None
 
         self.task_name = self.parameters.get('task').get('name')
         self.parent = ""
@@ -275,7 +288,7 @@ class AveragePooling3D(Operation):
         self.add_functions_required = ""
 
         if self.POOL_SIZE_PARAM is None:
-            raise ValueError(gettext('Parameter {} are required')
+            raise ValueError(gettext('Parameter {} is required.')
                              .format(self.POOL_SIZE_PARAM))
 
         self.parents_by_port = parameters.get('my_ports', [])
@@ -311,43 +324,39 @@ class AveragePooling3D(Operation):
         self.var_name = convert_variable_name(self.task_name)
         self.task_name = self.var_name
 
-        self.advanced_options = True if int(self.advanced_options) == 1 else \
-            False
-
         functions_required = []
-        self.pool_size = get_int_or_tuple(self.pool_size)
+        self.pool_size = get_int_or_tuple(self._pool_size)
         if not self.pool_size:
-            raise ValueError(gettext('Parameter {} is invalid').format(
+            raise ValueError(gettext('Parameter {} is invalid.').format(
                 self.POOL_SIZE_PARAM))
         else:
-            self.pool_size = """pool_size={pool_size}""" \
-                .format(pool_size=self.pool_size)
-            functions_required.append(self.pool_size)
+            functions_required.append("""pool_size={pool_size}""".format(
+                pool_size=self.pool_size))
 
+        self.advanced_options = True if int(self._advanced_options) == 1 else \
+            False
         if self.advanced_options:
-            self.strides = get_int_or_tuple(self.strides)
+            self.strides = get_int_or_tuple(self._strides)
             if not self.strides:
-                raise ValueError(gettext('Parameter {} is invalid').format(
+                raise ValueError(gettext('Parameter {} is invalid.').format(
                     self.STRIDES_PARAM))
             else:
-                self.strides = """strides={strides}""" \
-                    .format(strides=self.strides)
-                functions_required.append(self.strides)
+                functions_required.append("""strides={strides}""".format(
+                    strides=self.strides))
 
-            if self.padding is not None:
-                self.padding = """padding={padding}""" \
-                    .format(padding=self.padding)
+            if self._padding is not None:
+                self.padding = """padding={padding}""".format(
+                    padding=self._padding)
                 functions_required.append(self.padding)
 
-            if self.data_format is not None:
-                self.data_format = """data_format={data_format}""" \
-                    .format(data_format=self.data_format)
+            if self._data_format is not None:
+                self.data_format = """data_format={data_format}""".format(
+                    data_format=self._data_format)
                 functions_required.append(self.data_format)
 
-            if self.kwargs is not None:
-                self.kwargs = self.kwargs.replace(' ', '').split(',')
-                self.kwargs = ',\n    '.join(self.kwargs)
-                functions_required.append(self.kwargs)
+            if self._kwargs is not None:
+                self.kwargs = self._kwargs.replace(' ', '').split(',')
+                functions_required.append(',\n    '.join(self.kwargs))
 
         self.add_functions_required = ',\n    '.join(functions_required)
         if self.add_functions_required:
@@ -377,10 +386,14 @@ class GlobalAveragePooling1D(Operation):
         self.output = named_outputs.get('output data',
                                         'out_task_{}'.format(self.order))
 
-        self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None) or None
-        self.kwargs = parameters.get(self.KWARG_PARAM, None)
+        self._data_format = parameters.get(self.DATA_FORMAT_PARAM, None) or None
+        self._kwargs = parameters.get(self.KWARG_PARAM, None)
+        self._advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
         self.task_name = self.parameters.get('task').get('name')
-        self.advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
+
+        self.data_format = None
+        self.kwargs = None
+        self.advanced_options = None
 
         self.parent = ""
         self.var_name = ""
@@ -421,20 +434,19 @@ class GlobalAveragePooling1D(Operation):
         self.var_name = convert_variable_name(self.task_name)
         self.task_name = self.var_name
 
-        self.advanced_options = True if int(self.advanced_options) == 1 else \
+        self.advanced_options = True if int(self._advanced_options) == 1 else \
             False
 
         if self.advanced_options:
             functions_required = []
-            if self.data_format is not None:
-                self.data_format = """data_format={data_format}""" \
-                    .format(data_format=self.data_format)
+            if self._data_format is not None:
+                self.data_format = """data_format={data_format}""".format(
+                    data_format=self._data_format)
                 functions_required.append(self.data_format)
 
-            if self.kwargs is not None:
-                self.kwargs = self.kwargs.replace(' ', '').split(',')
-                self.kwargs = ',\n    '.join(self.kwargs)
-                functions_required.append(self.kwargs)
+            if self._kwargs is not None:
+                self.kwargs = self._kwargs.replace(' ', '').split(',')
+                functions_required.append(',\n    '.join(self.kwargs))
 
             self.add_functions_required = ',\n    '.join(functions_required)
             if self.add_functions_required:
@@ -464,10 +476,14 @@ class GlobalAveragePooling2D(Operation):
         self.output = named_outputs.get('output data',
                                         'out_task_{}'.format(self.order))
 
-        self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None) or None
-        self.kwargs = parameters.get(self.KWARG_PARAM, None)
+        self._data_format = parameters.get(self.DATA_FORMAT_PARAM, None) or None
+        self._kwargs = parameters.get(self.KWARG_PARAM, None)
+        self._advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
         self.task_name = self.parameters.get('task').get('name')
-        self.advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
+
+        self.data_format = None
+        self.kwargs = None
+        self.advanced_options = None
 
         self.parent = ""
         self.var_name = ""
@@ -508,20 +524,18 @@ class GlobalAveragePooling2D(Operation):
         self.var_name = convert_variable_name(self.task_name)
         self.task_name = self.var_name
 
-        self.advanced_options = True if int(self.advanced_options) == 1 else \
+        self.advanced_options = True if int(self._advanced_options) == 1 else \
             False
-
         if self.advanced_options:
             functions_required = []
-            if self.data_format is not None:
-                self.data_format = """data_format={data_format}""" \
-                    .format(data_format=self.data_format)
+            if self._data_format is not None:
+                self.data_format = """data_format={data_format}""".format(
+                    data_format=self._data_format)
                 functions_required.append(self.data_format)
 
-            if self.kwargs is not None:
-                self.kwargs = self.kwargs.replace(' ', '').split(',')
-                self.kwargs = ',\n    '.join(self.kwargs)
-                functions_required.append(self.kwargs)
+            if self._kwargs is not None:
+                self.kwargs = self._kwargs.replace(' ', '').split(',')
+                functions_required.append(',\n    '.join(self.kwargs))
 
             self.add_functions_required = ',\n    '.join(functions_required)
             if self.add_functions_required:
@@ -551,10 +565,14 @@ class GlobalAveragePooling3D(Operation):
         self.output = named_outputs.get('output data',
                                         'out_task_{}'.format(self.order))
 
-        self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None) or None
+        self._data_format = parameters.get(self.DATA_FORMAT_PARAM, None) or None
+        self._kwargs = parameters.get(self.KWARG_PARAM, None)
+        self._advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
         self.task_name = self.parameters.get('task').get('name')
-        self.kwargs = parameters.get(self.KWARG_PARAM, None)
-        self.advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
+
+        self.data_format = None
+        self.kwargs = None
+        self.advanced_options = None
 
         self.parent = ""
         self.var_name = ""
@@ -595,20 +613,18 @@ class GlobalAveragePooling3D(Operation):
         self.var_name = convert_variable_name(self.task_name)
         self.task_name = self.var_name
 
-        self.advanced_options = True if int(self.advanced_options) == 1 else \
+        self.advanced_options = True if int(self._advanced_options) == 1 else \
             False
-
         if self.advanced_options:
             functions_required = []
-            if self.data_format is not None:
-                self.data_format = """data_format={data_format}""" \
-                    .format(data_format=self.data_format)
+            if self._data_format is not None:
+                self.data_format = """data_format={data_format}""".format(
+                    data_format=self._data_format)
                 functions_required.append(self.data_format)
 
-            if self.kwargs is not None:
-                self.kwargs = self.kwargs.replace(' ', '').split(',')
-                self.kwargs = ',\n    '.join(self.kwargs)
-                functions_required.append(self.kwargs)
+            if self._kwargs is not None:
+                self.kwargs = self._kwargs.replace(' ', '').split(',')
+                functions_required.append(',\n    '.join(self.kwargs))
 
             self.add_functions_required = ',\n    '.join(functions_required)
             if self.add_functions_required:
@@ -638,10 +654,15 @@ class GlobalMaxPooling1D(Operation):
         self.output = named_outputs.get('output data',
                                         'out_task_{}'.format(self.order))
 
-        self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None) or None
+        self._data_format = parameters.get(self.DATA_FORMAT_PARAM, None)
+        self._kwargs = parameters.get(self.KWARG_PARAM, None)
+        self._advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
+
+        self.data_format = None
+        self.kwargs = None
+        self.advanced_options = None
+
         self.task_name = self.parameters.get('task').get('name')
-        self.kwargs = parameters.get(self.KWARG_PARAM, None)
-        self.advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
 
         self.parent = ""
         self.var_name = ""
@@ -682,20 +703,19 @@ class GlobalMaxPooling1D(Operation):
         self.var_name = convert_variable_name(self.task_name)
         self.task_name = self.var_name
 
-        self.advanced_options = True if int(self.advanced_options) == 1 else \
+        self.advanced_options = True if int(self._advanced_options) == 1 else \
             False
 
         if self.advanced_options:
             functions_required = []
-            if self.data_format is not None:
-                self.data_format = """data_format={data_format}""" \
-                    .format(data_format=self.data_format)
+            if self._data_format is not None:
+                self.data_format = """data_format={data_format}""".format(
+                    data_format=self._data_format)
                 functions_required.append(self.data_format)
 
-            if self.kwargs is not None:
-                self.kwargs = self.kwargs.replace(' ', '').split(',')
-                self.kwargs = ',\n    '.join(self.kwargs)
-                functions_required.append(self.kwargs)
+            if self._kwargs is not None:
+                self.kwargs = self._kwargs.replace(' ', '').split(',')
+                functions_required.append(',\n    '.join(self.kwargs))
 
             self.add_functions_required = ',\n    '.join(functions_required)
             if self.add_functions_required:
@@ -725,10 +745,15 @@ class GlobalMaxPooling2D(Operation):
         self.output = named_outputs.get('output data',
                                         'out_task_{}'.format(self.order))
 
-        self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None) or None
+        self._data_format = parameters.get(self.DATA_FORMAT_PARAM, None)
+        self._kwargs = parameters.get(self.KWARG_PARAM, None)
+        self._advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
+
+        self.data_format = None
+        self.kwargs = None
+        self.advanced_options = None
+
         self.task_name = self.parameters.get('task').get('name')
-        self.kwargs = parameters.get(self.KWARG_PARAM, None)
-        self.advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
 
         self.parent = ""
         self.var_name = ""
@@ -769,20 +794,19 @@ class GlobalMaxPooling2D(Operation):
         self.var_name = convert_variable_name(self.task_name)
         self.task_name = self.var_name
 
-        self.advanced_options = True if int(self.advanced_options) == 1 else \
+        self.advanced_options = True if int(self._advanced_options) == 1 else \
             False
 
         if self.advanced_options:
             functions_required = []
-            if self.data_format is not None:
-                self.data_format = """data_format={data_format}""" \
-                    .format(data_format=self.data_format)
+            if self._data_format is not None:
+                self.data_format = """data_format={data_format}""".format(
+                    data_format=self._data_format)
                 functions_required.append(self.data_format)
 
-            if self.kwargs is not None:
-                self.kwargs = self.kwargs.replace(' ', '').split(',')
-                self.kwargs = ',\n    '.join(self.kwargs)
-                functions_required.append(self.kwargs)
+            if self._kwargs is not None:
+                self.kwargs = self._kwargs.replace(' ', '').split(',')
+                functions_required.append(',\n    '.join(self.kwargs))
 
             self.add_functions_required = ',\n    '.join(functions_required)
             if self.add_functions_required:
@@ -812,10 +836,15 @@ class GlobalMaxPooling3D(Operation):
         self.output = named_outputs.get('output data',
                                         'out_task_{}'.format(self.order))
 
-        self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None) or None
+        self._data_format = parameters.get(self.DATA_FORMAT_PARAM, None)
+        self._kwargs = parameters.get(self.KWARG_PARAM, None)
+        self._advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
+
+        self.data_format = None
+        self.kwargs = None
+        self.advanced_options = None
+
         self.task_name = self.parameters.get('task').get('name')
-        self.kwargs = parameters.get(self.KWARG_PARAM, None)
-        self.advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
 
         self.parent = ""
         self.var_name = ""
@@ -856,20 +885,19 @@ class GlobalMaxPooling3D(Operation):
         self.var_name = convert_variable_name(self.task_name)
         self.task_name = self.var_name
 
-        self.advanced_options = True if int(self.advanced_options) == 1 else \
+        self.advanced_options = True if int(self._advanced_options) == 1 else \
             False
 
         if self.advanced_options:
             functions_required = []
-            if self.data_format is not None:
-                self.data_format = """data_format={data_format}""" \
-                    .format(data_format=self.data_format)
+            if self._data_format is not None:
+                self.data_format = """data_format={data_format}""".format(
+                    data_format=self._data_format)
                 functions_required.append(self.data_format)
 
-            if self.kwargs is not None:
-                self.kwargs = self.kwargs.replace(' ', '').split(',')
-                self.kwargs = ',\n    '.join(self.kwargs)
-                functions_required.append(self.kwargs)
+            if self._kwargs is not None:
+                self.kwargs = self._kwargs.replace(' ', '').split(',')
+                functions_required.append(',\n    '.join(self.kwargs))
 
             self.add_functions_required = ',\n    '.join(functions_required)
             if self.add_functions_required:
@@ -902,12 +930,20 @@ class MaxPooling1D(Operation):
         self.output = named_outputs.get('output data',
                                         'out_task_{}'.format(self.order))
 
-        self.pool_size = parameters.get(self.POOL_SIZE_PARAM, None) or None
-        self.strides = parameters.get(self.STRIDES_PARAM, None) or None
-        self.padding = parameters.get(self.PADDING_PARAM, None) or None
-        self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None) or None
-        self.kwargs = parameters.get(self.KWARG_PARAM, None)
-        self.advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
+        self._pool_size = parameters.get(self.POOL_SIZE_PARAM, None)
+        self._strides = parameters.get(self.STRIDES_PARAM, None)
+        self._padding = parameters.get(self.PADDING_PARAM, None)
+        self._data_format = parameters.get(self.DATA_FORMAT_PARAM, None)
+        self._kwargs = parameters.get(self.KWARG_PARAM, None)
+        self._advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
+
+        self.pool_size = None
+        self.strides = None
+        self.padding = None
+        self.data_format = None
+        self.kwargs = None
+        self.advanced_options = None
+
         self.task_name = self.parameters.get('task').get('name')
 
         self.parent = ""
@@ -917,7 +953,7 @@ class MaxPooling1D(Operation):
         self.add_functions_required = ""
 
         if self.POOL_SIZE_PARAM is None:
-            raise ValueError(gettext('Parameter {} is required')
+            raise ValueError(gettext('Parameter {} is required.')
                              .format(self.POOL_SIZE_PARAM))
 
         self.parents_by_port = parameters.get('my_ports', [])
@@ -953,44 +989,40 @@ class MaxPooling1D(Operation):
         self.var_name = convert_variable_name(self.task_name)
         self.task_name = self.var_name
 
-        self.advanced_options = True if int(self.advanced_options) == 1 else \
-            False
-
         functions_required = []
         try:
-            self.pool_size = int(self.pool_size)
+            self.pool_size = int(self._pool_size)
         except:
-            raise ValueError(gettext('Parameter {} is invalid').format(
+            raise ValueError(gettext('Parameter {} is invalid.').format(
                 self.POOL_SIZE_PARAM))
-        self.pool_size = """pool_size={pool_size}""" \
-            .format(pool_size=self.pool_size)
-        functions_required.append(self.pool_size)
+        functions_required.append("""pool_size={pool_size}""".format(
+            pool_size=self.pool_size))
+
+        self.advanced_options = True if int(self._advanced_options) == 1 else \
+            False
 
         if self.advanced_options:
             try:
-                self.strides = int(self.strides)
+                self.strides = int(self._strides)
             except:
-                raise ValueError(gettext('Parameter {} is invalid').format(
+                raise ValueError(gettext('Parameter {} is invalid.').format(
                     self.STRIDES_PARAM))
             if self.strides is not None:
-                self.strides = """strides={strides}""" \
-                    .format(strides=self.strides)
-                functions_required.append(self.strides)
+                functions_required.append("""strides={strides}""".format(
+                    strides=self.strides))
 
-            if self.padding is not None:
-                self.padding = """padding={padding}""" \
-                    .format(padding=self.padding)
-                functions_required.append(self.padding)
+            if self._padding is not None:
+                functions_required.append("""padding='{padding}'""".format(
+                    padding=self._padding))
 
-            if self.data_format is not None:
-                self.data_format = """data_format={data_format}""" \
-                    .format(data_format=self.data_format)
+            if self._data_format is not None:
+                self.data_format = """data_format={data_format}""".format(
+                    data_format=self._data_format)
                 functions_required.append(self.data_format)
 
-            if self.kwargs is not None:
-                self.kwargs = self.kwargs.replace(' ', '').split(',')
-                self.kwargs = ',\n    '.join(self.kwargs)
-                functions_required.append(self.kwargs)
+            if self._kwargs is not None:
+                self.kwargs = self._kwargs.replace(' ', '').split(',')
+                functions_required.append(',\n    '.join(self.kwargs))
 
         self.add_functions_required = ',\n    '.join(functions_required)
         if self.add_functions_required:
@@ -1023,12 +1055,20 @@ class MaxPooling2D(Operation):
         self.output = named_outputs.get('output data',
                                         'out_task_{}'.format(self.order))
 
-        self.pool_size = parameters.get(self.POOL_SIZE_PARAM, None) or None
-        self.strides = parameters.get(self.STRIDES_PARAM, None) or None
-        self.padding = parameters.get(self.PADDING_PARAM, None) or None
-        self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None) or None
-        self.kwargs = parameters.get(self.KWARG_PARAM, None)
-        self.advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
+        self._pool_size = parameters.get(self.POOL_SIZE_PARAM, None)
+        self._strides = parameters.get(self.STRIDES_PARAM, None)
+        self._padding = parameters.get(self.PADDING_PARAM, None)
+        self._data_format = parameters.get(self.DATA_FORMAT_PARAM, None)
+        self._kwargs = parameters.get(self.KWARG_PARAM, None)
+        self._advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
+
+        self.pool_size = None
+        self.strides = None
+        self.padding = None
+        self.data_format = None
+        self.kwargs = None
+        self.advanced_options = None
+
         self.task_name = self.parameters.get('task').get('name')
 
         self.parent = ""
@@ -1038,7 +1078,7 @@ class MaxPooling2D(Operation):
         self.add_functions_required = ""
 
         if self.POOL_SIZE_PARAM is None:
-            raise ValueError(gettext('Parameter {} is required')
+            raise ValueError(gettext('Parameter {} is required.')
                              .format(self.POOL_SIZE_PARAM))
 
         self.parents_by_port = parameters.get('my_ports', [])
@@ -1074,44 +1114,39 @@ class MaxPooling2D(Operation):
         self.var_name = convert_variable_name(self.task_name)
         self.task_name = self.var_name
 
-        self.advanced_options = True if int(self.advanced_options) == 1 else \
-            False
-
         functions_required = []
-        self.pool_size = get_int_or_tuple(self.pool_size)
+        self.pool_size = get_int_or_tuple(self._pool_size)
         if self.pool_size:
-            self.pool_size = """pool_size={pool_size}""" \
-                .format(pool_size=self.pool_size)
-            functions_required.append(self.pool_size)
+            functions_required.append("""pool_size={pool_size}""".format(
+                pool_size=self.pool_size))
         else:
-            raise ValueError(gettext('Parameter {} is invalid').format(
+            raise ValueError(gettext('Parameter {} is invalid.').format(
                 self.POOL_SIZE_PARAM))
 
+        self.advanced_options = True if int(self._advanced_options) == 1 else \
+            False
         if self.advanced_options:
-            try:
-                self.strides = int(self.strides)
-            except:
-                raise ValueError(gettext('Parameter {} is invalid').format(
-                    self.STRIDES_PARAM))
+            self.strides = get_int_or_tuple(self._strides)
             if self.strides is not None:
-                self.strides = """strides={strides}""" \
-                    .format(strides=self.strides)
-                functions_required.append(self.strides)
+                functions_required.append("""strides={strides}""".format(
+                    strides=self.strides))
+            else:
+                raise ValueError(gettext('Parameter {} is invalid.').format(
+                    self.STRIDES_PARAM))
 
-            if self.padding is not None:
-                self.padding = """padding={padding}""" \
-                    .format(padding=self.padding)
+            if self._padding is not None:
+                self.padding = """padding='{padding}'""".format(
+                    padding=self._padding)
                 functions_required.append(self.padding)
 
-            if self.data_format is not None:
-                self.data_format = """data_format={data_format}""" \
-                    .format(data_format=self.data_format)
+            if self._data_format is not None:
+                self.data_format = """data_format={data_format}""".format(
+                    data_format=self._data_format)
                 functions_required.append(self.data_format)
 
-            if self.kwargs is not None:
-                self.kwargs = self.kwargs.replace(' ', '').split(',')
-                self.kwargs = ',\n    '.join(self.kwargs)
-                functions_required.append(self.kwargs)
+            if self._kwargs is not None:
+                self.kwargs = self._kwargs.replace(' ', '').split(',')
+                functions_required.append(',\n    '.join(self.kwargs))
 
         self.add_functions_required = ',\n    '.join(functions_required)
         if self.add_functions_required:
@@ -1144,12 +1179,20 @@ class MaxPooling3D(Operation):
         self.output = named_outputs.get('output data',
                                         'out_task_{}'.format(self.order))
 
-        self.pool_size = parameters.get(self.POOL_SIZE_PARAM, None) or None
-        self.strides = parameters.get(self.STRIDES_PARAM, None) or None
-        self.padding = parameters.get(self.PADDING_PARAM, None) or None
-        self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None) or None
-        self.kwargs = parameters.get(self.KWARG_PARAM, None)
-        self.advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
+        self._pool_size = parameters.get(self.POOL_SIZE_PARAM, None)
+        self._strides = parameters.get(self.STRIDES_PARAM, None)
+        self._padding = parameters.get(self.PADDING_PARAM, None)
+        self._data_format = parameters.get(self.DATA_FORMAT_PARAM, None)
+        self._kwargs = parameters.get(self.KWARG_PARAM, None)
+        self._advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
+
+        self.pool_size = None
+        self.strides = None
+        self.padding = None
+        self.data_format = None
+        self.kwargs = None
+        self.advanced_options = None
+
         self.task_name = self.parameters.get('task').get('name')
 
         self.parent = ""
@@ -1159,7 +1202,7 @@ class MaxPooling3D(Operation):
         self.add_functions_required = ""
 
         if self.POOL_SIZE_PARAM is None:
-            raise ValueError(gettext('Parameter {} is required')
+            raise ValueError(gettext('Parameter {} is required.')
                              .format(self.POOL_SIZE_PARAM))
 
         self.parents_by_port = parameters.get('my_ports', [])
@@ -1195,43 +1238,39 @@ class MaxPooling3D(Operation):
         self.var_name = convert_variable_name(self.task_name)
         self.task_name = self.var_name
 
-        self.advanced_options = True if int(self.advanced_options) == 1 else \
-            False
-
         functions_required = []
-        self.pool_size = get_tuple(self.pool_size)
+        self.pool_size = get_int_or_tuple(self._pool_size)
         if self.pool_size:
-            self.pool_size = """pool_size={pool_size}""" \
-                .format(pool_size=self.pool_size)
-            functions_required.append(self.pool_size)
+            functions_required.append("""pool_size={pool_size}""".format(
+                pool_size=self.pool_size))
         else:
-            raise ValueError(gettext('Parameter {} is invalid').format(
+            raise ValueError(gettext('Parameter {} is invalid.').format(
                 self.POOL_SIZE_PARAM))
 
+        self.advanced_options = True if int(self._advanced_options) == 1 else \
+            False
         if self.advanced_options:
-            self.strides = get_tuple(self.strides)
+            self.strides = get_tuple(self._strides)
             if self.strides is not None:
-                self.strides = """strides={strides}""" \
-                    .format(strides=self.strides)
-                functions_required.append(self.strides)
+                functions_required.append("""strides={strides}""".format(
+                    strides=self.strides))
             else:
-                raise ValueError(gettext('Parameter {} is invalid').format(
+                raise ValueError(gettext('Parameter {} is invalid.').format(
                     self.STRIDES_PARAM))
 
-            if self.padding is not None:
-                self.padding = """padding='{padding}'""" \
-                    .format(padding=self.padding)
+            if self._padding is not None:
+                self.padding = """padding='{padding}'""".format(
+                    padding=self._padding)
                 functions_required.append(self.padding)
 
-            if self.data_format is not None:
-                self.data_format = """data_format='{data_format}'""" \
-                    .format(data_format=self.data_format)
+            if self._data_format is not None:
+                self.data_format = """data_format={data_format}""".format(
+                    data_format=self._data_format)
                 functions_required.append(self.data_format)
 
-            if self.kwargs is not None:
-                self.kwargs = self.kwargs.replace(' ', '').split(',')
-                self.kwargs = ',\n    '.join(self.kwargs)
-                functions_required.append(self.kwargs)
+            if self._kwargs is not None:
+                self.kwargs = self._kwargs.replace(' ', '').split(',')
+                functions_required.append(',\n    '.join(self.kwargs))
 
         self.add_functions_required = ',\n    '.join(functions_required)
         if self.add_functions_required:
