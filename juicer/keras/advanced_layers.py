@@ -16,7 +16,7 @@ class PythonCode(Operation):
                                         'out_task_{}'.format(self.order))
 
         self.code = parameters.get(self.CODE_PARAM, None) or None
-        self.out_code = parameters.get(self.OUT_CODE_PARAM, None) or None
+        self._out_code = parameters.get(self.OUT_CODE_PARAM, None) or None
 
         self.task_name = self.parameters.get('task').get('name')
 
@@ -27,6 +27,7 @@ class PythonCode(Operation):
 
         self.parents_by_port = parameters.get('my_ports', [])
         self.python_code_to_remove = self.remove_python_code_parent()
+        self.out_code = None
         self.treatment()
 
         self.import_code = {'layer': None,
@@ -48,7 +49,7 @@ class PythonCode(Operation):
         return python_code_to_remove
 
     def treatment(self):
-        self.out_code = True if int(self.out_code) == 1 else False
+        self.out_code = True if int(self._out_code) == 1 else False
 
         if not self.CODE_PARAM:
             raise ValueError(gettext('Parameter {} is invalid').format(
