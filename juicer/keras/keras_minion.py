@@ -245,7 +245,7 @@ class KerasMinion(Minion):
 
             t = gettext.translation('messages', locales_path, [lang],
                                     fallback=True)
-            t.install(str=True)
+            t.install()
 
             app_configs = msg_info.get('app_configs', {})
 
