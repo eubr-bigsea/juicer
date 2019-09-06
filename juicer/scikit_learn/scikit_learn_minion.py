@@ -220,7 +220,7 @@ class ScikitLearnMinion(Minion):
             # Launch the scikit_learn
             self.module = importlib.import_module(module_name)
             self.module = imp.reload(self.module)
-            if log.isEnabledFor(logging.debug):
+            if log.isEnabledFor(logging.DEBUG):
                 log.debug('Objects in memory after loading module: %s',
                           len(gc.get_objects()))
 
