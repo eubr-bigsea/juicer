@@ -1,6 +1,6 @@
 # coding=utf-8
 
-## Comm protocol between clients, JuicerServer and Minion ##
+# Comm protocol between clients, JuicerServer and Minion ##
 
 # EXECUTE messages request the execution of a new job
 # {
@@ -13,28 +13,13 @@
 # }
 EXECUTE = 'execute'
 
-# DELIVER messages request the delivery of a result (task_id)
-# {
-#   'workflow_id': <workflow identifier>
-#   'app_id': <app identifier, representing an workflow instance>
-#   'job_id': <job identifier, representing a command submited to the app>
-#   'type': 'deliver'
-#   'task_id': <identifier of the task result to deliver>
-#   'output': <queue identifier for publishing results>
-#   'port': <port for fetching results>
-#   'app_configs': <key value pairs as app resource and env configurations>
-#   'workflow': <workflow that will be transpiled and executed>
-# }
-# DEPRECATED
-DELIVER = 'deliver'
-
-# SCRIPT request the execution of a special script, 
+# SCRIPT request the execution of a special script,
 # in general something related to researching branches
 # {
 #        'execution_id': <execution id>,
 #        'script': <script name>,
 #        'params: <object with params, as a dict in Python>
-#}
+# }
 # 
 SCRIPT = 'script'
 

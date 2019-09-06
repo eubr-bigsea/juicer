@@ -42,7 +42,7 @@ def test_runner_read_start_queue_success():
             state_control.push_start_queue(json.dumps(workflow))
 
             # Start of testing
-            server.read_start_queue(mocked_redis_conn)
+            server.read_job_start_queue(mocked_redis_conn)
 
             d1 = json.loads(state_control.get_minion_status(app_id))
             d2 = {"port": 36000, "pid": 1,}
@@ -55,7 +55,7 @@ def test_runner_read_start_queue_success():
             assert mocked_popen.called
 
             # Was command removed from the queue?
-            assert state_control.pop_start_queue(False) is None
+            assert state_control.pop_job_start_queue(False) is None
 
             assert json.loads(state_control.pop_app_queue(app_id)) == workflow
 
@@ -97,12 +97,12 @@ def test_runner_read_start_queue_workflow_not_started_failure():
             server.active_minions[(workflow_id, app_id)] = '_'
 
             # Start of testing
-            server.read_start_queue(mocked_redis_conn)
+            server.read_job_start_queue(mocked_redis_conn)
 
             assert state_control.get_minion_status(app_id) is None
             assert not mocked_popen.called
             # Was command removed from the queue?
-            assert state_control.pop_start_queue(False) is None
+            assert state_control.pop_job_start_queue(False) is None
 
             assert state_control.get_app_queue_size(workflow_id) == 0
 
@@ -136,7 +136,7 @@ def test_runner_read_start_queue_minion_already_running_success():
             state_control.set_minion_status(app_id, JuicerServer.STARTED)
 
             # Start of testing
-            server.read_start_queue(mocked_redis_conn)
+            server.read_job_start_queue(mocked_redis_conn)
 
             assert state_control.get_minion_status(
                 app_id) == JuicerServer.STARTED
@@ -183,14 +183,14 @@ def test_runner_read_start_queue_missing_details_failure():
             state_control.set_minion_status(app_id, JuicerServer.STARTED)
 
             # Start of testing
-            server.read_start_queue(mocked_redis_conn)
+            server.read_job_start_queue(mocked_redis_conn)
 
             assert state_control.get_minion_status(
                 app_id) == JuicerServer.STARTED
 
             assert not mocked_popen.called
             # Was command removed from the queue?
-            assert state_control.pop_start_queue(block=False) is None
+            assert state_control.pop_job_start_queue(block=False) is None
             assert state_control.pop_app_queue(app_id, block=False) is None
             assert state_control.pop_app_output_queue(app_id,
                                                       block=False) is None
@@ -336,8 +336,8 @@ def test_runner_multiple_jobs_single_app():
             state_control.push_start_queue(json.dumps(workflow))
 
             # Start of testing
-            server.read_start_queue(mocked_redis_conn)
-            server.read_start_queue(mocked_redis_conn)
+            server.read_job_start_queue(mocked_redis_conn)
+            server.read_job_start_queue(mocked_redis_conn)
 
             assert len(server.active_minions) == 1
             assert mocked_popen.called
@@ -390,10 +390,10 @@ def test_runner_multiple_jobs_multiple_apps():
             state_control.push_start_queue(json.dumps(workflow1))
 
             # Start of testing
-            server.read_start_queue(mocked_redis_conn)
-            server.read_start_queue(mocked_redis_conn)
-            server.read_start_queue(mocked_redis_conn)
-            server.read_start_queue(mocked_redis_conn)
+            server.read_job_start_queue(mocked_redis_conn)
+            server.read_job_start_queue(mocked_redis_conn)
+            server.read_job_start_queue(mocked_redis_conn)
+            server.read_job_start_queue(mocked_redis_conn)
 
             assert len(server.active_minions) == 2
             assert mocked_popen.called
@@ -465,19 +465,19 @@ def test_runner_minion_termination():
         state_control.push_start_queue(json.dumps(workflow2))
 
         # Start of testing
-        server.read_start_queue(mocked_redis_conn)
-        server.read_start_queue(mocked_redis_conn)
+        server.read_job_start_queue(mocked_redis_conn)
+        server.read_job_start_queue(mocked_redis_conn)
 
         assert len(server.active_minions) == 2
 
         # kill first minion
         state_control.push_start_queue(json.dumps(workflow1_kill))
-        server.read_start_queue(mocked_redis_conn)
+        server.read_job_start_queue(mocked_redis_conn)
         assert len(server.active_minions) == 1
 
         # kill second minion
         state_control.push_start_queue(json.dumps(workflow2_kill))
-        server.read_start_queue(mocked_redis_conn)
+        server.read_job_start_queue(mocked_redis_conn)
         assert len(server.active_minions) == 0
 
 
