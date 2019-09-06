@@ -28,29 +28,42 @@ class BatchNormalization(Operation):
         self.output = named_outputs.get('output data',
                                         'out_task_{}'.format(self.order))
 
-        self.axis = parameters.get(self.AXIS_PARAM)
-        self.momentum = parameters.get(self.MOMENTUM_PARAM)
-        self.epsilon = parameters.get(self.EPSILON_PARAM)
-        self.center = parameters.get(self.CENTER_PARAM)
-        self.scale = parameters.get(self.SCALE_PARAM, None)
-        self.beta_initializer = parameters.get(self.BETA_INITIALIZER_PARAM,
-                                               None)
-        self.gamma_initializer = parameters.get(self.GAMA_INITIALIZER_PARAM,
+        self.axis = int(parameters.get(self.AXIS_PARAM, -1))
+        self.momentum = float(parameters.get(self.MOMENTUM_PARAM, 0.99))
+        self.epsilon = float(parameters.get(self.EPSILON_PARAM, 0.001))
+        self._center = parameters.get(self.CENTER_PARAM)
+        self._scale = parameters.get(self.SCALE_PARAM, None)
+        self._beta_initializer = parameters.get(self.BETA_INITIALIZER_PARAM,
                                                 None)
-        self.moving_mean_initializer = parameters.get(
+        self._gamma_initializer = parameters.get(self.GAMA_INITIALIZER_PARAM,
+                                                 None)
+        self._moving_mean_initializer = parameters.get(
             self.MOVING_MEAN_VARIANCE_INITIALIZER_PARAM)
-        self.moving_variance_initializer = parameters.get(
+        self._moving_variance_initializer = parameters.get(
             self.MOVING_VARIANCE_INITIALIZER_PARAM, None)
-        self.beta_regularizer = parameters.get(self.BETA_REGULARIZER_PARAM,
-                                               None)
-        self.gamma_regularizer = parameters.get(self.GAMMA_REGULARIZER_PARAM,
+        self._beta_regularizer = parameters.get(self.BETA_REGULARIZER_PARAM,
                                                 None)
-        self.beta_constraint = parameters.get(self.BETA_CONSTRAINT_PARAM,
-                                              None)
-        self.gamma_constraint = parameters.get(self.GAMMA_CONSTRAINT_PARAM,
+        self._gamma_regularizer = parameters.get(self.GAMMA_REGULARIZER_PARAM,
+                                                 None)
+        self._beta_constraint = parameters.get(self.BETA_CONSTRAINT_PARAM,
                                                None)
-        self.kwargs = parameters.get(self.KWARGS_PARAM, None)
-        self.advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
+        self._gamma_constraint = parameters.get(self.GAMMA_CONSTRAINT_PARAM,
+                                                None)
+        self._kwargs = parameters.get(self.KWARGS_PARAM, None)
+        self._advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
+
+        self.center = None
+        self.scale = None
+        self.beta_initializer = None
+        self.gamma_initializer = None
+        self.moving_mean_initializer = None
+        self.moving_variance_initializer = None
+        self.beta_regularizer = None
+        self.gamma_regularizer = None
+        self.beta_constraint = None
+        self.gamma_constraint = None
+        self.kwargs = None
+        self.advanced_options = None
 
         self.add_functions_required = ""
         self.task_name = self.parameters.get('task').get('name')
@@ -91,91 +104,87 @@ class BatchNormalization(Operation):
         self.var_name = convert_variable_name(self.task_name)
         self.task_name = self.var_name
 
-        self.center = True if int(self.center) == 1 else False
-        self.scale = True if int(self.scale) == 1 else False
-        self.advanced_options = True if int(self.advanced_options) == 1 else \
+        self.advanced_options = True if int(self._advanced_options) == 1 else \
             False
 
         if self.advanced_options:
             functions_required = []
             if self.axis is None:
-                raise ValueError(gettext('Parameter {} is invalid').format(
+                raise ValueError(gettext('Parameter {} is invalid.').format(
                     self.AXIS_PARAM))
             else:
-                self.axis = """axis={axis}""".format(axis=self.axis)
-                functions_required.append(self.axis)
+                functions_required.append("""axis={axis}""".format(
+                    axis=self.axis))
 
-            self.momentum = float(self.momentum)
             if self.momentum is None or self.momentum <= 0 or self.momentum > 1:
-                raise ValueError(gettext('Parameter {} is invalid').format(
+                raise ValueError(gettext('Parameter {} is invalid.').format(
                     self.MOMENTUM_PARAM))
             else:
-                self.momentum = """momentum={momentum}""".format(
-                    momentum=self.momentum)
-                functions_required.append(self.momentum)
+                functions_required.append("""momentum={momentum}""".format(
+                    momentum=self.momentum))
 
-            self.epsilon = float(self.epsilon)
             if self.epsilon is None or self.epsilon <= 0 or self.epsilon > 1:
-                raise ValueError(gettext('Parameter {} is invalid').format(
+                raise ValueError(gettext('Parameter {} is invalid.').format(
                     self.EPSILON_PARAM))
             else:
-                self.epsilon = """epsilon={epsilon}""".format(
-                    epsilon=self.epsilon)
-                functions_required.append(self.epsilon)
+                functions_required.append("""epsilon={epsilon}""".format(
+                    epsilon=self.epsilon))
 
-            self.center = """center={center}""".format(center=self.center)
-            functions_required.append(self.center)
+            self.center = True if int(self._center) == 1 else False
+            functions_required.append("""center={center}""".format(
+                center=self.center))
 
-            self.scale = """scale={scale}""".format(scale=self.scale)
-            functions_required.append(self.scale)
+            self.scale = True if int(self._scale) == 1 else False
+            functions_required.append("""scale={scale}""".format(
+                scale=self.scale))
 
-            if self.beta_initializer is not None:
-                self.beta_initializer = """beta_initializer='{beta_initializer}'
-                """.format(beta_initializer=self.beta_initializer)
+            if self._beta_initializer is not None:
+                self.beta_initializer = \
+                    """beta_initializer='{beta_initializer}'""".format(
+                        beta_initializer=self._beta_initializer)
                 functions_required.append(self.beta_initializer)
 
-            if self.gamma_initializer is not None:
-                self.gamma_initializer = """gamma_initializer='{gamma_initiali
-                zer}'""".format(gamma_initializer=self.gamma_initializer)
+            if self._gamma_initializer is not None:
+                self.gamma_initializer = """gamma_initializer='{g}'""".format(
+                    g=self._gamma_initializer)
                 functions_required.append(self.gamma_initializer)
 
-            if self.moving_mean_initializer is not None:
-                self.moving_mean_initializer = """moving_mean_initializer=
-                '{moving_mean_initializer}'""".format(
-                    moving_mean_initializer=self.moving_mean_initializer)
+            if self._moving_mean_initializer is not None:
+                self.moving_mean_initializer = \
+                    """moving_mean_initializer='{mmi}'""".format(
+                        mmi=self._moving_mean_initializer)
                 functions_required.append(self.moving_mean_initializer)
 
-            if self.moving_variance_initializer is not None:
-                self.moving_variance_initializer = """moving_variance_
-                initializer='{moving_variance_initializer}'""".format(
-                    moving_variance_initializer=self.moving_variance_initializer
+            if self._moving_variance_initializer is not None:
+                self.moving_variance_initializer = \
+                    """moving_variance_initializer='{mvi}'""".format(
+                        mvi=self._moving_variance_initializer
                 )
                 functions_required.append(self.moving_variance_initializer)
 
-            if self.beta_regularizer is not None:
-                self.beta_regularizer = """beta_regularizer='{beta_regularizer}'
-                """.format(beta_regularizer=self.beta_regularizer)
+            if self._beta_regularizer is not None:
+                self.beta_regularizer = """beta_regularizer='{b}'""".format(
+                    b=self._beta_regularizer)
                 functions_required.append(self.beta_regularizer)
 
-            if self.gamma_regularizer is not None:
-                self.gamma_regularizer = """gamma_regularizer='{gamma_
-                regularizer}'""".format(gamma_regularizer=self.gamma_regularizer
-                                        )
+            if self._gamma_regularizer is not None:
+                self.gamma_regularizer = """gamma_regularizer='{g}'""".format(
+                    g=self._gamma_regularizer)
                 functions_required.append(self.gamma_regularizer)
 
-            if self.beta_constraint is not None:
-                self.beta_constraint = """beta_constraint='{beta_constraint}'
-                """.format(beta_constraint=self.beta_constraint)
+            if self._beta_constraint is not None:
+                self.beta_constraint = """beta_constraint='{b}'""".format(
+                    b=self._beta_constraint)
                 functions_required.append(self.beta_constraint)
 
-            if self.gamma_constraint is not None:
-                self.gamma_constraint = """gamma_constraint='{gamma_constraint}'
-                """.format(gamma_constraint=self.gamma_constraint)
+            if self._gamma_constraint is not None:
+                self.gamma_constraint = """gamma_constraint='{g}'""".format(
+                    g=self._gamma_constraint)
                 functions_required.append(self.gamma_constraint)
 
             if self.kwargs is not None:
-                self.kwargs = ',\n    '.join(self.kwargs.replace(' ', '')
-                                             .split(','))
+                self.kwargs = ',\n    '.join(self._kwargs.replace(
+                    ' ', '').split(','))
                 functions_required.append(self.kwargs)
 
             self.add_functions_required = ',\n    '.join(functions_required)

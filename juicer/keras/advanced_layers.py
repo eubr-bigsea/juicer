@@ -52,7 +52,7 @@ class PythonCode(Operation):
         self.out_code = True if int(self._out_code) == 1 else False
 
         if not self.CODE_PARAM:
-            raise ValueError(gettext('Parameter {} is invalid').format(
+            raise ValueError(gettext('Parameter {} is required.').format(
                 self.CODE_PARAM))
 
     def generate_code(self):

@@ -410,10 +410,10 @@ class VideoGenerator(Operation):
     RANDOM_HEIGHT_PARAM = 'random_height'
     RANDOM_WIDTH_PARAM = 'random_width'
     RANDOM_CHANNEL_PARAM = 'random_channel'
-    FRAMES_PARAM = 'frames'
-    HEIGHT_PARAM = 'height'
-    WIDTH_PARAM = 'width'
-    CHANNEL_PARAM = 'channel'
+    VIDEO_FRAMES_PARAM = 'video_frames'
+    VIDEO_HEIGHT_PARAM = 'video_height'
+    VIDEO_WIDTH_PARAM = 'video_width'
+    VIDEO_CHANNEL_PARAM = 'video_channel'
     APPLY_TRANSFORMATIONS_PARAM = 'apply_transformations'
 
     def __init__(self, parameters, named_inputs, named_outputs):
@@ -436,10 +436,10 @@ class VideoGenerator(Operation):
         self._random_height = parameters.get(self.RANDOM_HEIGHT_PARAM, None)
         self._random_width = parameters.get(self.RANDOM_WIDTH_PARAM, None)
         self._random_channel = parameters.get(self.RANDOM_CHANNEL_PARAM, None)
-        self._frames = parameters.get(self.FRAMES_PARAM, None)
-        self._height = parameters.get(self.HEIGHT_PARAM, None)
-        self._width = parameters.get(self.WIDTH_PARAM, None)
-        self._channel = parameters.get(self.CHANNEL_PARAM, None)
+        self._frames = parameters.get(self.VIDEO_FRAMES_PARAM, None)
+        self._height = parameters.get(self.VIDEO_HEIGHT_PARAM, None)
+        self._width = parameters.get(self.VIDEO_WIDTH_PARAM, None)
+        self._channel = parameters.get(self.VIDEO_CHANNEL_PARAM, None)
         self._apply_transformations = parameters.get(
             self.APPLY_TRANSFORMATIONS_PARAM, None)
 
@@ -488,7 +488,7 @@ class VideoGenerator(Operation):
                             'preprocessing_image': None,
                             'others': ['from os import walk, listdir',
                                        'from os.path import isfile, join',
-                                       'from tensorflow.python.keras.utils '
+                                       'from keras.utils '
                                        'import to_categorical']
                             }
 
@@ -553,7 +553,7 @@ class VideoGenerator(Operation):
         self.channels = int(self._channels)
         if self.channels < 0:
             raise ValueError(gettext('Parameter {} is invalid.')
-                             .format(self.CHANNELS_PARAM))
+                             .format(self.VIDEO_CHANNELS_PARAM))
 
         self.batch_size = int(self._batch_size)
         if self.batch_size < 1:
@@ -601,7 +601,7 @@ class VideoGenerator(Operation):
                     self.frames = get_interval(self._frames)
                     if not self.frames:
                         raise ValueError(gettext('Parameter {} is invalid.')
-                                         .format(self.FRAMES_PARAM))
+                                         .format(self.VIDEO_FRAMES_PARAM))
                 else:
                     self.frames = ':'
 
@@ -609,7 +609,7 @@ class VideoGenerator(Operation):
                     self.height = get_interval(self._height)
                     if not self.height:
                         raise ValueError(gettext('Parameter {} is invalid.')
-                                         .format(self.HEIGHT_PARAM))
+                                         .format(self.VIDEO_HEIGHT_PARAM))
                 else:
                     self.height = ':'
 
@@ -617,7 +617,7 @@ class VideoGenerator(Operation):
                     self.width = get_interval(self._width)
                     if not self.width:
                         raise ValueError(gettext('Parameter {} is invalid.')
-                                         .format(self.WIDTH_PARAM))
+                                         .format(self.VIDEO_WIDTH_PARAM))
                 else:
                     self.width = ':'
 
