@@ -4,15 +4,16 @@
 import argparse
 import gettext
 import logging.config
+import os
 
 import matplotlib
-import os
 import redis
 import yaml
 from future.moves.urllib.parse import urlparse
 from juicer.compss.compss_minion import COMPSsMinion
 from juicer.keras.keras_minion import KerasMinion
 from juicer.scikit_learn.scikit_learn_minion import ScikitLearnMinion
+from juicer.jobs.script_minion import ScriptMinion
 from juicer.spark.spark_minion import SparkMinion
 
 # Important!
@@ -85,6 +86,13 @@ if __name__ == '__main__':
                                  args.app_id or args.workflow_id,
                                  juicer_config,
                                  args.lang)
+        elif args.type == 'script':
+            log.info('Starting Script Minion')
+            minion = ScriptMinion(redis_conn,
+                                  workflow_id=0,
+                                  app_id=0,
+                                  config=juicer_config,
+                                  lang=args.lang)
         else:
             raise ValueError(
                 _("{type} is not supported (yet!)").format(type=args.type))
