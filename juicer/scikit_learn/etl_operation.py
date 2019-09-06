@@ -828,9 +828,6 @@ class SelectOperation(Operation):
         self.output = self.named_outputs.get(
             'output projected data', 'projection_data_{}'.format(self.order))
 
-        import pdb
-        pdb.set_trace()
-
     def generate_code(self):
 
         code = "{output} = {input}[[{column}]]"\
