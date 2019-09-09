@@ -83,11 +83,11 @@ class JuicerServer:
         parsed_url = urlparse(
             self.config['juicer']['servers']['redis_url'])
         redis_conn = redis.StrictRedis(host=parsed_url.hostname,
-                                       port=parsed_url.port)
+                                       port=parsed_url.port,
+                                       decode_responses=True)
 
         # Start pending minions
-        apps = [q.split('_')[-1] for q in redis_conn.keys(
-            'queue_app_*'.encode())]
+        apps = [q.split('_')[-1] for q in redis_conn.keys('queue_app_*')]
         self.state_control = StateControlRedis(redis_conn)
 
         for app in apps:
