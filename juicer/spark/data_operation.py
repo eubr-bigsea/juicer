@@ -602,7 +602,7 @@ class SaveOperation(Operation):
             attributes = []
             decimal_regex = re.compile(r'DecimalType\((\d+),\s*(\d+)\)')
             for att in {input}.schema:
-                type_name = unicode(att.dataType)
+                type_name = str(att.dataType)
                 precision = None
                 scale = None
                 found = decimal_regex.findall(type_name)
