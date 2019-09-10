@@ -413,7 +413,7 @@ class ExecutePythonOperation(Operation):
         compiled_code = compile_restricted(user_code,
         str('python_execute_{order}'), str('exec'))
         try:
-            exec compiled_code in ctx
+            exec(compiled_code, ctx)
 
             # Retrieve values changed in the context
             out1 = ctx['out1']
