@@ -1051,7 +1051,7 @@ class ExecutePythonOperation(Operation):
         compiled_code = compile_restricted(user_code,
         str('python_execute_{order}'), str('exec'))
         try:
-            exec compiled_code in ctx
+            exec(compiled_code, ctx)
 
             # Retrieve values changed in the context
             out1 = ctx['out1']
@@ -1063,12 +1063,14 @@ class ExecutePythonOperation(Operation):
                     status='RUNNING',
                     identifier='{id}')
         except NameError as ne:
-            raise ValueError(_('Invalid name: {{}}. '
-                'Many Python commands are not available in Lemonade').format(ne))
+            raise ValueError('{msg1}'.format(ne))
         except ImportError as ie:
             raise ValueError(_('Command import is not supported'))
-        """.format(in1=in1, in2=in2, code=self.code.encode('unicode_escape'),
+        """.format(in1=in1, in2=in2, code=self.code.encode(
+            'unicode_escape').decode('utf8'),
                    name="execute_python", order=self.order,
+                   msg1=_('Invalid name: {}. '
+                          'Many Python commands are not available in Lemonade'),
                    id=self.parameters['task']['id']))
         # code += "\n# -- BEGIN user code\n{code}\n# -- END user code\n".format(
         #    code=dedent(self.code))

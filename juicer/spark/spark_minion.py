@@ -521,7 +521,7 @@ class SparkMinion(Minion):
                 message=_('Unhandled error'),
                 name='update job',
                 status='ERROR', identifier=job_id)
-            self._generate_output(ee, 'ERROR', code=1000)
+            self._generate_output(str(ee), 'ERROR', code=1000)
             result = False
 
         self.message_processed('execute')
