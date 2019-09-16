@@ -357,7 +357,8 @@ class KerasMinion(Minion):
 
         except ValueError as ve:
             msg = str(ve)
-            txt = msg.decode('utf8') if isinstance(msg, str) else msg
+            txt = msg if isinstance(msg, str) else msg
+            #txt = msg.decode('utf8') if isinstance(msg, str) else msg
             message = _('Invalid or missing parameters: {}').format(txt)
             log.exception(message)
             if self.transpiler.current_task_id is not None:
