@@ -278,7 +278,7 @@ def convert_to_list(field):
 def get_random_interval(field):
     if field is not None:
         if isinstance(field, str) and field.strip():
-            field = re.sub(r"\{|\[|\}|\]||\(|\)|\s+", "", field)
+            field = re.sub(r"\{|\[|\}|\]|\(|\)|\s+", "", field)
             field = field.split(',')
             if len(field) == 2:
                 return ', '.join(field)
@@ -288,7 +288,7 @@ def get_random_interval(field):
 def get_interval(field):
     if field is not None:
         if isinstance(field, str) and field.strip():
-            field = re.sub(r"\{|\[|\}|\]||\(|\)|\s+", "", field)
+            field = re.sub(r"\{|\[|\}|\]|\(|\)|\s+", "", field)
             field = field.split(':')
             if len(field) == 2:
                 return ':'.join(field)

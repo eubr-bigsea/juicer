@@ -560,8 +560,8 @@ class Input(Operation):
             self.parent = ''
 
         self.var_name = convert_variable_name(self.task_name)
-        if self.var_name == 'input':
-            self.var_name = 'input_layer'
+        # if self.var_name == 'input':
+        #     self.var_name = 'input_layer'
         self.task_name = self.var_name
 
         functions_required = []

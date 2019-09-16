@@ -88,8 +88,8 @@ class EvaluateModel(Operation):
                     report = classification_report(
                         y_true={generator}.classes,
                         y_pred=predictions_to_matrix,
-                        labels=class_mapping.values(),
-                        target_names=class_mapping.keys(),
+                        labels=list(class_mapping.values()),
+                        target_names=list(class_mapping.keys()),
                         digits=3,
                         output_dict=False
                     )
@@ -140,8 +140,8 @@ class EvaluateModel(Operation):
                     
                     predictions_to_matrix = np.argmax(model_predict, axis=1)
                     
-                    target_names = {generator}.class_indices.keys()
-                    labels = {generator}.class_indices.values()
+                    target_names = list({generator}.class_indices.keys())
+                    labels = list({generator}.class_indices.values())
                     report = classification_report(
                         y_true={generator}.classes,
                         y_pred=predictions_to_matrix,
@@ -608,7 +608,7 @@ class FitGenerator(Operation):
                                 message=tab(table=history.history,
                                             add_epoch=True,
                                             metric='History',
-                                            headers=history.history.keys()
+                                            headers=list(history.history.keys())
                                 ),
                                 type='HTML',
                                 status='RESULTS',
@@ -635,8 +635,8 @@ class FitGenerator(Operation):
                             report = classification_report(
                                 y_true=predict_training_video_generator.classes,
                                 y_pred=predictions_to_matrix,
-                                labels=class_mapping.values(),
-                                target_names=class_mapping.keys(),
+                                labels=list(class_mapping.values()),
+                                target_names=list(class_mapping.keys()),
                                 output_dict=False
                             )
                             
@@ -669,8 +669,8 @@ class FitGenerator(Operation):
                             report = classification_report(
                                 y_true=predict_validation_video_generator.classes,
                                 y_pred=predictions_to_matrix,
-                                labels=class_mapping.values(),
-                                target_names=class_mapping.keys(),
+                                labels=list(class_mapping.values()),
+                                target_names=list(class_mapping.keys()),
                                 output_dict=False
                             )
                             
@@ -703,7 +703,7 @@ class FitGenerator(Operation):
                                 message=tab(table=history.history,
                                             add_epoch=True,
                                             metric='History',
-                                            headers=history.history.keys()
+                                            headers=list(history.history.keys())
                                 ),
                                 type='HTML',
                                 status='RESULTS',
@@ -726,8 +726,8 @@ class FitGenerator(Operation):
                             
                             predictions_to_matrix = np.argmax(predictions, axis=1)
                             
-                            target_names = {train_generator}.class_indices.keys()
-                            labels = {train_generator}.class_indices.values()
+                            target_names = list({train_generator}.class_indices.keys())
+                            labels = list({train_generator}.class_indices.values())
                             report = classification_report(
                                 y_true={train_generator}.classes,
                                 y_pred=predictions_to_matrix,
@@ -763,8 +763,8 @@ class FitGenerator(Operation):
                             
                             predictions_to_matrix = np.argmax(predictions, axis=1)
                             
-                            target_names = {val_generator}.class_indices.keys()
-                            labels = {val_generator}.class_indices.values()
+                            target_names = list({val_generator}.class_indices.keys())
+                            labels = list({val_generator}.class_indices.values())
                             report = classification_report(
                                 y_true={val_generator}.classes,
                                 y_pred=predictions_to_matrix,
@@ -805,7 +805,7 @@ class FitGenerator(Operation):
                                 message=tab(table=history.history,
                                             add_epoch=True,
                                             metric='History',
-                                            headers=history.history.keys()
+                                            headers=list(history.history.keys())
                                 ),
                                 type='HTML',
                                 status='RESULTS',
@@ -832,8 +832,8 @@ class FitGenerator(Operation):
                             report = classification_report(
                                 y_true=predict_training_video_generator.classes,
                                 y_pred=predictions_to_matrix,
-                                labels=class_mapping.values(),
-                                target_names=class_mapping.keys(),
+                                labels=list(class_mapping.values()),
+                                target_names=list(class_mapping.keys()),
                                 output_dict=False
                             )
                             
@@ -866,7 +866,7 @@ class FitGenerator(Operation):
                                 message=tab(table=history.history,
                                             add_epoch=True,
                                             metric='History',
-                                            headers=history.history.keys()
+                                            headers=list(history.history.keys())
                                 ),
                                 type='HTML',
                                 status='RESULTS',
@@ -889,8 +889,8 @@ class FitGenerator(Operation):
                             
                             predictions_to_matrix = np.argmax(predictions, axis=1)
                             
-                            target_names = {train_generator}.class_indices.keys()
-                            labels = {train_generator}.class_indices.values()
+                            target_names = list({train_generator}.class_indices.keys())
+                            labels = list({train_generator}.class_indices.values())
                             report = classification_report(
                                 y_true={train_generator}.classes,
                                 y_pred=predictions_to_matrix,
@@ -926,7 +926,7 @@ class FitGenerator(Operation):
                     {add_functions_required_fit_generator}
                     )
                     emit_event(name='update task',
-                        message=tab(table=history.history, add_epoch=True, metric='History', headers=history.history.keys()),
+                        message=tab(table=history.history, add_epoch=True, metric='History', headers=list(history.history.keys())),
                         type='HTML',
                         status='RESULTS',
                         identifier='{task_id}'
