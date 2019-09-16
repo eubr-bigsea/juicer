@@ -14,9 +14,13 @@ class Add(Operation):
         self.output = named_outputs.get('output data',
                                         'out_task_{}'.format(self.order))
 
-        self.inputs = parameters.get(self.INPUTS_PARAM, None)
-        self.kwargs = parameters.get(self.KWARGS_PARAM, None)
-        self.advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
+        self._inputs = parameters.get(self.INPUTS_PARAM, None)
+        self._kwargs = parameters.get(self.KWARGS_PARAM, None)
+        self._advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
+
+        self.inputs = None
+        self.kwargs = None
+        self.advanced_options = None
 
         self.task_name = self.parameters.get('task').get('name')
         self.parents = ""
@@ -52,12 +56,9 @@ class Add(Operation):
         self.var_name = convert_variable_name(self.task_name)
         self.task_name = self.var_name
 
-        self.advanced_options = True if int(self.advanced_options) == 1 else \
-            False
-
-        if self.inputs is not None:
-            self.inputs = re.sub(r"\{|\[|\(|\)|\]|\}|\s+", "", str(self.inputs))
-            self.inputs = self.inputs.split(',')
+        if self._inputs is not None:
+            self.inputs = re.sub(r"\{|\[|\(|\)|\]|\}|\s+", "", str(self._inputs)
+                                 ).split(',')
 
         for i in range(len(self.parents)):
             if self.parents_slug[i] == 'model':
@@ -73,20 +74,22 @@ class Add(Operation):
                 raise ValueError(
                     gettext('Parameter {} requires at least 2.').format(
                         self.INPUTS_PARAM))
-            self.inputs = '[{}]'.format(', '.join(self.inputs))
+            #self.inputs = '[{}]'.format(', '.join(self.inputs))
 
         functions_required = []
-        if self.inputs is not None:
-            self.inputs = """inputs={inputs}""".format(inputs=self.inputs)
-            functions_required.append(self.inputs)
+        if self.inputs:
+            functions_required.append("""inputs={}""".format(
+                '[{}]'.format(', '.join(self.inputs))))
         else:
             raise ValueError(gettext('Parameter {} requires at least 2.')
                              .format(self.INPUTS_PARAM))
 
+        self.advanced_options = True if int(self._advanced_options) == 1 else \
+            False
         if self.advanced_options:
-            if self.kwargs is not None:
+            if self._kwargs:
                 # Format kwargs
-                self.kwargs = re.sub(r"^\s+|\s+$", "", self.kwargs)
+                self.kwargs = re.sub(r"^\s+|\s+$", "", self._kwargs)
                 self.kwargs = re.sub(r"\s+", " ", self.kwargs)
                 self.kwargs = re.sub(r"\s*,\s*", ", ", self.kwargs)
                 self.kwargs = re.sub(r"\s*=\s*", "=", self.kwargs)
@@ -94,8 +97,12 @@ class Add(Operation):
                 args = self.kwargs.split(',')
                 args_params = self.kwargs.split('=')
                 if len(args) >= 1 and ((len(args_params) - len(args)) == 1):
-                    self.kwargs = """{kwargs}""".format(kwargs=self.kwargs)
-                    functions_required.append(self.kwargs)
+                    functions_required.append("""{kwargs}""".format(
+                        kwargs=self.kwargs))
+                else:
+                    raise ValueError(
+                        gettext('Parameter {} is invalid').format(
+                            self.KWARGS_PARAM))
 
         self.add_functions_required = ',\n    '.join(functions_required)
 
@@ -121,9 +128,14 @@ class Average(Operation):
         self.output = named_outputs.get('output data',
                                         'out_task_{}'.format(self.order))
 
-        self.inputs = parameters.get(self.INPUTS_PARAM, None)
-        self.kwargs = parameters.get(self.KWARGS_PARAM, None)
-        self.advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
+        self._inputs = parameters.get(self.INPUTS_PARAM, None)
+        self._kwargs = parameters.get(self.KWARGS_PARAM, None)
+        self._advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
+
+        self.inputs = None
+        self.kwargs = None
+        self.advanced_options = None
+
         self.task_name = self.parameters.get('task').get('name')
 
         self.parents = ""
@@ -155,19 +167,17 @@ class Average(Operation):
     def treatment(self):
         self.parents = convert_parents_to_variable_name(self.parameters
                                                         .get('parents', []))
-        for python_code in self.python_code_to_remove:
-            self.parents.remove(python_code[0])
 
         self.var_name = convert_variable_name(self.task_name)
         self.task_name = self.var_name
 
+        if self._inputs is not None:
+            self.inputs = re.sub(r"\{|\[|\(|\)|\]|\}|\s+", "", str(self._inputs)
+                                 ).split(',')
+
         for i in range(len(self.parents)):
             if self.parents_slug[i] == 'model':
                 self.parents[i] += '.output'
-
-        if self.inputs is not None:
-            self.inputs = re.sub(r"\{|\[|\(|\)|\]|\}|\s+", "", str(self.inputs))
-            self.inputs = self.inputs.split(',')
 
         if self.parents:
             if self.inputs:
@@ -179,23 +189,22 @@ class Average(Operation):
                 raise ValueError(
                     gettext('Parameter {} requires at least 2.').format(
                         self.INPUTS_PARAM))
-            self.inputs = '[{}]'.format(', '.join(self.inputs))
-
-        self.advanced_options = True if int(self.advanced_options) == 1 else \
-            False
+            #self.inputs = '[{}]'.format(', '.join(self.inputs))
 
         functions_required = []
-        if self.inputs is not None:
-            self.inputs = """inputs={inputs}""".format(inputs=self.inputs)
-            functions_required.append(self.inputs)
+        if self.inputs:
+            functions_required.append("""inputs={}""".format(
+                '[{}]'.format(', '.join(self.inputs))))
         else:
             raise ValueError(gettext('Parameter {} requires at least 2.')
                              .format(self.INPUTS_PARAM))
 
+        self.advanced_options = True if int(self._advanced_options) == 1 else \
+            False
         if self.advanced_options:
-            if self.kwargs is not None:
+            if self._kwargs:
                 # Format kwargs
-                self.kwargs = re.sub(r"^\s+|\s+$", "", self.kwargs)
+                self.kwargs = re.sub(r"^\s+|\s+$", "", self._kwargs)
                 self.kwargs = re.sub(r"\s+", " ", self.kwargs)
                 self.kwargs = re.sub(r"\s*,\s*", ", ", self.kwargs)
                 self.kwargs = re.sub(r"\s*=\s*", "=", self.kwargs)
@@ -203,8 +212,12 @@ class Average(Operation):
                 args = self.kwargs.split(',')
                 args_params = self.kwargs.split('=')
                 if len(args) >= 1 and ((len(args_params) - len(args)) == 1):
-                    self.kwargs = """{kwargs}""".format(kwargs=self.kwargs)
-                    functions_required.append(self.kwargs)
+                    functions_required.append("""{kwargs}""".format(
+                        kwargs=self.kwargs))
+                else:
+                    raise ValueError(
+                        gettext('Parameter {} is invalid').format(
+                            self.KWARGS_PARAM))
 
         self.add_functions_required = ',\n    '.join(functions_required)
 
@@ -231,10 +244,16 @@ class Concatenate(Operation):
         self.output = named_outputs.get('output data',
                                         'out_task_{}'.format(self.order))
 
-        self.inputs = parameters.get(self.INPUTS_PARAM, None)
-        self.axis = parameters.get(self.AXIS_PARAM, None)
-        self.kwargs = parameters.get(self.KWARGS_PARAM, None)
-        self.advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
+        self._inputs = parameters.get(self.INPUTS_PARAM, None)
+        self._kwargs = parameters.get(self.KWARGS_PARAM, None)
+        self._advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
+        self._axis = parameters.get(self.AXIS_PARAM, None)
+
+        self.inputs = None
+        self.kwargs = None
+        self.advanced_options = None
+        self.axis = None
+
         self.task_name = self.parameters.get('task').get('name')
 
         self.parents = ""
@@ -267,19 +286,13 @@ class Concatenate(Operation):
     def treatment(self):
         self.parents = convert_parents_to_variable_name(self.parameters
                                                         .get('parents', []))
-        for python_code in self.python_code_to_remove:
-            self.parents.remove(python_code[0])
-
-        for i in range(len(self.parents)):
-            if self.parents_slug[i] == 'model':
-                self.parents[i] += '.output'
 
         self.var_name = convert_variable_name(self.task_name)
         self.task_name = self.var_name
 
-        if self.inputs is not None:
-            self.inputs = re.sub(r"\{|\[|\(|\)|\]|\}|\s+", "", str(self.inputs))
-            self.inputs = self.inputs.split(',')
+        if self._inputs is not None:
+            self.inputs = re.sub(r"\{|\[|\(|\)|\]|\}|\s+", "", str(self._inputs)
+                                 ).split(',')
 
         for i in range(len(self.parents)):
             if self.parents_slug[i] == 'model':
@@ -295,27 +308,26 @@ class Concatenate(Operation):
                 raise ValueError(
                     gettext('Parameter {} requires at least 2.').format(
                         self.INPUTS_PARAM))
-            self.inputs = '[{}]'.format(', '.join(self.inputs))
-
-        self.advanced_options = True if int(self.advanced_options) == 1 else \
-            False
+            #self.inputs = '[{}]'.format(', '.join(self.inputs))
 
         functions_required = []
-        if self.advanced_options:
-            if self.inputs is not None:
-                self.inputs = """inputs={inputs}""".format(inputs=self.inputs)
-                functions_required.append(self.inputs)
-            else:
-                raise ValueError(gettext('Parameter {} requires at least 2.')
-                                 .format(self.INPUTS_PARAM))
+        if self.inputs:
+            functions_required.append("""inputs={}""".format(
+                '[{}]'.format(', '.join(self.inputs))))
+        else:
+            raise ValueError(gettext('Parameter {} requires at least 2.')
+                             .format(self.INPUTS_PARAM))
 
-            if self.axis is not None:
-                self.axis = """axis={axis}""".format(axis=self.axis)
+        self.advanced_options = True if int(self._advanced_options) == 1 else \
+            False
+        if self.advanced_options:
+            if self._axis is not None:
+                self.axis = """axis={axis}""".format(axis=self._axis)
                 functions_required.append(self.axis)
 
-            if self.kwargs is not None:
+            if self._kwargs:
                 # Format kwargs
-                self.kwargs = re.sub(r"^\s+|\s+$", "", self.kwargs)
+                self.kwargs = re.sub(r"^\s+|\s+$", "", self._kwargs)
                 self.kwargs = re.sub(r"\s+", " ", self.kwargs)
                 self.kwargs = re.sub(r"\s*,\s*", ", ", self.kwargs)
                 self.kwargs = re.sub(r"\s*=\s*", "=", self.kwargs)
@@ -323,8 +335,12 @@ class Concatenate(Operation):
                 args = self.kwargs.split(',')
                 args_params = self.kwargs.split('=')
                 if len(args) >= 1 and ((len(args_params) - len(args)) == 1):
-                    self.kwargs = """{kwargs}""".format(kwargs=self.kwargs)
-                    functions_required.append(self.kwargs)
+                    functions_required.append("""{kwargs}""".format(
+                        kwargs=self.kwargs))
+                else:
+                    raise ValueError(
+                        gettext('Parameter {} is invalid').format(
+                            self.KWARGS_PARAM))
 
         self.add_functions_required = ',\n    '.join(functions_required)
 
@@ -351,11 +367,18 @@ class Dot(Operation):
         self.output = named_outputs.get('output data',
                                         'out_task_{}'.format(self.order))
 
-        self.inputs = parameters.get(self.INPUTS_PARAM, None)
-        self.axes = parameters.get(self.AXES_PARAM, None)
-        self.normalize = parameters.get(self.NORMALIZE_PARAM, None)
-        self.kwargs = parameters.get(self.KWARGS_PARAM, None)
-        self.advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
+        self._inputs = parameters.get(self.INPUTS_PARAM, None)
+        self._kwargs = parameters.get(self.KWARGS_PARAM, None)
+        self._advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
+        self._axes = parameters.get(self.AXES_PARAM, None)
+        self._normalize = parameters.get(self.NORMALIZE_PARAM, None)
+
+        self.inputs = None
+        self.kwargs = None
+        self.advanced_options = None
+        self.axes = None
+        self.normalize = None
+
         self.task_name = self.parameters.get('task').get('name')
 
         self.parents = ""
@@ -387,21 +410,17 @@ class Dot(Operation):
     def treatment(self):
         self.parents = convert_parents_to_variable_name(self.parameters
                                                         .get('parents', []))
-        for python_code in self.python_code_to_remove:
-            self.parents.remove(python_code[0])
 
         self.var_name = convert_variable_name(self.task_name)
         self.task_name = self.var_name
 
-        self.normalize = True if int(self.normalize) == 1 else False
+        if self._inputs is not None:
+            self.inputs = re.sub(r"\{|\[|\(|\)|\]|\}|\s+", "", str(self._inputs)
+                                 ).split(',')
 
         for i in range(len(self.parents)):
             if self.parents_slug[i] == 'model':
                 self.parents[i] += '.output'
-
-        if self.inputs is not None:
-            self.inputs = re.sub(r"\{|\[|\(|\)|\]|\}|\s+", "", str(self.inputs))
-            self.inputs = self.inputs.split(',')
 
         if self.parents:
             if self.inputs:
@@ -413,27 +432,31 @@ class Dot(Operation):
                 raise ValueError(
                     gettext('Parameter {} requires at least 2.').format(
                         self.INPUTS_PARAM))
-            self.inputs = '[{}]'.format(', '.join(self.inputs))
-
-        self.advanced_options = True if int(self.advanced_options) == 1 else \
-            False
+            #self.inputs = '[{}]'.format(', '.join(self.inputs))
 
         functions_required = []
+        if self.inputs:
+            functions_required.append("""inputs={}""".format(
+                '[{}]'.format(', '.join(self.inputs))))
+        else:
+            raise ValueError(gettext('Parameter {} requires at least 2.')
+                             .format(self.INPUTS_PARAM))
+
+        self.advanced_options = True if int(self._advanced_options) == 1 else \
+            False
         if self.advanced_options:
-            if self.inputs is not None:
-                self.inputs = """inputs={inputs}""".format(inputs=self.inputs)
-                functions_required.append(self.inputs)
-            else:
-                raise ValueError(gettext('Parameter {} requires at least 2.')
-                                 .format(self.INPUTS_PARAM))
+            if self._axes is not None:
+                self.axes = get_int_or_tuple(self._axes)
+                functions_required.append("""axes={}""".format(self.axes))
 
-            if self.axes is not None:
-                self.axes = get_tuple(self.axes)
-                functions_required.append(self.axes)
+            self.normalize = True if int(self._normalize) == 1 else False
+            self.normalize = """normalize={normalize}""".format(
+                normalize=self.normalize)
+            functions_required.append(self.normalize)
 
-            if self.kwargs is not None:
+            if self._kwargs:
                 # Format kwargs
-                self.kwargs = re.sub(r"^\s+|\s+$", "", self.kwargs)
+                self.kwargs = re.sub(r"^\s+|\s+$", "", self._kwargs)
                 self.kwargs = re.sub(r"\s+", " ", self.kwargs)
                 self.kwargs = re.sub(r"\s*,\s*", ", ", self.kwargs)
                 self.kwargs = re.sub(r"\s*=\s*", "=", self.kwargs)
@@ -441,12 +464,12 @@ class Dot(Operation):
                 args = self.kwargs.split(',')
                 args_params = self.kwargs.split('=')
                 if len(args) >= 1 and ((len(args_params) - len(args)) == 1):
-                    self.kwargs = """{kwargs}""".format(kwargs=self.kwargs)
-                    functions_required.append(self.kwargs)
-
-            self.normalize = """normalize={normalize}""".format(
-                normalize=self.normalize)
-            functions_required.append(self.normalize)
+                    functions_required.append("""{kwargs}""".format(
+                        kwargs=self.kwargs))
+                else:
+                    raise ValueError(
+                        gettext('Parameter {} is invalid').format(
+                            self.KWARGS_PARAM))
 
         self.add_functions_required = ',\n    '.join(functions_required)
 
@@ -471,9 +494,14 @@ class Maximum(Operation):
         self.output = named_outputs.get('output data',
                                         'out_task_{}'.format(self.order))
 
-        self.inputs = parameters.get(self.INPUTS_PARAM, None)
-        self.kwargs = parameters.get(self.KWARGS_PARAM, None)
-        self.advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
+        self._inputs = parameters.get(self.INPUTS_PARAM, None)
+        self._kwargs = parameters.get(self.KWARGS_PARAM, None)
+        self._advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
+
+        self.inputs = None
+        self.kwargs = None
+        self.advanced_options = None
+
         self.task_name = self.parameters.get('task').get('name')
 
         self.parents = ""
@@ -506,18 +534,13 @@ class Maximum(Operation):
     def treatment(self):
         self.parents = convert_parents_to_variable_name(self.parameters
                                                         .get('parents', []))
-        for python_code in self.python_code_to_remove:
-            self.parents.remove(python_code[0])
 
         self.var_name = convert_variable_name(self.task_name)
         self.task_name = self.var_name
 
-        if self.inputs is not None:
-            tmp_inputs = re.sub(r"\{|\[|\(|\)|\]|\}|\s+", "", str(self.inputs))
-            self.inputs = []
-            tmp_inputs = tmp_inputs.split(',')
-            for tmp in tmp_inputs:
-                self.inputs.append('{}'.format(tmp))
+        if self._inputs is not None:
+            self.inputs = re.sub(r"\{|\[|\(|\)|\]|\}|\s+", "", str(self._inputs)
+                                 ).split(',')
 
         for i in range(len(self.parents)):
             if self.parents_slug[i] == 'model':
@@ -533,23 +556,22 @@ class Maximum(Operation):
                 raise ValueError(
                     gettext('Parameter {} requires at least 2.').format(
                         self.INPUTS_PARAM))
-            self.inputs = '[{}]'.format(', '.join(self.inputs))
-
-        self.advanced_options = True if int(self.advanced_options) == 1 else \
-            False
+            #self.inputs = '[{}]'.format(', '.join(self.inputs))
 
         functions_required = []
-        if self.inputs is not None:
-            self.inputs = """inputs={inputs}""".format(inputs=self.inputs)
-            functions_required.append(self.inputs)
+        if self.inputs:
+            functions_required.append("""inputs={}""".format(
+                '[{}]'.format(', '.join(self.inputs))))
         else:
             raise ValueError(gettext('Parameter {} requires at least 2.')
                              .format(self.INPUTS_PARAM))
 
+        self.advanced_options = True if int(self._advanced_options) == 1 else \
+            False
         if self.advanced_options:
-            if self.kwargs is not None:
+            if self._kwargs:
                 # Format kwargs
-                self.kwargs = re.sub(r"^\s+|\s+$", "", self.kwargs)
+                self.kwargs = re.sub(r"^\s+|\s+$", "", self._kwargs)
                 self.kwargs = re.sub(r"\s+", " ", self.kwargs)
                 self.kwargs = re.sub(r"\s*,\s*", ", ", self.kwargs)
                 self.kwargs = re.sub(r"\s*=\s*", "=", self.kwargs)
@@ -557,8 +579,12 @@ class Maximum(Operation):
                 args = self.kwargs.split(',')
                 args_params = self.kwargs.split('=')
                 if len(args) >= 1 and ((len(args_params) - len(args)) == 1):
-                    self.kwargs = """{kwargs}""".format(kwargs=self.kwargs)
-                    functions_required.append(self.kwargs)
+                    functions_required.append("""{kwargs}""".format(
+                        kwargs=self.kwargs))
+                else:
+                    raise ValueError(
+                        gettext('Parameter {} is invalid').format(
+                            self.KWARGS_PARAM))
 
         self.add_functions_required = ',\n    '.join(functions_required)
 
@@ -584,9 +610,14 @@ class Minimum(Operation):
         self.output = named_outputs.get('output data',
                                         'out_task_{}'.format(self.order))
 
-        self.inputs = parameters.get(self.INPUTS_PARAM, None)
-        self.kwargs = parameters.get(self.KWARGS_PARAM, None)
-        self.advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
+        self._inputs = parameters.get(self.INPUTS_PARAM, None)
+        self._kwargs = parameters.get(self.KWARGS_PARAM, None)
+        self._advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
+
+        self.inputs = None
+        self.kwargs = None
+        self.advanced_options = None
+
         self.task_name = self.parameters.get('task').get('name')
 
         self.parents = ""
@@ -618,15 +649,13 @@ class Minimum(Operation):
     def treatment(self):
         self.parents = convert_parents_to_variable_name(self.parameters
                                                         .get('parents', []))
-        for python_code in self.python_code_to_remove:
-            self.parents.remove(python_code[0])
 
         self.var_name = convert_variable_name(self.task_name)
         self.task_name = self.var_name
 
-        if self.inputs is not None:
-            self.inputs = re.sub(r"\{|\[|\(|\)|\]|\}|\s+", "", str(self.inputs))
-            self.inputs = self.inputs.split(',')
+        if self._inputs is not None:
+            self.inputs = re.sub(r"\{|\[|\(|\)|\]|\}|\s+", "", str(self._inputs)
+                                 ).split(',')
 
         for i in range(len(self.parents)):
             if self.parents_slug[i] == 'model':
@@ -642,23 +671,22 @@ class Minimum(Operation):
                 raise ValueError(
                     gettext('Parameter {} requires at least 2.').format(
                         self.INPUTS_PARAM))
-            self.inputs = '[{}]'.format(', '.join(self.inputs))
-
-        self.advanced_options = True if int(self.advanced_options) == 1 else \
-            False
+            #self.inputs = '[{}]'.format(', '.join(self.inputs))
 
         functions_required = []
-        if self.inputs is not None:
-            self.inputs = """inputs={inputs}""".format(inputs=self.inputs)
-            functions_required.append(self.inputs)
+        if self.inputs:
+            functions_required.append("""inputs={}""".format(
+                '[{}]'.format(', '.join(self.inputs))))
         else:
             raise ValueError(gettext('Parameter {} requires at least 2.')
                              .format(self.INPUTS_PARAM))
 
+        self.advanced_options = True if int(self._advanced_options) == 1 else \
+            False
         if self.advanced_options:
-            if self.kwargs is not None:
+            if self._kwargs:
                 # Format kwargs
-                self.kwargs = re.sub(r"^\s+|\s+$", "", self.kwargs)
+                self.kwargs = re.sub(r"^\s+|\s+$", "", self._kwargs)
                 self.kwargs = re.sub(r"\s+", " ", self.kwargs)
                 self.kwargs = re.sub(r"\s*,\s*", ", ", self.kwargs)
                 self.kwargs = re.sub(r"\s*=\s*", "=", self.kwargs)
@@ -666,8 +694,12 @@ class Minimum(Operation):
                 args = self.kwargs.split(',')
                 args_params = self.kwargs.split('=')
                 if len(args) >= 1 and ((len(args_params) - len(args)) == 1):
-                    self.kwargs = """{kwargs}""".format(kwargs=self.kwargs)
-                    functions_required.append(self.kwargs)
+                    functions_required.append("""{kwargs}""".format(
+                        kwargs=self.kwargs))
+                else:
+                    raise ValueError(
+                        gettext('Parameter {} is invalid').format(
+                            self.KWARGS_PARAM))
 
         self.add_functions_required = ',\n    '.join(functions_required)
 
@@ -693,9 +725,14 @@ class Multiply(Operation):
         self.output = named_outputs.get('output data',
                                         'out_task_{}'.format(self.order))
 
-        self.inputs = parameters.get(self.INPUTS_PARAM, None)
-        self.kwargs = parameters.get(self.KWARGS_PARAM, None)
-        self.advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
+        self._inputs = parameters.get(self.INPUTS_PARAM, None)
+        self._kwargs = parameters.get(self.KWARGS_PARAM, None)
+        self._advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
+
+        self.inputs = None
+        self.kwargs = None
+        self.advanced_options = None
+
         self.task_name = self.parameters.get('task').get('name')
 
         self.parents = ""
@@ -727,15 +764,13 @@ class Multiply(Operation):
     def treatment(self):
         self.parents = convert_parents_to_variable_name(self.parameters
                                                         .get('parents', []))
-        for python_code in self.python_code_to_remove:
-            self.parents.remove(python_code[0])
 
         self.var_name = convert_variable_name(self.task_name)
         self.task_name = self.var_name
 
-        if self.inputs is not None:
-            self.inputs = re.sub(r"\{|\[|\(|\)|\]|\}|\s+", "", str(self.inputs))
-            self.inputs = self.inputs.split(',')
+        if self._inputs is not None:
+            self.inputs = re.sub(r"\{|\[|\(|\)|\]|\}|\s+", "", str(self._inputs)
+                                 ).split(',')
 
         for i in range(len(self.parents)):
             if self.parents_slug[i] == 'model':
@@ -751,23 +786,22 @@ class Multiply(Operation):
                 raise ValueError(
                     gettext('Parameter {} requires at least 2.').format(
                         self.INPUTS_PARAM))
-            self.inputs = '{}'.format(', '.join(self.inputs))
-
-        self.advanced_options = True if int(self.advanced_options) == 1 else \
-            False
+            #self.inputs = '[{}]'.format(', '.join(self.inputs))
 
         functions_required = []
-        if self.inputs is not None:
-            self.inputs = """inputs=[{inputs}]""".format(inputs=self.inputs)
-            functions_required.append(self.inputs)
+        if self.inputs:
+            functions_required.append("""inputs={}""".format(
+                '[{}]'.format(', '.join(self.inputs))))
         else:
             raise ValueError(gettext('Parameter {} requires at least 2.')
                              .format(self.INPUTS_PARAM))
 
+        self.advanced_options = True if int(self._advanced_options) == 1 else \
+            False
         if self.advanced_options:
-            if self.kwargs is not None:
+            if self._kwargs:
                 # Format kwargs
-                self.kwargs = re.sub(r"^\s+|\s+$", "", self.kwargs)
+                self.kwargs = re.sub(r"^\s+|\s+$", "", self._kwargs)
                 self.kwargs = re.sub(r"\s+", " ", self.kwargs)
                 self.kwargs = re.sub(r"\s*,\s*", ", ", self.kwargs)
                 self.kwargs = re.sub(r"\s*=\s*", "=", self.kwargs)
@@ -775,8 +809,12 @@ class Multiply(Operation):
                 args = self.kwargs.split(',')
                 args_params = self.kwargs.split('=')
                 if len(args) >= 1 and ((len(args_params) - len(args)) == 1):
-                    self.kwargs = """{kwargs}""".format(kwargs=self.kwargs)
-                    functions_required.append(self.kwargs)
+                    functions_required.append("""{kwargs}""".format(
+                        kwargs=self.kwargs))
+                else:
+                    raise ValueError(
+                        gettext('Parameter {} is invalid').format(
+                            self.KWARGS_PARAM))
 
         self.add_functions_required = ',\n    '.join(functions_required)
 
@@ -802,9 +840,13 @@ class Subtract(Operation):
         self.output = named_outputs.get('output data',
                                         'out_task_{}'.format(self.order))
 
-        self.inputs = parameters.get(self.INPUTS_PARAM, None)
-        self.kwargs = parameters.get(self.KWARGS_PARAM, None)
-        self.advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
+        self._inputs = parameters.get(self.INPUTS_PARAM, None)
+        self._kwargs = parameters.get(self.KWARGS_PARAM, None)
+        self._advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
+
+        self.inputs = None
+        self.kwargs = None
+        self.advanced_options = None
 
         self.task_name = self.parameters.get('task').get('name')
         self.parents = ""
@@ -836,15 +878,13 @@ class Subtract(Operation):
     def treatment(self):
         self.parents = convert_parents_to_variable_name(self.parameters
                                                         .get('parents', []))
-        for python_code in self.python_code_to_remove:
-            self.parents.remove(python_code[0])
 
         self.var_name = convert_variable_name(self.task_name)
         self.task_name = self.var_name
 
-        if self.inputs is not None:
-            self.inputs = re.sub(r"\{|\[|\(|\)|\]|\}|\s+", "", str(self.inputs))
-            self.inputs = self.inputs.split(',')
+        if self._inputs is not None:
+            self.inputs = re.sub(r"\{|\[|\(|\)|\]|\}|\s+", "", str(self._inputs)
+                                 ).split(',')
 
         for i in range(len(self.parents)):
             if self.parents_slug[i] == 'model':
@@ -860,23 +900,22 @@ class Subtract(Operation):
                 raise ValueError(
                     gettext('Parameter {} requires at least 2.').format(
                         self.INPUTS_PARAM))
-            self.inputs = '[{}]'.format(', '.join(self.inputs))
-
-        self.advanced_options = True if int(self.advanced_options) == 1 else \
-            False
+            #self.inputs = '[{}]'.format(', '.join(self.inputs))
 
         functions_required = []
-        if self.inputs is not None:
-            self.inputs = """inputs={inputs}""".format(inputs=self.inputs)
-            functions_required.append(self.inputs)
+        if self.inputs:
+            functions_required.append("""inputs={}""".format(
+                '[{}]'.format(', '.join(self.inputs))))
         else:
             raise ValueError(gettext('Parameter {} requires at least 2.')
                              .format(self.INPUTS_PARAM))
 
+        self.advanced_options = True if int(self._advanced_options) == 1 else \
+            False
         if self.advanced_options:
-            if self.kwargs is not None:
+            if self._kwargs:
                 # Format kwargs
-                self.kwargs = re.sub(r"^\s+|\s+$", "", self.kwargs)
+                self.kwargs = re.sub(r"^\s+|\s+$", "", self._kwargs)
                 self.kwargs = re.sub(r"\s+", " ", self.kwargs)
                 self.kwargs = re.sub(r"\s*,\s*", ", ", self.kwargs)
                 self.kwargs = re.sub(r"\s*=\s*", "=", self.kwargs)
@@ -884,8 +923,12 @@ class Subtract(Operation):
                 args = self.kwargs.split(',')
                 args_params = self.kwargs.split('=')
                 if len(args) >= 1 and ((len(args_params) - len(args)) == 1):
-                    self.kwargs = """{kwargs}""".format(kwargs=self.kwargs)
-                    functions_required.append(self.kwargs)
+                    functions_required.append("""{kwargs}""".format(
+                        kwargs=self.kwargs))
+                else:
+                    raise ValueError(
+                        gettext('Parameter {} is invalid').format(
+                            self.KWARGS_PARAM))
 
         self.add_functions_required = ',\n    '.join(functions_required)
 

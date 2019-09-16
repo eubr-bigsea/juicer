@@ -70,13 +70,13 @@ def convert_variable_name(task_name):
 
     variable_name = ""
     for c in name:
-        if c.isalnum():
-            variable_name += ''.join(c)
-        elif c is not '_':
+        if c.isalnum() or c is '_':
             variable_name += ''.join(c)
 
+    variable_name = variable_name.lower()
+
     if is_valid_var_name(variable_name):
-        return str(variable_name.lower())
+        return str(variable_name)
     else:
         raise ValueError(gettext('Parameter task name is invalid.'))
 
@@ -92,15 +92,13 @@ def convert_parents_to_variable_name(parents=[]):
 
         variable_name = ""
         for c in name:
-            if c.isalnum():
-                variable_name += ''.join(c)
-            elif c is not '_':
+            if c.isalnum() or c is '_':
                 variable_name += ''.join(c)
 
         variable_name = variable_name.lower()
 
         if is_valid_var_name(variable_name):
-            parents_var_name.append(str(variable_name.lower()))
+            parents_var_name.append(str(variable_name))
         else:
             raise ValueError(gettext('Parameter task name is invalid.'))
 
@@ -280,7 +278,7 @@ def convert_to_list(field):
 def get_random_interval(field):
     if field is not None:
         if isinstance(field, str) and field.strip():
-            field = re.sub(r"\{|\[|\}|\]||\(|\)|\s+", "", field)
+            field = re.sub(r"\{|\[|\}|\]|\(|\)|\s+", "", field)
             field = field.split(',')
             if len(field) == 2:
                 return ', '.join(field)
@@ -290,7 +288,7 @@ def get_random_interval(field):
 def get_interval(field):
     if field is not None:
         if isinstance(field, str) and field.strip():
-            field = re.sub(r"\{|\[|\}|\]||\(|\)|\s+", "", field)
+            field = re.sub(r"\{|\[|\}|\]|\(|\)|\s+", "", field)
             field = field.split(':')
             if len(field) == 2:
                 return ':'.join(field)

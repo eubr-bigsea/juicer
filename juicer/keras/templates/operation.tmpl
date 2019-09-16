@@ -11,13 +11,15 @@ Auto-generated Keras code from Lemonade Workflow
 More information about Lemonade to be provided
 """
 import tensorflow
-from tensorflow.python.keras import backend as K
+from keras.callbacks import Callback
+from keras import backend as K
 {{transpiler.get_imports(instances)}}
 import numpy as np
 import random
+import json
 from tabulate import tabulate
 from time import time
-from tensorflow.python.keras import metrics
+from keras import metrics
 from juicer.keras.callbacks import JuicerCallback
 
 {{"\n"}}
@@ -36,7 +38,7 @@ def emit_layer_added(task_id, emit_event):
                status='COMPLETED', identifier=task_id)
 
 def tab(table, add_epoch=True, metric='', headers=set(), show_index=True):
-    key = table.keys()[0]
+    key = list(table.keys())[0]
     length = len(table[key])
 
     if add_epoch:
