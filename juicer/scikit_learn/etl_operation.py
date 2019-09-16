@@ -721,12 +721,24 @@ class ReplaceValuesOperation(Operation):
         for att in parameters['attributes']:
             if att not in self.replaces:
                 self.replaces[att] = [[], []]
-            self.replaces[att][0].append(self.parameters['value'])
-            self.replaces[att][1].append(self.parameters['replacement'])
+            self.replaces[att][0].append(self.check_parameter(self.parameters['value']))
+            self.replaces[att][1].append(self.check_parameter(self.parameters['replacement']))
 
         self.has_code = len(named_inputs) == 1
         self.output = self.named_outputs.get('output data',
                                              'output_data_{}'.format(self.order))
+
+    def check_parameter(self, parameter):
+        output = ""
+        try:
+            if parameter.isdigit():
+                output = int(parameter)
+            else:
+                output = float(parameter)
+        except ValueError:
+            output = parameter
+
+        return output
 
     def generate_code(self):
         code = """
