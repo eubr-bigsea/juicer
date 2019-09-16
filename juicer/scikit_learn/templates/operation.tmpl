@@ -9,7 +9,7 @@ More information about Lemonade to be provided
 
 import datetime
 import decimal
-#import pyarrow as pa
+import pyarrow as pa
 import os
 import re
 import json
@@ -40,7 +40,7 @@ import traceback
 {% for imps in list_imports %}{{imps}}{% endfor %}
 
 def sklearn_logging(msg):
-    print msg
+    print(msg)
 
 executor = ThreadPoolExecutor(max_workers={{instances|length}})
 task_futures = {}
