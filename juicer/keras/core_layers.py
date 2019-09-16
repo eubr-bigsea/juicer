@@ -14,11 +14,10 @@ class Activation(Operation):
                                         'out_task_{}'.format(self.order))
 
         if self.ACTIVATION_PARAM not in parameters:
-            raise ValueError(gettext('Parameter {} is required').format(
+            raise ValueError(gettext('Parameter {} is required.').format(
                 self.ACTIVATION_PARAM))
 
-        self.activation = parameters.get(self.ACTIVATION_PARAM,
-                                         'linear') or 'linear'
+        self.activation = parameters.get(self.ACTIVATION_PARAM, 'linear')
         self.task_name = self.parameters.get('task').get('name')
         self.has_code = True
         self.parent = ""
@@ -82,12 +81,12 @@ class ActivityRegularization(Operation):
 
         if self.L1_PARAM not in parameters or self.L2_PARAM not in parameters:
             raise ValueError(
-                gettext('Parameters {l1} and {l2} are required').format(
+                gettext('Parameters {l1} and {l2} are required.').format(
                     l1=self.L1_PARAM,
                     l2=self.L2_PARAM))
 
-        self.l1 = parameters.get(self.L1_PARAM, 0.0) or 0.0
-        self.l2 = parameters.get(self.L2_PARAM, 0.0) or 0.0
+        self.l1 = float(parameters.get(self.L1_PARAM, 0.0))
+        self.l2 = float(parameters.get(self.L2_PARAM, 0.0))
         self.task_name = self.parameters.get('task').get('name')
         self.parent = ""
         self.var_name = ""
@@ -126,8 +125,11 @@ class ActivityRegularization(Operation):
         self.var_name = convert_variable_name(self.task_name)
         self.task_name = self.var_name
 
-        self.l1 = abs(self.l1)
-        self.l2 = abs(self.l2)
+        if self.l1 < 0 or self.l2 < 0:
+            raise ValueError(
+                gettext('Parameters {l1} and {l2} are invalid.').format(
+                    l1=self.L1_PARAM,
+                    l2=self.L2_PARAM))
 
     def generate_code(self):
         return dedent(
@@ -165,27 +167,38 @@ class Dense(Operation):
 
         if self.UNITS_PARAM not in parameters:
             raise ValueError(
-                gettext('Parameter {} is required').format(self.UNITS_PARAM))
+                gettext('Parameter {} is required.').format(self.UNITS_PARAM))
 
-        self.units = parameters.get(self.UNITS_PARAM)
-        self.activation = parameters.get(self.ACTIVATION_PARAM, 'linear')
-        self.use_bias = parameters.get(self.USE_BIAS_PARAM, False) or False
-        self.kernel_initializer = parameters.get(self.KERNEL_INITIALIZER_PARAM,
+        self._units = parameters.get(self.UNITS_PARAM)
+        self._activation = parameters.get(self.ACTIVATION_PARAM, 'linear')
+        self._use_bias = parameters.get(self.USE_BIAS_PARAM, 0)
+        self._kernel_initializer = parameters.get(self.KERNEL_INITIALIZER_PARAM,
                                                  None)
-        self.bias_initializer = parameters.get(self.BIAS_INITIALIZER_PARAM,
+        self._bias_initializer = parameters.get(self.BIAS_INITIALIZER_PARAM,
                                                None)
-        self.kernel_regularizer = parameters.get(self.KERNEL_REGULARIZER_PARAM,
+        self._kernel_regularizer = parameters.get(self.KERNEL_REGULARIZER_PARAM,
                                                  None)
-        self.bias_regularizer = parameters.get(self.BIAS_REGULARIZER_PARAM,
+        self._bias_regularizer = parameters.get(self.BIAS_REGULARIZER_PARAM,
                                                None)
-        self.activity_regularizer = parameters.get(
+        self._activity_regularizer = parameters.get(
             self.ACTIVITY_REGULARIZER_PARAM, None)
-        self.kernel_constraint = parameters.get(self.KERNEL_CONSTRAINT_PARAM,
+        self._kernel_constraint = parameters.get(self.KERNEL_CONSTRAINT_PARAM,
                                                 None)
-        self.bias_constraint = parameters.get(self.BIAS_CONSTRAINT_PARAM,
+        self._bias_constraint = parameters.get(self.BIAS_CONSTRAINT_PARAM,
                                               None)
+        self._advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
 
-        self.advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
+        self.units = None
+        self.activation = None
+        self.use_bias = None
+        self.kernel_initializer = None
+        self.bias_initializer = None
+        self.kernel_regularizer = None
+        self.bias_regularizer = None
+        self.activity_regularizer = None
+        self.kernel_constraint = None
+        self.bias_constraint = None
+        self.advanced_options = None
 
         self.add_functions_required = ""
         self.task_name = self.parameters.get('task').get('name')
@@ -228,71 +241,74 @@ class Dense(Operation):
         self.task_name = self.var_name
 
         try:
-            self.units = abs(int(self.units))
-        except:
-            pass
+            self.units = int(self._units)
+            if self.units < 0:
+                raise ValueError(gettext('Parameter {} is invalid.').format(
+                    self.UNITS_PARAM)
+                )
+        except: #Probably the user is using a python code variable
+            self.units = self._units
 
-        self.use_bias = True if int(self.use_bias) == 1 else False
-        self.advanced_options = True if int(self.advanced_options) == 1 else \
+        functions_required = ["""units={units}""".format(units=self.units)]
+
+        self.advanced_options = True if int(self._advanced_options) == 1 else \
             False
-
         if self.advanced_options:
-            functions_required = []
-            if self.kernel_initializer:
-                self.kernel_initializer = """kernel_initializer=
-                '{kernel_initializer}'""".format(
-                    kernel_initializer=self.kernel_initializer)
+            if self._kernel_initializer:
+                self.kernel_initializer = \
+                    """kernel_initializer='{kernel_initializer}'""".format(
+                        kernel_initializer=self._kernel_initializer)
                 functions_required.append(self.kernel_initializer)
-            if self.bias_initializer:
-                self.bias_initializer = """bias_initializer=
-                '{bias_initializer}'""".format(
-                    bias_initializer=self.bias_initializer)
+
+            if self._bias_initializer:
+                self.bias_initializer = """bias_initializer='{b}'""".format(
+                    b=self._bias_initializer)
                 functions_required.append(self.bias_initializer)
-            if self.kernel_regularizer:
-                self.kernel_regularizer = """kernel_regularizer=
-                '{kernel_regularizer}'""".format(
-                    kernel_regularizer=self.kernel_regularizer)
+
+            if self._kernel_regularizer:
+                self.kernel_regularizer = """kernel_regularizer='{k}'""".format(
+                    k=self._kernel_regularizer)
                 functions_required.append(self.kernel_regularizer)
-            if self.bias_regularizer:
-                self.bias_regularizer = """bias_regularizer=
-                '{bias_regularizer}'""".format(
-                    bias_regularizer=self.bias_regularizer)
+
+            if self._bias_regularizer:
+                self.bias_regularizer = """bias_regularizer='{b}'""".format(
+                    b=self._bias_regularizer)
                 functions_required.append(self.bias_regularizer)
-            if self.activity_regularizer:
-                self.activity_regularizer = """activity_regularizer=
-                '{activity_regularizer}'""".format(
-                    activity_regularizer=self.activity_regularizer)
+
+            if self._activity_regularizer:
+                self.activity_regularizer = \
+                    """activity_regularizer='{activity_regularizer}'""".format(
+                        activity_regularizer=self._activity_regularizer)
                 functions_required.append(self.activity_regularizer)
-            if self.kernel_constraint:
-                self.kernel_constraint = """kernel_constraint=
-                '{kernel_constraint}'""".format(
-                    kernel_constraint=self.kernel_constraint)
+
+            if self._kernel_constraint:
+                self.kernel_constraint = """kernel_constraint='{k}'""".format(
+                    k=self._kernel_constraint)
                 functions_required.append(self.kernel_constraint)
-            if self.bias_constraint:
-                self.bias_constraint = """bias_constraint=
-                '{bias_constraint}'""".format(
-                    bias_constraint=self.bias_constraint)
+
+            if self._bias_constraint:
+                self.bias_constraint = """bias_constraint='{b}'""".format(
+                    b=self._bias_constraint)
                 functions_required.append(self.bias_constraint)
-            if self.activation:
+            if self._activation:
                 self.activation = """activation='{activation}'""".format(
-                    activation=self.activation)
+                    activation=self._activation)
                 functions_required.append(self.activation)
 
-            self.use_bias = """use_bias='{use_bias}'""".format(
-                use_bias=self.use_bias)
-            functions_required.append(self.use_bias)
+            self.use_bias = True if int(self._use_bias) == 1 else False
+            functions_required.append("""use_bias={use_bias}""".format(
+                use_bias=self.use_bias))
 
-            self.add_functions_required = ',\n    '.join(functions_required)
-            if self.add_functions_required:
-                self.add_functions_required = ',\n    ' + \
-                                              self.add_functions_required
+        self.add_functions_required = ',\n    '.join(functions_required)
+        if self.add_functions_required:
+            self.add_functions_required = ',\n    ' + \
+                                          self.add_functions_required
 
     def generate_code(self):
         return dedent(
             """
             {var_name} = Dense(
-                name='{task_name}',
-                units={units}{add_functions_required}
+                name='{task_name}'{add_functions_required}
             ){parent}
             """).format(var_name=self.var_name,
                         task_name=self.task_name,
@@ -314,12 +330,17 @@ class Dropout(Operation):
 
         if self.RATE_PARAM not in parameters:
             raise ValueError(
-                gettext('Parameter {} is required').format(self.RATE_PARAM))
+                gettext('Parameter {} is required.').format(self.RATE_PARAM))
 
-        self.rate = parameters[self.RATE_PARAM]
-        self.noise_shape = parameters.get(self.NOISE_SHAPE_PARAM)
-        self.seed = parameters.get(self.SEED_PARAM)
-        self.advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
+        self._rate = parameters.get(self.RATE_PARAM)
+        self._noise_shape = parameters.get(self.NOISE_SHAPE_PARAM)
+        self._seed = parameters.get(self.SEED_PARAM)
+        self._advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
+
+        self.rate = None
+        self.noise_shape = None
+        self.seed = None
+        self.advanced_options = None
 
         self.task_name = self.parameters.get('task').get('name')
         self.parent = ""
@@ -360,38 +381,43 @@ class Dropout(Operation):
         self.var_name = convert_variable_name(self.task_name)
         self.task_name = self.var_name
 
-        self.advanced_options = True if int(self.advanced_options) == 1 else \
-            False
+        self.rate = float(self._rate)
+        if self.rate < 0.0 or self.rate > 1.0:
+            raise ValueError(gettext('Parameter {} is invalid.').format(
+                self.RATE_PARAM)
+            )
+        functions_required = ["""rate={rate}""".format(rate=self.rate)]
 
+        self.advanced_options = True if int(self._advanced_options) == 1 else \
+            False
         if self.advanced_options:
-            functions_required = []
-            if self.noise_shape:
-                self.noise_shape = get_int_or_tuple(self.noise_shape)
-                self.noise_shape = """noise_shape='{noise_shape}'""" \
-                    .format(noise_shape=self.noise_shape)
-                functions_required.append(self.noise_shape)
+            if self._noise_shape:
+                self.noise_shape = get_int_or_tuple(self._noise_shape)
+                if self.noise_shape is False:
+                    raise ValueError(gettext('Parameter {} is invalid.').format(
+                        self.NOISE_SHAPE_PARAM)
+                    )
+                functions_required.append("""noise_shape={ns}""".format(
+                    ns=self.noise_shape))
 
             if self.seed:
-                self.seed = """seed='{seed}'""" \
-                    .format(seed=self.seed)
+                self.seed = """seed={seed}""".format(seed=self._seed)
                 functions_required.append(self.seed)
 
-            self.add_functions_required = ',\n    '.join(functions_required)
-            if self.add_functions_required:
-                self.add_functions_required = ',\n    ' + \
-                                              self.add_functions_required
+        self.add_functions_required = ',\n    '.join(functions_required)
+        if self.add_functions_required:
+            self.add_functions_required = ',\n    ' + \
+                                          self.add_functions_required
 
     def generate_code(self):
         return dedent(
             """
             {var_name} = Dropout(
-                name='{name}',
-                rate={rate}{add_functions_not_required}
+                name='{name}'{add_functions_not_required}
             ){parent}
             """
         ).format(var_name=self.var_name,
                  name=self.task_name,
-                 rate=self.rate,
                  add_functions_not_required=self.add_functions_required,
                  parent=self.parent)
 
@@ -404,7 +430,8 @@ class Flatten(Operation):
         self.output = named_outputs.get('output data',
                                         'out_task_{}'.format(self.order))
 
-        self.data_format = parameters.get(self.DATA_FORMAT_PARAM)
+        self._data_format = parameters.get(self.DATA_FORMAT_PARAM)
+        self.data_format = None
         self.task_name = self.parameters.get('task').get('name')
         self.parent = ""
         self.var_name = ""
@@ -445,14 +472,13 @@ class Flatten(Operation):
         self.task_name = self.var_name
 
         functions_required = []
-        if self.data_format:
-            self.data_format = get_tuple(self.data_format)
+        if self._data_format:
+            self.data_format = get_tuple(self._data_format)
             if self.data_format is not None:
-                self.data_format = """data_format={data_format}""" \
-                    .format(data_format=self.data_format)
-                functions_required.append(self.data_format)
+                functions_required.append("""data_format={df}""".format(
+                    df=self.data_format))
             else:
-                raise ValueError(gettext('Parameter {} is invalid').format(
+                raise ValueError(gettext('Parameter {} is invalid.').format(
                     self.DATA_FORMAT_PARAM))
 
         self.add_functions_required = ',\n    '.join(functions_required)
@@ -482,12 +508,17 @@ class Input(Operation):
         self.output = named_outputs.get('output data',
                                         'out_task_{}'.format(self.order))
 
-        self.shape = parameters.get(self.SHAPE_PARAM, None)
-        self.batch_shape = parameters.get(self.BATCH_SHAPE_PARAM, None)
-        self.dtype = parameters.get(self.DTYPE_PARAM, None)
-        self.sparse = parameters.get(self.SPARSE_PARAM, 0)
-        self.advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
-        self.tensor = None
+        self._shape = parameters.get(self.SHAPE_PARAM, None)
+        self._batch_shape = parameters.get(self.BATCH_SHAPE_PARAM, None)
+        self._dtype = parameters.get(self.DTYPE_PARAM, None)
+        self._sparse = parameters.get(self.SPARSE_PARAM, 0)
+        self._advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
+
+        self.shape = None
+        self.batch_shape = None
+        self.dtype = None
+        self.sparse = None
+        self.advanced_options = None
 
         self.task_name = self.parameters.get('task').get('name')
         self.parent = ""
@@ -529,32 +560,35 @@ class Input(Operation):
             self.parent = ''
 
         self.var_name = convert_variable_name(self.task_name)
-        if self.var_name == 'input':
-            self.var_name = 'input_layer'
+        # if self.var_name == 'input':
+        #     self.var_name = 'input_layer'
         self.task_name = self.var_name
 
-        self.sparse = True if int(self.sparse) == 1 else False
-        self.advanced_options = True if int(self.advanced_options) == 1 else \
-            False
-
         functions_required = []
-        if self.shape is not None:
-            self.shape = get_tuple(self.shape)
-            self.shape = """shape={shape}""".format(shape=self.shape)
-            functions_required.append(self.shape)
+        if self._shape is not None:
+            self.shape = get_tuple(self._shape)
+            if self.shape:
+                functions_required.append("""shape={shape}""".format(
+                    shape=self.shape))
+        else:
+            raise ValueError(gettext('Parameter {} is required.').format(
+                self.SHAPE_PARAM)
+            )
 
+        self.advanced_options = True if int(self._advanced_options) == 1 else \
+            False
         if self.advanced_options:
-            self.sparse = """sparse={sparse}""".format(sparse=self.sparse)
-            functions_required.append(self.sparse)
+            self.sparse = True if int(self._sparse) == 1 else False
+            functions_required.append("""sparse={sparse}""".format(
+                sparse=self.sparse))
 
-            if self.batch_shape is not None:
-                self.batch_shape = get_tuple(self.batch_shape)
-                self.batch_shape = """batch_shape={batch_shape}""" \
-                    .format(batch_shape=self.batch_shape)
-                functions_required.append(self.batch_shape)
+            if self._batch_shape is not None:
+                self.batch_shape = get_tuple(self._batch_shape)
+                functions_required.append("""batch_shape={bs}""".format(
+                    bs=self.batch_shape))
 
-            if self.dtype is not None:
-                self.dtype = """dtype={dtype}""".format(dtype=self.dtype)
+            if self._dtype is not None:
+                self.dtype = """dtype={dtype}""".format(dtype=self._dtype)
                 functions_required.append(self.dtype)
 
         self.add_functions_required = ',\n    '.join(functions_required)
@@ -588,14 +622,16 @@ class Lambda(Operation):
 
         if self.FUNCTION_PARAM is None:
             raise ValueError(
-                gettext('Parameter {} is required').format(self.FUNCTION_PARAM))
+                gettext('Parameter {} is required.').format(self.FUNCTION_PARAM))
 
         self.function = parameters.get(self.FUNCTION_PARAM, None)
         self.mask = parameters.get(self.MASK_PARAM, None)
         self.arguments = parameters.get(self.ARGUMENTS_PARAM, None)
-        self.output_shape = parameters.get(self.OUTPUT_SHAPE_PARAM,
-                                           None)
-        self.advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
+        self._output_shape = parameters.get(self.OUTPUT_SHAPE_PARAM, None)
+        self._advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
+
+        self.output_shape = None
+        self.advanced_options = None
 
         self.task_name = self.parameters.get('task').get('name')
         self.has_code = True
@@ -644,25 +680,21 @@ class Lambda(Operation):
                 gettext('Parameter {} is required.').format(
                     self.FUNCTION_PARAM))
 
-        self.advanced_options = True if int(self.advanced_options) == 1 else \
+        functions_required = ["""function={f}""".format(f=self.function)]
+
+        self.advanced_options = True if int(self._advanced_options) == 1 else \
             False
-
-        functions_required = ['''function={function}'''.format(function=
-                                                               self.function)]
-
         if self.advanced_options:
             if self.mask is not None:
-                functions_required.append('''mask={mask}'''.format(mask=
-                                                                   self.mask))
+                functions_required.append('''mask={mask}'''.format(
+                    mask=self.mask))
             if self.arguments is not None:
-                functions_required.append(
-                    '''arguments={arguments}'''.format(arguments=
-                                                       self.arguments))
-            if self.output_shape is not None:
-                self.output_shape = get_tuple(self.output_shape)
-                functions_required.append('''output_shape={output_shape}'''.
-                                          format(output_shape=self.output_shape)
-                                          )
+                functions_required.append('''arguments={arguments}'''.format(
+                        arguments=self.arguments))
+            if self._output_shape is not None:
+                self.output_shape = get_tuple(self._output_shape)
+                functions_required.append('''output_shape={out}'''.format(
+                    out=self.output_shape))
 
         self.add_functions_required = ',\n    '.join(functions_required)
         if self.add_functions_required:
@@ -691,7 +723,7 @@ class Masking(Operation):
                                         'out_task_{}'.format(self.order))
 
         if self.MASK_VALUE_PARAM not in parameters or self.MASK_VALUE_PARAM is None:
-            raise ValueError(gettext('Parameter {} are required').format(
+            raise ValueError(gettext('Parameter {} are required.').format(
                 self.MASK_VALUE_PARAM))
 
         self.mask_value = parameters.get(self.MASK_VALUE_PARAM, 0.0) or 0.0
@@ -720,6 +752,11 @@ class Masking(Operation):
         return python_code_to_remove
 
     def treatment(self):
+        if self.mask_value is None:
+            raise ValueError(
+                gettext('Parameter {} is required.').format(
+                    self.MASK_VALUE_PARAM))
+
         self.parent = convert_parents_to_variable_name(self.parameters
                                                        .get('parents', []))
         for python_code in self.python_code_to_remove:
@@ -757,9 +794,10 @@ class Permute(Operation):
 
         if self.DIMS_PARAM not in parameters or self.DIMS_PARAM is None:
             raise ValueError(
-                gettext('Parameter {} is required').format(self.DIMS_PARAM))
+                gettext('Parameter {} is required.').format(self.DIMS_PARAM))
 
-        self.dims = parameters.get(self.DIMS_PARAM, None)
+        self._dims = parameters.get(self.DIMS_PARAM, None)
+        self.dims = None
         self.task_name = self.parameters.get('task').get('name')
         self.has_code = True
 
@@ -799,8 +837,8 @@ class Permute(Operation):
         self.var_name = convert_variable_name(self.task_name)
         self.task_name = self.var_name
 
-        if self.dims is not None:
-            self.dims = get_tuple(self.dims)
+        if self._dims is not None:
+            self.dims = get_tuple(self._dims)
         else:
             raise ValueError(gettext('Parameter {} is required. The format is: '
                                      '(x, y) or (-1, x, y)').format(
@@ -830,7 +868,7 @@ class RepeatVector(Operation):
 
         if self.N_PARAM not in parameters or self.N_PARAM is None:
             raise ValueError(
-                gettext('Parameter {} is required').format(self.N_PARAM))
+                gettext('Parameter {} is required.').format(self.N_PARAM))
 
         self.n = parameters.get(self.N_PARAM, 1) or 1
         self.task_name = self.parameters.get('task').get('name')
@@ -859,6 +897,9 @@ class RepeatVector(Operation):
         return python_code_to_remove
 
     def treatment(self):
+        if self.n is None:
+            raise ValueError(gettext('Parameter {} is required').format(
+                self.N_PARAM))
         self.parent = convert_parents_to_variable_name(self.parameters
                                                        .get('parents', []))
         for python_code in self.python_code_to_remove:
@@ -895,11 +936,12 @@ class Reshape(Operation):
                                         'out_task_{}'.format(self.order))
 
         if self.TARGET_SHAPE_PARAM not in parameters or self.TARGET_SHAPE_PARAM is None:
-            raise ValueError(gettext('Parameter {} is required').format(
+            raise ValueError(gettext('Parameter {} is required.').format(
                 self.TARGET_SHAPE_PARAM))
 
-        self.target_shape = parameters.get(self.TARGET_SHAPE_PARAM,
-                                           None)
+        self._target_shape = parameters.get(self.TARGET_SHAPE_PARAM, None)
+        self.target_shape = None
+
         self.task_name = self.parameters.get('task').get('name')
         self.task_workflow_order = self.parameters.get('task').get('order')
         self.has_code = True
@@ -940,8 +982,8 @@ class Reshape(Operation):
         self.var_name = convert_variable_name(self.task_name)
         self.task_name = self.var_name
 
-        if self.target_shape is not None:
-            self.target_shape = get_tuple(self.target_shape)
+        if self._target_shape is not None:
+            self.target_shape = get_tuple(self._target_shape)
         else:
             raise ValueError(gettext('Parameter {} is required. The format is: '
                                      '(x, y) or (-1, x, y)').format(
@@ -971,9 +1013,9 @@ class SpatialDropout1D(Operation):
 
         if self.RATE_PARAM not in parameters or self.RATE_PARAM is None:
             raise ValueError(
-                gettext('Parameter {} are required').format(self.RATE_PARAM))
+                gettext('Parameter {} is required.').format(self.RATE_PARAM))
 
-        self.rate = parameters.get(self.RATE_PARAM, 0.0) or 0.0
+        self.rate = float(parameters.get(self.RATE_PARAM, 0.0))
         self.task_name = self.parameters.get('task').get('name')
         self.parent = ""
         self.var_name = ""
@@ -999,6 +1041,10 @@ class SpatialDropout1D(Operation):
         return python_code_to_remove
 
     def treatment(self):
+        if self.rate < 0.0 or self.rate > 1.0:
+            raise ValueError(
+                gettext('Parameter {} is invalid.').format(self.RATE_PARAM))
+
         self.parent = convert_parents_to_variable_name(self.parameters
                                                        .get('parents', []))
         for python_code in self.python_code_to_remove:
@@ -1028,6 +1074,8 @@ class SpatialDropout1D(Operation):
 
 class SpatialDropout2D(Operation):
     RATE_PARAM = 'rate'
+    DATA_FORMAT_PARAM = 'data_format'
+    ADVANCED_OPTIONS_PARAM = 'advanced_options'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
@@ -1036,9 +1084,15 @@ class SpatialDropout2D(Operation):
 
         if self.RATE_PARAM not in parameters or self.RATE_PARAM is None:
             raise ValueError(
-                gettext('Parameter {} are required').format(self.RATE_PARAM))
+                gettext('Parameter {} are required.').format(self.RATE_PARAM))
 
-        self.rate = parameters.get(self.RATE_PARAM, 0.0) or 0.0
+        self.rate = float(parameters.get(self.RATE_PARAM, 0.0))
+        self.data_format = parameters.get(self.RATE_PARAM, None)
+        self._advanced_options = parameters.get(self.RATE_PARAM, False)
+
+        self.advanced_options = None
+
+        self.add_functions_required = ""
         self.task_name = self.parameters.get('task').get('name')
         self.parent = ""
         self.var_name = ""
@@ -1064,6 +1118,10 @@ class SpatialDropout2D(Operation):
         return python_code_to_remove
 
     def treatment(self):
+        if self.rate < 0.0 or self.rate > 1.0:
+            raise ValueError(
+                gettext('Parameter {} is invalid.').format(self.RATE_PARAM))
+
         self.parent = convert_parents_to_variable_name(self.parameters
                                                        .get('parents', []))
         for python_code in self.python_code_to_remove:
@@ -1077,22 +1135,38 @@ class SpatialDropout2D(Operation):
         self.var_name = convert_variable_name(self.task_name)
         self.task_name = self.var_name
 
+        functions_required = ["""rate={rate}""".format(rate=self.rate)]
+
+        self.advanced_options = True if int(self._advanced_options) == 1 else \
+            False
+        if self.advanced_options:
+            if self._data_format is not None:
+                self.data_format = """data_format='{data_format}'""".format(
+                    data_format=self._data_format)
+                functions_required.append(self.data_format)
+
+        self.add_functions_required = ',\n    '.join(functions_required)
+        if self.add_functions_required:
+            self.add_functions_required = ',\n    ' + \
+                                          self.add_functions_required
+
     def generate_code(self):
         return dedent(
             """
             {var_name} = SpatialDropout2D(
-                name='{name}',
-                rate={rate}
+                name='{name}'{add_functions_required}
             ){parent}
             """
         ).format(var_name=self.var_name,
                  name=self.task_name,
-                 rate=self.rate,
+                 add_functions_required=self.add_functions_required,
                  parent=self.parent)
 
 
 class SpatialDropout3D(Operation):
     RATE_PARAM = 'rate'
+    DATA_FORMAT_PARAM = 'data_format'
+    ADVANCED_OPTIONS_PARAM = 'advanced_options'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
@@ -1101,9 +1175,15 @@ class SpatialDropout3D(Operation):
 
         if self.RATE_PARAM not in parameters or self.RATE_PARAM is None:
             raise ValueError(
-                gettext('Parameter {} are required').format(self.RATE_PARAM))
+                gettext('Parameter {} are required.').format(self.RATE_PARAM))
 
-        self.rate = parameters.get(self.RATE_PARAM, 0.0) or 0.0
+        self.rate = float(parameters.get(self.RATE_PARAM, 0.0))
+        self.data_format = parameters.get(self.RATE_PARAM, None)
+        self._advanced_options = parameters.get(self.RATE_PARAM, False)
+
+        self.advanced_options = None
+
+        self.add_functions_required = ""
         self.task_name = self.parameters.get('task').get('name')
         self.parent = ""
         self.var_name = ""
@@ -1129,6 +1209,10 @@ class SpatialDropout3D(Operation):
         return python_code_to_remove
 
     def treatment(self):
+        if self.rate < 0.0 or self.rate > 1.0:
+            raise ValueError(
+                gettext('Parameter {} is invalid.').format(self.RATE_PARAM))
+
         self.parent = convert_parents_to_variable_name(self.parameters
                                                        .get('parents', []))
         for python_code in self.python_code_to_remove:
@@ -1142,15 +1226,29 @@ class SpatialDropout3D(Operation):
         self.var_name = convert_variable_name(self.task_name)
         self.task_name = self.var_name
 
+        functions_required = ["""rate={rate}""".format(rate=self.rate)]
+
+        self.advanced_options = True if int(self._advanced_options) == 1 else \
+            False
+        if self.advanced_options:
+            if self._data_format is not None:
+                self.data_format = """data_format='{data_format}'""".format(
+                    data_format=self._data_format)
+                functions_required.append(self.data_format)
+
+        self.add_functions_required = ',\n    '.join(functions_required)
+        if self.add_functions_required:
+            self.add_functions_required = ',\n    ' + \
+                                          self.add_functions_required
+
     def generate_code(self):
         return dedent(
             """
             {var_name} = SpatialDropout3D(
-                name='{name}',
-                rate={rate}
+                name='{name}'{add_functions_required}
             ){parent}
             """
         ).format(var_name=self.var_name,
                  name=self.task_name,
-                 rate=self.rate,
+                 add_functions_required=self.add_functions_required,
                  parent=self.parent)

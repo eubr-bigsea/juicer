@@ -35,8 +35,6 @@ class ImageGenerator(Operation):
     CLASS_MODE_PARAM = 'class_mode'
     BATCH_SIZE_PARAM = 'batch_size'
     SHUFFLE_PARAM = 'shuffle'
-    SEED_PARAM = 'seed'
-    SUBSET_PARAM = 'subset'
     INTERPOLATION_PARAM = 'interpolation'
 
     def __init__(self, parameters, named_inputs, named_outputs):
@@ -44,40 +42,49 @@ class ImageGenerator(Operation):
         self.output = named_outputs.get('output data',
                                         'out_task_{}'.format(self.order))
 
-        self.featurewise_center = parameters.get(self.FEATUREWISE_CENTER_PARAM, None) or None
-        self.samplewise_center = parameters.get(self.SAMPLEWISE_CENTER_PARAM, None) or None
-        self.featurewise_std_normalization = parameters.get(self.FEATUREWISE_STD_NORMALIZATION_PARAM, None) or None
-        self.samplewise_std_normalization = parameters.get(self.SAMPLEWISE_STD_NORMALIZATION_PARAM, None) or None
-        self.zca_epsilon = parameters.get(self.ZCA_EPSILON_PARAM, None) or None
-        self.zca_whitening = parameters.get(self.ZCA_WHITENING_PARAM, None) or None
-        self.rotation_range = parameters.get(self.ROTATION_RANGE_PARAM, None) or None
-        self.width_shift_range = parameters.get(self.WIDTH_SHIFT_RANGE_PARAM, None) or None
-        self.height_shift_range = parameters.get(self.HEIGHT_SHIFT_RANGE_PARAM, None) or None
-        self.brightness_range = parameters.get(self.BRIGHTNESS_RANGE_PARAM, None) or None
-        self.shear_range = parameters.get(self.SHEAR_RANGE_PARAM, None) or None
-        self.zoom_range = parameters.get(self.ZOOM_RANGE_PARAM, None) or None
-        self.channel_shift_range = parameters.get(self.CHANNEL_SHIFT_RANGE_PARAM, None) or None
-        self.fill_mode = parameters.get(self.FILL_MODE_PARAM, None) or None
-        self.cval = parameters.get(self.CVAL_PARAM, None) or None
-        self.horizontal_flip = parameters.get(self.HORIZONTAL_FLIP_PARAM, None) or None
-        self.vertical_flip = parameters.get(self.VERTICAL_FLIP_PARAM, None) or None
-        self.rescale = parameters.get(self.RESCALE_PARAM, None) or None
-        self.preprocessing_function = parameters.get(self.PREPROCESSING_FUNCTION_PARAM, None) or None
-        self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None) or None
-        self.validation_split = parameters.get(self.VALIDATION_SPLIT_PARAM, None) or None
-        self.dtype = parameters.get(self.DTYPE_PARAM, None) or None
+        self.featurewise_center = parameters.get(
+            self.FEATUREWISE_CENTER_PARAM, None)
+        self.samplewise_center = parameters.get(
+            self.SAMPLEWISE_CENTER_PARAM, None)
+        self.featurewise_std_normalization = parameters.get(
+            self.FEATUREWISE_STD_NORMALIZATION_PARAM, None)
+        self.samplewise_std_normalization = parameters.get(
+            self.SAMPLEWISE_STD_NORMALIZATION_PARAM, None)
+        self.zca_epsilon = parameters.get(self.ZCA_EPSILON_PARAM, None)
+        self.zca_whitening = parameters.get(self.ZCA_WHITENING_PARAM, None)
+        self.rotation_range = parameters.get(self.ROTATION_RANGE_PARAM, None)
+        self.width_shift_range = parameters.get(
+            self.WIDTH_SHIFT_RANGE_PARAM, None)
+        self.height_shift_range = parameters.get(
+            self.HEIGHT_SHIFT_RANGE_PARAM, None)
+        self.brightness_range = parameters.get(
+            self.BRIGHTNESS_RANGE_PARAM, None)
+        self.shear_range = parameters.get(self.SHEAR_RANGE_PARAM, None)
+        self.zoom_range = parameters.get(self.ZOOM_RANGE_PARAM, None)
+        self.channel_shift_range = parameters.get(
+            self.CHANNEL_SHIFT_RANGE_PARAM, None)
+        self.fill_mode = parameters.get(self.FILL_MODE_PARAM, None)
+        self.cval = parameters.get(self.CVAL_PARAM, None)
+        self.horizontal_flip = parameters.get(self.HORIZONTAL_FLIP_PARAM, None)
+        self.vertical_flip = parameters.get(self.VERTICAL_FLIP_PARAM, None)
+        self.rescale = parameters.get(self.RESCALE_PARAM, None)
+        self.preprocessing_function = parameters.get(
+            self.PREPROCESSING_FUNCTION_PARAM, None)
+        self.data_format = parameters.get(self.DATA_FORMAT_PARAM, None)
+        self._validation_split = parameters.get(
+            self.VALIDATION_SPLIT_PARAM, 0.0)
+        self.dtype = parameters.get(self.DTYPE_PARAM, None)
 
-        self.target_size = parameters.get(self.TARGET_SIZE_PARAM, None) or None
-        self.color_mode = parameters.get(self.COLOR_MODE_PARAM, None) or None
-        self.class_mode = parameters.get(self.CLASS_MODE_PARAM, None) or None
-        self.batch_size = parameters.get(self.BATCH_SIZE_PARAM, None) or None
-        self.shuffle = parameters.get(self.SHUFFLE_PARAM, None) or None
-        self.seed = parameters.get(self.SEED_PARAM, None) or None
-        self.subset = parameters.get(self.SUBSET_PARAM, None) or None
-        self.interpolation = parameters.get(self.INTERPOLATION_PARAM, None) or None
+        self.target_size = parameters.get(self.TARGET_SIZE_PARAM, None)
+        self.color_mode = parameters.get(self.COLOR_MODE_PARAM, None)
+        self.class_mode = parameters.get(self.CLASS_MODE_PARAM, None)
+        self.batch_size = parameters.get(self.BATCH_SIZE_PARAM, None)
+        self.shuffle = parameters.get(self.SHUFFLE_PARAM, None)
+        self.interpolation = parameters.get(self.INTERPOLATION_PARAM, None)
 
         self.image_train = None
         self.image_validation = None
+        self.validation_split = None
 
         self.task_name = self.parameters.get('task').get('name')
         self.parents = ""
@@ -134,222 +141,204 @@ class ImageGenerator(Operation):
         self.var_name = convert_variable_name(self.task_name)
         self.task_name = self.var_name
 
-        #TO_DO ADD PARAMETER FOR FLOW_FROM_DIRECTORY
-
         functions_required_flow_from_directory = []
         if self.image_train:
-            self.image_train = """directory={image_train}""" \
-                .format(image_train=self.image_train)
-            functions_required_flow_from_directory.append(self.image_train)
+            functions_required_flow_from_directory.append(
+                """directory={image_train}""".format(
+                    image_train=self.image_train))
 
         if self.image_validation:
-            self.image_validation = """directory={image_validation}""" \
-                .format(image_validation=self.image_validation)
-            functions_required_flow_from_directory.append(self.image_validation)
+            functions_required_flow_from_directory.append(
+                """directory={image_validation}""".format(
+                    image_validation=self.image_validation))
 
         if self.target_size:
-            self.target_size = get_int_or_tuple(self.target_size)
-            self.target_size = """target_size={target_size}""" \
-                .format(target_size=self.target_size)
-            functions_required_flow_from_directory.append(self.target_size)
+            target_size = get_int_or_tuple(self.target_size)
+            if target_size:
+                functions_required_flow_from_directory.append(
+                    """target_size={target_size}""".format(
+                        target_size=target_size))
+            else:
+                raise ValueError(gettext('Parameter {} is invalid.')
+                                 .format(self.TARGET_SIZE_PARAM))
 
         if self.color_mode:
-            self.color_mode = """color_mode='{color_mode}'""" \
-                .format(color_mode=self.color_mode)
-            functions_required_flow_from_directory.append(self.color_mode)
+            functions_required_flow_from_directory.append(
+                """color_mode='{color_mode}'""".format(
+                    color_mode=self.color_mode))
 
         if self.class_mode:
-            self.class_mode = """class_mode='{class_mode}'""" \
-                .format(class_mode=self.class_mode)
-            functions_required_flow_from_directory.append(self.class_mode)
+            functions_required_flow_from_directory.append(
+                """class_mode='{class_mode}'""".format(
+                    class_mode=self.class_mode))
 
         if self.batch_size:
-            self.batch_size = """batch_size={batch_size}""" \
-                .format(batch_size=self.batch_size)
-            functions_required_flow_from_directory.append(self.batch_size)
-
-        if self.seed:
-            self.seed = """seed={seed}""" \
-                .format(seed=self.seed)
-            functions_required_flow_from_directory.append(self.seed)
-
-        # if self.subset:
-        #     self.subset = """subset='{subset}'""" \
-        #         .format(subset=self.subset)
-        #     functions_required_flow_from_directory.append(self.subset)
+            functions_required_flow_from_directory.append(
+                """batch_size={batch_size}""".format(
+                    batch_size=self.batch_size))
 
         if self.interpolation:
-            self.interpolation = """interpolation='{interpolation}'""" \
-                .format(interpolation=self.interpolation)
-            functions_required_flow_from_directory.append(self.interpolation)
+            functions_required_flow_from_directory.append(
+                """interpolation='{interpolation}'""".format(
+                    interpolation=self.interpolation))
 
-        self.add_functions_required_flow_from_directory = ',\n    ' \
-            .join(functions_required_flow_from_directory)
+        self.add_functions_required_flow_from_directory = ',\n    '.join(
+            functions_required_flow_from_directory)
 
         functions_required = []
-        self.featurewise_center = True if int(self.featurewise_center) == 1 else False
-        self.samplewise_center = True if int(self.samplewise_center) == 1 else False
-        self.featurewise_std_normalization = True if int(self.featurewise_std_normalization) == 1 else False
-        self.samplewise_std_normalization = True if int(self.samplewise_std_normalization) == 1 else False
 
         if self.zca_epsilon is not None:
             try:
-                self.zca_epsilon = float(self.zca_epsilon)
+                functions_required.append(
+                    """zca_epsilon={zca_epsilon}""".format(
+                        zca_epsilon=float(self.zca_epsilon)))
             except:
                 raise ValueError(gettext('Parameter {} is invalid.')
                                  .format(self.ZCA_EPSILON_PARAM))
 
-            self.zca_epsilon = """zca_epsilon={zca_epsilon}""" \
-                .format(zca_epsilon=self.zca_epsilon)
-            functions_required.append(self.zca_epsilon)
+        featurewise_center = True \
+            if int(self.featurewise_center) == 1 else False
+        functions_required.append(
+            """featurewise_center={featurewise_center}""".format(
+                featurewise_center=featurewise_center))
 
-        if self.featurewise_center:
-            self.featurewise_center = """featurewise_center={featurewise_center}""" \
-                .format(featurewise_center=self.featurewise_center)
-            functions_required.append(self.featurewise_center)
+        samplewise_center = True \
+            if int(self.samplewise_center) == 1 else False
+        functions_required.append(
+            """samplewise_center={samplewise_center}""".format(
+                samplewise_center=samplewise_center))
 
-        if self.samplewise_center:
-            self.samplewise_center = """samplewise_center={samplewise_center}""" \
-                .format(samplewise_center=self.samplewise_center)
-            functions_required.append(self.samplewise_center)
+        featurewise_std_normalization = True \
+            if int(self.featurewise_std_normalization) == 1 else False
+        functions_required.append(
+            """featurewise_std_normalization={featurewise_std_normalization}"""
+                .format(
+                featurewise_std_normalization=featurewise_std_normalization))
 
-        if self.featurewise_std_normalization:
-            self.featurewise_std_normalization = """featurewise_std_normalization={featurewise_std_normalization}""" \
-                .format(featurewise_std_normalization=self.featurewise_std_normalization)
-            functions_required.append(self.featurewise_std_normalization)
+        samplewise_std_normalization = True \
+            if int(self.samplewise_std_normalization) == 1 else False
+        functions_required.append(
+            """samplewise_std_normalization={samplewise_std_normalization}""".
+                format(
+                samplewise_std_normalization=samplewise_std_normalization))
 
-        if self.samplewise_std_normalization:
-            self.samplewise_std_normalization = """samplewise_std_normalization={samplewise_std_normalization}""" \
-                .format(samplewise_std_normalization=self.samplewise_std_normalization)
-            functions_required.append(self.samplewise_std_normalization)
-
-        self.zca_whitening = True if int(self.zca_whitening) == 1 else False
-        if self.zca_whitening:
-            self.zca_whitening = """zca_whitening={zca_whitening}""" \
-                .format(zca_whitening=self.zca_whitening)
-            functions_required.append(self.zca_whitening)
+        zca_whitening = True if int(self.zca_whitening) == 1 else False
+        functions_required.append("""zca_whitening={zca_whitening}""".format(
+            zca_whitening=zca_whitening))
 
         try:
-            self.rotation_range = int(self.rotation_range)
-            self.rotation_range = """rotation_range={rotation_range}""" \
-                .format(rotation_range=self.rotation_range)
-            functions_required.append(self.rotation_range)
+            functions_required.append(
+                """rotation_range={rotation_range}""".format(
+                    rotation_range=int(self.rotation_range)))
         except:
-            raise ValueError(gettext(',\nParameter {} is invalid.')
+            raise ValueError(gettext('Parameter {} is invalid.')
                              .format(self.ROTATION_RANGE_PARAM))
 
-        self.width_shift_range = string_to_int_float_list(self.width_shift_range)
-        if self.width_shift_range is not None:
-            self.width_shift_range = """width_shift_range={width_shift_range}""" \
-                .format(width_shift_range=self.width_shift_range)
-            functions_required.append(self.width_shift_range)
+        width_shift_range = string_to_int_float_list(self.width_shift_range)
+        if width_shift_range is not None:
+            functions_required.append(
+                """width_shift_range={width_shift_range}""".format(
+                    width_shift_range=width_shift_range))
         else:
             raise ValueError(gettext('Parameter {} is invalid.')
                              .format(self.WIDTH_SHIFT_RANGE_PARAM))
 
-        self.height_shift_range = string_to_int_float_list(self.height_shift_range)
-        if self.height_shift_range is not None:
-            self.height_shift_range = """height_shift_range={height_shift_range}""" \
-                .format(height_shift_range=self.height_shift_range)
-            functions_required.append(self.height_shift_range)
+        height_shift_range = string_to_int_float_list(self.height_shift_range)
+        if height_shift_range is not None:
+            functions_required.append(
+                """height_shift_range={height_shift_range}""".format(
+                    height_shift_range=height_shift_range))
         else:
             raise ValueError(gettext('Parameter {} is invalid.')
                              .format(self.HEIGHT_SHIFT_RANGE_PARAM))
 
         if self.brightness_range is not None:
-            self.brightness_range = string_to_list(self.brightness_range)
-            if self.brightness_range is not None and \
-                    len(self.brightness_range) == 2:
-                self.brightness_range = """brightness_range={brightness_range}""" \
-                    .format(brightness_range=self.brightness_range)
-                functions_required.append(self.brightness_range)
+            brightness_range = string_to_list(self.brightness_range)
+            if brightness_range is not None and len(brightness_range) == 2:
+                functions_required.append(
+                    """brightness_range={brightness_range}""".format(
+                        brightness_range=self.brightness_range))
             else:
                 raise ValueError(gettext('Parameter {} is invalid.')
                                  .format(self.BRIGHTNESS_RANGE_PARAM))
 
         try:
-            self.shear_range = float(self.shear_range)
+            shear_range = float(self.shear_range)
         except:
             raise ValueError(gettext('Parameter {} is invalid.')
                              .format(self.SHEAR_RANGE_PARAM))
-        self.shear_range = """shear_range={shear_range}""" \
-            .format(shear_range=self.shear_range)
-        functions_required.append(self.shear_range)
+        functions_required.append("""shear_range={shear_range}""".format(
+            shear_range=shear_range))
 
-        self.zoom_range = string_to_list(self.zoom_range)
-        if self.zoom_range and len(self.zoom_range) <= 2:
-            if len(self.zoom_range) == 1:
-                self.zoom_range = float(self.zoom_range[0])
-
-            self.zoom_range = """zoom_range={zoom_range}""" \
-                .format(zoom_range=self.zoom_range)
-            functions_required.append(self.zoom_range)
+        zoom_range = string_to_list(self.zoom_range)
+        if zoom_range and len(zoom_range) <= 2:
+            if len(zoom_range) == 1:
+                functions_required.append("""zoom_range={zoom_range}""".format(
+                    zoom_range=zoom_range[0]))
+            else:
+                functions_required.append("""zoom_range={zoom_range}""".format(
+                    zoom_range=zoom_range))
         else:
             raise ValueError(gettext('Parameter {} is invalid.')
                              .format(self.ZOOM_RANGE_PARAM))
 
         try:
-            self.channel_shift_range = float(self.channel_shift_range)
-            self.channel_shift_range = """channel_shift_range={channel_shift_range}""" \
-                .format(channel_shift_range=self.channel_shift_range)
-            functions_required.append(self.channel_shift_range)
+            functions_required.append(
+                """channel_shift_range={channel_shift_range}""".format(
+                    channel_shift_range=float(
+                self.channel_shift_range)))
         except:
             raise ValueError(gettext('Parameter {} is invalid.')
                              .format(self.CHANNEL_SHIFT_RANGE_PARAM))
 
         if self.fill_mode:
-            self.fill_mode = """fill_mode='{fill_mode}'""" \
-                .format(fill_mode=self.fill_mode)
-            functions_required.append(self.fill_mode)
+            functions_required.append("""fill_mode='{fill_mode}'""".format(
+                fill_mode=self.fill_mode))
 
         if self.fill_mode == 'constant':
             try:
-                self.cval = float(self.cval)
+                functions_required.append("""cval={cval}""".format(
+                    cval=float(self.cval)))
             except:
                 raise ValueError(gettext('Parameter {} is invalid.')
                                  .format(self.CVAL_PARAM))
-            self.cval = """cval={cval}""".format(cval=self.cval)
-            functions_required.append(self.cval)
 
-        self.horizontal_flip = True if int(self.horizontal_flip) == 1 else False
-        if self.horizontal_flip:
-            self.horizontal_flip = """horizontal_flip={horizontal_flip}""" \
-                .format(horizontal_flip=self.horizontal_flip)
-            functions_required.append(self.horizontal_flip)
+        horizontal_flip = True if int(self.horizontal_flip) == 1 else False
+        functions_required.append(
+            """horizontal_flip={horizontal_flip}""".format(
+                horizontal_flip=horizontal_flip))
 
-        self.vertical_flip = True if int(self.vertical_flip) == 1 else False
-        if self.vertical_flip:
-            self.vertical_flip = """vertical_flip={vertical_flip}""" \
-                .format(vertical_flip=self.vertical_flip)
-            functions_required.append(self.vertical_flip)
+        vertical_flip = True if int(self.vertical_flip) == 1 else False
+        functions_required.append("""vertical_flip={vertical_flip}""".format(
+            vertical_flip=vertical_flip))
 
         if self.rescale is not None:
-            self.rescale = rescale(self.rescale)
-            if self.rescale is not None:
-                self.rescale = """rescale={rescale}""" \
-                    .format(rescale=self.rescale)
-                functions_required.append(self.rescale)
+            _rescale = rescale(self.rescale)
+            if _rescale is not None:
+                functions_required.append("""rescale={rescale}""".format(
+                    rescale=_rescale))
+            else:
+                raise ValueError(gettext('Parameter {} is invalid.')
+                                 .format(self.RESCALE_PARAM))
 
         '''TO_DO - ADD preprocessing_function IN THE FUTURE'''
 
         if self.data_format:
-            self.data_format = """data_format={data_format}""" \
-                .format(data_format=self.data_format)
-            functions_required.append(self.data_format)
+            functions_required.append("""data_format={data_format}""".format(
+                data_format=self.data_format))
 
         # In case of the operation is creating the image data
+        self.validation_split = float(self._validation_split)
         if self.image_train:
             if self.validation_split:
-                self.validation_split = abs(float(self.validation_split))
-            if self.validation_split > 0:
-                self.validation_split = """validation_split={validation_split}""" \
-                    .format(validation_split=self.validation_split)
-                functions_required.append(self.validation_split)
+                if self.validation_split > 0:
+                    functions_required.append(
+                        """validation_split={validation_split}""".format(
+                            validation_split=abs(float(self.validation_split))))
 
         if self.dtype is not None:
-            self.dtype = """dtype='{dtype}'""" \
-                .format(dtype=self.dtype)
-            functions_required.append(self.dtype)
+            functions_required.append("""dtype='{dtype}'""".format(
+                dtype=self.dtype))
 
         self.add_functions_required = ',\n    '.join(functions_required)
 
@@ -374,8 +363,7 @@ class ImageGenerator(Operation):
                 ).format(var_name=self.var_name,
                          add_functions_required=self.add_functions_required,
                          add_functions_required_flow_from_directory=self.
-                         add_functions_required_flow_from_directory,
-                         batch_size=self.batch_size)
+                         add_functions_required_flow_from_directory)
             else:
                 return dedent(
                     """
@@ -391,8 +379,7 @@ class ImageGenerator(Operation):
                 ).format(var_name=self.var_name,
                          add_functions_required=self.add_functions_required,
                          add_functions_required_flow_from_directory=self.
-                         add_functions_required_flow_from_directory,
-                         batch_size=self.batch_size)
+                         add_functions_required_flow_from_directory)
 
         if self.image_validation:
             return dedent(
@@ -408,8 +395,7 @@ class ImageGenerator(Operation):
             ).format(var_name=self.var_name,
                      add_functions_required=self.add_functions_required,
                      add_functions_required_flow_from_directory=self.
-                     add_functions_required_flow_from_directory,
-                     batch_size=self.batch_size)
+                     add_functions_required_flow_from_directory)
 
 
 class VideoGenerator(Operation):
@@ -424,10 +410,10 @@ class VideoGenerator(Operation):
     RANDOM_HEIGHT_PARAM = 'random_height'
     RANDOM_WIDTH_PARAM = 'random_width'
     RANDOM_CHANNEL_PARAM = 'random_channel'
-    FRAMES_PARAM = 'frames'
-    HEIGHT_PARAM = 'height'
-    WIDTH_PARAM = 'width'
-    CHANNEL_PARAM = 'channel'
+    VIDEO_FRAMES_PARAM = 'video_frames'
+    VIDEO_HEIGHT_PARAM = 'video_height'
+    VIDEO_WIDTH_PARAM = 'video_width'
+    VIDEO_CHANNEL_PARAM = 'video_channel'
     APPLY_TRANSFORMATIONS_PARAM = 'apply_transformations'
 
     def __init__(self, parameters, named_inputs, named_outputs):
@@ -435,27 +421,46 @@ class VideoGenerator(Operation):
         self.output = named_outputs.get('output data',
                                         'out_task_{}'.format(self.order))
 
-        self.dimensions = parameters.get(self.DIMENSIONS_PARAM, None)
-        self.channels = parameters.get(self.CHANNELS_PARAM, None)
-        self.cropping_strategy = parameters.get(self.CROPPING_STRATEGY_PARAM, None)
-        self.batch_size = parameters.get(self.BATCH_SIZE_PARAM, None)
-        self.shuffle = parameters.get(self.SHUFFLE_PARAM, None)
-        self.validation_split = parameters.get(self.VALIDATION_SPLIT_PARAM, None)
+        self._dimensions = parameters.get(self.DIMENSIONS_PARAM, None)
+        self._channels = parameters.get(self.CHANNELS_PARAM, None)
+        self._cropping_strategy = parameters.get(self.CROPPING_STRATEGY_PARAM,
+                                                None)
+        self._batch_size = parameters.get(self.BATCH_SIZE_PARAM, None)
+        self._shuffle = parameters.get(self.SHUFFLE_PARAM, None)
+        self._validation_split = parameters.get(self.VALIDATION_SPLIT_PARAM,
+                                               None)
 
-        self.cropping_strategy = parameters.get(self.CROPPING_STRATEGY_PARAM, None)
-        self.random_frames = parameters.get(self.RANDOM_FRAMES_PARAM, None)
-        self.random_height = parameters.get(self.RANDOM_HEIGHT_PARAM, None)
-        self.random_width = parameters.get(self.RANDOM_WIDTH_PARAM, None)
-        self.random_channel = parameters.get(self.RANDOM_CHANNEL_PARAM, None)
-        self.frames = parameters.get(self.FRAMES_PARAM, None)
-        self.height = parameters.get(self.HEIGHT_PARAM, None)
-        self.width = parameters.get(self.WIDTH_PARAM, None)
-        self.channel = parameters.get(self.CHANNEL_PARAM, None)
-        self.apply_transformations = parameters.get(self.APPLY_TRANSFORMATIONS_PARAM, None)
+        self.cropping_strategy = parameters.get(self.CROPPING_STRATEGY_PARAM,
+                                                None)
+        self._random_frames = parameters.get(self.RANDOM_FRAMES_PARAM, None)
+        self._random_height = parameters.get(self.RANDOM_HEIGHT_PARAM, None)
+        self._random_width = parameters.get(self.RANDOM_WIDTH_PARAM, None)
+        self._random_channel = parameters.get(self.RANDOM_CHANNEL_PARAM, None)
+        self._frames = parameters.get(self.VIDEO_FRAMES_PARAM, None)
+        self._height = parameters.get(self.VIDEO_HEIGHT_PARAM, None)
+        self._width = parameters.get(self.VIDEO_WIDTH_PARAM, None)
+        self._channel = parameters.get(self.VIDEO_CHANNEL_PARAM, None)
+        self._apply_transformations = parameters.get(
+            self.APPLY_TRANSFORMATIONS_PARAM, None)
+
+        self.batch_size = None
+        self.validation_split = None
+        self.channels = None
 
         self.video_training = None
         self.video_validation = None
         self.video_test = None
+        self.shuffle = None
+        self.dimensions = None
+        self.random_frames = None
+        self.random_height = None
+        self.random_width = None
+        self.random_channel = None
+        self.frames = None
+        self.height = None
+        self.width = None
+        self.channel = None
+        self.apply_transformations = None
 
         self.task_name = self.parameters.get('task').get('name')
         self.parents = ""
@@ -483,7 +488,7 @@ class VideoGenerator(Operation):
                             'preprocessing_image': None,
                             'others': ['from os import walk, listdir',
                                        'from os.path import isfile, join',
-                                       'from tensorflow.python.keras.utils '
+                                       'from keras.utils '
                                        'import to_categorical']
                             }
 
@@ -504,22 +509,24 @@ class VideoGenerator(Operation):
                 self.video_validation = None
                 self.video_test = parents_by_port[0]
 
-        if not (self.video_training or self.video_validation or self.video_test):
+        if not (self.video_training or self.video_validation or
+                self.video_test):
             raise ValueError(gettext('You need to correctly specify the '
                                      'ports for training or validation or '
                                      'test.'
                                      )
                              )
 
-        if self.video_training and self.video_validation and self.validation_split:
+        if self.video_training and self.video_validation and \
+                self.validation_split:
             raise ValueError(gettext('Is impossible to use validation split '
                                      'option > 0 and video reader for training '
                                      'and validation data.'))
 
         if self.video_training:
-            self.video_training = convert_variable_name(self.video_training[1]) \
-                                  + '_' \
-                                  + convert_variable_name(self.video_training[0])
+            self.video_training = convert_variable_name(self.video_training[1])\
+                                  + '_' + \
+                                  convert_variable_name(self.video_training[0])
 
         if self.video_validation:
             self.video_validation = convert_variable_name(
@@ -536,52 +543,53 @@ class VideoGenerator(Operation):
         self.var_name = convert_variable_name(self.task_name)
         self.task_name = self.var_name
 
-        self.shuffle = True if int(self.shuffle) == 1 else False
+        self.shuffle = True if int(self._shuffle) == 1 else False
 
-        self.dimensions = get_tuple(self.dimensions)
+        self.dimensions = get_tuple(self._dimensions)
         if self.dimensions is None:
             raise ValueError(gettext('Parameter {} is invalid.')
                              .format(self.DIMENSIONS_PARAM))
 
-        self.channels = int(self.channels)
+        self.channels = int(self._channels)
         if self.channels < 0:
             raise ValueError(gettext('Parameter {} is invalid.')
-                             .format(self.CHANNELS_PARAM))
+                             .format(self.VIDEO_CHANNELS_PARAM))
 
-        self.batch_size = int(self.batch_size)
+        self.batch_size = int(self._batch_size)
         if self.batch_size < 1:
             raise ValueError(gettext('Parameter {} is invalid.')
                              .format(self.BATCH_SIZE_PARAM))
 
-        self.validation_split = float(self.validation_split)
+        self.validation_split = float(self._validation_split)
         if self.validation_split < 0:
             raise ValueError(gettext('Parameter {} is invalid.')
                              .format(self.VALIDATION_SPLIT_PARAM))
 
-        self.apply_transformations = True if int(self.apply_transformations) == 1 else False
+        self.apply_transformations = True \
+            if int(self._apply_transformations) == 1 else False
 
         if self.apply_transformations:
             if self.cropping_strategy == 'random':
-                if self.random_frames is not None:
-                    self.random_frames = get_interval(self.random_frames)
+                if self._random_frames is not None:
+                    self.random_frames = get_interval(self._random_frames)
                     if not self.random_frames:
                         raise ValueError(gettext('Parameter {} is invalid.')
                                          .format(self.RANDOM_FRAMES_PARAM))
                 else:
                     self.random_frames = ':'
 
-                self.random_height = get_random_interval(self.random_height)
+                self.random_height = get_random_interval(self._random_height)
                 if not self.random_height:
                     raise ValueError(gettext('Parameter {} is invalid.')
                                      .format(self.RANDOM_HEIGHT_PARAM))
 
-                self.random_width = get_random_interval(self.random_width)
+                self.random_width = get_random_interval(self._random_width)
                 if not self.random_width:
                     raise ValueError(gettext('Parameter {} is invalid.')
                                      .format(self.RANDOM_WIDTH_PARAM))
 
-                if self.random_channel is not None:
-                    self.random_channel = get_interval(self.random_channel)
+                if self._random_channel is not None:
+                    self.random_channel = get_interval(self._random_channel)
                     if not self.random_channel:
                         raise ValueError(gettext('Parameter {} is invalid.')
                                          .format(self.RANDOM_CHANNEL_PARAM))
@@ -589,32 +597,32 @@ class VideoGenerator(Operation):
                     self.random_channel = ':'
 
             elif self.cropping_strategy == 'center':
-                if self.frames is not None:
-                    self.frames = get_interval(self.frames)
+                if self._frames is not None:
+                    self.frames = get_interval(self._frames)
                     if not self.frames:
                         raise ValueError(gettext('Parameter {} is invalid.')
-                                         .format(self.FRAMES_PARAM))
+                                         .format(self.VIDEO_FRAMES_PARAM))
                 else:
                     self.frames = ':'
 
-                if self.height is not None:
-                    self.height = get_interval(self.height)
+                if self._height is not None:
+                    self.height = get_interval(self._height)
                     if not self.height:
                         raise ValueError(gettext('Parameter {} is invalid.')
-                                         .format(self.HEIGHT_PARAM))
+                                         .format(self.VIDEO_HEIGHT_PARAM))
                 else:
                     self.height = ':'
 
-                if self.width is not None:
-                    self.width = get_interval(self.width)
+                if self._width is not None:
+                    self.width = get_interval(self._width)
                     if not self.width:
                         raise ValueError(gettext('Parameter {} is invalid.')
-                                         .format(self.WIDTH_PARAM))
+                                         .format(self.VIDEO_WIDTH_PARAM))
                 else:
                     self.width = ':'
 
-                if self.channel is not None:
-                    self.channel = get_interval(self.channel)
+                if self._channel is not None:
+                    self.channel = get_interval(self._channel)
                     if not self.channel:
                         raise ValueError(gettext('Parameter {} is invalid.')
                                          .format(self.CHANNEL_PARAM))
@@ -627,6 +635,8 @@ class VideoGenerator(Operation):
             self.cropping_strategy = None
 
     def external_code(self):
+        generator_name = ''
+
         if self.video_training:
             if self.validation_split == 0:
                 generator_name = 'VideoGeneratorTraining'
