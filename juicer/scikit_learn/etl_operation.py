@@ -619,7 +619,7 @@ class JoinOperation(Operation):
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
-        self.keep_right_keys = \
+        self.not_keep_right_keys = not \
             parameters.get(self.KEEP_RIGHT_KEYS_PARAM, False) in (1, '1', True)
         self.match_case = parameters.get(self.MATCH_CASE_PARAM, False) \
                           in (1, '1', True)
@@ -652,23 +652,34 @@ class JoinOperation(Operation):
 
     def generate_code(self):
 
-        code = ""
-        if not self.keep_right_keys:
-            code = """
-            cols_to_remove = [c+'{sf}' for c in 
-                {in2}.columns if c in {in1}.columns]
-            """.format(in1=self.named_inputs['input data 1'],
-                       in2=self.named_inputs['input data 2'],
-                       sf=self.suffixes[1])
+        code = """
+        cols1 = [ c+'{suf_l}' for c in {in1}.columns]
+        cols2 = [ c+'{suf_r}' for c in {in2}.columns]
+        
+        {in1}.columns = cols1
+        {in2}.columns = cols2
+        
+        keys1 = [ c+'{suf_l}' for c in {keys1}]
+        keys2 = [ c+'{suf_r}' for c in {keys2}]
+        """.format(in1=self.named_inputs['input data 1'], in2=self.named_inputs['input data 2'],
+                   suf_l=self.suffixes[0], suf_r=self.suffixes[1],
+                   keys1=self.left_attributes, keys2=self.right_attributes)
 
-        if self.match_case:
+        if self.not_keep_right_keys:
             code += """
-            data1_tmp = {in1}[{id1}].applymap(lambda col: str(col).lower())
+            cols_to_remove = keys2
+            """
+
+        if not self.match_case:
+            code += """
+            data1_tmp = {in1}[keys1].applymap(lambda col: str(col).lower()).copy()
             data1_tmp.columns = [c+"_lower" for c in data1_tmp.columns]
+            col1 = list(data1_tmp.columns)
             data1_tmp = pd.concat([{in1}, data1_tmp], axis=1, sort=False)
             
-            data2_tmp = {in2}[{id2}].applymap(lambda col: str(col).lower())
+            data2_tmp = {in2}[keys2].applymap(lambda col: str(col).lower()).copy()
             data2_tmp.columns = [c+"_lower" for c in data2_tmp.columns]
+            col2 = list(data2_tmp.columns)
             data2_tmp = pd.concat([{in2}, data2_tmp], axis=1, sort=False)
 
             {out} = pd.merge(data1_tmp, data2_tmp, left_on=col1, right_on=col2,
@@ -684,15 +695,13 @@ class JoinOperation(Operation):
             code += """
             {out} = pd.merge({in1}, {in2}, how='{type}', 
                 suffixes={suffixes},
-                left_on={id1}, right_on={id2})
+                left_on=keys1, right_on=keys2)
              """.format(out=self.output, type=self.join_type,
                         in1=self.named_inputs['input data 1'],
                         in2=self.named_inputs['input data 2'],
-                        id1=self.left_attributes,
-                        id2=self.right_attributes,
                         suffixes=self.suffixes)
 
-        if not self.keep_right_keys:
+        if self.not_keep_right_keys:
             code += """
             {out}.drop(cols_to_remove, axis=1, inplace=True)
             """.format(out=self.output)
