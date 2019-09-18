@@ -919,7 +919,7 @@ class AddColumnsOperation(Operation):
 
                 # Add attribute index
                 return df.rdd.zipWithIndex().map(
-                    lambda row, inx: row + (inx,)).toDF(new_attrs)
+                    lambda row_inx: row_inx[0] + (row_inx[1],)).toDF(new_attrs)
 
             input1_indexed = _add_column_index({input1}, '{a1}')
             input2_indexed = _add_column_index({input2}, '{a2}')
