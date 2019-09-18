@@ -286,7 +286,6 @@ class Expression:
             'splitlines': self.get_numpy_function_call,
             'strip': self.get_numpy_function_call,
             'swapcase': self.get_numpy_function_call,
-            'upper': self.get_numpy_function_call,
             'zfill': self.get_numpy_function_call,
 
             # String information
@@ -392,5 +391,6 @@ class Expression:
             'length': self.get_function_call,
             'len': self.get_function_call,
             'split': self.get_built_function_call,
+            'upper': self.get_built_function_call,
         }
         self.functions.update(others_functions)
