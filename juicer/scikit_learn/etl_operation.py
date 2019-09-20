@@ -206,10 +206,10 @@ class CleanMissingOperation(Operation):
                     _("Parameter '{}' must be informed for task {}")
                     .format('attributes', self.__class__))
 
-            self.min_ratio = abs(parameters.get(
-                    self.MIN_MISSING_RATIO_PARAM, 0.0))
-            self.max_ratio = abs(parameters.get(
-                    self.MAX_MISSING_RATIO_PARAM, 1.0))
+            self.min_ratio = abs(float(parameters.get(
+                    self.MIN_MISSING_RATIO_PARAM, 0.0)))
+            self.max_ratio = abs(float(parameters.get(
+                    self.MAX_MISSING_RATIO_PARAM, 1.0)))
 
             if any([self.min_ratio > self.max_ratio,
                     self.min_ratio > 1.0,
@@ -234,42 +234,85 @@ class CleanMissingOperation(Operation):
     def generate_code(self):
 
         op = ""
-
         if self.mode_CM == "REMOVE_ROW":
-            op = "{output}.dropna(subset=col, axis='index', inplace=True)"\
-                .format(output=self.output)
+            code = """
+                min_missing_ratio = {min_thresh}
+                max_missing_ratio = {max_thresh}
+                {output} = {input}.copy()
+                ratio = {input}[{columns}].isnull().sum(axis=1) / len({columns})
+                ratio_mask = (ratio > min_missing_ratio) & (ratio <= max_missing_ratio)
+                {output} = {output}[~ratio_mask]
+                """ \
+                .format(min_thresh=self.min_ratio, max_thresh=self.max_ratio,
+                        output=self.output, input=self.named_inputs['input data'],
+                        columns=self.attributes_CM, op=op)
+
         elif self.mode_CM == "REMOVE_COLUMN":
-            op = "{output}[col].dropna(axis='columns', inplace=True))"\
-                .format(output=self.output)
 
-        elif self.mode_CM == "VALUE":
-            op = "{output}[col].fillna(value={value}, inplace=True)"\
-                .format(output=self.output, value=self.value_CM)
+            code = """
+                min_missing_ratio = {min_thresh}
+                max_missing_ratio = {max_thresh}
+                {output} = {input}
+                to_remove = []
+                for col in {columns}:
+                    ratio = {input}[col].isnull().sum() / len({input})
+                    ratio_mask = (ratio > min_missing_ratio) & (ratio <= max_missing_ratio)
+                    if ratio_mask:
+                        to_remove.append(col)
+                
+                {output}.drop(columns=to_remove, inplace=True)
+                """ \
+                .format(min_thresh=self.min_ratio, max_thresh=self.max_ratio,
+                        output=self.output, input=self.named_inputs['input data'],
+                        columns=self.attributes_CM, op=op)
 
-        elif self.mode_CM == "MEAN":
-            op = "{output}[col].fillna(value={output}" \
-                 "[col].mean(), inplace=True)".format(output=self.output)
-        elif self.mode_CM == "MEDIAN":
-            op = "{output}[col].fillna(value={output}" \
-                 "[col].median(), inplace=True)".format(output=self.output)
+        else:
 
-        elif self.mode_CM == "MODE":
-            op = "{out}[col].fillna(value={out}[col].mode(), inplace=True)"\
-                .format(out=self.output)
+            if self.mode_CM == "VALUE":
+                if isinstance(self.check_parameter(self.value_CM), str):
+                    op = "{output}[col].fillna(value='{value}', inplace=True)" \
+                        .format(output=self.output, value=self.value_CM)
+                else:
+                    op = "{output}[col].fillna(value={value}, inplace=True)" \
+                        .format(output=self.output, value=self.value_CM)
 
-        code = """
-        min_missing_ratio = {min_thresh}
-        max_missing_ratio = {max_thresh}
-        {output} = {input}
-        for col in {columns}:
-            ratio = {input}[col].isnull().sum()
-            if ratio >= min_missing_ratio and ratio <= max_missing_ratio:
-                {op}
-            """\
-            .format(min_thresh=self.min_ratio, max_thresh=self.max_ratio,
-                    output=self.output, input=self.named_inputs['input data'],
-                    columns=self.attributes_CM, op=op)
+            elif self.mode_CM == "MEAN":
+                op = "{output}[col].fillna(value={output}" \
+                     "[col].mean(), inplace=True)".format(output=self.output)
+            elif self.mode_CM == "MEDIAN":
+                op = "{output}[col].fillna(value={output}" \
+                     "[col].median(), inplace=True)".format(output=self.output)
+
+            elif self.mode_CM == "MODE":
+                op = "{out}[col].fillna(value={out}[col].mode(), inplace=True)"\
+                    .format(out=self.output)
+
+            code = """
+                    min_missing_ratio = {min_thresh}
+                    max_missing_ratio = {max_thresh}
+                    {output} = {input}
+                    for col in {columns}:
+                        ratio = {input}[col].isnull().sum() / len({input})
+                        ratio_mask = (ratio > min_missing_ratio) & (ratio <= max_missing_ratio)
+                        if ratio_mask:
+                            {op}
+                            """ \
+                .format(min_thresh=self.min_ratio, max_thresh=self.max_ratio,
+                        output=self.output, input=self.named_inputs['input data'],
+                        columns=self.attributes_CM, op=op)
         return dedent(code)
+
+    def check_parameter(self, parameter):
+        output = ""
+        try:
+            if parameter.isdigit():
+                output = int(parameter)
+            else:
+                output = float(parameter)
+        except ValueError:
+            output = parameter
+
+        return output
 
 
 class DifferenceOperation(Operation):
