@@ -486,7 +486,7 @@ class BarChartModel(ChartVisualization):
         colors = {}
         color_counter = 0
         for i, attr in enumerate(y_attrs):
-            color = COLORS_PALETTE[(i % 6) * 5 + ((i / 6) % 5)]
+            color = COLORS_PALETTE[(i % 6) * 5 + ((i // 6) % 5)]
             colors[attr] = {
                 'fill': color,
                 'gradient': color,
@@ -532,7 +532,7 @@ class BarChartModel(ChartVisualization):
             if x_value not in colors:
                 inx_row += 1
                 color = COLORS_PALETTE[(color_counter % 6) * 5 +
-                                       ((color_counter / 6) % 5)]
+                                       ((color_counter // 6) % 5)]
                 colors[x_value] = {
                     'fill': color,
                     'gradient': color,
@@ -544,7 +544,7 @@ class BarChartModel(ChartVisualization):
                 'name': row_x,
                 'key': row_x,
                 'color': COLORS_PALETTE[
-                    (inx_row % 6) * 5 + ((inx_row / 6) % 5)],
+                    (inx_row % 6) * 5 + ((inx_row // 6) % 5)],
                 'values': []
             }
             result['data'].append(data)
@@ -637,7 +637,7 @@ class PieChartModel(ChartVisualization):
                 'id': '{}_{}'.format(label_attr, i),
                 'name': row_y,
                 'label': row_y,
-                'color': COLORS_PALETTE[(i % 6) * 5 + ((i / 6) % 5)],
+                'color': COLORS_PALETTE[(i % 6) * 5 + ((i // 6) % 5)],
             }
             result['data'].append(data)
             if i >= 100:
@@ -664,8 +664,8 @@ class LineChartModel(ChartVisualization):
             data.append({
                 "id": attr,
                 "name": attr,
-                "color": COLORS_PALETTE[(i % 6) * 5 + ((i / 6) % 5)],
-                "pointColor": COLORS_PALETTE[(i % 6) * 5 + ((i / 6) % 5)],
+                "color": COLORS_PALETTE[(i % 6) * 5 + ((i // 6) % 5)],
+                "pointColor": COLORS_PALETTE[(i % 6) * 5 + ((i // 6) % 5)],
                 "pointShape": SHAPES[i % len(SHAPES)],
                 "pointSize": 3,
                 "values": []
