@@ -28,3 +28,20 @@ def save_job_source_code(base_url, token, job_id, source):
         raise RuntimeError(
             "Error loading data from stand: HTTP {} - {}  ({})".format(
                 r.status_code, r.text, url))
+
+
+def get_cluster_info(base_url, token, cluster_id):
+    headers = {
+        'X-Auth-Token': str(token),
+        'Content-Type': 'application/json'
+    }
+
+    url = '{}/clusters/{}'.format(base_url, cluster_id)
+
+    r = requests.get(url, headers=headers)
+    if r.status_code == 200:
+        return json.loads(r.text)
+    else:
+        raise RuntimeError(
+            "Error loading data from stand: HTTP {} - {}  ({})".format(
+                r.status_code, r.text, url))
