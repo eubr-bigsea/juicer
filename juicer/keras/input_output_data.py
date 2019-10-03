@@ -19,10 +19,9 @@ class ImageReader(Operation):
             raise ValueError(gettext('Parameter {} is required')
                              .format(self.TRAIN_IMAGES_PARAM))
 
-        self.train_images = parameters.get(self.TRAIN_IMAGES_PARAM,
-                                           None) or None
+        self.train_images = parameters.get(self.TRAIN_IMAGES_PARAM, None)
         self.validation_images = parameters.get(self.VALIDATION_IMAGES_PARAM,
-                                                None) or None
+                                                None)
 
         self.has_code = True
         self.var_name = ""
@@ -91,14 +90,15 @@ class ImageReader(Operation):
                 storage_url=self.metadata_train.get('storage').get('url'),
                 file_url=self.metadata_train.get('url')
             )
-            self.train_images = self.train_images.replace('file://','')
+            self.train_images = self.train_images.replace('file://', '')
 
         if self.validation_images is not None:
             self.validation_images = """'{storage_url}/{file_url}'""".format(
                 storage_url=self.metadata_validation.get('storage').get('url'),
                 file_url=self.metadata_validation.get('url')
             )
-            self.validation_images = self.validation_images.replace('file://','')
+            self.validation_images = self.validation_images.replace(
+                'file://', '')
 
     def generate_code(self):
         if self.train_images and self.validation_images:
