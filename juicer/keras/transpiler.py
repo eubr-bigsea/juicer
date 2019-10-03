@@ -75,6 +75,7 @@ class KerasTranspiler(Transpiler):
             'lambda': core_layers.Lambda,
             #'loss': core_layers.Loss,
             #'loss-operation': core_layers.LossOperation,
+            'load': model.Load,
             'lstm': recurrent_layers.LSTM,
             #'lstm-cell': core_layers.LSTMCell,
             'masking': core_layers.Masking,

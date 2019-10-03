@@ -85,6 +85,9 @@ class JuicerServer:
         redis_conn = redis.StrictRedis(host=parsed_url.hostname,
                                        port=parsed_url.port)
 
+        print(parsed_url.port)
+
+        print(redis_conn)
         # Start pending minions
         apps = [q.split('_')[-1] for q in redis_conn.keys('queue_app_*')]
         self.state_control = StateControlRedis(redis_conn)

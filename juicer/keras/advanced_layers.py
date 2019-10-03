@@ -60,7 +60,9 @@ class PythonCode(Operation):
             """
             
             # Begin user code - {name}
+            
             {code}
+            
             # End user code - {name}
             
             """

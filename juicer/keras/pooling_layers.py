@@ -952,7 +952,7 @@ class MaxPooling1D(Operation):
 
         self.add_functions_required = ""
 
-        if self.POOL_SIZE_PARAM is None:
+        if self._pool_size is None:
             raise ValueError(gettext('Parameter {} is required.')
                              .format(self.POOL_SIZE_PARAM))
 
@@ -1077,7 +1077,7 @@ class MaxPooling2D(Operation):
 
         self.add_functions_required = ""
 
-        if self.POOL_SIZE_PARAM is None:
+        if self._pool_size is None:
             raise ValueError(gettext('Parameter {} is required.')
                              .format(self.POOL_SIZE_PARAM))
 
@@ -1201,7 +1201,7 @@ class MaxPooling3D(Operation):
 
         self.add_functions_required = ""
 
-        if self.POOL_SIZE_PARAM is None:
+        if self._pool_size is None:
             raise ValueError(gettext('Parameter {} is required.')
                              .format(self.POOL_SIZE_PARAM))
 

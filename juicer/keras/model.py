@@ -193,31 +193,27 @@ class FitGenerator(Operation):
     # Classification report
     CLASSIFICATION_REPORT_PARAM = 'classification_report'
 
+    ADVANCED_OPTIONS_PARAM = 'advanced_options'
+
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
         self.output = named_outputs.get('output data',
                                         'out_task_{}'.format(self.order))
 
         # Fit Generator
-        self.steps_per_epoch = parameters.get(self.STEPS_PER_EPOCH_PARAM,
-                                              None)
+        self.steps_per_epoch = parameters.get(self.STEPS_PER_EPOCH_PARAM, None)
         self.epochs = parameters.get(self.EPOCHS_PARAM, None)
-        self.validation_data = parameters.get(self.VALIDATION_DATA_PARAM,
-                                              None)
+        self.validation_data = parameters.get(self.VALIDATION_DATA_PARAM, None)
         self.validation_steps = parameters.get(self.VALIDATION_STEPS_PARAM,
                                                None)
-        self.validation_freq = parameters.get(self.VALIDATION_FREQ_PARAM,
-                                              None)
-        self.class_weight = parameters.get(self.CLASS_WEIGHT_PARAM,
-                                           None)
-        self.max_queue_size = parameters.get(self.MAX_QUEUE_SIZE_PARAM,
-                                             None)
+        self.validation_freq = parameters.get(self.VALIDATION_FREQ_PARAM, None)
+        self.class_weight = parameters.get(self.CLASS_WEIGHT_PARAM, None)
+        self.max_queue_size = parameters.get(self.MAX_QUEUE_SIZE_PARAM, None)
         self.workers = int(parameters.get(self.WORKERS_PARAM, None))
         self.use_multiprocessing = parameters.get(
             self.USE_MULTIPROCESSING_PARAM, None)
         self.shuffle = parameters.get(self.SHUFFLE_PARAM, None)
-        self.initial_epoch = parameters.get(self.INITIAL_EPOCH_PARAM,
-                                            None)
+        self.initial_epoch = parameters.get(self.INITIAL_EPOCH_PARAM, None)
 
         self.callbacks = [
             {'key': 'TensorBoard', 'value': 'TensorBoard'},
@@ -230,12 +226,15 @@ class FitGenerator(Operation):
         self.save_name = parameters.get(self.SAVE_NAME_PARAM, None)
         self.save_action_if_exists = parameters.get(
             self.SAVE_ACTION_IF_EXISTS_PARAM, None)
-        self.save_weights_only = parameters.get(self.SAVE_WEIGHTS_ONLY_PARAM, None)
+        self.save_weights_only = parameters.get(self.SAVE_WEIGHTS_ONLY_PARAM,
+                                                None)
         self.save_metrics = parameters.get(self.SAVE_METRICS_PARAM, None)
         self.save_subset = parameters.get(self.SAVE_SUBSET_PARAM, None)
 
         self.classification_report = parameters.get(
             self.CLASSIFICATION_REPORT_PARAM, None)
+        self.advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM,
+                                               None)
 
         self.model = None
 
@@ -252,9 +251,9 @@ class FitGenerator(Operation):
 
         self.output_task_id = self.parameters.get('task').get('id')
 
-        if self.STEPS_PER_EPOCH_PARAM not in parameters or self.steps_per_epoch is None:
-            raise ValueError(gettext('Parameter {} is required')
-                             .format(self.STEPS_PER_EPOCH_PARAM))
+        # if self.STEPS_PER_EPOCH_PARAM not in parameters or self.steps_per_epoch is None:
+        #     raise ValueError(gettext('Parameter {} is required')
+        #                      .format(self.STEPS_PER_EPOCH_PARAM))
 
         if self.EPOCHS_PARAM not in parameters or self.epochs is None:
             raise ValueError(gettext('Parameter {} is required')
@@ -332,17 +331,17 @@ class FitGenerator(Operation):
         # Fit Generator
         functions_required_fit_generator = []
         if self.train_generator is not None:
-            self.train_generator = """    generator={train_generator}""" \
-                .format(train_generator=self.train_generator)
+            self.train_generator = """    generator={train_generator}""".format(
+                train_generator=self.train_generator)
             functions_required_fit_generator.append(self.train_generator)
 
         if self.steps_per_epoch is not None:
             functions_required_fit_generator.append(
                 """steps_per_epoch={steps_per_epoch}""".format(
                     steps_per_epoch=self.steps_per_epoch))
-        else:
-            raise ValueError(gettext('Parameter {} is required.')
-                             .format(self.STEPS_PER_EPOCH_PARAM))
+        # else:
+        #     raise ValueError(gettext('Parameter {} is required.')
+        #                      .format(self.STEPS_PER_EPOCH_PARAM))
 
         epochs = self.epochs
         if self.epochs is not None:
@@ -433,29 +432,29 @@ class FitGenerator(Operation):
 
                         file_models.append(file_name)
 
-                        # Create the ModelCheckpoints
-                        mcp = ''
-                        count = 0
-                        mcp_var = ''
-                        for f in file_models:
-                            if mcp:
-                                mcp += '\n'
+                    # Create the ModelCheckpoints
+                    mcp = ''
+                    count = 0
+                    mcp_var = ''
+                    for f in file_models:
+                        if mcp:
+                            mcp += '\n'
 
-                            mcp_var += 'modelcheckpoint_{0}_callback' \
-                                           .format(monitor[count]) + ', '
+                        mcp_var += 'modelcheckpoint_{0}_callback' \
+                                       .format(monitor[count]) + ', '
 
-                            mcp += str('modelcheckpoint_{monitor}_callback = ModelCheckpoint(\n' \
-                                       '    filepath=str("{file}"),\n' \
-                                       '    monitor="{monitor}",\n' \
-                                       '    save_best_only=True,\n' \
-                                       '    save_weights_only={save_weights_only},\n' \
-                                       '    mode="auto",\n' \
-                                       '    period=1)'.format(
-                                file=f,
-                                monitor=monitor[count],
-                                save_weights_only=self.save_weights_only
-                            ))
-                            count += 1
+                        mcp += str('modelcheckpoint_{monitor}_callback = ModelCheckpoint(\n' \
+                                   '    filepath=str("{file}"),\n' \
+                                   '    monitor="{monitor}",\n' \
+                                   '    save_best_only=True,\n' \
+                                   '    save_weights_only={save_weights_only},\n' \
+                                   '    mode="auto",\n' \
+                                   '    period=1)'.format(
+                            file=f,
+                            monitor=monitor[count],
+                            save_weights_only=self.save_weights_only
+                        ))
+                        count += 1
                 else:
                     raise ValueError(gettext('Parameter {} invalid.')
                                      .format(self.SAVE_NAME_PARAM))
@@ -936,6 +935,139 @@ class FitGenerator(Operation):
                          add_functions_required_fit_generator=
                          self.add_functions_required_fit_generator,
                          task_id=self.output_task_id)
+
+
+class Load(Operation):
+    # Compile
+    MODEL_PARAM = 'model'
+    WEIGHTS_PARAM = 'weights'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+        self.output = named_outputs.get('output data',
+                                        'out_task_{}'.format(self.order))
+
+        self.model = parameters.get(self.MODEL_PARAM, None)
+        self.weights = parameters.get(self.WEIGHTS_PARAM, None)
+
+        self._model = None
+        self._weights = None
+
+        self.task_name = self.parameters.get('task').get('name')
+        self.var_name = ""
+        self.has_code = True
+        self.parent = ""
+        self.parents_by_port = parameters.get('my_ports', [])
+        self.parents_slug = parameters.get('parents_slug', [])
+
+        self.add_functions_required = ""
+
+        self.output_task_id = self.parameters.get('task').get('id')
+
+        if (self.model is None and self.weights is None) or \
+                (self.model is not None and self.weights is not None):
+            raise ValueError(gettext('It is necessary to inform {} or {}.')
+                             .format(self.MODEL_PARAM, self.WEIGHTS_PARAM))
+
+        supported_formats = ('HDF5',)
+
+        if self.model != 0 and self.model is not None:
+            self.metadata_model = self.get_data_source(
+                data_source_id=self.model)
+
+            if self.metadata_model.get('format') not in supported_formats:
+                raise ValueError(gettext('Unsupported model format: {}').format(
+                    self.metadata_model.get('format')))
+
+            self.format = self.metadata_model.get('format')
+
+            self.import_code = {'layer': None,
+                                'callbacks': [],
+                                'model': 'load_model',
+                                'preprocessing_image': None,
+                                'others': None}
+
+        if self.weights != 0 and self.weights is not None:
+            self.metadata_weights = self.get_data_source(
+                data_source_id=self.weights)
+
+            if self.metadata_weights.get('format') not in supported_formats:
+                raise ValueError(gettext('Unsupported weights format: {}').format(
+                    self.metadata_weights.get('format')))
+
+            self.format = self.metadata_weights.get('format')
+
+            self.import_code = {'layer': None,
+                                'callbacks': [],
+                                'model': 'load_weights',
+                                'preprocessing_image': None,
+                                'others': None}
+        self.treatment()
+
+    def get_data_source(self, data_source_id):
+        # Retrieve metadata from Limonero.
+        limonero_config = \
+            self.parameters['configuration']['juicer']['services']['limonero']
+
+        metadata = limonero_service.get_data_source_info(
+            limonero_config['url'], str(limonero_config['auth_token']),
+            str(data_source_id))
+
+        if not metadata.get('url'):
+            raise ValueError(
+                gettext('Incorrect data source configuration (empty url)'))
+
+        return metadata
+
+    def treatment(self):
+        self.parent = convert_parents_to_variable_name(self.parameters
+                                                       .get('parents', []))
+        # for python_code in self.python_code_to_remove:
+        #     self.parent.remove(python_code[0])
+
+        if self.parent:
+            self.parent = '{}'.format(self.parent[0])
+        else:
+            self.parent = ''
+
+        self.var_name = convert_variable_name(self.task_name)
+        self.task_name = self.var_name
+
+        if self.model is not None:
+            self._model = """'{storage_url}/{file_url}'""".format(
+                storage_url=self.metadata_model.get('storage').get('url'),
+                file_url=self.metadata_model.get('url')
+            )
+            self._model = self._model.replace('file://', '')
+
+        if self.weights is not None:
+            if not self.parents_slug:
+                raise ValueError(
+                    gettext('You must enter a model to load the weights.'))
+            elif not self.parents_slug[0] == 'model':
+                raise ValueError(
+                    gettext('You must enter a model to load the weights.'))
+
+            self._weights = """'{storage_url}/{file_url}'""".format(
+                storage_url=self.metadata_weights.get('storage').get('url'),
+                file_url=self.metadata_weights.get('url')
+            )
+            self._weights = self._weights.replace('file://', '')
+
+    def generate_code(self):
+        if self.model:
+            return dedent(
+                """                
+                {var_name} = load_model({model})
+                """.format(var_name=self.var_name, parent=self.parent)
+            )
+        elif self.weights:
+            return dedent(
+                """
+                {var_name} = {parent}
+                {var_name}.load_weights({weights})
+                """.format(weights=self._weights, parent=self.parent)
+            )
 
 
 class Model(Operation):
