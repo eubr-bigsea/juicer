@@ -756,7 +756,7 @@ class MapModel(ChartVisualization):
         lng = self.params.get('longitude', [None])[0]
         label = self.params.get('label', [None])[0]
 
-        for i, row in enumerate(rows):
+        for i, row in self.data.iterrows():
             if self.params.get('value'):
                 value = row[self.params.get('value')[0]]
             else:
