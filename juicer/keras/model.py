@@ -999,7 +999,7 @@ class Load(Operation):
 
             self.import_code = {'layer': None,
                                 'callbacks': [],
-                                'model': 'load_weights',
+                                'model': '',
                                 'preprocessing_image': None,
                                 'others': None}
         self.treatment()
@@ -1059,14 +1059,16 @@ class Load(Operation):
             return dedent(
                 """                
                 {var_name} = load_model({model})
-                """.format(var_name=self.var_name, parent=self.parent)
+                """.format(var_name=self.var_name, model=self._model)
             )
         elif self.weights:
             return dedent(
                 """
                 {var_name} = {parent}
                 {var_name}.load_weights({weights})
-                """.format(weights=self._weights, parent=self.parent)
+                """.format(var_name=self.var_name,
+                           weights=self._weights,
+                           parent=self.parent)
             )
 
 
@@ -1328,3 +1330,49 @@ class Model(Operation):
                  self.add_functions_required_compile,
                  callback_code=self.callback_code,
                  task_id=self.output_task_id)
+
+
+class Predict(Operation):
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+        self.output = named_outputs.get('output data',
+                                        'out_task_{}'.format(self.order))
+
+        self.task_name = self.parameters.get('task').get('name')
+        self.var_name = ""
+        self.has_code = True
+
+        self.output_task_id = self.parameters.get('task').get('id')
+
+        self.model = None
+        self.generator = None
+
+        self.import_code = {'layer': None,
+                            'callbacks': [],
+                            'model': 'Model',
+                            'preprocessing_image': None,
+                            'others': None}
+
+        self.parents_by_port = parameters.get('my_ports', [])
+        self.treatment()
+
+    def treatment(self):
+        self.var_name = convert_variable_name(self.task_name)
+        self.task_name = self.var_name
+
+        for parent in self.parents_by_port:
+            if str(parent[0]) == 'model':
+                self.model = convert_variable_name(parent[1])
+            elif str(parent[0]) == 'generator':
+                self.generator = convert_variable_name(parent[1])
+
+    def generate_code(self):
+        return dedent(
+            """
+            {var_name} = {model}.predict_generator(
+                generator=test_{generator}
+            )
+            """
+        ).format(var_name=self.var_name,
+                 model=self.model,
+                 generator=self.generator)

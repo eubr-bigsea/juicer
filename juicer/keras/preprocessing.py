@@ -84,6 +84,7 @@ class ImageGenerator(Operation):
 
         self.image_train = None
         self.image_validation = None
+        self.image_test = None
         self.validation_split = None
 
         self.task_name = self.parameters.get('task').get('name')
@@ -118,23 +119,35 @@ class ImageGenerator(Operation):
             if str(parents_by_port[0][0]) == 'train-image':
                 self.image_train = parents_by_port[0]
                 self.image_validation = None
+                self.image_test = None
             elif str(parents_by_port[0][0]) == 'validation-image':
                 self.image_train = None
                 self.image_validation = parents_by_port[0]
+                self.image_test = None
+            elif str(parents_by_port[0][0]) == 'test-image':
+                self.image_train = None
+                self.image_validation = None
+                self.image_test = parents_by_port[0]
 
-        if not (self.image_train or self.image_validation):
+        if not (self.image_train or self.image_validation or self.image_test):
             raise ValueError(gettext('You need to correctly specify the '
-                                     'ports for training and/or validation.'))
+                                     'ports for training or validation or test.'
+                                     ))
 
         if self.image_train:
-            self.image_train = convert_variable_name(self.image_train[1]) \
-                               + '_' \
-                               + convert_variable_name(self.image_train[0])
+            self.image_train = convert_variable_name(
+                self.image_train[1]) + '_' + \
+                               convert_variable_name(self.image_train[0])
 
         if self.image_validation:
             self.image_validation = convert_variable_name(
-                self.image_validation[1]) + '_' + convert_variable_name(
-                self.image_validation[0])
+                self.image_validation[1]) + '_' + \
+                               convert_variable_name(self.image_validation[0])
+
+        if self.image_test:
+            self.image_test = convert_variable_name(
+                self.image_test[1]) + '_' + \
+                               convert_variable_name(self.image_test[0])
 
         self.parents = convert_parents_to_variable_name(self.parameters
                                                         .get('parents', []))
@@ -151,6 +164,11 @@ class ImageGenerator(Operation):
             functions_required_flow_from_directory.append(
                 """directory={image_validation}""".format(
                     image_validation=self.image_validation))
+
+        if self.image_test:
+            functions_required_flow_from_directory.append(
+                """directory={image_test}""".format(
+                    image_test=self.image_test))
 
         if self.target_size:
             target_size = get_int_or_tuple(self.target_size)
@@ -388,6 +406,22 @@ class ImageGenerator(Operation):
                     {add_functions_required}
                 )
                 validation_{var_name} = {var_name}_datagen.flow_from_directory(
+                    {add_functions_required_flow_from_directory}
+                )
+                
+                """
+            ).format(var_name=self.var_name,
+                     add_functions_required=self.add_functions_required,
+                     add_functions_required_flow_from_directory=self.
+                     add_functions_required_flow_from_directory)
+
+        if self.image_test:
+            return dedent(
+                """
+                {var_name}_datagen = ImageDataGenerator(
+                    {add_functions_required}
+                )
+                test_{var_name} = {var_name}_datagen.flow_from_directory(
                     {add_functions_required_flow_from_directory}
                 )
                 

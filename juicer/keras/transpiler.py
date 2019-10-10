@@ -90,6 +90,7 @@ class KerasTranspiler(Transpiler):
             #'optimizer': core_layers.OptimizerOperation,
             #'output': core_layers.OutputOperation,
             'permute': core_layers.Permute,
+            'predict': model.Predict,
             'python-code': advanced_layers.PythonCode,
             'repeatVector': core_layers.RepeatVector,
             'reshape': core_layers.Reshape,

@@ -9,19 +9,21 @@ from juicer.util.template_util import *
 class ImageReader(Operation):
     TRAIN_IMAGES_PARAM = 'train_images'
     VALIDATION_IMAGES_PARAM = 'validation_images'
+    TEST_IMAGES_PARAM = 'test_images'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
         self.output = named_outputs.get('output data',
                                         'out_task_{}'.format(self.order))
 
-        if self.TRAIN_IMAGES_PARAM not in parameters:
-            raise ValueError(gettext('Parameter {} is required')
-                             .format(self.TRAIN_IMAGES_PARAM))
+        # if self.TRAIN_IMAGES_PARAM not in parameters:
+        #     raise ValueError(gettext('Parameter {} is required')
+        #                      .format(self.TRAIN_IMAGES_PARAM))
 
         self.train_images = parameters.get(self.TRAIN_IMAGES_PARAM, None)
         self.validation_images = parameters.get(self.VALIDATION_IMAGES_PARAM,
                                                 None)
+        self.test_images = parameters.get(self.TEST_IMAGES_PARAM, None)
 
         self.has_code = True
         self.var_name = ""
@@ -50,6 +52,18 @@ class ImageReader(Operation):
             self.format = self.metadata_validation.get('format')
         else:
             self.metadata_validation = None
+
+        if self.test_images != 0 and self.test_images is not None:
+            self.metadata_test = self.get_data_source(
+                data_source_id=self.test_images)
+
+            if self.metadata_test.get('format') not in supported_formats:
+                raise ValueError(gettext('Unsupported image format: {}').format(
+                    self.metadata_test.get('format')))
+
+            self.format = self.metadata_test.get('format')
+        else:
+            self.metadata_test = None
 
         if self.metadata_validation is not None:
             if not (self.metadata_train.get('format') ==
@@ -100,23 +114,49 @@ class ImageReader(Operation):
             self.validation_images = self.validation_images.replace(
                 'file://', '')
 
+        if self.test_images is not None:
+            self.test_images = """'{storage_url}/{file_url}'""".format(
+                storage_url=self.metadata_test.get('storage').get('url'),
+                file_url=self.metadata_test.get('url')
+            )
+            self.test_images = self.test_images.replace('file://', '')
+
     def generate_code(self):
-        if self.train_images and self.validation_images:
-            return dedent(
-                """                
+        options = []
+        
+        if self.train_images:
+            options.append("""                
                 {var_name}_train_image = {train_images}
+                """.format(var_name=self.var_name,
+                           train_images=self.train_images))
+
+        if self.validation_images:
+            options.append("""                
                 {var_name}_validation_image = {validation_images}
                 """.format(var_name=self.var_name,
-                           train_images=self.train_images,
-                           validation_images=self.validation_images)
-            )
-        elif self.train_images:
-            return dedent(
-                """
-                {var_name}_train_image = {train_images}
-                """.format(var_name=self.var_name,
-                           train_images=self.train_images)
-            )
+                           validation_images=self.validation_images))
+
+        if self.test_images:
+            options.append("{var_name}_test_image = {test_images}".format(
+                var_name=self.var_name, test_images=self.test_images))
+
+        return dedent('\n'.join(options))
+        # if self.train_images and self.validation_images:
+        #     return dedent(
+        #         """
+        #         {var_name}_train_image = {train_images}
+        #         {var_name}_validation_image = {validation_images}
+        #         """.format(var_name=self.var_name,
+        #                    train_images=self.train_images,
+        #                    validation_images=self.validation_images)
+        #     )
+        # elif self.train_images:
+        #     return dedent(
+        #         """
+        #         {var_name}_train_image = {train_images}
+        #         """.format(var_name=self.var_name,
+        #                    train_images=self.train_images)
+        #     )
 
 
 class VideoReader(Operation):
