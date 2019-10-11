@@ -106,7 +106,7 @@ class PublishVisualizationOperation(Operation):
         # list for visualizations metadata
         code_lines = [
             "from juicer.service import caipirinha_service",
-            "from juicer.util.dataframe_util import SimpleJsonEncoder as enc",
+            "from juicer.util.dataframe_util import SimpleJsonEncoderSklearn as enc",
             "visualizations = []"
         ]
         if isinstance(self.named_inputs['visualizations'], (list, tuple)):
@@ -209,7 +209,7 @@ class VisualizationMethodOperation(Operation):
         code_lines = [dedent(
             """
             from juicer.scikit_learn.vis_operation import {model}
-            from juicer.util.dataframe_util import SimpleJsonEncoder as enc
+            from juicer.util.dataframe_util import SimpleJsonEncoderSklearn as enc
 
             params = '{params}'
             {out} = {model}(
@@ -416,6 +416,8 @@ class ChartVisualization(VisualizationModel):
             attr_type = 'text'
         elif attr == 'str':
             attr_type = 'text'
+        elif attr.startswith('datetime'):
+            attr_type = 'date'
         else:
             attr_type = 'number'
 
@@ -456,9 +458,7 @@ class ChartVisualization(VisualizationModel):
             raise ValueError(_(
                 'At least one attribute for Y-axis does not exist: {}').format(
                 ', '.join(self.params.get('column_names', []))))
-
-        x_type = str(self.data[x_attr].dtype)
-        x_type = ChartVisualization._get_attr_type(x_type)
+        x_type = ChartVisualization._get_attr_type(str(self.data[x_attr].dtype))
         return x_attr, x_type, y_attrs
 
     @staticmethod
@@ -701,7 +701,11 @@ class LineChartModel(ChartVisualization):
             result['x']["outFormat"] = self.default_time_format
             result['x']["type"] = 'time'  # FIXME
 
-        rows_x = self.data[x_attr].values.tolist()
+        if self.data[x_attr].dtype.name.startswith('datetime'):
+            rows_x = self.data[x_attr].values.astype('datetime64[s]').tolist()
+        else:
+            rows_x = self.data[x_attr].values.tolist()
+
         rows_y = self.data[y_attrs].values.tolist()
 
         for row_x, row_y in zip(rows_x, rows_y):
