@@ -1342,6 +1342,102 @@ class Predict(Operation):
         self.var_name = ""
         self.has_code = True
 
+        self.task_id = self.parameters.get('task').get('id')
+
+        self.model = None
+        self.generator = None
+        self.data_type = None
+
+        self.import_code = {'layer': None,
+                            'callbacks': [],
+                            'model': 'Model',
+                            'preprocessing_image': None,
+                            'others': ["from sklearn.metrics import "
+                                       "classification_report, "
+                                       "confusion_matrix"]}
+
+        self.parents_by_port = parameters.get('parents_by_port', [])
+        self.treatment()
+
+    def treatment(self):
+        self.var_name = convert_variable_name(self.task_name)
+        self.task_name = self.var_name
+
+        for parent in self.parents_by_port:
+            if str(parent[0]) == 'model':
+                self.model = convert_variable_name(parent[1])
+            elif str(parent[0]) == 'generator':
+                self.generator = convert_variable_name(parent[1])
+            elif str(parent[0]) == 'train-image':
+                self.data_type = 'train'
+            elif str(parent[0]) == 'validation-image':
+                self.data_type = 'val'
+            elif str(parent[0]) == 'test-image':
+                self.data_type = 'test'
+
+        if self.data_type:
+            self.generator = '{}_{}'.format(self.data_type, self.generator)
+        else:
+            raise ValueError(gettext('It is necessary to inform the data '
+                                     'source.')
+                             )
+
+    def generate_code(self):
+        return dedent(
+            """                
+            # Reports for the test
+            batch_size = {generator}.batch_size
+            number_of_examples = len({generator}.classes)
+            
+            if number_of_examples % batch_size == 0:
+                steps = number_of_examples // batch_size
+            else:
+                steps = (number_of_examples // batch_size) + 1
+                
+            {var_name} = {model}.predict_generator(
+                generator={generator},
+                steps=steps
+            )
+            
+            predictions_to_matrix = np.argmax({var_name}, axis=1)
+            
+            target_names = list({generator}.class_indices.keys())
+            labels = list({generator}.class_indices.values())
+            
+            report = classification_report(
+                y_true={generator}.classes,
+                y_pred=predictions_to_matrix,
+                labels=labels,
+                target_names=target_names,
+                output_dict=False
+            )
+            
+            message = '\\n<h5>Classification Report - Test</h5>'
+            message += '<pre>' + report + '</pre>'
+            emit_event(name='update task',
+                message=message,
+                type='HTML',
+                status='RESULTS',
+                identifier='{task_id}'
+            ) 
+            
+            """
+        ).format(var_name=self.var_name,
+                 model=self.model,
+                 generator=self.generator,
+                 task_id=self.task_id)
+
+
+class Evaluate(Operation):
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+        self.output = named_outputs.get('output data',
+                                        'out_task_{}'.format(self.order))
+
+        self.task_name = self.parameters.get('task').get('name')
+        self.var_name = ""
+        self.has_code = True
+
         self.output_task_id = self.parameters.get('task').get('id')
 
         self.model = None
@@ -1369,9 +1465,11 @@ class Predict(Operation):
     def generate_code(self):
         return dedent(
             """
-            {var_name} = {model}.predict_generator(
+            {var_name} = {model}.evaluate_generator(
                 generator=test_{generator}
             )
+            print({model}.metrics_names)
+            print({var_name})
             """
         ).format(var_name=self.var_name,
                  model=self.model,
