@@ -371,8 +371,12 @@ class FitGenerator(Operation):
                            'Stand Database': 4,
                            'File system': 5,
                            'HDFS Local': 6,
-                           'Local File System': 7,
-                           'path': '/srv/models'}
+                           'Local File System': 7}
+
+            if self.save_weights_only:
+                map_storage['path'] = '/srv/weights'
+            else:
+                map_storage['path'] = '/srv/models'
 
             # Hardcoded for a while - FIX_ME
             if self.save_storage == map_storage['Local File System']:
@@ -412,16 +416,17 @@ class FitGenerator(Operation):
                     for metric in monitor:
                         file_names.append('{}_{}'.format(self.save_name,
                                                          metric))
-                        format = 'epoch_{epoch:02d}-' + metric + '_{' + \
-                                 metric + ':.2f}.hdf5'
-                        formats.append(format)
+                        # format = 'epoch_{epoch:02d}-' + metric + '_{' + \
+                        #          metric + ':.2f}.hdf5'
+                        # formats.append(format)
 
                     file_models = []
                     for i in range(0, len(file_names)):
                         file_name = '{0}/{1}.{2}'.format(
                             map_storage['path'],
-                            self.save_name,
-                            formats[i])
+                            file_names[i],
+                            'hdf5')
+                            #formats[i])
 
                         if self.save_action_if_exists == 'Raise error':
                             is_file = os.path.isfile(file_name)
@@ -440,8 +445,8 @@ class FitGenerator(Operation):
                         if mcp:
                             mcp += '\n'
 
-                        mcp_var += 'modelcheckpoint_{0}_callback' \
-                                       .format(monitor[count]) + ', '
+                        mcp_var += 'modelcheckpoint_{0}_callback, '.format(
+                            monitor[count])
 
                         mcp += str('modelcheckpoint_{monitor}_callback = ModelCheckpoint(\n' \
                                    '    filepath=str("{file}"),\n' \
@@ -452,8 +457,7 @@ class FitGenerator(Operation):
                                    '    period=1)'.format(
                             file=f,
                             monitor=monitor[count],
-                            save_weights_only=self.save_weights_only
-                        ))
+                            save_weights_only=self.save_weights_only))
                         count += 1
                 else:
                     raise ValueError(gettext('Parameter {} invalid.')
@@ -1043,10 +1047,10 @@ class Load(Operation):
         if self.weights is not None:
             if not self.parents_slug:
                 raise ValueError(
-                    gettext('You must enter a model to load the weights.'))
-            elif not self.parents_slug[0] == 'model':
-                raise ValueError(
-                    gettext('You must enter a model to load the weights.'))
+                    gettext('You must connect a model to load the weights.'))
+            # elif not self.parents_slug[0] == 'model':
+            #     raise ValueError(
+            #         gettext('You must enter a model to load the model.'))
 
             self._weights = """'{storage_url}/{file_url}'""".format(
                 storage_url=self.metadata_weights.get('storage').get('url'),
@@ -1084,6 +1088,30 @@ class Model(Operation):
     TARGET_TENSORS_PARAM = 'target_tensors'
     KWARGS_PARAM = 'kwargs'
 
+    #Advanced optimizer options
+    ADVANCED_OPTIMIZER_PARAM = 'advanced_optimizer'
+    CLIPNORM_PARAM = 'clipnorm'
+    CLIPVALUE_PARAM = 'clipvalue'
+    LEARNING_RATE_SGD_PARAM = 'learning_rate_sgd'
+    DECAY_SGD_PARAM = 'decay_sgd'
+    MOMENTUM_SGD_PARAM = 'momentum_sgd'
+    NESTEROV_SGD_PARAM = 'nesterov_sgd'
+    LEARNING_RATE_RMSPROP_PARAM = 'learning_rate_rmsprop'
+    RHO_RMSPROP_PARAM = 'rho_rmsprop'
+    LEARNING_RATE_ADAGRAD_PARAM = 'learning_rate_adagrad'
+    LEARNING_RATE_ADADELTA_PARAM = 'learning_rate_adadelta'
+    RHO_ADADELTA_PARAM = 'rho_adadelta'
+    LEARNING_RATE_ADAM_PARAM = 'learning_rate_adam'
+    BETA_1_ADAM_PARAM = 'beta_1_adam'
+    BETA_2_ADAM_PARAM = 'beta_2_adam'
+    AMSGRAD_ADAM_PARAM = 'amsgrad_adam'
+    LEARNING_RATE_ADAMAX_PARAM = 'learning_rate_adamax'
+    BETA_1_ADAMAX_PARAM = 'beta_1_adamax'
+    BETA_2_ADAMAX_PARAM = 'beta_2_adamax'
+    LEARNING_RATE_NADAM_PARAM = 'learning_rate_nadam'
+    BETA_1_NADAM_PARAM = 'beta_1_nadam'
+    BETA_2_NADAM_PARAM = 'beta_2_nadam'
+
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
         self.output = named_outputs.get('output data',
@@ -1094,15 +1122,70 @@ class Model(Operation):
         self.loss = parameters.get(self.LOSS_PARAM, None)
         self.metrics = parameters.get(self.METRICS_PARAM, None)
         self.k = parameters.get(self.K_PARAM, None)
-        self.loss_weights = parameters.get(self.LOSS_WEIGHTS_PARAM,
-                                           None)
+        self.loss_weights = parameters.get(self.LOSS_WEIGHTS_PARAM, None)
         self.sample_weight_mode = parameters.get(self.SAMPLE_WEIGHT_MODE_PARAM,
                                                  None)
         self.weighted_metrics = parameters.get(self.WEIGHTED_METRICS_PARAM,
                                                None)
-        self.target_tensors = parameters.get(self.TARGET_TENSORS_PARAM,
-                                             None)
+        self.target_tensors = parameters.get(self.TARGET_TENSORS_PARAM, None)
         self.kwargs = parameters.get(self.KWARGS_PARAM, None)
+
+        self.advanced_optimizer = int(parameters.get(
+            self.ADVANCED_OPTIMIZER_PARAM, None))
+        self.clipnorm = float(parameters.get(self.CLIPNORM_PARAM, None))
+        self.clipvalue = float(parameters.get(self.CLIPVALUE_PARAM, None))
+        self.learning_rate_sgd = float(parameters.get(
+            self.LEARNING_RATE_SGD_PARAM,None))
+        self.decay_sgd = float(parameters.get(self.DECAY_SGD_PARAM, None))
+        self.momentum_sgd = float(parameters.get(self.MOMENTUM_SGD_PARAM, None))
+        self.nesterov_sgd = int(parameters.get(self.NESTEROV_SGD_PARAM, None))
+        self.learning_rate_rmsprop = float(parameters.get(
+            self.LEARNING_RATE_RMSPROP_PARAM, None))
+        self.rho_rmsprop = float(parameters.get(self.RHO_RMSPROP_PARAM, None))
+        self.learning_rate_adagrad = float(parameters.get(
+            self.LEARNING_RATE_ADAGRAD_PARAM, None))
+        self.learning_rate_adadelta = float(parameters.get(
+            self.LEARNING_RATE_ADADELTA_PARAM, None))
+        self.rho_adadelta = float(parameters.get(self.RHO_ADADELTA_PARAM, None))
+        self.learning_rate_adam = float(parameters.get(
+            self.LEARNING_RATE_ADAM_PARAM,None))
+        self.beta_1_adam = float(parameters.get(self.BETA_1_ADAM_PARAM, None))
+        self.beta_2_adam = float(parameters.get(self.BETA_2_ADAM_PARAM, None))
+        self.amsgrad_adam = int(parameters.get(self.AMSGRAD_ADAM_PARAM, None))
+        self.learning_rate_adamax = float(parameters.get(
+            self.LEARNING_RATE_ADAMAX_PARAM, None))
+        self.beta_1_adamax = float(parameters.get(self.BETA_1_ADAMAX_PARAM,
+                                                  None))
+        self.beta_2_adamax = float(parameters.get(self.BETA_2_ADAMAX_PARAM,
+                                                  None))
+        self.learning_rate_nadam = float(parameters.get(
+            self.LEARNING_RATE_NADAM_PARAM, None))
+        self.beta_1_nadam = float(parameters.get(self.BETA_1_NADAM_PARAM, None))
+        self.beta_2_nadam = float(parameters.get(self.BETA_2_NADAM_PARAM, None))
+
+        self._clipnorm = None
+        self._clipvalue = None
+        self._learning_rate_sgd = None
+        self._decay_sgd = None
+        self._momentum_sgd = None
+        self._nesterov_sgd = None
+        self._learning_rate_rmsprop = None
+        self._rho_rmsprop = None
+        self._learning_rate_adagrad = None
+        self._learning_rate_adadelta = None
+        self._rho_adadelta = None
+        self._learning_rate_adam = None
+        self._beta_1_adam = None
+        self._beta_2_adam = None
+        self._amsgrad_adam = None
+        self._learning_rate_adamax = None
+        self._beta_1_adamax = None
+        self._beta_2_adamax = None
+        self._learning_rate_nadam = None
+        self._beta_1_nadam = None
+        self._beta_2_nadam = None
+
+        self.optimizer_function = None
 
         self.callback_code = ''
 
@@ -1203,14 +1286,79 @@ class Model(Operation):
         self.output_layers = output_layers_vector.replace(', ]', ']')
 
         # Compile
+
+        self.advanced_optimizer = True if int(self.advanced_optimizer) == 1 \
+            else False
+        self.nesterov_sgd = True if int(self.nesterov_sgd) == 1 else False
+        self.amsgrad_adam = True if int(self.amsgrad_adam) == 1 else False
+
         functions_required_compile = []
-        if self.optimizer is not None:
-            self.optimizer = """    optimizer='{optimizer}'""" \
-                .format(optimizer=self.optimizer)
-            functions_required_compile.append(self.optimizer)
+
+        if self.optimizer.strip():
+            if not self.advanced_optimizer:
+                self.optimizer = """    optimizer='{optimizer}'""" \
+                    .format(optimizer=self.optimizer)
+                functions_required_compile.append(self.optimizer)
+
+                self.optimizer_function = ""
+            else:
+                # All optimizers
+                if 0.0 <= self.clipnorm <= 1.0:
+                    self._clipnorm = "clipnorm={}".format(self.clipnorm)
+                else:
+                    raise ValueError(gettext('Inform a value between 0.0 and 1.'
+                                             '0.').format(self.CLIPNORM_PARAM))
+                if 0.0 <= self.clipvalue <= 1.0:
+                    self._clipvalue = "clipvalue={}".format(self.clipvalue)
+                else:
+                    raise ValueError(gettext('Inform a value between 0.0 and 1.'
+                                             '0.').format(self.CLIPVALUE_PARAM))
+
+                # SGD optimizer
+                if self.optimizer == 'sgd':
+                    if self.learning_rate_sgd >= 0.0:
+                        self._learning_rate_sgd = "lr={}".format(
+                            self.learning_rate_sgd)
+                    else:
+                        raise ValueError(gettext('Inform a value between 0.0 an'
+                                                 'd 1.0.').format('learning_'
+                                                                  'rate'))
+
+                    if self.decay_sgd >= 0.0:
+                        self._decay_sgd = "decay={}".format(self.decay_sgd)
+                    else:
+                        raise ValueError(gettext('Inform a value >= 0.0.'
+                                                 ).format('decay'))
+
+                    if self.momentum_sgd >= 0.0:
+                        self._momentum_sgd = "momentum={}".format(
+                            self.momentum_sgd)
+                    else:
+                        raise ValueError(gettext('Inform a value >= 0.0'
+                                                 ).format('momentum'))
+
+                    self._nesterov_sgd = "nesterov={}".format(self.nesterov_sgd)
+
+                    self.import_code['others'] = ['from keras.optimizers ' \
+                                                 'import SGD']
+
+                    self.optimizer_function = """sgd_optimizer = SGD(
+                        {}, 
+                        {}, 
+                        {}, 
+                        {}, 
+                        {}, 
+                        {}
+                    )
+                    """.format(self._learning_rate_sgd, self._decay_sgd,
+                               self._momentum_sgd, self._nesterov_sgd,
+                               self._clipnorm, self._clipvalue)
+
+                    self.optimizer = """    optimizer=sgd_optimizer"""
+                    functions_required_compile.append(self.optimizer)
         else:
             raise ValueError(gettext('Parameter {} is required.')
-                             .format(self.optimizer))
+                             .format(self.OPTIMIZER_PARAM))
 
         losses = []
         if self.loss is not None:
@@ -1296,8 +1444,8 @@ class Model(Operation):
                 raise ValueError(gettext('Parameter {} is invalid.')
                                  .format(self.KWARGS_PARAM))
 
-        self.add_functions_required_compile = ',\n    ' \
-            .join(functions_required_compile)
+        self.add_functions_required_compile = ',\n    ' .join(
+            functions_required_compile)
 
     def generate_code(self):
         return dedent(
@@ -1308,6 +1456,8 @@ class Model(Operation):
                 inputs={inputs},
                 outputs={outputs}
             )
+            
+            {optimizer_function}
             {var_name}.compile(
             {add_functions_required_compile}
             )
@@ -1329,7 +1479,8 @@ class Model(Operation):
                  add_functions_required_compile=
                  self.add_functions_required_compile,
                  callback_code=self.callback_code,
-                 task_id=self.output_task_id)
+                 task_id=self.output_task_id,
+                 optimizer_function=self.optimizer_function)
 
 
 class Predict(Operation):
@@ -1403,6 +1554,12 @@ class Predict(Operation):
             
             target_names = list({generator}.class_indices.keys())
             labels = list({generator}.class_indices.values())
+            
+            # print({generator}.classes)
+            # print(predictions_to_matrix)
+            # counts = np.bincount(predictions_to_matrix)
+            # print(counts)
+            # print(np.argmax(counts))
             
             report = classification_report(
                 y_true={generator}.classes,
