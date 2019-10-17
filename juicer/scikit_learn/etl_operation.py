@@ -284,7 +284,7 @@ class CleanMissingOperation(Operation):
                      "[col].median(), inplace=True)".format(output=self.output)
 
             elif self.mode_CM == "MODE":
-                op = "{out}[col].fillna(value={out}[col].mode(), inplace=True)"\
+                op = "{out}[col].fillna(value={out}[col].mode()[0], inplace=True)"\
                     .format(out=self.output)
 
             code = """
