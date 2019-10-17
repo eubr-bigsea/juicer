@@ -26,8 +26,9 @@ class FeatureAssemblerOperation(Operation):
     def generate_code(self):
         code = """
         cols = {cols}
-        {output} = {input}
-        {output}['{alias}'] = {input}[cols].values.tolist()
+        {input}_without_na = {input}.dropna(subset=cols)
+        {output} = {input}_without_na.copy()
+        {output}['{alias}'] = {input}_without_na[cols].values.tolist()
         """.format(output=self.output, alias=self.alias,
                    input=self.named_inputs['input data'],
                    cols=self.parameters[self.ATTRIBUTES_PARAM])
