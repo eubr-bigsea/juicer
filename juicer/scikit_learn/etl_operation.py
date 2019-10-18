@@ -966,7 +966,7 @@ class SplitOperation(Operation):
             return ''
 
     def get_output_names(self, sep=', '):
-        return sep.join([self.out1, self.out2])
+        return sep.join([self.out2, self.out1])
 
     def generate_code(self):
         code = """{out1}, {out2} = np.split({input}.sample(frac=1, 
