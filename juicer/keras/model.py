@@ -1320,21 +1320,21 @@ class Model(Operation):
                         self._learning_rate_sgd = "lr={}".format(
                             self.learning_rate_sgd)
                     else:
-                        raise ValueError(gettext('Inform a value between 0.0 an'
-                                                 'd 1.0.').format('learning_'
-                                                                  'rate'))
+                        raise ValueError(gettext('{} - Inform a value '
+                                                 'between 0.0 and 1.0.'
+                                                 ).format('learning_rate'))
 
                     if self.decay_sgd >= 0.0:
                         self._decay_sgd = "decay={}".format(self.decay_sgd)
                     else:
-                        raise ValueError(gettext('Inform a value >= 0.0.'
+                        raise ValueError(gettext('{} - Inform a value >= 0.0.'
                                                  ).format('decay'))
 
                     if self.momentum_sgd >= 0.0:
                         self._momentum_sgd = "momentum={}".format(
                             self.momentum_sgd)
                     else:
-                        raise ValueError(gettext('Inform a value >= 0.0'
+                        raise ValueError(gettext('{} - Inform a value >= 0.0'
                                                  ).format('momentum'))
 
                     self._nesterov_sgd = "nesterov={}".format(self.nesterov_sgd)
@@ -1342,19 +1342,204 @@ class Model(Operation):
                     self.import_code['others'] = ['from keras.optimizers ' \
                                                  'import SGD']
 
-                    self.optimizer_function = """sgd_optimizer = SGD(
-                        {}, 
-                        {}, 
-                        {}, 
-                        {}, 
-                        {}, 
-                        {}
-                    )
-                    """.format(self._learning_rate_sgd, self._decay_sgd,
-                               self._momentum_sgd, self._nesterov_sgd,
-                               self._clipnorm, self._clipvalue)
+                    self.optimizer_function = dedent(
+                        """sgd_optimizer = SGD(\n\t{},\n\t{},\n\t{},\n\t{},\n\t{},\n\t{}\n)
+                        """).format(self._learning_rate_sgd, self._decay_sgd,
+                                    self._momentum_sgd, self._nesterov_sgd,
+                                    self._clipnorm, self._clipvalue)
 
                     self.optimizer = """    optimizer=sgd_optimizer"""
+                    functions_required_compile.append(self.optimizer)
+
+                # RMSprop optimizer
+                elif self.optimizer == 'rmsprop':
+                    if self.learning_rate_rmsprop >= 0.0:
+                        self._learning_rate_rmsprop = "lr={}".format(
+                            self.learning_rate_sgd)
+                    else:
+                        raise ValueError(gettext('{} - Inform a value '
+                                                 'between 0.0 and 1.0.'
+                                                 ).format('learning_rate'))
+
+                    if self.rho_rmsprop >= 0.0:
+                        self._rho_rmsprop = "rho={}".format(self.rho_rmsprop)
+                    else:
+                        raise ValueError(gettext('{} - Inform a value >= 0.0.'
+                                                 ).format('rho'))
+
+                    self.import_code['others'] = ['from keras.optimizers ' \
+                                                  'import RMSprop']
+
+                    self.optimizer_function = dedent(
+                        """rmsprop_optimizer = RMSprop(\n\t{},\n\t{},\n\t{},\n\t{}\n)
+                        """).format(self._learning_rate_rmsprop,
+                                    self._rho_rmsprop, self._clipnorm,
+                                    self._clipvalue)
+
+                    self.optimizer = """    optimizer=rmsprop_optimizer"""
+                    functions_required_compile.append(self.optimizer)
+
+                # Adagrad optimizer
+                elif self.optimizer == 'adagrad':
+                    if self.learning_rate_adagrad >= 0.0:
+                        self._learning_rate_adagrad = "lr={}".format(
+                            self.learning_rate_adagrad)
+                    else:
+                        raise ValueError(gettext('{} - Inform a value '
+                                                 'between 0.0 and 1.0.'
+                                                 ).format('learning_rate'))
+
+                    self.import_code['others'] = ['from keras.optimizers ' \
+                                                  'import Adagrad']
+
+                    self.optimizer_function = dedent(
+                        """adagrad_optimizer = Adagrad(\n\t{},\n\t{},\n\t{}\n)
+                        """).format(self._learning_rate_adagrad,
+                                    self._clipnorm, self._clipvalue)
+
+                    self.optimizer = """    optimizer=adagrad_optimizer"""
+                    functions_required_compile.append(self.optimizer)
+
+                # Adadelta optimizer
+                elif self.optimizer == 'adadelta':
+                    if self.learning_rate_adadelta >= 0.0:
+                        self._learning_rate_adadelta = "lr={}".format(
+                            self.learning_rate_adadelta)
+                    else:
+                        raise ValueError(gettext('{} - Inform a value '
+                                                 'between 0.0 and 1.0.'
+                                                 ).format('learning_rate'))
+
+                    if self.rho_adadelta >= 0.0:
+                        self._rho_adadelta = "rho={}".format(self.rho_radadelta)
+                    else:
+                        raise ValueError(gettext('{} - Inform a value >= 0.0.'
+                                                 ).format('rho'))
+
+                    self.import_code['others'] = ['from keras.optimizers ' \
+                                                  'import Adadelta']
+
+                    self.optimizer_function = dedent(
+                        """adadelta_optimizer = Adadelta(\n\t{},\n\t{},\n\t{},\n\t{}\n)
+                        """).format(self._learning_rate_adadelta,
+                                    self._rho_adadelta, self._clipnorm,
+                                    self._clipvalue)
+
+                    self.optimizer = """    optimizer=adadelta_optimizer"""
+                    functions_required_compile.append(self.optimizer)
+
+                # Adam optimizer
+                elif self.optimizer == 'adam':
+                    if self.learning_rate_adam >= 0.0:
+                        self._learning_rate_adam = "lr={}".format(
+                            self.learning_rate_adam)
+                    else:
+                        raise ValueError(gettext('{} - Inform a value '
+                                                 'between 0.0 and 1.0.'
+                                                 ).format('learning_rate'))
+
+                    if 0 < self.beta_1_adam < 1:
+                        self._beta_1_adam = "beta_1={}".format(self.beta_1_adam)
+                    else:
+                        raise ValueError(gettext(' 0 < {} < 1. Generally '
+                                                 'close to 1.').format('beta_1')
+                                         )
+
+                    if 0 < self.beta_2_adam < 1:
+                        self._beta_2_adam = "beta_2={}".format(self.beta_2_adam)
+                    else:
+                        raise ValueError(gettext(' 0 < {} < 1. Generally '
+                                                 'close to 1.').format('beta_2')
+                                         )
+
+                    self._amsgrad_adam = "amsgrad={}".format(self.amsgrad_adam)
+
+                    self.import_code['others'] = ['from keras.optimizers '
+                                                  'import Adam']
+
+                    self.optimizer_function = dedent(
+                        """adam_optimizer = Adam(\n\t{},\n\t{},\n\t{},\n\t{},\n\t{},\n\t{}\n)
+                        """).format(self._learning_rate_adam, self._beta_1_adam,
+                                    self._beta_2_adam, self._amsgrad_adam,
+                                    self._clipnorm, self._clipvalue)
+
+                    self.optimizer = """    optimizer=adam_optimizer"""
+                    functions_required_compile.append(self.optimizer)
+
+                # Adamax optimizer
+                elif self.optimizer == 'adamax':
+                    if self.learning_rate_adamax >= 0.0:
+                        self._learning_rate_adamax = "lr={}".format(
+                            self.learning_rate_adamax)
+                    else:
+                        raise ValueError(gettext('{} - Inform a value '
+                                                 'between 0.0 and 1.0.'
+                                                 ).format('learning_rate'))
+
+                    if 0 < self.beta_1_adamax < 1:
+                        self._beta_1_adamax = "beta_1={}".format(
+                            self.beta_1_adamax)
+                    else:
+                        raise ValueError(gettext(' 0 < {} < 1. Generally '
+                                                 'close to 1.').format('beta_1')
+                                         )
+
+                    if 0 < self.beta_2_adamax < 1:
+                        self._beta_2_adamax = "beta_2={}".format(
+                            self.beta_2_adamax)
+                    else:
+                        raise ValueError(gettext(' 0 < {} < 1. Generally '
+                                                 'close to 1.').format('beta_2')
+                                         )
+
+                    self.import_code['others'] = ['from keras.optimizers ' \
+                                                  'import Adamax']
+
+                    self.optimizer_function = dedent(
+                        """adamax_optimizer = Adamax(\n\t{},\n\t{},\n\t{},\n\t{},\n\t{}\n)
+                        """).format(self._learning_rate_adamax,
+                                    self._beta_1_adamax, self._beta_2_adamax,
+                                    self._clipnorm, self._clipvalue)
+
+                    self.optimizer = """    optimizer=adamax_optimizer"""
+                    functions_required_compile.append(self.optimizer)
+
+                # Nadam optimizer
+                elif self.optimizer == 'nadam':
+                    if self.learning_rate_nadam >= 0.0:
+                        self._learning_rate_nadam = "lr={}".format(
+                            self.learning_rate_nadam)
+                    else:
+                        raise ValueError(gettext('{} - Inform a value '
+                                                 'between 0.0 and 1.0.'
+                                                 ).format('learning_rate'))
+
+                    if 0 < self.beta_1_nadam < 1:
+                        self._beta_1_nadam = "beta_1={}".format(
+                            self.beta_1_nadam)
+                    else:
+                        raise ValueError(gettext(' 0 < {} < 1. Generally '
+                                                 'close to 1.').format('beta_1')
+                                         )
+
+                    if 0 < self.beta_2_nadam < 1:
+                        self._beta_2_nadam = "beta_2={}".format(
+                            self.beta_2_nadam)
+                    else:
+                        raise ValueError(gettext(' 0 < {} < 1. Generally '
+                                                 'close to 1.').format('beta_2')
+                                         )
+
+                    self.import_code['others'] = ['from keras.optimizers '
+                                                  'import Nadam']
+
+                    self.optimizer_function = dedent(
+                        """nadam_optimizer = Adamax(\n\t{},\n\t{},\n\t{},\n\t{},\n\t{}\n)
+                        """).format(self._learning_rate_nadam,
+                                    self._beta_1_nadam, self._beta_2_nadam,
+                                    self._clipnorm, self._clipvalue)
+
+                    self.optimizer = """    optimizer=nadam_optimizer"""
                     functions_required_compile.append(self.optimizer)
         else:
             raise ValueError(gettext('Parameter {} is required.')
