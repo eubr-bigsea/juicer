@@ -957,10 +957,10 @@ class SplitOperation(Operation):
         self.seed = self.parameters.get("seed", 'None')
         self.seed = 'None' if self.seed == "" else self.seed
 
-        self.out1 = self.named_outputs.get('splitted data 1',
-                                           'splitted_1_{}'.format(self.order))
-        self.out2 = self.named_outputs.get('splitted data 2',
-                                           'splitted_2_{}'.format(self.order))
+        self.out1 = self.named_outputs.get('split 1',
+                                           'split_1_task_{}'.format(self.order))
+        self.out2 = self.named_outputs.get('split 2',
+                                           'split_2_task_{}'.format(self.order))
 
     def get_data_out_names(self, sep=','):
             return ''
