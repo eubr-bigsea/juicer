@@ -365,22 +365,6 @@ class SparkMinion(Minion):
             self.job_future = self._execute_future(job_id, workflow,
                                                    app_configs)
             log.info(_('Execute message finished'))
-        elif msg_type == juicer_protocol.DELIVER:
-            self.active_messages += 1
-            log.info('Deliver message received')
-            task_id = msg_info.get('task_id')
-            output = msg_info.get('output')
-            port = msg_info.get('port')
-            job_id = msg_info['job_id']
-            workflow = msg_info.get('workflow')
-            app_configs = msg_info.get('app_configs', {})
-
-            if self.job_future:
-                self.job_future.result()
-
-            self.job_future = self._deliver_future(task_id,
-                                                   output, port, job_id,
-                                                   workflow, app_configs)
 
         elif msg_type == juicer_protocol.TERMINATE:
             job_id = msg_info.get('job_id', None)
