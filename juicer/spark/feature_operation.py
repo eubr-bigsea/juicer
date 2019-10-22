@@ -380,12 +380,7 @@ class ChiSquaredSelectorOperation(Operation):
                 _("Parameter '{}' must be informed for task {}").format(
                     self.LABEL_PARAM, self.__class__))
 
-        if self.ALIAS_PARAM in parameters:
-            self.alias = parameters.get(self.ALIAS_PARAM)
-        else:
-            raise ValueError(
-                _("Parameter '{}' must be informed for task {}").format(
-                    self.ALIAS_PARAM, self.__class__))
+        self.alias = parameters.get(self.ALIAS_PARAM, 'chi_output')
 
         if self.SELECTOR_TYPE_PARAM in parameters:
             self.selector_type = parameters.get(self.SELECTOR_TYPE_PARAM)
@@ -399,6 +394,7 @@ class ChiSquaredSelectorOperation(Operation):
                     self.SELECTOR_TYPE_PARAM, ','.join(self.VALID_TYPES)
                 )
             )
+
         self.num_top_features = int(
             parameters.get(self.NUM_TOP_FEATURES_PARAM, 50))
         self.percentile = float(parameters.get(self.PERCENTILE_PARAM, 0.1))
@@ -406,19 +402,94 @@ class ChiSquaredSelectorOperation(Operation):
         self.fdr = float(parameters.get(self.FDR_PARAM, 0.05))
         self.fwe = float(parameters.get(self.FWE_PARAM, 0.05))
 
-        self.model = 'model'  # FIXME
+        self.model = self.named_outputs.get(
+            'model', 'model_task_{}'.format(self.order))
+
+        self.output = self.named_outputs.get('output data',
+                                             'out_task_{}'.format(self.order))
+        self.has_code = [len(self.named_inputs) > 0, self.contains_results()]
 
     def generate_code(self):
         input_data = self.named_inputs['input data']
         code = dedent("""
+                emit = functools.partial(
+                    emit_event, name='update task',
+                    status='RUNNING', type='TEXT',
+                    identifier='{task_id}',
+                    operation={{'id': {operation_id}}},
+                    operation_id={operation_id},
+                    task={{'id': '{task_id}'}},
+                    title='{title}')
+
                 features = {features}
+                to_assemble = []
+                keep_at_end = [c.name for c in {input}.schema]
+                keep_at_end.append('{alias}')
+                requires_pipeline = False
+
+                stages = []
+                if len(features) > 1 and not isinstance(
+                    {input}.schema[str(features[0])].dataType, VectorUDT):
+                    emit(message='{msg0}')
+                    for f in features:
+                        if not dataframe_util.is_numeric({input}.schema, f):
+                            name = f + '_tmp'
+                            to_assemble.append(name)
+                            stages.append(feature.StringIndexer(
+                                inputCol=f, outputCol=name,
+                                handleInvalid='keep'))
+                        else:
+                            to_assemble.append(f)
+
+                    # Remove rows with null (VectorAssembler doesn't support it)
+                    cond = ' AND '.join(['{{}} IS NOT NULL '.format(c)
+                        for c in to_assemble])
+                    stages.append(SQLTransformer(
+                        statement='SELECT * FROM __THIS__ WHERE {{}}'.format(
+                            cond)))
+
+                    final_features = 'features_tmp'
+                    stages.append(feature.VectorAssembler(
+                        inputCols=to_assemble, outputCol=final_features))
+                    requires_pipeline = True
+                else:
+                    final_features = features[0]
+
                 selector = ChiSqSelector(
-                    numTopFeatures={top_features}, featuresCol=features[0],
+                    numTopFeatures={top_features}, featuresCol=final_features,
                     outputCol='{alias}', labelCol='{label}',
                     selectorType='{selector_type}', percentile={percentile},
                     fpr={fpr}, fdr={fdr}, fwe={fwe})
-                {model} = selector.fit({input})
+
+                if requires_pipeline:
+                    stages.append(selector)
+                    # Remove temporary columns
+                    sql = 'SELECT {{}} FROM __THIS__'.format(', '.join(
+                        keep_at_end))
+                    stages.append(SQLTransformer(statement=sql))
+
+                    pipeline = Pipeline(stages=stages)
+                    {model} = pipeline.fit({input})
+                    chi_model = {model}.stages[-2]
+                else:
+                    {model} = selector.fit({input})
+                    chi_model = {model}
+
                 {output} = {model}.transform({input})
+
+                content = '<h3>{title}</h3>'
+                content += ', '.join(
+                    [{input}.schema[inx].name for inx in
+                        chi_model.selectedFeatures])
+                emit_event(
+                    'update task', status='COMPLETED',
+                    identifier='{task_id}',
+                    message=content,
+                    type='HTML', title='{title}',
+                    task={{'id': '{task_id}'}},
+                    operation={{'id': {operation_id}}},
+                    operation_id={operation_id})
+
             """.format(
             alias=self.alias,
             label=self.label[0],
@@ -431,6 +502,13 @@ class ChiSquaredSelectorOperation(Operation):
             fpr=self.fpr,
             fdr=self.fdr,
             fwe=self.fwe,
-            features=json.dumps(self.attributes)
+            title=_('Selected features'),
+            features=json.dumps(self.attributes),
+            task_id=self.parameters['task_id'],
+            operation_id=self.parameters['operation_id'],
+            msg0=_('Features are not assembled as a vector. They will be '
+                   'implicitly assembled and rows with null values will be '
+                   'discarded. If this is undesirable, explicitly add a '
+                   'feature assembler in the workflow.'),
         ))
         return code
