@@ -148,34 +148,41 @@ class StandardScalerOperation(Operation):
 
     ALIAS_PARAM = 'alias'
     ATTRIBUTE_PARAM = 'attribute'
+    WITH_MEAN_PARAM = 'with_mean'
+    WITH_STD_PARAM = 'with_std'
+    VALUE_PARAMETER = 'value'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         self.has_code = len(self.named_inputs) == 1
         if self.has_code:
-            if self.ATTRIBUTE_PARAM not in parameters:
-                raise ValueError(
-                        _("Parameters '{}' must be informed for task {}")
-                        .format(self.ATTRIBUTE_PARAM, self.__class__))
-
+            self.with_mean = parameters.get(
+                self.WITH_MEAN_PARAM, False) in ['1', 1, True]
+            self.with_std = parameters.get(
+                self.WITH_STD_PARAM, True) in ['1', 1, True]
             self.output = self.named_outputs.get(
                     'output data', 'output_data_{}'.format(self.order))
-            self.attribute = parameters[self.ATTRIBUTE_PARAM][0]
+            self.attribute = parameters[self.ATTRIBUTE_PARAM]
             self.alias = parameters.get(self.ALIAS_PARAM,
-                                        self.attribute + '_norm')
+                                        'scaled_{}'.format(self.order))
 
     def generate_code(self):
+        op = "with_mean={value}" \
+            .format(value=self.with_mean)
+        op += ", with_std={value}" \
+            .format(value=self.with_std)
+
         """Generate code."""
         code = """
         {output} = {input}
         from sklearn.preprocessing import StandardScaler
-        scaler = StandardScaler()
-        X_train = {input}['{att}'].values.tolist()
+        scaler = StandardScaler({op})
+        X_train = {input}[{att}].values.tolist()
         {output}['{alias}'] = scaler.fit_transform(X_train).tolist()
         """.format(output=self.output,
                    input=self.named_inputs['input data'],
-                   att=self.attribute, alias=self.alias)
+                   att=self.attribute, alias=self.alias, op=op)
         return dedent(code)
 
 
