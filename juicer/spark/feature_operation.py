@@ -455,9 +455,19 @@ class ChiSquaredSelectorOperation(Operation):
                 else:
                     final_features = features[0]
 
+                label_col = '{label}'
+                if not dataframe_util.is_numeric({input}.schema, label_col):
+                    final_label = label_col + '_tmp'
+                    stages.append(feature.StringIndexer(
+                                inputCol=label_col, outputCol=final_label,
+                                handleInvalid='keep'))
+                    requires_pipeline = True
+                else:
+                    final_label = label_col
+
                 selector = ChiSqSelector(
                     numTopFeatures={top_features}, featuresCol=final_features,
-                    outputCol='{alias}', labelCol='{label}',
+                    outputCol='{alias}', labelCol=final_label,
                     selectorType='{selector_type}', percentile={percentile},
                     fpr={fpr}, fdr={fdr}, fwe={fwe})
 
