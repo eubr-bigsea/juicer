@@ -487,7 +487,7 @@ class ChiSquaredSelectorOperation(Operation):
 
                 {output} = {model}.transform({input})
 
-                content = '<h3>{title}</h3>'
+                content = '<h5>{title}</h5>'
                 content += ', '.join(
                     [{input}.schema[inx].name for inx in
                         chi_model.selectedFeatures])
