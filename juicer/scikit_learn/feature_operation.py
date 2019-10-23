@@ -114,9 +114,9 @@ class MaxAbsScalerOperation(Operation):
 
             self.output = self.named_outputs.get(
                     'output data', 'output_data_{}'.format(self.order))
-            self.attribute = parameters[self.ATTRIBUTE_PARAM][0]
+            self.attribute = parameters[self.ATTRIBUTE_PARAM]
             self.alias = parameters.get(self.ALIAS_PARAM,
-                                        self.attribute + '_norm')
+                                        'scaled_{}'.format(self.order))
 
     def generate_code(self):
         """Generate code."""
@@ -124,7 +124,7 @@ class MaxAbsScalerOperation(Operation):
         {output} = {input}
         from sklearn.preprocessing import MaxAbsScaler
         scaler = MaxAbsScaler()
-        X_train = {input}['{att}'].values.tolist()
+        X_train = {input}[{att}].values.tolist()
         {output}['{alias}'] = scaler.fit_transform(X_train).tolist()
         """.format(output=self.output,
                    input=self.named_inputs['input data'],
