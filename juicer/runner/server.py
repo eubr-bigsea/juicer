@@ -94,16 +94,16 @@ class JuicerServer:
             log.warn(_('Starting pending app {}').format(app))
             self._start_minion(app, app, self.state_control, self.platform)
         while True:
-            self.read_job_start_queue(redis_conn)
+            self.read_start_queue(redis_conn)
 
     # noinspection PyMethodMayBeStatic
-    def read_job_start_queue(self, redis_conn):
+    def read_start_queue(self, redis_conn):
         app_id = None
         try:
             self.state_control = StateControlRedis(redis_conn)
             # Process next message
-            log.info(_('Reading "job start" queue.'))
-            msg = self.state_control.pop_job_start_queue()
+            log.info(_('Reading "start" queue.'))
+            msg = self.state_control.pop_start_queue()
             log.info(_('Forwarding message to minion.'))
             msg_info = json.loads(msg)
 
@@ -112,7 +112,7 @@ class JuicerServer:
             workflow_id = str(msg_info['workflow_id'])
             app_id = str(msg_info['app_id'])
 
-            if msg_type in (juicer_protocol.EXECUTE, juicer_protocol.DELIVER):
+            if msg_type in (juicer_protocol.EXECUTE):
                 self.platform = msg_info['workflow'].get('platform', {}).get(
                         'slug', 'spark')
                 self._forward_to_minion(msg_type, workflow_id, app_id, msg,
@@ -403,7 +403,7 @@ if __name__ == '__main__':
 
     # Every minion starts with the same script.
     _minion_executable = os.path.abspath(
-        os.path.join(os.path.dirname(__file__), 'script_minion.py'))
+        os.path.join(os.path.dirname(__file__), 'minion.py'))
 
     server = JuicerServer(juicer_config, _minion_executable,
                           config_file_path=args.config)
