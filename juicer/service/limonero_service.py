@@ -4,10 +4,10 @@ import json
 import logging
 
 import requests
+from gettext import gettext
 
 log = logging.getLogger()
 log.setLevel(logging.DEBUG)
-
 
 def remove_initial_final_path_separator(path):
     if path.endswith('/'):
@@ -34,19 +34,19 @@ def query_limonero(base_url, item_path, token, item_id):
     else:
         url = '{}/{}'.format(base_url, item_id)
 
-    log.debug(_('Querying Limonero URL: %s'), url)
+    # log.debug(gettext('Querying Limonero URL: %s'), url)
 
     r = requests.get(url, headers=headers)
     if r.status_code == 200:
         return json.loads(r.text)
     else:
-        log.error(_('Error querying Limonero URL: %s (%s: %s)'), url,
+        log.error(gettext('Error querying Limonero URL: %s (%s: %s)'), url,
                   r.status_code, r.text)
         if r.status_code == 404:
-            msg = _("not found")
+            msg = gettext("not found")
         else:
             msg = r.text
-        raise ValueError(_(
+        raise ValueError(gettext(
             "Error loading {} id {}: HTTP {} - {} ({})").format(
             item_path, item_id, r.status_code, msg, url))
 
@@ -59,8 +59,13 @@ def get_data_source_info(base_url, token, data_source_id):
     try:
         return query_limonero(base_url, 'datasources', token, data_source_id)
     except ValueError:
-        raise ValueError(_('Data source not found'))
+        raise ValueError(gettext('Data source not found'))
 
+def get_model_info(base_url, token, model_id):
+    try:
+        return query_limonero(base_url, 'models', token, model_id)
+    except ValueError:
+        raise ValueError(gettext('Model not found'))
 
 def register_model(base_url, payload, token):
     url = "{}/models".format(remove_initial_final_path_separator(base_url))
@@ -75,9 +80,9 @@ def register_model(base_url, payload, token):
     if r.status_code == 200:
         return json.loads(r.text)
     else:
-        log.error(_('Error saving model in Limonero URL: %s (%s: %s)'), url,
+        log.error(gettext('Error saving model in Limonero URL: %s (%s: %s)'), url,
                   r.status_code, r.text)
-        raise RuntimeError(_("Error saving model: {})").format(r.text))
+        raise RuntimeError(gettext("Error saving model: {})").format(r.text))
 
 
 def register_datasource(base_url, payload, token, mode=''):
@@ -94,6 +99,6 @@ def register_datasource(base_url, payload, token, mode=''):
     if r.status_code == 200:
         return json.loads(r.text)
     else:
-        log.error(_('Error saving data source in Limonero URL: %s (%s: %s)'),
+        log.error(gettext('Error saving data source in Limonero URL: %s (%s: %s)'),
                   url, r.status_code, r.text)
-        raise RuntimeError(_("Error saving datasource: {})").format(r.text))
+        raise RuntimeError(gettext("Error saving datasource: {})").format(r.text))

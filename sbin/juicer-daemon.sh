@@ -9,7 +9,7 @@ REDIS_PORT_6379_TCP_ADDR=${REDIS_SERVICE_HOST:-redis}
 REDIS=${REDIS_PORT_6379_TCP_ADDR}:${REDIS_PORT}
 
 
-usage="Usage: juicer-daemon.sh (start|docker|stop|status)"
+usage="Usage: juicer-daemon.sh (start|docker|stop|status|start-jobs|stop-jobs|status-jobs)"
 
 # this sript requires the command parameter
 if [ $# -le 0 ]; then
@@ -36,8 +36,8 @@ export PYTHONPATH=${JUICER_HOME}:/usr/lib/python2.7/site-packages:/usr/local/pyt
 mkdir -p ${JUICER_PID_DIR} ${JUICER_LOG_DIR}
 
 # log and pid files
-log=${JUICER_LOG_DIR}/juicer-server-${USER}-${HOSTNAME}.out
-pid=${JUICER_PID_DIR}/juicer-server-${USER}.pid
+log=${JUICER_LOG_DIR}/juicer-${USER}-${HOSTNAME}.out
+pid=${JUICER_PID_DIR}/juicer-${USER}.pid
 
 wait_for_it=$(dirname $0)/wait-for-it.sh
 
@@ -94,7 +94,7 @@ case $cmd_option in
             echo "juicer server is running (pid=${TARGET_ID})"
             exit 0
          else
-            echo "$pid file is present (pid=${TARGET_ID}) but juicer server not running"
+            echo "$pid file is present (pid=${TARGET_ID}) but juicer server is not running"
             exit 1
          fi
       else
@@ -102,7 +102,43 @@ case $cmd_option in
          exit 2
       fi
       ;;
+   (start-jobs)
+      nohup -- \
+        rq worker -v juicer --pid $pid \
+          >> $log 2>&1 < /dev/null &
+      jobs_pid=$!
+      echo "Juicer jobs started, logging to $log (pid=$juicer_pid)"
+      ;;
 
+   (stop-jobs)
+      if [ -f $pid ]; then
+         TARGET_ID=$(cat $pid)
+         if [[ $(ps -p ${TARGET_ID} -o comm=) =~ "rq" ]]; then
+            echo "stopping juicer jobs, user=${USER}, hostname=${HOSTNAME}"
+            kill -SIGTERM ${TARGET_ID} && rm -f ${pid}
+         else
+            echo "no juicer jobs to stop"
+         fi
+      else
+         echo "no juicer jobs to stop"
+      fi
+      ;;
+
+   (status-jobs)
+      if [ -f $pid ]; then
+         TARGET_ID=$(cat $pid)
+         if [[ $(ps -p ${TARGET_ID} -o comm=) =~ "rq" ]]; then
+            echo "juicer jobs is running (pid=${TARGET_ID})"
+            exit 0
+         else
+            echo "$pid file is present (pid=${TARGET_ID}) but juicer is not running"
+            exit 1
+         fi
+      else
+         echo juicer jobs not running.
+         exit 2
+      fi
+      ;;
    (*)
       echo $usage
       exit 1
