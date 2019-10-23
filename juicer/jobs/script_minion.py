@@ -1,5 +1,4 @@
 # coding=utf-8
-from __future__ import unicode_literals, absolute_import
 
 import gc
 import gettext
@@ -31,18 +30,17 @@ from juicer.runner import configuration
 from juicer.runner import protocol as juicer_protocol
 
 from juicer.runner.minion_base import Minion
-from juicer.spark.transpiler import SparkTranspiler
 from juicer.util import dataframe_util, listener_util
 from juicer.workflow.workflow import Workflow
 from juicer.util.template_util import strip_accents
 
 logging.config.fileConfig('logging_config.ini')
-log = logging.getLogger('juicer.spark.spark_minion')
+log = logging.getLogger('juicer.script.script_minion')
 
 locales_path = os.path.join(os.path.dirname(__file__), '..', 'i18n', 'locales')
 
 
-class SparkMinion(Minion):
+class ScriptMinion(Minion):
     """
     Controls the execution of Spark code in Lemonade Juicer.
     """
@@ -51,11 +49,9 @@ class SparkMinion(Minion):
     IDLENESS_TIMEOUT = 600
     TIMEOUT = 'timeout'
 
-    def __init__(self, redis_conn, workflow_id, app_id, config, lang='en',
-                 jars=None):
+    def __init__(self, redis_conn, workflow_id, app_id, config, lang='en'):
         Minion.__init__(self, redis_conn, workflow_id, app_id, config)
 
-        self.jars = jars
         self.terminate_proc_queue = multiprocessing.Queue()
         self.execute_process = None
         self.ping_process = None
@@ -70,16 +66,6 @@ class SparkMinion(Minion):
 
         self.tmp_dir = self.config.get('config', {}).get('tmp_dir', '/tmp')
         sys.path.append(self.tmp_dir)
-
-        # Add pyspark to path
-        spark_home = os.environ.get('SPARK_HOME')
-        if spark_home:
-            sys.path.append(os.path.join(spark_home, 'python'))
-            log.info(_('SPARK_HOME set to %s'), spark_home)
-        else:
-            log.warn(_('SPARK_HOME environment variable is not defined'))
-
-        self.spark_session = None
 
         self.mgr = socketio.RedisManager(
             config['juicer']['servers']['redis_url'],
@@ -131,57 +117,6 @@ class SparkMinion(Minion):
         self.terminate()
         sys.exit(0)
 
-    def _build_dist_file(self):
-        """
-        Build a Zip file containing files in dist packages. Such packages
-        contain code to be executed in the Spark cluster and should be
-        distributed among all nodes.
-        """
-        project_base = os.path.abspath(os.path.join(os.path.dirname(__file__),
-                                                    '..', '..'))
-
-        lib_paths = [
-            project_base,
-            os.path.join(project_base, 'juicer'),
-            os.path.join(project_base, 'juicer', 'include'),
-            os.path.join(project_base, 'juicer', 'privaaas'),
-            os.path.join(project_base, 'juicer', 'runner'),
-            os.path.join(project_base, 'juicer', 'service'),
-            os.path.join(project_base, 'juicer', 'spark'),
-            os.path.join(project_base, 'juicer', 'util'),
-            os.path.join(project_base, 'juicer', 'workflow'),
-            os.path.join(project_base, 'juicer', 'i18n/locales/pt/LC_MESSAGES'),
-            os.path.join(project_base, 'juicer', 'i18n/locales/en/LC_MESSAGES'),
-            os.path.join(project_base, 'juicer', 'i18n/locales/es/LC_MESSAGES'),
-        ]
-        valid_extensions = ['*.py', '*.ini', '*.mo']
-        build = not os.path.exists(self.DIST_ZIP_FILE)
-
-        def multiple_file_types(base_path, *patterns):
-            return list(itertools.chain.from_iterable(
-                glob.iglob(os.path.join(base_path, pattern)) for pattern in
-                patterns))
-
-        if not build:
-            for lib_path in lib_paths:
-                dist_files = multiple_file_types(lib_path, *valid_extensions)
-                zip_mtime = os.path.getmtime(self.DIST_ZIP_FILE)
-                for f in dist_files:
-                    if zip_mtime < os.path.getmtime(
-                            os.path.join(lib_path, f)):
-                        build = True
-                        break
-                if build:
-                    break
-
-        if build:
-            zf = zipfile.ZipFile(self.DIST_ZIP_FILE, mode='w')
-            zf.pwd = project_base
-            for lib_path in lib_paths:
-                dist_files = multiple_file_types(lib_path, *valid_extensions)
-                for f in dist_files:
-                    zf.write(f, arcname=os.path.relpath(f, project_base))
-            zf.close()
 
     def _emit_event(self, room, namespace):
         def emit_event(name, message, status, identifier, **kwargs):
@@ -365,6 +300,22 @@ class SparkMinion(Minion):
             self.job_future = self._execute_future(job_id, workflow,
                                                    app_configs)
             log.info(_('Execute message finished'))
+        elif msg_type == juicer_protocol.DELIVER:
+            self.active_messages += 1
+            log.info('Deliver message received')
+            task_id = msg_info.get('task_id')
+            output = msg_info.get('output')
+            port = msg_info.get('port')
+            job_id = msg_info['job_id']
+            workflow = msg_info.get('workflow')
+            app_configs = msg_info.get('app_configs', {})
+
+            if self.job_future:
+                self.job_future.result()
+
+            self.job_future = self._deliver_future(task_id,
+                                                   output, port, job_id,
+                                                   workflow, app_configs)
 
         elif msg_type == juicer_protocol.TERMINATE:
             job_id = msg_info.get('job_id', None)
@@ -505,7 +456,7 @@ class SparkMinion(Minion):
                 message=_('Unhandled error'),
                 name='update job',
                 status='ERROR', identifier=job_id)
-            self._generate_output(str(ee), 'ERROR', code=1000)
+            self._generate_output(ee, 'ERROR', code=1000)
             result = False
 
         self.message_processed('execute')
@@ -522,126 +473,6 @@ class SparkMinion(Minion):
 
         return result
 
-    # noinspection PyProtectedMember
-    def is_spark_session_available(self):
-        """
-        Check whether the spark session is available, i.e., the spark session
-        is set and not stopped.
-        """
-        return (self.spark_session and self.spark_session is not None and
-                self.spark_session.sparkContext._jsc and
-                not self.spark_session.sparkContext._jsc.sc().isStopped())
-
-    # noinspection PyUnresolvedReferences,PyProtectedMember
-    def get_or_create_spark_session(self, loader, app_configs, job_id):
-        """
-        Get an existing spark session (context) for this minion or create a new
-        one. Ideally the spark session instantiation is done only once, in order
-        to support partial workflow executions within the same context.
-        """
-
-        from pyspark.sql import SparkSession
-        if not self.is_spark_session_available():
-
-            log.info(_("Creating a new Spark session"))
-            app_name = '{name} (workflow_id={wf},app_id={app})'.format(
-                name=strip_accents(loader.workflow.get('name', '')),
-                wf=self.workflow_id, app=self.app_id)
-            app_name = ''.join([i if ord(i) < 128 else ' ' for i in app_name])
-            spark_builder = SparkSession.builder.appName(
-                app_name)
-
-            # Use config file default configurations to set up Spark session
-            for option, value in self.config['juicer'].get('spark', {}).items():
-                if value is not None:
-                    log.info(_('Setting spark configuration %s'), option)
-                    spark_builder = spark_builder.config(option, value)
-
-            # Set hadoop native libs, if available
-            if "HADOOP_HOME" in os.environ:
-                app_configs['driver-library-path'] = \
-                    '{}/lib/native/'.format(os.environ.get('HADOOP_HOME'))
-
-            # Default options from configuration file
-            app_configs.update(self.config['juicer'].get('spark', {}))
-
-            environment_settings = {
-                'SPARK_DRIVER_PORT': 'spark.driver.port',
-                'SPARK_DRIVER_BLOCKMANAGER_PORT':
-                    'spark.driver.blockManager.port'}
-            # print os.environ.get('SPARK_DRIVER_PORT')
-            # print os.environ.get('SPARK_DRIVER_BLOCKMANAGER_PORT')
-            for k, v in environment_settings.items():
-                if k in os.environ:
-                    spark_builder = spark_builder.config(
-                        environment_settings[k], os.environ.get(k))
-
-            # Juicer listeners configuration.
-            listeners = self.config['juicer'].get('listeners', [])
-
-            classes = []
-            all_jars = []
-            for listener in listeners:
-                clazz = listener['class']
-                jars = listener['jars']
-                classes.append(clazz)
-                all_jars.extend(jars)
-                if clazz == 'lemonade.juicer.spark.LemonadeSparkListener':
-                    self.juicer_listener_enabled = True
-                    app_configs['lemonade.juicer.eventLog.dir'] = \
-                        listener.get('params', {}).get('log_path',
-                                                       '/tmp/juicer-spark-logs')
-
-            if self.jars:
-                all_jars.extend(self.jars.split(os.path.pathsep))
-
-            app_configs['spark.extraListeners'] = ','.join(classes)
-
-            # Must use CLASSPATH from config file also!
-            if 'spark.driver.extraClassPath' in app_configs:
-                all_jars.append(app_configs['spark.driver.extraClassPath'])
-
-            app_configs['spark.driver.extraClassPath'] = os.path.pathsep.join(
-                all_jars)
-
-            log.info('JAVA CLASSPATH: %s',
-                     app_configs['spark.driver.extraClassPath'])
-
-            # All options passed by application are sent to Spark
-            for option, value in app_configs.items():
-                spark_builder = spark_builder.config(option, value)
-
-            # All options passed by the client during job execution
-            for option, value in self.cluster_options.items():
-                spark_builder = spark_builder.config(option, value)
-
-            self.spark_session = spark_builder.getOrCreate()
-            # noinspection PyBroadException
-            try:
-                log_level = logging.getLevelName(log.getEffectiveLevel())
-                self.spark_session.sparkContext.setLogLevel(log_level)
-            except Exception:
-                log_level = 'WARN'
-                self.spark_session.sparkContext.setLogLevel(log_level)
-
-            self._build_dist_file()
-            self.spark_session.sparkContext.addPyFile(self.DIST_ZIP_FILE)
-            self.new_session = True
-
-            def _send_listener_log(data):
-                self._emit_event(room=job_id, namespace='/stand')(
-                    name='update job', message=data, status='RUNNING',
-                    identifier=job_id)
-
-                # self.listener = SparkListener(_send_listener_log)
-                #
-                # sc = self.spark_session.sparkContext
-                # sc._gateway.start_callback_server()
-                # sc._jsc.toSparkContext(sc._jsc).addSparkListener(self.listener)
-
-        log.info(_("Minion is using '%s' as Spark master"),
-                 self.spark_session.sparkContext.master)
-        return self.spark_session
 
     def _send_to_output(self, data):
         self.state_control.push_app_output_queue(
@@ -698,46 +529,6 @@ class SparkMinion(Minion):
 
         return success
 
-    def _read_dataframe_data(self, task_id, output, port):
-        success = True
-        data = []
-        # Last position in state is the execution time, so it should be ignored
-        if port in self._state[task_id]:
-            df = self._state[task_id][port]['output']
-            partial_result = self._state[task_id][port]['sample']
-
-            # In this case we already have partial data collected for the
-            # particular task
-            if partial_result:
-                status_data = {'status': 'SUCCESS', 'code': self.MNN002[0],
-                               'message': self.MNN002[1], 'output': output}
-                data = [dataframe_util.convert_to_csv(r) for r in
-                        partial_result]
-
-            # In this case we do not have partial data collected for the task
-            # Then we must obtain it if the 'take' operation applies
-            elif df is not None and hasattr(df, 'take'):
-                # Evaluating if df has method "take" allows unit testing
-                # instead of testing exact pyspark.sql.dataframe.Dataframe
-                # type check.
-                # FIXME define as a parameter?:
-                status_data = {'status': 'SUCCESS', 'code': self.MNN002[0],
-                               'message': self.MNN002[1], 'output': output}
-                data = df.rdd.map(dataframe_util.convert_to_csv).take(100)
-
-            # In this case, do not make sense to request data for this
-            # particular task output port
-            else:
-                status_data = {'status': 'ERROR', 'code': self.MNN001[0],
-                               'message': self.MNN001[1]}
-                success = False
-
-        else:
-            status_data = {'status': 'ERROR', 'code': self.MNN004[0],
-                           'message': self.MNN004[1]}
-            success = False
-
-        return success, status_data, data
 
     # noinspection PyUnusedLocal
     def cancel_job(self, job_id):
