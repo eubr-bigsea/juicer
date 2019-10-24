@@ -321,7 +321,7 @@ class PCAOperation(Operation):
                     'output data',
                     'output_data_{}'.format(self.order))
             self.alias = parameters.get(self.ALIAS_PARAM, 'pca_feature')
-            if self.n_components <= 0:
+            if int(self.n_components) <= 0:
                 raise ValueError(
                         _("Parameter '{}' must be x>0 for task {}").format(
                                 self.N_COMPONENTS, self.__class__))
@@ -332,10 +332,10 @@ class PCAOperation(Operation):
         {output} = {input}
         from sklearn.decomposition import PCA
         pca = PCA(n_components={n_comp})
-        X_train = {input}['{att}'].values.tolist()
+        X_train = {input}[{att}].values.tolist()
         {output}['{alias}'] = pca.fit_transform(X_train).tolist()
         """.format(output=self.output,
                    input=self.named_inputs['input data'],
-                   att=self.attributes[0], alias=self.alias,
+                   att=self.attributes, alias=self.alias,
                    n_comp=self.n_components)
         return dedent(code)
