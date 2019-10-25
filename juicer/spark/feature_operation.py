@@ -73,7 +73,8 @@ class ScalerOperation(Operation):
             def call_transform(df):
                 return {model}.transform(df)
             {output} = dataframe_util.LazySparkTransformationDataframe(
-                {model}, {input}, call_transform)
+                {model}, {input}, call_transform).select(keep)
+            
             if metrics:
                 from juicer.spark.reports import SimpleTableReport
                 if isinstance({model}, PipelineModel):
