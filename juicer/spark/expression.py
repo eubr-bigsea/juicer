@@ -204,6 +204,24 @@ class Expression(object):
                                            arguments)
         return result
 
+    def get_function_call_with_columns(self, spec, params):
+        """
+        Wrap column name with col() function call, if such call is not present.
+        """
+        # callee = spec['arguments'][0].get('callee', {})
+        # Evaluates if column name is wrapped in a col() function call
+        arguments = []
+        for x in spec['arguments']:
+            if x['type'] == 'Literal':
+                v = 'functions.lit({})'.format(self.parse(x, params))
+            else:
+                v = self.parse(x, params)
+            arguments.append(v)
+
+        result = 'functions.{}({})'.format(spec['callee']['name'],
+                                           ', '.join(arguments))
+        return result
+
     def get_log_call(self, spec, params):
         """
         Handle log function, converting the base (if informed) to double type.
@@ -249,7 +267,7 @@ class Expression(object):
             'ceil': self.get_function_call,
             'coalesce': self.get_function_call,
             'col': self.get_function_call,
-            'concat': self.get_function_call,
+            'concat': self.get_function_call_with_columns,
             'concat_ws': self.get_function_call,
             'current_date': self.get_function_call,
             'current_timestamp': self.get_function_call,
