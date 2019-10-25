@@ -63,7 +63,7 @@ class EvaluateModel(Operation):
                         steps = (number_of_videos // batch_size) + 1
                         
                     model_evaluate = {model}.evaluate_generator(
-                        generator=test_{iterator},
+                        generator={generator},
                         steps=steps
                     )
                     loss_acc_values = 'Loss: ' + ("%.3f" % model_evaluate[0]) 
@@ -79,7 +79,7 @@ class EvaluateModel(Operation):
                     ) 
                     
                     model_predict = {model}.predict_generator(
-                        generator=test_{iterator},
+                        generator={generator},
                         steps=steps
                     )
                     
@@ -118,7 +118,7 @@ class EvaluateModel(Operation):
                         steps = (number_of_videos // batch_size) + 1
                         
                     model_evaluate = {model}.evaluate_generator(
-                        generator=test_{iterator},
+                        generator={generator},
                         steps=steps
                     )
                     loss_acc_values = 'Loss: ' + ("%.3f" % model_evaluate[0]) 
@@ -134,7 +134,7 @@ class EvaluateModel(Operation):
                     ) 
                     
                     model_predict = {model}.predict_generator(
-                        generator=test_{iterator},
+                        generator={generator},
                         steps=steps
                     )
                     
@@ -270,7 +270,7 @@ class FitGenerator(Operation):
         self.train_generator = None
         self.validation_generator = None
 
-        self.is_video_generator = False
+        self.is_video_or_sequence_generator = False
 
         self.import_code = {'layer': None,
                             'callbacks': [],
@@ -317,8 +317,9 @@ class FitGenerator(Operation):
         self.use_multiprocessing = True if int(
             self.use_multiprocessing) == 1 else False
 
-        if 'video-generator' in self.parameters.get('parents_slug'):
-            self.is_video_generator = True
+        if 'video-generator' in self.parameters.get('parents_slug') or \
+                'sequence-generator' in self.parameters.get('parents_slug'):
+            self.is_video_or_sequence_generator = True
             self.shuffle = False# Used not to impact the shuffle value in the video generator.
             if self.workers > 1 or self.use_multiprocessing:
                 import warnings
@@ -600,7 +601,7 @@ class FitGenerator(Operation):
         if self.train_generator:
             if self.classification_report:
                 if self.validation_generator:
-                    if self.is_video_generator:
+                    if self.is_video_or_sequence_generator:
                         return dedent(
                             """
                             history = {var_name}.fit_generator(
@@ -619,8 +620,8 @@ class FitGenerator(Operation):
                             )
                             
                             # Reports for the training
-                            batch_size = training_video_generator.batch_size
-                            number_of_videos = len(training_video_generator.classes)
+                            batch_size = {train_generator}.batch_size
+                            number_of_videos = len({train_generator}.classes)
                             
                             if number_of_videos % batch_size == 0:
                                 steps = number_of_videos // batch_size
@@ -636,7 +637,7 @@ class FitGenerator(Operation):
                             predictions_to_matrix = np.argmax(predictions, axis=1)
                             
                             report = classification_report(
-                                y_true=predict_training_video_generator.classes,
+                                y_true=predict_{train_generator}.classes,
                                 y_pred=predictions_to_matrix,
                                 labels=list(class_mapping.values()),
                                 target_names=list(class_mapping.keys()),
@@ -653,8 +654,8 @@ class FitGenerator(Operation):
                             ) 
                             
                             # Reports for the validation
-                            batch_size = validation_video_generator.batch_size
-                            number_of_videos = len(validation_video_generator.classes)
+                            batch_size = {val_generator}.batch_size
+                            number_of_videos = len({val_generator}.classes)
                             
                             if number_of_videos % batch_size == 0:
                                 steps = number_of_videos // batch_size
@@ -670,7 +671,7 @@ class FitGenerator(Operation):
                             predictions_to_matrix = np.argmax(predictions, axis=1)
                             
                             report = classification_report(
-                                y_true=predict_validation_video_generator.classes,
+                                y_true=predict_{val_generator}.classes,
                                 y_pred=predictions_to_matrix,
                                 labels=list(class_mapping.values()),
                                 target_names=list(class_mapping.keys()),
@@ -797,7 +798,7 @@ class FitGenerator(Operation):
                                  workers=str(self.workers).replace('workers=', '')
                                  .replace(' ', ''))
                 else:
-                    if self.is_video_generator:
+                    if self.is_video_or_sequence_generator:
                         return dedent(
                             """
                             history = {var_name}.fit_generator(
@@ -816,8 +817,8 @@ class FitGenerator(Operation):
                             )
                             
                             # Reports for the training
-                            batch_size = training_video_generator.batch_size
-                            number_of_videos = len(training_video_generator.classes)
+                            batch_size = {train_generator}.batch_size
+                            number_of_videos = len({train_generator}.classes)
                             
                             if number_of_videos % batch_size == 0:
                                 steps = number_of_videos // batch_size
@@ -833,7 +834,7 @@ class FitGenerator(Operation):
                             predictions_to_matrix = np.argmax(predictions, axis=1)
                             
                             report = classification_report(
-                                y_true=predict_training_video_generator.classes,
+                                y_true=predict_{train_generator}.classes,
                                 y_pred=predictions_to_matrix,
                                 labels=list(class_mapping.values()),
                                 target_names=list(class_mapping.keys()),
@@ -1684,6 +1685,8 @@ class Predict(Operation):
         self.generator = None
         self.data_type = None
 
+        self.is_video = False
+
         self.import_code = {'layer': None,
                             'callbacks': [],
                             'model': 'Model',
@@ -1707,9 +1710,18 @@ class Predict(Operation):
             elif str(parent[0]) == 'train-image':
                 self.data_type = 'train'
             elif str(parent[0]) == 'validation-image':
-                self.data_type = 'val'
+                self.data_type = 'validation'
             elif str(parent[0]) == 'test-image':
                 self.data_type = 'test'
+            elif str(parent[0]) == 'train-video':
+                self.data_type = 'train'
+            elif str(parent[0]) == 'validation-video':
+                self.data_type = 'validation'
+            elif str(parent[0]) == 'test-video':
+                self.data_type = 'test'
+
+            if 'video' in str(parent[0]):
+                self.is_video = True
 
         if self.data_type:
             self.generator = '{}_{}'.format(self.data_type, self.generator)
@@ -1719,55 +1731,107 @@ class Predict(Operation):
                              )
 
     def generate_code(self):
-        return dedent(
-            """                
-            # Reports for the test
-            batch_size = {generator}.batch_size
-            number_of_examples = len({generator}.classes)
-            
-            if number_of_examples % batch_size == 0:
-                steps = number_of_examples // batch_size
-            else:
-                steps = (number_of_examples // batch_size) + 1
+        if self.is_video:
+            return dedent(
+                """                
+                # Reports for the {data_type}
+                {generator}.to_fit = False
+                batch_size = {generator}.batch_size
+                number_of_examples = len({generator}.videos_path)
                 
-            {var_name} = {model}.predict_generator(
-                generator={generator},
-                steps=steps
-            )
+                if number_of_examples % batch_size == 0:
+                    steps = number_of_examples // batch_size
+                else:
+                    steps = (number_of_examples // batch_size) + 1
+                    
+                {var_name} = {model}.predict_generator(
+                    generator={generator},
+                    steps=steps
+                )
+                
+                predictions_to_matrix = np.argmax({var_name}, axis=1)
+                
+                target_names = list(class_mapping.keys())
+                labels = list(class_mapping.values())
+                
+                report = classification_report(
+                    y_true={generator}.classes,
+                    y_pred=predictions_to_matrix,
+                    labels=labels,
+                    target_names=target_names,
+                    output_dict=False
+                )
+                
+                message = '\\n<h5>Classification Report - Test</h5>'
+                message += '<pre>' + report + '</pre>'
+                emit_event(name='update task',
+                    message=message,
+                    type='HTML',
+                    status='RESULTS',
+                    identifier='{task_id}'
+                ) 
+                
+                """
+            ).format(var_name=self.var_name,
+                     model=self.model,
+                     generator=self.generator,
+                     task_id=self.task_id,
+                     data_type=self.data_type)
+        else:
+            return dedent(
+                """                
+                # Reports for the {data_type}
+                {generator}.to_fit = False
+                batch_size = {generator}.batch_size
+                number_of_examples = len({generator}.classes)
+                
+                if number_of_examples % batch_size == 0:
+                    steps = number_of_examples // batch_size
+                else:
+                    steps = (number_of_examples // batch_size) + 1
+                    
+                {var_name} = {model}.predict_generator(
+                    generator={generator},
+                    steps=steps
+                )
+                
+                predictions_to_matrix = np.argmax({var_name}, axis=1)
+                
+                target_names = list({generator}.class_indices.keys())
+                labels = list({generator}.class_indices.values())
+                
+                report = classification_report(
+                    y_true={generator}.classes,
+                    y_pred=predictions_to_matrix,
+                    labels=labels,
+                    target_names=target_names,
+                    output_dict=False
+                )
+                
+                label_to_target = {{}}
+                for i in range(len(labels)):
+                    label_to_target[labels[i]] = target_names[i]
             
-            predictions_to_matrix = np.argmax({var_name}, axis=1)
-            
-            target_names = list({generator}.class_indices.keys())
-            labels = list({generator}.class_indices.values())
-            
-            # print({generator}.classes)
-            # print(predictions_to_matrix)
-            # counts = np.bincount(predictions_to_matrix)
-            # print(counts)
-            # print(np.argmax(counts))
-            
-            report = classification_report(
-                y_true={generator}.classes,
-                y_pred=predictions_to_matrix,
-                labels=labels,
-                target_names=target_names,
-                output_dict=False
-            )
-            
-            message = '\\n<h5>Classification Report - Test</h5>'
-            message += '<pre>' + report + '</pre>'
-            emit_event(name='update task',
-                message=message,
-                type='HTML',
-                status='RESULTS',
-                identifier='{task_id}'
-            ) 
-            
-            """
-        ).format(var_name=self.var_name,
-                 model=self.model,
-                 generator=self.generator,
-                 task_id=self.task_id)
+                print("file_name", "predicted", "class")
+                for i, f in enumerate(test_image_generator.filenames):
+                    print({generator}.filenames[i], label_to_target[predictions_to_matrix[i]], label_to_target[{generator}.classes[i]])
+
+                
+                message = '\\n<h5>Classification Report - Test</h5>'
+                message += '<pre>' + report + '</pre>'
+                emit_event(name='update task',
+                    message=message,
+                    type='HTML',
+                    status='RESULTS',
+                    identifier='{task_id}'
+                ) 
+                
+                """
+            ).format(var_name=self.var_name,
+                     model=self.model,
+                     generator=self.generator,
+                     task_id=self.task_id,
+                     data_type=self.data_type)
 
 
 class Evaluate(Operation):
@@ -1808,7 +1872,7 @@ class Evaluate(Operation):
         return dedent(
             """
             {var_name} = {model}.evaluate_generator(
-                generator=test_{generator}
+                generator={generator}
             )
             print({model}.metrics_names)
             print({var_name})

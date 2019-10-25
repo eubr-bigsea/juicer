@@ -97,6 +97,8 @@ class KerasTranspiler(Transpiler):
             #'rnn':core_layers.RNN,
             'separable-conv-1d': convolutional_layers.SeparableConv1D,
             'separable-conv-2d': convolutional_layers.SeparableConv2D,
+            'sequence-reader': input_output_data.SequenceReader,
+            'sequence-generator': preprocessing.SequenceGenerator,
             'simple-rnn': recurrent_layers.SimpleRNN,
             #'simple-rnn-cell': core_layers.SimpleRNNCell,
             'spatialDropout1D': core_layers.SpatialDropout1D,
