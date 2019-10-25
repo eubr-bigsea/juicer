@@ -206,10 +206,10 @@ class CleanMissingOperation(Operation):
                     _("Parameter '{}' must be informed for task {}")
                     .format('attributes', self.__class__))
 
-            self.min_ratio = abs(parameters.get(
-                    self.MIN_MISSING_RATIO_PARAM, 0.0))
-            self.max_ratio = abs(parameters.get(
-                    self.MAX_MISSING_RATIO_PARAM, 1.0))
+            self.min_ratio = abs(float(parameters.get(
+                    self.MIN_MISSING_RATIO_PARAM, 0.0)))
+            self.max_ratio = abs(float(parameters.get(
+                    self.MAX_MISSING_RATIO_PARAM, 1.0)))
 
             if any([self.min_ratio > self.max_ratio,
                     self.min_ratio > 1.0,
@@ -234,42 +234,85 @@ class CleanMissingOperation(Operation):
     def generate_code(self):
 
         op = ""
-
         if self.mode_CM == "REMOVE_ROW":
-            op = "{output}.dropna(subset=col, axis='index', inplace=True)"\
-                .format(output=self.output)
+            code = """
+                min_missing_ratio = {min_thresh}
+                max_missing_ratio = {max_thresh}
+                {output} = {input}.copy()
+                ratio = {input}[{columns}].isnull().sum(axis=1) / len({columns})
+                ratio_mask = (ratio > min_missing_ratio) & (ratio <= max_missing_ratio)
+                {output} = {output}[~ratio_mask]
+                """ \
+                .format(min_thresh=self.min_ratio, max_thresh=self.max_ratio,
+                        output=self.output, input=self.named_inputs['input data'],
+                        columns=self.attributes_CM, op=op)
+
         elif self.mode_CM == "REMOVE_COLUMN":
-            op = "{output}[col].dropna(axis='columns', inplace=True))"\
-                .format(output=self.output)
 
-        elif self.mode_CM == "VALUE":
-            op = "{output}[col].fillna(value={value}, inplace=True)"\
-                .format(output=self.output, value=self.value_CM)
+            code = """
+                min_missing_ratio = {min_thresh}
+                max_missing_ratio = {max_thresh}
+                {output} = {input}
+                to_remove = []
+                for col in {columns}:
+                    ratio = {input}[col].isnull().sum() / len({input})
+                    ratio_mask = (ratio > min_missing_ratio) & (ratio <= max_missing_ratio)
+                    if ratio_mask:
+                        to_remove.append(col)
+                
+                {output}.drop(columns=to_remove, inplace=True)
+                """ \
+                .format(min_thresh=self.min_ratio, max_thresh=self.max_ratio,
+                        output=self.output, input=self.named_inputs['input data'],
+                        columns=self.attributes_CM, op=op)
 
-        elif self.mode_CM == "MEAN":
-            op = "{output}[col].fillna(value={output}" \
-                 "[col].mean(), inplace=True)".format(output=self.output)
-        elif self.mode_CM == "MEDIAN":
-            op = "{output}[col].fillna(value={output}" \
-                 "[col].median(), inplace=True)".format(output=self.output)
+        else:
 
-        elif self.mode_CM == "MODE":
-            op = "{out}[col].fillna(value={out}[col].mode(), inplace=True)"\
-                .format(out=self.output)
+            if self.mode_CM == "VALUE":
+                if isinstance(self.check_parameter(self.value_CM), str):
+                    op = "{output}[col].fillna(value='{value}', inplace=True)" \
+                        .format(output=self.output, value=self.value_CM)
+                else:
+                    op = "{output}[col].fillna(value={value}, inplace=True)" \
+                        .format(output=self.output, value=self.value_CM)
 
-        code = """
-        min_missing_ratio = {min_thresh}
-        max_missing_ratio = {max_thresh}
-        {output} = {input}
-        for col in {columns}:
-            ratio = {input}[col].isnull().sum()
-            if ratio >= min_missing_ratio and ratio <= max_missing_ratio:
-                {op}
-            """\
-            .format(min_thresh=self.min_ratio, max_thresh=self.max_ratio,
-                    output=self.output, input=self.named_inputs['input data'],
-                    columns=self.attributes_CM, op=op)
+            elif self.mode_CM == "MEAN":
+                op = "{output}[col].fillna(value={output}" \
+                     "[col].mean(), inplace=True)".format(output=self.output)
+            elif self.mode_CM == "MEDIAN":
+                op = "{output}[col].fillna(value={output}" \
+                     "[col].median(), inplace=True)".format(output=self.output)
+
+            elif self.mode_CM == "MODE":
+                op = "{out}[col].fillna(value={out}[col].mode()[0], inplace=True)"\
+                    .format(out=self.output)
+
+            code = """
+                    min_missing_ratio = {min_thresh}
+                    max_missing_ratio = {max_thresh}
+                    {output} = {input}
+                    for col in {columns}:
+                        ratio = {input}[col].isnull().sum() / len({input})
+                        ratio_mask = (ratio > min_missing_ratio) & (ratio <= max_missing_ratio)
+                        if ratio_mask:
+                            {op}
+                            """ \
+                .format(min_thresh=self.min_ratio, max_thresh=self.max_ratio,
+                        output=self.output, input=self.named_inputs['input data'],
+                        columns=self.attributes_CM, op=op)
         return dedent(code)
+
+    def check_parameter(self, parameter):
+        output = ""
+        try:
+            if parameter.isdigit():
+                output = int(parameter)
+            else:
+                output = float(parameter)
+        except ValueError:
+            output = parameter
+
+        return output
 
 
 class DifferenceOperation(Operation):
@@ -619,7 +662,7 @@ class JoinOperation(Operation):
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
-        self.keep_right_keys = \
+        self.not_keep_right_keys = not \
             parameters.get(self.KEEP_RIGHT_KEYS_PARAM, False) in (1, '1', True)
         self.match_case = parameters.get(self.MATCH_CASE_PARAM, False) \
                           in (1, '1', True)
@@ -652,23 +695,34 @@ class JoinOperation(Operation):
 
     def generate_code(self):
 
-        code = ""
-        if not self.keep_right_keys:
-            code = """
-            cols_to_remove = [c+'{sf}' for c in 
-                {in2}.columns if c in {in1}.columns]
-            """.format(in1=self.named_inputs['input data 1'],
-                       in2=self.named_inputs['input data 2'],
-                       sf=self.suffixes[1])
+        code = """
+        cols1 = [ c+'{suf_l}' for c in {in1}.columns]
+        cols2 = [ c+'{suf_r}' for c in {in2}.columns]
+        
+        {in1}.columns = cols1
+        {in2}.columns = cols2
+        
+        keys1 = [ c+'{suf_l}' for c in {keys1}]
+        keys2 = [ c+'{suf_r}' for c in {keys2}]
+        """.format(in1=self.named_inputs['input data 1'], in2=self.named_inputs['input data 2'],
+                   suf_l=self.suffixes[0], suf_r=self.suffixes[1],
+                   keys1=self.left_attributes, keys2=self.right_attributes)
 
-        if self.match_case:
+        if self.not_keep_right_keys:
             code += """
-            data1_tmp = {in1}[{id1}].applymap(lambda col: str(col).lower())
+            cols_to_remove = keys2
+            """
+
+        if not self.match_case:
+            code += """
+            data1_tmp = {in1}[keys1].applymap(lambda col: str(col).lower()).copy()
             data1_tmp.columns = [c+"_lower" for c in data1_tmp.columns]
+            col1 = list(data1_tmp.columns)
             data1_tmp = pd.concat([{in1}, data1_tmp], axis=1, sort=False)
             
-            data2_tmp = {in2}[{id2}].applymap(lambda col: str(col).lower())
+            data2_tmp = {in2}[keys2].applymap(lambda col: str(col).lower()).copy()
             data2_tmp.columns = [c+"_lower" for c in data2_tmp.columns]
+            col2 = list(data2_tmp.columns)
             data2_tmp = pd.concat([{in2}, data2_tmp], axis=1, sort=False)
 
             {out} = pd.merge(data1_tmp, data2_tmp, left_on=col1, right_on=col2,
@@ -684,15 +738,13 @@ class JoinOperation(Operation):
             code += """
             {out} = pd.merge({in1}, {in2}, how='{type}', 
                 suffixes={suffixes},
-                left_on={id1}, right_on={id2})
+                left_on=keys1, right_on=keys2)
              """.format(out=self.output, type=self.join_type,
                         in1=self.named_inputs['input data 1'],
                         in2=self.named_inputs['input data 2'],
-                        id1=self.left_attributes,
-                        id2=self.right_attributes,
                         suffixes=self.suffixes)
 
-        if not self.keep_right_keys:
+        if self.not_keep_right_keys:
             code += """
             {out}.drop(cols_to_remove, axis=1, inplace=True)
             """.format(out=self.output)
@@ -721,12 +773,24 @@ class ReplaceValuesOperation(Operation):
         for att in parameters['attributes']:
             if att not in self.replaces:
                 self.replaces[att] = [[], []]
-            self.replaces[att][0].append(self.parameters['value'])
-            self.replaces[att][1].append(self.parameters['replacement'])
+            self.replaces[att][0].append(self.check_parameter(self.parameters['value']))
+            self.replaces[att][1].append(self.check_parameter(self.parameters['replacement']))
 
         self.has_code = len(named_inputs) == 1
         self.output = self.named_outputs.get('output data',
                                              'output_data_{}'.format(self.order))
+
+    def check_parameter(self, parameter):
+        output = ""
+        try:
+            if parameter.isdigit():
+                output = int(parameter)
+            else:
+                output = float(parameter)
+        except ValueError:
+            output = parameter
+
+        return output
 
     def generate_code(self):
         code = """
@@ -893,16 +957,16 @@ class SplitOperation(Operation):
         self.seed = self.parameters.get("seed", 'None')
         self.seed = 'None' if self.seed == "" else self.seed
 
-        self.out1 = self.named_outputs.get('splitted data 1',
-                                           'splitted_1_{}'.format(self.order))
-        self.out2 = self.named_outputs.get('splitted data 2',
-                                           'splitted_2_{}'.format(self.order))
+        self.out1 = self.named_outputs.get('split 1',
+                                           'split_1_task_{}'.format(self.order))
+        self.out2 = self.named_outputs.get('split 2',
+                                           'split_2_task_{}'.format(self.order))
 
     def get_data_out_names(self, sep=','):
             return ''
 
     def get_output_names(self, sep=', '):
-        return sep.join([self.out1, self.out2])
+        return sep.join([self.out2, self.out1])
 
     def generate_code(self):
         code = """{out1}, {out2} = np.split({input}.sample(frac=1, 
