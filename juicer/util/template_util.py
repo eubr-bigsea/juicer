@@ -293,3 +293,4 @@ def get_interval(field):
             if len(field) == 2:
                 return ':'.join(field)
     return False
+
