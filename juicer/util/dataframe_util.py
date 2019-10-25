@@ -19,6 +19,14 @@ def is_numeric(schema, col):
         isinstance(schema[str(col)].dataType, VectorUDT) 
 
 
+def default_encoder_sklearn(obj):
+    if isinstance(obj, float):
+        return str(obj)
+    elif isinstance(obj, datetime.datetime):
+        return obj.isoformat()
+    else:
+        return str(obj)
+
 
 def default_encoder(obj):
     from pyspark.ml.linalg import DenseVector
@@ -35,6 +43,11 @@ def default_encoder(obj):
 class SimpleJsonEncoder(simplejson.JSONEncoder):
     def default(self, obj):
         return default_encoder(obj)
+
+
+class SimpleJsonEncoderSklearn(simplejson.JSONEncoder):
+    def default(self, obj):
+        return default_encoder_sklearn(obj)
 
 
 class CustomEncoder(json.JSONEncoder):

@@ -26,8 +26,9 @@ class FeatureAssemblerOperation(Operation):
     def generate_code(self):
         code = """
         cols = {cols}
-        {output} = {input}
-        {output}['{alias}'] = {input}[cols].values.tolist()
+        {input}_without_na = {input}.dropna(subset=cols)
+        {output} = {input}_without_na.copy()
+        {output}['{alias}'] = {input}_without_na[cols].values.tolist()
         """.format(output=self.output, alias=self.alias,
                    input=self.named_inputs['input data'],
                    cols=self.parameters[self.ATTRIBUTES_PARAM])
@@ -65,9 +66,9 @@ class MinMaxScalerOperation(Operation):
 
             self.output = self.named_outputs.get(
                     'output data', 'output_data_{}'.format(self.order))
-            self.attribute = parameters[self.ATTRIBUTE_PARAM][0]
+            self.attribute = parameters[self.ATTRIBUTE_PARAM]
             self.alias = parameters.get(self.ALIAS_PARAM,
-                                        self.attribute+'_norm')
+                                        'scaled_{}'.format(self.order))
 
             self.min = parameters.get(self.MIN_PARAM, 0) or 0
             self.max = parameters.get(self.MAX_PARAM, 1) or 1
@@ -78,7 +79,7 @@ class MinMaxScalerOperation(Operation):
         {output} = {input}
         from sklearn.preprocessing import MinMaxScaler
         scaler = MinMaxScaler(feature_range=({min},{max}))
-        X_train = {input}['{att}'].values.tolist()
+        X_train = {input}[{att}].values.tolist()
         {output}['{alias}'] = scaler.fit_transform(X_train).tolist()
         """.format(output=self.output,
                    input=self.named_inputs['input data'],
@@ -113,9 +114,9 @@ class MaxAbsScalerOperation(Operation):
 
             self.output = self.named_outputs.get(
                     'output data', 'output_data_{}'.format(self.order))
-            self.attribute = parameters[self.ATTRIBUTE_PARAM][0]
+            self.attribute = parameters[self.ATTRIBUTE_PARAM]
             self.alias = parameters.get(self.ALIAS_PARAM,
-                                        self.attribute + '_norm')
+                                        'scaled_{}'.format(self.order))
 
     def generate_code(self):
         """Generate code."""
@@ -123,7 +124,7 @@ class MaxAbsScalerOperation(Operation):
         {output} = {input}
         from sklearn.preprocessing import MaxAbsScaler
         scaler = MaxAbsScaler()
-        X_train = {input}['{att}'].values.tolist()
+        X_train = {input}[{att}].values.tolist()
         {output}['{alias}'] = scaler.fit_transform(X_train).tolist()
         """.format(output=self.output,
                    input=self.named_inputs['input data'],
@@ -147,34 +148,41 @@ class StandardScalerOperation(Operation):
 
     ALIAS_PARAM = 'alias'
     ATTRIBUTE_PARAM = 'attribute'
+    WITH_MEAN_PARAM = 'with_mean'
+    WITH_STD_PARAM = 'with_std'
+    VALUE_PARAMETER = 'value'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         self.has_code = len(self.named_inputs) == 1
         if self.has_code:
-            if self.ATTRIBUTE_PARAM not in parameters:
-                raise ValueError(
-                        _("Parameters '{}' must be informed for task {}")
-                        .format(self.ATTRIBUTE_PARAM, self.__class__))
-
+            self.with_mean = parameters.get(
+                self.WITH_MEAN_PARAM, False) in ['1', 1, True]
+            self.with_std = parameters.get(
+                self.WITH_STD_PARAM, True) in ['1', 1, True]
             self.output = self.named_outputs.get(
                     'output data', 'output_data_{}'.format(self.order))
-            self.attribute = parameters[self.ATTRIBUTE_PARAM][0]
+            self.attribute = parameters[self.ATTRIBUTE_PARAM]
             self.alias = parameters.get(self.ALIAS_PARAM,
-                                        self.attribute + '_norm')
+                                        'scaled_{}'.format(self.order))
 
     def generate_code(self):
+        op = "with_mean={value}" \
+            .format(value=self.with_mean)
+        op += ", with_std={value}" \
+            .format(value=self.with_std)
+
         """Generate code."""
         code = """
         {output} = {input}
         from sklearn.preprocessing import StandardScaler
-        scaler = StandardScaler()
-        X_train = {input}['{att}'].values.tolist()
+        scaler = StandardScaler({op})
+        X_train = {input}[{att}].values.tolist()
         {output}['{alias}'] = scaler.fit_transform(X_train).tolist()
         """.format(output=self.output,
                    input=self.named_inputs['input data'],
-                   att=self.attribute, alias=self.alias)
+                   att=self.attribute, alias=self.alias, op=op)
         return dedent(code)
 
 
@@ -313,7 +321,7 @@ class PCAOperation(Operation):
                     'output data',
                     'output_data_{}'.format(self.order))
             self.alias = parameters.get(self.ALIAS_PARAM, 'pca_feature')
-            if self.n_components <= 0:
+            if int(self.n_components) <= 0:
                 raise ValueError(
                         _("Parameter '{}' must be x>0 for task {}").format(
                                 self.N_COMPONENTS, self.__class__))
@@ -324,10 +332,10 @@ class PCAOperation(Operation):
         {output} = {input}
         from sklearn.decomposition import PCA
         pca = PCA(n_components={n_comp})
-        X_train = {input}['{att}'].values.tolist()
+        X_train = {input}[{att}].values.tolist()
         {output}['{alias}'] = pca.fit_transform(X_train).tolist()
         """.format(output=self.output,
                    input=self.named_inputs['input data'],
-                   att=self.attributes[0], alias=self.alias,
+                   att=self.attributes, alias=self.alias,
                    n_comp=self.n_components)
         return dedent(code)

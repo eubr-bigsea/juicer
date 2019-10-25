@@ -106,7 +106,7 @@ class PublishVisualizationOperation(Operation):
         # list for visualizations metadata
         code_lines = [
             "from juicer.service import caipirinha_service",
-            "from juicer.util.dataframe_util import SimpleJsonEncoder as enc",
+            "from juicer.util.dataframe_util import SimpleJsonEncoderSklearn as enc",
             "visualizations = []"
         ]
         if isinstance(self.named_inputs['visualizations'], (list, tuple)):
@@ -209,7 +209,7 @@ class VisualizationMethodOperation(Operation):
         code_lines = [dedent(
             """
             from juicer.scikit_learn.vis_operation import {model}
-            from juicer.util.dataframe_util import SimpleJsonEncoder as enc
+            from juicer.util.dataframe_util import SimpleJsonEncoderSklearn as enc
 
             params = '{params}'
             {out} = {model}(
@@ -416,6 +416,8 @@ class ChartVisualization(VisualizationModel):
             attr_type = 'text'
         elif attr == 'str':
             attr_type = 'text'
+        elif attr.startswith('datetime'):
+            attr_type = 'date'
         else:
             attr_type = 'number'
 
@@ -456,9 +458,7 @@ class ChartVisualization(VisualizationModel):
             raise ValueError(_(
                 'At least one attribute for Y-axis does not exist: {}').format(
                 ', '.join(self.params.get('column_names', []))))
-
-        x_type = str(self.data[x_attr].dtype)
-        x_type = ChartVisualization._get_attr_type(x_type)
+        x_type = ChartVisualization._get_attr_type(str(self.data[x_attr].dtype))
         return x_attr, x_type, y_attrs
 
     @staticmethod
@@ -486,7 +486,7 @@ class BarChartModel(ChartVisualization):
         colors = {}
         color_counter = 0
         for i, attr in enumerate(y_attrs):
-            color = COLORS_PALETTE[(i % 6) * 5 + ((i / 6) % 5)]
+            color = COLORS_PALETTE[(i % 6) * 5 + ((i // 6) % 5)]
             colors[attr] = {
                 'fill': color,
                 'gradient': color,
@@ -532,7 +532,7 @@ class BarChartModel(ChartVisualization):
             if x_value not in colors:
                 inx_row += 1
                 color = COLORS_PALETTE[(color_counter % 6) * 5 +
-                                       ((color_counter / 6) % 5)]
+                                       ((color_counter // 6) % 5)]
                 colors[x_value] = {
                     'fill': color,
                     'gradient': color,
@@ -544,7 +544,7 @@ class BarChartModel(ChartVisualization):
                 'name': row_x,
                 'key': row_x,
                 'color': COLORS_PALETTE[
-                    (inx_row % 6) * 5 + ((inx_row / 6) % 5)],
+                    (inx_row % 6) * 5 + ((inx_row // 6) % 5)],
                 'values': []
             }
             result['data'].append(data)
@@ -637,7 +637,7 @@ class PieChartModel(ChartVisualization):
                 'id': '{}_{}'.format(label_attr, i),
                 'name': row_y,
                 'label': row_y,
-                'color': COLORS_PALETTE[(i % 6) * 5 + ((i / 6) % 5)],
+                'color': COLORS_PALETTE[(i % 6) * 5 + ((i // 6) % 5)],
             }
             result['data'].append(data)
             if i >= 100:
@@ -664,8 +664,8 @@ class LineChartModel(ChartVisualization):
             data.append({
                 "id": attr,
                 "name": attr,
-                "color": COLORS_PALETTE[(i % 6) * 5 + ((i / 6) % 5)],
-                "pointColor": COLORS_PALETTE[(i % 6) * 5 + ((i / 6) % 5)],
+                "color": COLORS_PALETTE[(i % 6) * 5 + ((i // 6) % 5)],
+                "pointColor": COLORS_PALETTE[(i % 6) * 5 + ((i // 6) % 5)],
                 "pointShape": SHAPES[i % len(SHAPES)],
                 "pointSize": 3,
                 "values": []
@@ -701,7 +701,11 @@ class LineChartModel(ChartVisualization):
             result['x']["outFormat"] = self.default_time_format
             result['x']["type"] = 'time'  # FIXME
 
-        rows_x = self.data[x_attr].values.tolist()
+        if self.data[x_attr].dtype.name.startswith('datetime'):
+            rows_x = self.data[x_attr].values.astype('datetime64[s]').tolist()
+        else:
+            rows_x = self.data[x_attr].values.tolist()
+
         rows_y = self.data[y_attrs].values.tolist()
 
         for row_x, row_y in zip(rows_x, rows_y):
@@ -756,7 +760,7 @@ class MapModel(ChartVisualization):
         lng = self.params.get('longitude', [None])[0]
         label = self.params.get('label', [None])[0]
 
-        for i, row in enumerate(rows):
+        for i, row in self.data.iterrows():
             if self.params.get('value'):
                 value = row[self.params.get('value')[0]]
             else:
