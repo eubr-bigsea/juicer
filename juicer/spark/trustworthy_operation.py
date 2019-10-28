@@ -1,7 +1,5 @@
 # coding=utf-8
-
-
-import json
+from gettext import gettext
 from textwrap import dedent
 
 from juicer.operation import Operation
@@ -16,6 +14,23 @@ class FairnessEvaluationOperation(Operation):
     TYPE_PARAM = 'type'
     TAU_PARAM = 'tau'
     BASELINE_PARAM = 'baseline'
+    COLUMNS = {
+        'EP': 'pred_pos_ratio_k_parity',
+        'PP': 'pred_pos_ratio_g_parity',
+        'FPRP': 'fpr_parity',
+        'FDRP': 'fdr_parity',
+        'FNRP': 'fnr_parity',
+        'FORP': 'for_parity'
+    }
+
+    VALID_TYPES = {
+        'EP': gettext('Equal Parity'),
+        'PP': gettext('Proportional Parity'),
+        'FPRP': gettext('False-Positive Parity Rate'),
+        'FDRP': gettext('False-Discovery Parity Rate'),
+        'FNRP': gettext('False-Negative Parity Rate'),
+        'FORP': gettext('False-Omission Parity Rate'),
+    }
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
@@ -25,38 +40,46 @@ class FairnessEvaluationOperation(Operation):
         self.sensitive = parameters.get(self.SENSITIVE_ATTRIBUTE_PARAM, [])
         if not self.sensitive:
             raise ValueError(
-                _("Parameter '{}' must be informed for task {}").format(
+                gettext("Parameter '{}' must be informed for task {}").format(
                     self.SENSITIVE_ATTRIBUTE_PARAM, self.__class__))
 
         self.baseline = parameters.get(self.BASELINE_PARAM, None)
         if not self.sensitive:
             raise ValueError(
-                _("Parameter '{}' must be informed for task {}").format(
+                gettext("Parameter '{}' must be informed for task {}").format(
                     self.BASELINE_PARAM, self.__class__))
 
         self.label = (parameters.get(
             self.LABEL_ATTRIBUTE_PARAM, ['label']) or ['label'])[0]
         self.score = (parameters.get(
             self.SCORE_ATTRIBUTE_PARAM, ['score']) or ['score'])[0]
-        self.type = parameters.get(self.TYPE_PARAM, 'aequitas')
+        self.type = parameters.get(self.TYPE_PARAM, 'EP')
+        if self.type not in self.VALID_TYPES.keys():
+            raise ValueError(
+                gettext('Parameter {} must be one of these: {}').format(
+                    gettext('type'), ','.join(self.VALID_TYPES.keys())
+                )
+            )
+        self.fairness_metric = self.VALID_TYPES[self.type]
+        self.column_name = self.COLUMNS[self.type]
 
         self.output = self.named_outputs.get(
             'output data', 'out_task_{}'.format(self.order))
         self.input = self.named_inputs.get('input data')
 
-        self.has_code = all([
-            len(self.named_inputs) == 1,
-            any([len(self.named_outputs) == 1, self.contains_results()])])
+        self.has_code = True
+        self.supports_cache = False
 
     def generate_code(self):
-        display_image = self.parameters['task']['forms'].get(
-            'display_image', {'value': 1}).get('value', 1) in (1, '1')
+        display_text = self.parameters['task']['forms'].get(
+            'display_text', {'value': 1}).get('value', 1) in (1, '1')
         code = dedent("""
 
-            from juicer.service import caipirinha_service
+            # from juicer.service import caipirinha_service
             from juicer.spark.vis_operation import HtmlVisualizationModel
             from juicer.spark.ext import FairnessEvaluatorTransformer
             from juicer.spark.reports import FairnessBiasReport
+            from juicer.spark.reports import SimpleTableReport
 
             baseline = '{baseline}'
 
@@ -66,7 +89,7 @@ class FairnessEvaluationOperation(Operation):
             elif isinstance(sensitive_column_dt, types.IntegralType):
                 baseline = int(baseline)
             elif not isinstance(sensitive_column_dt, types.StringType):
-                raise ValueError(_('Invalid column type: {{}}').format(
+                raise ValueError(gettext('Invalid column type: {{}}').format(
                 sensitive_column_dt))
 
             evaluator = FairnessEvaluatorTransformer(
@@ -74,8 +97,44 @@ class FairnessEvaluationOperation(Operation):
                    baselineValue=str(baseline), tau={tau},
                    scoreColumn='{score}')
             {out} = evaluator.transform({input})
-            display_image = {display_image}
-            if display_image:
+            display_text = {display_text}
+
+
+            headers = {headers}
+            rows = {out}.select('{sensitive}' , '{column_name}',
+                functions.round('{score_column_name}', 2)).collect()
+
+            content = SimpleTableReport(
+                'table table-striped table-bordered table-sm w-auto',
+                headers, rows)
+
+            emit_event(
+                'update task', status='COMPLETED',
+                identifier='{task_id}',
+                message='{fairness_metric}' + content.generate(),
+                type='HTML', title='{fairness_metric}',
+                task={{'id': '{task_id}'}},
+                operation={{'id': {operation_id}}},
+                operation_id={operation_id})
+
+            # Records metric value
+            props = ['group', 'acceptable', 'value']
+            msg = json.dumps({{
+                    'metric': '{metric_id}',
+                    'workflow_id': '{workflow_id}',
+                    'values': [dict(zip(props, x)) for x in rows]
+                }})
+            emit_event(
+                'task result', status='COMPLETED',
+                identifier='{task_id}',
+                content=msg,
+                message=msg,
+                type='METRIC', title='{fairness_metric}',
+                task={{'id': '{task_id}'}},
+                operation={{'id': {operation_id}}},
+                operation_id={operation_id})
+
+            if display_text:
                 html = FairnessBiasReport({out},
                             '{sensitive}', baseline).generate()
                 visualization = {{
@@ -118,13 +177,22 @@ class FairnessEvaluationOperation(Operation):
                    baseline=self.baseline, tau=self.tau,
                    score=self.score,
                    out=self.output, input=self.input,
-                   display_image=display_image,
+                   display_text=display_text,
                    task_id=self.parameters['task_id'],
                    operation_id=self.parameters['operation_id'],
                    job_id=self.parameters['job_id'],
                    user=self.parameters['user'],
                    workflow_id=self.parameters['workflow_id'],
                    config=get_caipirinha_config(self.config, indentation=16),
-                   title=_('Bias/Fairness Report'),
-                   open=_('click to open')))
+                   title=gettext('Bias/Fairness Report'),
+                   open=gettext('click to open'),
+                   metric=self.type,
+                   fairness_metric=self.fairness_metric,
+                   metric_id=self.type,
+                   column_name=self.column_name,
+                   score_column_name=self.column_name.replace('parity',
+                                                              'disparity'),
+                   headers=[gettext('Group'), gettext('Acceptable'),
+                            gettext('Value')]
+                   ))
         return code
