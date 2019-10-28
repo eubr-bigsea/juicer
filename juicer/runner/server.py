@@ -186,7 +186,7 @@ class JuicerServer:
         minion_id = 'minion_{}_{}'.format(workflow_id, app_id)
         stdout_log = os.path.join(self.log_dir, minion_id + '_out.log')
         stderr_log = os.path.join(self.log_dir, minion_id + '_err.log')
-        log.debug(_('Forking minion %s.'), minion_id)
+        log.info(_('Forking minion %s.'), minion_id)
 
         port = self._get_next_available_port()
         # Setup command and launch the minion script. We return the subprocess
@@ -197,7 +197,7 @@ class JuicerServer:
                      '-w', str(workflow_id), '-a', str(app_id), '-t', platform,
                      '-c',
                      self.config_file_path, ]
-        log.debug(_('Minion command: %s'), json.dumps(open_opts))
+        log.info(_('Minion command: %s'), json.dumps(open_opts))
 
         # Mesos / libprocess configuration. See:
         # http://mesos.apache.org/documentation/latest/configuration/libprocess/
