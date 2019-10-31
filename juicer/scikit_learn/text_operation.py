@@ -63,7 +63,7 @@ class TokenizerOperation(Operation):
                 'output data', 'output_data_{}'.format(self.order))
 
             if self.type == self.TYPE_SIMPLE:
-                self.has_import = "from nltk.tokenize import ToktokTokenizer\n"
+                self.has_import = "from nltk.tokenize import TweetTokenizer\n"
             else:
                 self.has_import = "from nltk.tokenize import regexp_tokenize\n"
 
@@ -78,7 +78,7 @@ class TokenizerOperation(Operation):
             code = """
             {output} = {input}.copy()
             result = []
-            toktok = ToktokTokenizer()
+            toktok = TweetTokenizer()
     
             for row in {output}['{att}'].values:
                 result.append([word 
