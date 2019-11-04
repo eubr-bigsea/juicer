@@ -309,13 +309,20 @@ class LdaClusteringOperation(Operation):
     LEARNING_METHOD_ON = 'online'
     LEARNING_METHOD_BA = 'batch'
 
+    FEATURES_PARAM = 'features'
+    PREDICTION_PARAM = 'prediction'
+
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-        self.has_code = len(named_outputs) > 0
+        self.has_code = len(named_inputs) > 0 and any(
+            [len(self.named_outputs) > 0, self.contains_results()])
         if self.has_code:
             self.output = named_outputs.get(
-                    'algorithm', 'clustering_algorithm_{}'.format(self.order))
+                    'output data', 'sampled_data_{}'.format(self.order))
+            self.model = named_outputs.get(
+                    'model', 'model_{}'.format(self.order))
+
             self.n_clusters = parameters.get(
                     self.N_COMPONENTES_PARAM, 10) or self.N_COMPONENTES_PARAM
             self.learning_method = parameters.get(
@@ -347,16 +354,38 @@ class LdaClusteringOperation(Operation):
             self.has_import = \
                 "from sklearn.decomposition import LatentDirichletAllocation\n"
 
+            self.prediction = self.parameters.get(self.PREDICTION_PARAM, 'prediction')
+
+            if self.FEATURES_PARAM not in self.parameters:
+                msg = _("Parameters '{}' must be informed for task {}")
+                raise ValueError(msg.format(
+                    self.FEATURES_PARAM, self.__class__.__name__))
+            self.features = self.parameters.get(self.FEATURES_PARAM)
+
     def generate_code(self):
         """Generate code."""
         code = """
-        {output} = LatentDirichletAllocation(n_components={n_components}, 
+        {model} = LatentDirichletAllocation(n_components={n_components}, 
         doc_topic_prior={doc_topic_prior}, topic_word_prior={topic_word_prior}, 
         learning_method='{learning_method}', max_iter={max_iter})
+        
+        X_train = {input}['{input_col}'].values.tolist()
+        {model}.fit(X_train)
         """.format(n_components=self.n_clusters, max_iter=self.max_iter,
                    doc_topic_prior=self.doc_topic_pior,
                    topic_word_prior=self.topic_word_prior,
                    learning_method=self.learning_method,
-                   output=self.output)
+                   output=self.output,
+                   model=self.model,
+                   input_col=self.features[0],
+                   input=self.named_inputs['train input data'])
+
+        if self.contains_results() or 'output data' in self.named_outputs:
+            code += """
+            {output} = {input}
+            {output}['{pred_col}'] = {model}.transform(X_train).tolist()
+            """.format(output=self.output, model=self.model,
+                       pred_col=self.prediction, input_col=self.features[0],
+                       input=self.named_inputs['train input data'])
 
         return dedent(code)
