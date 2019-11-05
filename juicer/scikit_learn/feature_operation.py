@@ -239,7 +239,7 @@ class QuantileDiscretizerOperation(Operation):
         from sklearn.preprocessing import QuantileTransformer
         qt = QuantileTransformer(n_quantiles={n_quantiles},
             output_distribution='{output_distribution}', random_state={seed})
-        X_train = {input}['{att}'].values.tolist()
+        X_train = {input}[{att}].values.tolist()
         {output}['{alias}'] = qt.fit_transform(X_train).toarray().tolist()
         """.format(output=self.output,
                    input=self.named_inputs['input data'],
@@ -274,9 +274,9 @@ class OneHotEncoderOperation(Operation):
 
             self.output = self.named_outputs.get(
                     'output data', 'output_data_{}'.format(self.order))
-            self.attribute = parameters[self.ATTRIBUTE_PARAM][0]
+            self.attribute = parameters[self.ATTRIBUTE_PARAM]
             self.alias = parameters.get(self.ALIAS_PARAM,
-                                        self.attribute + '_norm')
+                                        'onehotenc_{}'.format(self.order))
 
     def generate_code(self):
         """Generate code."""
@@ -284,7 +284,7 @@ class OneHotEncoderOperation(Operation):
         {output} = {input}
         from sklearn.preprocessing import OneHotEncoder
         enc = OneHotEncoder()
-        X_train = {input}['{att}'].values.tolist()
+        X_train = {input}[{att}].values.tolist()
         {output}['{alias}'] = enc.fit_transform(X_train).toarray().tolist()
         """.format(output=self.output,
                    input=self.named_inputs['input data'],
