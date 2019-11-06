@@ -66,25 +66,47 @@ class MinMaxScalerOperation(Operation):
 
             self.output = self.named_outputs.get(
                     'output data', 'output_data_{}'.format(self.order))
+            self.model = named_outputs.get(
+                'transformation model', 'model_{}'.format(self.order))
+
+            if self.ATTRIBUTE_PARAM not in self.parameters:
+                msg = _("Parameters '{}' must be informed for task {}")
+                raise ValueError(msg.format(
+                    self.ATTRIBUTE_PARAM, self.__class__.__name__))
             self.attribute = parameters[self.ATTRIBUTE_PARAM]
+
             self.alias = parameters.get(self.ALIAS_PARAM,
                                         'scaled_{}'.format(self.order))
 
             self.min = parameters.get(self.MIN_PARAM, 0) or 0
             self.max = parameters.get(self.MAX_PARAM, 1) or 1
 
+            self.has_import = \
+                "from sklearn.preprocessing import MinMaxScaler\n"
+
+    def get_data_out_names(self, sep=','):
+        return self.output
+
+    def get_output_names(self, sep=','):
+        return sep.join([self.output, self.model])
+
     def generate_code(self):
         """Generate code."""
-        code = """
-        {output} = {input}
-        from sklearn.preprocessing import MinMaxScaler
-        scaler = MinMaxScaler(feature_range=({min},{max}))
+        code = """        
+        {model} = MinMaxScaler(feature_range=({min},{max}))
         X_train = {input}[{att}].values.tolist()
-        {output}['{alias}'] = scaler.fit_transform(X_train).tolist()
-        """.format(output=self.output,
+        {model}.fit(X_train)
+        """.format(output=self.output, model=self.model,
                    input=self.named_inputs['input data'],
                    att=self.attribute, alias=self.alias,
                    min=self.min, max=self.max)
+
+        if self.contains_results() or 'output data' or 'output_data_{}' in self.named_outputs:
+            code += """
+            {output} = {input}
+            {output}['{alias}'] = {model}.transform(X_train).tolist()
+            """.format(output=self.output, input=self.named_inputs['input data'],
+                       model=self.model, alias=self.alias)
         return dedent(code)
 
 
