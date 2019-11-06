@@ -20,7 +20,7 @@ class ApplyModelOperation(Operation):
         self.new_attribute = parameters.get(self.NEW_ATTRIBUTE_PARAM,
                                             'new_attribute')
 
-        self.feature = parameters['features'][0]
+        self.feature = parameters['features']
         if not self.has_code and len(self.named_outputs) > 0:
             raise ValueError(
                 _('Model is being used, but at least one input is missing'))
@@ -38,8 +38,12 @@ class ApplyModelOperation(Operation):
 
         code = dedent("""
             {out} = {in1}
-            X_train = {in1}['{features}'].values.tolist()
-            {out}['{new_attr}'] = {in2}.predict(X_train).tolist()
+            X_train = {in1}[{features}].values.tolist()
+            if hasattr({in2}, 'predict'):
+                {out}['{new_attr}'] = {in2}.predict(X_train).tolist()
+            else:
+                # to handle scaler operations
+                {out}['{new_attr}'] = {in2}.transform(X_train).tolist()
             """.format(out=output, in1=input_data1, in2=model,
                        new_attr=self.new_attribute, features=self.feature))
 
