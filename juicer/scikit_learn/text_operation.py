@@ -63,7 +63,7 @@ class TokenizerOperation(Operation):
                 'output data', 'output_data_{}'.format(self.order))
 
             if self.type == self.TYPE_SIMPLE:
-                self.has_import = "from nltk.tokenize import ToktokTokenizer\n"
+                self.has_import = "from nltk.tokenize import TweetTokenizer\n"
             else:
                 self.has_import = "from nltk.tokenize import regexp_tokenize\n"
 
@@ -78,7 +78,7 @@ class TokenizerOperation(Operation):
             code = """
             {output} = {input}.copy()
             result = []
-            toktok = ToktokTokenizer()
+            toktok = TweetTokenizer()
     
             for row in {output}['{att}'].values:
                 result.append([word 
@@ -120,7 +120,7 @@ class RemoveStopWordsOperation(Operation):
     STOP_WORD_LIST_PARAM = 'stop_word_list'
     STOP_WORD_ATTRIBUTE_PARAM = 'stop_word_attribute'
     STOP_WORD_LANGUAGE_PARAM = 'stop_word_language'
-    STOP_WORD_CASE_SENSITIVE_PARAM = 'sw_case_sensitive'
+    STOP_WORD_CASE_SENSITIVE_PARAM = 'case-sensitive'
     LANG_PARAM = 'language'
 
     def __init__(self, parameters, named_inputs, named_outputs):
@@ -143,6 +143,7 @@ class RemoveStopWordsOperation(Operation):
 
             self.sw_case_sensitive = self.parameters.get(
                     self.STOP_WORD_CASE_SENSITIVE_PARAM, False)
+
             self.stop_word_list = [s.strip() for s in
                                    self.parameters.get(
                                            self.STOP_WORD_LIST_PARAM,
@@ -178,10 +179,11 @@ class RemoveStopWordsOperation(Operation):
         stop_words += {stop_word_list}
         """.format(stop_word_list=self.stop_word_list)
 
-        if self.sw_case_sensitive:
+        if self.sw_case_sensitive == "1":
             code += """
         word_tokens = {OUT}['{att}'].values       
         result = []
+        case_sensitive = True
         for row in word_tokens:
             result.append([w for w in row if not w in stop_words])
         {OUT}['{alias}'] = result
@@ -195,6 +197,7 @@ class RemoveStopWordsOperation(Operation):
         stop_words = [w.lower() for w in stop_words]
         word_tokens = {OUT}['{att}'].values       
         result = []
+        case_sensitive = False
         for row in word_tokens:
             result.append([w for w in row if not w.lower() in stop_words])
         {OUT}['{alias}'] = result
