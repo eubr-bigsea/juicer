@@ -159,8 +159,6 @@ class ScikitLearnMinion(Minion):
             self.job_future = self._execute_future(job_id, workflow,
                                                    app_configs)
             log.info(_('Execute message finished'))
-        elif msg_type == juicer_protocol.DELIVER:
-            pass
         elif msg_type == juicer_protocol.TERMINATE:
             job_id = msg_info.get('job_id', None)
             if job_id:
