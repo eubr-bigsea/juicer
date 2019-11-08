@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from textwrap import dedent
 from juicer.operation import Operation
+from juicer.operation import ReportOperation
 
 
 class ClusteringModelOperation(Operation):
@@ -299,7 +300,7 @@ class KMeansClusteringOperation(Operation):
 
 
 class LdaClusteringOperation(Operation):
-    N_COMPONENTES_PARAM = 'n_components'
+    N_COMPONENTES_PARAM = 'number_of_topics'
     ALPHA_PARAM = 'doc_topic_pior'
     ETA_PARAM = 'topic_word_prior'
     LEARNING_METHOD_PARAM = 'learning_method'
@@ -323,8 +324,8 @@ class LdaClusteringOperation(Operation):
             self.model = named_outputs.get(
                     'model', 'model_{}'.format(self.order))
 
-            self.n_clusters = parameters.get(
-                    self.N_COMPONENTES_PARAM, 10) or self.N_COMPONENTES_PARAM
+            self.n_clusters = int(parameters.get(
+                    self.N_COMPONENTES_PARAM, 10) or self.N_COMPONENTES_PARAM)
             self.learning_method = parameters.get(
                     self.LEARNING_METHOD_PARAM,
                     self.LEARNING_METHOD_ON) or self.LEARNING_METHOD_ON
@@ -362,6 +363,12 @@ class LdaClusteringOperation(Operation):
                     self.FEATURES_PARAM, self.__class__.__name__))
             self.features = self.parameters.get(self.FEATURES_PARAM)
 
+    def get_data_out_names(self, sep=','):
+        return self.output
+
+    def get_output_names(self, sep=', '):
+        return sep.join([self.output, self.model])
+
     def generate_code(self):
         """Generate code."""
         code = """
@@ -389,3 +396,68 @@ class LdaClusteringOperation(Operation):
                        input=self.named_inputs['train input data'])
 
         return dedent(code)
+
+
+class TopicReportOperation(ReportOperation):
+    """
+    Produces a report for topic identification in text
+    """
+    TERMS_PER_TOPIC_PARAM = 'terms_per_topic'
+
+    def __init__(self, parameters, named_inputs,
+                 named_outputs):
+        ReportOperation.__init__(self, parameters, named_inputs, named_outputs)
+        self.terms_per_topic = parameters.get(self.TERMS_PER_TOPIC_PARAM, 10)
+
+        self.has_code = len(named_inputs) == 3 and any(
+            [len(self.named_outputs) > 0, self.contains_results()])
+        self.output = self.named_outputs.get('topics',
+                                             'topics_{}'.format(self.order))
+
+        if not all([named_inputs.get('model'), named_inputs.get('input data'),
+                    named_inputs.get('vocabulary')]):
+            raise ValueError(
+                _('You must inform all input ports for this operation'))
+
+        self.model = self.named_inputs['model']
+        self.vocabulary_input = self.named_inputs.get('vocabulary')
+
+    def get_output_names(self, sep=", "):
+        return self.output
+
+    def get_data_out_names(self, sep=','):
+        return self.output
+
+    def generate_code(self):
+        code = dedent("""
+                        
+            def gen_top_words(model, feature_names, n_top_words): 
+                topics = [i for i in range(len(model.components_))] 
+                terms = [0] * len(model.components_)
+                term_idx = [0] * len(model.components_)
+                term_weights = [0] * len(model.components_)
+                
+                for topic_idx, topic in enumerate(model.components_):
+                    terms[topic_idx] =  [feature_names[i] for i in topic.argsort()[:-n_top_words - 1:-1]]
+                    term_idx[topic_idx] =  [int(x) for x in topic.argsort()[:-n_top_words - 1:-1]]
+                    term_weights[topic_idx] = [x for x in np.sort(topic)[:-n_top_words - 1: -1]]
+                
+                df = pd.DataFrame()
+                df['{topic_col}'] = topics
+                df['{term_idx}'] = term_idx
+                df['{terms_weights}'] = term_weights
+                df['{terms_col}'] = terms
+                return df
+                
+                
+            {output} = gen_top_words({model}, {vocabulary}, {tpt})
+        """.format(model=self.model,
+                   tpt=self.terms_per_topic,
+                   vocabulary=self.vocabulary_input,
+                   output=self.output,
+                   input=self.named_inputs['input data'],
+                   topic_col='topics',
+                   terms_col='terms',
+                   term_idx='termIndices',
+                   terms_weights='termWeights'))
+        return code
