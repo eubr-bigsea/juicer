@@ -32,6 +32,7 @@ dummyrdd==0.1.2
 enum34==1.1.6
 eventlet==0.25.1
 Faker==2.0.1
+pyfpgrowth==1.0
 funcsigs==1.0.2
 funcy==1.13
 future==0.17.1
