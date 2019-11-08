@@ -146,8 +146,8 @@ class AssociationRulesOperation(Operation):
     MAX_COUNT_PARAM = 'rules_count'
     CONFIDENCE_PARAM = 'confidence'
 
-    ITEMSET_ATTR_PARAM = 'item_col'
-    SUPPORT_ATTR_PARAM = 'support_col'
+    ITEMSET_ATTR_PARAM = 'attribute'
+    SUPPORT_ATTR_PARAM = 'freq'
     SUPPORT_ATTR_PARAM_VALUE = 'support'
 
     def __init__(self, parameters, named_inputs, named_outputs):
@@ -177,16 +177,10 @@ class AssociationRulesOperation(Operation):
     def generate_code(self):
         """Generate code."""
 
-        if len(self.items_col) == 0:
-            self.items_col = "{input}.columns[0]" \
-                .format(input=self.named_inputs['input data'])
-        else:
-            self.items_col = "'{}'".format(self.items_col)
-
         code = """
-        col_item = {items}
-        col_freq = "{freq}"
-        
+        col_item = '{items}'
+        col_freq = '{freq}'
+
         rg = RulesGenerator(min_conf={min_conf}, max_len={max_len})
         {rules} = rg.get_rules({input}, col_item, col_freq)   
         """.format(min_conf=self.confidence, rules=self.output,
