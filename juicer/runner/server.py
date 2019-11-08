@@ -300,14 +300,14 @@ class JuicerServer:
             pub_sub = redis_conn.pubsub()
             pub_sub.psubscribe('__keyspace*__:key_minion_app*')
             for msg in pub_sub.listen():
-                # print '|{}|'.format(msg.get('channel'))
-                app_id = msg.get(b'channel', '').split('_')[-1]
+                # print('|{}|'.format(msg.get('channel')))
+                app_id = msg.get('channel', '').decode('utf8').split('_')[-1]
                 if app_id.isdigit():
                     app_id = int(app_id)
                     key = (app_id, app_id)
                     data = msg.get('data', '')
                     if key in self.active_minions:
-                        if data == 'del' or data == 'expired':
+                        if data == b'del' or data == b'expired':
                             del self.active_minions[key]
                             log.info(_('Minion {} finished.').format(app_id))
                             if redis_conn.lrange('queue_app_{}'.format(app_id),
@@ -322,10 +322,10 @@ class JuicerServer:
                                     app_id, app_id, self.state_control,
                                     self.platform)
 
-                    elif data == 'set':
+                    elif data == b'set':
                         # Externally launched minion
                         minion_info = json.loads(redis_conn.get(
-                            'key_minion_app_{}'.format(app_id)))
+                            'key_minion_app_{}'.format(app_id)).decode('utf8'))
                         port = self._get_next_available_port()
                         self.active_minions[key] = {
                             'pid': minion_info.get('pid'), 'port': port}
