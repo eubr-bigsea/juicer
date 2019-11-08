@@ -32,7 +32,6 @@ dummyrdd==0.1.2
 enum34==1.1.6
 eventlet==0.25.1
 Faker==2.0.1
-pyfpgrowth==1.0
 funcsigs==1.0.2
 funcy==1.13
 future==0.17.1
@@ -85,6 +84,7 @@ pyaml==19.4.1
 pyarrow==0.14.1
 pycodestyle==2.5.0
 pycparser==2.19
+pyfpgrowth==1.0
 pyinotify==0.9.6
 pylint==2.3.1
 PyMySQL==0.9.3
