@@ -84,6 +84,7 @@ pyaml==19.4.1
 pyarrow==0.14.1
 pycodestyle==2.5.0
 pycparser==2.19
+pyfpgrowth==1.0
 pyinotify==0.9.6
 pylint==2.3.1
 PyMySQL==0.9.3

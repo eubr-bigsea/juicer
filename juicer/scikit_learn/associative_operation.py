@@ -22,9 +22,6 @@ class FrequentItemSetOperation(Operation):
                         _("Parameter '{}' must be informed for task {}").format(
                                 self.MIN_SUPPORT_PARAM, self.__class__))
 
-            self.perform_genRules = 'rules output' in self.named_outputs \
-                                    or self.contains_results()
-
             self.column = parameters.get(self.ATTRIBUTE_PARAM, [''])[0]
             self.confidence = float(parameters.get(self.CONFIDENCE_PARAM, 0.9))
             self.min_support = float(parameters.get(self.MIN_SUPPORT_PARAM))
@@ -39,9 +36,7 @@ class FrequentItemSetOperation(Operation):
                                                   'rules_{}'.format(
                                                            self.order))
 
-            self.has_import = "from fim import fpgrowth\n" + \
-                              "from juicer.scikit_learn.library." \
-                              "rules_generator import RulesGenerator\n"
+            self.has_import = "import pyfpgrowth\n"
 
     def get_output_names(self, sep=', '):
         return sep.join([self.output,
@@ -61,28 +56,25 @@ class FrequentItemSetOperation(Operation):
         transactions = {input}[col].values.tolist()
         min_support = 100 * {min_support}
         
-        result = fpgrowth(transactions, target="s",
-          supp=min_support, report="s")
-        
-        {output} = pd.DataFrame(result, columns=['itemsets', 'support'])
-        """.format(output=self.output, col=self.column,
-                   input=self.named_inputs['input data'],
-                   min_support=self.min_support)
+        patterns = pyfpgrowth.find_frequent_patterns(transactions, min_support)
+        result = [[list(f), s] for f, s in patterns.items()]
 
-        if self.perform_genRules:
-            code += """
+        col_item, col_freq = 'itemsets', 'support'
+              
+        {output} = pd.DataFrame(result, columns=[col_item, col_freq])
         
         # generating rules
-        col_item = 'itemsets'
-        col_freq = 'support'
-        rg = RulesGenerator(min_conf={min_conf}, max_len=-1)
-        {rules} = rg.get_rules({output}, col_item, col_freq)    
-        """.format(min_conf=self.confidence, output=self.output,
+        columns = ['Pre-Rule', 'Post-Rule', 'confidence']  
+        
+        rules = pyfpgrowth.generate_association_rules(patterns, {min_conf})
+        rules = [[list(a), list(b[0]), b[1]] for a, b in rules.items()]
+
+        {rules} = pd.DataFrame(rules, columns=columns)  
+        """.format(output=self.output, col=self.column,
+                   input=self.named_inputs['input data'],
+                   min_support=self.min_support, min_conf=self.confidence,
                    rules=self.rules_output)
-        else:
-            code += """
-        {rules} = None
-        """.format(rules=self.rules_output)
+
         return dedent(code)
 
 
@@ -154,8 +146,8 @@ class AssociationRulesOperation(Operation):
     MAX_COUNT_PARAM = 'rules_count'
     CONFIDENCE_PARAM = 'confidence'
 
-    ITEMSET_ATTR_PARAM = 'item_col'
-    SUPPORT_ATTR_PARAM = 'support_col'
+    ITEMSET_ATTR_PARAM = 'attribute'
+    SUPPORT_ATTR_PARAM = 'freq'
     SUPPORT_ATTR_PARAM_VALUE = 'support'
 
     def __init__(self, parameters, named_inputs, named_outputs):
@@ -185,16 +177,10 @@ class AssociationRulesOperation(Operation):
     def generate_code(self):
         """Generate code."""
 
-        if len(self.items_col) == 0:
-            self.items_col = "{input}.columns[0]" \
-                .format(input=self.named_inputs['input data'])
-        else:
-            self.items_col = "'{}'".format(self.items_col)
-
         code = """
-        col_item = {items}
-        col_freq = "{freq}"
-        
+        col_item = '{items}'
+        col_freq = '{freq}'
+
         rg = RulesGenerator(min_conf={min_conf}, max_len={max_len})
         {rules} = rg.get_rules({input}, col_item, col_freq)   
         """.format(min_conf=self.confidence, rules=self.output,
