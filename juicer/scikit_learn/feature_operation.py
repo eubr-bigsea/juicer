@@ -66,25 +66,47 @@ class MinMaxScalerOperation(Operation):
 
             self.output = self.named_outputs.get(
                     'output data', 'output_data_{}'.format(self.order))
+            self.model = named_outputs.get(
+                'transformation model', 'model_{}'.format(self.order))
+
+            if self.ATTRIBUTE_PARAM not in self.parameters:
+                msg = _("Parameters '{}' must be informed for task {}")
+                raise ValueError(msg.format(
+                    self.ATTRIBUTE_PARAM, self.__class__.__name__))
             self.attribute = parameters[self.ATTRIBUTE_PARAM]
+
             self.alias = parameters.get(self.ALIAS_PARAM,
                                         'scaled_{}'.format(self.order))
 
             self.min = parameters.get(self.MIN_PARAM, 0) or 0
             self.max = parameters.get(self.MAX_PARAM, 1) or 1
 
+            self.has_import = \
+                "from sklearn.preprocessing import MinMaxScaler\n"
+
+    def get_data_out_names(self, sep=','):
+        return self.output
+
+    def get_output_names(self, sep=','):
+        return sep.join([self.output, self.model])
+
     def generate_code(self):
         """Generate code."""
-        code = """
-        {output} = {input}
-        from sklearn.preprocessing import MinMaxScaler
-        scaler = MinMaxScaler(feature_range=({min},{max}))
+        code = """        
+        {model} = MinMaxScaler(feature_range=({min},{max}))
         X_train = {input}[{att}].values.tolist()
-        {output}['{alias}'] = scaler.fit_transform(X_train).tolist()
-        """.format(output=self.output,
+        {model}.fit(X_train)
+        """.format(output=self.output, model=self.model,
                    input=self.named_inputs['input data'],
                    att=self.attribute, alias=self.alias,
                    min=self.min, max=self.max)
+
+        if self.contains_results() or 'output data' or 'output_data_{}' in self.named_outputs:
+            code += """
+            {output} = {input}
+            {output}['{alias}'] = {model}.transform(X_train).tolist()
+            """.format(output=self.output, input=self.named_inputs['input data'],
+                       model=self.model, alias=self.alias)
         return dedent(code)
 
 
@@ -114,21 +136,43 @@ class MaxAbsScalerOperation(Operation):
 
             self.output = self.named_outputs.get(
                     'output data', 'output_data_{}'.format(self.order))
+            self.model = named_outputs.get(
+                'transformation model', 'model_{}'.format(self.order))
+
+            if self.ATTRIBUTE_PARAM not in self.parameters:
+                msg = _("Parameters '{}' must be informed for task {}")
+                raise ValueError(msg.format(
+                    self.ATTRIBUTE_PARAM, self.__class__.__name__))
             self.attribute = parameters[self.ATTRIBUTE_PARAM]
+
             self.alias = parameters.get(self.ALIAS_PARAM,
                                         'scaled_{}'.format(self.order))
+            self.has_import = \
+                "from sklearn.preprocessing import MaxAbsScaler\n"
+
+    def get_data_out_names(self, sep=','):
+        return self.output
+
+    def get_output_names(self, sep=','):
+        return sep.join([self.output, self.model])
 
     def generate_code(self):
         """Generate code."""
         code = """
-        {output} = {input}
-        from sklearn.preprocessing import MaxAbsScaler
-        scaler = MaxAbsScaler()
+        {model} = MaxAbsScaler()
         X_train = {input}[{att}].values.tolist()
-        {output}['{alias}'] = scaler.fit_transform(X_train).tolist()
+        {model}.fit(X_train)
         """.format(output=self.output,
+                   model=self.model,
                    input=self.named_inputs['input data'],
                    att=self.attribute, alias=self.alias)
+
+        if self.contains_results() or 'output data' or 'output_data_{}' in self.named_outputs:
+            code += """
+            {output} = {input}
+            {output}['{alias}'] = {model}.transform(X_train).tolist()
+            """.format(output=self.output, input=self.named_inputs['input data'],
+                       model=self.model, alias=self.alias)
         return dedent(code)
 
 
@@ -155,7 +199,8 @@ class StandardScalerOperation(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-        self.has_code = len(self.named_inputs) == 1
+        self.has_code = len(named_inputs) > 0 and any(
+            [len(self.named_outputs) > 0, self.contains_results()])
         if self.has_code:
             self.with_mean = parameters.get(
                 self.WITH_MEAN_PARAM, False) in ['1', 1, True]
@@ -163,9 +208,26 @@ class StandardScalerOperation(Operation):
                 self.WITH_STD_PARAM, True) in ['1', 1, True]
             self.output = self.named_outputs.get(
                     'output data', 'output_data_{}'.format(self.order))
+            self.model = named_outputs.get(
+                'transformation model', 'model_{}'.format(self.order))
+
+            if self.ATTRIBUTE_PARAM not in self.parameters:
+                msg = _("Parameters '{}' must be informed for task {}")
+                raise ValueError(msg.format(
+                    self.ATTRIBUTE_PARAM, self.__class__.__name__))
             self.attribute = parameters[self.ATTRIBUTE_PARAM]
+
             self.alias = parameters.get(self.ALIAS_PARAM,
                                         'scaled_{}'.format(self.order))
+
+            self.has_import = \
+                "from sklearn.preprocessing import StandardScaler\n"
+
+    def get_data_out_names(self, sep=','):
+        return self.output
+
+    def get_output_names(self, sep=','):
+        return sep.join([self.output, self.model])
 
     def generate_code(self):
         op = "with_mean={value}" \
@@ -175,14 +237,19 @@ class StandardScalerOperation(Operation):
 
         """Generate code."""
         code = """
-        {output} = {input}
-        from sklearn.preprocessing import StandardScaler
-        scaler = StandardScaler({op})
+        {model} = StandardScaler({op})
         X_train = {input}[{att}].values.tolist()
-        {output}['{alias}'] = scaler.fit_transform(X_train).tolist()
-        """.format(output=self.output,
+        {model}.fit(X_train)
+        """.format(model=self.model,
                    input=self.named_inputs['input data'],
                    att=self.attribute, alias=self.alias, op=op)
+
+        if self.contains_results() or 'output data' or 'output_data_{}' in self.named_outputs:
+            code += """
+            {output} = {input}
+            {output}['{alias}'] = {model}.transform(X_train).tolist()
+            """.format(output=self.output, input=self.named_inputs['input data'],
+                       model=self.model, alias=self.alias)
         return dedent(code)
 
 
@@ -239,7 +306,7 @@ class QuantileDiscretizerOperation(Operation):
         from sklearn.preprocessing import QuantileTransformer
         qt = QuantileTransformer(n_quantiles={n_quantiles},
             output_distribution='{output_distribution}', random_state={seed})
-        X_train = {input}['{att}'].values.tolist()
+        X_train = {input}[{att}].values.tolist()
         {output}['{alias}'] = qt.fit_transform(X_train).toarray().tolist()
         """.format(output=self.output,
                    input=self.named_inputs['input data'],
@@ -274,9 +341,9 @@ class OneHotEncoderOperation(Operation):
 
             self.output = self.named_outputs.get(
                     'output data', 'output_data_{}'.format(self.order))
-            self.attribute = parameters[self.ATTRIBUTE_PARAM][0]
+            self.attribute = parameters[self.ATTRIBUTE_PARAM]
             self.alias = parameters.get(self.ALIAS_PARAM,
-                                        self.attribute + '_norm')
+                                        'onehotenc_{}'.format(self.order))
 
     def generate_code(self):
         """Generate code."""
@@ -284,7 +351,7 @@ class OneHotEncoderOperation(Operation):
         {output} = {input}
         from sklearn.preprocessing import OneHotEncoder
         enc = OneHotEncoder()
-        X_train = {input}['{att}'].values.tolist()
+        X_train = {input}[{att}].values.tolist()
         {output}['{alias}'] = enc.fit_transform(X_train).toarray().tolist()
         """.format(output=self.output,
                    input=self.named_inputs['input data'],
