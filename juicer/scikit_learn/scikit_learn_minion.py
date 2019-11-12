@@ -16,7 +16,11 @@ import datetime
 
 import codecs
 import os
+import yaml
 import socketio
+from kubernetes import client
+from kubernetes.client.rest import ApiException
+
 from timeit import default_timer as timer
 from concurrent.futures import ThreadPoolExecutor
 from juicer.runner import configuration
@@ -77,6 +81,7 @@ class ScikitLearnMinion(Minion):
         self.self_terminate = True
         self.juicer_listener_enabled = False
         self.current_lang = lang
+        self.cluster_options = {}
 
     def _emit_event(self, room, namespace):
         def emit_event(name, message, status, identifier, **kwargs):
@@ -104,6 +109,161 @@ class ScikitLearnMinion(Minion):
         self._process_message_nb()
         if self.job_future:
             self.job_future.result()
+
+    def create_configmap(self, client, namespace, generated_code_path,
+                         configuration, name):
+
+        api_instance = client.CoreV1Api(client.ApiClient(configuration))
+
+        # Configureate ConfigMap metadata
+        metadata = client.V1ObjectMeta(
+                name=name,
+                namespace=namespace
+        )
+        code = generated_code_path.replace('/tmp/', '')
+        # Get File Content
+        with open(generated_code_path, 'r') as f:
+            file_content = f.read()
+        # Instantiate the configmap object
+        configmap = client.V1ConfigMap(
+                api_version="v1",
+                kind="ConfigMap",
+                data={code: file_content},
+                metadata=metadata,
+        )
+
+        try:
+            api_instance.create_namespaced_config_map(
+                    namespace=namespace,
+                    body=configmap,
+                    pretty=True
+            )
+
+        except ApiException as e:
+            print("Exception when calling CoreV1Api->"
+                  "create_namespaced_config_map: %s\n" % e)
+
+    def create_k8s_job(self, job_id, cluster_options, generated_code_path):
+
+        configuration = client.Configuration()
+        configuration.host = cluster_options['address']
+        configuration.verify_ssl = False
+        configuration.debug = False
+
+        env_vars = {
+            'HADOOP_CONF_DIR': '/usr/local/juicer/conf',
+        }
+
+        token = cluster_options['auth_token']
+        configuration.api_key = {"authorization": "Bearer " + token}
+        # noinspection PyUnresolvedReferences
+        client.Configuration.set_default(configuration)
+
+        job = client.V1Job(api_version="batch/v1", kind="Job")
+        name = 'job-{}-{}-{}'.format(job_id, self.workflow_id, self.app_id)
+        code_configmap = name
+        container_name = 'juicer-job'
+        container_image = cluster_options['container']
+        namespace = cluster_options['namespace']
+        minion_cmd = ["python", generated_code_path]
+
+        job.metadata = client.V1ObjectMeta(namespace=namespace, name=name)
+        job.status = client.V1JobStatus()
+
+        # Now we start with the Template...
+        template = client.V1PodTemplate()
+        template.template = client.V1PodTemplateSpec()
+
+        # Passing Arguments in Env:
+        env_list = []
+        for env_name, env_value in env_vars.items():
+            env_list.append(client.V1EnvVar(name=env_name, value=env_value))
+
+        self.create_configmap(client, namespace,
+                              generated_code_path, configuration,
+                              code_configmap)
+
+        # Subpath implies that the file is stored as a config map in kb8s
+        volume_mounts = [
+            client.V1VolumeMount(
+                    name='juicer-config', sub_path='juicer-config.yaml',
+                    mount_path='/usr/local/juicer/conf/juicer-config.yaml'),
+            client.V1VolumeMount(
+                    name='hdfs-site', sub_path='hdfs-site.xml',
+                    mount_path='/usr/local/juicer/conf/hdfs-site.xml'),
+            client.V1VolumeMount(
+                    name='hdfs-pvc',
+                    mount_path='/srv/storage/'),
+            client.V1VolumeMount(
+                    name=code_configmap,
+                    sub_path=generated_code_path.replace('/tmp/', ''),
+                    mount_path=generated_code_path),
+        ]
+        pvc_claim = client.V1PersistentVolumeClaimVolumeSource(
+                claim_name='hdfs-pvc')
+
+        # resources = {'limits': {'nvidia.com/gpu': 1}}
+        resources = {}
+
+        container = client.V1Container(name=container_name,
+                                       image=container_image,
+                                       env=env_list, command=minion_cmd,
+                                       image_pull_policy='Always',
+                                       volume_mounts=volume_mounts,
+                                       resources=resources)
+
+        volumes = [
+            client.V1Volume(
+                    name='juicer-config',
+                    config_map=client.V1ConfigMapVolumeSource(
+                        name='juicer-config')),
+            client.V1Volume(
+                    name='hdfs-site',
+                    config_map=client.V1ConfigMapVolumeSource(
+                        name='hdfs-site')),
+            client.V1Volume(
+                    name=code_configmap,
+                    config_map=client.V1ConfigMapVolumeSource(
+                            name=code_configmap)),
+            client.V1Volume(name='hdfs-pvc',
+                            persistent_volume_claim=pvc_claim),
+        ]
+        template.template.spec = client.V1PodSpec(
+                containers=[container], restart_policy='Never', volumes=volumes)
+
+        # And finally we can create our V1JobSpec!
+        job.spec = client.V1JobSpec(ttl_seconds_after_finished=10,
+                                    template=template.template)
+        api = client.ApiClient(configuration)
+        batch_api = client.BatchV1Api(api)
+
+        try:
+            batch_api.create_namespaced_job(namespace, job, pretty=True)
+        except ApiException as e:
+            print("Exception when calling BatchV1Api->: %s\n" % e)
+
+        # check if job is completed
+        running = True
+        try:
+            while running:
+                status = batch_api.read_namespaced_job_status(
+                        name=name, namespace=namespace, pretty=True).status
+
+                running = status.active == 1
+                failed = status.failed == 1
+        except ApiException as e:
+            print("Exception when calling BatchV1Api->: %s\n" % e)
+
+        # remove configmap
+        api_instance = client.CoreV1Api(client.ApiClient(configuration))
+        body = client.V1DeleteOptions()
+        try:
+            api_instance.delete_namespaced_config_map(name, namespace,
+                                                      body=body)
+
+        except ApiException as e:
+            print("Exception when calling CoreV1Api->"
+                  "delete_namespaced_config_map: %s\n" % e)
 
     def _process_message_nb(self):
         # Get next message
@@ -137,9 +297,41 @@ class ScikitLearnMinion(Minion):
             self.active_messages += 1
             log.info('Execute message received')
             job_id = msg_info['job_id']
+            cluster_info = msg_info.get('cluster', {})
             workflow = msg_info['workflow']
-
             lang = workflow.get('locale', self.current_lang)
+
+            cluster_type = cluster_info.get('type', 'SPARK_LOCAL')
+            if cluster_type not in ('SPARK_LOCAL', 'KUBERNETES'):
+                self._emit_event(room=job_id, namespace='/stand')(
+                        name='update job',
+                        message=_('Unsupported cluster type, '
+                                  'it cannot run Spark applications.'),
+                        status='ERROR', identifier=job_id)
+                return
+
+            self.cluster_options = {}
+            # Add general parameters in the form param1=value1,param2=value2
+            try:
+                if cluster_info.get('general_parameters'):
+                    parameters = cluster_info['general_parameters'].split(',')
+                    for parameter in parameters:
+                        key, value = parameter.split('=')
+                        self.cluster_options[key.strip()] = value.strip()
+            except Exception as ex:
+                msg = _("Error in general cluster parameters: {}").format(ex)
+                self._emit_event(room=job_id, namespace='/stand')(
+                    name='update job',
+                    message=msg,
+                    status='CANCELED', identifier=job_id)
+                log.warn(msg)
+                return
+
+            self.cluster_options['address'] = cluster_info['address']
+            self.cluster_options['auth_token'] = cluster_info['auth_token']
+
+            log.info("Cluster options: %s",
+                     json.dumps(self.cluster_options, indent=0))
 
             self._emit_event(room=job_id, namespace='/stand')(
                 name='update job',
@@ -157,7 +349,8 @@ class ScikitLearnMinion(Minion):
                 self.job_future.result()
 
             self.job_future = self._execute_future(job_id, workflow,
-                                                   app_configs)
+                                                   app_configs, cluster_type,
+                                                   self.cluster_options)
             log.info(_('Execute message finished'))
         elif msg_type == juicer_protocol.TERMINATE:
             job_id = msg_info.get('job_id', None)
@@ -177,11 +370,117 @@ class ScikitLearnMinion(Minion):
             log.warn(_('Unknown message type %s'), msg_type)
             self._generate_output(_('Unknown message type %s') % msg_type)
 
-    def _execute_future(self, job_id, workflow, app_configs):
-        return self.executor.submit(self._perform_execute,
-                                    job_id, workflow, app_configs)
+    def _execute_future(self, job_id, workflow, app_configs, cluster_type,
+                        cluster_options):
 
-    def _perform_execute(self, job_id, workflow, app_configs):
+        if cluster_type == 'KUBERNETES':
+
+            return self._perform_execute_k8s(job_id, workflow, app_configs,
+                                             cluster_options)
+
+        else:
+            return self.executor.submit(self._perform_execute_local,
+                                        job_id, workflow, app_configs)
+
+    def _perform_execute_k8s(self, job_id, workflow, app_configs, cluster_options):
+
+        # Sleeps 1s in order to wait for client join notification room
+        time.sleep(1)
+        result = True
+        start = timer()
+        try:
+            loader = Workflow(workflow, self.config)
+
+            # force the scikit-learn context creation
+            self.get_or_create_scikit_learn_session(loader, app_configs, job_id)
+
+            # Mark job as running
+            self._emit_event(room=job_id, namespace='/stand')(
+                name='update job', message=_('Running job'),
+                status='RUNNING', identifier=job_id)
+
+            module_name = 'juicer_app_{}_{}_{}'.format(
+                self.workflow_id,
+                self.app_id,
+                job_id)
+
+            generated_code_path = os.path.join(
+                self.tmp_dir, '{}.py'.format(module_name))
+
+            with codecs.open(generated_code_path, 'w', 'utf8') as out:
+                self.transpiler.transpile(
+                    loader.workflow, loader.graph, {}, out, job_id)
+
+            # Get rid of .pyc file if it exists
+            if os.path.isfile('{}c'.format(generated_code_path)):
+                os.remove('{}c'.format(generated_code_path))
+
+            # Launch the scikit_learn
+            self.create_k8s_job(job_id, cluster_options, generated_code_path)
+
+            end = timer()
+            # Mark job as completed
+            self._emit_event(room=job_id, namespace='/stand')(
+                name='update job',
+                message=_('Job finished in {0:.2f}s').format(end - start),
+                status='COMPLETED', identifier=job_id)
+
+            # We update the state incrementally, i.e., new task results can be
+            # overwritten but never lost.
+            # self._state.update(new_state)
+
+        except UnicodeEncodeError as ude:
+            message = self.MNN006[1].format(ude)
+            log.warn(_(message))
+            # Mark job as failed
+            self._emit_event(room=job_id, namespace='/stand')(
+                name='update job', message=message,
+                status='ERROR', identifier=job_id)
+            self._generate_output(self.MNN006[1], 'ERROR', self.MNN006[0])
+            result = False
+
+        except ValueError as ve:
+            message = _('Invalid or missing parameters: {}').format(str(ve))
+            print(('#' * 30))
+            import traceback
+            traceback.print_exc(file=sys.stdout)
+            print(('#' * 30))
+            log.warn(message)
+            if self.transpiler.current_task_id is not None:
+                self._emit_event(room=job_id, namespace='/stand')(
+                    name='update task', message=message,
+                    status='ERROR', identifier=self.transpiler.current_task_id)
+            self._emit_event(room=job_id, namespace='/stand')(
+                name='update job', message=message,
+                status='ERROR', identifier=job_id)
+            self._generate_output(message, 'ERROR')
+            result = False
+
+        except SyntaxError as se:
+            message = self.MNN006[1].format(se)
+            log.warn(message)
+            self._emit_event(room=job_id, namespace='/stand')(
+                name='update job', message=message,
+                status='ERROR', identifier=job_id)
+            self._generate_output(self.MNN006[1], 'ERROR', self.MNN006[0])
+            result = False
+
+        except Exception as ee:
+            import traceback
+            tb = traceback.format_exception(*sys.exc_info())
+            log.exception(_('Unhandled error'))
+            self._emit_event(room=job_id, namespace='/stand')(
+                message=_('Internal error.'),
+                name='update job', exception_stack='\n'.join(tb),
+                status='ERROR', identifier=job_id)
+            self._generate_output(str(ee), 'ERROR', code=1000)
+            result = False
+
+        self.message_processed('execute')
+
+        return result
+
+    def _perform_execute_local(self, job_id, workflow, app_configs):
 
         # Sleeps 1s in order to wait for client join notification room
         time.sleep(1)
