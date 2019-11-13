@@ -134,6 +134,7 @@ class DataReaderOperation(Operation):
         code = []
         infer_from_data = self.infer_schema == self.INFER_FROM_DATA
         infer_from_limonero = self.infer_schema == self.INFER_FROM_LIMONERO
+        do_not_infer = self.infer_schema == self.DO_NOT_INFER
         if self.has_code:
             if infer_from_limonero:
                 self.header = self.metadata.get('is_first_line_header')
@@ -165,8 +166,18 @@ class DataReaderOperation(Operation):
                 else:
                     raise ValueError(
                         _("Metadata do not include attributes information"))
-            else:
+            elif infer_from_data:
                 code.append('columns = None')
+                code.append('parse_dates = None')
+                code.append('converters = None')
+                code.append("header = 'infer'")
+                self.header = 'infer'
+            elif do_not_infer:
+                code.append('columns = "str"')
+                code.append('parse_dates = None')
+                code.append('converters = None')
+                code.append("header = 'infer'")
+                self.header = 'infer'
 
             if self.metadata['format'] in ['CSV', 'TEXT']:
                 code.append("url = '{url}'".format(url=self.metadata['url']))
@@ -242,6 +253,11 @@ class DataReaderOperation(Operation):
                 self._generate_code_for_lib_svm(code, infer_from_data)
             elif self.metadata['format'] == 'JDBC':
                 self._generate_code_for_jdbc(code)
+
+            if infer_from_data:
+                code.append("{output} = {output}.infer_objects()".format(
+                    output=self.output
+                ))
 
         if self.metadata.get('privacy_aware', False):
             raise ValueError(_('Not supported'))
