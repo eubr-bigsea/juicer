@@ -62,7 +62,6 @@ class JuicerServer:
             'path', '/tmp')
 
         signal.signal(signal.SIGTERM, self._terminate)
-        self.platform = 'spark'
 
         self.port_range = list(range(*(config['juicer'].get('minion', {}).get(
             'libprocess_port_range', [36000, 36500]))))
@@ -92,7 +91,9 @@ class JuicerServer:
 
         for app in apps:
             log.warn(_('Starting pending app {}').format(app))
-            self._start_minion(app, app, self.state_control, self.platform)
+            # FIXME: cluster
+            platform = 'spark'
+            self._start_minion(app, app, self.state_control, platform)
         while True:
             self.read_start_queue(redis_conn)
 
@@ -112,14 +113,18 @@ class JuicerServer:
             workflow_id = str(msg_info['workflow_id'])
             app_id = str(msg_info['app_id'])
             if msg_type in juicer_protocol.EXECUTE:
-                self.platform = msg_info['workflow'].get('platform', {}).get(
+                platform = msg_info['workflow'].get('platform', {}).get(
                         'slug', 'spark')
+                cluster = msg_info['cluster']
                 self._forward_to_minion(msg_type, workflow_id, app_id, msg,
-                                        self.platform)
+                                        platform, cluster)
 
             elif msg_type == juicer_protocol.TERMINATE:
+                cluster = msg_info['cluster']
+                platform = msg_info['workflow'].get('platform', {}).get(
+                        'slug', 'spark')
                 self._forward_to_minion(msg_type, workflow_id, app_id, msg,
-                                        self.platform)
+                                        platform, cluster)
                 self._terminate_minion(workflow_id, app_id)
 
             else:
@@ -142,7 +147,8 @@ class JuicerServer:
                 self.state_control.push_app_output_queue(
                     app_id, json.dumps({'code': 500, 'message': str(ex)}))
 
-    def _forward_to_minion(self, msg_type, workflow_id, app_id, msg, platform):
+    def _forward_to_minion(self, msg_type, workflow_id, app_id, msg, platform,
+        cluster):
         # Get minion status, if it exists
         minion_info = self.state_control.get_minion_status(app_id)
         log.info(_('Minion status for (workflow_id=%s,app_id=%s): %s'),
@@ -161,9 +167,12 @@ class JuicerServer:
                 self._terminate_minion(workflow_id, app_id)
 
             minion_process = self._start_minion(
-                workflow_id, app_id, self.state_control, platform)
+                workflow_id, app_id, self.state_control, platform, 
+                cluster=cluster)
+            # FIXME Kubernetes
             self.active_minions[(workflow_id, app_id)] = {
-                'pid': minion_process.pid, 'process': minion_process,
+                'pid': minion_process.pid if minion_process else 0, 
+                'process': minion_process,
                 'port': self._get_next_available_port()}
 
         # Forward the message to the minion, which can be an execute or a
@@ -180,23 +189,57 @@ class JuicerServer:
              'message': 'Minion is processing message %s' % msg_type}))
 
     def _start_minion(self, workflow_id, app_id, state_control, platform,
-                      restart=False):
+                      restart=False, cluster={}):
 
+        print(cluster)
+        if cluster.get('type') == 'KUBERNETES':
+            self._start_kubernetes_minion(workflow_id, app_id, state_control, 
+                    platform, restart, cluster)
+        else:
+            self._start_subprocess_minion(workflow_id, app_id, state_control, 
+                    platform, restart, cluster)
+
+    def _start_kubernetes_minion(self, workflow_id, app_id, state_control, platform,
+            restart=False, cluster={}):
+        from juicer.kb8s import create_k8s_job
+        
+        minion_id = 'minion_{}_{}'.format(workflow_id, app_id)
+        log.info(_('Starting minion %s in Kubernetes.'), minion_id)
+
+        minion_cmd = ['python', '/usr/local/juicer/juicer/runner/minion.py',
+                     '-w', str(workflow_id), 
+                     '-a', str(app_id), 
+                     '-t', platform,
+                     '-c',
+                     self.config_file_path, ]
+        log.info(_('Minion command: %s'), json.dumps(minion_cmd))
+        create_k8s_job(workflow_id, minion_cmd, cluster)
+
+        # Expires in 300 seconds (enougth to KB8s start the pod?)
+        proc_id = int(1)
+        state_control.set_minion_status(
+            app_id, json.dumps({'pid': proc_id}), ex=300,
+            nx=False)
+
+
+    def _start_subprocess_minion(self, workflow_id, app_id, state_control, platform,
+            restart=False, cluster={}):
         minion_id = 'minion_{}_{}'.format(workflow_id, app_id)
         stdout_log = os.path.join(self.log_dir, minion_id + '_out.log')
         stderr_log = os.path.join(self.log_dir, minion_id + '_err.log')
         log.info(_('Forking minion %s.'), minion_id)
 
         port = self._get_next_available_port()
+
         # Setup command and launch the minion script. We return the subprocess
         # created as part of an active minion.
         # spark.driver.port and spark.driver.blockManager.port are required
         # when running the driver inside a docker container.
-        open_opts = ['nohup', sys.executable, self.minion_executable,
+        minion_cmd = ['nohup', sys.executable, self.minion_executable,
                      '-w', str(workflow_id), '-a', str(app_id), '-t', platform,
                      '-c',
                      self.config_file_path, ]
-        log.info(_('Minion command: %s'), json.dumps(open_opts))
+        log.info(_('Minion command: %s'), json.dumps(minion_cmd))
 
         # Mesos / libprocess configuration. See:
         # http://mesos.apache.org/documentation/latest/configuration/libprocess/
@@ -209,7 +252,7 @@ class JuicerServer:
         if self.advertise_ip is not None:
             cloned_env['LIBPROCESS_ADVERTISE_IP'] = self.advertise_ip
 
-        proc = subprocess.Popen(open_opts,
+        proc = subprocess.Popen(minion_cmd,
                                 stdout=open(stdout_log, 'a'),
                                 stderr=open(stderr_log, 'a'),
                                 env=cloned_env)
@@ -262,8 +305,10 @@ class JuicerServer:
                             break
                     time.sleep(.5)
 
+                # Review with cluster
+                # FIXME: platform
                 self._start_minion(workflow_id, app_id, state_control,
-                                   self.platform)
+                                   platform)
 
             elif reason == self.HELP_STATE_LOST:
                 pass
@@ -317,9 +362,11 @@ class JuicerServer:
                                 if self.state_control is None:
                                     self.state_control = StateControlRedis(
                                         redis_conn)
+                                # FIXME: Cluster and platform
+                                plaform = 'spark'
                                 self._start_minion(
                                     app_id, app_id, self.state_control,
-                                    self.platform)
+                                    platform)
 
                     elif data == b'set':
                         # Externally launched minion
