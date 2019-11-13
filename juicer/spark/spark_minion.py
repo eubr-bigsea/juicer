@@ -304,7 +304,8 @@ class SparkMinion(Minion):
                     parameters = cluster_info['general_parameters'].split(',')
                     for parameter in parameters:
                         key, value = parameter.split('=')
-                        self.cluster_options[key.strip()] = value.strip()
+                        if key.startswith('spark'):
+                            self.cluster_options[key.strip()] = value.strip()
             except Exception as ex:
                 msg = _("Error in general cluster parameters: {}").format(ex)
                 self._emit_event(room=job_id, namespace='/stand')(
@@ -431,7 +432,8 @@ class SparkMinion(Minion):
                 os.remove('{}c'.format(generated_code_path))
 
             self.module = importlib.import_module(module_name)
-            self.module = imp.reload(self.module)
+            # self.module = imp.reload(self.module)
+            self.module = importlib.reload(self.module)
             if log.isEnabledFor(logging.DEBUG):
                 log.debug('Objects in memory after loading module: %s',
                           len(gc.get_objects()))
