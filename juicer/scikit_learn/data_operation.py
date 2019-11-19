@@ -22,13 +22,17 @@ class DataReaderOperation(Operation):
     SEPARATOR_PARAM = 'separator'
     QUOTE_PARAM = 'quote'
     INFER_SCHEMA_PARAM = 'infer_schema'
-    NULL_VALUES_PARAM = 'None_values'  # Must be compatible with other platforms
+    NULL_VALUES_PARAM = 'null_values'  # Must be compatible with other platforms
     MODE_PARAM = 'mode'
     DATA_SOURCE_ID_PARAM = 'data_source'
 
     INFER_FROM_LIMONERO = 'FROM_LIMONERO'
     INFER_FROM_DATA = 'FROM_VALUES'
     DO_NOT_INFER = 'NO'
+
+    OPT_MODE_PERMISSIVE = 'PERMISSIVE'
+    OPT_MODE_FAILFAST = 'FAILFAST'
+    OPT_MODE_DROP = 'DROPMALFORMED'
 
     SEPARATORS = {
         '{tab}': '\\t',
@@ -57,7 +61,7 @@ class DataReaderOperation(Operation):
         "DECIMAL": 'np.float64',
         "FLOAT": 'np.float64',
         "LONG": 'np.int64',
-        "INTEGER": 'np.int32',
+        "INTEGER": 'pd.Int64Dtype()',
         "TEXT": 'object',
     }
 
@@ -135,6 +139,9 @@ class DataReaderOperation(Operation):
         infer_from_data = self.infer_schema == self.INFER_FROM_DATA
         infer_from_limonero = self.infer_schema == self.INFER_FROM_LIMONERO
         do_not_infer = self.infer_schema == self.DO_NOT_INFER
+        mode_permissive = self.mode == self.OPT_MODE_PERMISSIVE
+        mode_failfast = self.mode == self.OPT_MODE_FAILFAST
+        mode_drop = self.mode == self.OPT_MODE_DROP
         if self.has_code:
             if infer_from_limonero:
                 self.header = self.metadata.get('is_first_line_header')
@@ -206,27 +213,53 @@ class DataReaderOperation(Operation):
                             open_code = "f = open('{path}', 'rb')".format(
                                 path=parsed.path)
                         code.append(open_code)
-                        code_csv = dedent("""
-                            header = {header}
-                            {output} = pd.read_csv(f, sep='{sep}',
-                                                   encoding='{encoding}',
-                                                   header=header,
-                                                   na_values={na_values},
-                                                   dtype=columns,
-                                                   parse_dates=parse_dates,
-                                                   converters=converters)
-                            f.close()
-                            if header is None:
-                                {output}.columns = ['col_{{col}}'.format(
-                                    col=col) for col in {output}.columns]
-                        """).format(output=self.output,
-                                    input=parsed.path,
-                                    sep=self.sep,
-                                    encoding=encoding,
-                                    header=0 if self.header else 'None',
-                                    na_values=self.null_values if len(
-                                        self.null_values) else 'None')
-                        code.append(code_csv)
+
+                        if mode_failfast:
+                            code_csv = dedent("""
+                                header = {header}
+                                {output} = pd.read_csv(f, sep='{sep}',
+                                                       encoding='{encoding}',
+                                                       header=header,
+                                                       na_values={na_values},
+                                                       dtype=columns,
+                                                       parse_dates=parse_dates,
+                                                       converters=converters)
+                                f.close()
+                                if header is None:
+                                    {output}.columns = ['col_{{col}}'.format(
+                                        col=col) for col in {output}.columns]
+                            """).format(output=self.output,
+                                        input=parsed.path,
+                                        sep=self.sep,
+                                        encoding=encoding,
+                                        header=0 if self.header else 'None',
+                                        na_values=self.null_values if len(
+                                            self.null_values) else 'None')
+                            code.append(code_csv)
+
+                        elif mode_permissive or mode_drop:
+                            code_csv = dedent("""
+                                header = {header}
+                                {output} = pd.read_csv(f, sep='{sep}',
+                                                       encoding='{encoding}',
+                                                       header=header,
+                                                       na_values={na_values},
+                                                       dtype=columns,
+                                                       parse_dates=parse_dates,
+                                                       converters=converters,
+                                                       error_bad_lines=False)
+                                f.close()
+                                if header is None:
+                                    {output}.columns = ['col_{{col}}'.format(
+                                        col=col) for col in {output}.columns]
+                            """).format(output=self.output,
+                                        input=parsed.path,
+                                        sep=self.sep,
+                                        encoding=encoding,
+                                        header=0 if self.header else 'None',
+                                        na_values=self.null_values if len(
+                                            self.null_values) else 'None')
+                            code.append(code_csv)
                     else:
                         raise ValueError(_('Not supported'))
                 else:
