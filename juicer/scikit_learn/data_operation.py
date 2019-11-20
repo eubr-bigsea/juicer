@@ -30,9 +30,7 @@ class DataReaderOperation(Operation):
     INFER_FROM_DATA = 'FROM_VALUES'
     DO_NOT_INFER = 'NO'
 
-    OPT_MODE_PERMISSIVE = 'PERMISSIVE'
     OPT_MODE_FAILFAST = 'FAILFAST'
-    OPT_MODE_DROP = 'DROPMALFORMED'
 
     SEPARATORS = {
         '{tab}': '\\t',
@@ -139,9 +137,7 @@ class DataReaderOperation(Operation):
         infer_from_data = self.infer_schema == self.INFER_FROM_DATA
         infer_from_limonero = self.infer_schema == self.INFER_FROM_LIMONERO
         do_not_infer = self.infer_schema == self.DO_NOT_INFER
-        mode_permissive = self.mode == self.OPT_MODE_PERMISSIVE
         mode_failfast = self.mode == self.OPT_MODE_FAILFAST
-        mode_drop = self.mode == self.OPT_MODE_DROP
         if self.has_code:
             if infer_from_limonero:
                 self.header = self.metadata.get('is_first_line_header')
@@ -216,71 +212,40 @@ class DataReaderOperation(Operation):
 
                 encoding = self.metadata.get('encoding', 'utf-8') or 'utf-8'
                 if self.metadata['format'] == 'CSV':
-                    if mode_failfast:
-                        code_csv = dedent("""
-                            header = {header}
-                            {output} = pd.read_csv(f, sep='{sep}',
-                                                   encoding='{encoding}',
-                                                   header=header,
-                                                   na_values={na_values},
-                                                   dtype=columns,
-                                                   parse_dates=parse_dates,
-                                                   converters=converters)
-                            f.close()
-                            if header is None:
-                                {output}.columns = ['col_{{col}}'.format(
-                                    col=col) for col in {output}.columns]
-                        """).format(output=self.output,
-                                    input=parsed.path,
-                                    sep=self.sep,
-                                    encoding=encoding,
-                                    header=0 if self.header else 'None',
-                                    na_values=self.null_values if len(
-                                        self.null_values) else 'None')
-                        code.append(code_csv)
-
-                    elif mode_permissive or mode_drop:
-                        code_csv = dedent("""
-                            header = {header}
-                            {output} = pd.read_csv(f, sep='{sep}',
-                                                   encoding='{encoding}',
-                                                   header=header,
-                                                   na_values={na_values},
-                                                   dtype=columns,
-                                                   parse_dates=parse_dates,
-                                                   converters=converters,
-                                                   error_bad_lines=False)
-                            f.close()
-                            if header is None:
-                                {output}.columns = ['col_{{col}}'.format(
-                                    col=col) for col in {output}.columns]
-                        """).format(output=self.output,
-                                    input=parsed.path,
-                                    sep=self.sep,
-                                    encoding=encoding,
-                                    header=0 if self.header else 'None',
-                                    na_values=self.null_values if len(
-                                        self.null_values) else 'None')
-                        code.append(code_csv)
+                    code_csv = dedent("""
+                        header = {header}
+                        {output} = pd.read_csv(f, sep='{sep}',
+                                               encoding='{encoding}',
+                                               header=header,
+                                               na_values={na_values},
+                                               dtype=columns,
+                                               parse_dates=parse_dates,
+                                               converters=converters,
+                                               error_bad_lines={mode})
+                        f.close()
+                        if header is None:
+                            {output}.columns = ['col_{{col}}'.format(
+                                col=col) for col in {output}.columns]
+                    """).format(output=self.output,
+                                input=parsed.path,
+                                sep=self.sep,
+                                encoding=encoding,
+                                mode=mode_failfast,
+                                header=0 if self.header else 'None',
+                                na_values=self.null_values if len(
+                                    self.null_values) else 'None')
+                    code.append(code_csv)
                 else:
-                    if mode_failfast:
-                        code_csv = dedent("""
-                            {output} = pd.read_csv(f, sep='\\n',
-                                                   encoding='{encoding}',
-                                                   names = ['value'])
-                            f.close()
-                        """).format(output=self.output, encoding=encoding)
-                        code.append(code_csv)
-
-                    elif mode_permissive or mode_drop:
-                        code_csv = dedent("""
-                            {output} = pd.read_csv(f, sep='\\n',
-                                                   encoding='{encoding}',
-                                                   names = ['value'],
-                                                   error_bad_lines=False)
-                            f.close()
-                        """).format(output=self.output, encoding=encoding)
-                        code.append(code_csv)
+                    code_csv = dedent("""
+                        {output} = pd.read_csv(f, sep='\\n',
+                                               encoding='{encoding}',
+                                               names = ['value'],
+                                               error_bad_lines={mode})
+                        f.close()
+                    """).format(output=self.output,
+                                encoding=encoding,
+                                mode=mode_failfast)
+                    code.append(code_csv)
             elif self.metadata['format'] == 'PARQUET_FILE':
                 raise ValueError(_('Not supported'))
             elif self.metadata['format'] == 'JSON':
