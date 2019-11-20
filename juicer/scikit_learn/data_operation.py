@@ -158,7 +158,7 @@ class DataReaderOperation(Operation):
                             #    converters[attr['name']] = 'decimal.Decimal'
                             self._add_attribute_to_schema(attr, code)
                     else:
-                        code.append("columns['value'] = '11'")
+                        code.append("columns['value'] = object")
                     code.append('parse_dates = {}'.format(repr(parse_dates)))
 
                     def custom_repr(elems):
@@ -197,81 +197,90 @@ class DataReaderOperation(Operation):
                     [".option('nullValue', '{}')".format(n) for n in
                      set(null_values)]) if null_values else ""
 
-                if self.metadata['format'] == 'CSV':
-                    encoding = self.metadata.get('encoding', 'utf-8') or 'utf-8'
-                    parsed = urlparse(self.metadata['url'])
-                    if parsed.scheme in ('hdfs', 'file'):
-                        if parsed.scheme == 'hdfs':
-                            open_code = dedent("""
-                            fs = pa.hdfs.connect('{hdfs_server}', {hdfs_port})
-                            f = fs.open('{path}', 'rb')""".format(
-                                path=parsed.path,
-                                hdfs_server=parsed.hostname,
-                                hdfs_port=parsed.port,
-                            ))
-                        else:
-                            open_code = "f = open('{path}', 'rb')".format(
-                                path=parsed.path)
-                        code.append(open_code)
-
-                        if mode_failfast:
-                            code_csv = dedent("""
-                                header = {header}
-                                {output} = pd.read_csv(f, sep='{sep}',
-                                                       encoding='{encoding}',
-                                                       header=header,
-                                                       na_values={na_values},
-                                                       dtype=columns,
-                                                       parse_dates=parse_dates,
-                                                       converters=converters)
-                                f.close()
-                                if header is None:
-                                    {output}.columns = ['col_{{col}}'.format(
-                                        col=col) for col in {output}.columns]
-                            """).format(output=self.output,
-                                        input=parsed.path,
-                                        sep=self.sep,
-                                        encoding=encoding,
-                                        header=0 if self.header else 'None',
-                                        na_values=self.null_values if len(
-                                            self.null_values) else 'None')
-                            code.append(code_csv)
-
-                        elif mode_permissive or mode_drop:
-                            code_csv = dedent("""
-                                header = {header}
-                                {output} = pd.read_csv(f, sep='{sep}',
-                                                       encoding='{encoding}',
-                                                       header=header,
-                                                       na_values={na_values},
-                                                       dtype=columns,
-                                                       parse_dates=parse_dates,
-                                                       converters=converters,
-                                                       error_bad_lines=False)
-                                f.close()
-                                if header is None:
-                                    {output}.columns = ['col_{{col}}'.format(
-                                        col=col) for col in {output}.columns]
-                            """).format(output=self.output,
-                                        input=parsed.path,
-                                        sep=self.sep,
-                                        encoding=encoding,
-                                        header=0 if self.header else 'None',
-                                        na_values=self.null_values if len(
-                                            self.null_values) else 'None')
-                            code.append(code_csv)
+                parsed = urlparse(self.metadata['url'])
+                if parsed.scheme in ('hdfs', 'file'):
+                    if parsed.scheme == 'hdfs':
+                        open_code = dedent("""
+                        fs = pa.hdfs.connect('{hdfs_server}', {hdfs_port})
+                        f = fs.open('{path}', 'rb')""".format(
+                            path=parsed.path,
+                            hdfs_server=parsed.hostname,
+                            hdfs_port=parsed.port,
+                        ))
                     else:
-                        raise ValueError(_('Not supported'))
+                        open_code = "f = open('{path}', 'rb')".format(
+                            path=parsed.path)
+                    code.append(open_code)
                 else:
-                    code_csv = dedent("""
-                    columns = {}
-                    columns['value'] = object
-                    {output} = spark_session.read{null_option}.schema(
-                        columns).option(
-                        'treatEmptyValuesAsNulls', 'true').text(
-                            url)""".format(output=self.output,
-                                           null_option=null_option))
-                    code.append(code_csv)
+                    raise ValueError(_('Not supported'))
+
+                encoding = self.metadata.get('encoding', 'utf-8') or 'utf-8'
+                if self.metadata['format'] == 'CSV':
+                    if mode_failfast:
+                        code_csv = dedent("""
+                            header = {header}
+                            {output} = pd.read_csv(f, sep='{sep}',
+                                                   encoding='{encoding}',
+                                                   header=header,
+                                                   na_values={na_values},
+                                                   dtype=columns,
+                                                   parse_dates=parse_dates,
+                                                   converters=converters)
+                            f.close()
+                            if header is None:
+                                {output}.columns = ['col_{{col}}'.format(
+                                    col=col) for col in {output}.columns]
+                        """).format(output=self.output,
+                                    input=parsed.path,
+                                    sep=self.sep,
+                                    encoding=encoding,
+                                    header=0 if self.header else 'None',
+                                    na_values=self.null_values if len(
+                                        self.null_values) else 'None')
+                        code.append(code_csv)
+
+                    elif mode_permissive or mode_drop:
+                        code_csv = dedent("""
+                            header = {header}
+                            {output} = pd.read_csv(f, sep='{sep}',
+                                                   encoding='{encoding}',
+                                                   header=header,
+                                                   na_values={na_values},
+                                                   dtype=columns,
+                                                   parse_dates=parse_dates,
+                                                   converters=converters,
+                                                   error_bad_lines=False)
+                            f.close()
+                            if header is None:
+                                {output}.columns = ['col_{{col}}'.format(
+                                    col=col) for col in {output}.columns]
+                        """).format(output=self.output,
+                                    input=parsed.path,
+                                    sep=self.sep,
+                                    encoding=encoding,
+                                    header=0 if self.header else 'None',
+                                    na_values=self.null_values if len(
+                                        self.null_values) else 'None')
+                        code.append(code_csv)
+                else:
+                    if mode_failfast:
+                        code_csv = dedent("""
+                            {output} = pd.read_csv(f, sep='\\n',
+                                                   encoding='{encoding}',
+                                                   names = ['value'])
+                            f.close()
+                        """).format(output=self.output, encoding=encoding)
+                        code.append(code_csv)
+
+                    elif mode_permissive or mode_drop:
+                        code_csv = dedent("""
+                            {output} = pd.read_csv(f, sep='\\n',
+                                                   encoding='{encoding}',
+                                                   names = ['value'],
+                                                   error_bad_lines=False)
+                            f.close()
+                        """).format(output=self.output, encoding=encoding)
+                        code.append(code_csv)
             elif self.metadata['format'] == 'PARQUET_FILE':
                 raise ValueError(_('Not supported'))
             elif self.metadata['format'] == 'JSON':
