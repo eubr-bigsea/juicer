@@ -420,7 +420,7 @@ class ExecutePythonOperation(Operation):
         code = dedent("""
         import json
         from RestrictedPython.Guards import safe_builtins
-        from RestrictedPython.RCompile import compile_restricted
+        from RestrictedPython import compile_restricted
         from RestrictedPython.PrintCollector import PrintCollector
 
         results = [r[1].result() for r in task_futures.items() if r[1].done()]
@@ -432,7 +432,7 @@ class ExecutePythonOperation(Operation):
         # Output data, initialized as None
         out1 = None
         out2 = None
-
+        cpc = PrintCollector()
         # Variables and language supported
         ctx = {{
             'wf_results': results,
@@ -446,15 +446,15 @@ class ExecutePythonOperation(Operation):
             '_getattr_': getattr,
             '_getitem_': lambda ob, index: ob[index],
             '_getiter_': lambda it: it,
-            '_print_': PrintCollector,
+            '_print_': lambda x: cpc,
             'json': json,
         }}
-        user_code = \"\"\"{code}\"\"\"
+        user_code = {code}.decode('unicode_escape')
 
         ctx['__builtins__'] = safe_builtins
 
         compiled_code = compile_restricted(user_code,
-        str('python_execute_{order}'), str('exec'))
+            str('python_execute_{order}'), str('exec'))
         try:
             exec(compiled_code, ctx)
 
@@ -462,9 +462,9 @@ class ExecutePythonOperation(Operation):
             out1 = ctx['out1']
             out2 = ctx['out2']
 
-            if '_print' in ctx:
+            if cpc.txt:
                 emit_event(name='update task',
-                    message=ctx['_print'](),
+                    message=''.join(cpc.txt),
                     status='RUNNING',
                     identifier='{id}')
         except NameError as ne:

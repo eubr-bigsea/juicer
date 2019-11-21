@@ -434,13 +434,14 @@ def handle_spark_exception(e):
         else:
             raise ValueError(e.desc)
     elif hasattr(e, 'java_exception'):
+        se = 'org.apache.spark.SparkException'
         cause = e.java_exception.getCause()
-        if 'unwrapRemoteException' in dir(cause):
-            cause = cause.unwrapRemoteException()
-        else:
-            while cause is not None and cause.getCause() is not None:
-                cause = cause.getCause()
-
+        if cause.getClass().getName() != se:
+            if 'unwrapRemoteException' in dir(cause):
+                cause = cause.unwrapRemoteException()
+            else:
+                while cause is not None and cause.getCause() is not None:
+                    cause = cause.getCause()
         if cause is not None:
             nfe = 'java.lang.NumberFormatException'
             uoe = 'java.lang.UnsupportedOperationException'
@@ -457,7 +458,7 @@ def handle_spark_exception(e):
                 raise ValueError(_('Invalid numeric data in at least one '
                                    'data source (value: {})').format(
                     value).encode('utf8'))
-            elif cause_msg == 'Malformed CSV record':
+            elif 'Malformed' in cause_msg:
                 raise ValueError(_('At least one input data source is not in '
                                    'the correct format.'))
             elif inner_cause and inner_cause.getClass().getName() == npe:
@@ -482,7 +483,7 @@ def handle_spark_exception(e):
                 )
             elif cause.getClass().getName() == iae:
                 gbt_error = 'dataset with invalid label'
-                if gbt_error in cause_msg:
+                if cause_msg is not None and gbt_error in cause_msg:
                     raise ValueError(_('GBT classifier requires labels '
                                        'to be in [0, 1] range.'))
                 else:
