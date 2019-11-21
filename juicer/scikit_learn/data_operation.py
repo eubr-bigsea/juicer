@@ -122,6 +122,8 @@ class DataReaderOperation(Operation):
         self.sep = parameters.get(
             self.SEPARATOR_PARAM,
             self.metadata.get('attribute_delimiter', ',')) or ','
+        if self.metadata['format'] == 'TEXT':
+            self.sep = '{new_line}'
         self.quote = parameters.get(self.QUOTE_PARAM,
                                     self.metadata.get('text_delimiter'))
         if self.quote == '\'':
@@ -237,12 +239,13 @@ class DataReaderOperation(Operation):
                     code.append(code_csv)
                 else:
                     code_csv = dedent("""
-                        {output} = pd.read_csv(f, sep='\\n',
+                        {output} = pd.read_csv(f, sep='{sep}',
                                                encoding='{encoding}',
                                                names = ['value'],
                                                error_bad_lines={mode})
                         f.close()
                     """).format(output=self.output,
+                                sep=self.sep,
                                 encoding=encoding,
                                 mode=mode_failfast)
                     code.append(code_csv)
