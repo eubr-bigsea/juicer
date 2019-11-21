@@ -58,7 +58,6 @@ Keras-Applications==1.0.8
 Keras-Preprocessing==1.1.0
 kiwisolver==1.1.0
 kubernetes==10.0.1
-label-shift-flaviovdf==0.0.1
 lazy-object-proxy==1.4.2
 lifelines==0.22.3
 Markdown==3.1.1
