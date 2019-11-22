@@ -1812,10 +1812,15 @@ class Predict(Operation):
                 for i in range(len(labels)):
                     label_to_target[labels[i]] = target_names[i]
             
-                print("file_name", "predicted", "class")
+                final_pred = {{
+                    'file_name': [],
+                    'predicted': [],
+                    'class': []
+                }}
                 for i, f in enumerate(test_image_generator.filenames):
-                    print({generator}.filenames[i], label_to_target[predictions_to_matrix[i]], label_to_target[{generator}.classes[i]])
-
+                    final_pred['file_name'].append({generator}.filenames[i])
+                    final_pred['predicted'].append(label_to_target[predictions_to_matrix[i]])
+                    final_pred['class'].append(label_to_target[{generator}.classes[i]])
                 
                 message = '\\n<h5>Classification Report - Test</h5>'
                 message += '<pre>' + report + '</pre>'
@@ -1824,7 +1829,18 @@ class Predict(Operation):
                     type='HTML',
                     status='RESULTS',
                     identifier='{task_id}'
-                ) 
+                )
+                
+                emit_event(name='update task',
+                    message=tab(table=final_pred, 
+                                add_epoch=False,
+                                metric='Classification by instance',
+                                headers=list(final_pred.keys()),
+                                show_index=True),
+                    type='HTML',
+                    status='RESULTS',
+                    identifier='{task_id}'
+                )
                 
                 """
             ).format(var_name=self.var_name,

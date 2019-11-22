@@ -6,6 +6,83 @@ from juicer.service import limonero_service
 from juicer.util.template_util import *
 
 
+class FileReader(Operation):
+    FILE_OR_FOLDER_PARAM = 'file_or_folder'
+    OUT_CODE_PARAM = 'out_code'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+        self.output = named_outputs.get('output data',
+                                        'out_task_{}'.format(self.order))
+
+        self.file_or_folder = parameters.get(self.FILE_OR_FOLDER_PARAM, None)
+        self.out_code = True if \
+            int(parameters.get(self.OUT_CODE_PARAM, 0)) == 1 else False
+
+        self.has_code = not self.out_code
+        self.has_external_python_code_operation = self.out_code
+
+        self.var_name = ""
+        self.task_name = self.parameters.get('task').get('name')
+
+        supported_formats = ('NPY', 'SAV', 'DATA_FOLDER')
+
+        if self.file_or_folder != 0 and self.file_or_folder is not None:
+            self.metadata = self.get_data_source(
+                data_source_id=self.file_or_folder)
+
+            if self.metadata.get('format') not in supported_formats:
+                raise ValueError(gettext('Unsupported file format: {}').format(
+                    self.metadata.get('format')))
+
+            self.format = self.metadata.get('format')
+
+        self.parents_by_port = parameters.get('my_ports', [])
+        self.treatment()
+
+        self.import_code = {'layer': None,
+                            'callbacks': [],
+                            'model': None,
+                            'preprocessing_image': None,
+                            'others': None}
+
+    def get_data_source(self, data_source_id):
+        # Retrieve metadata from Limonero.
+        limonero_config = \
+            self.parameters['configuration']['juicer']['services']['limonero']
+
+        metadata = limonero_service.get_data_source_info(
+            limonero_config['url'], str(limonero_config['auth_token']),
+            str(data_source_id))
+
+        if not metadata.get('url'):
+            raise ValueError(
+                gettext('Incorrect data source configuration (empty url)'))
+
+        return metadata
+
+    def treatment(self):
+        self.var_name = convert_variable_name(self.task_name)
+        self.task_name = self.var_name
+
+        if self.file_or_folder is not None:
+            self.file_or_folder = """'{storage_url}/{file_url}'""".format(
+                storage_url=self.metadata.get('storage').get('url'),
+                file_url=self.metadata.get('url')
+            )
+            self.file_or_folder = self.file_or_folder.replace('file://', '')
+
+    def generate_code(self):
+        options = []
+        if self.file_or_folder:
+            options.append("""                
+                {var_name} = {file_or_folder}
+                """.format(var_name=self.var_name,
+                           file_or_folder=self.file_or_folder))
+
+        return dedent('\n'.join(options))
+
+
 class ImageReader(Operation):
     TRAIN_IMAGES_PARAM = 'train_images'
     VALIDATION_IMAGES_PARAM = 'validation_images'

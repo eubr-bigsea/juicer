@@ -8,6 +8,7 @@ More information about Lemonade to be provided
 """
 
 import tensorflow
+import keras
 from keras.callbacks import Callback
 from keras import backend as K
 {{transpiler.get_imports(instances)}}
@@ -81,9 +82,9 @@ class ExecutionHistory(Callback):
 {%- set task = instance.parameters.task %}
 {%- set task_id = task.id %}
 # Task {{task_id}}
-emit_layer_before_add('{{task_id}}', emit_event)
+#emit_layer_before_add('{{task_id}}', emit_event)
 {{ instance.generate_code().strip() | indent(width=0, indentfirst=False) }}
-emit_layer_added('{{task_id}}', emit_event)
+#emit_layer_added('{{task_id}}', emit_event)
 {% endif -%}
 {% endfor %}
 
