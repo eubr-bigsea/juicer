@@ -57,6 +57,7 @@ class KerasTranspiler(Transpiler):
             'dot': merge_layers.Dot,
             'dropout': core_layers.Dropout,
             'evaluate-model': model.EvaluateModel,
+            'file-reader': input_output_data.FileReader,
             'fit-generator': model.FitGenerator,
             'flatten': core_layers.Flatten,
             'global-average-pooling-1d': pooling_layers.GlobalAveragePooling1D,
