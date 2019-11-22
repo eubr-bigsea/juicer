@@ -1,8 +1,12 @@
 # coding=utf-8
-import json
+
+import logging.config
 
 from kubernetes import client
 from kubernetes.client.rest import ApiException
+
+logging.config.fileConfig('logging_config.ini')
+log = logging.getLogger('juicer.kb8s')
 
 
 def create_k8s_job(workflow_id, minion_cmd, cluster):
@@ -33,6 +37,13 @@ def create_k8s_job(workflow_id, minion_cmd, cluster):
     container_image = cluster_params['kubernetes.container']
     namespace = cluster_params['kubernetes.namespace']
 
+    gpus = int(cluster_params.get('kubernetes.resources.gpus', 0))
+
+    print('-' * 30)
+    print('GPU KB8s specification: ' + str(gpus))
+    print('-' * 30)
+    log.info('GPU specification: %s', gpus)
+
     job.metadata = client.V1ObjectMeta(namespace=namespace, name=name)
     job.status = client.V1JobStatus()
 
@@ -60,8 +71,10 @@ def create_k8s_job(workflow_id, minion_cmd, cluster):
     pvc_claim = client.V1PersistentVolumeClaimVolumeSource(
         claim_name='hdfs-pvc')
 
-    # resources = {'limits': {'nvidia.com/gpu': 1}}
-    resources = {}
+    if gpus:
+        resources = {'limits': {'nvidia.com/gpu': gpus}}
+    else:
+        resources = {}
 
     container = client.V1Container(name=container_name,
                                    image=container_image,

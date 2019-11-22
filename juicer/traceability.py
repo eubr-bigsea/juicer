@@ -19,8 +19,6 @@ def copy_from_input(operation):
 
 
 def copy(source, target):
-    import pdb
-    pdb.set_trace()
     for attr in source.schema:
         for k, v in list(attr.metadata.items()):
             target.schema[attr.name].metadata[k] = v

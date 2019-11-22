@@ -392,10 +392,10 @@ class JuicerServer:
                                 if self.state_control is None:
                                     self.state_control = StateControlRedis(
                                         redis_conn)
-                                # FIXME: Cluster and platform
+                                # FIXME: Cluster and platform and job_id
                                 platform = 'spark'
                                 self._start_minion(
-                                    app_id, app_id, self.state_control,
+                                    app_id, app_id, 0, self.state_control,
                                     platform)
 
                     elif data == b'set':
