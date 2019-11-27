@@ -184,34 +184,33 @@ class DataReaderOperation(Operation):
                 code.append("header = 'infer'")
                 self.header = 'infer'
 
-            if self.metadata['format'] in ['CSV', 'TEXT']:
-                code.append("url = '{url}'".format(url=self.metadata['url']))
+            code.append("url = '{url}'".format(url=self.metadata['url']))
+            null_values = self.null_values
+            if self.metadata.get('treat_as_missing'):
+                null_values.extend([x.strip() for x in self.metadata.get(
+                    'treat_as_missing').split(',') if x.strip()])
+            null_option = ''.join(
+                [".option('nullValue', '{}')".format(n) for n in
+                 set(null_values)]) if null_values else ""
 
-                null_values = self.null_values
-                if self.metadata.get('treat_as_missing'):
-                    null_values.extend([x.strip() for x in self.metadata.get(
-                        'treat_as_missing').split(',') if x.strip()])
-                null_option = ''.join(
-                    [".option('nullValue', '{}')".format(n) for n in
-                     set(null_values)]) if null_values else ""
-
-                parsed = urlparse(self.metadata['url'])
-                if parsed.scheme in ('hdfs', 'file'):
-                    if parsed.scheme == 'hdfs':
-                        open_code = dedent("""
-                        fs = pa.hdfs.connect('{hdfs_server}', {hdfs_port})
-                        f = fs.open('{path}', 'rb')""".format(
-                            path=parsed.path,
-                            hdfs_server=parsed.hostname,
-                            hdfs_port=parsed.port,
-                        ))
-                    else:
-                        open_code = "f = open('{path}', 'rb')".format(
-                            path=parsed.path)
-                    code.append(open_code)
+            parsed = urlparse(self.metadata['url'])
+            if parsed.scheme in ('hdfs', 'file'):
+                if parsed.scheme == 'hdfs':
+                    open_code = dedent("""
+                                    fs = pa.hdfs.connect('{hdfs_server}', {hdfs_port})
+                                    f = fs.open('{path}', 'rb')""".format(
+                        path=parsed.path,
+                        hdfs_server=parsed.hostname,
+                        hdfs_port=parsed.port,
+                    ))
                 else:
-                    raise ValueError(_('Not supported'))
+                    open_code = "f = open('{path}', 'rb')".format(
+                        path=parsed.path)
+                code.append(open_code)
+            else:
+                raise ValueError(_('Not supported'))
 
+            if self.metadata['format'] in ['CSV', 'TEXT']:
                 encoding = self.metadata.get('encoding', 'utf-8') or 'utf-8'
                 if self.metadata['format'] == 'CSV':
                     code_csv = dedent("""
@@ -249,15 +248,17 @@ class DataReaderOperation(Operation):
                                 encoding=encoding,
                                 mode=mode_failfast)
                     code.append(code_csv)
-            elif self.metadata['format'] == 'PARQUET_FILE':
-                raise ValueError(_('Not supported'))
+            elif self.metadata['format'] == 'PARQUET':
+                code_parquet = dedent("""
+                    {output} = pd.read_parquet(f, engine='pyarrow')
+                    f.close()
+                    """).format(output=self.output)
+                code.append(code_parquet)
             elif self.metadata['format'] == 'JSON':
                 code_json = dedent("""
-                    columns = {{'value': object}}
-                    {output} = spark_session.read.option(
-                        'treatEmptyValuesAsNulls', 'true').json(
-                        '{url}')""".format(output=self.output,
-                                           url=self.metadata['url']))
+                    {output} = pd.read_json(f, orient='records')
+                    f.close()
+                    """).format(output=self.output)
                 code.append(code_json)
             elif self.metadata['format'] == 'LIB_SVM':
                 self._generate_code_for_lib_svm(code, infer_from_data)
