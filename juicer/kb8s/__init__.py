@@ -1,5 +1,5 @@
 # coding=utf-8
-
+import json
 import logging.config
 
 from kubernetes import client
@@ -9,7 +9,70 @@ logging.config.fileConfig('logging_config.ini')
 log = logging.getLogger('juicer.kb8s')
 
 
-def create_k8s_job(workflow_id, minion_cmd, cluster):
+def eval_and_kill_pending_jobs(cluster, timeout=60 * 5):
+    configuration = client.Configuration()
+    configuration.host = cluster['address']
+    configuration.verify_ssl = False
+    configuration.debug = False
+    if 'general_parameters' not in cluster:
+        raise ValueError('Incorrect cluster config.')
+
+    cluster_params = {}
+    for parameter in cluster['general_parameters'].split(','):
+        key, value = parameter.split('=')
+        if key.startswith('kubernetes'):
+            cluster_params[key] = value
+
+    token = cluster['auth_token']
+    configuration.api_key = {"authorization": "Bearer " + token}
+    # noinspection PyUnresolvedReferences
+    client.Configuration.set_default(configuration)
+
+    namespace = cluster_params['kubernetes.namespace']
+
+    api = client.ApiClient(configuration)
+    batch_api = client.BatchV1Api(api)
+
+    ret = batch_api.list_namespaced_job(namespace=namespace, watch=False)
+    for i in ret.items:
+        print(i.status)
+
+
+def delete_kb8s_job(workflow_id, cluster):
+    return
+    configuration = client.Configuration()
+    configuration.host = cluster['address']
+    configuration.verify_ssl = False
+    configuration.debug = False
+    if 'general_parameters' not in cluster:
+        raise ValueError('Incorrect cluster config.')
+
+    cluster_params = {}
+    for parameter in cluster['general_parameters'].split(','):
+        key, value = parameter.split('=')
+        if key.startswith('kubernetes'):
+            cluster_params[key] = value
+
+    token = cluster['auth_token']
+    configuration.api_key = {"authorization": "Bearer " + token}
+    # noinspection PyUnresolvedReferences
+    client.Configuration.set_default(configuration)
+
+    name = 'job-{}'.format(workflow_id)
+    namespace = cluster_params['kubernetes.namespace']
+
+    api = client.ApiClient(configuration)
+    batch_api = client.BatchV1Api(api)
+
+    try:
+        log.info('Deleting Kubernetes job %s', name)
+        batch_api.delete_namespaced_job(
+            name, namespace, grace_period_seconds=10, pretty=True)
+    except ApiException as e:
+        print("Exception when calling BatchV1Api->: {}\n".format(e))
+
+
+def create_kb8s_job(workflow_id, minion_cmd, cluster):
     configuration = client.Configuration()
     configuration.host = cluster['address']
     configuration.verify_ssl = False
@@ -105,4 +168,8 @@ def create_k8s_job(workflow_id, minion_cmd, cluster):
     try:
         batch_api.create_namespaced_job(namespace, job, pretty=True)
     except ApiException as e:
-        print("Exception when calling BatchV1Api->: {}\n".format(e))
+        body = json.loads(e.body)
+        if body['reason'] == 'AlreadyExists':
+            pass
+        else:
+            print("Exception when calling BatchV1Api->: {}\n".format(e))

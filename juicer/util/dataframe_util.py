@@ -436,7 +436,7 @@ def handle_spark_exception(e):
     elif hasattr(e, 'java_exception'):
         se = 'org.apache.spark.SparkException'
         cause = e.java_exception.getCause()
-        if cause.getClass().getName() != se:
+        if cause and cause.getClass().getName() != se:
             if 'unwrapRemoteException' in dir(cause):
                 cause = cause.unwrapRemoteException()
             else:
