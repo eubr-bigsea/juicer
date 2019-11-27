@@ -195,6 +195,15 @@ class FitGenerator(Operation):
 
     ADVANCED_OPTIONS_PARAM = 'advanced_options'
 
+    # Early stopping callback
+    EARLY_STOPPING_PARAM = 'early_stopping'
+    MONITOR_PARAM = 'monitor'
+    MIN_DELTA_PARAM = 'min_delta'
+    PATIENCE_PARAM = 'patience'
+    MODE_PARAM = 'mode'
+    BASELINE_PARAM = 'baseline'
+    RESTORE_BEST_WEIGHTS_PARAM = 'restore_best_weights'
+
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
         self.output = named_outputs.get('output data',
@@ -217,7 +226,8 @@ class FitGenerator(Operation):
 
         self.callbacks = [
             {'key': 'TensorBoard', 'value': 'TensorBoard'},
-            {'value': 'History', 'key': 'History'}
+            {'value': 'History', 'key': 'History'},
+            {'value': 'TimeLog', 'key': 'TimeLog'}
         ]
 
         # Save params
@@ -235,6 +245,15 @@ class FitGenerator(Operation):
             self.CLASSIFICATION_REPORT_PARAM, None)
         self.advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM,
                                                None)
+
+        self.early_stopping = int(parameters.get(self.EARLY_STOPPING_PARAM, 0))
+        self.monitor = parameters.get(self.MONITOR_PARAM, None)
+        self.min_delta = parameters.get(self.MIN_DELTA_PARAM, None)
+        self.patience = parameters.get(self.PATIENCE_PARAM, None)
+        self.mode = parameters.get(self.MODE_PARAM, None)
+        self.baseline = parameters.get(self.BASELINE_PARAM, None)
+        self.restore_best_weights = int(parameters.get(
+            self.RESTORE_BEST_WEIGHTS_PARAM, 0))
 
         self.model = None
 
@@ -467,8 +486,23 @@ class FitGenerator(Operation):
                 raise ValueError(gettext('Parameter {} not supported yet.')
                                  .format(self.SAVE_STORAGE_PARAM))
 
+        self.early_stopping = True if int(self.early_stopping) == 1 else \
+            False
+        self.restore_best_weights = True if int(self.restore_best_weights) == 1\
+            else False
+
+        if self.early_stopping:
+            self.callbacks.append({'key': 'EarlyStopping',
+                                   'value': 'EarlyStopping'})
+            if self.baseline:
+                self.baseline = float(self.baseline)
+            if self.min_delta:
+                self.min_delta = float(self.min_delta)
+            if self.patience:
+                self.patience = int(self.patience)
+
         # TO_DO ADD CALLBACKS CODE GENERATOR
-        callbacks = '[JuicerCallback(emit_event, {}, "{}", {}), '.format(
+        callbacks = '[\n\t\tJuicerCallback(emit_event, {}, "{}", {}),\n\t\t'.format(
             self.parameters['job_id'], self.parameters.get('task').get('id'),
             epochs)
         if self.callbacks is not None:
@@ -476,27 +510,55 @@ class FitGenerator(Operation):
                 if self.callbacks:
                     self.callback_code += '\n'
 
-                callbacks += str(callback['key'].lower()) + '_callback, '
-                self.import_code['callbacks'].append(callback['key'])
+                callbacks += str(callback['key'].lower()) + '_callback,\n\t\t'
 
                 username = self.parameters['user']['name'].lower().split()[0:2]
                 username = '_'.join(username)
 
                 if callback['key'].lower() == 'tensorboard':
-                    tb = 'tensorboard_callback = {callbak}(log_dir="/tmp/tensorboard/' \
-                         '{user_id}_{username}/{workflow_id}_{job_id}")' \
+                    self.import_code['callbacks'].append(callback['key'])
+                    tb = 'tensorboard_callback = {callback}(' \
+                         '\n\tlog_dir="/tmp/tensorboard/{user_id}_{username}/{workflow_id}_{job_id}"' \
+                         '\n)' \
                         .format(
                         user_id=self.parameters['workflow']['user']['id'],
                         workflow_id=self.parameters['workflow']['id'],
                         job_id=self.parameters['job_id'],
                         username=username,
-                        callbak=self.import_code['callbacks'][-1])
+                        callback=callback['key'])
                     self.callback_code += tb
 
                 elif callback['key'].lower() == 'history':
-                    ht = 'history_callback = {callbak}()' \
-                        .format(callbak=self.import_code['callbacks'][-1])
+                    self.import_code['callbacks'].append(callback['key'])
+                    ht = '\nhistory_callback = {callbak}()' \
+                        .format(callbak=callback['key'])
                     self.callback_code += ht
+
+                elif callback['key'].lower() == 'earlystopping':
+                    self.import_code['callbacks'].append(callback['key'])
+                    es = '\nearlystopping_callback = {callbak}(' \
+                         '\n\tmonitor="{monitor}",' \
+                         '\n\tmin_delta={min_delta},' \
+                         '\n\tpatience={patience},' \
+                         '\n\tmode="{mode}",' \
+                         '\n\tbaseline={baseline},' \
+                         '\n\trestore_best_weights={restore_best_weights}' \
+                         '\n)\n'.format(callbak=callback['key'],
+                                    monitor=self.monitor,
+                                    min_delta=self.min_delta,
+                                    patience=self.patience,
+                                    mode=self.mode,
+                                    baseline=self.baseline,
+                                    restore_best_weights=self.restore_best_weights)
+                    self.callback_code += es
+
+                elif callback['key'].lower() == 'timelog':
+                    tl = '\ntimelog_callback = {callbak}(' \
+                         '\n\tpath_to_save="{path_to_save}"' \
+                         '\n)\n'.format(
+                                    callbak=callback['key'],
+                                    path_to_save="/srv/data/timelog")
+                    self.callback_code += tl
 
             # Add the ModelCheckpoint code (mcp)
             if self.save_enabled:
@@ -504,7 +566,7 @@ class FitGenerator(Operation):
                 callbacks += mcp_var
 
             callbacks += ']'
-            callbacks = callbacks.replace(', ]', ']')
+            callbacks = callbacks.replace(', ]', '\n\t]')
 
             self.callbacks = """callbacks={callbacks}""" \
                 .format(callbacks=callbacks)
