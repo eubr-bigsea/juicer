@@ -342,7 +342,7 @@ class SaveOperation(Operation):
         'float64': "DOUBLE",
         'float32': "FLOAT",
         'int64': "LONG",
-        'int32': "INTEGER",
+        'Int64': "INTEGER",
     }
 
     def __init__(self, parameters, named_inputs, named_outputs):
@@ -427,35 +427,48 @@ class SaveOperation(Operation):
                     emit_event(name='update task',
                         message='{{warn_ignored}}',
                         status='COMPLETED',
-                        identifier='{{task_id}}')
+                        identifier='{{task_id}}')               
 
             if not exists or mode == 'overwrite':
                 {%- if scheme == 'hdfs'%}
-                fs.delete(path, False)
-                f = fs.open(path, 'wb')
+                if exists:
+                    fs.delete(path, False)
                 {%- elif scheme == 'file' %}
                 if exists:
                     os.remove(path)
                 parent_dir = os.path.dirname(path)
                 if not os.path.exists(parent_dir):
                     os.makedirs(parent_dir)
-                f = open(path, 'wb')
                 {%- endif %}
                 {%- if format == FORMAT_CSV %}
-                {{input}}.to_csv(f, sep=str(','), mode='w',
+                from io import StringIO
+                with fs.open(path, 'wb') as f:
+                    s = StringIO()
+                    {{input}}.to_csv(s, sep=str(','), mode='w',
                     header={{header}}, index=False, encoding='utf-8')
+                    f.write(s.getvalue().encode())              
+                    
                 {%- elif format == FORMAT_PARQUET %}
-                {{input}}.to_parquet(f, engine='pyarrow')
+                from io import StringIO
+                with fs.open(path, 'wb') as f:
+                    s = StringIO()
+                    {{input}}.to_parquet(f, engine='pyarrow')
+                    f.write(s.getvalue().encode())   
                 {%- elif format == FORMAT_JSON %}
-                {{input}}.to_json(f, orient='records')
+                from io import StringIO
+                with fs.open(path, 'wb') as f:
+                    s = StringIO()
+                    {{input}}.to_json(s, orient='records')
+                    f.write(s.getvalue().encode())
                 {%- endif %}
-                f.close()
+                    f.close()
 
 
             # Code to update Limonero metadata information
             from juicer.service.limonero_service import register_datasource
             types_names = {{data_types}}
 
+            write_header = {{header}}
             attributes = []
             for attr in {{input}}.columns:
                 type_name = {{input}}.dtypes[attr]
@@ -474,6 +487,7 @@ class SaveOperation(Operation):
                 })
             parameters = {
                 'name': "{{name}}",
+                'is_first_line_header': write_header,
                 'enabled': 1,
                 'is_public': 0,
                 'format': "{{format}}",
@@ -485,8 +499,7 @@ class SaveOperation(Operation):
                 'workflow_id': "{{workflow_id}}",
                 'task_id': '{{task_id}}',
                 'url': "{{final_url}}",
-                'attributes': attributes,
-                'tags': ','.join({{tags}})
+                'attributes': attributes
             }
             register_datasource('{{url}}', parameters, '{{token}}', 'overwrite')
         """
