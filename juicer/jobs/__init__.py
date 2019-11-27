@@ -12,7 +12,6 @@ from juicer.service import limonero_service, stand_service
 
 
 def estimate_time_with_performance_model(payload):
-    print(payload)
     try:
         config_file = os.environ.get('JUICER_CONF')
         if config_file is None:
@@ -25,6 +24,9 @@ def estimate_time_with_performance_model(payload):
         with open(config_file) as f:
             config = yaml.load(f)
 
+        print('-' * 20)
+        print(payload)
+        print('-' * 20)
         # retrieves the model
         model = get_model_info(config, payload)
         platform = payload['platform']
@@ -65,7 +67,7 @@ def estimate_for_keras(gpus_configuration, path, payload, model):
         path, gpus_configuration)
     prediction = predictor.generate_predictions(
         str(os.path.basename(model['path']).split('.')[0]),
-        payload['data_type'], payload['data_size'],
+        payload.get('data_type', 'image'), payload['data_size'],
         payload['batch_size'], payload['iterations'],
         payload['deadline'])
     results = [[list([[cores, time / 60.0] for cores, time in pair.items()])]

@@ -264,7 +264,7 @@ class FairnessBiasReport(BaseHtmlReport):
                '_': gettext.gettext,
                'data': data, 'tau': .8, 'reference': self.baseline_value,
                'summary': summary, 'explanations': self.explanations,
-               'attributes': ', '.join(['race'])}
+               'attributes': ', '.join([self.sensitive])}
         return template.render(ctx)
 
 
