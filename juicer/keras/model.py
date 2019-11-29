@@ -301,7 +301,7 @@ class FitGenerator(Operation):
         self.treatment()
 
     def treatment(self):
-        #self.var_name = convert_variable_name(self.task_name)
+        self.var_name = convert_variable_name(self.task_name)
         self.task_name = convert_variable_name(self.task_name)
 
         validation = ''
@@ -315,7 +315,7 @@ class FitGenerator(Operation):
                 validation = convert_variable_name(parent[1])
             elif str(parent[0]) == 'model':
                 self.model = convert_variable_name(parent[1])
-                self.var_name = self.model
+                #self.var_name = self.model
 
         if validation:
             self.validation_generator = 'validation_{var_name}' \
@@ -666,7 +666,7 @@ class FitGenerator(Operation):
                     if self.is_video_or_sequence_generator:
                         return dedent(
                             """
-                            history = {var_name}.fit_generator(
+                            history = {model}.fit_generator(
                             {add_functions_required_fit_generator}
                             )
                             emit_event(
@@ -690,7 +690,7 @@ class FitGenerator(Operation):
                             else:
                                 steps = (number_of_videos // batch_size) + 1
                                 
-                            predictions = {var_name}.predict_generator(
+                            predictions = {model}.predict_generator(
                                 generator=predict_{train_generator},
                                 steps=steps,
                                 verbose=1
@@ -724,7 +724,7 @@ class FitGenerator(Operation):
                             else:
                                 steps = (number_of_videos // batch_size) + 1
                             
-                            predictions = {var_name}.predict_generator(
+                            predictions = {model}.predict_generator(
                                 generator=predict_{val_generator},
                                 steps=steps,
                                 verbose=1
@@ -740,6 +740,8 @@ class FitGenerator(Operation):
                                 output_dict=False
                             )
                             
+                            {var_name} = {model}
+                            
                             message = '\\n<h5>Classification Report - Validation</h5>'
                             message += '<pre>' + report + '</pre>'
                             emit_event(name='update task',
@@ -750,7 +752,8 @@ class FitGenerator(Operation):
                             )
                             
                             """
-                        ).format(var_name=self.var_name,
+                        ).format(model=self.model,
+                                 var_name=self.var_name,
                                  add_functions_required_fit_generator=
                                  self.add_functions_required_fit_generator,
                                  val_generator=self.validation_generator
@@ -761,7 +764,7 @@ class FitGenerator(Operation):
                     else:
                         return dedent(
                             """
-                            history = {var_name}.fit_generator(
+                            history = {model}.fit_generator(
                             {add_functions_required_fit_generator}
                             )
                             emit_event(
@@ -785,7 +788,7 @@ class FitGenerator(Operation):
                             else:
                                 steps = (number_of_videos // batch_size) + 1
                                 
-                            predictions = {var_name}.predict_generator(
+                            predictions = {model}.predict_generator(
                                 generator={train_generator},
                                 steps=steps
                             )
@@ -820,7 +823,7 @@ class FitGenerator(Operation):
                             else:
                                 steps = (number_of_videos // batch_size) + 1
                                 
-                            predictions = {var_name}.predict_generator(
+                            predictions = {model}.predict_generator(
                                 generator={val_generator},
                                 steps=steps,
                                 workers={workers},
@@ -839,6 +842,8 @@ class FitGenerator(Operation):
                                 output_dict=False
                             )
                             
+                            {var_name} = {model}
+                            
                             message = '\\n<h5>Classification Report - Validation</h5>'
                             message += '<pre>' + report + '</pre>'
                             emit_event(name='update task',
@@ -849,7 +854,8 @@ class FitGenerator(Operation):
                             )
                             
                             """
-                        ).format(var_name=self.var_name,
+                        ).format(model=self.model,
+                                 var_name=self.var_name,
                                  add_functions_required_fit_generator=
                                  self.add_functions_required_fit_generator,
                                  val_generator=self.validation_generator
@@ -863,7 +869,7 @@ class FitGenerator(Operation):
                     if self.is_video_or_sequence_generator:
                         return dedent(
                             """
-                            history = {var_name}.fit_generator(
+                            history = {model}.fit_generator(
                             {add_functions_required_fit_generator}
                             )
                             emit_event(
@@ -887,7 +893,7 @@ class FitGenerator(Operation):
                             else:
                                 steps = (number_of_videos // batch_size) + 1
                                 
-                            predictions = {var_name}.predict_generator(
+                            predictions = {model}.predict_generator(
                                 generator=predict_{train_generator},
                                 steps=steps,
                                 verbose=1
@@ -903,6 +909,8 @@ class FitGenerator(Operation):
                                 output_dict=False
                             )
                             
+                            {var_name} = {model}
+                            
                             message = '\\n<h5>Classification Report - Training</h5>'
                             message += '<pre>' + report + '</pre>'
                             emit_event(name='update task',
@@ -913,7 +921,8 @@ class FitGenerator(Operation):
                             )
                             
                             """
-                        ).format(var_name=self.var_name,
+                        ).format(model=self.model,
+                                 var_name=self.var_name,
                                  add_functions_required_fit_generator=
                                  self.add_functions_required_fit_generator,
                                  val_generator=self.validation_generator
@@ -924,7 +933,7 @@ class FitGenerator(Operation):
                     else:
                         return dedent(
                             """
-                            history = {var_name}.fit_generator(
+                            history = {model}.fit_generator(
                             {add_functions_required_fit_generator}
                             )
                             emit_event(
@@ -948,7 +957,7 @@ class FitGenerator(Operation):
                             else:
                                 steps = (number_of_videos // batch_size) + 1
                                 
-                            predictions = {var_name}.predict_generator(
+                            predictions = {model}.predict_generator(
                                 generator={train_generator},
                                 steps=steps
                             )
@@ -965,6 +974,8 @@ class FitGenerator(Operation):
                                 output_dict=False
                             )
                             
+                            {var_name} = {model}
+                            
                             message = '\\n<h5>Classification Report - Training</h5>'
                             message += '<pre>' + report + '</pre>'
                             emit_event(name='update task',
@@ -975,7 +986,8 @@ class FitGenerator(Operation):
                             ) 
                             
                             """
-                        ).format(var_name=self.var_name,
+                        ).format(model=self.model,
+                                 var_name=self.var_name,
                                  add_functions_required_fit_generator=
                                  self.add_functions_required_fit_generator,
                                  val_generator=self.validation_generator
@@ -988,9 +1000,12 @@ class FitGenerator(Operation):
             else:
                 return dedent(
                     """
-                    history = {var_name}.fit_generator(
+                    history = {model}.fit_generator(
                     {add_functions_required_fit_generator}
                     )
+                    
+                    {var_name} = {model}
+                    
                     emit_event(name='update task',
                         message=tab(table=history.history, add_epoch=True, metric='History', headers=list(history.history.keys())),
                         type='HTML',
@@ -998,7 +1013,8 @@ class FitGenerator(Operation):
                         identifier='{task_id}'
                     )
                     """
-                ).format(var_name=self.var_name,
+                ).format(model=self.model,
+                         var_name=self.var_name,
                          add_functions_required_fit_generator=
                          self.add_functions_required_fit_generator,
                          task_id=self.output_task_id)
