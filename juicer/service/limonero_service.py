@@ -102,3 +102,21 @@ def register_datasource(base_url, payload, token, mode=''):
         log.error(gettext('Error saving data source in Limonero URL: %s (%s: %s)'),
                   url, r.status_code, r.text)
         raise RuntimeError(gettext("Error saving datasource: {})").format(r.text))
+def update_initialization_status(base_ur, payload, token):
+    url = "{url}/datasources?mode={mode}".format(
+        url=remove_initial_final_path_separator(base_url), mode=mode)
+
+    headers = {
+        'x-auth-token': token,
+        'content-type': "application/json",
+        'cache-control': "no-cache"
+    }
+    r = requests.request("POST", url, data=json.dumps(payload), headers=headers)
+
+    if r.status_code == 200:
+        return json.loads(r.text)
+    else:
+        log.error(gettext('Error saving data source in Limonero URL: %s (%s: %s)'),
+                  url, r.status_code, r.text)
+        raise RuntimeError(gettext("Error saving datasource: {})").format(r.text))
+
