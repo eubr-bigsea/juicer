@@ -8,10 +8,15 @@ from urllib.parse import urlparse
 import pyarrow as pa
 import yaml
 from juicer.atmosphere import opt_ic, gpu_prediction
+from juicer.atmosphere.vallum import perform_copy
 from juicer.service import limonero_service, stand_service
+from rq import get_current_job
 
 
 def estimate_time_with_performance_model(payload):
+    """
+    Job for performance models
+    """
     try:
         config_file = os.environ.get('JUICER_CONF')
         if config_file is None:
@@ -38,10 +43,10 @@ def estimate_time_with_performance_model(payload):
 
             if platform == 'spark':
                 cores = get_cores_info(config)
-                result = estimate_for_spark(cores, path, payload)
+                result = _estimate_for_spark(cores, path, payload)
             elif platform == 'keras':
                 gpus_configuration = get_gpus_configuration(cluster)
-                result = estimate_for_keras(
+                result = _estimate_for_keras(
                     gpus_configuration, path, payload, model)
             else:
                 result = {
@@ -62,7 +67,7 @@ def estimate_time_with_performance_model(payload):
     return result
 
 
-def estimate_for_keras(gpus_configuration, path, payload, model):
+def _estimate_for_keras(gpus_configuration, path, payload, model):
     predictor = gpu_prediction.GpuPrediction(
         path, gpus_configuration)
     prediction = predictor.generate_predictions(
@@ -95,7 +100,7 @@ def get_gpus_configuration(cluster):
     }
 
 
-def estimate_for_spark(cores, path, payload):
+def _estimate_for_spark(cores, path, payload):
     print("Processando com ", int(payload.get('data_size')))
     optimizer = opt_ic.Optimizer(
         os.path.splitext(os.path.basename(path))[0],
@@ -149,3 +154,37 @@ def get_model_info(config, payload):
         limonero_conf['url'], str(limonero_conf['auth_token']),
         model_id)
     return model
+
+
+def cache_vallum_data(payload):
+    try:
+        config_file = os.environ.get('JUICER_CONF')
+        if config_file is None:
+            result = {
+                'status': 'ERROR',
+                'message': 'You must inform the JUICER_CONF env variable'
+            }
+            return result
+
+        with open(config_file) as f:
+            config = yaml.load(f)
+
+        print('-' * 20)
+        job = get_current_job()
+        print('Job Id: ', job.id)
+        print(payload)
+        print('-' * 20)
+        total = perform_copy(config, payload.get('data_source_id'),
+                     payload.get('storage_id'),
+                     payload.get('path'))
+        return {
+                'status': 'OK',
+                'message': '{} file(s) copied from Vallum to Storage.'.format(total),
+                }
+    except Exception as ex:
+        result = {
+            'status': 'ERROR',
+            'message': 'Internal error: {}'.format(ex),
+            'stack': traceback.format_exc()
+        }
+    return result
