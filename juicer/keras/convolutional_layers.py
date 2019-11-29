@@ -2623,6 +2623,7 @@ class UpSampling3D(Operation):
 
 class ZeroPadding1D(Operation):
     PADDING_PARAM = 'padding'
+    TRAINABLE_OPTIONS_PARAM = 'trainable'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
@@ -2635,12 +2636,16 @@ class ZeroPadding1D(Operation):
             )
 
         self._padding = parameters.get(self.PADDING_PARAM)
+        self._trainable = parameters.get(self.TRAINABLE_OPTIONS_PARAM, 0)
+
         self.padding = None
+        self.trainable = None
 
         self.task_name = self.parameters.get('task').get('name')
         self.parent = ""
         self.var_name = ""
         self.has_code = True
+        self.add_functions_required = ''
 
         self.parents_by_port = parameters.get('my_ports', [])
         self.python_code_to_remove = self.remove_python_code_parent()
@@ -2678,22 +2683,32 @@ class ZeroPadding1D(Operation):
         else:
             self.parent = ''
 
+        self.trainable = True if int(self._trainable) == 1 else \
+            False
+
         self.padding = tuple_of_tuples(self._padding)
         if self.padding is False:
             raise ValueError(gettext('Parameter {} is invalid.').format(
                 self.PADDING_PARAM))
 
+        functions_required = ["""padding={padding}""".format(padding=
+                                                             self.padding)]
+
+        if not self.trainable:
+            functions_required.append('''trainable=False''')
+
+        self.add_functions_required = ',\n    '.join(functions_required)
+
     def generate_code(self):
         return dedent(
             """
             {var_name} = ZeroPadding1D(
-                name='{name}',
-                padding={padding}
+                name='{name}'{add_functions_required}
             ){parent}
             """
         ).format(var_name=self.var_name,
                  name=self.task_name,
-                 padding=self.padding,
+                 add_functions_required=self.add_functions_required,
                  parent=self.parent)
 
 

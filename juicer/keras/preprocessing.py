@@ -84,6 +84,7 @@ class ImageGenerator(Operation):
 
         self.image_train = None
         self.image_validation = None
+        self.image_test = None
         self.validation_split = None
 
         self.task_name = self.parameters.get('task').get('name')
@@ -118,23 +119,35 @@ class ImageGenerator(Operation):
             if str(parents_by_port[0][0]) == 'train-image':
                 self.image_train = parents_by_port[0]
                 self.image_validation = None
+                self.image_test = None
             elif str(parents_by_port[0][0]) == 'validation-image':
                 self.image_train = None
                 self.image_validation = parents_by_port[0]
+                self.image_test = None
+            elif str(parents_by_port[0][0]) == 'test-image':
+                self.image_train = None
+                self.image_validation = None
+                self.image_test = parents_by_port[0]
 
-        if not (self.image_train or self.image_validation):
+        if not (self.image_train or self.image_validation or self.image_test):
             raise ValueError(gettext('You need to correctly specify the '
-                                     'ports for training and/or validation.'))
+                                     'ports for training or validation or test.'
+                                     ))
 
         if self.image_train:
-            self.image_train = convert_variable_name(self.image_train[1]) \
-                               + '_' \
-                               + convert_variable_name(self.image_train[0])
+            self.image_train = convert_variable_name(
+                self.image_train[1]) + '_' + \
+                               convert_variable_name(self.image_train[0])
 
         if self.image_validation:
             self.image_validation = convert_variable_name(
-                self.image_validation[1]) + '_' + convert_variable_name(
-                self.image_validation[0])
+                self.image_validation[1]) + '_' + \
+                               convert_variable_name(self.image_validation[0])
+
+        if self.image_test:
+            self.image_test = convert_variable_name(
+                self.image_test[1]) + '_' + \
+                               convert_variable_name(self.image_test[0])
 
         self.parents = convert_parents_to_variable_name(self.parameters
                                                         .get('parents', []))
@@ -151,6 +164,11 @@ class ImageGenerator(Operation):
             functions_required_flow_from_directory.append(
                 """directory={image_validation}""".format(
                     image_validation=self.image_validation))
+
+        if self.image_test:
+            functions_required_flow_from_directory.append(
+                """directory={image_test}""".format(
+                    image_test=self.image_test))
 
         if self.target_size:
             target_size = get_int_or_tuple(self.target_size)
@@ -396,6 +414,371 @@ class ImageGenerator(Operation):
                      add_functions_required=self.add_functions_required,
                      add_functions_required_flow_from_directory=self.
                      add_functions_required_flow_from_directory)
+
+        if self.image_test:
+            return dedent(
+                """
+                {var_name}_datagen = ImageDataGenerator(
+                    {add_functions_required}
+                )
+                test_{var_name} = {var_name}_datagen.flow_from_directory(
+                    {add_functions_required_flow_from_directory}
+                )
+                
+                """
+            ).format(var_name=self.var_name,
+                     add_functions_required=self.add_functions_required,
+                     add_functions_required_flow_from_directory=self.
+                     add_functions_required_flow_from_directory)
+
+
+class SequenceGenerator(Operation):
+    BATCH_SIZE_PARAM = 'batch_size'
+    VALIDATION_SPLIT_PARAM = 'validation_split'
+    SHUFFLE_PARAM = 'shuffle'
+    SHAPE_PARAM = 'shape'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+        self.output = named_outputs.get('output data',
+                                        'out_task_{}'.format(self.order))
+
+        self.batch_size = int(parameters.get(self.BATCH_SIZE_PARAM, None))
+        self.validation_split = float(parameters.get(
+            self.VALIDATION_SPLIT_PARAM, 0))
+        self._shuffle = int(parameters.get(self.SHUFFLE_PARAM, None))
+        self._shape = parameters.get(self.SHAPE_PARAM, None)
+
+        self.shuffle = True
+        self.shape = None
+
+        self.task_name = self.parameters.get('task').get('name')
+        self.parents = ""
+        self.var_name = ""
+        self.has_code = True
+
+        self.sequence_training = None
+        self.sequence_validation = None
+        self.sequence_test = None
+        self.shuffle = None
+
+        self.parents_by_port = parameters.get('my_ports', [])
+        self.treatment()
+
+        self.has_external_code = True
+
+        self.import_code = {'layer': None,
+                            'callbacks': [],
+                            'model': None,
+                            'preprocessing_image': None,
+                            'others': ['from os import walk, listdir',
+                                       'from os.path import isfile, join',
+                                       'from keras.utils '
+                                       'import to_categorical']
+                            }
+
+    def treatment(self):
+        parents_by_port = self.parameters.get('parents_by_port', [])
+
+        if len(parents_by_port) == 1:
+            if str(parents_by_port[0][0]) == 'train-sequence':
+                self.sequence_training = parents_by_port[0]
+                self.sequence_validation = None
+                self.sequence_test = None
+            elif str(parents_by_port[0][0]) == 'validation-sequence':
+                self.sequence_training = None
+                self.sequence_test = None
+                self.sequence_validation = parents_by_port[0]
+            elif str(parents_by_port[0][0]) == 'test-sequence':
+                self.sequence_training = None
+                self.sequence_validation = None
+                self.sequence_test = parents_by_port[0]
+
+        if not (self.sequence_training or self.sequence_validation or
+                self.sequence_test):
+            raise ValueError(gettext('You need to correctly specify the '
+                                     'ports for training or validation or '
+                                     'test.'
+                                     )
+                             )
+
+        if self.sequence_training and self.sequence_validation and \
+                self.validation_split:
+            raise ValueError(gettext('Is impossible to use validation split '
+                                     'option > 0 and video reader for training '
+                                     'and validation data.'))
+
+        if self.sequence_training:
+            self.sequence_training = convert_variable_name(
+                self.sequence_training[1]) + '_' + convert_variable_name(
+                self.sequence_training[0])
+
+        if self.sequence_validation:
+            self.sequence_validation = convert_variable_name(
+                self.sequence_validation[1]) + '_' + convert_variable_name(
+                self.sequence_validation[0])
+
+        if self.sequence_test:
+            self.sequence_test = convert_variable_name(
+                self.sequence_test[1]) + '_' + convert_variable_name(
+                self.sequence_test[0])
+
+        self.parents = convert_parents_to_variable_name(self.parameters
+                                                        .get('parents', []))
+        self.var_name = convert_variable_name(self.task_name)
+        self.task_name = self.var_name
+
+        self.shuffle = True if int(self._shuffle) == 1 else False
+
+        if self.batch_size < 1:
+            raise ValueError(gettext('Parameter {} is invalid.')
+                             .format(self.BATCH_SIZE_PARAM))
+
+        if self.validation_split < 0 or self.validation_split > 1:
+            raise ValueError(gettext('Parameter {} is invalid.')
+                             .format(self.VALIDATION_SPLIT_PARAM))
+
+        self.shape = get_tuple(self._shape)
+
+    def external_code(self):
+        if self.sequence_training:
+            return dedent(
+                """     
+                class SequenceGenerator(keras.utils.Sequence):
+                    def __init__(self, sequence_path=[],
+                                       batch_size=16,
+                                       shape=None,
+                                       n_classes=0, 
+                                       shuffle=True):
+                                       
+                        self.sequence_path = sequence_path
+                        self.batch_size = batch_size
+                        self.shape = shape
+                        self.n_classes = n_classes
+                        self.shuffle = shuffle
+                        self.classes = []
+                        self.to_fit = True
+                        
+                        self.on_epoch_end()
+                        
+                    def on_epoch_end(self):
+                        self.instances_indexes = np.arange(len(self.sequence_path))
+                        if self.shuffle:
+                            np.random.shuffle(self.instances_indexes)
+                    
+                    def to_np_array(self, data):
+                        import cv2
+                        
+                        img = cv2.imread(data, cv2.IMREAD_UNCHANGED)
+                        resized = cv2.resize(img, (150, 150), interpolation = cv2.INTER_AREA)
+                        
+                        return resized
+
+                            
+                    def __len__(self):
+                        return int(len(self.sequence_path) / self.batch_size)
+                        
+                    def __getitem__(self, index):
+                        # Generate indexes of the batch
+                        indexes = self.instances_indexes[index * self.batch_size:(index + 1) * self.batch_size]
+                        
+                        # Find list of IDs
+                        batch_ids = [self.sequence_path[k] for k in indexes]
+                        
+                        # Generate data
+                        X, y = self.__data_generation(batch_ids)
+                        
+                        if self.to_fit:
+                            return X, y
+                        else:
+                            return X
+                    
+                    def __data_generation(self, batch_ids):
+                        data = np.empty((self.batch_size, *self.shape))
+                        classes = np.empty(self.batch_size, dtype=int)
+                        
+                        for i, instance_id in enumerate(batch_ids):
+                            try:
+                                x = np.load(instance_id[0])
+                            except:
+                                x = self.to_np_array(instance_id[0])
+                                
+                            data[i,] = x
+                            classes[i] = class_mapping[instance_id[1]]
+                        
+                        self.classes += list(classes)
+                        
+                        return (
+                            data,
+                            to_categorical(
+                                classes,
+                                num_classes=self.n_classes
+                            )
+                        )
+                
+                {class_mapping}
+            
+                def sequence_path_reader(path='', validation_split=0.0):
+                    if path:
+                        classes = [x[0] for x in walk(path)][1:]
+                    else:
+                        raise ValueError(gettext('Data set path is invalid.'))
+                    
+                    if classes:
+                        files = []
+                        id = 0
+                        for class_path in classes:
+                            cls = class_path.split('/')[-1] # Get only class name
+                            if not cls in class_mapping:
+                                class_mapping[cls] = id
+                                id += 1
+                
+                            files += [(class_path+'/'+f, cls) for f in listdir(class_path) if isfile(join(class_path, f))]
+                            
+                        if validation_split:
+                            _index = int(len(files)*validation_split)
+                            
+                            training_files = files[_index:]
+                            validation_files = files[0:_index]
+                            
+                            return {_return}
+                        else:
+                            return files
+                            
+                """
+            ).format(_return='{"training": training_files, '
+                             '"validation": validation_files}',
+                     class_mapping='class_mapping = {}')
+        else:
+            return dedent("""""")
+
+    def generate_code(self):
+        if self.sequence_training:
+            if self.validation_split == 0:
+                return dedent(
+                    """
+                    training_sequence_path = sequence_path_reader(
+                        path={path}
+                    )
+                    
+                    train_{var_name} = SequenceGenerator(
+                        sequence_path=training_sequence_path,
+                        batch_size={batch_size},
+                        shape={shape},
+                        n_classes=len(class_mapping),
+                        shuffle={shuffle}
+                    )
+                    
+                    predict_train_{var_name} = SequenceGenerator(
+                        sequence_path=train_{var_name}.sequence_path,
+                        batch_size={batch_size},
+                        shape={shape},
+                        n_classes=len(class_mapping),
+                        shuffle=False
+                    )
+
+                    """
+                ).format(var_name=self.var_name,
+                         path=self.sequence_training,
+                         batch_size=self.batch_size,
+                         shuffle=self.shuffle,
+                         shape=self.shape)
+            else:
+                return dedent(
+                    """
+                    sequence_path = sequence_path_reader(
+                        path={path},
+                        validation_split={validation_split}
+                    )
+                    
+                    train_{var_name} = SequenceGenerator(
+                        sequence_path=sequence_path[{subset_training}],
+                        batch_size={batch_size},
+                        shape={shape},
+                        n_classes=len(class_mapping),
+                        shuffle={shuffle}
+                    )
+                    
+                    predict_train_{var_name} = SequenceGenerator(
+                        sequence_path=train_{var_name}.sequence_path[{subset_training}],
+                        batch_size={batch_size},
+                        shape={shape},
+                        n_classes=len(class_mapping),
+                        shuffle=False
+                    )
+
+                    validation_{var_name} = SequenceGenerator(
+                        sequence_path=sequence_path[{subset_validation}],
+                        batch_size={batch_size},
+                        shape={shape},
+                        n_classes=len(class_mapping),
+                        shuffle={shuffle}
+                    )
+                    
+                    predict_validation_{var_name} = SequenceGenerator(
+                        sequence_path=validation_{var_name}.sequence_path[{subset_validation}],
+                        batch_size={batch_size},
+                        shape={shape},
+                        n_classes=len(class_mapping),
+                        shuffle=False
+                    )
+                    """
+                ).format(var_name=self.var_name,
+                         path=self.sequence_training,
+                         validation_split=self.validation_split,
+                         batch_size=self.batch_size,
+                         shuffle=self.shuffle,
+                         shape=self.shape)
+
+        if self.sequence_validation:
+            return dedent(
+                """
+                validation_sequence_path = sequence_path_reader(
+                        path={path}
+                )
+                    
+                validation_{var_name} = SequenceGenerator(
+                    sequence_path=validation_sequence_path,
+                    batch_size={batch_size},
+                    shape={shape},
+                    n_classes=len(class_mapping),
+                    shuffle={shuffle}
+                )
+                
+                predict_validation_{var_name} = SequenceGenerator(
+                    sequence_path=validation_{var_name}.sequence_path,
+                    batch_size={batch_size},
+                    shape={shape},
+                    n_classes=len(class_mapping),
+                    shuffle=False
+                )
+                """
+            ).format(var_name=self.var_name,
+                     path=self.sequence_validation,
+                     batch_size=self.batch_size,
+                     shuffle=self.shuffle,
+                     shape=self.shape)
+
+        if self.sequence_test:
+            return dedent(
+                """
+                test_sequence_path = sequence_path_reader(
+                        path={path}
+                )
+                    
+                test_{var_name} = SequenceGenerator(
+                    sequence_path=test_sequence_path,
+                    batch_size={batch_size},
+                    shape={shape},
+                    n_classes=len(class_mapping),
+                    shuffle={shuffle}
+                )
+                """
+            ).format(var_name=self.var_name,
+                     path=self.sequence_test,
+                     batch_size=self.batch_size,
+                     shuffle=self.shuffle,
+                     shape=self.shape)
 
 
 class VideoGenerator(Operation):
@@ -652,7 +1035,7 @@ class VideoGenerator(Operation):
             if self.video_training:
                 return dedent(
                     """     
-                    class {generator_name}(object):
+                    class {generator_name}(keras.utils.Sequence):
                         def __init__(self, videos_path=[],
                                            batch_size=16,
                                            data_shape=None,
@@ -665,45 +1048,51 @@ class VideoGenerator(Operation):
                             self.n_classes = n_classes
                             self.shuffle = shuffle
                             self.classes = []
+                            self.to_fit = True
                             
+                            self.on_epoch_end()
+                            
+                        def on_epoch_end(self):
+                            self.instances_indexes = np.arange(len(self.videos_path))
                             if self.shuffle:
-                                random.shuffle(self.videos_path)
+                                np.random.shuffle(self.instances_indexes)
+                                
+                        def __len__(self):
+                            return int(len(self.videos_path) / self.batch_size)
                             
-                        def next_video(self):
-                            'Generates data containing batch_size samples' # X : (n_samples, *dim, n_channels)
-                            # Initialization
-                            data = np.empty(self.data_shape)
-                            classes = np.empty((self.batch_size), dtype=int)
+                        def __getitem__(self, index):
+                            # Generate indexes of the batch
+                            indexes = self.instances_indexes[index * self.batch_size:(index + 1) * self.batch_size]
+                            
+                            # Find list of IDs
+                            batch_ids = [self.videos_path[k] for k in indexes]
                             
                             # Generate data
-                            while True:
-                                i = 0
-                                for _file, cls in self.videos_path:
-                                    x = np.load(_file)['frames']
-                                    data[i,] = x
-                
-                                    classes[i] = class_mapping[cls]
-                                    i += 1
-                                    
-                                    if i % self.batch_size == 0:                                            
-                                        yield (
-                                            data,
-                                            to_categorical(
-                                                classes,
-                                                num_classes=self.n_classes
-                                            )
-                                        )
-                                        self.classes += list(classes)
-                                        i = 0
-                                if i > 0:
-                                    yield (
-                                        data[:i],
-                                        to_categorical(
-                                            classes[:i],
-                                            num_classes=self.n_classes
-                                        )
-                                    )
-                                    self.classes += list(classes[:i])
+                            X, y = self.__data_generation(batch_ids)
+                            
+                            if self.to_fit:
+                                return X, y
+                            else:
+                                return X
+                        
+                        def __data_generation(self, batch_ids):
+                            data = np.empty(self.data_shape)
+                            classes = np.empty(self.data_shape[0], dtype=int)
+                            
+                            for i, instance_id in enumerate(batch_ids):
+                                x = np.load(instance_id[0])['frames']
+                                data[i,] = x
+                                classes[i] = class_mapping[instance_id[1]]
+                            
+                            self.classes += list(classes)
+                            
+                            return (
+                                data,
+                                to_categorical(
+                                    classes,
+                                    num_classes=self.n_classes
+                                )
+                            )
                     
                     {class_mapping}
                 
@@ -743,7 +1132,7 @@ class VideoGenerator(Operation):
             elif self.video_validation:
                 return dedent(
                     """     
-                    class {generator_name}(object):
+                    class {generator_name}(keras.utils.Sequence):
                         def __init__(self, videos_path=[],
                                            batch_size=16,
                                            data_shape=None,
@@ -756,51 +1145,57 @@ class VideoGenerator(Operation):
                             self.n_classes = n_classes
                             self.shuffle = shuffle
                             self.classes = []
+                            self.to_fit = True
                             
+                            self.on_epoch_end()
+                            
+                        def on_epoch_end(self):
+                            self.instances_indexes = np.arange(len(self.videos_path))
                             if self.shuffle:
-                                random.shuffle(self.videos_path)
+                                np.random.shuffle(self.instances_indexes)
+                                
+                        def __len__(self):
+                            return int(len(self.videos_path) / self.batch_size)
                             
-                        def next_video(self):
-                            'Generates data containing batch_size samples' # X : (n_samples, *dim, n_channels)
-                            # Initialization
-                            data = np.empty(self.data_shape)
-                            classes = np.empty((self.batch_size), dtype=int)
+                        def __getitem__(self, index):
+                            # Generate indexes of the batch
+                            indexes = self.instances_indexes[index * self.batch_size:(index + 1) * self.batch_size]
+                            
+                            # Find list of IDs
+                            batch_ids = [self.videos_path[k] for k in indexes]
                             
                             # Generate data
-                            while True:
-                                i = 0
-                                for _file, cls in self.videos_path:
-                                    x = np.load(_file)['frames']
-                                    data[i,] = x
-                
-                                    classes[i] = class_mapping[cls]
-                                    i += 1
-                                    
-                                    if i % self.batch_size == 0:
-                                        yield (
-                                            data,
-                                            to_categorical(
-                                                classes,
-                                                num_classes=self.n_classes
-                                            )
-                                        )
-                                        self.classes += list(classes)
-                                        i = 0
-                                if i > 0:
-                                    yield (
-                                        data[:i],
-                                        to_categorical(
-                                            classes[:i],
-                                            num_classes=self.n_classes
-                                        )
-                                    )
-                                    self.classes += list(classes[:i])
+                            X, y = self.__data_generation(batch_ids)
+                            
+                            if self.to_fit:
+                                return X, y
+                            else:
+                                return X
+                        
+                        def __data_generation(self, batch_ids):
+                            data = np.empty(self.data_shape)
+                            classes = np.empty(self.data_shape[0], dtype=int)
+                            
+                            for i, instance_id in enumerate(batch_ids):
+                                x = np.load(instance_id[0])['frames']
+                                data[i,] = x
+                                classes[i] = class_mapping[instance_id[1]]
+                            
+                            self.classes += list(classes)
+                            
+                            return (
+                                data,
+                                to_categorical(
+                                    classes,
+                                    num_classes=self.n_classes
+                                )
+                            )
                     """
                 ).format(generator_name=generator_name)
             elif self.video_test:
                 return dedent(
                     """     
-                    class {generator_name}(object):
+                    class {generator_name}(keras.utils.Sequence):
                         def __init__(self, videos_path=[],
                                            batch_size=16,
                                            data_shape=None,
@@ -813,49 +1208,51 @@ class VideoGenerator(Operation):
                             self.n_classes = n_classes
                             self.shuffle = shuffle
                             self.classes = []
+                            self.to_fit = False
                             
+                            self.on_epoch_end()
+                            
+                        def on_epoch_end(self):
+                            self.instances_indexes = np.arange(len(self.videos_path))
                             if self.shuffle:
-                                random.shuffle(self.videos_path)
+                                np.random.shuffle(self.instances_indexes)
+                                
+                        def __len__(self):
+                            return int(len(self.videos_path) / self.batch_size)
                             
-                        def next_video(self):
-                            'Generates data containing batch_size samples' # X : (n_samples, *dim, n_channels)
-                            # Initialization
-                            data = np.empty(self.data_shape)
-                            classes = np.empty((self.batch_size), dtype=int)
+                        def __getitem__(self, index):
+                            # Generate indexes of the batch
+                            indexes = self.instances_indexes[index * self.batch_size:(index + 1) * self.batch_size]
+                            
+                            # Find list of IDs
+                            batch_ids = [self.videos_path[k] for k in indexes]
                             
                             # Generate data
-                            while True:
-                                i = 0
-                                for _file, cls in self.videos_path:
-                                    x = np.load(_file)['frames']
-                                    data[i,] = x
-                
-                                    classes[i] = class_mapping[cls]
-                                    i += 1
-                                    
-                                    if i % self.batch_size == 0:
-                                        if len(self.classes) < len(self.videos_path):
-                                            self.classes += list(classes)
-                                            
-                                        yield (
-                                            data,
-                                            to_categorical(
-                                                classes,
-                                                num_classes=self.n_classes
-                                            )
-                                        )
-                                        i = 0
-                                if i > 0:
-                                    if len(self.classes) < len(self.videos_path):
-                                        self.classes += list(classes[:i])
-                                        
-                                    yield (
-                                        data[:i],
-                                        to_categorical(
-                                            classes[:i],
-                                            num_classes=self.n_classes
-                                        )
-                                    )
+                            X, y = self.__data_generation(batch_ids)
+                            
+                            if self.to_fit:
+                                return X, y
+                            else:
+                                return X
+                        
+                        def __data_generation(self, batch_ids):
+                            data = np.empty(self.data_shape)
+                            classes = np.empty(self.data_shape[0], dtype=int)
+                            
+                            for i, instance_id in enumerate(batch_ids):
+                                x = np.load(instance_id[0])['frames']
+                                data[i,] = x
+                                classes[i] = class_mapping[instance_id[1]]
+                            
+                            self.classes += list(classes)
+                            
+                            return (
+                                data,
+                                to_categorical(
+                                    classes,
+                                    num_classes=self.n_classes
+                                )
+                            )
                     """
                 ).format(generator_name=generator_name)
 
@@ -877,9 +1274,6 @@ class VideoGenerator(Operation):
                             self.shuffle = shuffle
                             self.classes = []
                             
-                            if self.shuffle:
-                                random.shuffle(self.videos_path)
-                            
                         def next_video(self):
                             'Generates data containing batch_size samples' # X : (n_samples, *dim, n_channels)
                             # Initialization
@@ -889,6 +1283,9 @@ class VideoGenerator(Operation):
                             # Generate data    
                             while True:
                                 i = 0
+                                if self.shuffle:
+                                    random.shuffle(self.videos_path)
+                                
                                 for _file, cls in self.videos_path:
                                     x = np.load(_file)['frames']
                                     h_init = random.randint({height})
@@ -975,9 +1372,6 @@ class VideoGenerator(Operation):
                             self.shuffle = shuffle
                             self.classes = []
                             
-                            if self.shuffle:
-                                random.shuffle(self.videos_path)
-                            
                         def next_video(self):
                             'Generates data containing batch_size samples' # X : (n_samples, *dim, n_channels)
                             # Initialization
@@ -987,6 +1381,9 @@ class VideoGenerator(Operation):
                             # Generate data  
                             while True:
                                 i = 0
+                                if self.shuffle:
+                                    random.shuffle(self.videos_path)
+                                    
                                 for _file, cls in self.videos_path:
                                     x = np.load(_file)['frames']
                                     h_init = random.randint({height})
@@ -1040,9 +1437,6 @@ class VideoGenerator(Operation):
                             self.shuffle = shuffle
                             self.classes = []
                             
-                            if self.shuffle:
-                                random.shuffle(self.videos_path)
-                            
                         def next_video(self):
                             'Generates data containing batch_size samples' # X : (n_samples, *dim, n_channels)
                             # Initialization
@@ -1052,6 +1446,9 @@ class VideoGenerator(Operation):
                             # Generate data  
                             while True:
                                 i = 0
+                                if self.shuffle:
+                                    random.shuffle(self.videos_path)
+                                    
                                 for _file, cls in self.videos_path:
                                     x = np.load(_file)['frames']
                                     h_init = random.randint({height})
@@ -1111,9 +1508,6 @@ class VideoGenerator(Operation):
                             self.shuffle = shuffle
                             self.classes = []
                             
-                            if self.shuffle:
-                                random.shuffle(self.videos_path)
-                            
                         def next_video(self):
                             'Generates data containing batch_size samples' # X : (n_samples, *dim, n_channels)
                             # Initialization
@@ -1123,6 +1517,9 @@ class VideoGenerator(Operation):
                             # Generate data    
                             while True:
                                 i = 0
+                                if self.shuffle:
+                                    random.shuffle(self.videos_path)
+                                    
                                 for _file, cls in self.videos_path:
                                     x = np.load(_file)['frames']
                                     data[i,] = x[{frames}, {height}, {width}, {channel}] 
@@ -1204,9 +1601,6 @@ class VideoGenerator(Operation):
                             self.shuffle = shuffle
                             self.classes = []
                             
-                            if self.shuffle:
-                                random.shuffle(self.videos_path)
-                            
                         def next_video(self):
                             'Generates data containing batch_size samples' # X : (n_samples, *dim, n_channels)
                             # Initialization
@@ -1216,6 +1610,9 @@ class VideoGenerator(Operation):
                             # Generate data
                             while True:
                                 i = 0
+                                if self.shuffle:
+                                    random.shuffle(self.videos_path)
+                                    
                                 for _file, cls in self.videos_path:
                                     x = np.load(_file)['frames']
                                     data[i,] = x[{frames}, {height}, {width}, {channel}] 
@@ -1267,9 +1664,6 @@ class VideoGenerator(Operation):
                             self.shuffle = shuffle
                             self.classes = []
                             
-                            if self.shuffle:
-                                random.shuffle(self.videos_path)
-                            
                         def next_video(self):
                             'Generates data containing batch_size samples' # X : (n_samples, *dim, n_channels)
                             # Initialization
@@ -1279,6 +1673,9 @@ class VideoGenerator(Operation):
                             # Generate data   
                             while True:
                                 i = 0
+                                if self.shuffle:
+                                    random.shuffle(self.videos_path)
+                                    
                                 for _file, cls in self.videos_path:
                                     x = np.load(_file)['frames']
                                     data[i,] = x[{frames}, {height}, {width}, {channel}] 
@@ -1340,7 +1737,7 @@ class VideoGenerator(Operation):
                         shuffle={shuffle}
                     )
                     
-                    train_{var_name} = training_video_generator.next_video()
+                    train_{var_name} = training_video_generator#.next_video()
                     
                     predict_training_video_generator = VideoGeneratorTraining(
                         videos_path=training_video_generator.videos_path,
@@ -1350,7 +1747,7 @@ class VideoGenerator(Operation):
                         shuffle=False
                     )
 
-                    predict_train_{var_name} = predict_training_video_generator.next_video()
+                    predict_train_{var_name} = predict_training_video_generator#.next_video()
                     """
                 ).format(var_name=self.var_name,
                          path=self.video_training,
@@ -1374,7 +1771,7 @@ class VideoGenerator(Operation):
                         shuffle={shuffle}
                     )
                     
-                    train_{var_name} = training_video_generator.next_video()
+                    train_{var_name} = training_video_generator#.next_video()
                     
                     predict_training_video_generator = VideoGeneratorTraining(
                         videos_path=training_video_generator.videos_path[{subset_training}],
@@ -1384,7 +1781,7 @@ class VideoGenerator(Operation):
                         shuffle=False
                     )
 
-                    predict_train_{var_name} = predict_training_video_generator.next_video()
+                    predict_train_{var_name} = predict_training_video_generator#.next_video()
                     
                     validation_video_generator = VideoGenerator(
                         videos_path=videos_path[{subset_validation}],
@@ -1394,7 +1791,7 @@ class VideoGenerator(Operation):
                         shuffle={shuffle}
                     )
                     
-                    validation_{var_name} = validation_video_generator.next_video()
+                    validation_{var_name} = validation_video_generator#.next_video()
                     
                     predict_validation_video_generator = VideoGenerator(
                         videos_path=validation_video_generator.videos_path[{subset_validation}],
@@ -1404,7 +1801,7 @@ class VideoGenerator(Operation):
                         shuffle=False
                     )
 
-                    predict_validation_{var_name} = predict_validation_video_generator.next_video()
+                    predict_validation_{var_name} = predict_validation_video_generator#.next_video()
                     """
                 ).format(var_name=self.var_name,
                          path=self.video_training,
@@ -1430,7 +1827,7 @@ class VideoGenerator(Operation):
                     shuffle={shuffle}
                 )
                 
-                validation_{var_name} = validation_video_generator.next_video()
+                validation_{var_name} = validation_video_generator#.next_video()
                 
                 predict_validation_video_generator = VideoGeneratorValidation(
                     videos_path=validation_video_generator.videos_path,
@@ -1440,7 +1837,7 @@ class VideoGenerator(Operation):
                     shuffle=False
                 )
 
-                predict_validation_{var_name} = predict_validation_video_generator.next_video()
+                predict_validation_{var_name} = predict_validation_video_generator#.next_video()
                 """
             ).format(var_name=self.var_name,
                      path=self.video_validation,
@@ -1463,7 +1860,7 @@ class VideoGenerator(Operation):
                     shuffle={shuffle}
                 )
                 
-                test_{var_name} = test_video_generator.next_video()
+                test_{var_name} = test_video_generator#.next_video()
                 
                 """
             ).format(var_name=self.var_name,

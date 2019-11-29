@@ -1,16 +1,14 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-import json
-
-from keras.callbacks import Callback
-
 """
 Auto-generated Keras code from Lemonade Workflow
 (c) Speed Labs - Departamento de Ciência da Computação
     Universidade Federal de Minas Gerais
 More information about Lemonade to be provided
 """
+
 import tensorflow
+import keras
 from keras.callbacks import Callback
 from keras import backend as K
 {{transpiler.get_imports(instances)}}
@@ -22,17 +20,10 @@ from time import time
 from keras import metrics
 from juicer.keras.callbacks import JuicerCallback
 
-{{"\n"}}
-{%- for instance in instances %}
-{%- if instance.has_external_code and instance.enabled %}
-{{ instance.external_code().strip() | indent(width=0, indentfirst=False) }}
-{%- endif -%}
-{%- endfor -%}
-{{"\n"}}
 def emit_layer_before_add(task_id, emit_event):
     emit_event(name='update task', message='', status='RUNNING',
                identifier=task_id, type='SILENT')
-{{"\n"}}
+
 def emit_layer_added(task_id, emit_event):
     emit_event(name='update task', message='', type='SILENT',
                status='COMPLETED', identifier=task_id)
@@ -80,18 +71,22 @@ class ExecutionHistory(Callback):
         self.emit_event(name='update task', message=json.dumps(msg),
                    status='RUNNING', identifier=self.output_task_id)
 
-{%- with create_method=True %}
-{%- for instance in instances %}
+{% for instance in instances %}
+{%- if instance.has_external_code and instance.enabled %}
+{{ instance.external_code().strip() | indent(width=0, indentfirst=False) }}
+{% endif -%}
+{% endfor -%}
+
+{% for instance in instances %}
 {%- if instance.has_external_python_code_operation and instance.enabled %}
-{%- if create_method %}
-def preNN():
-{%- with create_method=False %}
-{% endwith %}
-{{ instance.generate_code().strip() | indent(width=4, indentfirst=False) }}
-{%- endif -%}
-{%- endif -%}
-{%- endfor -%}
-{% endwith %}
+{%- set task = instance.parameters.task %}
+{%- set task_id = task.id %}
+# Task {{task_id}}
+#emit_layer_before_add('{{task_id}}', emit_event)
+{{ instance.generate_code().strip() | indent(width=0, indentfirst=False) }}
+#emit_layer_added('{{task_id}}', emit_event)
+{% endif -%}
+{% endfor %}
 
 def main(session, cached_state, emit_event):
 

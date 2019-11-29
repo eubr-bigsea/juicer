@@ -952,7 +952,7 @@ class MaxPooling1D(Operation):
 
         self.add_functions_required = ""
 
-        if self.POOL_SIZE_PARAM is None:
+        if self._pool_size is None:
             raise ValueError(gettext('Parameter {} is required.')
                              .format(self.POOL_SIZE_PARAM))
 
@@ -1077,7 +1077,7 @@ class MaxPooling2D(Operation):
 
         self.add_functions_required = ""
 
-        if self.POOL_SIZE_PARAM is None:
+        if self._pool_size is None:
             raise ValueError(gettext('Parameter {} is required.')
                              .format(self.POOL_SIZE_PARAM))
 
@@ -1173,6 +1173,7 @@ class MaxPooling3D(Operation):
     DATA_FORMAT_PARAM = 'data_format'
     KWARG_PARAM = 'kwargs'
     ADVANCED_OPTIONS_PARAM = 'advanced_options'
+    TRAINABLE_OPTIONS_PARAM = 'trainable'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
@@ -1185,6 +1186,7 @@ class MaxPooling3D(Operation):
         self._data_format = parameters.get(self.DATA_FORMAT_PARAM, None)
         self._kwargs = parameters.get(self.KWARG_PARAM, None)
         self._advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
+        self._trainable = parameters.get(self.TRAINABLE_OPTIONS_PARAM, 0)
 
         self.pool_size = None
         self.strides = None
@@ -1192,6 +1194,7 @@ class MaxPooling3D(Operation):
         self.data_format = None
         self.kwargs = None
         self.advanced_options = None
+        self.trainable = None
 
         self.task_name = self.parameters.get('task').get('name')
 
@@ -1201,7 +1204,7 @@ class MaxPooling3D(Operation):
 
         self.add_functions_required = ""
 
-        if self.POOL_SIZE_PARAM is None:
+        if self._pool_size is None:
             raise ValueError(gettext('Parameter {} is required.')
                              .format(self.POOL_SIZE_PARAM))
 
@@ -1249,6 +1252,9 @@ class MaxPooling3D(Operation):
 
         self.advanced_options = True if int(self._advanced_options) == 1 else \
             False
+        self.trainable = True if int(self._trainable) == 1 else \
+            False
+
         if self.advanced_options:
             self.strides = get_tuple(self._strides)
             if self.strides is not None:
@@ -1271,6 +1277,9 @@ class MaxPooling3D(Operation):
             if self._kwargs is not None:
                 self.kwargs = self._kwargs.replace(' ', '').split(',')
                 functions_required.append(',\n    '.join(self.kwargs))
+
+        if not self.trainable:
+            functions_required.append('''trainable=False''')
 
         self.add_functions_required = ',\n    '.join(functions_required)
         if self.add_functions_required:
