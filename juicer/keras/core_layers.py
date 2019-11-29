@@ -159,6 +159,7 @@ class Dense(Operation):
     KERNEL_CONSTRAINT_PARAM = 'kernel_constraint'
     BIAS_CONSTRAINT_PARAM = 'bias_constraint'
     ADVANCED_OPTIONS_PARAM = 'advanced_options'
+    TRAINABLE_OPTIONS_PARAM = 'trainable'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
@@ -187,6 +188,7 @@ class Dense(Operation):
         self._bias_constraint = parameters.get(self.BIAS_CONSTRAINT_PARAM,
                                               None)
         self._advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
+        self._trainable = parameters.get(self.TRAINABLE_OPTIONS_PARAM, 0)
 
         self.units = None
         self.activation = None
@@ -199,6 +201,7 @@ class Dense(Operation):
         self.kernel_constraint = None
         self.bias_constraint = None
         self.advanced_options = None
+        self.trainable = None
 
         self.add_functions_required = ""
         self.task_name = self.parameters.get('task').get('name')
@@ -253,6 +256,9 @@ class Dense(Operation):
 
         self.advanced_options = True if int(self._advanced_options) == 1 else \
             False
+        self.trainable = True if int(self._trainable) == 1 else \
+            False
+
         if self.advanced_options:
             if self._kernel_initializer:
                 self.kernel_initializer = \
@@ -299,6 +305,9 @@ class Dense(Operation):
             functions_required.append("""use_bias={use_bias}""".format(
                 use_bias=self.use_bias))
 
+        if not self.trainable:
+            functions_required.append('''trainable=False''')
+
         self.add_functions_required = ',\n    '.join(functions_required)
         if self.add_functions_required:
             self.add_functions_required = ',\n    ' + \
@@ -322,6 +331,7 @@ class Dropout(Operation):
     NOISE_SHAPE_PARAM = 'noise_shape'
     SEED_PARAM = 'seed'
     ADVANCED_OPTIONS_PARAM = 'advanced_options'
+    TRAINABLE_OPTIONS_PARAM = 'trainable'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
@@ -336,11 +346,13 @@ class Dropout(Operation):
         self._noise_shape = parameters.get(self.NOISE_SHAPE_PARAM)
         self._seed = parameters.get(self.SEED_PARAM)
         self._advanced_options = parameters.get(self.ADVANCED_OPTIONS_PARAM, 0)
+        self._trainable = parameters.get(self.TRAINABLE_OPTIONS_PARAM, 0)
 
         self.rate = None
         self.noise_shape = None
         self.seed = None
         self.advanced_options = None
+        self.trainable = None
 
         self.task_name = self.parameters.get('task').get('name')
         self.parent = ""
@@ -390,6 +402,9 @@ class Dropout(Operation):
 
         self.advanced_options = True if int(self._advanced_options) == 1 else \
             False
+        self.trainable = True if int(self._trainable) == 1 else \
+            False
+
         if self.advanced_options:
             if self._noise_shape:
                 self.noise_shape = get_int_or_tuple(self._noise_shape)
@@ -403,6 +418,9 @@ class Dropout(Operation):
             if self.seed:
                 self.seed = """seed={seed}""".format(seed=self._seed)
                 functions_required.append(self.seed)
+
+        if not self.trainable:
+            functions_required.append('''trainable=False''')
 
         self.add_functions_required = ',\n    '.join(functions_required)
         if self.add_functions_required:
@@ -424,6 +442,7 @@ class Dropout(Operation):
 
 class Flatten(Operation):
     DATA_FORMAT_PARAM = 'data_format'
+    TRAINABLE_OPTIONS_PARAM = 'trainable'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
@@ -431,7 +450,11 @@ class Flatten(Operation):
                                         'out_task_{}'.format(self.order))
 
         self._data_format = parameters.get(self.DATA_FORMAT_PARAM)
+        self._trainable = parameters.get(self.TRAINABLE_OPTIONS_PARAM, 0)
+
         self.data_format = None
+        self.trainable = None
+
         self.task_name = self.parameters.get('task').get('name')
         self.parent = ""
         self.var_name = ""
@@ -471,6 +494,9 @@ class Flatten(Operation):
         self.var_name = convert_variable_name(self.task_name)
         self.task_name = self.var_name
 
+        self.trainable = True if int(self._trainable) == 1 else \
+            False
+
         functions_required = []
         if self._data_format:
             self.data_format = get_tuple(self._data_format)
@@ -481,7 +507,13 @@ class Flatten(Operation):
                 raise ValueError(gettext('Parameter {} is invalid.').format(
                     self.DATA_FORMAT_PARAM))
 
+        if not self.trainable:
+            functions_required.append('''trainable=False''')
+
         self.add_functions_required = ',\n    '.join(functions_required)
+        if self.add_functions_required:
+            self.add_functions_required = ',\n    ' + \
+                                          self.add_functions_required
 
     def generate_code(self):
         return dedent(
