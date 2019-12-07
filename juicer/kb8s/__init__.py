@@ -99,6 +99,7 @@ def create_kb8s_job(workflow_id, minion_cmd, cluster):
     container_name = 'juicer-job'
     container_image = cluster_params['kubernetes.container']
     namespace = cluster_params['kubernetes.namespace']
+    pull_policy = cluster_params.get('kubernetes.pull_policy', 'Always')
 
     gpus = int(cluster_params.get('kubernetes.resources.gpus', 0))
 
@@ -142,7 +143,7 @@ def create_kb8s_job(workflow_id, minion_cmd, cluster):
     container = client.V1Container(name=container_name,
                                    image=container_image,
                                    env=env_list, command=minion_cmd,
-                                   image_pull_policy='Always',
+                                   image_pull_policy=pull_policy,
                                    volume_mounts=volume_mounts,
                                    resources=resources)
 
