@@ -44,7 +44,7 @@ def estimate_time_with_performance_model(payload):
             if platform == 'spark':
                 cores = get_cores_info(config)
                 result = _estimate_for_spark(cores, path, payload)
-            elif platform == 'keras':
+            elif platform == 'keras' or platform == 'scikit-learn':
                 gpus_configuration = get_gpus_configuration(cluster)
                 result = _estimate_for_keras(
                     gpus_configuration, path, payload, model)
@@ -70,11 +70,20 @@ def estimate_time_with_performance_model(payload):
 def _estimate_for_keras(gpus_configuration, path, payload, model):
     predictor = gpu_prediction.GpuPrediction(
         path, gpus_configuration)
+    iterations = payload['iterations']
+    pred_iterations = payload['data_size'] / payload['batch_size'] * iterations
     prediction = predictor.generate_predictions(
         str(os.path.basename(model['path']).split('.')[0]),
         payload.get('data_type', 'image'), payload['data_size'],
-        payload['batch_size'], payload['iterations'],
+        payload['batch_size'], pred_iterations,
         payload['deadline'])
+    print('predictor.generate_predictions(',
+          str(os.path.basename(model['path']).split('.')[0]), ',',
+          payload.get('data_type', 'image'), payload['data_size'],
+          payload['batch_size'], payload['iterations'],
+          payload['deadline'], ')')
+    print('** Prediction **')
+    print(prediction)
     results = [[list([[cores, time / 60.0] for cores, time in pair.items()])]
                for pair in prediction.values()][0]
     result = {
@@ -175,12 +184,13 @@ def cache_vallum_data(payload):
         print(payload)
         print('-' * 20)
         total = perform_copy(config, payload.get('data_source_id'),
-                     payload.get('storage_id'),
-                     payload.get('path'))
+                             payload.get('storage_id'),
+                             payload.get('path'))
         return {
-                'status': 'OK',
-                'message': '{} file(s) copied from Vallum to Storage.'.format(total),
-                }
+            'status': 'OK',
+            'message': '{} file(s) copied from Vallum to Storage.'.format(
+                total),
+        }
     except Exception as ex:
         result = {
             'status': 'ERROR',
