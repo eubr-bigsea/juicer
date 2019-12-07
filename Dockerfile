@@ -1,4 +1,4 @@
-FROM ubuntu:18.04 as base
+FROM tensorflow/tensorflow:1.15.0-gpu as base
 
 LABEL maintainer="Vinicius Dias <viniciusvdias@dcc.ufmg.br>, Guilherme Maluf <guimaluf@dcc.ufmg.br>, Walter Santos <walter@dcc.ufmg.br>"
 
