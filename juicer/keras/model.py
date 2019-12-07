@@ -683,7 +683,7 @@ class FitGenerator(Operation):
                             
                             # Reports for the training
                             batch_size = {train_generator}.batch_size
-                            number_of_videos = len({train_generator}.classes)
+                            number_of_videos = len({train_generator}.videos_path)
                             
                             if number_of_videos % batch_size == 0:
                                 steps = number_of_videos // batch_size
@@ -717,7 +717,7 @@ class FitGenerator(Operation):
                             
                             # Reports for the validation
                             batch_size = {val_generator}.batch_size
-                            number_of_videos = len({val_generator}.classes)
+                            number_of_videos = len({val_generator}.videos_path)
                             
                             if number_of_videos % batch_size == 0:
                                 steps = number_of_videos // batch_size
@@ -781,7 +781,7 @@ class FitGenerator(Operation):
                             
                             # Reports for the training
                             batch_size = {train_generator}.batch_size
-                            number_of_videos = len({train_generator}.classes)
+                            number_of_videos = len({train_generator}.videos_path)
                             
                             if number_of_videos % batch_size == 0:
                                 steps = number_of_videos // batch_size
@@ -816,7 +816,7 @@ class FitGenerator(Operation):
                             
                             # Reports for the validation
                             batch_size = {val_generator}.batch_size
-                            number_of_videos = len({val_generator}.classes)
+                            number_of_videos = len({val_generator}.videos_path)
                             
                             if number_of_videos % batch_size == 0:
                                 steps = number_of_videos // batch_size
@@ -886,7 +886,7 @@ class FitGenerator(Operation):
                             
                             # Reports for the training
                             batch_size = {train_generator}.batch_size
-                            number_of_videos = len({train_generator}.classes)
+                            number_of_videos = len({train_generator}.videos_path)
                             
                             if number_of_videos % batch_size == 0:
                                 steps = number_of_videos // batch_size
@@ -950,7 +950,7 @@ class FitGenerator(Operation):
                             
                             # Reports for the training
                             batch_size = {train_generator}.batch_size
-                            number_of_videos = len({train_generator}.classes)
+                            number_of_videos = len({train_generator}.videos_path)
                             
                             if number_of_videos % batch_size == 0:
                                 steps = number_of_videos // batch_size
