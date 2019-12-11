@@ -11,6 +11,7 @@ from juicer.keras import recurrent_layers
 from juicer.keras import normalization_layers
 from juicer.keras import pre_trained_layers
 from juicer.keras import advanced_layers
+from juicer.keras import advanced_activations_layers
 from juicer.keras import model
 from juicer.keras import preprocessing
 from juicer.keras import input_output_data
@@ -56,6 +57,7 @@ class KerasTranspiler(Transpiler):
             'dense': core_layers.Dense,
             'dot': merge_layers.Dot,
             'dropout': core_layers.Dropout,
+            'elu': advanced_activations_layers.ELU,
             'evaluate-model': model.EvaluateModel,
             'file-reader': input_output_data.FileReader,
             'fit-generator': model.FitGenerator,
@@ -74,6 +76,7 @@ class KerasTranspiler(Transpiler):
             'inception-v3': pre_trained_layers.InceptionV3,
             'input': core_layers.Input,
             'lambda': core_layers.Lambda,
+            'leakyrelu': advanced_activations_layers.LeakyReLU,
             #'loss': core_layers.Loss,
             #'loss-operation': core_layers.LossOperation,
             'load': model.Load,
@@ -92,7 +95,9 @@ class KerasTranspiler(Transpiler):
             #'output': core_layers.OutputOperation,
             'permute': core_layers.Permute,
             'predict': model.Predict,
+            'prelu': advanced_activations_layers.PReLU,
             'python-code': advanced_layers.PythonCode,
+            'relu': advanced_activations_layers.ReLU,
             'repeatVector': core_layers.RepeatVector,
             'reshape': core_layers.Reshape,
             #'rnn':core_layers.RNN,
@@ -102,10 +107,12 @@ class KerasTranspiler(Transpiler):
             'sequence-generator': preprocessing.SequenceGenerator,
             'simple-rnn': recurrent_layers.SimpleRNN,
             #'simple-rnn-cell': core_layers.SimpleRNNCell,
+            'softmax': advanced_activations_layers.Softmax,
             'spatialDropout1D': core_layers.SpatialDropout1D,
             'spatialDropout2D': core_layers.SpatialDropout2D,
             'spatialDropout3D': core_layers.SpatialDropout3D,
             'subtract': merge_layers.Subtract,
+            'thresholdedrelu': advanced_activations_layers.ThresholdedReLU,
             'up-sampling-1d': convolutional_layers.UpSampling1D,
             'up-sampling-2d': convolutional_layers.UpSampling2D,
             'up-sampling-3d': convolutional_layers.UpSampling3D,
