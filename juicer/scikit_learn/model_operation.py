@@ -10,17 +10,28 @@ class SafeDict(dict):
 
 
 class ApplyModelOperation(Operation):
-    NEW_ATTRIBUTE_PARAM = 'prediction'
+    FEATURES_PARAM = 'features'
+    PREDICTION_PARAM = 'prediction'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
-        self.has_code = any(
-            [len(self.named_inputs) == 2, self.contains_results()])
+        self.has_code = len(named_inputs) > 0 and any(
+            [len(self.named_outputs) > 0, self.contains_results()])
+        if self.has_code:
+            self.output = self.named_outputs.get('output data',
+                                                 'out_data_{}'.format(self.order))
 
-        self.new_attribute = parameters.get(self.NEW_ATTRIBUTE_PARAM,
-                                            'new_attribute')
+            self.model = self.named_inputs.get(
+                'model', 'model_{}'.format(self.order))
 
-        self.feature = parameters['features']
+            self.prediction = self.parameters.get(self.PREDICTION_PARAM, 'prediction')
+
+            if self.FEATURES_PARAM not in self.parameters:
+                msg = _("Parameters '{}' must be informed for task {}")
+                raise ValueError(msg.format(
+                    self.FEATURES_PARAM, self.__class__.__name__))
+            self.features = self.parameters.get(self.FEATURES_PARAM)
+
         if not self.has_code and len(self.named_outputs) > 0:
             raise ValueError(
                 _('Model is being used, but at least one input is missing'))
@@ -28,24 +39,20 @@ class ApplyModelOperation(Operation):
     def get_data_out_names(self, sep=','):
         return self.output
 
+    def get_output_names(self, sep=', '):
+        return sep.join([self.output, self.model])
+
     def generate_code(self):
-        input_data1 = self.named_inputs['input data']
-        output = self.named_outputs.get('output data',
-                                        'out_task_{}'.format(self.order))
-
-        model = self.named_inputs.get(
-            'model', 'model_task_{}'.format(self.order))
-
         code = dedent("""
-            {out} = {in1}
-            X_train = {in1}[{features}].values.tolist()
-            if hasattr({in2}, 'predict'):
-                {out}['{new_attr}'] = {in2}.predict(X_train).tolist()
-            else:
-                # to handle scaler operations
-                {out}['{new_attr}'] = {in2}.transform(X_train).tolist()
-            """.format(out=output, in1=input_data1, in2=model,
-                       new_attr=self.new_attribute, features=self.feature))
+                {out} = {in1}
+                X_train = {in1}[{features}].values.tolist()
+                if hasattr({in2}, 'predict'):
+                    {out}['{new_attr}'] = {in2}.predict(X_train).tolist()
+                else:
+                    # to handle scaler operations
+                    {out}['{new_attr}'] = {in2}.transform(X_train).tolist()
+                """.format(out=self.output, in1=self.named_inputs['input data'], in2=self.model,
+                           new_attr=self.prediction, features=self.features))
 
         return dedent(code)
 
