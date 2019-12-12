@@ -139,38 +139,38 @@ class EvaluateModelOperation(Operation):
                            named_outputs)
 
         self.prediction_attribute = (parameters.get(
-                self.PREDICTION_ATTRIBUTE_PARAM) or [''])[0]
-        self.feature_attribute = (parameters.get(
-                self.FEATURE_ATTRIBUTE_PARAM) or [''])[0]
+            self.PREDICTION_ATTRIBUTE_PARAM) or [''])[0]
+        # self.feature_attribute = (parameters.get(
+        #         self.FEATURE_ATTRIBUTE_PARAM) or [''])[0]
         self.label_attribute = (parameters.get(
-                self.LABEL_ATTRIBUTE_PARAM) or [''])[0]
+            self.LABEL_ATTRIBUTE_PARAM) or [''])[0]
         self.type_model = parameters.get(self.METRIC_PARAM) or ''
 
         if any([self.prediction_attribute == '', self.type_model == '']):
             msg = \
                 _("Parameters '{}' and '{}' must be informed for task {}")
             raise ValueError(msg.format(
-                    self.PREDICTION_ATTRIBUTE_PARAM,
-                    self.METRIC_PARAM, self.__class__))
+                self.PREDICTION_ATTRIBUTE_PARAM,
+                self.METRIC_PARAM, self.__class__))
 
         if self.type_model not in self.METRIC_TO_EVALUATOR:
             raise ValueError(_('Invalid metric value {}').format(
-                    self.type_model))
+                self.type_model))
 
-        if self.type_model == 'clustering':
-            if self.feature_attribute == '':
-                msg = \
-                    _("Parameters '{}' must be informed for task {}")
-                raise ValueError(msg.format(
-                        self.FEATURE_ATTRIBUTE_PARAM, self.__class__))
-            else:
-                self.label_attribute = self.feature_attribute
-        else:
-            if self.label_attribute == '':
-                msg = \
-                    _("Parameters '{}' must be informed for task {}")
-                raise ValueError(msg.format(
-                        self.LABEL_ATTRIBUTE_PARAM, self.__class__))
+        # if self.type_model == 'clustering':
+        #     if self.feature_attribute == '':
+        #         msg = \
+        #             _("Parameters '{}' must be informed for task {}")
+        #         raise ValueError(msg.format(
+        #                 self.FEATURE_ATTRIBUTE_PARAM, self.__class__))
+        #     else:
+        #         self.label_attribute = self.feature_attribute
+        # else:
+        if self.label_attribute == '':
+            msg = \
+                _("Parameters '{}' must be informed for task {}")
+            raise ValueError(msg.format(
+                self.LABEL_ATTRIBUTE_PARAM, self.__class__))
 
         self.has_code = any([(
                 (len(self.named_inputs) > 0 and len(self.named_outputs) > 0) or
@@ -178,16 +178,18 @@ class EvaluateModelOperation(Operation):
                 ('input data' in self.named_inputs)
         ), self.contains_results()])
 
-        self.model = self.named_inputs.get('model')
+        self.model = self.named_inputs.get(
+            'model', 'model_{}'.format(self.order))
+
         self.model_out = self.named_outputs.get(
-                'evaluated model', 'model_task_{}'.format(self.order))
+            'evaluated model', 'model_task_{}'.format(self.order))
 
         self.evaluator_out = self.named_outputs.get(
-                'evaluator', 'evaluator_task_{}'.format(self.order))
+            'evaluator', 'evaluator_task_{}'.format(self.order))
         if not self.has_code and self.named_outputs.get(
                 'evaluated model') is not None:
             raise ValueError(
-                    _('Model is being used, but at least one input is missing'))
+                _('Model is being used, but at least one input is missing'))
 
         self.supports_cache = False
         self.has_import = "from sklearn.metrics import * \n"
@@ -215,6 +217,25 @@ class EvaluateModelOperation(Operation):
                 label_col = '{label_attr}'
                 prediction_col = '{prediction_attr}'
                 {model_output} = None
+
+                y_pred = {input}[prediction_col].to_numpy().tolist()
+                y_true = {input}[label_col].to_numpy().tolist()
+
+                # Code for evaluating if the Label attribute is categorical
+                from pandas.api.types import is_numeric_dtype
+                if not is_numeric_dtype({input}[label_col]):
+                    from sklearn.preprocessing import LabelEncoder
+                    le = LabelEncoder()
+                    le.fit(y_true)
+                    final_label = le.transform(y_true)
+                    if model_type != 'clustering':
+                        final_pred = le.transform(y_pred)
+                    else:
+                        final_pred = y_pred
+                else:
+                    final_label = y_true
+                    final_pred = y_pred
+                # Used in summary              
                 """)]
 
             if self.type_model == 'classification':
@@ -268,10 +289,7 @@ class EvaluateModelOperation(Operation):
         area.
         """
         code.append(dedent("""
-            # classification metrics
-            y_pred = {input}[prediction_col].values.tolist()
-            y_true = {input}[label_col].values.tolist()
-           
+            # classification metrics           
             if display_image:
                 # Test if feature indexer is in global cache, because
                 # strings must be converted into numbers in order tho
@@ -347,13 +365,13 @@ class EvaluateModelOperation(Operation):
         """
         code.append(dedent("""
             # clustering metrics
-            y_pred = {input}[prediction_col].values.tolist()
-            y_true = {input}[label_col].values.tolist()
+           final_pred = np.array(final_pred).reshape(-1, 1)
+           final_label = np.array(final_label).reshape(-1, 1)
 
             if display_text:
                 headers = {table_headers}
                 rows = [
-                    ['Silhouette Coefficient',silhouette_score(y_true, y_pred)],
+                    ['Silhouette Coefficient',silhouette_score(final_label, final_pred)],
                     ['Calinski and Harabaz score', 
                      calinski_harabaz_score(y_true, y_pred)],
                 ]
@@ -380,9 +398,6 @@ class EvaluateModelOperation(Operation):
 
         code.append(dedent("""
             # regression metrics
-            y_pred = {input}[prediction_col].values.tolist()
-            y_true = {input}[label_col].values.tolist()
-           
             if display_text:
                 headers = {table_headers}
                 rows = [
@@ -443,7 +458,7 @@ class EvaluateModelOperation(Operation):
                 
                 report2 = MatplotlibChartReport()
 
-                identity = range(int(max(y_true[-1], y_pred[-1])))
+                identity = range(int(max(final_label[-1], final_pred[-1])))
                 emit_event(
                      'update task', status='COMPLETED',
                     identifier='{task_id}',
