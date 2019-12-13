@@ -44,15 +44,15 @@ class ApplyModelOperation(Operation):
 
     def generate_code(self):
         code = dedent("""
-                {out} = {in1}
-                X_train = {in1}[{features}].values.tolist()
-                if hasattr({in2}, 'predict'):
-                    {out}['{new_attr}'] = {in2}.predict(X_train).tolist()
-                else:
-                    # to handle scaler operations
-                    {out}['{new_attr}'] = {in2}.transform(X_train).tolist()
-                """.format(out=self.output, in1=self.named_inputs['input data'], in2=self.model,
-                           new_attr=self.prediction, features=self.features))
+            {out} = {in1}
+            X_train = {in1}[{features}].values.tolist()
+            if hasattr({in2}, 'predict'):
+                {out}['{new_attr}'] = {in2}.predict(X_train).tolist()
+            else:
+                # to handle scaler operations
+                {out}['{new_attr}'] = {in2}.transform(X_train).tolist()
+            """.format(out=self.output, in1=self.named_inputs['input data'], in2=self.model,
+                       new_attr=self.prediction, features=self.features))
 
         return dedent(code)
 
@@ -205,9 +205,9 @@ class EvaluateModelOperation(Operation):
             return ''
         else:
             display_text = self.parameters['task']['forms'].get(
-                    'display_text', {'value': 1}).get('value', 1) in (1, '1')
+                'display_text', {'value': 1}).get('value', 1) in (1, '1')
             display_image = self.parameters['task']['forms'].get(
-                    'display_image', {'value': 1}).get('value', 1) in (1, '1')
+                'display_image', {'value': 1}).get('value', 1) in (1, '1')
 
             code = [dedent("""
                 metric_value = 0.0
@@ -257,29 +257,29 @@ class EvaluateModelOperation(Operation):
             # """))
 
             code = "\n".join(code).format(
-                    display_text=display_text,
-                    display_image=display_image,
-                    evaluator_out=self.evaluator_out,
-                    join_plot_title=_('Prediction versus Residual'),
-                    join_plot_y_title=_('Residual'),
-                    join_plot_x_title=_('Prediction'),
-                    input=self.named_inputs['input data'],
-                    label_attr=self.label_attribute,
-                    model=self.model,
-                    model_output=self.model_out,
-                    model_type=self.type_model,
-                    operation_id=self.parameters['operation_id'],
-                    params_title=_('Parameters for this estimator'),
-                    params_table_headers=[_('Parameters'), _('Value')],
-                    plot_title=_('Actual versus Prediction'),
-                    plot_x_title=_('Actual'),
-                    plot_y_title=_('Prediction'),
-                    prediction_attr=self.prediction_attribute,
-                    table_headers=[_('Metric'), _('Value')],
-                    task_id=self.parameters['task_id'],
-                    title=_('Evaluation result'),
+                display_text=display_text,
+                display_image=display_image,
+                evaluator_out=self.evaluator_out,
+                join_plot_title=_('Prediction versus Residual'),
+                join_plot_y_title=_('Residual'),
+                join_plot_x_title=_('Prediction'),
+                input=self.named_inputs['input data'],
+                label_attr=self.label_attribute,
+                model=self.model,
+                model_output=self.model_out,
+                model_type=self.type_model,
+                operation_id=self.parameters['operation_id'],
+                params_title=_('Parameters for this estimator'),
+                params_table_headers=[_('Parameters'), _('Value')],
+                plot_title=_('Actual versus Prediction'),
+                plot_x_title=_('Actual'),
+                plot_y_title=_('Prediction'),
+                prediction_attr=self.prediction_attribute,
+                table_headers=[_('Metric'), _('Value')],
+                task_id=self.parameters['task_id'],
+                title=_('Evaluation result'),
             )
-            print (code)
+            # print(code)
             return dedent(code)
 
     @staticmethod
@@ -289,7 +289,7 @@ class EvaluateModelOperation(Operation):
         area.
         """
         code.append(dedent("""
-            # classification metrics           
+            # classification metrics
             if display_image:
                 # Test if feature indexer is in global cache, because
                 # strings must be converted into numbers in order tho
@@ -314,7 +314,7 @@ class EvaluateModelOperation(Operation):
                     operation_id={operation_id})
 
             if display_text:
-            
+
                 headers = {table_headers}
                 rows = [
                     ['F1', f1_score(y_true, y_pred, average='weighted')],
@@ -329,7 +329,7 @@ class EvaluateModelOperation(Operation):
                     ['Matthews correlation coefficient (MCC)', 
                      matthews_corrcoef(y_true, y_pred)],
                 ]
-                
+
                 if len(list(set(y_true))) == 2:
                     if set(y_true) != set([0,1]):
                         from sklearn.preprocessing import LabelEncoder
@@ -337,12 +337,12 @@ class EvaluateModelOperation(Operation):
                         le.fit(y_true)
                         y_true = le.transform(y_true)
                         y_pred = le.transform(y_pred)
-                    
+
                     rows.append(['Area under ROC', 
                      roc_auc_score(y_true, y_pred)])
                     rows.append(['Area under Precision-Recall', 
                      average_precision_score(y_true, y_pred)])
-                
+
                 content = SimpleTableReport(
                         'table table-striped table-bordered table-sm',
                         headers, rows,
@@ -364,16 +364,16 @@ class EvaluateModelOperation(Operation):
         Code for the evaluator when metric is related to clustering
         """
         code.append(dedent("""
-            # clustering metrics
-           final_pred = np.array(final_pred).reshape(-1, 1)
-           final_label = np.array(final_label).reshape(-1, 1)
+            # clustering metrics                        
+            final_pred = np.array(final_pred).reshape(-1, 1)
+            final_label = np.array(final_label).reshape(-1, 1)
 
             if display_text:
                 headers = {table_headers}
                 rows = [
                     ['Silhouette Coefficient',silhouette_score(final_label, final_pred)],
                     ['Calinski and Harabaz score', 
-                     calinski_harabaz_score(y_true, y_pred)],
+                     calinski_harabaz_score(final_label, final_pred)],
                 ]
 
                 content = SimpleTableReport(
@@ -409,7 +409,7 @@ class EvaluateModelOperation(Operation):
                     ['R^2 (coefficient of determination)', 
                      r2_score(y_true, y_pred)],
                 ]
-                
+
                 content = SimpleTableReport(
                         'table table-striped table-bordered table-sm',
                         headers, rows, title='{title}')
@@ -422,8 +422,8 @@ class EvaluateModelOperation(Operation):
                     task={{'id': '{task_id}'}},
                     operation={{'id': {operation_id}}},
                     operation_id={operation_id})
-                    
-                
+
+
             if len(y_true) < 2000 and display_image:
                 residuals = [t - p for t, p in zip(y_true, y_pred)]
                 pandas_df = pd.DataFrame.from_records(
@@ -444,7 +444,7 @@ class EvaluateModelOperation(Operation):
                     task=dict(id='{task_id}'),
                     operation=dict(id={operation_id}),
                     operation_id={operation_id})
-                    
+
         """))
 
     @staticmethod
@@ -452,10 +452,10 @@ class EvaluateModelOperation(Operation):
         """
         Return code for model's summary (test if it is present)
         """
-        code.append(dedent("""
-            # model's summary
+        code.append(dedent("""                               
+            # model's summary       
             if len(y_true) < 2000 and display_image:
-                
+
                 report2 = MatplotlibChartReport()
 
                 identity = range(int(max(final_label[-1], final_pred[-1])))
@@ -467,19 +467,19 @@ class EvaluateModelOperation(Operation):
                         '{plot_x_title}',
                         '{plot_y_title}',
                         identity, identity, 'r.',
-                        y_true, y_pred,'b.',),
+                        final_label, final_pred,'b.',),
                     type='IMAGE', title='{join_plot_title}',
                     task=dict(id='{task_id}'),
                     operation=dict(id={operation_id}),
                     operation_id={operation_id})
-                    
+
             if display_text:
                 rows = []
                 headers = {params_table_headers}
                 params = {model}.get_params()
                 for p in params:
                     rows.append([p, params[p]])
-                    
+
                 content = SimpleTableReport(
                         'table table-striped table-bordered table-sm',
                         headers, rows,
