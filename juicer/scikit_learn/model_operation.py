@@ -45,7 +45,7 @@ class ApplyModelOperation(Operation):
     def generate_code(self):
         code = dedent("""
             {out} = {in1}
-            X_train = {in1}[{features}].values.tolist()
+            X_train = {in1}[{features}].to_numpy().tolist()
             if hasattr({in2}, 'predict'):
                 {out}['{new_attr}'] = {in2}.predict(X_train).tolist()
             else:
@@ -324,8 +324,8 @@ class EvaluateModelOperation(Operation):
                      recall_score(y_true, y_pred, average='weighted')],
                     ['Accuracy', accuracy_score(y_true, y_pred)],
                     ['Cohens kappa', cohen_kappa_score(y_true, y_pred)],
-                    ['Jaccard similarity coefficient score', 
-                     jaccard_similarity_score(y_true, y_pred)],
+                    ['Jaccard coefficient score', 
+                     jaccard_score(y_true, y_pred, average='weighted')],
                     ['Matthews correlation coefficient (MCC)', 
                      matthews_corrcoef(y_true, y_pred)],
                 ]
