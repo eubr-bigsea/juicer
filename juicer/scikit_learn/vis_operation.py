@@ -941,9 +941,9 @@ class TableVisualizationModel(VisualizationModel):
         Returns data as tabular (list of lists in Python).
         """
         if self.column_names:
-            rows = self.data.head(50)[self.column_names].values.tolist()
+            rows = self.data.head(500)[self.column_names].values.tolist()
         else:
-            rows = self.data.head(50).values.tolist()
+            rows = self.data.head(500).values.tolist()
 
         return {"rows": rows,
                 "attributes": self.get_column_names().split(',')}
