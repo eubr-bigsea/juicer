@@ -1,5 +1,18 @@
 from textwrap import dedent
+import uuid
+from jinja2 import Environment, BaseLoader
 from juicer.operation import Operation
+from juicer.service import limonero_service
+
+from juicer import auditing
+
+try:
+    from urllib.request import urlopen
+    from urllib.parse import urlparse, parse_qs
+except ImportError:
+    from urllib.parse import urlparse, parse_qs
+    from urllib.request import urlopen
+
 import string
 
 
@@ -15,8 +28,9 @@ class ApplyModelOperation(Operation):
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
-        self.has_code = len(named_inputs) > 0 and any(
+        self.has_code = len(named_inputs) == 2 and any(
             [len(self.named_outputs) > 0, self.contains_results()])
+
         if self.has_code:
             self.output = self.named_outputs.get('output data',
                                                  'out_data_{}'.format(self.order))
@@ -24,7 +38,7 @@ class ApplyModelOperation(Operation):
             self.model = self.named_inputs.get(
                 'model', 'model_{}'.format(self.order))
 
-            self.prediction = self.parameters.get(self.PREDICTION_PARAM, 'prediction')
+            self.prediction = self.parameters.get(self.PREDICTION_PARAM, self.PREDICTION_PARAM)
 
             if self.FEATURES_PARAM not in self.parameters:
                 msg = _("Parameters '{}' must be informed for task {}")
@@ -44,7 +58,7 @@ class ApplyModelOperation(Operation):
 
     def generate_code(self):
         code = dedent("""
-            {out} = {in1}
+            {out} = {in1}.copy()
             X_train = {in1}[{features}].to_numpy().tolist()
             if hasattr({in2}, 'predict'):
                 {out}['{new_attr}'] = {in2}.predict(X_train).tolist()
@@ -93,32 +107,184 @@ class LoadModel(Operation):
 class SaveModel(Operation):
     """SaveModel.
     """
+    NAME_PARAM = 'name'
+    PATH_PARAM = 'path'
+    STORAGE_PARAM = 'storage'
+    SAVE_CRITERIA_PARAM = 'save_criteria'
+    WRITE_MODE_PARAM = 'write_mode'
+
+    CRITERIA_BEST = 'BEST'
+    CRITERIA_ALL = 'ALL'
+    CRITERIA_OPTIONS = [CRITERIA_BEST, CRITERIA_ALL]
+
+    WRITE_MODE_ERROR = 'ERROR'
+    WRITE_MODE_OVERWRITE = 'OVERWRITE'
+    WRITE_MODE_OPTIONS = [WRITE_MODE_ERROR,
+                          WRITE_MODE_OVERWRITE]
+
+    WORKFLOW_NAME_PARAM = 'workflow_name'
+    JOB_ID_PARAM = 'job_id'
+    USER_PARAM = 'user'
+    WORKFLOW_ID_PARAM = 'workflow_id'
 
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
 
-        self.has_code = 'name' in parameters and len(named_inputs) == 1
-        if not self.has_code:
+        self.parameters = parameters
+
+        self.name = parameters.get(self.NAME_PARAM)
+        self.storage_id = parameters.get(self.STORAGE_PARAM)
+
+        if self.name is None or self.storage_id is None:
+            msg = _('Missing parameters. Check if values for parameters {} '
+                    'were informed')
             raise ValueError(
-                _("Parameter '{}' must be informed for task {}")
-                .format('name', self.__class__))
-        self.filename = self.parameters['name']
-        self.overwrite = parameters.get('write_nome', 'OVERWRITE')
-        if self.overwrite == 'OVERWRITE':
-            self.overwrite = True
-        else:
-            self.overwrite = False
+                msg.format(', '.join([self.NAME_PARAM, self.STORAGE_PARAM])))
+
+        self.path = parameters.get(self.PATH_PARAM, '/limonero/models').rstrip('/')
+
+        self.write_mode = parameters.get(self.WRITE_MODE_PARAM, self.WRITE_MODE_ERROR)
+        if self.write_mode not in self.WRITE_MODE_OPTIONS:
+            raise ValueError(
+                _('Invalid value for parameter {param}: value').format(
+                    param=self.WRITE_MODE_PARAM, value=self.write_mode))
+
+        self.criteria = parameters.get(self.SAVE_CRITERIA_PARAM, self.CRITERIA_ALL)
+        if self.criteria not in self.CRITERIA_OPTIONS:
+            raise ValueError(
+                _('Invalid value for parameter {param}: {value}').format(
+                    param=self.SAVE_CRITERIA_PARAM, value=self.criteria))
+
+        self.filename = parameters.get(self.NAME_PARAM)
+        if self.NAME_PARAM not in self.parameters:
+            msg = _("Parameters '{}' must be informed for task {}")
+            raise ValueError(msg.format(
+                self.NAME_PARAM, self.__class__))
+
+        self.workflow_id = parameters.get(self.WORKFLOW_ID_PARAM)
+        self.workflow_name = parameters.get(self.WORKFLOW_NAME_PARAM)
+        self.job_id = parameters.get(self.JOB_ID_PARAM)
+
+        self.has_code = any([len(named_inputs) > 0, self.contains_results()])
+
+    def get_audit_events(self):
+        return [auditing.SAVE_MODEL]
 
     def generate_code(self):
-        """Generate code."""
-        code = """
-        import pickle
-        filename = '{filename}'
-        pickle.dump({IN}, open(filename, 'wb'))
+        limonero_config = self.parameters.get('configuration') \
+            .get('juicer').get('services').get('limonero')
 
-        """.format(IN=self.named_inputs['input data'],
-                   filename=self.filename, overwrite=self.overwrite)
-        return dedent(code)
+        url = '{}'.format(limonero_config['url'], self.write_mode)
+        token = str(limonero_config['auth_token'])
+        storage = limonero_service.get_storage_info(url, token, self.storage_id)
+
+        if storage['type'] != 'HDFS':
+            raise ValueError(_('Storage type not supported: {}').format(
+                storage['type']))
+
+        if storage['url'].endswith('/'):
+            storage['url'] = storage['url'][:-1]
+
+        parsed = urlparse(storage['url'])
+        models = self.named_inputs['models']
+        if not isinstance(models, list):
+            models = [models]
+
+        user = self.parameters.get('user', {})
+        code = dedent("""
+            from juicer.scikit_learn.model_operation import ModelsEvaluationResultList
+            from juicer.service.limonero_service import register_model
+
+            all_models = [{models}]
+            criteria = '{criteria}'
+            if criteria == 'ALL':
+                models_to_save = list(itertools.chain.from_iterable(
+                    map(lambda m: m.models if isinstance(m,
+                        ModelsEvaluationResultList) else [m], all_models)))
+            elif criteria == 'BEST':
+                raise ValueError('{msg2}')
+
+            import pickle
+            from io import BytesIO
+            fs = pa.hdfs.connect('{hdfs_server}', {hdfs_port})
+            
+            def _save_model(model_to_save, model_path, model_name):
+                final_model_path = '{final_url}/{{}}'.format(model_path)
+                overwrite = '{overwrite}'
+                exists = fs.exists(final_model_path)
+ 
+                if exists:
+                    if overwrite == 'OVERWRITE':
+                        fs.delete(final_model_path, False)
+                    else:
+                        raise ValueError('{error_file_exists}')
+                        
+                with fs.open(final_model_path, 'wb') as f:
+                    b = BytesIO()
+                    pickle.dump(model_to_save, b)
+                    f.write(b.getvalue())
+                                
+                # Save model information in Limonero
+                model_type = '{{}}.{{}}'.format(model_to_save.__module__,
+                    model_to_save.__class__.__name__)
+                
+                model_payload = {{
+                    "user_id": {user_id},
+                    "user_name": '{user_name}',
+                    "user_login": '{user_login}',
+                    "name": model_name,
+                    "class_name": model_type,
+                    "storage_id": {storage_id},
+                    "path":  model_path,
+                    "type": "UNSPECIFIED",
+                    "task_id": '{task_id}',
+                    "job_id": {job_id},
+                    "workflow_id": {workflow_id},
+                    "workflow_name": '{workflow_name}'
+                }}
+                # Save model information in Limonero
+                register_model('{url}', model_payload, '{token}')
+
+            for i, model in enumerate(models_to_save):
+                if isinstance(model, dict): # For instance, it's a Indexer
+                    for k, v in model.items():
+                        name = '{name} - {{}}'.format(k)
+                        path = '{path}/{name}.{{0}}.{{1:04d}}'.format(k, i)
+                        _save_model(v, path, name)
+                else:
+                    name = '{name}'
+                    path = '{path}/{name}.{{0:04d}}'.format(i)
+                    _save_model(model, path, name)
+        """.format(models=', '.join(models),
+                   overwrite=self.write_mode,
+                   path=self.path,
+                   final_url=storage['url'],
+                   url=url,
+                   token=token,
+                   storage_id=self.storage_id,
+                   name=self.name.replace(' ', '_'),
+                   criteria=self.criteria,
+                   msg0=_('You cannot mix models with and without '
+                          'evaluation (e.g. indexers) when saving models '
+                          'and criteria is different from ALL'),
+                   msg1=_('You cannot mix models built using with '
+                          'different metrics ({}).'),
+                   msg2=_('Invalid criteria.'),
+                   error_file_exists=_('Model already exists'),
+                   job_id=self.job_id,
+                   task_id=self.parameters['task_id'],
+                   workflow_id=self.workflow_id,
+                   workflow_name=self.workflow_name,
+                   user_id=user.get('id'),
+                   user_name=user.get('name'),
+                   user_login=user.get('login'),
+                   hdfs_server=parsed.hostname,
+                   hdfs_port=parsed.port,
+                   ))
+        return code
+
+    def to_deploy_format(self, id_mapping):
+        return []
 
 
 class EvaluateModelOperation(Operation):
@@ -247,15 +413,6 @@ class EvaluateModelOperation(Operation):
 
             self._get_code_for_summary(code)
 
-            # # Common for all metrics!
-            # code.append(dedent("""
-            # # {model_output} = ModelsEvaluationResultList(
-            # #        [{model}], {model}, '{type_model}', metric_value)
-            #
-            # #{metric} = metric_value
-            # {model_output} = None
-            # """))
-
             code = "\n".join(code).format(
                 display_text=display_text,
                 display_image=display_image,
@@ -279,7 +436,19 @@ class EvaluateModelOperation(Operation):
                 task_id=self.parameters['task_id'],
                 title=_('Evaluation result'),
             )
-            # print(code)
+
+            # Common for all metrics!
+            # code += dedent("""
+            #     {model_output} = ModelsEvaluationResultList(
+            #             [{model}], {model}, '{metric}', metric_value)
+            #
+            #     {metric} = metric_value
+            #     {model_output} = None
+            #     """.format(
+            #     model_output=self.model_out,
+            #     model=self.model,
+            #     metric=self.metric)
+
             return dedent(code)
 
     @staticmethod
