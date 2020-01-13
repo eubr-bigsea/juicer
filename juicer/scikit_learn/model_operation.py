@@ -3,6 +3,7 @@ import uuid
 from jinja2 import Environment, BaseLoader
 from juicer.operation import Operation
 from juicer.service import limonero_service
+from juicer.service.limonero_service import query_limonero
 
 from juicer import auditing
 
@@ -73,34 +74,56 @@ class ApplyModelOperation(Operation):
 
 class LoadModel(Operation):
     """LoadModel.
-
     """
+    MODEL_PARAM = 'model'
 
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
 
-        if 'name' not in parameters:
-            raise ValueError(
-                _("Parameter '{}' must be informed for task {}")
-                .format('name', self.__class__))
+        self.parameters = parameters
 
-        self.filename = parameters['name']
-        self.output = named_outputs.get('output data',
-                                        'output_data_{}'.format(self.order))
+        self.model = parameters.get(self.MODEL_PARAM)
+        if not self.model:
+            msg = 'Missing parameter model'
+            raise ValueError(msg)
 
-        self.has_code = len(named_outputs) > 0
-        if not self.has_code:
-            raise ValueError(
-                _("Parameter '{}' must be informed for task {}")
-                .format('output data', self.__class__))
+        self.has_code = any([len(named_outputs) > 0, self.contains_results()])
+        self.output = named_outputs.get(
+            'model', 'model_{}'.format(self.order))
 
     def generate_code(self):
         """Generate code."""
+        limonero_config = self.parameters.get('configuration') \
+            .get('juicer').get('services').get('limonero')
+
+        url = limonero_config['url']
+        token = str(limonero_config['auth_token'])
+
+        model_data = query_limonero(url, '/models', token, self.model)
+        url = model_data['storage']['url']
+        if url[-1] != '/':
+            url += '/'
+
+        path = '{}{}'.format(url, model_data['path'])
+        parsed = urlparse(path)
+
         code = """
+        path = '{path}'        
+        fs = pa.hdfs.connect('{hdfs_server}', {hdfs_port})
+        exists = fs.exists(path)
+        if not exists:
+            raise ValueError('{error_file_not_exists}')
+        
         import pickle
-        filename = '{filename}'
-        {model} = pickle.load(open(filename, 'rb'))
-        """.format(model=self.output, filename=self.filename)
+        from io import BytesIO
+        with fs.open(path, 'rb') as f:
+            b = BytesIO(f.read()) 
+            {model} = pickle.load(b)
+        """.format(model=self.output,
+                   path=path,
+                   hdfs_server=parsed.hostname,
+                   hdfs_port=parsed.port,
+                   error_file_not_exists=_('Model does not exist'))
         return dedent(code)
 
 
@@ -132,10 +155,10 @@ class SaveModel(Operation):
 
         self.parameters = parameters
 
-        self.name = parameters.get(self.NAME_PARAM)
+        self.filename = parameters.get(self.NAME_PARAM)
         self.storage_id = parameters.get(self.STORAGE_PARAM)
 
-        if self.name is None or self.storage_id is None:
+        if self.filename is None or self.storage_id is None:
             msg = _('Missing parameters. Check if values for parameters {} '
                     'were informed')
             raise ValueError(
@@ -155,7 +178,6 @@ class SaveModel(Operation):
                 _('Invalid value for parameter {param}: {value}').format(
                     param=self.SAVE_CRITERIA_PARAM, value=self.criteria))
 
-        self.filename = parameters.get(self.NAME_PARAM)
         if self.NAME_PARAM not in self.parameters:
             msg = _("Parameters '{}' must be informed for task {}")
             raise ValueError(msg.format(
@@ -212,7 +234,6 @@ class SaveModel(Operation):
                 final_model_path = '{final_url}/{{}}'.format(model_path)
                 overwrite = '{overwrite}'
                 exists = fs.exists(final_model_path)
- 
                 if exists:
                     if overwrite == 'OVERWRITE':
                         fs.delete(final_model_path, False)
@@ -262,7 +283,7 @@ class SaveModel(Operation):
                    url=url,
                    token=token,
                    storage_id=self.storage_id,
-                   name=self.name.replace(' ', '_'),
+                   name=self.filename.replace(' ', '_'),
                    criteria=self.criteria,
                    msg0=_('You cannot mix models with and without '
                           'evaluation (e.g. indexers) when saving models '
