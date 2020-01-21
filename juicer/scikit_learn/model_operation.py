@@ -106,6 +106,12 @@ class LoadModel(Operation):
 
         path = '{}{}'.format(url, model_data['path'])
         parsed = urlparse(path)
+        if parsed.scheme == 'file':
+            hostname = 'file:///'
+            port = 0
+        else:
+            hostname = parsed.hostname
+            port = parsed.port
 
         code = """
         path = '{path}'        
@@ -121,8 +127,8 @@ class LoadModel(Operation):
             {model} = pickle.load(b)
         """.format(model=self.output,
                    path=path,
-                   hdfs_server=parsed.hostname,
-                   hdfs_port=parsed.port,
+                   hdfs_server=hostname,
+                   hdfs_port=port,
                    error_file_not_exists=_('Model does not exist'))
         return dedent(code)
 
@@ -208,6 +214,12 @@ class SaveModel(Operation):
             storage['url'] = storage['url'][:-1]
 
         parsed = urlparse(storage['url'])
+        if parsed.scheme == 'file':
+            hostname = 'file:///'
+            port = 0
+        else:
+            hostname = parsed.hostname
+            port = parsed.port
         models = self.named_inputs['models']
         if not isinstance(models, list):
             models = [models]
@@ -299,8 +311,8 @@ class SaveModel(Operation):
                    user_id=user.get('id'),
                    user_name=user.get('name'),
                    user_login=user.get('login'),
-                   hdfs_server=parsed.hostname,
-                   hdfs_port=parsed.port,
+                   hdfs_server=hostname,
+                   hdfs_port=port,
                    ))
         return code
 
