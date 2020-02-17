@@ -284,9 +284,10 @@ class QuantileDiscretizerOperation(Operation):
 
             self.output = self.named_outputs.get(
                     'output data', 'output_data_{}'.format(self.order))
-            self.attribute = parameters[self.ATTRIBUTE_PARAM][0]
+            self.model = self.named_outputs.get('model', 'model_{}'.format(self.order))
+            self.attribute = parameters[self.ATTRIBUTE_PARAM]
             self.alias = parameters.get(self.ALIAS_PARAM,
-                                        self.attribute + '_norm')
+                                        'quantiledisc_{}'.format(self.order))
             self.n_quantiles = parameters.get(
                     self.N_QUANTILES_PARAM, 1000) or 1000
             self.output_distribution = parameters.get(
@@ -294,7 +295,7 @@ class QuantileDiscretizerOperation(Operation):
                 or self.DISTRIBUITION_PARAM_UNIFORM
             self.seed = parameters.get(self.SEED_PARAM, 'None') or 'None'
 
-            if self.n_quantiles <= 0:
+            if int(self.n_quantiles) <= 0:
                 raise ValueError(
                         _("Parameter '{}' must be x>0 for task {}").format(
                                 self.N_QUANTILES_PARAM, self.__class__))
@@ -302,17 +303,17 @@ class QuantileDiscretizerOperation(Operation):
     def generate_code(self):
         """Generate code."""
         code = """
-        {output} = {input}
-        from sklearn.preprocessing import QuantileTransformer
-        qt = QuantileTransformer(n_quantiles={n_quantiles},
-            output_distribution='{output_distribution}', random_state={seed})
-        X_train = {input}[{att}].values.tolist()
-        {output}['{alias}'] = qt.fit_transform(X_train).toarray().tolist()
+        {output} = {input}.copy()
+        from sklearn.preprocessing import KBinsDiscretizer
+        {model} = KBinsDiscretizer(n_bins={n_quantiles}, encode='ordinal', strategy='quantile')
+        X_train = {input}[{att}].to_numpy().tolist()
+        
+        {output}['{alias}'] = {model}.fit_transform(X_train).flatten().tolist()
         """.format(output=self.output,
+                   model=self.model,
                    input=self.named_inputs['input data'],
-                   att=self.attribute, alias=self.alias, seed=self.seed,
-                   n_quantiles=self.n_quantiles,
-                   output_distribution=self.output_distribution)
+                   att=self.attribute, alias=self.alias,
+                   n_quantiles=self.n_quantiles,)
         return dedent(code)
 
 
