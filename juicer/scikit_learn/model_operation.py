@@ -1,5 +1,19 @@
 from textwrap import dedent
+import uuid
+from jinja2 import Environment, BaseLoader
 from juicer.operation import Operation
+from juicer.service import limonero_service
+from juicer.service.limonero_service import query_limonero
+
+from juicer import auditing
+
+try:
+    from urllib.request import urlopen
+    from urllib.parse import urlparse, parse_qs
+except ImportError:
+    from urllib.parse import urlparse, parse_qs
+    from urllib.request import urlopen
+
 import string
 
 
@@ -10,17 +24,29 @@ class SafeDict(dict):
 
 
 class ApplyModelOperation(Operation):
-    NEW_ATTRIBUTE_PARAM = 'prediction'
+    FEATURES_PARAM = 'features'
+    PREDICTION_PARAM = 'prediction'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
-        self.has_code = any(
-            [len(self.named_inputs) == 2, self.contains_results()])
+        self.has_code = len(named_inputs) == 2 and any(
+            [len(self.named_outputs) > 0, self.contains_results()])
 
-        self.new_attribute = parameters.get(self.NEW_ATTRIBUTE_PARAM,
-                                            'new_attribute')
+        if self.has_code:
+            self.output = self.named_outputs.get('output data',
+                                                 'out_data_{}'.format(self.order))
 
-        self.feature = parameters['features']
+            self.model = self.named_inputs.get(
+                'model', 'model_{}'.format(self.order))
+
+            self.prediction = self.parameters.get(self.PREDICTION_PARAM, self.PREDICTION_PARAM)
+
+            if self.FEATURES_PARAM not in self.parameters:
+                msg = _("Parameters '{}' must be informed for task {}")
+                raise ValueError(msg.format(
+                    self.FEATURES_PARAM, self.__class__.__name__))
+            self.features = self.parameters.get(self.FEATURES_PARAM)
+
         if not self.has_code and len(self.named_outputs) > 0:
             raise ValueError(
                 _('Model is being used, but at least one input is missing'))
@@ -28,90 +54,270 @@ class ApplyModelOperation(Operation):
     def get_data_out_names(self, sep=','):
         return self.output
 
+    def get_output_names(self, sep=', '):
+        return sep.join([self.output, self.model])
+
     def generate_code(self):
-        input_data1 = self.named_inputs['input data']
-        output = self.named_outputs.get('output data',
-                                        'out_task_{}'.format(self.order))
-
-        model = self.named_inputs.get(
-            'model', 'model_task_{}'.format(self.order))
-
         code = dedent("""
-            {out} = {in1}
-            X_train = {in1}[{features}].values.tolist()
+            {out} = {in1}.copy()
+            X_train = {in1}[{features}].to_numpy().tolist()
             if hasattr({in2}, 'predict'):
                 {out}['{new_attr}'] = {in2}.predict(X_train).tolist()
             else:
                 # to handle scaler operations
                 {out}['{new_attr}'] = {in2}.transform(X_train).tolist()
-            """.format(out=output, in1=input_data1, in2=model,
-                       new_attr=self.new_attribute, features=self.feature))
+            """.format(out=self.output, in1=self.named_inputs['input data'], in2=self.model,
+                       new_attr=self.prediction, features=self.features))
 
         return dedent(code)
 
 
 class LoadModel(Operation):
     """LoadModel.
-
     """
+    MODEL_PARAM = 'model'
 
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
 
-        if 'name' not in parameters:
-            raise ValueError(
-                _("Parameter '{}' must be informed for task {}")
-                .format('name', self.__class__))
+        self.parameters = parameters
 
-        self.filename = parameters['name']
-        self.output = named_outputs.get('output data',
-                                        'output_data_{}'.format(self.order))
+        self.model = parameters.get(self.MODEL_PARAM)
+        if not self.model:
+            msg = 'Missing parameter model'
+            raise ValueError(msg)
 
-        self.has_code = len(named_outputs) > 0
-        if not self.has_code:
-            raise ValueError(
-                _("Parameter '{}' must be informed for task {}")
-                .format('output data', self.__class__))
+        self.has_code = any([len(named_outputs) > 0, self.contains_results()])
+        self.output = named_outputs.get(
+            'model', 'model_{}'.format(self.order))
 
     def generate_code(self):
         """Generate code."""
+        limonero_config = self.parameters.get('configuration') \
+            .get('juicer').get('services').get('limonero')
+
+        url = limonero_config['url']
+        token = str(limonero_config['auth_token'])
+
+        model_data = query_limonero(url, '/models', token, self.model)
+        url = model_data['storage']['url']
+        if url[-1] != '/':
+            url += '/'
+
+        path = '{}{}'.format(url, model_data['path'])
+        parsed = urlparse(path)
+        if parsed.scheme == 'file':
+            hostname = 'file:///'
+            port = 0
+        else:
+            hostname = parsed.hostname
+            port = parsed.port
+
         code = """
+        path = '{path}'        
+        fs = pa.hdfs.connect('{hdfs_server}', {hdfs_port})
+        exists = fs.exists(path)
+        if not exists:
+            raise ValueError('{error_file_not_exists}')
+        
         import pickle
-        filename = '{filename}'
-        {model} = pickle.load(open(filename, 'rb'))
-        """.format(model=self.output, filename=self.filename)
+        from io import BytesIO
+        with fs.open(path, 'rb') as f:
+            b = BytesIO(f.read()) 
+            {model} = pickle.load(b)
+        """.format(model=self.output,
+                   path=path,
+                   hdfs_server=hostname,
+                   hdfs_port=port,
+                   error_file_not_exists=_('Model does not exist'))
         return dedent(code)
 
 
 class SaveModel(Operation):
     """SaveModel.
     """
+    NAME_PARAM = 'name'
+    PATH_PARAM = 'path'
+    STORAGE_PARAM = 'storage'
+    SAVE_CRITERIA_PARAM = 'save_criteria'
+    WRITE_MODE_PARAM = 'write_mode'
+
+    CRITERIA_BEST = 'BEST'
+    CRITERIA_ALL = 'ALL'
+    CRITERIA_OPTIONS = [CRITERIA_BEST, CRITERIA_ALL]
+
+    WRITE_MODE_ERROR = 'ERROR'
+    WRITE_MODE_OVERWRITE = 'OVERWRITE'
+    WRITE_MODE_OPTIONS = [WRITE_MODE_ERROR,
+                          WRITE_MODE_OVERWRITE]
+
+    WORKFLOW_NAME_PARAM = 'workflow_name'
+    JOB_ID_PARAM = 'job_id'
+    USER_PARAM = 'user'
+    WORKFLOW_ID_PARAM = 'workflow_id'
 
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
 
-        self.has_code = 'name' in parameters and len(named_inputs) == 1
-        if not self.has_code:
+        self.parameters = parameters
+
+        self.filename = parameters.get(self.NAME_PARAM)
+        self.storage_id = parameters.get(self.STORAGE_PARAM)
+
+        if self.filename is None or self.storage_id is None:
+            msg = _('Missing parameters. Check if values for parameters {} '
+                    'were informed')
             raise ValueError(
-                _("Parameter '{}' must be informed for task {}")
-                .format('name', self.__class__))
-        self.filename = self.parameters['name']
-        self.overwrite = parameters.get('write_nome', 'OVERWRITE')
-        if self.overwrite == 'OVERWRITE':
-            self.overwrite = True
-        else:
-            self.overwrite = False
+                msg.format(', '.join([self.NAME_PARAM, self.STORAGE_PARAM])))
+
+        self.path = parameters.get(self.PATH_PARAM, '/limonero/models').rstrip('/')
+
+        self.write_mode = parameters.get(self.WRITE_MODE_PARAM, self.WRITE_MODE_ERROR)
+        if self.write_mode not in self.WRITE_MODE_OPTIONS:
+            raise ValueError(
+                _('Invalid value for parameter {param}: value').format(
+                    param=self.WRITE_MODE_PARAM, value=self.write_mode))
+
+        self.criteria = parameters.get(self.SAVE_CRITERIA_PARAM, self.CRITERIA_ALL)
+        if self.criteria not in self.CRITERIA_OPTIONS:
+            raise ValueError(
+                _('Invalid value for parameter {param}: {value}').format(
+                    param=self.SAVE_CRITERIA_PARAM, value=self.criteria))
+
+        if self.NAME_PARAM not in self.parameters:
+            msg = _("Parameters '{}' must be informed for task {}")
+            raise ValueError(msg.format(
+                self.NAME_PARAM, self.__class__))
+
+        self.workflow_id = parameters.get(self.WORKFLOW_ID_PARAM)
+        self.workflow_name = parameters.get(self.WORKFLOW_NAME_PARAM)
+        self.job_id = parameters.get(self.JOB_ID_PARAM)
+
+        self.has_code = any([len(named_inputs) > 0, self.contains_results()])
+
+    def get_audit_events(self):
+        return [auditing.SAVE_MODEL]
 
     def generate_code(self):
-        """Generate code."""
-        code = """
-        import pickle
-        filename = '{filename}'
-        pickle.dump({IN}, open(filename, 'wb'))
+        limonero_config = self.parameters.get('configuration') \
+            .get('juicer').get('services').get('limonero')
 
-        """.format(IN=self.named_inputs['input data'],
-                   filename=self.filename, overwrite=self.overwrite)
-        return dedent(code)
+        url = '{}'.format(limonero_config['url'], self.write_mode)
+        token = str(limonero_config['auth_token'])
+        storage = limonero_service.get_storage_info(url, token, self.storage_id)
+
+        if storage['type'] != 'HDFS':
+            raise ValueError(_('Storage type not supported: {}').format(
+                storage['type']))
+
+        if storage['url'].endswith('/'):
+            storage['url'] = storage['url'][:-1]
+
+        parsed = urlparse(storage['url'])
+        if parsed.scheme == 'file':
+            hostname = 'file:///'
+            port = 0
+        else:
+            hostname = parsed.hostname
+            port = parsed.port
+        models = self.named_inputs['models']
+        if not isinstance(models, list):
+            models = [models]
+
+        user = self.parameters.get('user', {})
+        code = dedent("""
+            from juicer.scikit_learn.model_operation import ModelsEvaluationResultList
+            from juicer.service.limonero_service import register_model
+
+            all_models = [{models}]
+            criteria = '{criteria}'
+            if criteria == 'ALL':
+                models_to_save = list(itertools.chain.from_iterable(
+                    map(lambda m: m.models if isinstance(m,
+                        ModelsEvaluationResultList) else [m], all_models)))
+            elif criteria == 'BEST':
+                raise ValueError('{msg2}')
+
+            import pickle
+            from io import BytesIO
+            fs = pa.hdfs.connect('{hdfs_server}', {hdfs_port})
+            
+            def _save_model(model_to_save, model_path, model_name):
+                final_model_path = '{final_url}/{{}}'.format(model_path)
+                overwrite = '{overwrite}'
+                exists = fs.exists(final_model_path)
+                if exists:
+                    if overwrite == 'OVERWRITE':
+                        fs.delete(final_model_path, False)
+                    else:
+                        raise ValueError('{error_file_exists}')
+                        
+                with fs.open(final_model_path, 'wb') as f:
+                    b = BytesIO()
+                    pickle.dump(model_to_save, b)
+                    f.write(b.getvalue())
+                                
+                # Save model information in Limonero
+                model_type = '{{}}.{{}}'.format(model_to_save.__module__,
+                    model_to_save.__class__.__name__)
+                
+                model_payload = {{
+                    "user_id": {user_id},
+                    "user_name": '{user_name}',
+                    "user_login": '{user_login}',
+                    "name": model_name,
+                    "class_name": model_type,
+                    "storage_id": {storage_id},
+                    "path":  model_path,
+                    "type": "UNSPECIFIED",
+                    "task_id": '{task_id}',
+                    "job_id": {job_id},
+                    "workflow_id": {workflow_id},
+                    "workflow_name": '{workflow_name}'
+                }}
+                # Save model information in Limonero
+                register_model('{url}', model_payload, '{token}')
+
+            for i, model in enumerate(models_to_save):
+                if isinstance(model, dict): # For instance, it's a Indexer
+                    for k, v in model.items():
+                        name = '{name} - {{}}'.format(k)
+                        path = '{path}/{name}.{{0}}.{{1:04d}}'.format(k, i)
+                        _save_model(v, path, name)
+                else:
+                    name = '{name}'
+                    path = '{path}/{name}.{{0:04d}}'.format(i)
+                    _save_model(model, path, name)
+        """.format(models=', '.join(models),
+                   overwrite=self.write_mode,
+                   path=self.path,
+                   final_url=storage['url'],
+                   url=url,
+                   token=token,
+                   storage_id=self.storage_id,
+                   name=self.filename.replace(' ', '_'),
+                   criteria=self.criteria,
+                   msg0=_('You cannot mix models with and without '
+                          'evaluation (e.g. indexers) when saving models '
+                          'and criteria is different from ALL'),
+                   msg1=_('You cannot mix models built using with '
+                          'different metrics ({}).'),
+                   msg2=_('Invalid criteria.'),
+                   error_file_exists=_('Model already exists'),
+                   job_id=self.job_id,
+                   task_id=self.parameters['task_id'],
+                   workflow_id=self.workflow_id,
+                   workflow_name=self.workflow_name,
+                   user_id=user.get('id'),
+                   user_name=user.get('name'),
+                   user_login=user.get('login'),
+                   hdfs_server=hostname,
+                   hdfs_port=port,
+                   ))
+        return code
+
+    def to_deploy_format(self, id_mapping):
+        return []
 
 
 class EvaluateModelOperation(Operation):
@@ -132,38 +338,38 @@ class EvaluateModelOperation(Operation):
                            named_outputs)
 
         self.prediction_attribute = (parameters.get(
-                self.PREDICTION_ATTRIBUTE_PARAM) or [''])[0]
-        self.feature_attribute = (parameters.get(
-                self.FEATURE_ATTRIBUTE_PARAM) or [''])[0]
+            self.PREDICTION_ATTRIBUTE_PARAM) or [''])[0]
+        # self.feature_attribute = (parameters.get(
+        #         self.FEATURE_ATTRIBUTE_PARAM) or [''])[0]
         self.label_attribute = (parameters.get(
-                self.LABEL_ATTRIBUTE_PARAM) or [''])[0]
+            self.LABEL_ATTRIBUTE_PARAM) or [''])[0]
         self.type_model = parameters.get(self.METRIC_PARAM) or ''
 
         if any([self.prediction_attribute == '', self.type_model == '']):
             msg = \
                 _("Parameters '{}' and '{}' must be informed for task {}")
             raise ValueError(msg.format(
-                    self.PREDICTION_ATTRIBUTE_PARAM,
-                    self.METRIC_PARAM, self.__class__))
+                self.PREDICTION_ATTRIBUTE_PARAM,
+                self.METRIC_PARAM, self.__class__))
 
         if self.type_model not in self.METRIC_TO_EVALUATOR:
             raise ValueError(_('Invalid metric value {}').format(
-                    self.type_model))
+                self.type_model))
 
-        if self.type_model == 'clustering':
-            if self.feature_attribute == '':
-                msg = \
-                    _("Parameters '{}' must be informed for task {}")
-                raise ValueError(msg.format(
-                        self.FEATURE_ATTRIBUTE_PARAM, self.__class__))
-            else:
-                self.label_attribute = self.feature_attribute
-        else:
-            if self.label_attribute == '':
-                msg = \
-                    _("Parameters '{}' must be informed for task {}")
-                raise ValueError(msg.format(
-                        self.LABEL_ATTRIBUTE_PARAM, self.__class__))
+        # if self.type_model == 'clustering':
+        #     if self.feature_attribute == '':
+        #         msg = \
+        #             _("Parameters '{}' must be informed for task {}")
+        #         raise ValueError(msg.format(
+        #                 self.FEATURE_ATTRIBUTE_PARAM, self.__class__))
+        #     else:
+        #         self.label_attribute = self.feature_attribute
+        # else:
+        if self.label_attribute == '':
+            msg = \
+                _("Parameters '{}' must be informed for task {}")
+            raise ValueError(msg.format(
+                self.LABEL_ATTRIBUTE_PARAM, self.__class__))
 
         self.has_code = any([(
                 (len(self.named_inputs) > 0 and len(self.named_outputs) > 0) or
@@ -171,16 +377,18 @@ class EvaluateModelOperation(Operation):
                 ('input data' in self.named_inputs)
         ), self.contains_results()])
 
-        self.model = self.named_inputs.get('model')
+        self.model = self.named_inputs.get(
+            'model', 'model_{}'.format(self.order))
+
         self.model_out = self.named_outputs.get(
-                'evaluated model', 'model_task_{}'.format(self.order))
+            'evaluated model', 'model_task_{}'.format(self.order))
 
         self.evaluator_out = self.named_outputs.get(
-                'evaluator', 'evaluator_task_{}'.format(self.order))
+            'evaluator', 'evaluator_task_{}'.format(self.order))
         if not self.has_code and self.named_outputs.get(
                 'evaluated model') is not None:
             raise ValueError(
-                    _('Model is being used, but at least one input is missing'))
+                _('Model is being used, but at least one input is missing'))
 
         self.supports_cache = False
         self.has_import = "from sklearn.metrics import * \n"
@@ -196,9 +404,9 @@ class EvaluateModelOperation(Operation):
             return ''
         else:
             display_text = self.parameters['task']['forms'].get(
-                    'display_text', {'value': 1}).get('value', 1) in (1, '1')
+                'display_text', {'value': 1}).get('value', 1) in (1, '1')
             display_image = self.parameters['task']['forms'].get(
-                    'display_image', {'value': 1}).get('value', 1) in (1, '1')
+                'display_image', {'value': 1}).get('value', 1) in (1, '1')
 
             code = [dedent("""
                 metric_value = 0.0
@@ -208,6 +416,25 @@ class EvaluateModelOperation(Operation):
                 label_col = '{label_attr}'
                 prediction_col = '{prediction_attr}'
                 {model_output} = None
+
+                y_pred = {input}[prediction_col].to_numpy().tolist()
+                y_true = {input}[label_col].to_numpy().tolist()
+
+                # Code for evaluating if the Label attribute is categorical
+                from pandas.api.types import is_numeric_dtype
+                if not is_numeric_dtype({input}[label_col]):
+                    from sklearn.preprocessing import LabelEncoder
+                    le = LabelEncoder()
+                    le.fit(y_true)
+                    final_label = le.transform(y_true)
+                    if model_type != 'clustering':
+                        final_pred = le.transform(y_pred)
+                    else:
+                        final_pred = y_pred
+                else:
+                    final_label = y_true
+                    final_pred = y_pred
+                # Used in summary              
                 """)]
 
             if self.type_model == 'classification':
@@ -219,39 +446,42 @@ class EvaluateModelOperation(Operation):
 
             self._get_code_for_summary(code)
 
-            # # Common for all metrics!
-            # code.append(dedent("""
-            # # {model_output} = ModelsEvaluationResultList(
-            # #        [{model}], {model}, '{type_model}', metric_value)
-            #
-            # #{metric} = metric_value
-            # {model_output} = None
-            # """))
-
             code = "\n".join(code).format(
-                    display_text=display_text,
-                    display_image=display_image,
-                    evaluator_out=self.evaluator_out,
-                    join_plot_title=_('Prediction versus Residual'),
-                    join_plot_y_title=_('Residual'),
-                    join_plot_x_title=_('Prediction'),
-                    input=self.named_inputs['input data'],
-                    label_attr=self.label_attribute,
-                    model=self.model,
-                    model_output=self.model_out,
-                    model_type=self.type_model,
-                    operation_id=self.parameters['operation_id'],
-                    params_title=_('Parameters for this estimator'),
-                    params_table_headers=[_('Parameters'), _('Value')],
-                    plot_title=_('Actual versus Prediction'),
-                    plot_x_title=_('Actual'),
-                    plot_y_title=_('Prediction'),
-                    prediction_attr=self.prediction_attribute,
-                    table_headers=[_('Metric'), _('Value')],
-                    task_id=self.parameters['task_id'],
-                    title=_('Evaluation result'),
+                display_text=display_text,
+                display_image=display_image,
+                evaluator_out=self.evaluator_out,
+                join_plot_title=_('Prediction versus Residual'),
+                join_plot_y_title=_('Residual'),
+                join_plot_x_title=_('Prediction'),
+                input=self.named_inputs['input data'],
+                label_attr=self.label_attribute,
+                model=self.model,
+                model_output=self.model_out,
+                model_type=self.type_model,
+                operation_id=self.parameters['operation_id'],
+                params_title=_('Parameters for this estimator'),
+                params_table_headers=[_('Parameters'), _('Value')],
+                plot_title=_('Actual versus Prediction'),
+                plot_x_title=_('Actual'),
+                plot_y_title=_('Prediction'),
+                prediction_attr=self.prediction_attribute,
+                table_headers=[_('Metric'), _('Value')],
+                task_id=self.parameters['task_id'],
+                title=_('Evaluation result'),
             )
-            print (code)
+
+            # Common for all metrics!
+            # code += dedent("""
+            #     {model_output} = ModelsEvaluationResultList(
+            #             [{model}], {model}, '{metric}', metric_value)
+            #
+            #     {metric} = metric_value
+            #     {model_output} = None
+            #     """.format(
+            #     model_output=self.model_out,
+            #     model=self.model,
+            #     metric=self.metric)
+
             return dedent(code)
 
     @staticmethod
@@ -262,9 +492,6 @@ class EvaluateModelOperation(Operation):
         """
         code.append(dedent("""
             # classification metrics
-            y_pred = {input}[prediction_col].values.tolist()
-            y_true = {input}[label_col].values.tolist()
-           
             if display_image:
                 # Test if feature indexer is in global cache, because
                 # strings must be converted into numbers in order tho
@@ -289,7 +516,7 @@ class EvaluateModelOperation(Operation):
                     operation_id={operation_id})
 
             if display_text:
-            
+
                 headers = {table_headers}
                 rows = [
                     ['F1', f1_score(y_true, y_pred, average='weighted')],
@@ -299,12 +526,12 @@ class EvaluateModelOperation(Operation):
                      recall_score(y_true, y_pred, average='weighted')],
                     ['Accuracy', accuracy_score(y_true, y_pred)],
                     ['Cohens kappa', cohen_kappa_score(y_true, y_pred)],
-                    ['Jaccard similarity coefficient score', 
-                     jaccard_similarity_score(y_true, y_pred)],
+                    ['Jaccard coefficient score', 
+                     jaccard_score(y_true, y_pred, average='weighted')],
                     ['Matthews correlation coefficient (MCC)', 
                      matthews_corrcoef(y_true, y_pred)],
                 ]
-                
+
                 if len(list(set(y_true))) == 2:
                     if set(y_true) != set([0,1]):
                         from sklearn.preprocessing import LabelEncoder
@@ -312,12 +539,12 @@ class EvaluateModelOperation(Operation):
                         le.fit(y_true)
                         y_true = le.transform(y_true)
                         y_pred = le.transform(y_pred)
-                    
+
                     rows.append(['Area under ROC', 
                      roc_auc_score(y_true, y_pred)])
                     rows.append(['Area under Precision-Recall', 
                      average_precision_score(y_true, y_pred)])
-                
+
                 content = SimpleTableReport(
                         'table table-striped table-bordered table-sm',
                         headers, rows,
@@ -339,16 +566,16 @@ class EvaluateModelOperation(Operation):
         Code for the evaluator when metric is related to clustering
         """
         code.append(dedent("""
-            # clustering metrics
-            y_pred = {input}[prediction_col].values.tolist()
-            y_true = {input}[label_col].values.tolist()
+            # clustering metrics                        
+            final_pred = np.array(final_pred).reshape(-1, 1)
+            final_label = np.array(final_label).reshape(-1, 1)
 
             if display_text:
                 headers = {table_headers}
                 rows = [
-                    ['Silhouette Coefficient',silhouette_score(y_true, y_pred)],
+                    ['Silhouette Coefficient',silhouette_score(final_label, final_pred)],
                     ['Calinski and Harabaz score', 
-                     calinski_harabaz_score(y_true, y_pred)],
+                     calinski_harabaz_score(final_label, final_pred)],
                 ]
 
                 content = SimpleTableReport(
@@ -373,9 +600,6 @@ class EvaluateModelOperation(Operation):
 
         code.append(dedent("""
             # regression metrics
-            y_pred = {input}[prediction_col].values.tolist()
-            y_true = {input}[label_col].values.tolist()
-           
             if display_text:
                 headers = {table_headers}
                 rows = [
@@ -387,7 +611,7 @@ class EvaluateModelOperation(Operation):
                     ['R^2 (coefficient of determination)', 
                      r2_score(y_true, y_pred)],
                 ]
-                
+
                 content = SimpleTableReport(
                         'table table-striped table-bordered table-sm',
                         headers, rows, title='{title}')
@@ -400,8 +624,8 @@ class EvaluateModelOperation(Operation):
                     task={{'id': '{task_id}'}},
                     operation={{'id': {operation_id}}},
                     operation_id={operation_id})
-                    
-                
+
+
             if len(y_true) < 2000 and display_image:
                 residuals = [t - p for t, p in zip(y_true, y_pred)]
                 pandas_df = pd.DataFrame.from_records(
@@ -422,7 +646,7 @@ class EvaluateModelOperation(Operation):
                     task=dict(id='{task_id}'),
                     operation=dict(id={operation_id}),
                     operation_id={operation_id})
-                    
+
         """))
 
     @staticmethod
@@ -430,13 +654,13 @@ class EvaluateModelOperation(Operation):
         """
         Return code for model's summary (test if it is present)
         """
-        code.append(dedent("""
-            # model's summary
+        code.append(dedent("""                               
+            # model's summary       
             if len(y_true) < 2000 and display_image:
-                
+
                 report2 = MatplotlibChartReport()
 
-                identity = range(int(max(y_true[-1], y_pred[-1])))
+                identity = range(int(max(final_label[-1], final_pred[-1])))
                 emit_event(
                      'update task', status='COMPLETED',
                     identifier='{task_id}',
@@ -445,19 +669,19 @@ class EvaluateModelOperation(Operation):
                         '{plot_x_title}',
                         '{plot_y_title}',
                         identity, identity, 'r.',
-                        y_true, y_pred,'b.',),
+                        final_label, final_pred,'b.',),
                     type='IMAGE', title='{join_plot_title}',
                     task=dict(id='{task_id}'),
                     operation=dict(id={operation_id}),
                     operation_id={operation_id})
-                    
+
             if display_text:
                 rows = []
                 headers = {params_table_headers}
                 params = {model}.get_params()
                 for p in params:
                     rows.append([p, params[p]])
-                    
+
                 content = SimpleTableReport(
                         'table table-striped table-bordered table-sm',
                         headers, rows,
