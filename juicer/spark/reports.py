@@ -155,7 +155,12 @@ class SimpleTableReport(BaseHtmlReport):
             if self.numbered:
                 code.append('<td>{}</td>'.format(i + 1))
             for col in row:
-                code.append('<td>{}</td>'.format(col))
+                if col.__class__.__name__ == 'DenseMatrix':
+                    new_rows = col.toArray().tolist()
+                    report = SimpleTableReport(self.table_class, [], new_rows)
+                    code.append('<td>{}</td>'.format(report.generate()))
+                else:
+                    code.append('<td>{}</td>'.format(col))
             code.append('</tr>')
 
         code.append('</tbody>')

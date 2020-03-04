@@ -804,11 +804,16 @@ class EvaluateModelOperation(Operation):
                     method = 'pr'
                 else:
                     method = 'roc'
+
+                if '{prediction_attr}_tmp' in {input}.columns:
+                    prediction_attr = '{prediction_attr}_tmp'
+                else:
+                    prediction_attr = '{prediction_attr}'
                 predictions = {input}.select(
-                    '{prediction_attr}_tmp','{prob_attr}').rdd.map(
+                    prediction_attr,'{prob_attr}').rdd.map(
                         lambda row: (
                             float(row['{prob_attr}'][1]),
-                            float(row['{prediction_attr}_tmp'])))
+                            float(row[prediction_attr])))
                 points = CurveMetrics(predictions).get_curve(method)
                 x_val = [x[0] for x in points]
                 y_val = [x[1] for x in points]
@@ -1360,12 +1365,21 @@ class ClassificationModelOperation(DeployModelMixin, Operation):
                 {model}, {train}, call_transform)
 
             if display_text:
-                rows = [[m, getattr({model}, m)] for m in metrics
-                    if hasattr({model}, m)]
+                ml_model = {model}
+                ml_model = ml_model.stages[0]
+                if requires_pipeline:
+                    ml_model = ml_model.stages[-1]
+
+                rows = []
+                for m in metrics:
+                    try:
+                        rows.append([m, getattr(ml_model, m)])
+                    except:
+                        pass
                 if rows and len(rows):
                     headers = {headers}
                     content = SimpleTableReport(
-                        'table table-striped table-bordered table-sm',
+                        'table table-striped table-bordered table-sm w-auto',
                         headers, rows)
 
                     result = '<h4>{title}</h4>'
