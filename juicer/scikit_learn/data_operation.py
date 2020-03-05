@@ -22,13 +22,15 @@ class DataReaderOperation(Operation):
     SEPARATOR_PARAM = 'separator'
     QUOTE_PARAM = 'quote'
     INFER_SCHEMA_PARAM = 'infer_schema'
-    NULL_VALUES_PARAM = 'None_values'  # Must be compatible with other platforms
+    NULL_VALUES_PARAM = 'null_values'  # Must be compatible with other platforms
     MODE_PARAM = 'mode'
     DATA_SOURCE_ID_PARAM = 'data_source'
 
     INFER_FROM_LIMONERO = 'FROM_LIMONERO'
     INFER_FROM_DATA = 'FROM_VALUES'
     DO_NOT_INFER = 'NO'
+
+    OPT_MODE_FAILFAST = 'FAILFAST'
 
     SEPARATORS = {
         '{tab}': '\\t',
@@ -57,7 +59,7 @@ class DataReaderOperation(Operation):
         "DECIMAL": 'np.float64',
         "FLOAT": 'np.float64',
         "LONG": 'np.int64',
-        "INTEGER": 'np.int32',
+        "INTEGER": 'pd.Int64Dtype()',
         "TEXT": 'object',
     }
 
@@ -120,6 +122,8 @@ class DataReaderOperation(Operation):
         self.sep = parameters.get(
             self.SEPARATOR_PARAM,
             self.metadata.get('attribute_delimiter', ',')) or ','
+        if self.metadata['format'] == 'TEXT':
+            self.sep = '{new_line}'
         self.quote = parameters.get(self.QUOTE_PARAM,
                                     self.metadata.get('text_delimiter'))
         if self.quote == '\'':
@@ -134,6 +138,8 @@ class DataReaderOperation(Operation):
         code = []
         infer_from_data = self.infer_schema == self.INFER_FROM_DATA
         infer_from_limonero = self.infer_schema == self.INFER_FROM_LIMONERO
+        do_not_infer = self.infer_schema == self.DO_NOT_INFER
+        mode_failfast = self.mode == self.OPT_MODE_FAILFAST
         if self.has_code:
             if infer_from_limonero:
                 self.header = self.metadata.get('is_first_line_header')
@@ -150,7 +156,7 @@ class DataReaderOperation(Operation):
                             #    converters[attr['name']] = 'decimal.Decimal'
                             self._add_attribute_to_schema(attr, code)
                     else:
-                        code.append("columns['value'] = '11'")
+                        code.append("columns['value'] = object")
                     code.append('parse_dates = {}'.format(repr(parse_dates)))
 
                     def custom_repr(elems):
@@ -165,83 +171,104 @@ class DataReaderOperation(Operation):
                 else:
                     raise ValueError(
                         _("Metadata do not include attributes information"))
-            else:
+            elif infer_from_data:
                 code.append('columns = None')
+                code.append('parse_dates = None')
+                code.append('converters = None')
+                code.append("header = 'infer'")
+                self.header = 'infer'
+            elif do_not_infer:
+                code.append('columns = "str"')
+                code.append('parse_dates = None')
+                code.append('converters = None')
+                code.append("header = 'infer'")
+                self.header = 'infer'
+
+            code.append("url = '{url}'".format(url=self.metadata['url']))
+            null_values = self.null_values
+            if self.metadata.get('treat_as_missing'):
+                null_values.extend([x.strip() for x in self.metadata.get(
+                    'treat_as_missing').split(',') if x.strip()])
+            null_option = ''.join(
+                [".option('nullValue', '{}')".format(n) for n in
+                 set(null_values)]) if null_values else ""
+
+            parsed = urlparse(self.metadata['url'])
+            if parsed.scheme in ('hdfs', 'file'):
+                if parsed.scheme == 'hdfs':
+                    open_code = dedent("""
+                                    fs = pa.hdfs.connect('{hdfs_server}', {hdfs_port})
+                                    f = fs.open('{path}', 'rb')""".format(
+                        path=parsed.path,
+                        hdfs_server=parsed.hostname,
+                        hdfs_port=parsed.port,
+                    ))
+                else:
+                    open_code = "f = open('{path}', 'rb')".format(
+                        path=parsed.path)
+                code.append(open_code)
+            else:
+                raise ValueError(_('Not supported'))
 
             if self.metadata['format'] in ['CSV', 'TEXT']:
-                code.append("url = '{url}'".format(url=self.metadata['url']))
-
-                null_values = self.null_values
-                if self.metadata.get('treat_as_missing'):
-                    null_values.extend([x.strip() for x in self.metadata.get(
-                        'treat_as_missing').split(',') if x.strip()])
-                null_option = ''.join(
-                    [".option('nullValue', '{}')".format(n) for n in
-                     set(null_values)]) if null_values else ""
-
+                encoding = self.metadata.get('encoding', 'utf-8') or 'utf-8'
                 if self.metadata['format'] == 'CSV':
-                    encoding = self.metadata.get('encoding', 'utf-8') or 'utf-8'
-                    parsed = urlparse(self.metadata['url'])
-                    if parsed.scheme in ('hdfs', 'file'):
-                        if parsed.scheme == 'hdfs':
-                            open_code = dedent("""
-                            fs = pa.hdfs.connect('{hdfs_server}', {hdfs_port})
-                            f = fs.open('{path}', 'rb')""".format(
-                                path=parsed.path,
-                                hdfs_server=parsed.hostname,
-                                hdfs_port=parsed.port,
-                            ))
-                        else:
-                            open_code = "f = open('{path}', 'rb')".format(
-                                path=parsed.path)
-                        code.append(open_code)
-                        code_csv = dedent("""
-                            header = {header}
-                            {output} = pd.read_csv(f, sep='{sep}',
-                                                   encoding='{encoding}',
-                                                   header=header,
-                                                   na_values={na_values},
-                                                   dtype=columns,
-                                                   parse_dates=parse_dates,
-                                                   converters=converters)
-                            f.close()
-                            if header is None:
-                                {output}.columns = ['col_{{col}}'.format(
-                                    col=col) for col in {output}.columns]
-                        """).format(output=self.output,
-                                    input=parsed.path,
-                                    sep=self.sep,
-                                    encoding=encoding,
-                                    header=0 if self.header else 'None',
-                                    na_values=self.null_values if len(
-                                        self.null_values) else 'None')
-                        code.append(code_csv)
-                    else:
-                        raise ValueError(_('Not supported'))
+                    code_csv = dedent("""
+                        header = {header}
+                        {output} = pd.read_csv(f, sep='{sep}',
+                                               encoding='{encoding}',
+                                               header=header,
+                                               na_values={na_values},
+                                               dtype=columns,
+                                               parse_dates=parse_dates,
+                                               converters=converters,
+                                               error_bad_lines={mode})
+                        f.close()
+                        if header is None:
+                            {output}.columns = ['col_{{col}}'.format(
+                                col=col) for col in {output}.columns]
+                    """).format(output=self.output,
+                                input=parsed.path,
+                                sep=self.sep,
+                                encoding=encoding,
+                                mode=mode_failfast,
+                                header=0 if self.header else 'None',
+                                na_values=self.null_values if len(
+                                    self.null_values) else 'None')
+                    code.append(code_csv)
                 else:
                     code_csv = dedent("""
-                    columns = {}
-                    columns['value'] = object
-                    {output} = spark_session.read{null_option}.schema(
-                        columns).option(
-                        'treatEmptyValuesAsNulls', 'true').text(
-                            url)""".format(output=self.output,
-                                           null_option=null_option))
+                        {output} = pd.read_csv(f, sep='{sep}',
+                                               encoding='{encoding}',
+                                               names = ['value'],
+                                               error_bad_lines={mode})
+                        f.close()
+                    """).format(output=self.output,
+                                sep=self.sep,
+                                encoding=encoding,
+                                mode=mode_failfast)
                     code.append(code_csv)
-            elif self.metadata['format'] == 'PARQUET_FILE':
-                raise ValueError(_('Not supported'))
+            elif self.metadata['format'] == 'PARQUET':
+                code_parquet = dedent("""
+                    {output} = pd.read_parquet(f, engine='pyarrow')
+                    f.close()
+                    """).format(output=self.output)
+                code.append(code_parquet)
             elif self.metadata['format'] == 'JSON':
                 code_json = dedent("""
-                    columns = {{'value': object}}
-                    {output} = spark_session.read.option(
-                        'treatEmptyValuesAsNulls', 'true').json(
-                        '{url}')""".format(output=self.output,
-                                           url=self.metadata['url']))
+                    {output} = pd.read_json(f, orient='records')
+                    f.close()
+                    """).format(output=self.output)
                 code.append(code_json)
             elif self.metadata['format'] == 'LIB_SVM':
                 self._generate_code_for_lib_svm(code, infer_from_data)
             elif self.metadata['format'] == 'JDBC':
                 self._generate_code_for_jdbc(code)
+
+            if infer_from_data:
+                code.append("{output} = {output}.infer_objects()".format(
+                    output=self.output
+                ))
 
         if self.metadata.get('privacy_aware', False):
             raise ValueError(_('Not supported'))
@@ -316,7 +343,7 @@ class SaveOperation(Operation):
         'float64': "DOUBLE",
         'float32': "FLOAT",
         'int64': "LONG",
-        'int32': "INTEGER",
+        'Int64': "INTEGER",
     }
 
     def __init__(self, parameters, named_inputs, named_outputs):
@@ -401,35 +428,48 @@ class SaveOperation(Operation):
                     emit_event(name='update task',
                         message='{{warn_ignored}}',
                         status='COMPLETED',
-                        identifier='{{task_id}}')
+                        identifier='{{task_id}}')               
 
             if not exists or mode == 'overwrite':
                 {%- if scheme == 'hdfs'%}
-                fs.delete(path, False)
-                f = fs.open(path, 'wb')
+                if exists:
+                    fs.delete(path, False)
                 {%- elif scheme == 'file' %}
                 if exists:
                     os.remove(path)
                 parent_dir = os.path.dirname(path)
                 if not os.path.exists(parent_dir):
                     os.makedirs(parent_dir)
-                f = open(path, 'wb')
                 {%- endif %}
                 {%- if format == FORMAT_CSV %}
-                {{input}}.to_csv(f, sep=str(','), mode='w',
+                from io import StringIO
+                with fs.open(path, 'wb') as f:
+                    s = StringIO()
+                    {{input}}.to_csv(s, sep=str(','), mode='w',
                     header={{header}}, index=False, encoding='utf-8')
+                    f.write(s.getvalue().encode())              
+                    
                 {%- elif format == FORMAT_PARQUET %}
-                {{input}}.to_parquet(f, engine='pyarrow')
+                from io import StringIO
+                with fs.open(path, 'wb') as f:
+                    s = StringIO()
+                    {{input}}.to_parquet(f, engine='pyarrow')
+                    f.write(s.getvalue().encode())   
                 {%- elif format == FORMAT_JSON %}
-                {{input}}.to_json(f, orient='records')
+                from io import StringIO
+                with fs.open(path, 'wb') as f:
+                    s = StringIO()
+                    {{input}}.to_json(s, orient='records')
+                    f.write(s.getvalue().encode())
                 {%- endif %}
-                f.close()
+                    f.close()
 
 
             # Code to update Limonero metadata information
             from juicer.service.limonero_service import register_datasource
             types_names = {{data_types}}
 
+            write_header = {{header}}
             attributes = []
             for attr in {{input}}.columns:
                 type_name = {{input}}.dtypes[attr]
@@ -448,6 +488,7 @@ class SaveOperation(Operation):
                 })
             parameters = {
                 'name': "{{name}}",
+                'is_first_line_header': write_header,
                 'enabled': 1,
                 'is_public': 0,
                 'format': "{{format}}",
@@ -459,8 +500,7 @@ class SaveOperation(Operation):
                 'workflow_id': "{{workflow_id}}",
                 'task_id': '{{task_id}}',
                 'url': "{{final_url}}",
-                'attributes': attributes,
-                'tags': ','.join({{tags}})
+                'attributes': attributes
             }
             register_datasource('{{url}}', parameters, '{{token}}', 'overwrite')
         """

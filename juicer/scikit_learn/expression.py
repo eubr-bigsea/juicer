@@ -318,6 +318,7 @@ class Expression:
             'less_equal': self.get_numpy_function_call,
             'greater': self.get_numpy_function_call,
             'less': self.get_numpy_function_call,
+            'isnan': self.get_numpy_function_call,
         }
 
         date_functions = {
@@ -368,7 +369,8 @@ class Expression:
             'utcfromtimestamp': 'date.utcfromtimestamp',
             'fromordinal': 'date.fromordinal',
             'combine': 'date.combine',
-            'length': 'len'
+            'length': 'len',
+            'isnull': 'isnan',
 
         }
         self.translate_functions.update(translate_functions)

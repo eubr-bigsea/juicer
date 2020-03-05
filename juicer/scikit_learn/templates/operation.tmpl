@@ -200,6 +200,7 @@ def main(sklearn_session, cached_state, emit_event):
         }
     except Exception as e:
         traceback.print_exc(file=sys.stderr)
+        raise
 
 {%- if execute_main %}
 
