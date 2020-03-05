@@ -43,7 +43,8 @@ class DeployModelMixin(object):
         task_id = task['id']
 
         params = self.parameters['task']['forms']
-        forms = [(k, v['category'], v['value']) for k, v in list(params.items()) if v]
+        forms = [(k, v['category'], v['value']) for k, v in list(params.items())
+                 if v]
 
         ids_to_tasks = dict(
             [(t['id'], t) for t in self.parameters['workflow']['tasks']])
@@ -929,7 +930,7 @@ class EvaluateModelOperation(Operation):
                         actual.append(r[label_col])
                         predicted.append(r[prediction_col])
 
-                    identity = range(max(max(actual), max(predicted)))
+                    identity = range(int(max(max(actual), max(predicted))))
                     emit_event(
                          'update task', status='COMPLETED',
                         identifier='{task_id}',
@@ -955,7 +956,7 @@ class EvaluateModelOperation(Operation):
                         except Exception as e:
                             summary_rows.append([sst(p), e])
                 summary_content = SimpleTableReport(
-                    'table table-striped table-bordered', [],
+                    'table table-striped table-bordered w-auto', [],
                     summary_rows,
                     title='{summary}')
                 emit_event('update task', status='COMPLETED',
@@ -1797,7 +1798,7 @@ class VotingClassifierOperation(Operation):
             headers = ['{name}', '{order}', '{weight}']
 
             content = SimpleTableReport(
-                    'table table-striped table-bordered table-sm',
+                    'table table-striped table-bordered table-sm w-auto',
                     headers, rows,
                     title='{title}')
 
@@ -1997,7 +1998,7 @@ class ClusteringModelOperation(Operation):
                         except Exception as e:
                             summary_rows.append([p, e.message])
                 summary_content = SimpleTableReport(
-                    'table table-striped table-bordered', [],
+                    'table table-striped table-bordered w-auto', [],
                     summary_rows,
                     title='{summary}')
                 emit_event('update task', status='COMPLETED',
@@ -2587,7 +2588,7 @@ class RegressionModelOperation(DeployModelMixin, Operation):
                     headers = []
                     row = []
                     metrics = ['coefficients', 'intercept', 'scale', ]
-                    metric_names = ['{coefficients}', '{intercept}', '{scale}', ]
+                    metric_names = ['{coefficients}', '{intercept}', '{scale}']
 
                     for i, metric in enumerate(metrics):
                         value = getattr(regression_model, metric, None)
@@ -2597,7 +2598,7 @@ class RegressionModelOperation(DeployModelMixin, Operation):
 
                     if row:
                         content = SimpleTableReport(
-                            'table table-striped table-bordered',
+                            'table table-striped table-bordered w-auto',
                             headers, [row])
                         emit_event('update task', status='COMPLETED',
                             identifier='{task_id}',
@@ -2618,7 +2619,7 @@ class RegressionModelOperation(DeployModelMixin, Operation):
                                 except Exception as e:
                                     summary_rows.append([p, e.message])
                         summary_content = SimpleTableReport(
-                            'table table-striped table-bordered', [],
+                            'table table-striped table-bordered w-auto', [],
                             summary_rows,
                             title='{summary}')
                         emit_event('update task', status='COMPLETED',
@@ -2764,6 +2765,7 @@ class GeneralizedLinearRegressionOperation(RegressionOperation):
     TYPE_FAMILY_BINOMIAL = 'binomial'
     TYPE_FAMILY_POISSON = 'poisson'
     TYPE_FAMILY_GAMMA = 'gamma'
+    TYPE_FAMILY_TWEEDIE = 'tweedie'
 
     TYPE_LINK_IDENTITY = 'identity'  # gaussian-poisson-gamma
     TYPE_LINK_LOG = 'log'  # gaussian-poisson-gama
