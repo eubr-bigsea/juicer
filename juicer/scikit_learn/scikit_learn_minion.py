@@ -16,6 +16,8 @@ import datetime
 
 import codecs
 import os
+
+import pandas
 import socketio
 from timeit import default_timer as timer
 from concurrent.futures import ThreadPoolExecutor
@@ -227,15 +229,12 @@ class ScikitLearnMinion(Minion):
             # current state (if any). We pass the current state to the execution
             # to avoid re-computing the same tasks over and over again, in case
             # of several partial workflow executions.
-            try:
-                new_state = self.module.main(
-                    self.get_or_create_scikit_learn_session(loader,
-                                                            app_configs,
-                                                            job_id),
-                    self._state,
-                    self._emit_event(room=job_id, namespace='/stand'))
-            except:
-                raise
+            new_state = self.module.main(
+                self.get_or_create_scikit_learn_session(loader,
+                                                        app_configs,
+                                                        job_id),
+                self._state,
+                self._emit_event(room=job_id, namespace='/stand'))
 
             end = timer()
             # Mark job as completed
@@ -250,21 +249,28 @@ class ScikitLearnMinion(Minion):
 
         except UnicodeEncodeError as ude:
             message = self.MNN006[1].format(ude)
-            log.warn(_(message))
+            log.warning(_(message))
             # Mark job as failed
             self._emit_event(room=job_id, namespace='/stand')(
                 name='update job', message=message,
                 status='ERROR', identifier=job_id)
             self._generate_output(self.MNN006[1], 'ERROR', self.MNN006[0])
             result = False
-
+        except pandas.errors.ParserError:
+            message = _('At least one input data source is not in '
+                               'the correct format.')
+            self._emit_event(room=job_id, namespace='/stand')(
+                name='update job', message=message,
+                status='ERROR', identifier=job_id)
+            self._generate_output(message, 'ERROR', message)
+            result = False
         except ValueError as ve:
             message = _('Invalid or missing parameters: {}').format(str(ve))
             print(('#' * 30))
             import traceback
             traceback.print_exc(file=sys.stdout)
             print(('#' * 30))
-            log.warn(message)
+            log.warning(message)
             if self.transpiler.current_task_id is not None:
                 self._emit_event(room=job_id, namespace='/stand')(
                     name='update task', message=message,
