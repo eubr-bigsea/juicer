@@ -1388,6 +1388,12 @@ class ClassificationModelOperation(DeployModelMixin, Operation):
                     emit(status='COMPLETED',
                          message=result + content.generate(),
                          type='HTML', title='{title}')
+                if hasattr(ml_model, 'toDebugString'):
+                    dt_report = DecisionTreeReport(ml_model.toDebugString,
+                        features)
+                    emit(status='COMPLETED',
+                         message=dt_report.generate(),
+                         type='HTML', title='{title}')
 
             """.format(
                 model=self.model,
@@ -1574,7 +1580,7 @@ class DecisionTreeClassifierOperation(ClassifierOperation):
                                      named_outputs)
 
         self.metrics = ['depth', 'featureImportances', 'numClasses',
-                        'numFeatures', 'numNodes', ]
+                        'numFeatures', 'numNodes',]
 
         # param_grid = parameters.get('paramgrid', {})
         param_grid = parameters

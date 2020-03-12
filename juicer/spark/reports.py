@@ -2,16 +2,16 @@
 
 
 import base64
+import datetime
 import gettext
 import itertools
+import json
+import os
 from io import BytesIO
-
-import datetime
 
 import jinja2
 import matplotlib.pyplot as plt
 import numpy as np
-import os
 import pandas as pd
 import seaborn as sns
 
@@ -147,6 +147,7 @@ class SimpleTableReport(BaseHtmlReport):
 
         for col in self.headers:
             code.append('<th>{}</th>'.format(escape(col)))
+        # code.append('<th></th>')
         code.append('</tr></thead>')
 
         code.append('<tbody>')
@@ -159,8 +160,11 @@ class SimpleTableReport(BaseHtmlReport):
                     new_rows = col.toArray().tolist()
                     report = SimpleTableReport(self.table_class, [], new_rows)
                     code.append('<td>{}</td>'.format(report.generate()))
+                elif col.__class__.__name__ == 'SparseVector':
+                    code.append('<td>{}</td>'.format(list(col.toArray())))
                 else:
                     code.append('<td>{}</td>'.format(col))
+            # code.append('<td>{}</td>'.format(col.__class__.__name__))
             code.append('</tr>')
 
         code.append('</tbody>')
@@ -308,3 +312,45 @@ class AreaUnderCurveReport(BaseHtmlReport):
         plt.savefig(fig_file, format='png', dpi=75)
         plt.close('all')
         return base64.b64encode(fig_file.getvalue()).decode('utf-8')
+
+
+class DecisionTreeReport(BaseHtmlReport):
+    """
+    Report for decision trees from Spark.
+    Based on: https://github.com/tristaneljed/Decision-Tree-Visualization-Spark/
+    """
+
+    def __init__(self, debug_string, features):
+        self.tree = debug_string
+        for (i, f) in enumerate(features):
+            self.tree = self.tree.replace('feature {}'.format(i), f)
+
+    def _tree_json(self):
+        data = []
+        for line in self.tree.splitlines():
+            if line.strip():
+                line = line.strip()
+                data.append(line)
+        return {'name': 'Root', 'children': self._parse(data[1:])}
+
+    def _parse(self, lines):
+        block = []
+        while lines:
+            if lines[0].startswith('If'):
+                bl = ' '.join(lines.pop(0).split()[1:]) \
+                    .replace('(', '').replace(')', '')
+                block.append({'name': bl, 'children': self._parse(lines)})
+
+                if lines[0].startswith('Else'):
+                    be = ' '.join(lines.pop(0).split()[1:]) \
+                        .replace('(', '').replace(')', '')
+                    block.append({'name': be, 'children': self._parse(lines)})
+            elif not lines[0].startswith(('If', 'Else')):
+                block.append({'name': lines.pop(0)})
+            else:
+                break
+        return block
+
+    def generate(self):
+        return '<code><pre>{tree}</pre></code>'.format(
+            tree=json.dumps(self._tree_json(), indent=2))
