@@ -1,6 +1,10 @@
 from textwrap import dedent
-
 from juicer.operation import Operation
+import json
+try:
+    from itertools import zip_longest as zip_longest
+except ImportError:
+    from itertools import zip_longest as zip_longest
 
 
 # TODO: https://spark.apache.org/docs/2.2.0/ml-features.html#vectorassembler
@@ -101,6 +105,7 @@ class MinMaxScalerOperation(Operation):
                    att=self.attribute, alias=self.alias,
                    min=self.min, max=self.max)
 
+        # TODO: corrigir essa checagem
         if self.contains_results() or 'output data' or 'output_data_{}' in self.named_outputs:
             code += """
             {output} = {input}
@@ -167,6 +172,7 @@ class MaxAbsScalerOperation(Operation):
                    input=self.named_inputs['input data'],
                    att=self.attribute, alias=self.alias)
 
+        # TODO: corrigir essa checagem
         if self.contains_results() or 'output data' or 'output_data_{}' in self.named_outputs:
             code += """
             {output} = {input}
@@ -244,6 +250,7 @@ class StandardScalerOperation(Operation):
                    input=self.named_inputs['input data'],
                    att=self.attribute, alias=self.alias, op=op)
 
+        # TODO: corrigir essa checagem
         if self.contains_results() or 'output data' or 'output_data_{}' in self.named_outputs:
             code += """
             {output} = {input}
@@ -270,6 +277,7 @@ class QuantileDiscretizerOperation(Operation):
 
     DISTRIBUITION_PARAM_NORMAL = 'normal'
     DISTRIBUITION_PARAM_UNIFORM = 'uniform'
+    # TODO: existe uma mudança no tahiti para ser atualizada
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
@@ -305,7 +313,8 @@ class QuantileDiscretizerOperation(Operation):
         code = """
         {output} = {input}.copy()
         from sklearn.preprocessing import KBinsDiscretizer
-        {model} = KBinsDiscretizer(n_bins={n_quantiles}, encode='ordinal', strategy='quantile')
+        {model} = KBinsDiscretizer(n_bins={n_quantiles}, 
+            encode='ordinal', strategy='quantile')
         X_train = {input}[{att}].to_numpy().tolist()
         
         {output}['{alias}'] = {model}.fit_transform(X_train).flatten().tolist()
@@ -349,7 +358,7 @@ class OneHotEncoderOperation(Operation):
     def generate_code(self):
         """Generate code."""
         code = """
-        {output} = {input}
+        {output} = {input}.copy()
         from sklearn.preprocessing import OneHotEncoder
         enc = OneHotEncoder()
         X_train = {input}[{att}].to_numpy().tolist()
@@ -383,13 +392,13 @@ class PCAOperation(Operation):
                         _("Parameters '{}' must be informed for task {}")
                         .format(self.ATTRIBUTE_PARAM, self.__class__))
             self.attributes = parameters[self.ATTRIBUTE_PARAM]
-            self.n_components = parameters[self.N_COMPONENTS]
+            self.n_components = int(parameters[self.N_COMPONENTS])
 
             self.output = self.named_outputs.get(
                     'output data',
                     'output_data_{}'.format(self.order))
             self.alias = parameters.get(self.ALIAS_PARAM, 'pca_feature')
-            if int(self.n_components) <= 0:
+            if self.n_components <= 0:
                 raise ValueError(
                         _("Parameter '{}' must be x>0 for task {}").format(
                                 self.N_COMPONENTS, self.__class__))
@@ -407,3 +416,147 @@ class PCAOperation(Operation):
                    att=self.attributes, alias=self.alias,
                    n_comp=self.n_components)
         return dedent(code)
+
+
+class LSHOperation(Operation):
+
+    N_ESTIMATORS_ATTRIBUTE_PARAM = 'n_estimators'
+    MIN_HASH_MATCH_ATTRIBUTE_PARAM = 'min_hash_match'
+    N_CANDIDATES = 'n_candidates'
+    NUMBER_NEIGHBORS_ATTRIBUTE_PARAM = 'n_neighbors'
+    RANDOM_STATE_ATTRIBUTE_PARAM = 'random_state'
+    RADIUS_ATTRIBUTE_PARAM = 'radius'
+    RADIUS_CUTOFF_RATIO_ATTRIBUTE_PARAM = 'radius_cutoff_ratio'
+    LABEL_PARAM = 'label'
+
+    def __init__(self, parameters,  named_inputs, named_outputs):
+        Operation.__init__(self, parameters,  named_inputs,  named_outputs)
+
+        self.has_code = True
+
+        self.number_neighbors = int(parameters.get(
+                self.NUMBER_NEIGHBORS_ATTRIBUTE_PARAM, 5))
+        self.n_estimators = int(parameters.get(
+                self.N_ESTIMATORS_ATTRIBUTE_PARAM, 10))
+        self.min_hash_match = int(parameters.get(
+                self.MIN_HASH_MATCH_ATTRIBUTE_PARAM, 4))
+        self.n_candidates = int(parameters.get(self.N_CANDIDATES, 10))
+        self.random_state = int(parameters.get(
+                self.RANDOM_STATE_ATTRIBUTE_PARAM, 0))
+        self.radius = float(parameters.get(self.RADIUS_ATTRIBUTE_PARAM, 1.0))
+        self.radius_cutoff_ratio = float(parameters.get(
+                self.RADIUS_CUTOFF_RATIO_ATTRIBUTE_PARAM, 0.9))
+
+        if not all([self.LABEL_PARAM in parameters]):
+            msg = _("Parameters '{}' must be informed for task {}")
+            raise ValueError(msg.format(
+                self.LABEL_PARAM,
+                self.__class__.__name__))
+
+        self.label = parameters[self.LABEL_PARAM]
+        self.model = self.named_outputs.get(
+            'model', 'model_{}'.format(self.order))
+        self.output = self.named_outputs.get(
+            'output data', 'out_task_{}'.format(self.order))
+
+        self.input_treatment()
+
+        self.has_import = \
+            """
+            from sklearn.neighbors import LSHForest
+            """
+
+    @property
+    def get_data_out_names(self, sep=','):
+        return self.output
+
+    def get_output_names(self, sep=', '):
+        return sep.join([self.output, self.model])
+
+    def input_treatment(self):
+        if self.radius_cutoff_ratio < 0 or self.radius_cutoff_ratio > 1:
+            raise ValueError(
+                _("Parameter '{}' must be x>=0 and x<=1 for task {}").format(
+                    self.RADIUS_CUTOFF_RATIO_ATTRIBUTE_PARAM, self.__class__))
+
+    def generate_code(self):
+        input_data = self.named_inputs['input data']
+        """Generate code."""
+
+        code = """
+            {output_data} = {input}.copy()
+            X_train = {input}.values.tolist()
+            lshf = LSHForest(min_hash_match={min_hash_match}, 
+                n_candidates={n_candidates}, n_estimators={n_estimators},
+                number_neighbors={number_neighbors}, radius={radius}, 
+                radius_cutoff_ratio={radius_cutoff_ratio}, 
+                random_state={random_state})
+            {model} = lshf.fit(X_train) 
+            """.format(output=self.output,
+                       input=input_data,
+                       number_neighbors=self.number_neighbors,
+                       n_estimators=self.n_estimators,
+                       min_hash_match=self.min_hash_match,
+                       n_candidates=self.n_candidates,
+                       random_state=self.random_state,
+                       radius=self.radius,
+                       radius_cutoff_ratio=self.radius_cutoff_ratio,
+                       output_data=self.output,
+                       model=self.model)
+
+        return dedent(code)
+
+
+class StringIndexerOperation(Operation):
+    """
+    A label indexer that maps a string attribute of labels to an ML attribute of
+    label indices (attribute type = STRING) or a feature transformer that merges
+    multiple attributes into a vector attribute (attribute type = VECTOR). All
+    other attribute types are first converted to STRING and them indexed.
+    """
+    ATTRIBUTES_PARAM = 'attributes'
+    ALIAS_PARAM = 'alias'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+
+        if self.ATTRIBUTES_PARAM in parameters:
+            self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
+        else:
+            raise ValueError(
+                _("Parameter '{}' must be informed for task {}").format(
+                    self.ATTRIBUTES_PARAM, self.__class__))
+        self.alias = [alias.strip() for alias in
+                      parameters.get(self.ALIAS_PARAM, '').split(',')]
+
+        # Adjust alias in order to have the same number of aliases as attributes
+        # by filling missing alias with the attribute name suffixed by _indexed.
+        self.alias = [x[1] or '{}_indexed'.format(x[0]) for x in
+                      zip_longest(self.attributes,
+                                  self.alias[:len(self.attributes)])]
+        self.has_import = \
+            """
+            from sklearn.preprocessing import LabelEncoder
+            """
+
+    def generate_code(self):
+        input_data = self.named_inputs['input data']
+        output = self.named_outputs.get('output data',
+                                        'out_task_{}'.format(self.order))
+
+        models = self.named_outputs.get('models',
+                                        'models_task_{}'.format(self.order))
+        code = dedent("""
+           {output} = {input}.copy()
+           {models} = dict()
+           le = LabelEncoder()
+           for col, new_col in zip({columns}, {alias}):
+                data = {input}[col].values.tolist()
+                {models}[new_col] = le.fit_transform(data)
+                {output}[new_col] =le.fit_transform(data)    
+           """.format(input=input_data,
+                      output=output,
+                      models=models,
+                      columns=self.attributes,
+                      alias=self.alias))
+        return code

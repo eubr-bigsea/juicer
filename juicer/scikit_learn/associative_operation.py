@@ -53,7 +53,7 @@ class FrequentItemSetOperation(Operation):
 
         code = """
         col = {col}
-        transactions = {input}[col].values.tolist()
+        transactions = {input}[col].to_numpy().tolist()
         min_support = 100 * {min_support}
         
         patterns = pyfpgrowth.find_frequent_patterns(transactions, min_support)
@@ -111,6 +111,7 @@ class SequenceMiningOperation(Operation):
                 "from juicer.scikit_learn.library." \
                 "prefix_span import PrefixSpan\n"
 
+    #TODO: arrumar a geracao de regras
     def generate_code(self):
         """Generate code."""
 
@@ -120,9 +121,11 @@ class SequenceMiningOperation(Operation):
         else:
             self.column = "'{}'".format(self.column)
 
+        # transactions = {input}[col].values.tolist()
+        # transactions = np.array({input}[col].to_numpy().tolist()).tolist()
         code = """
         col = {col}
-        transactions = {input}[col].values.tolist()
+        transactions = [row.tolist() for row in {input}[col].to_numpy().tolist()]
         min_support = {min_support}
         max_length = {max_length}
 
@@ -177,10 +180,16 @@ class AssociationRulesOperation(Operation):
     def generate_code(self):
         """Generate code."""
 
-        code = """
-        col_item = '{items}'
-        col_freq = '{freq}'
+        if len(self.items_col) == 0:
+            self.items_col = "{input}.columns[0]" \
+                .format(input=self.named_inputs['input data'])
+        else:
+            self.items_col = "'{}'".format(self.items_col)
 
+        code = """
+        col_item = {items}
+        col_freq = "{freq}"
+        
         rg = RulesGenerator(min_conf={min_conf}, max_len={max_len})
         {rules} = rg.get_rules({input}, col_item, col_freq)   
         """.format(min_conf=self.confidence, rules=self.output,
