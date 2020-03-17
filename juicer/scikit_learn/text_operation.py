@@ -43,8 +43,8 @@ class TokenizerOperation(Operation):
                 self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
             else:
                 raise ValueError(
-                    _("Parameter '{}' must be informed for task {}")
-                    .format(self.ATTRIBUTES_PARAM, self.__class__))
+                    _("Parameter '{}' must be informed for task {}").format(
+                            self.ATTRIBUTES_PARAM, self.__class__))
 
             self.alias = [alias.strip() for alias in
                           parameters.get(self.ALIAS_PARAM, '').split(',')]
@@ -53,14 +53,14 @@ class TokenizerOperation(Operation):
             # sufixed by _indexed.
             self.alias = [x[1] or '{}_tok'.format(x[0]) for x in
                           zip_longest(self.attributes,
-                                       self.alias[:len(self.attributes)])]
+                                      self.alias[:len(self.attributes)])]
 
             self.expression_param = parameters.get(self.EXPRESSION_PARAM, '\s+')
             if len(self.expression_param) == 0:
                 self.expression_param = '\s+'
 
             self.output = self.named_outputs.get(
-                'output data', 'output_data_{}'.format(self.order))
+                    'output data', 'output_data_{}'.format(self.order))
 
             if self.type == self.TYPE_SIMPLE:
                 self.has_import = "from nltk.tokenize import TweetTokenizer\n"
