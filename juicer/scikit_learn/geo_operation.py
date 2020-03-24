@@ -169,18 +169,88 @@ class STDBSCANOperation(Operation):
             self.spatial_thr = abs(float(self.spatial_thr))
             self.temporal_thr = abs(int(self.temporal_thr))
             self.has_import = "from juicer.scikit_learn.library.stdbscan " \
-                              "import st_dbscan\n"
+                              "import STDBSCAN\n"
 
     def generate_code(self):
         """Generate code."""
         code = """
-        {output} = st_dbscan({data_input}, '{col_latitude}', '{col_longitude}', 
-            '{col_datetime}', '{alias}', spatial_threshold={spatial}, 
+        {output} = {data_input}.copy()
+            
+        st_dbscan = STDBSCAN(spatial_threshold={spatial}, 
             temporal_threshold={temporal}, min_neighbors={minPts})
-            """.format(data_input=self.named_inputs['input data'],
-                       output=self.output, minPts=self.min_pts,
-                       spatial=self.spatial_thr, temporal=self.temporal_thr,
-                       col_latitude=self.lat_col, col_longitude=self.lon_col,
-                       col_datetime=self.datetime_col, alias=self.alias)
+                         
+        {output} = st_dbscan.fit_transform({data_input}, 
+                col_lat='{col_latitude}', col_lon='{col_longitude}',
+                col_time='{col_datetime}', col_cluster='{alias}')
+
+        """.format(data_input=self.named_inputs['input data'],
+                   output=self.output, minPts=self.min_pts,
+                   spatial=self.spatial_thr, temporal=self.temporal_thr,
+                   col_latitude=self.lat_col, col_longitude=self.lon_col,
+                   col_datetime=self.datetime_col, alias=self.alias)
+
+        return dedent(code)
+
+
+class CartographicProjectionOperation(Operation):
+    """ Cartographic Projection Operation
+
+    Converts different cartographic projections to each other.
+    """
+
+    SRC_PROJ_PARAM = 'src_projection'
+    DST_PROJ_PARAM = 'dst_projection'
+    LAT_PARAM = 'col_lat'
+    LON_PARAM = 'col_lon'
+    LAT_ALIAS_PARAM = 'alias_lat'
+    LON_ALIAS_PARAM = 'alias_lon'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+
+        self.has_code = len(named_inputs) == 1 and any([self.contains_results(),
+                                                        len(named_outputs) > 0])
+        if self.has_code:
+
+            for att in [self.SRC_PROJ_PARAM, self.DST_PROJ_PARAM,
+                        self.LAT_PARAM, self.LON_PARAM]:
+                if att not in self.parameters:
+                    raise ValueError(
+                        _('Parameters {} must be informed for task {}.')
+                        .format(att, self.__class__))
+
+            self.output = self.named_outputs.get(
+                'output data', 'output_data_{}'.format(self.order))
+
+            self.lat_col = parameters.get(self.LAT_PARAM)[0]
+            self.lon_col = parameters.get(self.LON_PARAM)[0]
+
+            self.lat_alias = parameters.get(self.LAT_ALIAS_PARAM, self.lat_col)
+            self.lon_alias = parameters.get(self.LON_ALIAS_PARAM, self.lon_col)
+
+            self.src_prj = parameters.get(self.SRC_PROJ_PARAM)
+            self.dst_prj = parameters.get(self.DST_PROJ_PARAM)
+
+    def generate_code(self):
+        """Generate code."""
+        code = """
+        import pyproj
+        {output} = {data_input}.copy()
+
+        old_proj = pyproj.Proj({src_epsg}, preserve_units=True)
+        new_proj = pyproj.Proj({dst_epsg}, preserve_units=True)
+
+        lon = {data_input}['{col_lon}'].to_numpy()
+        lat = {data_input}['{col_lat}'].to_numpy()
+        x1, y1 = old_proj(lon, lat)
+        x2, y2 = pyproj.transform(old_proj, new_proj, x1, y1)
+        
+        {output}['{alias_lon}'] = x2
+        {output}['{alias_lat}'] = y2
+        """.format(data_input=self.named_inputs['input data'],
+                   output=self.output,
+                   col_lat=self.lat_col, col_lon=self.lon_col,
+                   alias_lon=self.lon_alias, alias_lat=self.lat_alias,
+                   src_epsg=self.src_prj, dst_epsg=self.dst_prj)
 
         return dedent(code)

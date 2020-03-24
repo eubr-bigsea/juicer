@@ -90,7 +90,8 @@ class AgglomerativeClusteringOperation(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-        self.has_code = any([len(self.named_inputs) == 1, self.contains_results()])
+        self.has_code = len(named_inputs) > 0 and any([self.contains_results(),
+                                                       len(named_outputs) > 0])
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
 
