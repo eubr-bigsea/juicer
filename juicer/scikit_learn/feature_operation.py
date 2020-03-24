@@ -106,9 +106,9 @@ class MinMaxScalerOperation(Operation):
                    min=self.min, max=self.max)
 
         # TODO: corrigir essa checagem
-        if self.contains_results() or 'output data' or 'output_data_{}' in self.named_outputs:
+        if self.contains_results() or len(self.named_outputs) > 0:
             code += """
-            {output} = {input}
+            {output} = {input}.copy()
             {output}['{alias}'] = {model}.transform(X_train).tolist()
             """.format(output=self.output, input=self.named_inputs['input data'],
                        model=self.model, alias=self.alias)
@@ -173,9 +173,9 @@ class MaxAbsScalerOperation(Operation):
                    att=self.attribute, alias=self.alias)
 
         # TODO: corrigir essa checagem
-        if self.contains_results() or 'output data' or 'output_data_{}' in self.named_outputs:
+        if self.contains_results() or len(self.named_outputs) > 0:
             code += """
-            {output} = {input}
+            {output} = {input}.copy()
             {output}['{alias}'] = {model}.transform(X_train).tolist()
             """.format(output=self.output, input=self.named_inputs['input data'],
                        model=self.model, alias=self.alias)
@@ -250,12 +250,12 @@ class StandardScalerOperation(Operation):
                    input=self.named_inputs['input data'],
                    att=self.attribute, alias=self.alias, op=op)
 
-        # TODO: corrigir essa checagem
-        if self.contains_results() or 'output data' or 'output_data_{}' in self.named_outputs:
+        if self.contains_results() or len(self.named_outputs) > 0:
             code += """
-            {output} = {input}
+            {output} = {input}.copy()
             {output}['{alias}'] = {model}.transform(X_train).tolist()
-            """.format(output=self.output, input=self.named_inputs['input data'],
+            """.format(output=self.output,
+                       input=self.named_inputs['input data'],
                        model=self.model, alias=self.alias)
         return dedent(code)
 
@@ -277,7 +277,7 @@ class QuantileDiscretizerOperation(Operation):
 
     DISTRIBUITION_PARAM_NORMAL = 'normal'
     DISTRIBUITION_PARAM_UNIFORM = 'uniform'
-    # TODO: existe uma mudança no tahiti para ser atualizada
+    # TODO: existe uma mudança no tahiti para ser atualizada aqui
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
