@@ -101,3 +101,8 @@ logs/
 metastore_db/
 *.swp
 juicer*.yaml
+MANIFEST.in
+README
+ajuda.py
+dask-worker-space/
+

@@ -551,7 +551,7 @@ class LinearRegressionOperation(RegressionOperation):
                         _("Parameter '{}' must be 0<=x<=1 for task {}").format(
                                 self.ELASTIC_NET_PARAM, self.__class__))
 
-            if seed_ is None and self.seed < 0:
+            if seed_ is None:
                 self.seed = 'None'
             else:
                 self.seed = int(seed_)
