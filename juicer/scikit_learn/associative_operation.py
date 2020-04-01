@@ -111,7 +111,6 @@ class SequenceMiningOperation(Operation):
                 "from juicer.scikit_learn.library." \
                 "prefix_span import PrefixSpan\n"
 
-    #TODO: arrumar a geracao de regras
     def generate_code(self):
         """Generate code."""
 
@@ -121,17 +120,17 @@ class SequenceMiningOperation(Operation):
         else:
             self.column = "'{}'".format(self.column)
 
-        # transactions = {input}[col].values.tolist()
+        # transactions = [row.tolist() for row in {input}[col].to_numpy().tolist()]
         # transactions = np.array({input}[col].to_numpy().tolist()).tolist()
         code = """
         col = {col}
-        transactions = [row.tolist() for row in {input}[col].to_numpy().tolist()]
+        transactions = {input}[col].to_numpy().tolist() 
         min_support = {min_support}
         max_length = {max_length}
 
         span = PrefixSpan(transactions)
         span.run(min_support, max_length)
-        result = span.get_patest_text_operations.pyatterns()
+        result = span.get_patterns()
 
         {output} = pd.DataFrame(result, columns=['itemsets', 'support'])
         """.format(output=self.output, col=self.column,

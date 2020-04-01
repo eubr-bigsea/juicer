@@ -58,7 +58,7 @@ class PrefixSpan:
             ori_pattern = list()
             for item in pattern:
                 ori_pattern.append(self.sdb2db[item])
-            ori_patterns.append((ori_pattern, sup))
+            ori_patterns.append((ori_pattern, sup/len(self.db)))
         return ori_patterns
 
     def gen_l1_patterns(self):
