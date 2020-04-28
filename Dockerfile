@@ -19,6 +19,7 @@ RUN apt-get update && apt-get install -y \
       python3-setuptools \
       openjdk-8-jdk \
       curl \
+      graphviz \
       locales \
   && update-alternatives --install /usr/bin/python python /usr/bin/python3.6 10 \
   && sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen \

@@ -270,6 +270,7 @@ class SparkMinion(Minion):
         # Forward the message according to its purpose
         if msg_type == juicer_protocol.EXECUTE:
 
+            log.info('Starting execution of workflow %s', self.app_id)  
             # Checks if it's a valid cluster
             job_id = msg_info['job_id']
             cluster_info = msg_info.get('cluster', {})
