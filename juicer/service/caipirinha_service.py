@@ -10,7 +10,7 @@ log.setLevel(logging.DEBUG)
 
 
 def _update_caipirinha(base_url, item_path, token, item_id, data):
-    headers = {'X-Auth-Token': token}
+    headers = {'X-Auth-Token': token, 'Content-Type': 'application/json'}
 
     if item_id == '':
         url = '{}/{}'.format(base_url, item_path)
