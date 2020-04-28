@@ -42,7 +42,7 @@ RUN SPARK_LATEST_VERSION=$(\
     ) \
   && SPARK_HADOOP_PKG=${SPARK_LATEST_VERSION}-bin-hadoop${HADOOP_VERSION} \
   && SPARK_HADOOP_URL=${SPARK_BASE_URL}/${SPARK_LATEST_VERSION}/${SPARK_HADOOP_PKG}.tgz \
-  && curl -s ${SPARK_HADOOP_URL} | tar -xz -C /usr/local/  &&\
+  && curl -sL ${SPARK_HADOOP_URL} | tar -xz -C /usr/local/  &&\
     mv /usr/local/$SPARK_HADOOP_PKG $SPARK_HOME &&\
     ln -s /usr/local/spark /opt/spark
 
