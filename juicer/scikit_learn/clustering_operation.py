@@ -15,7 +15,7 @@ class ClusteringModelOperation(Operation):
         if self.has_code:
 
             if self.FEATURES_PARAM in parameters:
-                self.features = parameters.get(self.FEATURES_PARAM)[0]
+                self.features = parameters.get(self.FEATURES_PARAM)
             else:
                 raise \
                     ValueError(_("Parameter '{}' must be informed for task {}")
@@ -45,7 +45,7 @@ class ClusteringModelOperation(Operation):
     def generate_code(self):
         """Generate code."""
         code = """
-        X = {input}['{features}'].values.tolist()
+        X = get_X_train_data({input}, {features})
         {model} = {algorithm}.fit(X)
         """.format(model=self.model, features=self.features,
                    input=self.named_inputs['train input data'],
@@ -134,7 +134,7 @@ class AgglomerativeClusteringOperation(Operation):
         """Generate code."""
         code = """
         {output_data} = {input_data}.copy()
-        X = {output_data}[{features}].to_numpy().tolist()
+        X = get_X_train_data({output_data}, {features})
         agg = AgglomerativeClustering(n_clusters={n_clusters}, 
             linkage='{linkage}', affinity='{affinity}')
         {output_data}['{alias}'] = agg.fit_predict(X)
@@ -207,7 +207,7 @@ class DBSCANClusteringOperation(Operation):
         """Generate code."""
         code = """
         {output_data} = {input_data}.copy()
-        X_train = {output_data}[{columns}].to_numpy().tolist()
+        X_train = get_X_train_data({output_data}, {columns})
         dbscan = DBSCAN(eps={eps}, min_samples={min_samples}, metric='{metric}')
         {output_data}['{prediction}'] = dbscan.fit_predict(X_train)
         """.format(eps=self.eps,
@@ -286,7 +286,7 @@ class GaussianMixtureClusteringOperation(Operation):
         """Generate code."""
         code = """
         {output_data} = {input_data}.copy()
-        X_train = {input_data}[{columns}].to_numpy().tolist()
+        X_train = get_X_train_data({input_data}, {columns})
         {model} = GaussianMixture(n_components={k}, max_iter={iter}, tol={tol}, 
             covariance_type='{covariance_type}', reg_covar={reg_covar}, 
             n_init={n_init}, random_state={random_state})
@@ -403,7 +403,7 @@ class KMeansClusteringOperation(Operation):
         if self.type.lower() == "k-means":
             code = """
             {output_data} = {input_data}.copy()
-            X_train = {input_data}[{columns}].to_numpy().tolist()
+            X_train = get_X_train_data({input_data}, {columns})
             {model} = KMeans(n_clusters={k}, init='{init}', max_iter={max_iter},
                              tol={tol}, random_state={seed}, n_init={n_init}, 
                              n_jobs={n_jobs}, algorithm='{algorithm}')
@@ -524,7 +524,7 @@ class LdaClusteringOperation(Operation):
         doc_topic_prior={doc_topic_prior}, topic_word_prior={topic_word_prior}, 
         learning_method='{learning_method}', max_iter={max_iter})
         
-        X_train = {input}['{input_col}'].values.tolist()
+        X_train = get_X_train_data({input}, '{input_col}')
         {model}.fit(X_train)
         """.format(n_components=self.n_clusters, max_iter=self.max_iter,
                    doc_topic_prior=self.doc_topic_pior,

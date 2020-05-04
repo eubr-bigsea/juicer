@@ -44,6 +44,14 @@ def sklearn_logging(msg):
 
 
 def get_X_train_data(df, features):
+    """
+    Method to convert some Pandas's columns to the Sklearn input format.
+
+    :param df: Pandas DataFrame;
+    :param features: a list of columns;
+
+    :return: a DataFrame's subset as a list of list.
+    """
     column_list = []
     for feature in features:
         #Validating OneHotEncode data existence
@@ -61,7 +69,16 @@ def get_X_train_data(df, features):
         output = tmp1
     return output.tolist()
 
-def get_label_data(df, labels):
+def get_label_data(df, label):
+    """
+    Method to check and convert a Panda's column as a Python built-in list.
+
+    :param df: Pandas DataFrame;
+    :param labels: a list of columns;
+
+    :return: A column as a Python list.
+    """
+
     #Validating multiple columns on label
     if len(labels) > 1:
         raise ValueError(_('Label must be a single column of dataset'))
