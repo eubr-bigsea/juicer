@@ -807,8 +807,8 @@ class CrossValidationOperation(Operation):
         code = dedent("""
                   kf = KFold(n_splits={folds}, random_state={seed}, 
                   shuffle=True)
-                  X_train = {input_data}['{feature_attr}'].values
-                  y = {input_data}['{label_attr}'].values
+                  X_train = get_X_train_data({input_data}, {feature_attr})
+                  y = get_label_data({input_data}, {label_attr})
 
                   scores = cross_val_score({algorithm}, X_train.tolist(), 
                                            y.tolist(), cv=kf, scoring='{metric}')
@@ -822,8 +822,8 @@ class CrossValidationOperation(Operation):
                              models=self.models,
                              prediction_arg=self.param_prediction_arg,
                              prediction_attr=self.prediction_attr,
-                             label_attr=self.label_attr[0],
-                             feature_attr=self.feature_attr[0],
+                             label_attr=self.label_attr,
+                             feature_attr=self.feature_attr,
                              folds=self.num_folds,
                              metric=self.metric,
                              seed=self.seed))

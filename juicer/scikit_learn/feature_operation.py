@@ -98,7 +98,7 @@ class MinMaxScalerOperation(Operation):
         """Generate code."""
         code = """        
         {model} = MinMaxScaler(feature_range=({min},{max}))
-        X_train = {input}[{att}].to_numpy().tolist()
+        X_train = get_X_train_data({input}, {att})
         {model}.fit(X_train)
         """.format(output=self.output, model=self.model,
                    input=self.named_inputs['input data'],
@@ -165,7 +165,7 @@ class MaxAbsScalerOperation(Operation):
         """Generate code."""
         code = """
         {model} = MaxAbsScaler()
-        X_train = {input}[{att}].to_numpy().tolist()
+        X_train = get_X_train_data({input}, {att})
         {model}.fit(X_train)
         """.format(output=self.output,
                    model=self.model,
@@ -244,7 +244,7 @@ class StandardScalerOperation(Operation):
         """Generate code."""
         code = """
         {model} = StandardScaler({op})
-        X_train = {input}[{att}].to_numpy().tolist()
+        X_train = get_X_train_data({input}, {att})
         {model}.fit(X_train)
         """.format(model=self.model,
                    input=self.named_inputs['input data'],
@@ -315,7 +315,7 @@ class QuantileDiscretizerOperation(Operation):
         from sklearn.preprocessing import KBinsDiscretizer
         {model} = KBinsDiscretizer(n_bins={n_quantiles}, 
             encode='ordinal', strategy='quantile')
-        X_train = {input}[{att}].to_numpy().tolist()
+        X_train = get_X_train_data({input}, {att})
         
         {output}['{alias}'] = {model}.fit_transform(X_train).flatten().tolist()
         """.format(output=self.output,
@@ -361,7 +361,7 @@ class OneHotEncoderOperation(Operation):
         {output} = {input}.copy()
         from sklearn.preprocessing import OneHotEncoder
         enc = OneHotEncoder()
-        X_train = {input}[{att}].to_numpy().tolist()
+        X_train = get_X_train_data({input}, {att})
         {output}['{alias}'] = enc.fit_transform(X_train).toarray().tolist()
         """.format(output=self.output,
                    input=self.named_inputs['input data'],
@@ -409,7 +409,7 @@ class PCAOperation(Operation):
         {output} = {input}
         from sklearn.decomposition import PCA
         pca = PCA(n_components={n_comp})
-        X_train = {input}[{att}].to_numpy().tolist()
+        X_train = get_X_train_data({input}, {att})
         {output}['{alias}'] = pca.fit_transform(X_train).tolist()
         """.format(output=self.output,
                    input=self.named_inputs['input data'],
@@ -482,10 +482,11 @@ class LSHOperation(Operation):
     def generate_code(self):
         input_data = self.named_inputs['input data']
         """Generate code."""
+        #TODO: LSHForest algorithm is using all columns.
 
         code = """
             {output_data} = {input}.copy()
-            X_train = {input}.values.tolist()
+            X_train = {input}.to_numpy().tolist()
             lshf = LSHForest(min_hash_match={min_hash_match}, 
                 n_candidates={n_candidates}, n_estimators={n_estimators},
                 number_neighbors={number_neighbors}, radius={radius}, 
@@ -551,7 +552,7 @@ class StringIndexerOperation(Operation):
            {models} = dict()
            le = LabelEncoder()
            for col, new_col in zip({columns}, {alias}):
-                data = {input}[col].values.tolist()
+                data = {input}[col].to_numpy().tolist()
                 {models}[new_col] = le.fit_transform(data)
                 {output}[new_col] =le.fit_transform(data)    
            """.format(input=input_data,

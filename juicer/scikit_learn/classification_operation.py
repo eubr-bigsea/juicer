@@ -23,8 +23,8 @@ class ClassificationModelOperation(Operation):
                     self.FEATURES_ATTRIBUTE_PARAM, self.LABEL_ATTRIBUTE_PARAM,
                     self.__class__.__name__))
 
-            self.label = parameters.get(self.LABEL_ATTRIBUTE_PARAM)[0]
-            self.features = parameters.get(self.FEATURES_ATTRIBUTE_PARAM)[0]
+            self.label = parameters.get(self.LABEL_ATTRIBUTE_PARAM)
+            self.features = parameters.get(self.FEATURES_ATTRIBUTE_PARAM)
             self.prediction = parameters.get(self.PREDICTION_ATTRIBUTE_PARAM,
                                              'prediction')
 
@@ -55,8 +55,8 @@ class ClassificationModelOperation(Operation):
     def generate_code(self):
         """Generate code."""
         code = """
-            X = {input}['{features}'].to_numpy().tolist()
-            y = {input}['{label}'].to_numpy().tolist()
+            X = get_X_train_data({input}, {features})
+            y = get_label_data({input}, {label})
             {model} = {algorithm}.fit(X, y)
             """.format(model=self.model, label=self.label,
                        input=self.named_inputs['train input data'],
@@ -185,8 +185,8 @@ class DecisionTreeClassifierOperation(Operation):
         """Generate code."""
         code = """
             {output_data} = {input_data}.copy()            
-            X_train = {input_data}[{columns}].to_numpy().tolist()
-            y = {input_data}[{label}].to_numpy().tolist()
+            X_train = get_X_train_data({input_data}, {columns})
+            y = get_label_data({input_data}, {label})
             y = np.reshape(y, len(y))
             {model} = DecisionTreeClassifier(max_depth={max_depth}, 
                 min_samples_split={min_split}, 
@@ -344,9 +344,9 @@ class GBTClassifierOperation(Operation):
     def generate_code(self):
         """Generate code."""
         code = """ 
-            {output_data} = {input_data}.copy()            
-            X_train = {input_data}[{columns}].to_numpy().tolist()
-            y = {input_data}[{label}].to_numpy().tolist()
+            {output_data} = {input_data}.copy()
+            X_train = get_X_train_data({input_data}, {columns})
+            y = get_label_data({input_data}, {label})           
             y = np.reshape(y, len(y))
             {model} = GradientBoostingClassifier(loss='{loss}', 
                 learning_rate={learning_rate}, 
@@ -1289,8 +1289,7 @@ class RandomForestClassifierOperation(Operation):
             self.bootstrap = int(parameters.get(self.BOOTSTRAP_PARAM, 1)) == 1
             self.oob_score = int(parameters.get(self.OOB_SCORE_PARAM, 0)) == 1
 
-            self.n_jobs = self.__positive_or_none_param(parameters, self.N_JOBS_PARAM)
-            self.verbose = int(parameters.get(self.VERBOSE_PARAM, 0)) or 0
+            # self.n_jobs = self.__positive_or_none_param(parameters, self.N_JOBS_PARAM)
 
             self.ccp_alpha = float(parameters.get(self.CCP_ALPHA_PARAM, 0.0))
 
@@ -1363,8 +1362,7 @@ class RandomForestClassifierOperation(Operation):
         criterion='{criterion}', min_weight_fraction_leaf={min_weight_fraction_leaf},
         max_features={max_features}, max_leaf_nodes={max_leaf_nodes}, 
         min_impurity_decrease={min_impurity_decrease}, bootstrap={bootstrap},
-        oob_score={oob_score}, n_jobs={n_jobs}, verbose={verbose},
-        ccp_alpha={ccp_alpha}, max_samples={max_samples})
+        oob_score={oob_score}, ccp_alpha={ccp_alpha}, max_samples={max_samples})
 
         X_train = get_X_train_data({input}, {features})
         y = get_label_data({input}, {label})
@@ -1378,11 +1376,12 @@ class RandomForestClassifierOperation(Operation):
                    criterion=self.criterion, min_weight_fraction_leaf=self.min_weight_fraction_leaf,
                    max_features=self.max_features, max_leaf_nodes=self.max_leaf_nodes,
                    min_impurity_decrease=self.min_impurity_decrease, bootstrap=self.bootstrap,
-                   oob_score=self.oob_score, n_jobs=self.n_jobs, verbose=self.verbose,
-                   ccp_alpha=self.ccp_alpha, max_samples=self.max_samples, features=self.features,
+                   oob_score=self.oob_score, ccp_alpha=self.ccp_alpha,
+                   max_samples=self.max_samples, features=self.features,
                    prediction_column=self.prediction_column, label=self.label)
 
         return dedent(code)
+
 
 class SvmClassifierOperation(Operation):
 

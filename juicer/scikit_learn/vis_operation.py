@@ -529,8 +529,8 @@ class BarChartModel(ChartVisualization):
             result['x']["inFormat"] = self.default_time_format
             result['x']["outFormat"] = self.default_time_format
 
-        rows_x = self.data[x_attr].values.tolist()
-        rows_y = self.data[y_attrs].values.tolist()
+        rows_x = self.data[x_attr].to_numpy().tolist()
+        rows_y = self.data[y_attrs].to_numpy().tolist()
 
         for inx_row, (row_x, row_y) in enumerate(zip(rows_x, rows_y)):
             x_value = row_x
@@ -614,8 +614,8 @@ class PieChartModel(ChartVisualization):
     def get_data(self):
         label_attr, _, value_attr = self._get_axis_info()
 
-        rows_x = self.data[value_attr].values
-        rows_y = self.data[label_attr].values
+        rows_x = self.data[value_attr].to_numpy()
+        rows_y = self.data[label_attr].to_numpy()
         result = self._get_title_legend_tooltip()
         result['legend']['isVisible'] = self.params.get('legend') in ('1', 1)
 
@@ -712,7 +712,7 @@ class LineChartModel(ChartVisualization):
         else:
             rows_x = self.data[x_attr].to_numpy().tolist()
 
-        rows_y = self.data[y_attrs].values.tolist()
+        rows_y = self.data[y_attrs].to_numpy().tolist()
 
         for row_x, row_y in zip(rows_x, rows_y):
             for i, y in enumerate(row_y):
@@ -733,7 +733,7 @@ class MapModel(ChartVisualization):
     def get_data(self):
         result = {}
         result.update(self._get_title_legend_tooltip())
-        rows = self.data.values.tolist()
+        rows = self.data.to_numpy().tolist()
 
         if self.params.get('value'):
             value_attr = next((c for c in self.data.columns if
@@ -887,7 +887,7 @@ class ScatterPlotModel(ChartVisualization):
                 item[axis] = ScatterPlotModel._get_value(row, attrs[axis])
             data.append(item)
 
-        result['data'] = list(series.values())
+        result['data'] = list(series.to_numpy()())
         return result
 
     @staticmethod
@@ -947,9 +947,9 @@ class TableVisualizationModel(VisualizationModel):
         Returns data as tabular (list of lists in Python).
         """
         if self.column_names:
-            rows = self.data.head(50)[self.column_names].values.tolist()
+            rows = self.data.head(50)[self.column_names].to_numpy().tolist()
         else:
-            rows = self.data.head(50).values.tolist()
+            rows = self.data.head(50).to_numpy().tolist()
 
         return {"rows": rows,
                 "attributes": self.get_column_names().split(',')}
@@ -1055,6 +1055,6 @@ class SummaryStatisticsModel(TableVisualizationModel):
                 'min', 'max', 'mean', 'std',  'skewness',
                 'kurtosis'] + corr_cols
 
-        rows = rows[cols].values.tolist()
+        rows = rows[cols].to_numpy().tolist()
 
         return {"rows": rows, "attributes": self.get_column_names().split(',')}

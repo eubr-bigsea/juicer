@@ -8,7 +8,7 @@ class FrequentItemSetOperation(Operation):
 
     MIN_SUPPORT_PARAM = 'min_support'
     ATTRIBUTE_PARAM = 'attribute'
-    CONFIDENCE_PARAM = 'confidence'
+    CONFIDENCE_PARAM = 'min_confidence'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
@@ -65,11 +65,9 @@ class FrequentItemSetOperation(Operation):
         
         # generating rules
         columns = ['Pre-Rule', 'Post-Rule', 'confidence']  
-        
         rules = pyfpgrowth.generate_association_rules(patterns, {min_conf})
         rules = [[list(a), list(b[0]), b[1]] for a, b in rules.items()]
-
-        {rules} = pd.DataFrame(rules, columns=columns)  
+        {rules} = pd.DataFrame(rules, columns=columns) 
         """.format(output=self.output, col=self.column,
                    input=self.named_inputs['input data'],
                    min_support=self.min_support, min_conf=self.confidence,
