@@ -43,8 +43,8 @@ class TokenizerOperation(Operation):
                 self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
             else:
                 raise ValueError(
-                    _("Parameter '{}' must be informed for task {}")
-                    .format(self.ATTRIBUTES_PARAM, self.__class__))
+                    _("Parameter '{}' must be informed for task {}").format(
+                            self.ATTRIBUTES_PARAM, self.__class__))
 
             self.alias = [alias.strip() for alias in
                           parameters.get(self.ALIAS_PARAM, '').split(',')]
@@ -53,14 +53,14 @@ class TokenizerOperation(Operation):
             # sufixed by _indexed.
             self.alias = [x[1] or '{}_tok'.format(x[0]) for x in
                           zip_longest(self.attributes,
-                                       self.alias[:len(self.attributes)])]
+                                      self.alias[:len(self.attributes)])]
 
             self.expression_param = parameters.get(self.EXPRESSION_PARAM, '\s+')
             if len(self.expression_param) == 0:
                 self.expression_param = '\s+'
 
             self.output = self.named_outputs.get(
-                'output data', 'output_data_{}'.format(self.order))
+                    'output data', 'output_data_{}'.format(self.order))
 
             if self.type == self.TYPE_SIMPLE:
                 self.has_import = "from nltk.tokenize import TweetTokenizer\n"
@@ -80,7 +80,7 @@ class TokenizerOperation(Operation):
             result = []
             toktok = TweetTokenizer()
     
-            for row in {output}['{att}'].values:
+            for row in {output}['{att}'].to_numpy():
                 result.append([word 
                 for word in toktok.tokenize(row){limit}])
             {output}['{alias}'] = result
@@ -93,7 +93,7 @@ class TokenizerOperation(Operation):
            {output} = {input}.copy()
            result = []
 
-           for row in {output}['{att}'].values:
+           for row in {output}['{att}'].to_numpy():
                result.append([word for word in 
                               regexp_tokenize(row, pattern='{exp}'){limit}])
 
@@ -172,7 +172,7 @@ class RemoveStopWordsOperation(Operation):
 
         if len(self.named_inputs) == 2 and len(self.stop_word_attribute) > 0:
             code += """
-        stop_words += {in2}['{att2}'].values.tolist()
+        stop_words += {in2}['{att2}'].to_numpy().tolist()
         """.format(in2=self.stopwords_input, att2=self.stop_word_attribute)
         if len(self.stop_word_list) > 1:
             code += """
@@ -181,7 +181,7 @@ class RemoveStopWordsOperation(Operation):
 
         if self.sw_case_sensitive == "1":
             code += """
-        word_tokens = {OUT}['{att}'].values       
+        word_tokens = {OUT}['{att}'].to_numpy()       
         result = []
         case_sensitive = True
         for row in word_tokens:
@@ -195,7 +195,7 @@ class RemoveStopWordsOperation(Operation):
         else:
             code += """
         stop_words = [w.lower() for w in stop_words]
-        word_tokens = {OUT}['{att}'].values       
+        word_tokens = {OUT}['{att}'].to_numpy()       
         result = []
         case_sensitive = False
         for row in word_tokens:
@@ -256,7 +256,7 @@ class GenerateNGramsOperation(Operation):
             {output} = {input}.copy()
                     
             grams = []
-            for row in {output}['{att}'].values:
+            for row in {output}['{att}'].to_numpy():
                 grams.append([" ".join(gram) for gram in ngrams(row, {n})])
                 
             {output}['{alias}'] = grams
@@ -361,7 +361,7 @@ class WordToVectorOperation(Operation):
             def do_nothing(tokens):
                 return tokens
             
-            corpus = {out}['{att}'].values.tolist()
+            corpus = {out}['{att}'].to_numpy().tolist()
             {model} = CountVectorizer(tokenizer=do_nothing,
                              preprocessor=None, lowercase=False, 
                              min_df={min_df}, max_features={vocab_size})
@@ -386,7 +386,7 @@ class WordToVectorOperation(Operation):
             def do_nothing(tokens):
                 return tokens
             
-            corpus = {out}['{att}'].values.tolist()
+            corpus = {out}['{att}'].to_numpy().tolist()
             {model} = TfidfVectorizer(tokenizer=do_nothing,
                              preprocessor=None, lowercase=False, 
                              min_df={min_df}, max_features={vocab_size})
@@ -411,7 +411,7 @@ class WordToVectorOperation(Operation):
             def do_nothing(tokens):
                 return tokens
                 
-            corpus = {out}['{att}'].values.tolist()
+            corpus = {out}['{att}'].to_numpy().tolist()
             {model} = HashingVectorizer(tokenizer=do_nothing,
                              preprocessor=None, lowercase=False, 
                              n_features={vocab_size})
@@ -438,7 +438,7 @@ class WordToVectorOperation(Operation):
             code = dedent("""
             {out} = {input}.copy()
             dim = {max_dim}
-            corpus = {out}['{att}'].values.tolist()
+            corpus = {out}['{att}'].to_numpy().tolist()
             {model} = Word2Vec(corpus, min_count={min_df}, 
                 max_vocab_size={max_vocab}, size=dim)
             

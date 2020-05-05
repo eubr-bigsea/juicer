@@ -71,20 +71,28 @@ class Expression:
     def get_numpy_function_call(self, spec, params):
         """
         Wrap column name with row() function call, if such call is not present.
-        Convert the function to np.function
+        Convert the function to np.function.
+
+        Example: sin(value) will be converted to np.sin(value)
+
         """
         callee = spec['arguments'][0].get('callee', {})
+        function = spec['callee']['name']
+        function = self.translate_functions[
+            function] if function in self.translate_functions else function
         # Evaluates if column name is wrapped in a col() function call
         arguments = ', '.join(
             [self.parse(x, params) for x in spec['arguments']])
-        function_name = spec['callee']['name']
-        result = " np.{}({})".format(function_name, arguments)
+        # function_name = spec['callee']['name']
+        result = " np.{}({})".format(function, arguments)
         return result
 
     def get_function_call(self, spec, params):
         """
         Wrap column name with row() function call, if such call is not present.
         Custom functions or like "len()" or "str()"
+
+        Example: len(col) will be converted to len(col)
         """
         callee = spec['arguments'][0].get('callee', {})
         # Evaluates if column name is wrapped in a col() function call
@@ -94,9 +102,11 @@ class Expression:
         result = "{}({})".format(function_name, arguments)
         return result
 
+    # TODO: remove this method
     def get_date_function_call(self, spec, params):
         """
         Wrap column name with row() function call, if such call is not present.
+
         """
         callee = spec['arguments'][0].get('callee', {})
         function = spec['callee']['name']
@@ -114,7 +124,7 @@ class Expression:
     def get_built_function_call(self, spec, params):
         """
         Wrap column name with row() function call, if such call is not present.
-        Functions like row().split()
+        It will generate python functions like value.split()
         """
         callee = spec['arguments'][0].get('callee', {})
         function = spec['callee']['name']
@@ -196,6 +206,21 @@ class Expression:
 
     def build_functions_dict(self):
 
+        str_builtin_functions = \
+            ['split', 'capitalize', 'casefold', 'center',
+             'count', 'encode', 'endswith', 'expandtabs',
+             'find', 'index', 'isalnum', 'isalpha', 'isdecimal',
+             'isdigit', 'isidentifier', 'islower', 'isnumeric',
+             'isprintable', 'isspace', 'istitle', 'isupper',
+             'ljust', 'lower', 'lstrip', 'partition', 'replace',
+             'rfind', 'rindex', 'rjust', 'rpartition', 'rsplit',
+             'rstrip', 'split', 'splitlines', 'startswith',
+             'strip', 'swapcase', 'title', 'translate', 'upper',
+             'zfill']
+
+        str_builtin_functions = {k: self.get_built_function_call
+                                 for k in str_builtin_functions }
+
         numpy_functions = {
             # ----- Mathematical operations -------#
             # See more at:
@@ -269,36 +294,9 @@ class Expression:
 
             # String operations
             'mod': self.get_numpy_function_call,
-            'capitalize': self.get_numpy_function_call,
-            'center': self.get_numpy_function_call,
             'decode': self.get_numpy_function_call,
             'encode': self.get_numpy_function_call,
-            'join': self.get_numpy_function_call,
-            'ljust': self.get_numpy_function_call,
-            'lower': self.get_numpy_function_call,
-            'lstrip': self.get_numpy_function_call,
-            'partition': self.get_numpy_function_call,
-            'replace': self.get_numpy_function_call,
-            'rjust': self.get_numpy_function_call,
-            'rpartition': self.get_numpy_function_call,
-            'rsplit': self.get_numpy_function_call,
-            'rstrip': self.get_numpy_function_call,
-            'splitlines': self.get_numpy_function_call,
-            'strip': self.get_numpy_function_call,
-            'swapcase': self.get_numpy_function_call,
-            'zfill': self.get_numpy_function_call,
 
-            # String information
-            'count': self.get_numpy_function_call,
-            'find': self.get_numpy_function_call,
-            'isalpha': self.get_numpy_function_call,
-            'isdecimal': self.get_numpy_function_call,
-            'isdigit': self.get_numpy_function_call,
-            'islower': self.get_numpy_function_call,
-            'isnumeric': self.get_numpy_function_call,
-            'isspace': self.get_numpy_function_call,
-            'istitle': self.get_numpy_function_call,
-            'isupper': self.get_numpy_function_call,
 
             # --------- Logic operations ----------#
             # See more at:
@@ -318,7 +316,6 @@ class Expression:
             'less_equal': self.get_numpy_function_call,
             'greater': self.get_numpy_function_call,
             'less': self.get_numpy_function_call,
-            'isnan': self.get_numpy_function_call,
         }
 
         date_functions = {
@@ -351,6 +348,7 @@ class Expression:
             'total_seconds': self.get_date_instance_function_call,
         }
 
+        self.functions.update(str_builtin_functions)
         self.functions.update(numpy_functions)
         self.functions.update(date_functions)
         self.functions.update(date_instance_functions)
@@ -370,8 +368,39 @@ class Expression:
             'fromordinal': 'date.fromordinal',
             'combine': 'date.combine',
             'length': 'len',
-            'isnull': 'isnan',
 
+            # Numpy string operations
+            'mod': 'char.mod',
+            'capitalize': 'char.capitalize',
+            'center': 'char.center',
+            'decode': 'char.decode',
+            'encode': 'char.encode',
+            'join': 'char.join',
+            'ljust': 'char.ljust',
+            'lower': 'char.lower',
+            'lstrip': 'char.lstrip',
+            'partition': 'char.partition',
+            'replace': 'char.replace',
+            'rjust': 'char.rjust',
+            'rpartition': 'char.rpartition',
+            'rsplit': 'char.rsplit',
+            'rstrip': 'char.rstrip',
+            'splitlines': 'char.splitlines',
+            'swapcase': 'char.swapcase',
+            'upper': 'char.upper',
+            'zfill': 'char.zfill',
+
+            # Numpy string information
+            'count': 'char.count',
+            'find': 'char.find',
+            'isalpha': 'char.isalpha',
+            'isdecimal': 'char.isdecimal',
+            'isdigit': 'char.isdigit',
+            'islower': 'char.islower',
+            'isnumeric': 'char.isnumeric',
+            'isspace': 'char.isspace',
+            'istitle': 'char.istitle',
+            'isupper': 'char.isupper'
         }
         self.translate_functions.update(translate_functions)
 
@@ -391,8 +420,6 @@ class Expression:
             'strip_punctuation': self.get_strip_punctuation_function,
             'str': self.get_function_call,
             'length': self.get_function_call,
-            'len': self.get_function_call,
-            'split': self.get_built_function_call,
-            'upper': self.get_built_function_call,
+            'len': self.get_function_call
         }
         self.functions.update(others_functions)

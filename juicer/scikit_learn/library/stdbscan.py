@@ -1,116 +1,103 @@
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 from datetime import timedelta
-# from geopy.distance import great_circle
-import numpy as np
 
 
-def st_dbscan(df, col_latitude, col_longitude, col_datetime, alias,
-              spatial_threshold=500, temporal_threshold=60, min_neighbors=15):
-    """
-    Python st-dbscan implementation.
-    INPUTS:
-        df={o1,o2,...,on} Set of objects
-        spatial_threshold = Maximum geographical coordinate (spatial) distance
-        value
-        temporal_threshold = Maximum non-spatial distance value
-        min_neighbors = Minimun number of points within Eps1 and Eps2 distance
-    OUTPUT:
-        C = {c1,c2,...,ck} Set of clusters
-    """
-    cluster_label = 0
-    noise = -1
-    unmarked = 777777
-    stack = []
+class STDBSCAN(object):
 
-    # initialize each point with unmarked
-    df[alias] = unmarked
+    def __init__(self, spatial_threshold=500.0, temporal_threshold=60.0,
+                 min_neighbors=15):
+        """
+        Python ST-DBSCAN implementation.
+        Because this algorithm needs to calculate multiple distances between
+        points, it optimizes by assuming latitude and longitude columns in
+        UTM projection. If it is not, convert them by using the
+        `coordinates.convert_to_utm` available method.
+        UTM projects onto a cylinder, and a cylinder is essentially flat (zero
+        Gaussian curvature) so the Euclidean formula would be accurate for
+        points on the cylinder (same Zone).
+        :param spatial_threshold: Maximum geographical coordinate (spatial)
+             distance value (meters);
+        :param temporal_threshold: Maximum non-spatial distance value (seconds);
+        :param min_neighbors: Minimum number of points within Eps1 and Eps2
+             distance;
+        """
+        self.spatial_threshold = spatial_threshold
+        self.temporal_threshold = temporal_threshold
+        self.min_neighbors = min_neighbors
 
-    # for each point in database
-    for index, point in df.iterrows():
-        if df.loc[index][alias] == unmarked:
-            neighborhood = retrieve_neighbors(index, df, col_latitude,
-                                              col_longitude, col_datetime,
-                                              spatial_threshold,
-                                              temporal_threshold)
+    def _retrieve_neighbors(self, index_center, matrix):
 
-            if len(neighborhood) < min_neighbors:
-                df.at[index, alias] = noise
-            else:  # found a core point
-                cluster_label += 1
-                # assign a label to core point
-                df.at[index, alias] = cluster_label
+        center_point = matrix[index_center, :]
 
-                # assign core's label to its neighborhood
-                for neig_index in neighborhood:
-                    df.at[neig_index, alias] = cluster_label
-                    stack.append(neig_index)  # append neighborhood to stack
+        # filter by time
+        min_time = center_point[2] - timedelta(seconds=self.temporal_threshold)
+        max_time = center_point[2] + timedelta(seconds=self.temporal_threshold)
+        matrix = matrix[(matrix[:, 2] >= min_time) &
+                        (matrix[:, 2] <= max_time), :]
+        # filter by distance
+        tmp = (matrix[:, 0]-center_point[0])*(matrix[:, 0]-center_point[0]) + \
+            (matrix[:, 1]-center_point[1])*(matrix[:, 1]-center_point[1])
+        neigborhood = matrix[tmp <= (
+            self.spatial_threshold*self.spatial_threshold), 4].tolist()
+        neigborhood.remove(index_center)
 
-                # find new neighbors from core point neighborhood
-                while len(stack) > 0:
-                    current_point_index = stack.pop()
-                    new_neighborhood = retrieve_neighbors(
-                        current_point_index, df, col_latitude, col_longitude,
-                        col_datetime, spatial_threshold, temporal_threshold)
+        return neigborhood
 
-                    # current_point is a new core
-                    if len(new_neighborhood) >= min_neighbors:
-                        for neig_index in new_neighborhood:
-                            neig_cluster = df.loc[neig_index][alias]
-                            if any([neig_cluster == noise,
-                                    neig_cluster == unmarked]):
-                                df.at[neig_index, alias] = cluster_label
-                                stack.append(neig_index)
-    return df
+    def fit_transform(self, df, col_lat, col_lon, col_time,
+                      col_cluster='cluster'):
+        """
+        :param df: DataFrame input
+        :param col_lat: Latitude column name;
+        :param col_lon:  Longitude column name;
+        :param col_time: Date time column name;
+        :param col_cluster: Alias for predicted cluster (default, 'cluster');
+        """
+        cluster_label = 0
+        noise = -1
+        unmarked = 777777
+        stack = []
 
+        # initial setup
+        df = df[[col_lon, col_lat, col_time]]
+        df[col_cluster] = unmarked
+        df['index'] = range(df.shape[0])
+        matrix = df.values
+        df.drop(['index'], inplace=True, axis=1)
 
-def retrieve_neighbors(index_center, df, col_latitude, col_longitude,
-                       col_datetime, spatial_threshold, temporal_threshold):
-    neigborhood = []
+        # for each point in database
+        for index in range(matrix.shape[0]):
+            if matrix[index, 3] == unmarked:
+                neighborhood = self._retrieve_neighbors(index, matrix)
 
-    center_point = df.loc[index_center]
+                if len(neighborhood) < self.min_neighbors:
+                    matrix[index, 3] = noise
+                else:  # found a core point
+                    cluster_label += 1
+                    # assign a label to core point
+                    matrix[index, 3] = cluster_label
 
-    # filter by time
-    min_time = center_point[col_datetime]-timedelta(seconds=temporal_threshold)
-    max_time = center_point[col_datetime]+timedelta(seconds=temporal_threshold)
-    df = df[(df[col_datetime] >= min_time) & (df[col_datetime] <= max_time)]
+                    # assign core's label to its neighborhood
+                    for neig_index in neighborhood:
+                        matrix[neig_index, 3] = cluster_label
+                        stack.append(neig_index)  # append neighbors to stack
 
-    # filter by distance
-    for index, point in df.iterrows():
-        if index != index_center:
-            distance = great_circle(
-                (center_point[col_latitude], center_point[col_longitude]),
-                (point[col_latitude], point[col_longitude])).meters
-            if distance <= spatial_threshold:
-                neigborhood.append(index)
+                    # find new neighbors from core point neighborhood
+                    while len(stack) > 0:
+                        current_point_index = stack.pop()
+                        new_neighborhood = \
+                            self._retrieve_neighbors(current_point_index,
+                                                     matrix)
 
-    return neigborhood
+                        # current_point is a new core
+                        if len(new_neighborhood) >= self.min_neighbors:
+                            for neig_index in new_neighborhood:
+                                neig_cluster = matrix[neig_index, 3]
+                                if any([neig_cluster == noise,
+                                        neig_cluster == unmarked]):
+                                    matrix[neig_index, 3] = cluster_label
+                                    stack.append(neig_index)
 
-
-def great_circle(a, b):
-    """Great-circle.
-
-    The great-circle distance or orthodromic distance is the shortest
-    distance between two points on the surface of a sphere, measured
-    along the surface of the sphere (as opposed to a straight line
-    through the sphere's interior).
-
-    :Note: use cython in the future
-    :returns: distance in meters.
-    """
-    import math
-    earth_radius = 6371.009
-    lat1, lng1 = np.radians(a[0]), np.radians(a[1])
-    lat2, lng2 = np.radians(b[0]), np.radians(b[1])
-
-    sin_lat1, cos_lat1 = np.sin(lat1), np.cos(lat1)
-    sin_lat2, cos_lat2 = np.sin(lat2), np.cos(lat2)
-
-    delta_lng = lng2 - lng1
-    cos_delta_lng, sin_delta_lng = np.cos(delta_lng), np.sin(delta_lng)
-
-    d = math.atan2(np.sqrt((cos_lat2 * sin_delta_lng) ** 2 +
-                           (cos_lat1 * sin_lat2 -
-                           sin_lat1 * cos_lat2 * cos_delta_lng) ** 2),
-                   sin_lat1 * sin_lat2 + cos_lat1 * cos_lat2 * cos_delta_lng)
-
-    return (earth_radius * d) * 1000
+        df[col_cluster] = matrix[:, 3]
+        return df
