@@ -28,8 +28,6 @@ from juicer.scikit_learn.model_operation import ModelsEvaluationResultList
 from juicer.spark.reports import *
 import traceback
 
-#pa.__version__ = '0.10.0' # Hack. Pyarrow do not set its version correctly.
-
 {% autopep8 %}
 {% set list_imports = [] %}
 {% for instance in instances %}
@@ -80,14 +78,14 @@ def get_label_data(df, label):
     """
 
     #Validating multiple columns on label
-    if len(labels) > 1:
+    if len(label) > 1:
         raise ValueError(_('Label must be a single column of dataset'))
 
     #Validating OneHotEncode data existence
-    if isinstance(df[labels[0]].iloc[0], list):
+    if isinstance(df[label[0]].iloc[0], list):
         raise ValueError(_('Label must be primitive type data'))
 
-    y = df[labels].to_numpy().tolist()
+    y = df[label].to_numpy().tolist()
     return np.reshape(y, len(y))
 
 
