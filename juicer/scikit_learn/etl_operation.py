@@ -65,15 +65,15 @@ class AggregationOperation(Operation):
         self.input_operations = {}
 
         self.has_code = len(self.named_inputs) == 1 and any(
-                [len(self.named_outputs) == 1, self.contains_results()])
+            [len(self.named_outputs) == 1, self.contains_results()])
 
         # Attributes are optional
         self.group_all = len(self.attributes) == 0
 
         if not all([self.FUNCTION_PARAM in parameters, self.functions]):
             raise ValueError(
-                    _("Parameter '{}' must be informed for task {}").format(
-                            self.FUNCTION_PARAM, self.__class__))
+                _("Parameter '{}' must be informed for task {}").format(
+                    self.FUNCTION_PARAM, self.__class__))
 
         for f in parameters[self.FUNCTION_PARAM]:
             if not all([f.get('attribute'), f.get('f'), f.get('alias')]):
@@ -84,15 +84,15 @@ class AggregationOperation(Operation):
             agg = dictionary['f']
             alias = dictionary['alias']
             if att in self.input_operations:
-                    self.input_operations[att].append(agg)
-                    self.input_aliases[att].append(alias)
+                self.input_operations[att].append(agg)
+                self.input_aliases[att].append(alias)
             else:
-                    self.input_operations[att] = [agg]
-                    self.input_aliases[att] = [alias]
+                self.input_operations[att] = [agg]
+                self.input_aliases[att] = [alias]
 
         self.values = [agg for agg in self.input_operations]
-        self.input_operations = str(self.input_operations)\
-            .replace("u'collect_set'", '_merge_set')\
+        self.input_operations = str(self.input_operations) \
+            .replace("u'collect_set'", '_merge_set') \
             .replace("u'collect_list'", '_collect_list')
 
         # noinspection PyArgumentEqualDefault
@@ -100,7 +100,7 @@ class AggregationOperation(Operation):
 
         self.pivot_values = parameters.get(self.PIVOT_VALUE_ATTRIBUTE, None)
         self.output = self.named_outputs.get(
-                'output data', 'data_{}'.format(self.order))
+            'output data', 'data_{}'.format(self.order))
 
     def get_data_out_names(self, sep=','):
         return self.output
@@ -124,9 +124,9 @@ class AggregationOperation(Operation):
                 code += """
             values = {values}
             {input} = {input}[{input}['{pivot}'].isin(values)]""".format(
-                        output=self.output, values=self.pivot_values,
-                        input=self.named_inputs['input data'],
-                        pivot=self.pivot)
+                    output=self.output, values=self.pivot_values,
+                    input=self.named_inputs['input data'],
+                    pivot=self.pivot)
 
             code += """
             aggfunc = {aggfunc}
@@ -203,8 +203,8 @@ class CleanMissingOperation(Operation):
                 self.attributes_CM = parameters[self.ATTRIBUTES_PARAM]
             else:
                 raise ValueError(
-                    _("Parameter '{}' must be informed for task {}")
-                    .format('attributes', self.__class__))
+                    _("Parameter '{}' must be informed for task {}").format(
+                            'attributes', self.__class__))
 
             self.min_ratio = abs(float(parameters.get(
                     self.MIN_MISSING_RATIO_PARAM, 0.0)))
@@ -215,8 +215,8 @@ class CleanMissingOperation(Operation):
                     self.min_ratio > 1.0,
                     self.max_ratio > 1.0]):
                 raise ValueError(
-                        _("Parameter '{}' must be 0<=x<=1 for task {}").format(
-                                'attributes', self.__class__))
+                    _("Parameter '{}' must be 0<=x<=1 for task {}").format(
+                        'attributes', self.__class__))
 
             self.mode_CM = self.parameters.get(self.CLEANING_MODE_PARAM,
                                                "REMOVE_ROW")
@@ -224,9 +224,9 @@ class CleanMissingOperation(Operation):
 
             if all([self.value_CM is None,  self.mode_CM == "VALUE"]):
                 raise ValueError(
-                        _("Parameter '{}' must be not None when"
-                          " mode is '{}' for task {}").format(
-                                self.VALUE_PARAMETER, 'VALUE', self.__class__))
+                    _("Parameter '{}' must be not None when"
+                      " mode is '{}' for task {}").format(
+                        self.VALUE_PARAMETER, 'VALUE', self.__class__))
 
             self.output = self.named_outputs.get(
                 'output result', 'output_data_{}'.format(self.order))
@@ -372,8 +372,7 @@ class DropOperation(Operation):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
         if self.ATTRIBUTES_PARAM in parameters:
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
-            self.cols = ','.join(['"{}"'.format(x)
-                                   for x in self.attributes])
+            self.cols = ','.join(['"{}"'.format(x) for x in self.attributes])
         else:
             raise ValueError(
                 _("Parameter '{}' must be informed for task {}").format(
@@ -440,6 +439,8 @@ class ExecutePythonOperation(Operation):
             'in2': in2,
             'out1': out1,
             'out2': out2,
+            'DataFrame': pd.DataFrame,
+            'createDataFrame': pd.DataFrame,
             
             # Restrictions in Python language
              '_write_': lambda v: v,
@@ -535,7 +536,6 @@ class ExecuteSQLOperation(Operation):
 
     def generate_code(self):
         code = dedent("""
-
         query = {query}
         {out} = sqldf(query, {{'ds1': {in1}, 'ds2': {in2}}})
         names = {names}
@@ -682,7 +682,7 @@ class JoinOperation(Operation):
         if not self.has_code:
             raise ValueError(
                 _("Parameter '{}' and '{}' must be informed for task {}")
-                    .format('input data 1',  'input data 2', self.__class__))
+                .format('input data 1',  'input data 2', self.__class__))
 
         self.left_attributes = parameters.get(self.LEFT_ATTRIBUTES_PARAM)
         self.right_attributes = parameters.get(self.RIGHT_ATTRIBUTES_PARAM)
@@ -816,6 +816,7 @@ class SampleOrPartitionOperation(Operation):
     TYPE_VALUE = 'value'
     TYPE_PERCENT = 'percent'
     TYPE_HEAD = 'head'
+    SEED = 'seed'
 
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
@@ -833,10 +834,10 @@ class SampleOrPartitionOperation(Operation):
                                                    self.fraction < 0]):
             raise ValueError(
                     _("Parameter 'fraction' must be 0<=x<=1 if is using "
-                      "the current type of sampling in task {}.")
-                        .format(self.__class__))
+                      "the current type of sampling in task {}.").format(
+                            self.__class__))
 
-        self.seed = self.parameters.get('seed', 'None')
+        self.seed = self.parameters.get(self.SEED, 'None')
         self.seed = self.seed if self.seed != "" else 'None'
 
         self.output = self.named_outputs.get('sampled data',
@@ -872,7 +873,6 @@ class SelectOperation(Operation):
     Projects a set of expressions and returns a new DataFrame.
     Parameters:
     - The list of columns selected.
-
     """
     ATTRIBUTES_PARAM = 'attributes'
 
@@ -917,9 +917,9 @@ class SortOperation(Operation):
         attributes = parameters.get(self.ATTRIBUTES_PARAM, '')
         if len(attributes) == 0:
             raise ValueError(
-                    gettext("Parameter '{}' must be"
-                            " informed for task {}").format(
-                            self.ATTRIBUTES_PARAM, self.__class__))
+                gettext("Parameter '{}' must be"
+                        " informed for task {}").format(
+                    self.ATTRIBUTES_PARAM, self.__class__))
 
         self.columns = [att['attribute'] for att in attributes]
         self.ascending = [True for _ in range(len(self.columns))]
@@ -970,7 +970,7 @@ class SplitOperation(Operation):
 
     def generate_code(self):
         code = """{out1}, {out2} = np.split({input}.sample(frac=1, 
-        random_state={seed}), [int({weights}*len({input}))])
+            random_state={seed}), [int({weights}*len({input}))])
         """.format(out1=self.out1, out2=self.out2,
                    input=self.named_inputs['input data'],
                    seed=self.seed, weights=self.weights)
@@ -990,15 +990,15 @@ class TransformationOperation(Operation):
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
-        self.has_code = any(
-                [len(self.named_inputs) > 0, self.contains_results()])
+        self.has_code = any([len(self.named_inputs) > 0,
+                             self.contains_results()])
         if self.has_code:
             if self.EXPRESSION_PARAM in parameters:
                 self.expressions = parameters[self.EXPRESSION_PARAM]
             else:
                 msg = _("Parameter must be informed for task {}.")
                 raise ValueError(
-                        msg.format(self.EXPRESSION_PARAM, self.__class__))
+                    msg.format(self.EXPRESSION_PARAM, self.__class__))
             self.output = self.named_outputs.get(
                     'output data', 'sampled_data_{}'.format(self.order))
 
@@ -1015,7 +1015,6 @@ class TransformationOperation(Operation):
 
         code = """
         {out} = {input}.copy()
-
         functions = [{expr}]
         for col, function in functions:
             {out}[col] = {out}.apply(function, axis=1)
@@ -1037,7 +1036,7 @@ class UnionOperation(Operation):
         if not self.has_code:
             raise ValueError(
                 _("Parameter '{}' and '{}' must be informed for task {}")
-                .format('input data 1',  'input data 2', self.__class__))
+                    .format('input data 1',  'input data 2', self.__class__))
 
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
@@ -1050,3 +1049,114 @@ class UnionOperation(Operation):
                     self.named_inputs['input data 2'])
         return dedent(code)
 
+
+class SplitKFoldOperation(Operation):
+
+    N_SPLITS_ATTRIBUTE_PARAM = 'n_splits'
+    SHUFFLE_ATTRIBUTE_PARAM = 'shuffle'
+    RANDOM_STATE_ATTRIBUTE_PARAM = 'random_state'
+    LABEL_ATTRIBUTE_PARAM = 'label'
+    ATTRIBUTE_ATTRIBUTE_PARAM = 'attribute'
+    STRATIFIED_ATTRIBUTE_PARAM = 'stratified'
+    COLUMN_ATTRIBUTE_PARAM = 'column'
+
+    def __init__(self, parameters,  named_inputs, named_outputs):
+        Operation.__init__(self, parameters,  named_inputs,  named_outputs)
+
+        self.has_code = any([len(self.named_inputs) == 1,
+                             self.contains_results()])
+
+        self.output = self.named_outputs.get(
+            'output data', 'output_data_{}'.format(self.order))
+
+        self.n_splits = int(parameters.get(self.N_SPLITS_ATTRIBUTE_PARAM, 3))
+        self.shuffle = int(parameters.get(self.SHUFFLE_ATTRIBUTE_PARAM, 0))
+        self.random_state = int(parameters.get(self.RANDOM_STATE_ATTRIBUTE_PARAM, 0))
+        self.label = parameters.get(self.LABEL_ATTRIBUTE_PARAM, None)
+        self.attribute = parameters.get(self.ATTRIBUTE_ATTRIBUTE_PARAM, None)
+        self.stratified = int(parameters.get(self.STRATIFIED_ATTRIBUTE_PARAM, 0))
+        self.column = 0
+
+        self.input_treatment()
+        self.has_import = \
+            """
+            import numpy as np
+            from sklearn.model_selection import KFold
+            from sklearn.model_selection import StratifiedKFold
+            """
+
+    @property
+    def get_data_out_names(self, sep=','):
+        return self.output
+
+    def input_treatment(self):
+        if self.n_splits < 2:
+            raise ValueError(
+                _("Parameter '{}' must be x>=2 for task {}").format(
+                    self.N_SPLITS_ATTRIBUTE_PARAM, self.__class__))
+
+        self.shuffle = True if int(self.shuffle) == 1 else False
+        self.stratified = True if int(self.stratified) == 1 else False
+        if self.stratified:
+            self.column = self.parameters['column'][0]
+
+    def generate_code(self):
+        """Generate code."""
+
+        if self.stratified:
+            code = """
+                {output_data} = {input}.copy()
+                if {shuffle}:
+                    skf = StratifiedKFold(n_splits={n_splits}, 
+                        shuffle={shuffle}, random_state={random_state})
+                else:
+                    skf = StratifiedKFold(n_splits={n_splits}, 
+                        shuffle={shuffle})
+                lista = []
+                j = 0
+                for train_index, test_index in skf.split(
+                    {input}.to_numpy().tolist(), 
+                    {input}['{column}'].to_numpy()):
+                    for i in range(len(test_index)):
+                        test_index[i] = j
+                    lista = np.concatenate((lista,test_index))
+                    j += 1 
+                T2 = pd.DataFrame(lista, columns = ['{attribute}'])
+                {output_data} = pd.concat([{input},T2],axis=1)
+                """.format(output=self.output,
+                           input=self.named_inputs['input data'],
+                           n_splits=self.n_splits,
+                           shuffle=self.shuffle,
+                           random_state=self.random_state,
+                           output_data=self.output,
+                           column=self.column,
+                           attribute=self.attribute)
+            return dedent(code)
+        else:
+            code = """
+                {output_data} = {input}.copy()
+                if {shuffle}:
+                    kf = KFold(n_splits={n_splits}, shuffle={shuffle}, 
+                        random_state={random_state})
+                else:
+                    kf = KFold(n_splits={n_splits}, shuffle={shuffle})
+                lista = []
+                j = 0
+                for train_index, test_index in kf.split(
+                    {input}.to_numpy().tolist()):
+                    for i in range(len(test_index)):
+                        test_index[i] = j
+                    lista = np.concatenate((lista,test_index))
+                    j += 1 
+                T2 = pd.DataFrame(lista, columns = ['{attribute}'])
+                {output_data} = pd.concat([{input},T2],axis=1)
+                """.format(output=self.output,
+                           input=self.named_inputs['input data'],
+                           n_splits=self.n_splits,
+                           shuffle=self.shuffle,
+                           random_state=self.random_state,
+                           output_data=self.output,
+                           stratified=self.stratified,
+                           column=self.column,
+                           attribute=self.attribute)
+            return dedent(code)

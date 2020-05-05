@@ -33,13 +33,14 @@ class ApplyModelOperation(Operation):
             [len(self.named_outputs) > 0, self.contains_results()])
 
         if self.has_code:
-            self.output = self.named_outputs.get('output data',
-                                                 'out_data_{}'.format(self.order))
+            self.output = self.named_outputs.get(
+                    'output data', 'out_data_{}'.format(self.order))
 
             self.model = self.named_inputs.get(
                 'model', 'model_{}'.format(self.order))
 
-            self.prediction = self.parameters.get(self.PREDICTION_PARAM, self.PREDICTION_PARAM)
+            self.prediction = self.parameters.get(self.PREDICTION_PARAM,
+                                                  self.PREDICTION_PARAM)
 
             if self.FEATURES_PARAM not in self.parameters:
                 msg = _("Parameters '{}' must be informed for task {}")
@@ -60,14 +61,15 @@ class ApplyModelOperation(Operation):
     def generate_code(self):
         code = dedent("""
             {out} = {in1}.copy()
-            X_train = {in1}[{features}].to_numpy().tolist()
+            X_train = get_X_train_data({in1}, {features})
             if hasattr({in2}, 'predict'):
                 {out}['{new_attr}'] = {in2}.predict(X_train).tolist()
             else:
                 # to handle scaler operations
                 {out}['{new_attr}'] = {in2}.transform(X_train).tolist()
-            """.format(out=self.output, in1=self.named_inputs['input data'], in2=self.model,
-                       new_attr=self.prediction, features=self.features))
+            """.format(out=self.output, in1=self.named_inputs['input data'],
+                       in2=self.model, new_attr=self.prediction,
+                       features=self.features))
 
         return dedent(code)
 
@@ -416,10 +418,8 @@ class EvaluateModelOperation(Operation):
                 label_col = '{label_attr}'
                 prediction_col = '{prediction_attr}'
                 {model_output} = None
-
                 y_pred = {input}[prediction_col].to_numpy().tolist()
                 y_true = {input}[label_col].to_numpy().tolist()
-
                 # Code for evaluating if the Label attribute is categorical
                 from pandas.api.types import is_numeric_dtype
                 if not is_numeric_dtype({input}[label_col]):
@@ -807,8 +807,8 @@ class CrossValidationOperation(Operation):
         code = dedent("""
                   kf = KFold(n_splits={folds}, random_state={seed}, 
                   shuffle=True)
-                  X_train = {input_data}['{feature_attr}'].values
-                  y = {input_data}['{label_attr}'].values
+                  X_train = get_X_train_data({input_data}, {feature_attr})
+                  y = get_label_data({input_data}, {label_attr})
 
                   scores = cross_val_score({algorithm}, X_train.tolist(), 
                                            y.tolist(), cv=kf, scoring='{metric}')
@@ -822,8 +822,8 @@ class CrossValidationOperation(Operation):
                              models=self.models,
                              prediction_arg=self.param_prediction_arg,
                              prediction_attr=self.prediction_attr,
-                             label_attr=self.label_attr[0],
-                             feature_attr=self.feature_attr[0],
+                             label_attr=self.label_attr,
+                             feature_attr=self.feature_attr,
                              folds=self.num_folds,
                              metric=self.metric,
                              seed=self.seed))

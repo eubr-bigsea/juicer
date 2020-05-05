@@ -11,6 +11,7 @@ import juicer.scikit_learn.model_operation as model
 import juicer.scikit_learn.regression_operation as regression
 import juicer.scikit_learn.text_operation as text_operations
 import juicer.scikit_learn.vis_operation as vis_operation
+import juicer.scikit_learn.outlier_detection as lof
 import os
 from juicer import operation
 from juicer.transpiler import Transpiler
@@ -54,6 +55,8 @@ class ScikitLearnTranspiler(Transpiler):
             'execute-sql': etl.ExecuteSQLOperation,
             'filter-selection': etl.FilterOperation,
             'join': etl.JoinOperation,
+            'k-fold': etl.SplitKFoldOperation,
+            'locality-sensitive-hashing': feature_extraction.LSHOperation,
             'projection': etl.SelectOperation,
             'remove-duplicated-rows': etl.DistinctOperation,
             'replace-value': etl.ReplaceValuesOperation,
@@ -76,6 +79,7 @@ class ScikitLearnTranspiler(Transpiler):
             'read-shapefile': geo.ReadShapefileOperation,
             'stdbscan': geo.STDBSCANOperation,
             'within': geo.GeoWithinOperation,
+            'cartographic-projection': geo.CartographicProjectionOperation,
         }
 
         ml_ops = {
@@ -93,9 +97,8 @@ class ScikitLearnTranspiler(Transpiler):
             'quantile-discretizer':
                 feature_extraction.QuantileDiscretizerOperation,
             'standard-scaler': feature_extraction.StandardScalerOperation,
-            # 'feature-indexer': #confirm vector and strings
-            #     juicer.compss.feature_operation.FeatureIndexerOperation,
-            #
+            'string-indexer': feature_extraction.StringIndexerOperation,
+
             # ------ Model Operations  ------#
             'apply-model': model.ApplyModelOperation,
             'cross-validation': model.CrossValidationOperation,
@@ -108,37 +111,46 @@ class ScikitLearnTranspiler(Transpiler):
             'agglomerative-clustering':
                 clustering.AgglomerativeClusteringOperation,
             'dbscan-clustering': clustering.DBSCANClusteringOperation,
-            'gaussian-mixture-clustering':
+            'gaussian-mixture':
                 clustering.GaussianMixtureClusteringOperation,
-            'k-means-clustering': clustering.KMeansClusteringOperation,
+            'k-means-clustering-model': clustering.KMeansClusteringOperation,
             'lda-clustering-model': clustering.LdaClusteringOperation,
             'topic-report': clustering.TopicReportOperation,
 
             # ------ Classification  -----#
             'classification-model': classifiers.ClassificationModelOperation,
-            'decision-tree-classifier':
+            'decision-tree-classifier-model':
                 classifiers.DecisionTreeClassifierOperation,
-            'gbt-classifier': classifiers.GBTClassifierOperation,
-            'knn-classifier': classifiers.KNNClassifierOperation,
-            'logistic-regression': classifiers.LogisticRegressionOperation,
-            'mlp-classifier': classifiers.MLPClassifierOperation,
-            'naive-bayes-classifier': classifiers.NaiveBayesClassifierOperation,
-            'perceptron-classifier': classifiers.PerceptronClassifierOperation,
-            'random-forest-classifier':
+            'gbt-classifier-model': classifiers.GBTClassifierOperation,
+            'knn-classifier-model': classifiers.KNNClassifierOperation,
+            'logistic-regression-model':
+                classifiers.LogisticRegressionOperation,
+            'mlp-classifier-model': classifiers.MLPClassifierOperation,
+            'naive-bayes-classifier-model':
+                classifiers.NaiveBayesClassifierOperation,
+            'perceptron-classifier-model':
+                classifiers.PerceptronClassifierOperation,
+            'random-forest-classifier-model':
                 classifiers.RandomForestClassifierOperation,
-            'svm-classification': classifiers.SvmClassifierOperation,
+            'svm-classification-model': classifiers.SvmClassifierOperation,
 
             # ------ Regression  -----#
             'regression-model': regression.RegressionModelOperation,
-            'gbt-regressor': regression.GradientBoostingRegressorOperation,
-            'huber-regressor': regression.HuberRegressorOperation,
-            'isotonic-regression':
+            'gbt-regressor-model':
+                regression.GradientBoostingRegressorOperation,
+            'generalized-linear-regression':
+                regression.GeneralizedLinearRegressionOperation,
+            'huber-regressor-model': regression.HuberRegressorOperation,
+            'isotonic-regression-model':
                 regression.IsotonicRegressionOperation,
-            'linear-regression': regression.LinearRegressionOperation,
-            'mlp-regressor': regression.MLPRegressorOperation,
-            'random-forest-regressor':
+            'linear-regression-model': regression.LinearRegressionOperation,
+            'mlp-regressor-model': regression.MLPRegressorOperation,
+            'random-forest-regressor-model':
                 regression.RandomForestRegressorOperation,
-            'sgd-regressor': regression.SGDRegressorOperation,
+            'sgd-regressor-model': regression.SGDRegressorOperation,
+
+            # ------ Outlier  -----#
+            'local-outlier-factor': lof.OutlierDetectionOperation,
         }
 
         text_ops = {

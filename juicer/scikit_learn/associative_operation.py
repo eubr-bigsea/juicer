@@ -8,7 +8,7 @@ class FrequentItemSetOperation(Operation):
 
     MIN_SUPPORT_PARAM = 'min_support'
     ATTRIBUTE_PARAM = 'attribute'
-    CONFIDENCE_PARAM = 'confidence'
+    CONFIDENCE_PARAM = 'min_confidence'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
@@ -53,7 +53,7 @@ class FrequentItemSetOperation(Operation):
 
         code = """
         col = {col}
-        transactions = {input}[col].values.tolist()
+        transactions = {input}[col].to_numpy().tolist()
         min_support = 100 * {min_support}
         
         patterns = pyfpgrowth.find_frequent_patterns(transactions, min_support)
@@ -65,11 +65,9 @@ class FrequentItemSetOperation(Operation):
         
         # generating rules
         columns = ['Pre-Rule', 'Post-Rule', 'confidence']  
-        
         rules = pyfpgrowth.generate_association_rules(patterns, {min_conf})
         rules = [[list(a), list(b[0]), b[1]] for a, b in rules.items()]
-
-        {rules} = pd.DataFrame(rules, columns=columns)  
+        {rules} = pd.DataFrame(rules, columns=columns) 
         """.format(output=self.output, col=self.column,
                    input=self.named_inputs['input data'],
                    min_support=self.min_support, min_conf=self.confidence,
@@ -120,15 +118,17 @@ class SequenceMiningOperation(Operation):
         else:
             self.column = "'{}'".format(self.column)
 
+        # transactions = [row.tolist() for row in {input}[col].to_numpy().tolist()]
+        # transactions = np.array({input}[col].to_numpy().tolist()).tolist()
         code = """
         col = {col}
-        transactions = {input}[col].values.tolist()
+        transactions = {input}[col].to_numpy().tolist() 
         min_support = {min_support}
         max_length = {max_length}
 
         span = PrefixSpan(transactions)
         span.run(min_support, max_length)
-        result = span.get_patest_text_operations.pyatterns()
+        result = span.get_patterns()
 
         {output} = pd.DataFrame(result, columns=['itemsets', 'support'])
         """.format(output=self.output, col=self.column,
@@ -177,10 +177,16 @@ class AssociationRulesOperation(Operation):
     def generate_code(self):
         """Generate code."""
 
-        code = """
-        col_item = '{items}'
-        col_freq = '{freq}'
+        if len(self.items_col) == 0:
+            self.items_col = "{input}.columns[0]" \
+                .format(input=self.named_inputs['input data'])
+        else:
+            self.items_col = "'{}'".format(self.items_col)
 
+        code = """
+        col_item = {items}
+        col_freq = "{freq}"
+        
         rg = RulesGenerator(min_conf={min_conf}, max_len={max_len})
         {rules} = rg.get_rules({input}, col_item, col_freq)   
         """.format(min_conf=self.confidence, rules=self.output,

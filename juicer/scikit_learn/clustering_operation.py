@@ -15,7 +15,7 @@ class ClusteringModelOperation(Operation):
         if self.has_code:
 
             if self.FEATURES_PARAM in parameters:
-                self.features = parameters.get(self.FEATURES_PARAM)[0]
+                self.features = parameters.get(self.FEATURES_PARAM)
             else:
                 raise \
                     ValueError(_("Parameter '{}' must be informed for task {}")
@@ -45,7 +45,7 @@ class ClusteringModelOperation(Operation):
     def generate_code(self):
         """Generate code."""
         code = """
-        X = {input}['{features}'].values.tolist()
+        X = get_X_train_data({input}, {features})
         {model} = {algorithm}.fit(X)
         """.format(model=self.model, features=self.features,
                    input=self.named_inputs['train input data'],
@@ -80,57 +80,71 @@ class AgglomerativeClusteringOperation(Operation):
     AFFINITY_PARAM_L2 = 'l2'
     AFFINITY_PARAM_MA = 'manhattan'
     AFFINITY_PARAM_COS = 'cosine'
+    AFFINITY_PARAM_PRE = 'precomputed'
 
     LINKAGE_PARAM_WARD = 'ward'
     LINKAGE_PARAM_COMP = 'complete'
     LINKAGE_PARAM_AVG = 'average'
+    LINKAGE_PARAM_SIN = 'single'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         self.has_code = len(named_inputs) > 0 and any([self.contains_results(),
                                                        len(named_outputs) > 0])
-        if self.has_code:
-            self.output = named_outputs.get(
-                    'output data', 'output_data_{}'.format(self.order))
+        self.output = self.named_outputs.get(
+            'output data', 'output_data_{}'.format(self.order))
 
-            if self.FEATURES_PARAM not in parameters:
-                raise \
-                    ValueError(_("Parameter '{}' must be informed for task {}")
-                               .format(self.FEATURES_PARAM, self.__class__))
+        self.model = self.named_outputs.get(
+            'model', 'model_{}'.format(self.order))
 
-            self.features = parameters.get(self.FEATURES_PARAM)[0]
-            self.alias = parameters.get(self.ALIAS_PARAM, 'cluster')
+        self.input_port = self.named_inputs.get(
+            'input data', 'input_data_{}'.format(self.order))
 
-            self.n_clusters = parameters.get(self.N_CLUSTERS_PARAM, 2) or 2
-            self.linkage = parameters.get(
-                    self.LINKAGE_PARAM,
-                    self.LINKAGE_PARAM_WARD) or self.LINKAGE_PARAM_WARD
-            self.affinity = parameters.get(
-                    self.AFFINITY_PARAM,
-                    self.AFFINITY_PARAM_EUCL) or self.AFFINITY_PARAM_EUCL
+        if self.FEATURES_PARAM not in parameters:
+            raise ValueError(
+                     _("Parameter '{}' must be informed for task {}").format(self.FEATURES_PARAM, self.__class__))
 
-            if self.n_clusters <= 0:
-                raise ValueError(
-                        _("Parameter '{}' must be x>0 for task {}").format(
-                                self.N_CLUSTERS_PARAM, self.__class__))
+        self.features = parameters['attributes']
+        self.alias = parameters.get(self.ALIAS_PARAM, 'cluster')
+        self.n_clusters = int(parameters.get(self.N_CLUSTERS_PARAM, 2) or 2)
+        self.linkage = parameters.get(
+            self.LINKAGE_PARAM,
+            self.LINKAGE_PARAM_WARD) or self.LINKAGE_PARAM_WARD
+        self.affinity = parameters.get(
+            self.AFFINITY_PARAM,
+            self.AFFINITY_PARAM_EUCL) or self.AFFINITY_PARAM_EUCL
 
-            self.has_import = \
-                "from sklearn.cluster import AgglomerativeClustering\n"
+        if self.n_clusters <= 0:
+            raise ValueError(
+                     _("Parameter '{}' must be x>0 for task {}").format(
+                            self.N_CLUSTERS_PARAM, self.__class__))
+
+        self.has_import = \
+            "from sklearn.cluster import AgglomerativeClustering\n"
+
+    @property
+    def get_data_out_names(self, sep=','):
+        return self.output
+
+    def get_output_names(self, sep=', '):
+        return sep.join([self.output, self.model])
 
     def generate_code(self):
         """Generate code."""
         code = """
-        {output} = {input}.copy()
-        
-        X = {output}['{features}'].values.tolist()
-        clt = AgglomerativeClustering(n_clusters={n_clusters},
+        {output_data} = {input_data}.copy()
+        X = get_X_train_data({output_data}, {features})
+        agg = AgglomerativeClustering(n_clusters={n_clusters}, 
             linkage='{linkage}', affinity='{affinity}')
-        {output}['{alias}'] = clt.fit_predict(X)
-        """.format(input=self.named_inputs['input data'], output=self.output,
-                   features=self.features, alias=self.alias,
+        {output_data}['{alias}'] = agg.fit_predict(X)
+        """.format(input_data=self.input_port,
+                   output_data=self.output,
+                   features=self.features,
+                   alias=self.alias,
                    n_clusters=self.n_clusters,
-                   affinity=self.affinity, linkage=self.linkage)
+                   affinity=self.affinity,
+                   linkage=self.linkage)
 
         return dedent(code)
 
@@ -139,28 +153,37 @@ class DBSCANClusteringOperation(Operation):
     EPS_PARAM = 'eps'
     MIN_SAMPLES_PARAM = 'min_samples'
     FEATURES_PARAM = 'features'
-    ALIAS_PARAM = 'alias'
+    PREDICTION_PARAM = 'prediction'
+    METRIC_PARAM = 'metric'
 
     def __init__(self, parameters, named_inputs,
                  named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-        self.has_code = len(named_inputs) > 0 and any([self.contains_results(),
-                                                       len(named_outputs) > 0])
+        self.has_code = any([len(self.named_inputs) == 1, self.contains_results()])
+        self.output = self.named_outputs.get(
+            'output data', 'output_data_{}'.format(self.order))
+
+        self.model = self.named_outputs.get(
+            'model', 'model_{}'.format(self.order))
+
+        self.input_port = self.named_inputs.get(
+            'train input data', 'input_data_{}'.format(self.order))
         if self.has_code:
-            self.output = named_outputs.get(
-                    'output data', 'output_data_{}'.format(self.order))
-            self.eps = parameters.get(
-                    self.EPS_PARAM, 0.5) or 0.5
-            self.min_samples = parameters.get(self.MIN_SAMPLES_PARAM, 5) or 5
+            self.eps = float(parameters.get(self.EPS_PARAM, 0.5) or 0.5)
+            self.min_samples = int(parameters.get(self.MIN_SAMPLES_PARAM, 5) or 5)
+            self.features = parameters['features']
+            self.prediction = self.parameters.get(self.PREDICTION_PARAM,
+                                                  'prediction')
+            self.metric = parameters.get(self.METRIC_PARAM, 'euclidean')
 
             if self.FEATURES_PARAM in parameters:
-                self.features = parameters.get(self.FEATURES_PARAM)[0]
+                self.features = parameters.get(self.FEATURES_PARAM)
             else:
                 raise \
                     ValueError(_("Parameter '{}' must be informed for task {}")
                                .format(self.FEATURES_PARAM, self.__class__))
-            self.alias = parameters.get(self.ALIAS_PARAM, 'cluster')
+            self.prediction = parameters.get(self.PREDICTION_PARAM, 'cluster')
 
             vals = [self.eps, self.min_samples]
             atts = [self.EPS_PARAM, self.MIN_SAMPLES_PARAM]
@@ -173,44 +196,69 @@ class DBSCANClusteringOperation(Operation):
             self.has_import = \
                 "from sklearn.cluster import DBSCAN\n"
 
+    @property
+    def get_data_out_names(self, sep=','):
+        return self.output
+
+    def get_output_names(self, sep=', '):
+        return sep.join([self.output, self.model])
+
     def generate_code(self):
         """Generate code."""
         code = """
-        {output} = {input}.copy()
-        
-        X = {output}['{features}'].values.tolist()
-        clt = DBSCAN(eps={eps}, min_samples={min_samples})
-        {output}['{alias}'] = clt.fit_predict(X)
-        """.format(eps=self.eps, min_samples=self.min_samples,
-                   input=self.named_inputs['input data'], output=self.output,
-                   features=self.features, alias=self.alias)
+        {output_data} = {input_data}.copy()
+        X_train = get_X_train_data({output_data}, {columns})
+        dbscan = DBSCAN(eps={eps}, min_samples={min_samples}, metric='{metric}')
+        {output_data}['{prediction}'] = dbscan.fit_predict(X_train)
+        """.format(eps=self.eps,
+                   min_samples=self.min_samples,
+                   output_data=self.output,
+                   input_data=self.input_port,
+                   prediction=self.prediction,
+                   columns=self.features,
+                   metric=self.metric)
 
         return dedent(code)
 
 
 class GaussianMixtureClusteringOperation(Operation):
-    N_CLUSTERS_PARAM = 'number_of_clusters'
-    MAX_ITER_PARAM = 'max_iterations'
-    TOLERANCE_PARAM = 'tolerance'
+    MAX_ITER_PARAM = 'max_iter'
+    TOL_PARAM = 'tol'
+    PREDICTION_PARAM = 'prediction'
+    FEATURES_PARAM = 'features'
+    N_COMPONENTS_PARAM = 'n_components'
+    COVARIANCE_TYPE_PARAM = 'covariance_type'
+    REG_COVAR_PARAM = 'reg_covar'
+    N_INIT_PARAM = 'n_init'
+    RANDOM_STATE_PARAM = 'random_state'
 
     def __init__(self, parameters, named_inputs,
                  named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-        self.has_code = len(named_outputs) > 0
-        if self.has_code:
-            self.output = named_outputs.get(
-                    'algorithm', 'clustering_algorithm_{}'.format(self.order))
-            self.number_of_clusters = parameters.get(
-                    self.N_CLUSTERS_PARAM, 1) or 1
-            self.max_iterations = parameters.get(self.MAX_ITER_PARAM,
-                                                 100) or 100
-            self.tolerance = parameters.get(self.TOLERANCE_PARAM,
-                                            0.001) or 0.001
-            self.tolerance = abs(float(self.tolerance))
+        self.has_code = any([len(self.named_inputs) == 1, self.contains_results()])
+        self.output = self.named_outputs.get(
+            'output data', 'output_data_{}'.format(self.order))
 
-            vals = [self.number_of_clusters, self.max_iterations]
-            atts = [self.N_CLUSTERS_PARAM, self.MAX_ITER_PARAM]
+        self.model = self.named_outputs.get(
+            'model', 'model_{}'.format(self.order))
+
+        self.input_port = self.named_inputs.get(
+            'train input data', 'input_data_{}'.format(self.order))
+        if self.has_code:
+            self.features = parameters['features']
+            self.prediction = self.parameters.get(self.PREDICTION_PARAM, 'prediction')
+            self.n_components = int(parameters.get(self.N_COMPONENTS_PARAM, 1) or 1)
+            self.covariance_type = parameters.get(self.COVARIANCE_TYPE_PARAM, 'full')
+            self.tol = float(parameters.get(self.TOL_PARAM, 0.001) or 0.001)
+            self.tol = abs(self.tol)
+            self.reg_covar = float(parameters.get(self.REG_COVAR_PARAM, 0.000001))
+            self.max_iter = int(parameters.get(self.MAX_ITER_PARAM, 100) or 100)
+            self.n_init = int(parameters.get(self.N_INIT_PARAM, 1))
+            self.random_state = parameters.get(self.RANDOM_STATE_PARAM, None)
+
+            vals = [self.n_components, self.max_iter]
+            atts = [self.N_COMPONENTS_PARAM, self.MAX_ITER_PARAM]
             for var, att in zip(vals, atts):
                 if var <= 0:
                     raise ValueError(
@@ -219,14 +267,42 @@ class GaussianMixtureClusteringOperation(Operation):
 
             self.has_import = \
                 "from sklearn.mixture import GaussianMixture\n"
+            self.input_treatment()
+
+    @property
+    def get_data_out_names(self, sep=','):
+        return self.output
+
+    def get_output_names(self, sep=', '):
+        return sep.join([self.output, self.model])
+
+    def input_treatment(self):
+        if self.random_state is not None and self.random_state != '0':
+            self.random_state = int(self.random_state)
+        else:
+            self.random_state = None
 
     def generate_code(self):
         """Generate code."""
         code = """
-        {output} = GaussianMixture(n_components={k}, max_iter={iter}, tol={tol})
-        """.format(k=self.number_of_clusters,
-                   iter=self.max_iterations, tol=self.tolerance,
-                   output=self.output)
+        {output_data} = {input_data}.copy()
+        X_train = get_X_train_data({input_data}, {columns})
+        {model} = GaussianMixture(n_components={k}, max_iter={iter}, tol={tol}, 
+            covariance_type='{covariance_type}', reg_covar={reg_covar}, 
+            n_init={n_init}, random_state={random_state})
+        {output_data}['{prediction}'] = {model}.fit_predict(X_train)
+        """.format(k=self.n_components,
+                   iter=self.max_iter,
+                   tol=self.tol,
+                   output_data=self.output,
+                   model=self.model,
+                   input_data=self.input_port,
+                   prediction=self.prediction,
+                   columns=self.features,
+                   covariance_type=self.covariance_type,
+                   reg_covar=self.reg_covar,
+                   n_init=self.n_init,
+                   random_state=self.random_state)
 
         return dedent(code)
 
@@ -238,7 +314,16 @@ class KMeansClusteringOperation(Operation):
     MAX_ITER_PARAM = 'max_iter'
     TOLERANCE_PARAM = 'tolerance'
     TYPE_PARAM = 'type'
-    SEED_PARAM = 'seed'
+    SEED_PARAM = 'random_state'
+    N_INIT_PARAM = 'n_init'
+    N_INIT_MB_PARAM = 'n_init_mb'
+    N_JOBS_PARAM = 'n_jobs'
+    ALGORITHM_PARAM = 'algorithm'
+    BATCH_SIZE_PARAM = 'batch_size'
+    TOL_PARAM = 'tol'
+    MAX_NO_IMPROVEMENT_PARAM = 'max_no_improvement'
+    PREDICTION_PARAM = 'prediction'
+    FEATURES_PARAM = 'features'
 
     INIT_PARAM_RANDOM = 'random'
     INIT_PARAM_KM = 'K-Means++'
@@ -248,19 +333,33 @@ class KMeansClusteringOperation(Operation):
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
 
-        self.has_code = len(named_outputs) > 0
-        if self.has_code:
-            self.output = named_outputs.get(
-                    'algorithm', 'clustering_algorithm_{}'.format(self.order))
+        self.has_code = any([len(self.named_inputs) == 1, self.contains_results()])
+        self.output = self.named_outputs.get(
+            'output data', 'output_data_{}'.format(self.order))
 
-            self.n_clusters = parameters.get(self.N_CLUSTERS_PARAM, 8) or 8
-            self.max_iter = parameters.get(self.MAX_ITER_PARAM, 300) or 300
+        self.model = self.named_outputs.get(
+            'model', 'model_{}'.format(self.order))
+
+        self.input_port = self.named_inputs.get(
+            'train input data', 'input_data_{}'.format(self.order))
+        if self.has_code:
+            self.features = parameters['features']
+            self.prediction = self.parameters.get(self.PREDICTION_PARAM, 'prediction')
+            self.n_init = int(parameters.get(self.N_INIT_PARAM, 10) or 10)
+            self.n_jobs = parameters.get(self.N_JOBS_PARAM, None) or None
+            self.algorithm = parameters.get(self.ALGORITHM_PARAM, 'auto') or 'auto'
+            self.n_init_mb = int(parameters.get(self.N_INIT_MB_PARAM, 3) or 3)
+            self.tol = float(parameters.get(self.TOL_PARAM, 0.0) or 0.0)
+            self.max_no_improvement = int(parameters.get(self.MAX_NO_IMPROVEMENT_PARAM, 10) or 10)
+            self.batch_size = int(parameters.get(self.BATCH_SIZE_PARAM, 100) or 100)
+            self.n_clusters = int(parameters.get(self.N_CLUSTERS_PARAM, 8) or 8)
+            self.max_iter = int(parameters.get(self.MAX_ITER_PARAM, 100) or 100)
             self.init_mode = parameters.get(
                     self.INIT_PARAM, self.INIT_PARAM_KM) or self.INIT_PARAM_KM
             self.init_mode = self.init_mode.lower()
-            self.tolerance = parameters.get(self.TOLERANCE_PARAM, 0.001)
+            self.tolerance = parameters.get(self.TOLERANCE_PARAM, 1e-4)
             self.tolerance = abs(float(self.tolerance))
-            self.seed = parameters.get(self.SEED_PARAM, 'None') or 'None'
+            self.seed = parameters.get(self.SEED_PARAM, None) or None
             self.type = parameters.get(
                     self.TYPE_PARAM,
                     self.TYPE_PARAM_KMEANS) or self.TYPE_PARAM_KMEANS
@@ -279,23 +378,72 @@ class KMeansClusteringOperation(Operation):
             else:
                 self.has_import = \
                     "from sklearn.cluster import MiniBatchKMeans\n"
+            self.input_treatment()
+
+    @property
+    def get_data_out_names(self, sep=','):
+        return self.output
+
+    def get_output_names(self, sep=', '):
+        return sep.join([self.output, self.model])
+
+    def input_treatment(self):
+        if self.seed is not None and self.seed != '0':
+            self.seed = int(self.seed)
+        else:
+            self.seed = None
+
+        if self.n_jobs is not None and self.n_jobs != '0':
+            self.n_jobs = int(self.n_jobs)
+        else:
+            self.n_jobs = None
 
     def generate_code(self):
         """Generate code."""
         if self.type.lower() == "k-means":
             code = """
-            {output} = KMeans(n_clusters={k}, init='{init}',
-                max_iter={max_iter}, tol={tol}, random_state={seed})
-            """.format(k=self.n_clusters, max_iter=self.max_iter,
-                       tol=self.tolerance, init=self.init_mode,
-                       output=self.output, seed=self.seed)
+            {output_data} = {input_data}.copy()
+            X_train = get_X_train_data({input_data}, {columns})
+            {model} = KMeans(n_clusters={k}, init='{init}', max_iter={max_iter},
+                             tol={tol}, random_state={seed}, n_init={n_init}, 
+                             n_jobs={n_jobs}, algorithm='{algorithm}')
+            {output_data}['{prediction}'] = {model}.fit_predict(X_train)
+            """.format(k=self.n_clusters,
+                       max_iter=self.max_iter,
+                       tol=self.tolerance,
+                       init=self.init_mode,
+                       output_data=self.output,
+                       seed=self.seed,
+                       model=self.model,
+                       input_data=self.input_port,
+                       prediction=self.prediction,
+                       columns=self.features,
+                       n_init=self.n_init,
+                       n_jobs=self.n_jobs,
+                       algorithm=self.algorithm)
         else:
             code = """
-            {output} = MiniBatchKMeans(n_clusters={k}, init='{init}',
-                max_iter={max_iter}, tol={tol}, random_state={seed})
-            """.format(k=self.n_clusters, max_iter=self.max_iter,
-                       tol=self.tolerance, init=self.init_mode,
-                       output=self.output, seed=self.seed)
+            {output_data} = {input_data}.copy()
+            X_train = {input_data}[{columns}].to_numpy().tolist()
+            {model} = MiniBatchKMeans(n_clusters={k}, init='{init}', 
+                                      max_iter={max_iter}, tol={tol}, 
+                                      random_state={seed}, n_init={n_init}, 
+                                      max_no_improvement={max_no_improvement}, 
+                                      batch_size={batch_size})
+            {output_data}['{prediction}'] = {model}.fit_predict(X_train)
+            """.format(k=self.n_clusters,
+                       max_iter=self.max_iter,
+                       tol=self.tol,
+                       init=self.init_mode,
+                       output_data=self.output,
+                       seed=self.seed,
+                       model=self.model,
+                       input_data=self.input_port,
+                       prediction=self.prediction,
+                       columns=self.features,
+                       n_init=self.n_init_mb,
+                       max_no_improvement=self.max_no_improvement,
+                       batch_size=self.batch_size)
         return dedent(code)
 
 
@@ -376,7 +524,7 @@ class LdaClusteringOperation(Operation):
         doc_topic_prior={doc_topic_prior}, topic_word_prior={topic_word_prior}, 
         learning_method='{learning_method}', max_iter={max_iter})
         
-        X_train = {input}['{input_col}'].values.tolist()
+        X_train = get_X_train_data({input}, '{input_col}')
         {model}.fit(X_train)
         """.format(n_components=self.n_clusters, max_iter=self.max_iter,
                    doc_topic_prior=self.doc_topic_pior,
