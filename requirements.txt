@@ -96,6 +96,7 @@ pyasn1-modules==0.2.6
 pycodestyle==2.5.0
 pycparser==2.19
 pyinotify==0.9.6
+pyfpgrowth==1.0
 pylint==2.3.1
 PyMySQL==0.9.3
 pyparsing==2.4.2
