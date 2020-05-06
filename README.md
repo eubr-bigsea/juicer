@@ -29,7 +29,10 @@ MLlib algorithms can use OpenBlas/Atlas optimizations. So, you need to install t
  libgfortran3, libatlas3-base and libopenblas-base. If you are using Debian/Ubuntu, you can
  install these libraries running the following command:
 
- ```sudo apt-get install libatlas3-base libopenblas-base libgfortran3```
+ ```
+    sudo apt-get install libatlas3-base libopenblas-base libqhull-dev libpng-dev \ 
+           libfreetype6-dev libgfortran10-dev libatlas-base-dev libffi-dev
+```
 
 If the application is reporting this message: `WARN util.NativeCodeLoader: Unable to load
 native-hadoop library for your platform... using builtin-java classes where applicable`, you
