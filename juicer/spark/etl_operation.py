@@ -344,7 +344,7 @@ class JoinOperation(Operation):
                 ["in0_renamed['{a0}{p0}'] == in1_renamed['{a1}{p1}']".format(
                     in0=input_data1, p0=pair[0], in1=input_data2, p1=pair[1],
                     a0=self.aliases[0], a1=self.aliases[1])
-                 for pair in on_clause])
+                    for pair in on_clause])
 
         code = """
             def _rename_attributes(df, prefix):
@@ -720,6 +720,57 @@ class FilterOperation(Operation):
                 {f})
             """.format(
             out=self.output, in1=input_data, f=indentation.join(filters))
+
+        return dedent(code)
+
+
+class SlidingWindowOperation(Operation):
+    """
+    """
+    ATTRIBUTE_PARAM = 'attribute'
+    ALIAS_PARAM = 'alias'
+    SIZE_PARAM = 'window_size'
+    OFFSET_PARAM = 'window_offset'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+        if self.ATTRIBUTE_PARAM not in parameters:
+            raise ValueError(
+                _("Parameter '{}' must be informed for task {}".format(
+                    self.FILTER_PARAM, self.__class__)))
+
+        self.attribute = parameters.get(self.ATTRIBUTE_PARAM) or []
+        self.attribute = parameters.get(self.ALIAS_PARAM) or 'attr_'
+        self.offset = int(parameters.get(self.OFFSET_PARAM, '0'))
+        self.size = int(parameters.get(self.SIZE_PARAM, '0'))
+
+        self.has_code = any(
+            [len(self.named_inputs) == 1, self.contains_results()])
+        self.output = self.named_outputs.get('output data',
+                                             'out_{}'.format(self.order))
+
+    def generate_code(self):
+        input_data = self.named_inputs['input data']
+        params = {'input': input_data}
+
+        code = """
+            win_spec1 = Window.rowsBetween(Window.unboundedPreceding, Window.currentRow)
+            win_spec2 = Window.rowsBetween(0, {size})
+            win_spec3 = Window.rowsBetween({size}, {size})
+            
+            # df = {in1}.select(
+            #     f.row_number().over(win_spec).alias('row'), 
+            #     f.collect_list('{attr}').over(windowSpec).alias('group'))
+            # df = df.filter(((f.col('row') - 1) % 2 == 0) & (f.size('group') == {size}))
+            
+            {out} = {in1}.select(f.row_number().over(win_spec2).alias('row'), 
+                      f.collect_list('name').over(win_spec1).alias('group'), 
+                      f.max('{attr}').over(win_spec3).alias('to_pred'))
+            {out} = {out}.filter(((f.col('row') - 1) % {offset} == 0) & 
+                (f.size('group') == {size}))
+            
+            """.format(attr=self.attribute, offset=self.offset,
+                       out=self.output, in1=input_data, size=self.size)
 
         return dedent(code)
 
