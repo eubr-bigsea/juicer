@@ -428,43 +428,54 @@ class SaveOperation(Operation):
                     emit_event(name='update task',
                         message='{{warn_ignored}}',
                         status='COMPLETED',
-                        identifier='{{task_id}}')               
+                        identifier='{{task_id}}')
+                else:
+                    {%- if scheme == 'hdfs'%}
+                        fs.delete(path, False)
+                    {%- elif scheme == 'file' %}
+                        os.remove(path)
 
-            if not exists or mode == 'overwrite':
-                {%- if scheme == 'hdfs'%}
-                if exists:
-                    fs.delete(path, False)
-                {%- elif scheme == 'file' %}
-                if exists:
-                    os.remove(path)
-                parent_dir = os.path.dirname(path)
-                if not os.path.exists(parent_dir):
-                    os.makedirs(parent_dir)
-                {%- endif %}
-                {%- if format == FORMAT_CSV %}
-                from io import StringIO
-                with fs.open(path, 'wb') as f:
-                    s = StringIO()
-                    {{input}}.to_csv(s, sep=str(','), mode='w',
-                    header={{header}}, index=False, encoding='utf-8')
-                    f.write(s.getvalue().encode())              
-                    
-                {%- elif format == FORMAT_PARQUET %}
-                from io import StringIO
-                with fs.open(path, 'wb') as f:
-                    s = StringIO()
-                    {{input}}.to_parquet(f, engine='pyarrow')
-                    f.write(s.getvalue().encode())   
-                {%- elif format == FORMAT_JSON %}
-                from io import StringIO
-                with fs.open(path, 'wb') as f:
-                    s = StringIO()
-                    {{input}}.to_json(s, orient='records')
-                    f.write(s.getvalue().encode())
-                {%- endif %}
-                    f.close()
-
-
+            parent_dir = os.path.dirname(path)
+            if not os.path.exists(parent_dir):
+                os.makedirs(parent_dir)
+            {%- endif %}
+            
+            {%- if format == FORMAT_CSV %}
+            {%- if scheme == 'hdfs' %}
+            from io import StringIO
+            with fs.open(path, 'wb') as f:
+                s = StringIO()
+                {{input}}.to_csv(s, sep=str(','), mode='w',
+                header={{header}}, index=False, encoding='utf-8')
+                f.write(s.getvalue().encode())               
+            {%- elif scheme == 'file' %}
+            {{input}}.to_csv(path, sep=str(','), mode='w',
+            header={{header}}, index=False, encoding='utf-8')
+            {%- endif %}
+            
+            {%- elif format == FORMAT_PARQUET %}
+            {%- if scheme == 'hdfs' %}
+            from io import ByteIO
+            with fs.open(path, 'wb') as f:
+                s = ByteIO()
+                {{input}}.to_parquet(s, engine='pyarrow')
+                f.write(s.getvalue())               
+            {%- elif scheme == 'file' %}
+            {{input}}.to_parquet(path, engine='pyarrow')
+            {%- endif %}
+            
+            {%- elif format == FORMAT_JSON %}
+            {%- if scheme == 'hdfs' %}
+            from io import StringIO
+            with fs.open(path, 'wb') as f:
+                s = StringIO()
+                {{input}}.to_json(s, orient='records')
+                f.write(s.getvalue().encode())             
+            {%- elif scheme == 'file' %}
+            {{input}}.to_json(path, orient='records')
+            {%- endif %}
+            {%- endif %}
+            
             # Code to update Limonero metadata information
             from juicer.service.limonero_service import register_datasource
             types_names = {{data_types}}
