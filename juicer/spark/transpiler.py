@@ -56,6 +56,7 @@ class SparkTranspiler(Transpiler):
             'select': etl_operation.SelectOperation,
             # synonym of intersection'
             'set-intersection': etl_operation.IntersectionOperation,
+            'sliding-window': etl_operation.SlidingWindowOperation,
             'sort': etl_operation.SortOperation,
             'split': etl_operation.SplitOperation,
             'split-k-fold': etl_operation.SplitKFoldOperation,
