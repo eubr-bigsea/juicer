@@ -805,19 +805,21 @@ class ScatterPlotModel(ChartVisualization):
 
     # noinspection PyArgumentEqualDefault
     def get_data(self):
-        schema = self.data.schema
 
         result = {}
         attrs = {}
+        columns = self.data.columns
         for axis in ['x', 'y', 'z', 't']:
             name = self.params.get('{}_axis_attribute'.format(axis), [None])
             if isinstance(name, list) and len(name):
                 name = name[0]
             else:
                 name = None
-            attrs[axis] = next((c for c in schema if c.name == name), None)
+
+            attrs[axis] = next((c for c in columns if c == name), None)
             if attrs[axis]:
-                axis_type = ChartVisualization._get_attr_type(attrs[axis])
+                axis_type = str(self.data[name].dtype)
+                axis_type = ChartVisualization._get_attr_type(axis_type)
 
                 # this way we don't bind x_axis and y_axis types. Y is only
                 # going to be number for now
@@ -846,8 +848,8 @@ class ScatterPlotModel(ChartVisualization):
 
         series_attr_name = self.params.get('series_attribute', [None])[0]
         if series_attr_name:
-            series_attr = next(
-                (c for c in schema if c.name == series_attr_name), None)
+            series_attr = next((c for c in columns if c == series_attr_name),
+                               None)
         else:
             series_attr = None
 
@@ -862,11 +864,13 @@ class ScatterPlotModel(ChartVisualization):
                 "values": []
             }
 
-        rows = self.data.collect()
         current_color = 0
+        rows = self.data.to_numpy()
+        if series_attr:
+            series_attr_idx = self.data.columns.get_loc(series_attr)
         for row in rows:
             if series_attr:
-                series_value = row[series_attr.name]
+                series_value = row[series_attr_idx]
                 if series_value not in series:
                     color = COLORS_PALETTE[(current_color % 6) * 5 +
                                            ((current_color / 6) % 5)]
@@ -884,16 +888,20 @@ class ScatterPlotModel(ChartVisualization):
 
             item = {}
             for axis in ['x', 'y', 'z', 't']:
-                item[axis] = ScatterPlotModel._get_value(row, attrs[axis])
+                col = attrs[axis]
+                idx = None
+                if col:
+                    idx = self.data.columns.get_loc(col)
+                item[axis] = ScatterPlotModel._get_value(row, idx)
             data.append(item)
 
-        result['data'] = list(series.to_numpy()())
+        result['data'] = list(series.values())
         return result
 
     @staticmethod
     def _get_value(row, attr, default_value=None):
         if attr is not None:
-            return ChartVisualization._format(row[attr.name])
+            return ChartVisualization._format(row[attr])
         else:
             return default_value
 
