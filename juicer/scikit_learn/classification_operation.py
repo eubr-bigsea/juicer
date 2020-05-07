@@ -65,7 +65,7 @@ class ClassificationModelOperation(Operation):
 
         if self.perform_transformation:
             code += """
-            {OUT} = {IN}
+            {OUT} = {IN}.copy()
             
             {OUT}['{predCol}'] = {model}.predict(X).tolist()
             """.format(predCol=self.prediction, OUT=self.output,
