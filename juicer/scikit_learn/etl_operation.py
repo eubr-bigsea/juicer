@@ -252,7 +252,7 @@ class CleanMissingOperation(Operation):
             code = """
                 min_missing_ratio = {min_thresh}
                 max_missing_ratio = {max_thresh}
-                {output} = {input}
+                {output} = {input}.copy()
                 to_remove = []
                 for col in {columns}:
                     ratio = {input}[col].isnull().sum() / len({input})
@@ -290,7 +290,7 @@ class CleanMissingOperation(Operation):
             code = """
                     min_missing_ratio = {min_thresh}
                     max_missing_ratio = {max_thresh}
-                    {output} = {input}
+                    {output} = {input}.copy()
                     for col in {columns}:
                         ratio = {input}[col].isnull().sum() / len({input})
                         ratio_mask = (ratio > min_missing_ratio) & (ratio <= max_missing_ratio)
