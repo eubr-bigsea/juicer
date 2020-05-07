@@ -730,7 +730,7 @@ class SlidingWindowOperation(Operation):
     ATTRIBUTE_PARAM = 'attribute'
     ALIAS_PARAM = 'alias'
     SIZE_PARAM = 'window_size'
-    OFFSET_PARAM = 'window_offset'
+    OFFSET_PARAM = 'window_gap'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
@@ -739,10 +739,10 @@ class SlidingWindowOperation(Operation):
                 _("Parameter '{}' must be informed for task {}".format(
                     self.FILTER_PARAM, self.__class__)))
 
-        self.attribute = parameters.get(self.ATTRIBUTE_PARAM) or []
-        self.attribute = parameters.get(self.ALIAS_PARAM) or 'attr_'
-        self.offset = int(parameters.get(self.OFFSET_PARAM, '0'))
-        self.size = int(parameters.get(self.SIZE_PARAM, '0'))
+        self.attribute = (parameters.get(self.ATTRIBUTE_PARAM,  ["col"]))[0]
+        self.alias = parameters.get(self.ALIAS_PARAM) or 'attr_'
+        self.gap = int(parameters.get(self.OFFSET_PARAM, '0')) 
+        self.size = int(parameters.get(self.SIZE_PARAM, '0')) 
 
         self.has_code = any(
             [len(self.named_inputs) == 1, self.contains_results()])
@@ -754,22 +754,23 @@ class SlidingWindowOperation(Operation):
         params = {'input': input_data}
 
         code = """
-            win_spec1 = Window.rowsBetween(Window.unboundedPreceding, Window.currentRow)
-            win_spec2 = Window.rowsBetween(0, {size})
-            win_spec3 = Window.rowsBetween({size}, {size})
+            size = {size}
+            win_spec1 = Window.orderBy(functions.lit(1)).rowsBetween(
+                Window.unboundedPreceding, Window.currentRow)
+            win_spec2 = Window.orderBy(functions.lit(1)).rowsBetween(
+                0, size -1)
+            win_spec3 = Window.orderBy(functions.lit(1)).rowsBetween(
+                size, size)
             
-            # df = {in1}.select(
-            #     f.row_number().over(win_spec).alias('row'), 
-            #     f.collect_list('{attr}').over(windowSpec).alias('group'))
-            # df = df.filter(((f.col('row') - 1) % 2 == 0) & (f.size('group') == {size}))
-            
-            {out} = {in1}.select(f.row_number().over(win_spec2).alias('row'), 
-                      f.collect_list('name').over(win_spec1).alias('group'), 
-                      f.max('{attr}').over(win_spec3).alias('to_pred'))
-            {out} = {out}.filter(((f.col('row') - 1) % {offset} == 0) & 
-                (f.size('group') == {size}))
-            
-            """.format(attr=self.attribute, offset=self.offset,
+            {out} = {in1}.select(functions.row_number().over(win_spec1).alias('row'), 
+                      functions.collect_list('{attr}').over(win_spec2).alias('group'), 
+                      functions.max('{attr}').over(win_spec3).alias('_tmp_1'))
+            {out} = {out}.filter(((functions.col('row')) % {gap} == 1) & 
+                (functions.size('group') == size))
+            {out} = {out}.select(
+                [(functions.col('group')[i]).alias('{alias}{{}}'.format(i + 1)) 
+                    for i in range(size)])
+            """.format(attr=self.attribute, gap=self.gap, alias=self.alias,
                        out=self.output, in1=input_data, size=self.size)
 
         return dedent(code)

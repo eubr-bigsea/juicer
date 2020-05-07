@@ -755,7 +755,7 @@ class EvaluateModelOperation(Operation):
                 metricName=metric)
             metric_value = evaluator.evaluate({input})
             if display_text:
-                result = '<h4>{{}}: {{}}</h4>'.format('{metric}',
+                result = '<h6>{{}}: {{}}</h6>'.format('{metric}',
                     metric_value)
 
                 emit_event(
@@ -853,7 +853,7 @@ class EvaluateModelOperation(Operation):
                 metricName=metric)
             metric_value = evaluator.evaluate(df)
             if display_text:
-                result = '<h4>{{}}: {{}}</h4>'.format('{metric}',
+                result = '<h6>{{}}: {{}}</h6>'.format('{metric}',
                     metric_value)
 
                 emit_event(
@@ -1220,6 +1220,7 @@ class ClassificationModelOperation(DeployModelMixin, Operation):
                 'display_text', {'value': 1}).get('value', 1) in (1, '1')
 
             code = """
+            from juicer.spark import spark_summary_translations as sst
             emit = functools.partial(
                 emit_event, name='update task',
                 status='RUNNING', type='TEXT',
@@ -1344,7 +1345,7 @@ class ClassificationModelOperation(DeployModelMixin, Operation):
                         'table table-striped table-bordered w-auto',
                         headers, rows)
 
-                    result = '<h4>{msg2}</h4>'.format(
+                    result = '<h6>{msg2}</h6>'.format(
                         '{evaluator_metric}', folds,
                         round(cv_model.avgMetrics[0], 4))
 
@@ -1372,9 +1373,14 @@ class ClassificationModelOperation(DeployModelMixin, Operation):
                     ml_model = ml_model.stages[-1]
 
                 rows = []
+                has_feat_importance = False
+                fi_name = 'featureImportances'
                 for m in metrics:
                     try:
-                        rows.append([m, getattr(ml_model, m)])
+                        if m == fi_name:
+                            has_feat_importance = True
+                        else:
+                            rows.append([sst(m), getattr(ml_model, m)])
                     except:
                         pass
                 if rows and len(rows):
@@ -1383,17 +1389,24 @@ class ClassificationModelOperation(DeployModelMixin, Operation):
                         'table table-striped table-bordered table-sm w-auto',
                         headers, rows)
 
-                    result = '<h4>{title}</h4>'
+                    result = '<h6>{title}</h6>' + content.generate()
+
+                    if has_feat_importance and hasattr(ml_model, fi_name):
+                        fi = simpletablereport('table w-auto table-bordered', 
+                            none, zip(features, 
+                                      getattr(ml_model, fi_name)))
+                        result += '<h6>{{}}</h6>{{}}'.format(
+                            sst(fi_name), fi.generate())
 
                     emit(status='COMPLETED',
-                         message=result + content.generate(),
+                         message=result,
                          type='HTML', title='{title}')
-                if hasattr(ml_model, 'toDebugString'):
-                    dt_report = DecisionTreeReport(ml_model.toDebugString,
-                        features)
-                    emit(status='COMPLETED',
-                         message=dt_report.generate(),
-                         type='HTML', title='{title}')
+                # if hasattr(ml_model, 'toDebugString'):
+                #    dt_report = DecisionTreeReport(ml_model.toDebugString,
+                #        features)
+                #    emit(status='COMPLETED',
+                #         message=dt_report.generate(),
+                #         type='HTML', title='{title}')
 
             """.format(
                 model=self.model,
@@ -2592,23 +2605,36 @@ class RegressionModelOperation(DeployModelMixin, Operation):
                 if display_text:
                     regression_model = pipeline_model.stages[-1]
                     headers = []
-                    row = []
+                    rows = []
                     metrics = ['coefficients', 'intercept', 'scale', ]
                     metric_names = ['{coefficients}', '{intercept}', '{scale}']
 
+                    coef_name = 'coefficients'
+                    has_coefficients = False
                     for i, metric in enumerate(metrics):
                         value = getattr(regression_model, metric, None)
                         if value:
-                            headers.append(metric_names[i])
-                            row.append(str(value))
-
-                    if row:
+                            if metric == coef_name:
+                                has_coefficients = True
+                            else:
+                                rows.append([metric_names[i], value])
+                    
+                           
+                    if rows:
                         content = SimpleTableReport(
                             'table table-striped table-bordered w-auto',
-                            headers, [row])
+                            headers, rows).generate()
+
+                        if has_coefficients and hasattr(regression_model, coef_name):
+                            fi = SimpleTableReport('table w-auto table-bordered', 
+                                None, zip(features, 
+                                          getattr(regression_model, coef_name)),
+                                          title=metric_names[0])
+                            content += fi.generate()
+ 
                         emit_event('update task', status='COMPLETED',
                             identifier='{task_id}',
-                            message=content.generate(),
+                            message=content,
                             type='HTML', title='{title}',
                             task={{'id': '{task_id}' }},
                             operation={{'id': {operation_id} }},
