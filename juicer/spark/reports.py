@@ -8,6 +8,7 @@ import itertools
 import json
 import os
 from io import BytesIO
+from collections.abc import Iterable
 
 import jinja2
 import matplotlib.pyplot as plt
@@ -140,15 +141,17 @@ class SimpleTableReport(BaseHtmlReport):
     def generate(self):
         code = []
         if self.title:
-            code.append('<h4>{}</h4>'.format(self.title))
-        code.append('<table class="{}"><thead><tr>'.format(self.table_class))
-        if self.numbered:
-            code.append('<th>#</th>')
+            code.append('<h6>{}</h6>'.format(self.title))
+        code.append('<table class="{}">'.format(self.table_class))
+        if self.headers:
+            code.append('<thead><tr>')
+            if self.numbered:
+                code.append('<th>#</th>')
 
-        for col in self.headers:
-            code.append('<th>{}</th>'.format(escape(col)))
-        # code.append('<th></th>')
-        code.append('</tr></thead>')
+            for col in self.headers:
+                code.append('<th>{}</th>'.format(escape(col)))
+            # code.append('<th></th>')
+            code.append('</tr></thead>')
 
         code.append('<tbody>')
         for i, row in enumerate(self.rows):
@@ -160,8 +163,13 @@ class SimpleTableReport(BaseHtmlReport):
                     new_rows = col.toArray().tolist()
                     report = SimpleTableReport(self.table_class, [], new_rows)
                     code.append('<td>{}</td>'.format(report.generate()))
-                elif col.__class__.__name__ == 'SparseVector':
-                    code.append('<td>{}</td>'.format(list(col.toArray())))
+                elif col.__class__.__name__ in ['DenseVector', 'SparseVector']:
+                    vector = list(col.toArray())
+                    vector_as_str = ', '.join([str(c) for c in vector])
+                    code.append('<td>{}</td>'.format(vector_as_str))
+                elif isinstance(col, Iterable) and not isinstance(col, str):
+                    code.append('<td>{}</td>'.format(
+                        ', '.join([str(c) for c in col])))
                 else:
                     code.append('<td>{}</td>'.format(col))
             # code.append('<td>{}</td>'.format(col.__class__.__name__))

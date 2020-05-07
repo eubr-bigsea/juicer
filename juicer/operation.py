@@ -159,7 +159,8 @@ class Operation(object):
         params = self.parameters['task']['forms']
         result = Deployment()
 
-        forms = [(k, v['category'], v['value']) for k, v in list(params.items()) if v]
+        forms = [(k, v['category'], v['value']) for k, v in list(params.items())
+                 if v]
         task = self.parameters['task']
         task_id = task['id']
 
@@ -181,7 +182,8 @@ class Operation(object):
         # All leaf output port with interface Data defined is considered
         # an output
         candidates = [p for p in
-                      list(self.parameters['task']['operation']['ports'].values())
+                      list(self.parameters['task']['operation'][
+                               'ports'].values())
                       if 'Data' in p['interfaces'] and p[
                           'slug'] not in self.named_outputs and p[
                           'type'] == 'OUTPUT']

@@ -199,7 +199,8 @@ class Transpiler(object):
             else:
                 gen_source_code = state.get(task_id, [{}])[0]
                 if gen_source_code:
-                    parameters['execution_date'] = gen_source_code.get('execution_date')
+                    parameters['execution_date'] = gen_source_code.get(
+                        'execution_date')
                 else:
                     parameters['execution_date'] = None
             true_values = (1, '1', True, 'true', 'True')
@@ -448,7 +449,7 @@ class TranspilerUtils(object):
 
     @staticmethod
     def get_imports(instances):
-        #"from keras.layers import "
+        # "from keras.layers import "
         layer_import = "from keras.layers import "
         layer_list = []
         callbacks_import = "from keras.callbacks import "
@@ -474,7 +475,7 @@ class TranspilerUtils(object):
                         model_list.append(instance.import_code['model'])
                 if instance.import_code['preprocessing_image']:
                     if not instance.import_code[
-                            'preprocessing_image'] in preprocessing_image_list:
+                        'preprocessing_image'] in preprocessing_image_list:
                         preprocessing_image_list.append(
                             instance.import_code['preprocessing_image'])
                 if instance.import_code['others']:

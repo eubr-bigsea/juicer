@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2019-08-28 08:45-0300\n"
-"PO-Revision-Date: 2019-08-28 08:48-0300\n"
+"POT-Creation-Date: 2020-04-29 21:06-0300\n"
+"PO-Revision-Date: 2020-04-29 21:07-0300\n"
 "Last-Translator: \n"
 "Language-Team: pt_BR <LL@li.org>\n"
 "Language: pt_BR\n"
@@ -41,7 +41,7 @@ msgstr "Método generate_code pode ser implementado na subclasse {}"
 msgid "This implementation of traceability do not support multiple inputs"
 msgstr "Esta implementação de rastreabilidade não suporta entradas múltiplas"
 
-#: juicer/transpiler.py:142
+#: juicer/transpiler.py:144
 msgid "Workflow must have at least 1 data source to be deployed."
 msgstr ""
 "Para ser implantado, o fluxo de trabalho precisa de pelo menos uma fonte de "
@@ -63,54 +63,50 @@ msgstr ""
 #: juicer/compss/text_operation.py:45 juicer/compss/text_operation.py:151
 #: juicer/compss/text_operation.py:269
 #: juicer/scikit_learn/associative_operation.py:22
-#: juicer/scikit_learn/associative_operation.py:103
+#: juicer/scikit_learn/associative_operation.py:95
 #: juicer/scikit_learn/classification_operation.py:211
-#: juicer/scikit_learn/clustering_operation.py:20
-#: juicer/scikit_learn/clustering_operation.py:98
-#: juicer/scikit_learn/clustering_operation.py:160
-#: juicer/scikit_learn/data_operation.py:76
-#: juicer/scikit_learn/data_operation.py:328
+#: juicer/scikit_learn/clustering_operation.py:21
+#: juicer/scikit_learn/clustering_operation.py:99
+#: juicer/scikit_learn/clustering_operation.py:161
+#: juicer/scikit_learn/data_operation.py:78
+#: juicer/scikit_learn/data_operation.py:355
 #: juicer/scikit_learn/etl_operation.py:75
 #: juicer/scikit_learn/etl_operation.py:206
-#: juicer/scikit_learn/etl_operation.py:336
-#: juicer/scikit_learn/etl_operation.py:528
-#: juicer/scikit_learn/etl_operation.py:824
-#: juicer/scikit_learn/etl_operation.py:856
+#: juicer/scikit_learn/etl_operation.py:379
+#: juicer/scikit_learn/etl_operation.py:571
+#: juicer/scikit_learn/etl_operation.py:888
+#: juicer/scikit_learn/etl_operation.py:920
 #: juicer/scikit_learn/geo_operation.py:27
 #: juicer/scikit_learn/geo_operation.py:84
-#: juicer/scikit_learn/model_operation.py:59
-#: juicer/scikit_learn/model_operation.py:69
-#: juicer/scikit_learn/model_operation.py:92
-#: juicer/scikit_learn/model_operation.py:519
-#: juicer/scikit_learn/model_operation.py:539
+#: juicer/scikit_learn/model_operation.py:747
+#: juicer/scikit_learn/model_operation.py:767
 #: juicer/scikit_learn/text_operation.py:46
 #: juicer/scikit_learn/text_operation.py:141
-#: juicer/scikit_learn/text_operation.py:235
-#: juicer/scikit_learn/text_operation.py:242
-#: juicer/scikit_learn/text_operation.py:300 juicer/spark/data_operation.py:74
+#: juicer/scikit_learn/text_operation.py:238
+#: juicer/scikit_learn/text_operation.py:245
+#: juicer/scikit_learn/text_operation.py:303 juicer/spark/data_operation.py:74
 #: juicer/spark/data_operation.py:708 juicer/spark/data_operation.py:817
 #: juicer/spark/data_quality_operation.py:21 juicer/spark/etl_operation.py:94
 #: juicer/spark/etl_operation.py:200 juicer/spark/etl_operation.py:466
 #: juicer/spark/etl_operation.py:500 juicer/spark/etl_operation.py:507
 #: juicer/spark/etl_operation.py:585 juicer/spark/etl_operation.py:693
-#: juicer/spark/etl_operation.py:760 juicer/spark/etl_operation.py:1209
-#: juicer/spark/feature_operation.py:30 juicer/spark/feature_operation.py:194
-#: juicer/spark/feature_operation.py:296 juicer/spark/feature_operation.py:373
-#: juicer/spark/feature_operation.py:380 juicer/spark/feature_operation.py:387
-#: juicer/spark/feature_operation.py:394 juicer/spark/geo_operation.py:34
-#: juicer/spark/ml_operation.py:157 juicer/spark/ml_operation.py:229
-#: juicer/spark/ml_operation.py:294 juicer/spark/ml_operation.py:301
-#: juicer/spark/ml_operation.py:358 juicer/spark/ml_operation.py:438
-#: juicer/spark/ml_operation.py:1013 juicer/spark/ml_operation.py:1032
-#: juicer/spark/ml_operation.py:1853 juicer/spark/ml_operation.py:3279
-#: juicer/spark/ml_operation.py:3284 juicer/spark/ml_operation.py:3336
-#: juicer/spark/ml_operation.py:3342 juicer/spark/ml_operation.py:3419
-#: juicer/spark/statistic_operation.py:30
+#: juicer/spark/etl_operation.py:760 juicer/spark/etl_operation.py:1211
+#: juicer/spark/feature_operation.py:30 juicer/spark/feature_operation.py:195
+#: juicer/spark/feature_operation.py:297 juicer/spark/feature_operation.py:374
+#: juicer/spark/feature_operation.py:381 juicer/spark/feature_operation.py:390
+#: juicer/spark/geo_operation.py:34 juicer/spark/ml_operation.py:158
+#: juicer/spark/ml_operation.py:230 juicer/spark/ml_operation.py:295
+#: juicer/spark/ml_operation.py:302 juicer/spark/ml_operation.py:359
+#: juicer/spark/ml_operation.py:440 juicer/spark/ml_operation.py:1020
+#: juicer/spark/ml_operation.py:1039 juicer/spark/ml_operation.py:1882
+#: juicer/spark/ml_operation.py:3308 juicer/spark/ml_operation.py:3313
+#: juicer/spark/ml_operation.py:3365 juicer/spark/ml_operation.py:3371
+#: juicer/spark/ml_operation.py:3448 juicer/spark/statistic_operation.py:30
 #: juicer/spark/statistic_operation.py:189 juicer/spark/text_operation.py:38
 #: juicer/spark/text_operation.py:110 juicer/spark/text_operation.py:228
 #: juicer/spark/text_operation.py:363 juicer/spark/text_operation.py:370
-#: juicer/spark/trustworthy_operation.py:28
-#: juicer/spark/trustworthy_operation.py:34
+#: juicer/spark/trustworthy_operation.py:43
+#: juicer/spark/trustworthy_operation.py:49
 msgid "Parameter '{}' must be informed for task {}"
 msgstr "O parâmetro '{}' deve ser informado para a tarefa {}"
 
@@ -120,15 +116,19 @@ msgstr "O parâmetro '{}' deve ser informado para a tarefa {}"
 #: juicer/compss/feature_operation.py:174
 #: juicer/compss/feature_operation.py:309
 #: juicer/compss/feature_operation.py:384 juicer/compss/model_operation.py:19
+#: juicer/scikit_learn/clustering_operation.py:361
 #: juicer/scikit_learn/feature_operation.py:18
-#: juicer/scikit_learn/feature_operation.py:63
-#: juicer/scikit_learn/feature_operation.py:111
-#: juicer/scikit_learn/feature_operation.py:158
-#: juicer/scikit_learn/feature_operation.py:207
-#: juicer/scikit_learn/feature_operation.py:264
-#: juicer/scikit_learn/feature_operation.py:307
-#: juicer/scikit_learn/model_operation.py:152
-#: juicer/scikit_learn/model_operation.py:160
+#: juicer/scikit_learn/feature_operation.py:64
+#: juicer/scikit_learn/feature_operation.py:73
+#: juicer/scikit_learn/feature_operation.py:134
+#: juicer/scikit_learn/feature_operation.py:143
+#: juicer/scikit_learn/feature_operation.py:215
+#: juicer/scikit_learn/feature_operation.py:282
+#: juicer/scikit_learn/feature_operation.py:340
+#: juicer/scikit_learn/feature_operation.py:383
+#: juicer/scikit_learn/model_operation.py:45
+#: juicer/scikit_learn/model_operation.py:188
+#: juicer/scikit_learn/model_operation.py:370
 msgid "Parameters '{}' must be informed for task {}"
 msgstr "Parâmetros '{}' devem ser informados para a tarefa {}"
 
@@ -141,25 +141,27 @@ msgstr "Parâmetros '{}' devem ser informados para a tarefa {}"
 #: juicer/scikit_learn/classification_operation.py:19
 #: juicer/scikit_learn/classification_operation.py:31
 #: juicer/scikit_learn/etl_operation.py:25
-#: juicer/scikit_learn/etl_operation.py:633
-#: juicer/scikit_learn/model_operation.py:140
+#: juicer/scikit_learn/etl_operation.py:676
+#: juicer/scikit_learn/model_operation.py:350
 #: juicer/scikit_learn/regression_operation.py:25
 #: juicer/scikit_learn/regression_operation.py:60
-#: juicer/spark/ml_operation.py:1171 juicer/spark/ml_operation.py:2409
-#: juicer/spark/ml_operation.py:2439 juicer/spark/ml_operation.py:2466
-#: juicer/spark/ml_operation.py:2663
+#: juicer/spark/ml_operation.py:1178 juicer/spark/ml_operation.py:2438
+#: juicer/spark/ml_operation.py:2468 juicer/spark/ml_operation.py:2495
+#: juicer/spark/ml_operation.py:2691
 msgid "Parameters '{}' and '{}' must be informed for task {}"
 msgstr "Parâmetros '{}' e '{}' devem ser informado para a tarefa {}"
 
-#: juicer/compss/compss_minion.py:87 juicer/keras/keras_minion.py:118
-#: juicer/scikit_learn/scikit_learn_minion.py:83
+#: juicer/compss/compss_minion.py:87 juicer/jobs/script_minion.py:123
+#: juicer/keras/keras_minion.py:118
+#: juicer/scikit_learn/scikit_learn_minion.py:85
 #: juicer/spark/spark_minion.py:188
 #, python-format
 msgid "Emit %s %s %s %s"
 msgstr "Emitir %s %s %s %s"
 
-#: juicer/compss/compss_minion.py:104 juicer/keras/keras_minion.py:140
-#: juicer/scikit_learn/scikit_learn_minion.py:100
+#: juicer/compss/compss_minion.py:104 juicer/jobs/script_minion.py:165
+#: juicer/keras/keras_minion.py:140
+#: juicer/scikit_learn/scikit_learn_minion.py:102
 #: juicer/spark/spark_minion.py:230
 #, python-format
 msgid ""
@@ -169,75 +171,85 @@ msgstr ""
 "Erro não tratado (%s) \n"
 ">%s"
 
-#: juicer/compss/compss_minion.py:136 juicer/keras/keras_minion.py:178
-#: juicer/scikit_learn/scikit_learn_minion.py:132
+#: juicer/compss/compss_minion.py:136 juicer/jobs/script_minion.py:202
+#: juicer/keras/keras_minion.py:178
+#: juicer/scikit_learn/scikit_learn_minion.py:134
 #: juicer/spark/spark_minion.py:267
 #, python-format
 msgid "Processing message %s for app %s"
 msgstr "Processando a mesangem %s para a aplicação %s"
 
-#: juicer/compss/compss_minion.py:150 juicer/keras/keras_minion.py:242
-#: juicer/scikit_learn/scikit_learn_minion.py:146
-#: juicer/spark/spark_minion.py:344
+#: juicer/compss/compss_minion.py:150 juicer/jobs/script_minion.py:279
+#: juicer/keras/keras_minion.py:242
+#: juicer/scikit_learn/scikit_learn_minion.py:148
+#: juicer/spark/spark_minion.py:346
 msgid "Running job with lang {}/{}"
 msgstr "Executando o job usando o idioma {}/{}"
 
-#: juicer/compss/compss_minion.py:173 juicer/keras/keras_minion.py:257
-#: juicer/scikit_learn/scikit_learn_minion.py:161
-#: juicer/spark/spark_minion.py:367
+#: juicer/compss/compss_minion.py:173 juicer/jobs/script_minion.py:302
+#: juicer/keras/keras_minion.py:257
+#: juicer/scikit_learn/scikit_learn_minion.py:163
+#: juicer/spark/spark_minion.py:369
 msgid "Execute message finished"
 msgstr "Mensagem de execução finalizada"
 
-#: juicer/compss/compss_minion.py:179 juicer/keras/keras_minion.py:264
+#: juicer/compss/compss_minion.py:179 juicer/jobs/script_minion.py:323
+#: juicer/keras/keras_minion.py:264
 #: juicer/scikit_learn/scikit_learn_minion.py:167
-#: juicer/spark/spark_minion.py:388
+#: juicer/spark/spark_minion.py:374
 #, python-format
 msgid "Terminate message received (job_id=%s)"
 msgstr "Mensagem de término recebida (job_id=%s)"
 
-#: juicer/compss/compss_minion.py:183 juicer/keras/keras_minion.py:268
+#: juicer/compss/compss_minion.py:183 juicer/jobs/script_minion.py:327
+#: juicer/keras/keras_minion.py:268
 #: juicer/scikit_learn/scikit_learn_minion.py:171
-#: juicer/spark/spark_minion.py:392
+#: juicer/spark/spark_minion.py:378
 #, python-format
 msgid "Terminate message received (app=%s)"
 msgstr "Mensagem de término recebida (app=%s)"
 
 #: juicer/compss/compss_minion.py:191 juicer/compss/compss_minion.py:192
+#: juicer/jobs/script_minion.py:335 juicer/jobs/script_minion.py:336
 #: juicer/keras/keras_minion.py:273 juicer/keras/keras_minion.py:274
-#: juicer/runner/server.py:126 juicer/scikit_learn/scikit_learn_minion.py:179
+#: juicer/runner/server.py:161 juicer/scikit_learn/scikit_learn_minion.py:179
 #: juicer/scikit_learn/scikit_learn_minion.py:180
-#: juicer/spark/spark_minion.py:400 juicer/spark/spark_minion.py:401
+#: juicer/spark/spark_minion.py:386 juicer/spark/spark_minion.py:387
 #, python-format
 msgid "Unknown message type %s"
 msgstr "Tipo da mensagem desconhecido %s"
 
-#: juicer/compss/compss_minion.py:213 juicer/keras/keras_minion.py:302
+#: juicer/compss/compss_minion.py:213 juicer/jobs/script_minion.py:364
+#: juicer/keras/keras_minion.py:302
 #: juicer/scikit_learn/scikit_learn_minion.py:201
-#: juicer/spark/spark_minion.py:429
+#: juicer/spark/spark_minion.py:415
 msgid "Running job"
 msgstr "Executando tarefa"
 
-#: juicer/compss/compss_minion.py:303 juicer/keras/keras_minion.py:341
-#: juicer/scikit_learn/scikit_learn_minion.py:246
-#: juicer/spark/spark_minion.py:475
+#: juicer/compss/compss_minion.py:303 juicer/jobs/script_minion.py:410
+#: juicer/keras/keras_minion.py:341
+#: juicer/scikit_learn/scikit_learn_minion.py:243
+#: juicer/spark/spark_minion.py:462
 msgid "Job finished in {0:.2f}s"
 msgstr "Job executado em {0:.2f}s"
 
-#: juicer/compss/compss_minion.py:322 juicer/keras/keras_minion.py:361
-#: juicer/scikit_learn/scikit_learn_minion.py:264
-#: juicer/spark/spark_minion.py:495
+#: juicer/compss/compss_minion.py:322 juicer/jobs/script_minion.py:429
+#: juicer/keras/keras_minion.py:362
+#: juicer/scikit_learn/scikit_learn_minion.py:268
+#: juicer/spark/spark_minion.py:481
 msgid "Invalid or missing parameters: {}"
 msgstr "Parâmetro inválido ou ausente: {}"
 
-#: juicer/compss/compss_minion.py:350 juicer/keras/keras_minion.py:385
-#: juicer/scikit_learn/scikit_learn_minion.py:292
-#: juicer/spark/spark_minion.py:519 juicer/spark/spark_minion.py:522
+#: juicer/compss/compss_minion.py:350 juicer/jobs/script_minion.py:453
+#: juicer/jobs/script_minion.py:456 juicer/keras/keras_minion.py:386
+#: juicer/scikit_learn/scikit_learn_minion.py:296
+#: juicer/spark/spark_minion.py:505 juicer/spark/spark_minion.py:508
 msgid "Unhandled error"
 msgstr "Erro não tratado"
 
-#: juicer/compss/compss_minion.py:486
-#: juicer/scikit_learn/scikit_learn_minion.py:422
-#: juicer/spark/spark_minion.py:836
+#: juicer/compss/compss_minion.py:486 juicer/jobs/script_minion.py:610
+#: juicer/scikit_learn/scikit_learn_minion.py:426
+#: juicer/spark/spark_minion.py:822
 #, python-format
 msgid "Spark minion (workflow_id=%s,app_id=%s) started (pid=%s)"
 msgstr "Spark minion (workflow_id=%s, app_id=%s) iniciou (pid=%s)"
@@ -245,9 +257,9 @@ msgstr "Spark minion (workflow_id=%s, app_id=%s) iniciou (pid=%s)"
 #: juicer/compss/data_operation.py:256 juicer/compss/etl_operation.py:485
 #: juicer/compss/etl_operation.py:547 juicer/compss/etl_operation.py:1046
 #: juicer/compss/geo_operation.py:127 juicer/compss/graph_operation.py:19
-#: juicer/compss/model_operation.py:31 juicer/scikit_learn/etl_operation.py:584
-#: juicer/scikit_learn/etl_operation.py:641
-#: juicer/scikit_learn/etl_operation.py:975
+#: juicer/compss/model_operation.py:31 juicer/scikit_learn/etl_operation.py:627
+#: juicer/scikit_learn/etl_operation.py:684
+#: juicer/scikit_learn/etl_operation.py:1039
 msgid "Parameter '{}' and '{}' must be informed for task {}"
 msgstr "Parâmetros '{}' e  '{}' devem ser informados para a tarefa {}"
 
@@ -255,21 +267,21 @@ msgstr "Parâmetros '{}' e  '{}' devem ser informados para a tarefa {}"
 msgid "Parameter '{}', '{}' and '{}' must be informed for task {}"
 msgstr "Parâmetros '{}', '{}' e  '{}' devem ser informados para a tarefa {}"
 
-#: juicer/compss/etl_operation.py:617 juicer/scikit_learn/etl_operation.py:717
+#: juicer/compss/etl_operation.py:617 juicer/scikit_learn/etl_operation.py:769
 msgid ""
 "Parameter {} and {} must be informed if is using replace by value in task {}."
 msgstr ""
 "Parâmetros '{}' e  '{}' devem ser informados se usando substituição por "
 "valor na tarefa {}"
 
-#: juicer/compss/etl_operation.py:706 juicer/scikit_learn/etl_operation.py:765
+#: juicer/compss/etl_operation.py:706 juicer/scikit_learn/etl_operation.py:829
 msgid ""
 "Parameter 'value' must be [x>=0] if is using the current type of sampling in "
 "task {}."
 msgstr ""
 "Parâmetro 'value/valor' deve ser [x>=0] se para o tipo amostra na tarefa {}."
 
-#: juicer/compss/etl_operation.py:975 juicer/scikit_learn/etl_operation.py:935
+#: juicer/compss/etl_operation.py:975 juicer/scikit_learn/etl_operation.py:999
 #: juicer/spark/etl_operation.py:413
 msgid "Parameter must be informed for task {}."
 msgstr "Parâmetro deve ser informado para a tarefa: {}."
@@ -300,15 +312,15 @@ msgstr "Parâmetro {} e {} precisam ser informados para a tarefa {}"
 msgid "Invalid type for operation Tokenizer: {}"
 msgstr "Tipo inválido para operação Tokenizer: {}"
 
-#: juicer/compss/transpiler.py:406 juicer/keras/keras_minion.py:94
-#: juicer/runner/minion_base.py:80 juicer/scikit_learn/transpiler.py:35
-#: juicer/spark/spark_minion.py:110
+#: juicer/compss/transpiler.py:406 juicer/jobs/script_minion.py:96
+#: juicer/keras/keras_minion.py:94 juicer/runner/minion_base.py:80
+#: juicer/scikit_learn/transpiler.py:35 juicer/spark/spark_minion.py:110
 msgid "Task completed"
 msgstr "Tarefa completada"
 
-#: juicer/compss/transpiler.py:407 juicer/keras/keras_minion.py:94
-#: juicer/runner/minion_base.py:80 juicer/scikit_learn/transpiler.py:36
-#: juicer/spark/spark_minion.py:110
+#: juicer/compss/transpiler.py:407 juicer/jobs/script_minion.py:96
+#: juicer/keras/keras_minion.py:94 juicer/runner/minion_base.py:80
+#: juicer/scikit_learn/transpiler.py:36 juicer/spark/spark_minion.py:110
 msgid "Task running"
 msgstr "Tarefa executando"
 
@@ -331,288 +343,92 @@ msgstr "Tarefa Lemonade %s iniciada"
 msgid "Submitting parent task {} before {}"
 msgstr "Submetendo tarefas-pai {} antes de {}"
 
-#: juicer/keras/convolutional_layers.py:37
-#: juicer/keras/convolutional_layers.py:260
-#: juicer/keras/convolutional_layers.py:495
-#: juicer/keras/convolutional_layers.py:755
-#: juicer/keras/convolutional_layers.py:1218
-#: juicer/keras/convolutional_layers.py:1448
-#: juicer/keras/convolutional_layers.py:1679
-msgid "Parameter {} {} {} are required"
-msgstr "Parâmetros {}, {} e {} são obrigatórios"
-
-#: juicer/keras/convolutional_layers.py:111
-#: juicer/keras/convolutional_layers.py:115
-#: juicer/keras/convolutional_layers.py:119
-#: juicer/keras/convolutional_layers.py:123
-#: juicer/keras/convolutional_layers.py:147
-#: juicer/keras/convolutional_layers.py:335
-#: juicer/keras/convolutional_layers.py:341
-#: juicer/keras/convolutional_layers.py:345
-#: juicer/keras/convolutional_layers.py:349
-#: juicer/keras/convolutional_layers.py:373
-#: juicer/keras/convolutional_layers.py:583
-#: juicer/keras/convolutional_layers.py:587
-#: juicer/keras/convolutional_layers.py:591
-#: juicer/keras/convolutional_layers.py:595
-#: juicer/keras/convolutional_layers.py:616
-#: juicer/keras/convolutional_layers.py:843
-#: juicer/keras/convolutional_layers.py:847
-#: juicer/keras/convolutional_layers.py:851
-#: juicer/keras/convolutional_layers.py:855
-#: juicer/keras/convolutional_layers.py:876
-#: juicer/keras/convolutional_layers.py:1084
-#: juicer/keras/convolutional_layers.py:1088
-#: juicer/keras/convolutional_layers.py:1105
-#: juicer/keras/convolutional_layers.py:1293
-#: juicer/keras/convolutional_layers.py:1297
-#: juicer/keras/convolutional_layers.py:1301
-#: juicer/keras/convolutional_layers.py:1305
-#: juicer/keras/convolutional_layers.py:1309
-#: juicer/keras/convolutional_layers.py:1329
-#: juicer/keras/convolutional_layers.py:1523
-#: juicer/keras/convolutional_layers.py:1529
-#: juicer/keras/convolutional_layers.py:1533
-#: juicer/keras/convolutional_layers.py:1537
-#: juicer/keras/convolutional_layers.py:1561
-#: juicer/keras/convolutional_layers.py:1754
-#: juicer/keras/convolutional_layers.py:1758
-#: juicer/keras/convolutional_layers.py:1762
-#: juicer/keras/convolutional_layers.py:1766
-#: juicer/keras/convolutional_layers.py:1770
-#: juicer/keras/convolutional_layers.py:1790
-#: juicer/keras/convolutional_layers.py:1939
-#: juicer/keras/convolutional_layers.py:1950
-#: juicer/keras/convolutional_layers.py:2033
-#: juicer/keras/convolutional_layers.py:2044
-#: juicer/keras/convolutional_layers.py:2132
-#: juicer/keras/convolutional_layers.py:2143
-#: juicer/keras/convolutional_layers.py:2231 juicer/keras/core_layers.py:285
-#: juicer/keras/core_layers.py:1623 juicer/keras/core_layers.py:1628
-#: juicer/keras/core_layers.py:1633 juicer/keras/core_layers.py:1779
-#: juicer/keras/core_layers.py:1906 juicer/keras/core_layers.py:2008
-#: juicer/keras/core_layers.py:2089 juicer/keras/core_layers.py:2097
-#: juicer/keras/core_layers.py:2198 juicer/keras/core_layers.py:2208
-#: juicer/keras/core_layers.py:2306 juicer/keras/core_layers.py:2311
-#: juicer/keras/core_layers.py:2413 juicer/keras/core_layers.py:2421
-#: juicer/keras/core_layers.py:2521 juicer/keras/core_layers.py:2526
-#: juicer/keras/core_layers.py:2626 juicer/keras/core_layers.py:2631
-msgid "Parameter {} is invalid"
-msgstr "Parâmetro {} é inválido"
-
-#: juicer/keras/convolutional_layers.py:1009
-msgid "Parameter {} {} are required"
-msgstr "Parâmetros {} e {} são obrigatórios"
-
-#: juicer/keras/convolutional_layers.py:1891
-#: juicer/keras/convolutional_layers.py:1984
-#: juicer/keras/convolutional_layers.py:2083 juicer/keras/core_layers.py:861
-#: juicer/keras/core_layers.py:927 juicer/keras/core_layers.py:992
-#: juicer/keras/core_layers.py:1057 juicer/keras/core_layers.py:1144
-#: juicer/keras/core_layers.py:1364 juicer/keras/core_layers.py:2048
-#: juicer/keras/core_layers.py:2159 juicer/keras/core_layers.py:2268
-#: juicer/keras/core_layers.py:2372 juicer/keras/core_layers.py:2483
-#: juicer/keras/core_layers.py:2588
-msgid "Parameter {} are required"
-msgstr "Parâmetro {} é obrigatório"
-
-#: juicer/keras/convolutional_layers.py:2181 juicer/keras/core_layers.py:28
-#: juicer/keras/core_layers.py:159 juicer/keras/core_layers.py:408
-#: juicer/keras/core_layers.py:475 juicer/keras/core_layers.py:551
-#: juicer/keras/core_layers.py:624 juicer/keras/core_layers.py:693
-#: juicer/keras/core_layers.py:1978 juicer/keras/core_layers.py:4032
-#: juicer/keras/core_layers.py:4036 juicer/keras/core_layers.py:4040
-#: juicer/keras/core_layers.py:4044 juicer/keras/core_layers.py:4243
-#: juicer/keras/core_layers.py:4246 juicer/keras/core_layers.py:4249
-#: juicer/keras/core_layers.py:4672 juicer/keras/core_layers.py:4677
-#: juicer/keras/core_layers.py:4993 juicer/keras/core_layers.py:5106
-msgid "Parameter {} is required"
-msgstr "Parâmetro {} é obrigatório"
-
-#: juicer/keras/core_layers.py:523 juicer/keras/core_layers.py:596
-msgid "Parameter {} is required. The format is: (x, y) or (-1, x, y)"
-msgstr "Parâmetro {} é obrigatório. O formato é:  (x, y) ou (-1, x, y)"
-
-#: juicer/keras/core_layers.py:745 juicer/keras/core_layers.py:4028
-#: juicer/keras/core_layers.py:4118 juicer/keras/core_layers.py:4129
-#: juicer/keras/core_layers.py:4141 juicer/keras/core_layers.py:4220
-#: juicer/keras/core_layers.py:4228 juicer/keras/core_layers.py:4266
-#: juicer/keras/core_layers.py:4269 juicer/keras/core_layers.py:4272
-#: juicer/keras/core_layers.py:4275
-msgid "Parameter {} is required."
-msgstr "Parâmetro {} é obrigatório"
-
-#: juicer/keras/core_layers.py:789
-msgid "Parameter {l1} and {l2} are required"
-msgstr "Parâmetros {l1} e {l2} são obrigatórios"
-
-#: juicer/keras/core_layers.py:1222 juicer/keras/core_layers.py:1438
-msgid "Parameter {} needs to be positive integer"
-msgstr "Parâmetro {} deve ser um inteiro positivo"
-
-#: juicer/keras/core_layers.py:1239 juicer/keras/core_layers.py:1243
-#: juicer/keras/core_layers.py:1451 juicer/keras/core_layers.py:1455
-msgid "Parameter {} needs to be positive float"
-msgstr "Parâmetro {} deve ser um número positivo"
-
-#: juicer/keras/core_layers.py:3163 juicer/keras/core_layers.py:3172
-#: juicer/keras/core_layers.py:3263 juicer/keras/core_layers.py:3272
-#: juicer/keras/core_layers.py:3363 juicer/keras/core_layers.py:3372
-#: juicer/keras/core_layers.py:3463 juicer/keras/core_layers.py:3472
-#: juicer/keras/core_layers.py:3563 juicer/keras/core_layers.py:3572
-#: juicer/keras/core_layers.py:3663 juicer/keras/core_layers.py:3672
-#: juicer/keras/core_layers.py:3765 juicer/keras/core_layers.py:3774
-#: juicer/keras/core_layers.py:3872 juicer/keras/core_layers.py:3881
-msgid "Parameter {} requires at least 2."
-msgstr "Parâmetro {} requer pelo menos 2."
-
-#: juicer/keras/core_layers.py:4050
-msgid "The operation needs the inputs."
-msgstr "A operação requer entradas."
-
-#: juicer/keras/core_layers.py:4089
-msgid "It is necessary to inform the training data."
-msgstr "É necessário informar os dados de treinamento."
-
-#: juicer/keras/core_layers.py:4093
-msgid "It is necessary to inform the input(s) layer(s)."
-msgstr "É necessário informar a(s) camada(s) de entrada."
-
-#: juicer/keras/core_layers.py:4096
-msgid "It is necessary to inform the output(s) layer(s)."
-msgstr "É necessário informar a(s) camada(s) de saída."
-
-#: juicer/keras/core_layers.py:4155 juicer/keras/core_layers.py:4171
-#: juicer/keras/core_layers.py:4182 juicer/keras/core_layers.py:4202
-#: juicer/keras/core_layers.py:4414 juicer/keras/core_layers.py:4424
-#: juicer/keras/core_layers.py:4780 juicer/keras/core_layers.py:4828
-#: juicer/keras/core_layers.py:4837 juicer/keras/core_layers.py:4848
-#: juicer/keras/core_layers.py:4854 juicer/keras/core_layers.py:4869
-#: juicer/keras/core_layers.py:4878 juicer/keras/core_layers.py:4890
-msgid "Parameter {} is invalid."
-msgstr "Parâmetro {} é inválido."
-
-#: juicer/keras/core_layers.py:4314
-msgid "File {} exists."
-msgstr "Arquivo {} existe."
-
-#: juicer/keras/core_layers.py:4343
-msgid "Parameter {} invalid."
-msgstr "Parâmetro {} é inválido."
-
-#: juicer/keras/core_layers.py:4346
-msgid "Parameter {} not supported yet."
-msgstr "Parâmetro {} ainda não é suportado."
-
-#: juicer/keras/core_layers.py:4700
-msgid "You need to correctly specify the ports for training and/or validation."
-msgstr ""
-"Você precisa especificar corretamente as portas para treinamento e/ou "
-"validação."
-
-#: juicer/keras/core_layers.py:4819
-msgid ""
-",\n"
-"Parameter {} is invalid."
-msgstr ""
-",\n"
-"Parâmetro {} é inválido.;"
-
-#: juicer/keras/core_layers.py:5012 juicer/keras/core_layers.py:5022
-#: juicer/keras/core_layers.py:5125 juicer/keras/core_layers.py:5135
-msgid "Unsupported image format: {}"
-msgstr "Formato de imagem não suportado: {}"
-
-#: juicer/keras/core_layers.py:5032 juicer/keras/core_layers.py:5145
-msgid "Training and validation images files are in different formats."
-msgstr ""
-"Arquivos de imagem de treinamento e validação estão em formatos diferentes."
-
-#: juicer/keras/core_layers.py:5055 juicer/keras/core_layers.py:5168
-#: juicer/scikit_learn/data_operation.py:113 juicer/spark/data_operation.py:110
-msgid "Incorrect data source configuration (empty url)"
-msgstr "Configuração incorreta para fonte de dados (url vazia)"
-
-#: juicer/keras/keras_minion.py:79 juicer/runner/minion_base.py:63
-#: juicer/spark/spark_minion.py:95
+#: juicer/jobs/script_minion.py:81 juicer/keras/keras_minion.py:79
+#: juicer/runner/minion_base.py:63 juicer/spark/spark_minion.py:95
 msgid "Success."
 msgstr "Sucesso."
 
-#: juicer/keras/keras_minion.py:80 juicer/runner/minion_base.py:64
-#: juicer/spark/spark_minion.py:96
+#: juicer/jobs/script_minion.py:82 juicer/keras/keras_minion.py:80
+#: juicer/runner/minion_base.py:64 juicer/spark/spark_minion.py:96
 msgid "Port output format not supported."
 msgstr "Formato da porta de saída  não suportado."
 
-#: juicer/keras/keras_minion.py:81 juicer/runner/minion_base.py:65
-#: juicer/spark/spark_minion.py:97
+#: juicer/jobs/script_minion.py:83 juicer/keras/keras_minion.py:81
+#: juicer/runner/minion_base.py:65 juicer/spark/spark_minion.py:97
 msgid "Success getting data from task."
 msgstr "Sucesso ao obter dados da tarefa."
 
-#: juicer/keras/keras_minion.py:82 juicer/runner/minion_base.py:66
-#: juicer/spark/spark_minion.py:98
+#: juicer/jobs/script_minion.py:84 juicer/keras/keras_minion.py:82
+#: juicer/runner/minion_base.py:66 juicer/spark/spark_minion.py:98
 msgid "State does not exists, processing app."
 msgstr "Estado não existe, processando a aplicação"
 
-#: juicer/keras/keras_minion.py:83 juicer/runner/minion_base.py:67
-#: juicer/spark/spark_minion.py:99
+#: juicer/jobs/script_minion.py:85 juicer/keras/keras_minion.py:83
+#: juicer/runner/minion_base.py:67 juicer/spark/spark_minion.py:99
 msgid "Invalid port."
 msgstr "Porta inválida."
 
-#: juicer/keras/keras_minion.py:85 juicer/runner/minion_base.py:69
-#: juicer/spark/spark_minion.py:101
+#: juicer/jobs/script_minion.py:87 juicer/keras/keras_minion.py:85
+#: juicer/runner/minion_base.py:69 juicer/spark/spark_minion.py:101
 msgid "Unable to retrieve data because a previous error."
 msgstr "Não é possível recuperar os dados devido a um erro anterior."
 
-#: juicer/keras/keras_minion.py:87 juicer/runner/minion_base.py:71
-#: juicer/spark/spark_minion.py:103
+#: juicer/jobs/script_minion.py:89 juicer/keras/keras_minion.py:87
+#: juicer/runner/minion_base.py:71 juicer/spark/spark_minion.py:103
 msgid "Invalid Python code or incorrect encoding: {}"
 msgstr "Código Python inválido ou codificação incorreta: {}"
 
-#: juicer/keras/keras_minion.py:88 juicer/runner/minion_base.py:72
-#: juicer/spark/spark_minion.py:104
+#: juicer/jobs/script_minion.py:90 juicer/keras/keras_minion.py:88
+#: juicer/runner/minion_base.py:72 juicer/spark/spark_minion.py:104
 msgid "Job {} was canceled"
 msgstr "Trabalho {} foi cancelado."
 
-#: juicer/keras/keras_minion.py:89 juicer/runner/minion_base.py:73
-#: juicer/spark/spark_minion.py:105
+#: juicer/jobs/script_minion.py:91 juicer/keras/keras_minion.py:89
+#: juicer/runner/minion_base.py:73 juicer/spark/spark_minion.py:105
 msgid "App {} was terminated"
 msgstr "Aplicação {} foi finalizada."
 
-#: juicer/keras/keras_minion.py:90 juicer/runner/minion_base.py:74
-#: juicer/spark/spark_minion.py:106
+#: juicer/jobs/script_minion.py:92 juicer/keras/keras_minion.py:90
+#: juicer/runner/minion_base.py:74 juicer/spark/spark_minion.py:106
 msgid "Workflow specification is missing"
 msgstr "Especificação do workflow não especificada"
 
-#: juicer/keras/keras_minion.py:95 juicer/spark/spark_minion.py:111
+#: juicer/jobs/script_minion.py:97 juicer/keras/keras_minion.py:95
+#: juicer/spark/spark_minion.py:111
 msgid "Task ignored (not used by other task or as an output)"
 msgstr "Tarefa ignorada (não é usada por outra tarefa ou como saída)"
 
-#: juicer/keras/keras_minion.py:108 juicer/spark/spark_minion.py:126
+#: juicer/jobs/script_minion.py:112 juicer/keras/keras_minion.py:108
+#: juicer/spark/spark_minion.py:126
 msgid "Finishing minion"
 msgstr "Terminar o minion"
 
-#: juicer/keras/keras_minion.py:109 juicer/spark/spark_minion.py:127
+#: juicer/jobs/script_minion.py:113 juicer/keras/keras_minion.py:109
+#: juicer/spark/spark_minion.py:127
 msgid "Pressed CTRL+C / SIGINT. Minion canceled the job."
 msgstr "CTRL+C/SIGINT pressionado. Minion cancelou o job."
 
-#: juicer/keras/keras_minion.py:163 juicer/spark/spark_minion.py:252
+#: juicer/jobs/script_minion.py:187 juicer/keras/keras_minion.py:163
+#: juicer/spark/spark_minion.py:252
 msgid "Invalid message JSON: {}"
 msgstr "Mensagem JSON inválida: {}"
 
-#: juicer/keras/keras_minion.py:191
-msgid "Unsupported cluster type, it cannot run Keras applications."
-msgstr ""
-"Tipo de cluster não é suportado, ele não pode executar aplicações Keras."
+#: juicer/jobs/script_minion.py:216 juicer/spark/spark_minion.py:282
+msgid "Unsupported cluster type, it cannot run Spark applications."
+msgstr "Tipo de cluster não suportado, ele não pode executar aplicações Spark."
 
-#: juicer/keras/keras_minion.py:200 juicer/spark/spark_minion.py:291
+#: juicer/jobs/script_minion.py:226 juicer/keras/keras_minion.py:200
+#: juicer/spark/spark_minion.py:292
 msgid "Cluster configuration changed. Stopping previous cluster."
 msgstr "Configuração do cluster alterada. Parando o cluster anterior."
 
-#: juicer/keras/keras_minion.py:216 juicer/spark/spark_minion.py:309
+#: juicer/jobs/script_minion.py:244 juicer/keras/keras_minion.py:216
+#: juicer/spark/spark_minion.py:311
 msgid "Error in general cluster parameters: {}"
 msgstr "Erro nos parâmetros gerais do cluster: {}."
 
-#: juicer/keras/keras_minion.py:296 juicer/spark/spark_minion.py:423
+#: juicer/jobs/script_minion.py:358 juicer/keras/keras_minion.py:296
+#: juicer/spark/spark_minion.py:409
 msgid ""
 "Running job, but it requires allocation of cluster computers first and it "
 "takes time."
@@ -620,14 +436,318 @@ msgstr ""
 "Executando o job, mas ele requer alocação dos computadores no cluster e isto "
 "leva tempo."
 
-#: juicer/keras/keras_minion.py:399
+#: juicer/jobs/script_minion.py:469 juicer/spark/spark_minion.py:521
+msgid "Minion is configured to stop Spark after each execution"
+msgstr "Minion está configurado para parar o Spark após cada execução"
+
+#: juicer/keras/advanced_layers.py:24 juicer/keras/core_layers.py:933
+#: juicer/keras/input_output_data.py:363 juicer/keras/model.py:278
+#: juicer/keras/model.py:380 juicer/keras/model.py:383
+#: juicer/keras/model.py:386 juicer/keras/model.py:1287
+#: juicer/keras/model.py:1291 juicer/keras/pre_trained_layers.py:51
+#: juicer/keras/pre_trained_layers.py:189 juicer/keras/preprocessing.py:99
+#: juicer/keras/preprocessing.py:104 juicer/keras/preprocessing.py:854
+#: juicer/keras/preprocessing.py:857 juicer/keras/preprocessing.py:860
+msgid "Parameter {} is required"
+msgstr "Parâmetro {} é obrigatório"
+
+#: juicer/keras/advanced_layers.py:55 juicer/keras/convolutional_layers.py:1307
+#: juicer/keras/convolutional_layers.py:1416
+#: juicer/keras/convolutional_layers.py:1530
+#: juicer/keras/convolutional_layers.py:1681
+#: juicer/keras/convolutional_layers.py:2365
+#: juicer/keras/convolutional_layers.py:2438
+#: juicer/keras/convolutional_layers.py:2539
+#: juicer/keras/convolutional_layers.py:2634
+#: juicer/keras/convolutional_layers.py:2671
+#: juicer/keras/convolutional_layers.py:2726
+#: juicer/keras/convolutional_layers.py:2783
+#: juicer/keras/convolutional_layers.py:2826
+#: juicer/keras/convolutional_layers.py:2883 juicer/keras/core_layers.py:17
+#: juicer/keras/core_layers.py:171 juicer/keras/core_layers.py:343
+#: juicer/keras/core_layers.py:606 juicer/keras/core_layers.py:657
+#: juicer/keras/core_layers.py:712 juicer/keras/core_layers.py:789
+#: juicer/keras/core_layers.py:829 juicer/keras/core_layers.py:903
+#: juicer/keras/core_layers.py:971 juicer/keras/core_layers.py:1048
+#: juicer/keras/model.py:371 juicer/keras/model.py:406
+#: juicer/keras/model.py:409 juicer/keras/model.py:412
+#: juicer/keras/model.py:415 juicer/keras/model.py:1283
+#: juicer/keras/model.py:1624 juicer/keras/model.py:1635
+#: juicer/keras/model.py:1647 juicer/keras/pooling_layers.py:43
+#: juicer/keras/pooling_layers.py:168 juicer/keras/pooling_layers.py:291
+#: juicer/keras/pooling_layers.py:956 juicer/keras/pooling_layers.py:1081
+#: juicer/keras/pooling_layers.py:1208 juicer/keras/recurrent_layers.py:112
+#: juicer/keras/recurrent_layers.py:386
+msgid "Parameter {} is required."
+msgstr "Parâmetro {} é obrigatório"
+
+#: juicer/keras/convolutional_layers.py:38
+#: juicer/keras/convolutional_layers.py:282
+#: juicer/keras/convolutional_layers.py:526
+#: juicer/keras/convolutional_layers.py:767
+#: juicer/keras/convolutional_layers.py:1014
+#: juicer/keras/convolutional_layers.py:1825
+#: juicer/keras/convolutional_layers.py:2106
+msgid "Parameter {} {} {} are required."
+msgstr "Parâmetros {} {} {} são obrigatórios."
+
+#: juicer/keras/convolutional_layers.py:126
+#: juicer/keras/convolutional_layers.py:131
+#: juicer/keras/convolutional_layers.py:136
+#: juicer/keras/convolutional_layers.py:141
+#: juicer/keras/convolutional_layers.py:146
+#: juicer/keras/convolutional_layers.py:169
+#: juicer/keras/convolutional_layers.py:375
+#: juicer/keras/convolutional_layers.py:380
+#: juicer/keras/convolutional_layers.py:385
+#: juicer/keras/convolutional_layers.py:390
+#: juicer/keras/convolutional_layers.py:395
+#: juicer/keras/convolutional_layers.py:410
+#: juicer/keras/convolutional_layers.py:619
+#: juicer/keras/convolutional_layers.py:624
+#: juicer/keras/convolutional_layers.py:629
+#: juicer/keras/convolutional_layers.py:640
+#: juicer/keras/convolutional_layers.py:656
+#: juicer/keras/convolutional_layers.py:862
+#: juicer/keras/convolutional_layers.py:867
+#: juicer/keras/convolutional_layers.py:881
+#: juicer/keras/convolutional_layers.py:893
+#: juicer/keras/convolutional_layers.py:912
+#: juicer/keras/convolutional_layers.py:1109
+#: juicer/keras/convolutional_layers.py:1118
+#: juicer/keras/convolutional_layers.py:1127
+#: juicer/keras/convolutional_layers.py:1137
+#: juicer/keras/convolutional_layers.py:1152
+#: juicer/keras/convolutional_layers.py:1301
+#: juicer/keras/convolutional_layers.py:1316
+#: juicer/keras/convolutional_layers.py:1410
+#: juicer/keras/convolutional_layers.py:1425
+#: juicer/keras/convolutional_layers.py:1524
+#: juicer/keras/convolutional_layers.py:1539
+#: juicer/keras/convolutional_layers.py:1688
+#: juicer/keras/convolutional_layers.py:1700
+#: juicer/keras/convolutional_layers.py:1708
+#: juicer/keras/convolutional_layers.py:1935
+#: juicer/keras/convolutional_layers.py:1944
+#: juicer/keras/convolutional_layers.py:1953
+#: juicer/keras/convolutional_layers.py:1961
+#: juicer/keras/convolutional_layers.py:1970
+#: juicer/keras/convolutional_layers.py:2216
+#: juicer/keras/convolutional_layers.py:2225
+#: juicer/keras/convolutional_layers.py:2234
+#: juicer/keras/convolutional_layers.py:2242
+#: juicer/keras/convolutional_layers.py:2251
+#: juicer/keras/convolutional_layers.py:2397
+#: juicer/keras/convolutional_layers.py:2496
+#: juicer/keras/convolutional_layers.py:2595
+#: juicer/keras/convolutional_layers.py:2691
+#: juicer/keras/convolutional_layers.py:2780
+#: juicer/keras/convolutional_layers.py:2880 juicer/keras/core_layers.py:249
+#: juicer/keras/core_layers.py:398 juicer/keras/core_layers.py:412
+#: juicer/keras/core_layers.py:507 juicer/keras/core_layers.py:1078
+#: juicer/keras/core_layers.py:1155 juicer/keras/core_layers.py:1246
+#: juicer/keras/model.py:602 juicer/keras/model.py:612
+#: juicer/keras/model.py:622 juicer/keras/model.py:1661
+#: juicer/keras/model.py:1677 juicer/keras/model.py:1688
+#: juicer/keras/model.py:1708 juicer/keras/normalization_layers.py:113
+#: juicer/keras/normalization_layers.py:120
+#: juicer/keras/normalization_layers.py:127 juicer/keras/pooling_layers.py:85
+#: juicer/keras/pooling_layers.py:95 juicer/keras/pooling_layers.py:207
+#: juicer/keras/pooling_layers.py:218 juicer/keras/pooling_layers.py:330
+#: juicer/keras/pooling_layers.py:341 juicer/keras/pooling_layers.py:996
+#: juicer/keras/pooling_layers.py:1008 juicer/keras/pooling_layers.py:1123
+#: juicer/keras/pooling_layers.py:1134 juicer/keras/pooling_layers.py:1250
+#: juicer/keras/pooling_layers.py:1264 juicer/keras/preprocessing.py:180
+#: juicer/keras/preprocessing.py:214 juicer/keras/preprocessing.py:252
+#: juicer/keras/preprocessing.py:261 juicer/keras/preprocessing.py:270
+#: juicer/keras/preprocessing.py:280 juicer/keras/preprocessing.py:286
+#: juicer/keras/preprocessing.py:300 juicer/keras/preprocessing.py:309
+#: juicer/keras/preprocessing.py:321 juicer/keras/preprocessing.py:339
+#: juicer/keras/preprocessing.py:534 juicer/keras/preprocessing.py:538
+#: juicer/keras/preprocessing.py:933 juicer/keras/preprocessing.py:938
+#: juicer/keras/preprocessing.py:943 juicer/keras/preprocessing.py:948
+#: juicer/keras/preprocessing.py:959 juicer/keras/preprocessing.py:966
+#: juicer/keras/preprocessing.py:971 juicer/keras/preprocessing.py:977
+#: juicer/keras/preprocessing.py:986 juicer/keras/preprocessing.py:994
+#: juicer/keras/preprocessing.py:1002 juicer/keras/preprocessing.py:1010
+msgid "Parameter {} is invalid."
+msgstr "Parâmetro {} é inválido."
+
+#: juicer/keras/convolutional_layers.py:1246
+#: juicer/keras/convolutional_layers.py:1353
+#: juicer/keras/convolutional_layers.py:1467
+#: juicer/keras/convolutional_layers.py:1593 juicer/keras/core_layers.py:758
+#: juicer/keras/core_layers.py:1119 juicer/keras/core_layers.py:1210
+#: juicer/keras/recurrent_layers.py:42 juicer/keras/recurrent_layers.py:322
+msgid "Parameter {} are required."
+msgstr "Parâmetro {} é obrigatório"
+
+#: juicer/keras/core_layers.py:84
+msgid "Parameters {l1} and {l2} are required."
+msgstr "Parâmetros {l1} e {l2} são obrigatórios."
+
+#: juicer/keras/core_layers.py:130
+msgid "Parameters {l1} and {l2} are invalid."
+msgstr "Parâmetros {l1} e {l2} são inválidos."
+
+#: juicer/keras/core_layers.py:875 juicer/keras/core_layers.py:1020
+msgid "Parameter {} is required. The format is: (x, y) or (-1, x, y)"
+msgstr "Parâmetro {} é obrigatório. O formato é:  (x, y) ou (-1, x, y)"
+
+#: juicer/keras/input_output_data.py:35
+msgid "Unsupported file format: {}"
+msgstr "Formato de arquivo não suportado: {}"
+
+#: juicer/keras/input_output_data.py:60 juicer/keras/input_output_data.py:167
+#: juicer/keras/input_output_data.py:300 juicer/keras/input_output_data.py:444
+#: juicer/keras/model.py:1101 juicer/scikit_learn/data_operation.py:115
+#: juicer/spark/data_operation.py:110
+msgid "Incorrect data source configuration (empty url)"
+msgstr "Configuração incorreta para fonte de dados (url vazia)"
+
+#: juicer/keras/input_output_data.py:112 juicer/keras/input_output_data.py:122
+#: juicer/keras/input_output_data.py:134
+msgid "Unsupported image format: {}"
+msgstr "Formato de imagem não suportado: {}"
+
+#: juicer/keras/input_output_data.py:144
+msgid "Training and validation images files are in different formats."
+msgstr ""
+"Arquivos de imagem de treinamento e validação estão em formatos diferentes."
+
+#: juicer/keras/input_output_data.py:245 juicer/keras/input_output_data.py:255
+#: juicer/keras/input_output_data.py:267 juicer/keras/input_output_data.py:383
+#: juicer/keras/input_output_data.py:393 juicer/keras/input_output_data.py:405
+msgid "Unsupported format: {}"
+msgstr "Formato não suportado: {}"
+
+#: juicer/keras/input_output_data.py:277 juicer/keras/input_output_data.py:415
+msgid "Training and validation files are in different formats."
+msgstr "Arquivos de treino e validação estão em formatos diferentes."
+
+#: juicer/keras/input_output_data.py:421
+msgid "Training and test files are in different formats."
+msgstr "Arquivos de treino e teste estão em formatos diferentes."
+
+#: juicer/keras/keras_minion.py:191
+msgid "Unsupported cluster type, it cannot run Keras applications."
+msgstr ""
+"Tipo de cluster não é suportado, ele não pode executar aplicações Keras."
+
+#: juicer/keras/keras_minion.py:400
 msgid "Minion is configured to stop cluster after each execution"
 msgstr "Minion está configurado para parar o cluster após cada execução"
 
-#: juicer/keras/keras_minion.py:464
+#: juicer/keras/keras_minion.py:465
 #, python-format
 msgid "Keras minion (workflow_id=%s,app_id=%s) started (pid=%s)"
 msgstr "Keras minion (workflow_id=%s,app_id=%s) started (pid=%s)"
+
+#: juicer/keras/merge_layers.py:75 juicer/keras/merge_layers.py:84
+#: juicer/keras/merge_layers.py:190 juicer/keras/merge_layers.py:199
+#: juicer/keras/merge_layers.py:309 juicer/keras/merge_layers.py:318
+#: juicer/keras/merge_layers.py:433 juicer/keras/merge_layers.py:442
+#: juicer/keras/merge_layers.py:557 juicer/keras/merge_layers.py:566
+#: juicer/keras/merge_layers.py:672 juicer/keras/merge_layers.py:681
+#: juicer/keras/merge_layers.py:787 juicer/keras/merge_layers.py:796
+#: juicer/keras/merge_layers.py:901 juicer/keras/merge_layers.py:910
+msgid "Parameter {} requires at least 2."
+msgstr "Parâmetro {} requer pelo menos 2."
+
+#: juicer/keras/merge_layers.py:104 juicer/keras/merge_layers.py:219
+#: juicer/keras/merge_layers.py:342 juicer/keras/merge_layers.py:471
+#: juicer/keras/merge_layers.py:586 juicer/keras/merge_layers.py:701
+#: juicer/keras/merge_layers.py:816 juicer/keras/merge_layers.py:930
+#: juicer/keras/pre_trained_layers.py:103
+#: juicer/keras/pre_trained_layers.py:241
+msgid "Parameter {} is invalid"
+msgstr "Parâmetro {} é inválido"
+
+#: juicer/keras/model.py:45
+msgid "You need to correctly specify the testing data and the model."
+msgstr ""
+
+#: juicer/keras/model.py:285
+msgid "The operation needs training and model."
+msgstr ""
+
+#: juicer/keras/model.py:327 juicer/keras/model.py:1345
+msgid "It is not possible to use only validation data."
+msgstr ""
+
+#: juicer/keras/model.py:332
+msgid "It is necessary to inform the model."
+msgstr ""
+
+#: juicer/keras/model.py:455
+msgid "File {} exists."
+msgstr "Arquivo {} existe."
+
+#: juicer/keras/model.py:483
+msgid "Parameter {} invalid."
+msgstr "Parâmetro {} é inválido."
+
+#: juicer/keras/model.py:486
+msgid "Parameter {} not supported yet."
+msgstr "Parâmetro {} ainda não é suportado."
+
+#: juicer/keras/model.py:1052
+msgid "It is necessary to inform {} or {}."
+msgstr ""
+
+#: juicer/keras/model.py:1062
+msgid "Unsupported model format: {}"
+msgstr ""
+
+#: juicer/keras/model.py:1078
+msgid "Unsupported weights format: {}"
+msgstr ""
+
+#: juicer/keras/model.py:1129
+msgid "You must connect a model to load the weights."
+msgstr ""
+
+#: juicer/keras/model.py:1298
+msgid "The operation needs the inputs."
+msgstr "A operação requer entradas."
+
+#: juicer/keras/model.py:1349
+msgid "It is necessary to inform the input(s) layer(s)."
+msgstr "É necessário informar a(s) camada(s) de entrada."
+
+#: juicer/keras/model.py:1352
+msgid "It is necessary to inform the output(s) layer(s)."
+msgstr "É necessário informar a(s) camada(s) de saída."
+
+#: juicer/keras/model.py:1388 juicer/keras/model.py:1393
+msgid "Inform a value between 0.0 and 1.0."
+msgstr ""
+
+#: juicer/keras/model.py:1402 juicer/keras/model.py:1439
+#: juicer/keras/model.py:1467 juicer/keras/model.py:1488
+#: juicer/keras/model.py:1516 juicer/keras/model.py:1554
+#: juicer/keras/model.py:1592
+msgid "{} - Inform a value between 0.0 and 1.0."
+msgstr ""
+
+#: juicer/keras/model.py:1409 juicer/keras/model.py:1446
+#: juicer/keras/model.py:1495
+msgid "{} - Inform a value >= 0.0."
+msgstr ""
+
+#: juicer/keras/model.py:1416
+msgid "{} - Inform a value >= 0.0"
+msgstr ""
+
+#: juicer/keras/model.py:1523 juicer/keras/model.py:1530
+#: juicer/keras/model.py:1562 juicer/keras/model.py:1570
+#: juicer/keras/model.py:1600 juicer/keras/model.py:1608
+msgid " 0 < {} < 1. Generally close to 1."
+msgstr ""
+
+#: juicer/keras/model.py:1807
+msgid "It is necessary to inform the data source."
+msgstr ""
 
 #: juicer/keras/persistence.py:83
 msgid "It's necessary inform the subset parameter."
@@ -641,6 +761,34 @@ msgstr "Tipo de subset não suportado."
 msgid "Unsupported storage type: {}"
 msgstr "Armazenamento não suportado: {}"
 
+#: juicer/keras/preprocessing.py:133 juicer/keras/preprocessing.py:499
+#: juicer/keras/preprocessing.py:897
+msgid ""
+"You need to correctly specify the ports for training or validation or test."
+msgstr ""
+
+#: juicer/keras/preprocessing.py:507 juicer/keras/preprocessing.py:905
+msgid ""
+"Is impossible to use validation split option > 0 and video reader for "
+"training and validation data."
+msgstr ""
+
+#: juicer/keras/recurrent_layers.py:147
+msgid "Parameter {} needs to be a positive integer"
+msgstr ""
+
+#: juicer/keras/recurrent_layers.py:151 juicer/keras/recurrent_layers.py:155
+msgid "Parameter {} needs to be positive float"
+msgstr "Parâmetro {} deve ser um número positivo"
+
+#: juicer/keras/recurrent_layers.py:421
+msgid "Parameter {} needs to be a positive integer."
+msgstr ""
+
+#: juicer/keras/recurrent_layers.py:425 juicer/keras/recurrent_layers.py:429
+msgid "Parameter {} needs to be positive float."
+msgstr ""
+
 #: juicer/privaaas/__init__.py:218
 msgid "Invalid encryption function {}"
 msgstr "Função de criptografia inválida {}"
@@ -653,19 +801,19 @@ msgstr "Tipo de máscara inválido: {}"
 msgid "Data type is not supported for masking: {}"
 msgstr "Tipo de dados não suportado para máscara: {}"
 
-#: juicer/runner/minion.py:48
+#: juicer/runner/minion.py:49
 msgid "Starting minion"
 msgstr "Iniciando o minion"
 
-#: juicer/runner/minion.py:49
+#: juicer/runner/minion.py:50
 msgid "(c) Lemonade - DCC UFMG"
 msgstr "Direitos Autorais (C) - DCC UFMG"
 
-#: juicer/runner/minion.py:90
+#: juicer/runner/minion.py:98
 msgid "{type} is not supported (yet!)"
 msgstr "{type} não é suportado (ainda!)"
 
-#: juicer/runner/minion.py:93
+#: juicer/runner/minion.py:101
 msgid "Error running minion"
 msgstr "Erro executando o minion"
 
@@ -681,102 +829,105 @@ msgstr "Tarefa completada, mas não executada (não foi usada no workflow)."
 msgid "Task running (cached data)"
 msgstr "Tarefa executando (usando dados em cache)"
 
-#: juicer/runner/server.py:81
+#: juicer/runner/server.py:94
 msgid "Starting master process. Reading \"start\" queue"
 msgstr "Inicializando o processo mestre. Lendo a fila de inicialização"
 
-#: juicer/runner/server.py:93
-msgid "Starting pending app {}"
-msgstr "Iniciando aplicação {} pendente"
+#: juicer/runner/server.py:113
+msgid "Starting pending app_id {}"
+msgstr ""
 
-#: juicer/runner/server.py:104
+#: juicer/runner/server.py:122
+msgid "Pending queue is empty"
+msgstr ""
+
+#: juicer/runner/server.py:133
 msgid "Reading \"start\" queue."
 msgstr "Lendo fila \"start\"."
 
-#: juicer/runner/server.py:106
+#: juicer/runner/server.py:135
 msgid "Forwarding message to minion."
 msgstr "Encaminhando mensagem para minion."
 
-#: juicer/runner/server.py:148
+#: juicer/runner/server.py:184
 #, python-format
 msgid "Minion status for (workflow_id=%s,app_id=%s): %s"
 msgstr "Estado do Minion para (workflow_id=%s, app_id=%s): %s"
 
-#: juicer/runner/server.py:155
+#: juicer/runner/server.py:191
 #, python-format
 msgid "Minion (workflow_id=%s,app_id=%s) is running on %s."
 msgstr "Minion (workflow_id=%s,app_id=%s)  está executando em %s."
 
-#: juicer/runner/server.py:174
+#: juicer/runner/server.py:214
 #, python-format
 msgid "Message %s forwarded to minion (workflow_id=%s,app_id=%s)"
 msgstr "Mesangem %s encaminhada para o minion (workflow_id=%s, app_id=%s)"
 
-#: juicer/runner/server.py:188
-#, python-format
-msgid "Forking minion %s."
-msgstr "Dividingo minion %s."
+#: juicer/runner/server.py:247
+msgid "Creating a JOB in Kubernetes."
+msgstr ""
 
-#: juicer/runner/server.py:199
+#: juicer/runner/server.py:251
+#, python-format
+msgid "Starting minion %s in Kubernetes."
+msgstr ""
+
+#: juicer/runner/server.py:259 juicer/runner/server.py:289
 #, python-format
 msgid "Minion command: %s"
 msgstr "Comando do minion: %s"
 
-#: juicer/runner/server.py:230
+#: juicer/runner/server.py:277
+#, python-format
+msgid "Forking minion %s."
+msgstr "Dividingo minion %s."
+
+#: juicer/runner/server.py:320
 #, python-format
 msgid "Terminating (workflow_id=%s,app_id=%s)"
 msgstr "Terminando (workflow_id=%s, app_id=%s)"
 
-#: juicer/runner/server.py:252
-#, python-format
-msgid "Master received a ticket for app %s"
-msgstr "Mestre recebeu um rótulo para a aplicação %s"
-
-#: juicer/runner/server.py:271
-#, python-format
-msgid "Unknown help reason %s"
-msgstr "Motivo de ajuda desconhecido %s"
-
-#: juicer/runner/server.py:287
+#: juicer/runner/server.py:393
 msgid "Unable to launch minion: there is not available port for libprocess."
 msgstr ""
 "Impossível iniciar o minion: não há porta disponível para o libprocess."
 
-#: juicer/runner/server.py:292
+#: juicer/runner/server.py:398
 msgid "Watching minions events."
 msgstr "Acompanhando eventos do minion."
 
-#: juicer/runner/server.py:311
+#: juicer/runner/server.py:417
 msgid "Minion {} finished."
 msgstr "Minion {} terminou."
 
-#: juicer/runner/server.py:315
+#: juicer/runner/server.py:422
 msgid "There are messages to process in app {} queue, starting minion."
 msgstr ""
 "Existem mensagens a processar na fila da aplicação {}, iniciando o minion."
 
-#: juicer/runner/server.py:332
+#: juicer/runner/server.py:444
 msgid "Minion {} joined (pid: {}, port: {})."
 msgstr "Minion juntou-se ao servidor (pid: {}, porta: {})."
 
-#: juicer/runner/server.py:341
+#: juicer/runner/server.py:453
 #, python-format
 msgid "Juicer server started (pid=%s)"
 msgstr "Servidor Juicer iniciado (pid=%s)"
 
-#: juicer/runner/server.py:367
+#: juicer/runner/server.py:479
 #, python-format
 msgid "Terminating %s active minions"
 msgstr "Terminando %s minions ativos"
 
-#: juicer/runner/server.py:378
+#: juicer/runner/server.py:490
 msgid "Killing juicer server subprocesses and terminating"
 msgstr "Matando subprocessos do servidor juicer e finalizando"
 
 #: juicer/scikit_learn/classification_operation.py:39
-#: juicer/scikit_learn/model_operation.py:26
-#: juicer/scikit_learn/model_operation.py:179 juicer/spark/ml_operation.py:472
-#: juicer/spark/ml_operation.py:566 juicer/spark/ml_operation.py:1193
+#: juicer/scikit_learn/model_operation.py:52
+#: juicer/scikit_learn/model_operation.py:391 juicer/spark/ml_operation.py:474
+#: juicer/spark/ml_operation.py:568 juicer/spark/ml_operation.py:1202
 msgid "Model is being used, but at least one input is missing"
 msgstr "Model está sendo usado, mas falta pelo menos uma entrada."
 
@@ -790,13 +941,13 @@ msgstr "Model está sendo usado, mas falta pelo menos uma entrada."
 #: juicer/scikit_learn/classification_operation.py:525
 #: juicer/scikit_learn/classification_operation.py:530
 #: juicer/scikit_learn/classification_operation.py:587
-#: juicer/scikit_learn/clustering_operation.py:114
-#: juicer/scikit_learn/clustering_operation.py:169
-#: juicer/scikit_learn/clustering_operation.py:216
-#: juicer/scikit_learn/clustering_operation.py:272
-#: juicer/scikit_learn/clustering_operation.py:344
-#: juicer/scikit_learn/feature_operation.py:224
-#: juicer/scikit_learn/feature_operation.py:318
+#: juicer/scikit_learn/clustering_operation.py:115
+#: juicer/scikit_learn/clustering_operation.py:170
+#: juicer/scikit_learn/clustering_operation.py:217
+#: juicer/scikit_learn/clustering_operation.py:273
+#: juicer/scikit_learn/clustering_operation.py:352
+#: juicer/scikit_learn/feature_operation.py:300
+#: juicer/scikit_learn/feature_operation.py:394
 #: juicer/scikit_learn/regression_operation.py:140
 #: juicer/scikit_learn/regression_operation.py:188
 #: juicer/scikit_learn/regression_operation.py:272
@@ -816,48 +967,53 @@ msgstr ""
 "Parâmetro '{}' deve ser uma tupla com o tamanho de cada camada para a tarefa "
 "{}"
 
-#: juicer/scikit_learn/clustering_operation.py:336
-#: juicer/spark/ml_operation.py:2063
+#: juicer/scikit_learn/clustering_operation.py:344
+#: juicer/spark/ml_operation.py:2092
 msgid "Invalid optimizer value {} for class {}"
 msgstr "Valor de optimizer inválido {} para classe {}"
 
-#: juicer/scikit_learn/data_operation.py:167 juicer/spark/data_operation.py:162
+#: juicer/scikit_learn/clustering_operation.py:420
+#: juicer/spark/ml_operation.py:2224
+msgid "You must inform all input ports for this operation"
+msgstr "Você deve informar todas as portas de entrada para esta operação"
+
+#: juicer/scikit_learn/data_operation.py:173 juicer/spark/data_operation.py:162
 #: juicer/spark/data_operation.py:841
 msgid "Metadata do not include attributes information"
 msgstr "Metadata não incluem informações sobre os atributos"
 
-#: juicer/scikit_learn/data_operation.py:220
-#: juicer/scikit_learn/data_operation.py:232
-#: juicer/scikit_learn/data_operation.py:247
+#: juicer/scikit_learn/data_operation.py:211
 #: juicer/scikit_learn/data_operation.py:274
+#: juicer/scikit_learn/data_operation.py:301
 msgid "Not supported"
 msgstr "Não suportado"
 
-#: juicer/scikit_learn/data_operation.py:257 juicer/spark/data_operation.py:260
+#: juicer/scikit_learn/data_operation.py:284 juicer/spark/data_operation.py:260
 msgid "Database {} not supported"
 msgstr "Base de dados {} não é suportada"
 
-#: juicer/scikit_learn/data_operation.py:260 juicer/spark/data_operation.py:263
+#: juicer/scikit_learn/data_operation.py:287 juicer/spark/data_operation.py:263
 msgid "No command nor table specified for data source."
 msgstr "Nenhum comando ou tabela especificada como fonte de dados."
 
-#: juicer/scikit_learn/data_operation.py:358
+#: juicer/scikit_learn/data_operation.py:385
+#: juicer/scikit_learn/model_operation.py:210
 msgid "Storage type not supported: {}"
 msgstr "Tipo de armazenamento não suportado: {}"
 
-#: juicer/scikit_learn/data_operation.py:479 juicer/spark/data_operation.py:647
+#: juicer/scikit_learn/data_operation.py:519 juicer/spark/data_operation.py:647
 msgid "Data source generated by workflow {}"
 msgstr "Fonte de dados gerada pelo workflow {}"
 
-#: juicer/scikit_learn/data_operation.py:497 juicer/spark/data_operation.py:574
+#: juicer/scikit_learn/data_operation.py:537 juicer/spark/data_operation.py:574
 msgid "File already exists"
 msgstr "Arquivo já existe"
 
-#: juicer/scikit_learn/data_operation.py:498 juicer/spark/data_operation.py:575
+#: juicer/scikit_learn/data_operation.py:538 juicer/spark/data_operation.py:575
 msgid "File not written (already exists)"
 msgstr "Arquivo não foi escrito (já existe)"
 
-#: juicer/scikit_learn/data_operation.py:499 juicer/spark/data_operation.py:576
+#: juicer/scikit_learn/data_operation.py:539 juicer/spark/data_operation.py:576
 msgid "Invalid mode {}"
 msgstr "Modo inválido: {}"
 
@@ -875,24 +1031,24 @@ msgstr "Parâmetro '{}' deve ser 0<=x<=1 for tarefa {}"
 msgid "Parameter '{}' must be not None when mode is '{}' for task {}"
 msgstr "Parâmetro '{}' não pode ser None quando o modo é '{}' para a tarefa {}"
 
-#: juicer/scikit_learn/etl_operation.py:357
-#: juicer/scikit_learn/etl_operation.py:451 juicer/spark/etl_operation.py:991
-#: juicer/spark/etl_operation.py:1091
+#: juicer/scikit_learn/etl_operation.py:400
+#: juicer/scikit_learn/etl_operation.py:494 juicer/spark/etl_operation.py:991
+#: juicer/spark/etl_operation.py:1093
 msgid "Required parameter {} must be informed for task {}"
 msgstr "Parâmetro obrigatório {} deve ser informado para tarefa {}"
 
-#: juicer/scikit_learn/etl_operation.py:457 juicer/spark/etl_operation.py:1097
+#: juicer/scikit_learn/etl_operation.py:500 juicer/spark/etl_operation.py:1099
 msgid "Invalid query. Only SELECT is allowed."
 msgstr "Consulta inválida. Apenas SELECT é permitido."
 
-#: juicer/scikit_learn/etl_operation.py:508 juicer/spark/etl_operation.py:1153
+#: juicer/scikit_learn/etl_operation.py:551 juicer/spark/etl_operation.py:1155
 msgid ""
 "Invalid names. Number of attributes in result differs from names informed."
 msgstr ""
 "Nomes inválidos. O número de atributos no resultado diferente dos nomes "
 "informados."
 
-#: juicer/scikit_learn/etl_operation.py:771
+#: juicer/scikit_learn/etl_operation.py:835
 msgid ""
 "Parameter 'fraction' must be 0<=x<=1 if is using the current type of "
 "sampling in task {}."
@@ -900,55 +1056,95 @@ msgstr ""
 "Parâmetro 'fraction' deve ser 0<=x<=1 se você está usando esse tipo de "
 "amosta na tarefa {}."
 
-#: juicer/scikit_learn/model_operation.py:146
-#: juicer/scikit_learn/model_operation.py:530 juicer/spark/ml_operation.py:555
-#: juicer/spark/ml_operation.py:1024
+#: juicer/scikit_learn/model_operation.py:132
+msgid "Model does not exist"
+msgstr ""
+
+#: juicer/scikit_learn/model_operation.py:168 juicer/spark/ml_operation.py:3115
+msgid "Missing parameters. Check if values for parameters {} were informed"
+msgstr ""
+"Parâmetros ausentes. Verifique se os valores para os parâmetros {} foram "
+"informados"
+
+#: juicer/scikit_learn/model_operation.py:178
+msgid "Invalid value for parameter {param}: value"
+msgstr ""
+
+#: juicer/scikit_learn/model_operation.py:184 juicer/spark/ml_operation.py:3127
+#: juicer/spark/ml_operation.py:3135
+msgid "Invalid value for parameter {param}: {value}"
+msgstr "Valor inválido para o parâmetro {param}: {value}"
+
+#: juicer/scikit_learn/model_operation.py:300 juicer/spark/ml_operation.py:3230
+msgid ""
+"You cannot mix models with and without evaluation (e.g. indexers) when "
+"saving models and criteria is different from ALL"
+msgstr ""
+"Você não pode misturar modelos com e sem avaliação (por exemplo, "
+"indexadores) ao salvar modelos e sendo o critério diferente de ALL"
+
+#: juicer/scikit_learn/model_operation.py:303 juicer/spark/ml_operation.py:3233
+msgid "You cannot mix models built using with different metrics ({})."
+msgstr ""
+"Você não pode misturar modelos construídos usando métricas diferentes ({})."
+
+#: juicer/scikit_learn/model_operation.py:305
+msgid "Invalid criteria."
+msgstr ""
+
+#: juicer/scikit_learn/model_operation.py:306
+msgid "Model already exists"
+msgstr ""
+
+#: juicer/scikit_learn/model_operation.py:356
+#: juicer/scikit_learn/model_operation.py:758 juicer/spark/ml_operation.py:557
+#: juicer/spark/ml_operation.py:1031
 msgid "Invalid metric value {}"
 msgstr "Valor de métrica inválido {}"
 
-#: juicer/scikit_learn/model_operation.py:231 juicer/spark/ml_operation.py:868
+#: juicer/scikit_learn/model_operation.py:453 juicer/spark/ml_operation.py:875
 msgid "Prediction versus Residual"
 msgstr "Predição versus Resíduo"
 
-#: juicer/scikit_learn/model_operation.py:232 juicer/spark/ml_operation.py:666
-#: juicer/spark/ml_operation.py:870
+#: juicer/scikit_learn/model_operation.py:454 juicer/spark/ml_operation.py:668
+#: juicer/spark/ml_operation.py:877
 msgid "Residual"
 msgstr "Resíduo"
 
-#: juicer/scikit_learn/model_operation.py:233
-#: juicer/scikit_learn/model_operation.py:244 juicer/spark/ml_operation.py:665
-#: juicer/spark/ml_operation.py:869 juicer/spark/ml_operation.py:874
+#: juicer/scikit_learn/model_operation.py:455
+#: juicer/scikit_learn/model_operation.py:466 juicer/spark/ml_operation.py:667
+#: juicer/spark/ml_operation.py:876 juicer/spark/ml_operation.py:881
 msgid "Prediction"
 msgstr "Predição"
 
-#: juicer/scikit_learn/model_operation.py:240
+#: juicer/scikit_learn/model_operation.py:462
 msgid "Parameters for this estimator"
 msgstr "Parâmetros para o estimador"
 
-#: juicer/scikit_learn/model_operation.py:241
+#: juicer/scikit_learn/model_operation.py:463
 msgid "Parameters"
 msgstr "Parâmetros"
 
-#: juicer/scikit_learn/model_operation.py:241
-#: juicer/scikit_learn/model_operation.py:246 juicer/spark/ml_operation.py:657
-#: juicer/spark/ml_operation.py:1390
+#: juicer/scikit_learn/model_operation.py:463
+#: juicer/scikit_learn/model_operation.py:468 juicer/spark/ml_operation.py:659
+#: juicer/spark/ml_operation.py:1419 juicer/spark/trustworthy_operation.py:196
 msgid "Value"
 msgstr "Valor"
 
-#: juicer/scikit_learn/model_operation.py:242 juicer/spark/ml_operation.py:872
+#: juicer/scikit_learn/model_operation.py:464 juicer/spark/ml_operation.py:879
 msgid "Actual versus Prediction"
 msgstr "Real versus Predito"
 
-#: juicer/scikit_learn/model_operation.py:243 juicer/spark/ml_operation.py:873
+#: juicer/scikit_learn/model_operation.py:465 juicer/spark/ml_operation.py:880
 msgid "Actual"
 msgstr "Real"
 
-#: juicer/scikit_learn/model_operation.py:246 juicer/spark/ml_operation.py:657
+#: juicer/scikit_learn/model_operation.py:468 juicer/spark/ml_operation.py:659
 msgid "Metric"
 msgstr "Métrica"
 
-#: juicer/scikit_learn/model_operation.py:248 juicer/spark/ml_operation.py:414
-#: juicer/spark/ml_operation.py:651
+#: juicer/scikit_learn/model_operation.py:470 juicer/spark/ml_operation.py:416
+#: juicer/spark/ml_operation.py:653
 msgid "Evaluation result"
 msgstr "Resultado da avaliação"
 
@@ -956,12 +1152,17 @@ msgstr "Resultado da avaliação"
 msgid "Parameter '{}' must be x>1.0 for task {}"
 msgstr "Parâmetro '{}' deve ser x>1.0 para tarefa {}"
 
-#: juicer/scikit_learn/scikit_learn_minion.py:294
+#: juicer/scikit_learn/scikit_learn_minion.py:260
+#: juicer/util/dataframe_util.py:462
+msgid "At least one input data source is not in the correct format."
+msgstr "Pelo menos uma fonte de dados de entrada não está no formato correto."
+
+#: juicer/scikit_learn/scikit_learn_minion.py:298
 msgid "Internal error."
 msgstr "Erro interno."
 
-#: juicer/scikit_learn/text_operation.py:326
-#: juicer/scikit_learn/text_operation.py:458 juicer/spark/text_operation.py:259
+#: juicer/scikit_learn/text_operation.py:329
+#: juicer/scikit_learn/text_operation.py:461 juicer/spark/text_operation.py:259
 #: juicer/spark/text_operation.py:340
 msgid "Invalid type '{}' for task {}"
 msgstr "Tipo inválido '{}' para a tarefa {}"
@@ -976,15 +1177,15 @@ msgstr "Configuração de fonte de dados incorreta (URL vazia ou não é GEOJSON
 msgid "Should be implemented in derived classes"
 msgstr "Deve estar implementado em classes derivadas"
 
-#: juicer/scikit_learn/vis_operation.py:445 juicer/spark/vis_operation.py:467
+#: juicer/scikit_learn/vis_operation.py:447 juicer/spark/vis_operation.py:467
 msgid "X-axis attribute not specified"
 msgstr "Atributo do Eixo-X não especificado"
 
-#: juicer/scikit_learn/vis_operation.py:453 juicer/spark/vis_operation.py:480
+#: juicer/scikit_learn/vis_operation.py:455 juicer/spark/vis_operation.py:480
 msgid "Attribute {} for X-axis does not exist in ({})"
 msgstr "Atributo {} para o eixo-X não existe em ({})"
 
-#: juicer/scikit_learn/vis_operation.py:456 juicer/spark/vis_operation.py:483
+#: juicer/scikit_learn/vis_operation.py:458 juicer/spark/vis_operation.py:483
 msgid "At least one attribute for Y-axis does not exist: {}"
 msgstr "Pelo menos um atributo para o eixo-Y não existe: {}"
 
@@ -1004,47 +1205,47 @@ msgstr "Atributo {} para o label não existe em ({})"
 msgid "The maximum number of values for this chart is 100."
 msgstr "O número máximo para valores para este gráfico é 100."
 
-#: juicer/scikit_learn/vis_operation.py:985 juicer/spark/vis_operation.py:1006
+#: juicer/scikit_learn/vis_operation.py:989 juicer/spark/vis_operation.py:1006
 msgid "attribute"
 msgstr "atributo"
 
-#: juicer/scikit_learn/vis_operation.py:985 juicer/spark/vis_operation.py:1007
+#: juicer/scikit_learn/vis_operation.py:989 juicer/spark/vis_operation.py:1007
 msgid "count"
 msgstr "contagem"
 
-#: juicer/scikit_learn/vis_operation.py:986 juicer/spark/vis_operation.py:1008
+#: juicer/scikit_learn/vis_operation.py:990 juicer/spark/vis_operation.py:1008
 msgid "approx. distinct"
 msgstr "distintos (aproximado)"
 
-#: juicer/scikit_learn/vis_operation.py:986 juicer/spark/vis_operation.py:1008
+#: juicer/scikit_learn/vis_operation.py:990 juicer/spark/vis_operation.py:1008
 msgid "missing"
 msgstr "ausentes"
 
-#: juicer/scikit_learn/vis_operation.py:987 juicer/spark/vis_operation.py:1006
+#: juicer/scikit_learn/vis_operation.py:991 juicer/spark/vis_operation.py:1006
 msgid "min"
 msgstr "mínimo"
 
-#: juicer/scikit_learn/vis_operation.py:987 juicer/spark/vis_operation.py:1006
+#: juicer/scikit_learn/vis_operation.py:991 juicer/spark/vis_operation.py:1006
 msgid "max"
 msgstr "máximo"
 
-#: juicer/scikit_learn/vis_operation.py:987 juicer/spark/vis_operation.py:1007
+#: juicer/scikit_learn/vis_operation.py:991 juicer/spark/vis_operation.py:1007
 msgid "avg"
 msgstr "média"
 
-#: juicer/scikit_learn/vis_operation.py:987 juicer/spark/vis_operation.py:1006
+#: juicer/scikit_learn/vis_operation.py:991 juicer/spark/vis_operation.py:1006
 msgid "std. dev."
 msgstr "desvio padrão"
 
-#: juicer/scikit_learn/vis_operation.py:988 juicer/spark/vis_operation.py:1008
+#: juicer/scikit_learn/vis_operation.py:992 juicer/spark/vis_operation.py:1008
 msgid "skewness"
 msgstr "assimetria (skewness)"
 
-#: juicer/scikit_learn/vis_operation.py:988 juicer/spark/vis_operation.py:1009
+#: juicer/scikit_learn/vis_operation.py:992 juicer/spark/vis_operation.py:1009
 msgid "kurtosis"
 msgstr "curtose (kurtosis)"
 
-#: juicer/scikit_learn/vis_operation.py:991 juicer/spark/vis_operation.py:1012
+#: juicer/scikit_learn/vis_operation.py:995 juicer/spark/vis_operation.py:1012
 msgid "correlation to {} (Pearson)"
 msgstr "correlação com {} (Pearson)"
 
@@ -1069,11 +1270,6 @@ msgstr "Resultado gerado"
 msgid "Visualizations saved"
 msgstr "Visualização salva"
 
-#: juicer/service/limonero_service.py:37
-#, python-format
-msgid "Querying Limonero URL: %s"
-msgstr "Consultando a URL do Limonero: %s"
-
 #: juicer/service/limonero_service.py:43
 #, python-format
 msgid "Error querying Limonero URL: %s (%s: %s)"
@@ -1091,21 +1287,27 @@ msgstr "Erro carregando {} id {}: HTTP {} - {} ({})"
 msgid "Data source not found"
 msgstr "Base de dados não encontrada"
 
-#: juicer/service/limonero_service.py:78
+#: juicer/service/limonero_service.py:68
+msgid "Model not found"
+msgstr "Modelo não foi encontrado"
+
+#: juicer/service/limonero_service.py:83
 #, python-format
 msgid "Error saving model in Limonero URL: %s (%s: %s)"
 msgstr "Erro salvando modelo no Limonero URL %s (%s: %s)"
 
-#: juicer/service/limonero_service.py:80
+#: juicer/service/limonero_service.py:85
 msgid "Error saving model: {})"
 msgstr "Erro salvando model: {}"
 
-#: juicer/service/limonero_service.py:97
+#: juicer/service/limonero_service.py:102
+#: juicer/service/limonero_service.py:119
 #, python-format
 msgid "Error saving data source in Limonero URL: %s (%s: %s)"
 msgstr "Erro salvando fonte de dados no Limonero URL: %s (%s: %s)"
 
-#: juicer/service/limonero_service.py:99
+#: juicer/service/limonero_service.py:104
+#: juicer/service/limonero_service.py:121
 msgid "Error saving datasource: {})"
 msgstr "Erro ao salvar a fonte de dados: {}"
 
@@ -1131,102 +1333,130 @@ msgid "Degrees of freedom"
 msgstr "Graus de Liberdade"
 
 #: juicer/spark/__init__.py:11
+msgid "Depth"
+msgstr "Profundidade (altura)"
+
+#: juicer/spark/__init__.py:12
 msgid "Deviance residuals"
 msgstr "Desvio dos Residuos"
 
-#: juicer/spark/__init__.py:12
+#: juicer/spark/__init__.py:13
 msgid "Deviance"
 msgstr "Desvio"
 
-#: juicer/spark/__init__.py:13
+#: juicer/spark/__init__.py:14
 msgid "Dispersion"
 msgstr "Dispersão"
 
-#: juicer/spark/__init__.py:14
+#: juicer/spark/__init__.py:15
 msgid "Explained variance"
 msgstr "Variância Explicada"
 
-#: juicer/spark/__init__.py:15
+#: juicer/spark/__init__.py:16
 msgid "Features attribute"
 msgstr "Coluna(s) de atributos"
 
-#: juicer/spark/__init__.py:16
+#: juicer/spark/__init__.py:17
+msgid "Feature importances"
+msgstr "Importância dos atributos"
+
+#: juicer/spark/__init__.py:18
+msgid "Number of trees"
+msgstr "Número de arvores"
+
+#: juicer/spark/__init__.py:19
 msgid "Label attribute"
 msgstr "Coluna do rótulo"
 
-#: juicer/spark/__init__.py:17
+#: juicer/spark/__init__.py:20
 msgid "Mean absolute error"
 msgstr "Erro Absoluto Médio"
 
-#: juicer/spark/__init__.py:18
+#: juicer/spark/__init__.py:21
 msgid "Mean squared error"
 msgstr "Erro Quadrático Médio"
 
-#: juicer/spark/__init__.py:19
+#: juicer/spark/__init__.py:22
 msgid "Deviance for the null model"
 msgstr "Desvio para o modelo nulo"
 
-#: juicer/spark/__init__.py:20
+#: juicer/spark/__init__.py:23
+msgid "Number of classes"
+msgstr "Número de classes"
+
+#: juicer/spark/__init__.py:24
+msgid "Number of features"
+msgstr "Número de atributos"
+
+#: juicer/spark/__init__.py:25
+msgid "Number of nodes"
+msgstr "Número de nós"
+
+#: juicer/spark/__init__.py:26
 msgid "Number of instances"
 msgstr "Número de Instância"
 
-#: juicer/spark/__init__.py:21
+#: juicer/spark/__init__.py:27
 msgid "Iterations"
 msgstr "Iterações"
 
-#: juicer/spark/__init__.py:22
+#: juicer/spark/__init__.py:28
 msgid "Objective history"
 msgstr "Histórico do Objetivo"
 
-#: juicer/spark/__init__.py:23
+#: juicer/spark/__init__.py:29
 msgid "P-values"
 msgstr "Valores p (p-values)"
 
-#: juicer/spark/__init__.py:24
+#: juicer/spark/__init__.py:30
 msgid "Prediction attribute"
 msgstr "Coluna de Predição"
 
-#: juicer/spark/__init__.py:25
+#: juicer/spark/__init__.py:31
 msgid "Predictions"
 msgstr "Predições"
 
-#: juicer/spark/__init__.py:26
+#: juicer/spark/__init__.py:32
 msgid "R²"
 msgstr "Coeficiente de determinação (R²)"
 
-#: juicer/spark/__init__.py:27
+#: juicer/spark/__init__.py:33
 msgid "Adjusted R²"
 msgstr "Coeficiente de Determinação Ajustado\" (Adjusted R²)"
 
-#: juicer/spark/__init__.py:28
+#: juicer/spark/__init__.py:34
 msgid "Rank"
 msgstr "Classificação (rank)"
 
-#: juicer/spark/__init__.py:29
+#: juicer/spark/__init__.py:35
 msgid "Residuals"
 msgstr "Residuos"
 
-#: juicer/spark/__init__.py:30
+#: juicer/spark/__init__.py:36
 msgid "Residual degree of freedom"
 msgstr "Grau residual de liberdade"
 
-#: juicer/spark/__init__.py:31
+#: juicer/spark/__init__.py:37
 msgid "Residual degree of freedom for the null model"
 msgstr "Grau residual de liberdade para o modelo nulo"
 
-#: juicer/spark/__init__.py:32
+#: juicer/spark/__init__.py:38
 msgid "Root mean squared error"
 msgstr "Raiz do Erro Quadrático Médio"
 
-#: juicer/spark/__init__.py:33
+#: juicer/spark/__init__.py:39
 msgid "Solver"
 msgstr "Solucionador"
 
-#: juicer/spark/__init__.py:34
+#: juicer/spark/__init__.py:40
+msgid "Trees"
+msgstr "Árvores"
+
+#: juicer/spark/__init__.py:41
 msgid "T-values"
 msgstr "Estatística-t (t-value)"
 
-#: juicer/spark/__init__.py:35
+#: juicer/spark/__init__.py:42
 msgid "Total of iterations"
 msgstr "Total de Iterações"
 
@@ -1317,19 +1547,23 @@ msgstr "Parâmetro '{}' tem um valor incorreto '{}' in {}"
 msgid "Required parameters must be informed for task {}"
 msgstr "Parâmetro necessário deve ser informado para a tarefa {}"
 
-#: juicer/spark/etl_operation.py:1216
+#: juicer/spark/etl_operation.py:1072
+msgid "Invalid name: {}. Many Python commands are not available in Lemonade"
+msgstr ""
+
+#: juicer/spark/etl_operation.py:1218
 msgid "The value for parameter {} must be one of these: {}."
 msgstr "O valor para o parâmetro {} deve ser um destes: {}."
 
-#: juicer/spark/etl_operation.py:1221 juicer/spark/etl_operation.py:1225
+#: juicer/spark/etl_operation.py:1223 juicer/spark/etl_operation.py:1227
 msgid "Parameter '{}' must be informed in all expressions in task {}."
 msgstr "Parâmetro '{}' deve ser informado em todas as expressões na tarefa {}."
 
-#: juicer/spark/etl_operation.py:1282
+#: juicer/spark/etl_operation.py:1284
 msgid "Start of offset must be >= its end: [{}, {}]"
 msgstr "O começo do deslocamento deve ser >= ao seu final: [{}, {}]"
 
-#: juicer/spark/etl_operation.py:1356
+#: juicer/spark/etl_operation.py:1358
 msgid ""
 "Parameter '{}' informed for task '{}'                                    "
 "must be at >= 2"
@@ -1337,15 +1571,15 @@ msgstr ""
 "Parâmetro '{}' informado para tarefa '{}'                                    "
 "deve ser pelo menos >= 2"
 
-#: juicer/spark/etl_operation.py:1360
+#: juicer/spark/etl_operation.py:1362
 msgid ""
 "Parameter '{}' must be informed                                 for task {}"
 msgstr ""
 "Parâmetro '{}' deve ser informado                                 para "
 "tarefa {}"
 
-#: juicer/spark/etl_operation.py:1403 juicer/spark/etl_operation.py:1445
-#: juicer/spark/etl_operation.py:1503 juicer/spark/etl_operation.py:1552
+#: juicer/spark/etl_operation.py:1405 juicer/spark/etl_operation.py:1447
+#: juicer/spark/etl_operation.py:1505 juicer/spark/etl_operation.py:1554
 msgid "Summary for K-fold"
 msgstr "Sumário para K-partições (folds)"
 
@@ -1373,58 +1607,76 @@ msgstr "Função set() espera exatamente 1 argumento."
 msgid "Must be implemented in children classes"
 msgstr "Deve ser implementado nas classes descendentes"
 
-#: juicer/spark/feature_operation.py:109
+#: juicer/spark/feature_operation.py:110
 msgid "Metrics for task"
 msgstr "Métricas para a tarefa"
 
-#: juicer/spark/feature_operation.py:201 juicer/spark/feature_operation.py:398
+#: juicer/spark/feature_operation.py:202 juicer/spark/feature_operation.py:394
+#: juicer/spark/trustworthy_operation.py:59
 msgid "Parameter {} must be one of these: {}"
 msgstr "Parâmetro {} deve ser um destes: {}"
 
-#: juicer/spark/feature_operation.py:202
+#: juicer/spark/feature_operation.py:203
+#: juicer/spark/trustworthy_operation.py:60
 msgid "type"
 msgstr "tipo"
 
-#: juicer/spark/feature_operation.py:202
+#: juicer/spark/feature_operation.py:203
 msgid "keep"
 msgstr "manter"
 
-#: juicer/spark/feature_operation.py:202
+#: juicer/spark/feature_operation.py:203
 msgid "skip"
 msgstr "ignorar"
 
-#: juicer/spark/feature_operation.py:202
+#: juicer/spark/feature_operation.py:203
 msgid "error"
 msgstr "erro"
 
-#: juicer/spark/feature_operation.py:228
+#: juicer/spark/feature_operation.py:229
 msgid "Invalid value for {}: \"{}\"."
 msgstr "Valor inválido para {}: \"{}\""
 
-#: juicer/spark/feature_operation.py:229 juicer/spark/feature_operation.py:233
-#: juicer/spark/feature_operation.py:238
+#: juicer/spark/feature_operation.py:230 juicer/spark/feature_operation.py:234
+#: juicer/spark/feature_operation.py:239
 msgid "splits"
 msgstr "divisões"
 
-#: juicer/spark/feature_operation.py:232
+#: juicer/spark/feature_operation.py:233
 msgid "You must inform at least {} values for parameter {}."
 msgstr "Você deve informar pelo menos {} valores para o parâmetro {}."
 
-#: juicer/spark/feature_operation.py:237
+#: juicer/spark/feature_operation.py:238
 msgid "Values for {} must be sorted in ascending order."
 msgstr "Valores para {} devem ser estar ordenados de forma ascendente."
 
-#: juicer/spark/feature_operation.py:304 juicer/spark/feature_operation.py:316
+#: juicer/spark/feature_operation.py:305 juicer/spark/feature_operation.py:317
 msgid "Invalid value for {}: {}"
 msgstr "Valor inválido para {}: {}"
 
-#: juicer/spark/feature_operation.py:305
+#: juicer/spark/feature_operation.py:306
 msgid "relative_error"
 msgstr "relative_error"
 
-#: juicer/spark/feature_operation.py:317
+#: juicer/spark/feature_operation.py:318
 msgid "buckets"
 msgstr "buckets"
+
+#: juicer/spark/feature_operation.py:516
+msgid "Selected features"
+msgstr ""
+
+#: juicer/spark/feature_operation.py:520 juicer/spark/ml_operation.py:1410
+#: juicer/spark/ml_operation.py:2034 juicer/spark/ml_operation.py:2659
+msgid ""
+"Features are not assembled as a vector. They will be implicitly assembled "
+"and rows with null values will be discarded. If this is undesirable, "
+"explicitly add a feature assembler in the workflow."
+msgstr ""
+"Features não estão na forma de um vetor. Elas serão implicitamente agrupadas "
+"em um vetor e os registros com valores nulos serão descartados. Se este "
+"comportamento não é desejável, adicione explicitamente um montador de "
+"features ao fluxo."
 
 #: juicer/spark/geo_operation.py:104
 msgid "Invalid zipped shapefile. It must contains both *.shp and *.dbf files."
@@ -1436,11 +1688,11 @@ msgstr ""
 msgid "Values for latitude and longitude columns must be informed"
 msgstr "Valores para as colunas latitude e longitude devem ser informados"
 
-#: juicer/spark/ml_operation.py:60
+#: juicer/spark/ml_operation.py:61
 msgid "Model is being saved twice (unsupported)."
 msgstr "Modelo está sendo salvo duas vezes (não suportado)."
 
-#: juicer/spark/ml_operation.py:70
+#: juicer/spark/ml_operation.py:71
 msgid ""
 "If a workflow generates a model, it must save such model in order to be "
 "deployed"
@@ -1448,7 +1700,7 @@ msgstr ""
 "Se um fluxo gera um modelo, o modelo deve ser salvo para que possa ser "
 "implantado"
 
-#: juicer/spark/ml_operation.py:87
+#: juicer/spark/ml_operation.py:88
 msgid ""
 "Storage for save model operation (required for deployment) is not correctly "
 "configured."
@@ -1456,113 +1708,101 @@ msgstr ""
 "Storage for save model operation (required for deployment) is not correctly "
 "configured."
 
-#: juicer/spark/ml_operation.py:126
+#: juicer/spark/ml_operation.py:127
 msgid "No training data was informed for model building."
 msgstr "Nenhum treino foi informado para construir o modelo."
 
-#: juicer/spark/ml_operation.py:165
+#: juicer/spark/ml_operation.py:166
 msgid "Parameter '{}' must be in range [x>=0] for task {}"
 msgstr "Parâmetro '{}' deve estar na faixa [x>=0] para tarefa {}"
 
-#: juicer/spark/ml_operation.py:544
+#: juicer/spark/ml_operation.py:546
 msgid "Parameters '{}', '{}' and '{}' must be informed for task {}"
 msgstr "Parâmetro '{}' , '{}' e '{}' devem ser informado para a tarefa {}"
 
-#: juicer/spark/ml_operation.py:660
+#: juicer/spark/ml_operation.py:662
 msgid "F1 measure"
 msgstr "Medida F (F1)"
 
-#: juicer/spark/ml_operation.py:661
+#: juicer/spark/ml_operation.py:663
 msgid "Weighted precision"
 msgstr "Precisão ponderada"
 
-#: juicer/spark/ml_operation.py:662
+#: juicer/spark/ml_operation.py:664
 msgid "Weighted recall"
 msgstr "Revocação ponderada"
 
-#: juicer/spark/ml_operation.py:663
+#: juicer/spark/ml_operation.py:665
 msgid "Accuracy"
 msgstr "Acurácia"
 
-#: juicer/spark/ml_operation.py:664 juicer/spark/ml_operation.py:875
-#: juicer/spark/ml_operation.py:2003 juicer/spark/ml_operation.py:2627
+#: juicer/spark/ml_operation.py:666 juicer/spark/ml_operation.py:882
+#: juicer/spark/ml_operation.py:2032 juicer/spark/ml_operation.py:2655
 msgid "Summary"
 msgstr "Sumário"
 
-#: juicer/spark/ml_operation.py:1381 juicer/spark/ml_operation.py:2005
-#: juicer/spark/ml_operation.py:2631
-msgid ""
-"Features are not assembled as a vector. They will be implicitly assembled "
-"and rows with null values will be discarded. If this is undesirable, "
-"explicitly add a feature assembler in the workflow."
-msgstr ""
-"Features não estão na forma de um vetor. Elas serão implicitamente agrupadas "
-"em um vetor e os registros com valores nulos serão descartados. Se este "
-"comportamento não é desejável, adicione explicitamente um montador de "
-"features ao fluxo."
-
-#: juicer/spark/ml_operation.py:1385
+#: juicer/spark/ml_operation.py:1414
 msgid ""
 "Label attribute is categorical, it will be implicitly indexed as string."
 msgstr ""
 "Atributo usado como rótulo é categórico e portanto será implicitamente "
 "indexado."
 
-#: juicer/spark/ml_operation.py:1387
+#: juicer/spark/ml_operation.py:1416
 msgid "Metric ({}) average for {} folds: {}"
 msgstr "Média da métrica ({}) para {} folds: {}"
 
-#: juicer/spark/ml_operation.py:1389
+#: juicer/spark/ml_operation.py:1418
 msgid "Generated classification model parameters"
 msgstr "Parâmetros gerados para o modelo de classificação"
 
-#: juicer/spark/ml_operation.py:1390
+#: juicer/spark/ml_operation.py:1419
 msgid "Parameter"
 msgstr "Parâmetro"
 
-#: juicer/spark/ml_operation.py:1391
+#: juicer/spark/ml_operation.py:1420
 msgid "Fold"
 msgstr "Fold (partição)"
 
-#: juicer/spark/ml_operation.py:1391
+#: juicer/spark/ml_operation.py:1420
 msgid "Results"
 msgstr "Resultados"
 
-#: juicer/spark/ml_operation.py:1391
+#: juicer/spark/ml_operation.py:1420
 msgid "Average"
 msgstr "Média"
 
-#: juicer/spark/ml_operation.py:1457 juicer/spark/ml_operation.py:2730
-#: juicer/spark/ml_operation.py:2808 juicer/spark/ml_operation.py:2871
-#: juicer/spark/ml_operation.py:2930 juicer/spark/ml_operation.py:2984
+#: juicer/spark/ml_operation.py:1486 juicer/spark/ml_operation.py:2758
+#: juicer/spark/ml_operation.py:2837 juicer/spark/ml_operation.py:2900
+#: juicer/spark/ml_operation.py:2959 juicer/spark/ml_operation.py:3013
 msgid "Parameter output must be informed for classifier {}"
 msgstr "Parâmetro de saída deve ser informado para o classificador {}"
 
-#: juicer/spark/ml_operation.py:1812
+#: juicer/spark/ml_operation.py:1841
 msgid "Models used in ensemble classification"
 msgstr "Modelos usados na classificação por comitê"
 
-#: juicer/spark/ml_operation.py:1815
+#: juicer/spark/ml_operation.py:1844
 msgid "name"
 msgstr "nome"
 
-#: juicer/spark/ml_operation.py:1815
+#: juicer/spark/ml_operation.py:1844
 msgid "order"
 msgstr "ordem"
 
-#: juicer/spark/ml_operation.py:1815
+#: juicer/spark/ml_operation.py:1844
 msgid "weight"
 msgstr "peso"
 
-#: juicer/spark/ml_operation.py:2001
+#: juicer/spark/ml_operation.py:2030
 msgid "Clustering result"
 msgstr "Resultado do agrupamento"
 
-#: juicer/spark/ml_operation.py:2004 juicer/spark/ml_operation.py:2630
+#: juicer/spark/ml_operation.py:2033 juicer/spark/ml_operation.py:2658
 msgid "Regression only support numerical features."
 msgstr "Regressão suporta apenas features numéricas."
 
-#: juicer/spark/ml_operation.py:2088
+#: juicer/spark/ml_operation.py:2117
 msgid ""
 "Invalid document concentration: {}. It must be a single decimal value or a "
 "list of decimal numbers separated by comma."
@@ -1570,86 +1810,59 @@ msgstr ""
 "Parâmetro \"concentração de documentos\" inválido: {}. Ele deve ser um único "
 "valor decimal ou uma lista de valores decimais separados por vírgula."
 
-#: juicer/spark/ml_operation.py:2146
+#: juicer/spark/ml_operation.py:2175
 msgid "Invalid type {} for class {}"
 msgstr "Tipo inválido {} para a classe {}"
 
-#: juicer/spark/ml_operation.py:2195
-msgid "You must inform all input ports for this operation"
-msgstr "Você deve informar todas as portas de entrada para esta operação"
-
-#: juicer/spark/ml_operation.py:2628
+#: juicer/spark/ml_operation.py:2656
 msgid "Assemble features in a vector before using a regression model"
 msgstr "Monte um vetor de features antes de usar um modelo de regressão"
 
-#: juicer/spark/ml_operation.py:2637
+#: juicer/spark/ml_operation.py:2665
 msgid "Coefficients"
 msgstr "Coeficientes"
 
-#: juicer/spark/ml_operation.py:2638
+#: juicer/spark/ml_operation.py:2666
 msgid "Intercept"
 msgstr "Interseção"
 
-#: juicer/spark/ml_operation.py:2639
+#: juicer/spark/ml_operation.py:2667
 msgid "Scale"
 msgstr "Escala"
 
-#: juicer/spark/ml_operation.py:3086
-msgid "Missing parameters. Check if values for parameters {} were informed"
-msgstr ""
-"Parâmetros ausentes. Verifique se os valores para os parâmetros {} foram "
-"informados"
-
-#: juicer/spark/ml_operation.py:3098 juicer/spark/ml_operation.py:3106
-msgid "Invalid value for parameter {param}: {value}"
-msgstr "Valor inválido para o parâmetro {param}: {value}"
-
-#: juicer/spark/ml_operation.py:3201
-msgid ""
-"You cannot mix models with and without evaluation (e.g. indexers) when "
-"saving models and criteria is different from ALL"
-msgstr ""
-"Você não pode misturar modelos com e sem avaliação (por exemplo, "
-"indexadores) ao salvar modelos e sendo o critério diferente de ALL"
-
-#: juicer/spark/ml_operation.py:3204
-msgid "You cannot mix models built using with different metrics ({})."
-msgstr ""
-"Você não pode misturar modelos construídos usando métricas diferentes ({})."
-
-#: juicer/spark/ml_operation.py:3348
+#: juicer/spark/ml_operation.py:3377
 msgid "Invalid type '{}' for class {}"
 msgstr "Tipo inválido '{}' para classe {}"
 
-#: juicer/spark/reports.py:79
+#: juicer/spark/reports.py:80
 msgid "Confusion matrix"
 msgstr "Matriz de confusão"
 
-#: juicer/spark/reports.py:88
+#: juicer/spark/reports.py:89
 msgid "Label"
 msgstr "Rótulo"
 
-#: juicer/spark/reports.py:88
+#: juicer/spark/reports.py:89
 msgid "Predicted"
 msgstr "Predição"
 
-#: juicer/spark/reports.py:280
+#: juicer/spark/reports.py:295
 msgid "Area under curve"
 msgstr "Área sob a curva "
 
-#: juicer/spark/reports.py:292
+#: juicer/spark/reports.py:307
 msgid "False positive rate"
 msgstr "Taxa de falsos positivos"
 
-#: juicer/spark/reports.py:293
+#: juicer/spark/reports.py:308
 msgid "True positive rate"
 msgstr "Taxa de positivos verdadeiros"
 
-#: juicer/spark/reports.py:295
+#: juicer/spark/reports.py:310
 msgid "Precision"
 msgstr "Precisão"
 
-#: juicer/spark/reports.py:296
+#: juicer/spark/reports.py:311
 msgid "Recall"
 msgstr "Revocação"
 
@@ -1662,24 +1875,16 @@ msgstr "SPARK_HOME definido como %s"
 msgid "SPARK_HOME environment variable is not defined"
 msgstr "Variável de ambiente SPARK_HOME não está definida"
 
-#: juicer/spark/spark_minion.py:281
-msgid "Unsupported cluster type, it cannot run Spark applications."
-msgstr "Tipo de cluster não suportado, ele não pode executar aplicações Spark."
-
-#: juicer/spark/spark_minion.py:535
-msgid "Minion is configured to stop Spark after each execution"
-msgstr "Minion está configurado para parar o Spark após cada execução"
-
-#: juicer/spark/spark_minion.py:563
+#: juicer/spark/spark_minion.py:549
 msgid "Creating a new Spark session"
 msgstr "Criando um nova sessão Spark"
 
-#: juicer/spark/spark_minion.py:574
+#: juicer/spark/spark_minion.py:560
 #, python-format
 msgid "Setting spark configuration %s"
 msgstr "Ajustando as configurações do spark %s"
 
-#: juicer/spark/spark_minion.py:659
+#: juicer/spark/spark_minion.py:645
 #, python-format
 msgid "Minion is using '%s' as Spark master"
 msgstr "Minion está usando '%s\" como mestre Spark"
@@ -1704,31 +1909,63 @@ msgstr "linha temporal"
 msgid "Cox Proportional Hazard"
 msgstr "Cox Proportional Hazard"
 
-#: juicer/spark/trustworthy_operation.py:128
+#: juicer/spark/trustworthy_operation.py:27
+msgid "Equal Parity"
+msgstr "Paridade equalitária"
+
+#: juicer/spark/trustworthy_operation.py:28
+msgid "Proportional Parity"
+msgstr "Paridade proporcional"
+
+#: juicer/spark/trustworthy_operation.py:29
+msgid "False-Positive Parity Rate"
+msgstr ""
+
+#: juicer/spark/trustworthy_operation.py:30
+msgid "False-Discovery Parity Rate"
+msgstr ""
+
+#: juicer/spark/trustworthy_operation.py:31
+msgid "False-Negative Parity Rate"
+msgstr ""
+
+#: juicer/spark/trustworthy_operation.py:32
+msgid "False-Omission Parity Rate"
+msgstr ""
+
+#: juicer/spark/trustworthy_operation.py:187
 msgid "Bias/Fairness Report"
 msgstr "Relatório de viés/justiça"
 
-#: juicer/spark/trustworthy_operation.py:129
+#: juicer/spark/trustworthy_operation.py:188
 msgid "click to open"
 msgstr "click para abrir"
+
+#: juicer/spark/trustworthy_operation.py:195
+msgid "Group"
+msgstr ""
+
+#: juicer/spark/trustworthy_operation.py:195
+msgid "Acceptable"
+msgstr ""
 
 #: juicer/spark/vis_operation.py:1125
 msgid "Input attribute(s) must be informed for box plot."
 msgstr "Atributo(s) de  entrada deve(m) ser informado(s) para o box plot."
 
-#: juicer/spark/vis_operation.py:1299
+#: juicer/spark/vis_operation.py:1301
 msgid "Input attribute(s) must be informed for histogram."
 msgstr "O atributo de entrada deve ser informado para o histograma."
 
-#: juicer/spark/vis_operation.py:1312
+#: juicer/spark/vis_operation.py:1314
 msgid "Attribute {} must be numeric (actual: {})."
 msgstr "Atributo {} deve ser numérico (atual: {})."
 
-#: juicer/spark/vis_operation.py:1316
+#: juicer/spark/vis_operation.py:1318
 msgid "Attribute {} not found in input data."
 msgstr "Atributo {} não encontrado nos dados de entrada."
 
-#: juicer/spark/vis_operation.py:1351
+#: juicer/spark/vis_operation.py:1353
 msgid "Histogram"
 msgstr "Histograma"
 
@@ -1744,7 +1981,7 @@ msgstr ""
 "comportamento não é desejável, adicione explicitamente uma tarefa vetorizar "
 "atributos, trate os dados ausentes e atributos categóricos no fluxo."
 
-#: juicer/util/dataframe_util.py:115 juicer/util/dataframe_util.py:134
+#: juicer/util/dataframe_util.py:129 juicer/util/dataframe_util.py:148
 msgid ""
 "Invalid input data for visualization. It should contains 2 (name, value) or "
 "3 columns (id, name, value)."
@@ -1752,33 +1989,33 @@ msgstr ""
 "Entrada de dados invalida para a visualização.  Deve conter 2 (nome, valor) "
 "ou  3 colunas (id, nome, valor)."
 
-#: juicer/util/dataframe_util.py:142 juicer/util/dataframe_util.py:160
+#: juicer/util/dataframe_util.py:156 juicer/util/dataframe_util.py:174
 msgid "Attribute"
 msgstr "Atributo"
 
-#: juicer/util/dataframe_util.py:142 juicer/util/dataframe_util.py:160
+#: juicer/util/dataframe_util.py:156 juicer/util/dataframe_util.py:174
 msgid "Type"
 msgstr "Tipo"
 
-#: juicer/util/dataframe_util.py:142
+#: juicer/util/dataframe_util.py:156
 msgid "Metadata (Spark)"
 msgstr "Metadados (Spark)"
 
-#: juicer/util/dataframe_util.py:148 juicer/util/dataframe_util.py:154
-#: juicer/util/dataframe_util.py:165 juicer/util/dataframe_util.py:171
+#: juicer/util/dataframe_util.py:162 juicer/util/dataframe_util.py:168
+#: juicer/util/dataframe_util.py:179 juicer/util/dataframe_util.py:185
 msgid "Schema for {}"
 msgstr "Schema para {}"
 
-#: juicer/util/dataframe_util.py:203 juicer/util/dataframe_util.py:242
-#: juicer/util/dataframe_util.py:248
+#: juicer/util/dataframe_util.py:217 juicer/util/dataframe_util.py:259
+#: juicer/util/dataframe_util.py:265
 msgid "Sample data for {}"
 msgstr "Amostra de dados para {}"
 
-#: juicer/util/dataframe_util.py:358 juicer/util/dataframe_util.py:405
+#: juicer/util/dataframe_util.py:375 juicer/util/dataframe_util.py:422
 msgid "Attribute {} not found. Valid attributes: {}"
 msgstr "Atributo {} não encontrado. Atributos válidos: {}"
 
-#: juicer/util/dataframe_util.py:366
+#: juicer/util/dataframe_util.py:383
 msgid ""
 "When using Window Operation with range type, the order by attribute must be "
 "numeric."
@@ -1786,7 +2023,7 @@ msgstr ""
 "Quando usando operações de janela com tipo \"faixa\", o atributo de "
 "ordenação deve ser numérico."
 
-#: juicer/util/dataframe_util.py:372
+#: juicer/util/dataframe_util.py:389
 msgid ""
 "When using Window Operation with range type, the order option must include "
 "only one attribute."
@@ -1794,37 +2031,33 @@ msgstr ""
 "Quando usando operações de janela com tipo \"faixa\", a opção de ordenação "
 "deve incluir apenas um atributo."
 
-#: juicer/util/dataframe_util.py:377
+#: juicer/util/dataframe_util.py:394
 msgid "Data source does not exist. It may have been deleted."
 msgstr "Fonte de dados não existe. Ela deve ter sido excluída."
 
-#: juicer/util/dataframe_util.py:383
+#: juicer/util/dataframe_util.py:400
 msgid "Attribute {} not found."
 msgstr "Atributo {} não encontrado."
 
-#: juicer/util/dataframe_util.py:393
+#: juicer/util/dataframe_util.py:410
 msgid ""
 "Attribute {attr} must be one of these types [{correct}], but it is {used}"
 msgstr ""
 "Atributo {attr} deve ser de um destes tipo: [{correct}. mas ele é do do tipo "
 "{used}"
 
-#: juicer/util/dataframe_util.py:415
+#: juicer/util/dataframe_util.py:432
 msgid "Binomial family only supports 1 or 2 outcome classes but found {}"
 msgstr ""
 "Família binomial suporta apenas 1 ou 2 classes resultantes, mas foram "
 "encontradas {}"
 
-#: juicer/util/dataframe_util.py:440
+#: juicer/util/dataframe_util.py:458
 msgid "Invalid numeric data in at least one data source (value: {})"
 msgstr ""
 "Dados numéricos inválidos em pelo menos uma das fontes de dados (valor: {})"
 
-#: juicer/util/dataframe_util.py:444
-msgid "At least one input data source is not in the correct format."
-msgstr "Pelo menos uma fonte de dados de entrada não está no formato correto."
-
-#: juicer/util/dataframe_util.py:448
+#: juicer/util/dataframe_util.py:466
 msgid ""
 "There is null values in your data set and Spark cannot handle them. Please, "
 "remove them before applying a data transformation."
@@ -1832,7 +2065,7 @@ msgstr ""
 "Existem valores nulos no conjunto de dados e o Spark não consegue tratá-los. "
 "Por favor, remova-os antes de aplicar a transformação."
 
-#: juicer/util/dataframe_util.py:455
+#: juicer/util/dataframe_util.py:473
 msgid ""
 "Cannot read data from the data source. In this case, it may be a "
 "configuration problem with HDFS. Please, check if HDFS namenode is up and "
@@ -1844,7 +2077,7 @@ msgstr ""
 "namenode do HDFS está executando e se você configurou corretamente a opção "
 "dfs.client.use.datanode.hostname na configuração do Juicer."
 
-#: juicer/util/dataframe_util.py:462
+#: juicer/util/dataframe_util.py:480
 msgid ""
 "You do not have permissions to read or write in the storage. Probably, it is "
 "a configuration problem. Please, contact the support."
@@ -1852,11 +2085,11 @@ msgstr ""
 "Você não tem permissões para ler ou escrever no armazenamento. Provavelmente "
 "trata-se de um problema de configuração. Por favor, contacte o suporte."
 
-#: juicer/util/dataframe_util.py:469
+#: juicer/util/dataframe_util.py:487
 msgid "GBT classifier requires labels to be in [0, 1] range."
 msgstr "Classificador GBT requer que rótulos estejam na faixa in [0, 1]."
 
-#: juicer/util/dataframe_util.py:481
+#: juicer/util/dataframe_util.py:499
 msgid ""
 "CSV format does not support the data type {}. Try to convert the attribute "
 "to string (see to_json()) before saving."
@@ -1885,30 +2118,76 @@ msgid "Type error parsing template for instance {id} {instance}."
 msgstr ""
 "Erro de tipo analisando modelo (template) para instância {id} {instance}"
 
-#: juicer/util/template_util.py:81 juicer/util/template_util.py:105
+#: juicer/util/template_util.py:81 juicer/util/template_util.py:103
 msgid "Parameter task name is invalid."
 msgstr "O nome da tarefa é inválido."
 
-#: juicer/workflow/workflow.py:72
+#: juicer/workflow/workflow.py:73
 msgid "Port '{}/{}' must be informed for operation{}"
 msgstr "Porta '{}/{}' deve ser informado para operação {}"
 
-#: juicer/workflow/workflow.py:155
+#: juicer/workflow/workflow.py:156
 msgid "Task names must be unique."
 msgstr "Nomes de tarefas devem ser únicos (sem repetição)"
 
-#: juicer/workflow/workflow.py:230
+#: juicer/workflow/workflow.py:236
 msgid "Task {task} uses an invalid or disabled operation ({op})"
 msgstr "Tarefa {task} está usando uma operação inválida ou disabilitada ({op})"
 
-#: juicer/workflow/workflow.py:268
+#: juicer/workflow/workflow.py:276
 #, python-format
 msgid "Incorrect configuration for ports: %s, %s"
 msgstr "Configuração incorreta para as portas: %s, %s"
 
-#: juicer/workflow/workflow.py:270
+#: juicer/workflow/workflow.py:278
 msgid "Invalid or non-existing port: '{op}' {s} {t}"
 msgstr "Porta inválida ou inexistente: '{op}' {s} {t}"
+
+#~ msgid "Feature importance"
+#~ msgstr "Importância dos atributos"
+
+#~ msgid "Parameter {} {} {} are required"
+#~ msgstr "Parâmetros {}, {} e {} são obrigatórios"
+
+#~ msgid "Parameter {} {} are required"
+#~ msgstr "Parâmetros {} e {} são obrigatórios"
+
+#~ msgid "Parameter {} are required"
+#~ msgstr "Parâmetro {} é obrigatório"
+
+#~ msgid "Parameter {l1} and {l2} are required"
+#~ msgstr "Parâmetros {l1} e {l2} são obrigatórios"
+
+#~ msgid "Parameter {} needs to be positive integer"
+#~ msgstr "Parâmetro {} deve ser um inteiro positivo"
+
+#~ msgid "It is necessary to inform the training data."
+#~ msgstr "É necessário informar os dados de treinamento."
+
+#~ msgid ""
+#~ "You need to correctly specify the ports for training and/or validation."
+#~ msgstr ""
+#~ "Você precisa especificar corretamente as portas para treinamento e/ou "
+#~ "validação."
+
+#~ msgid ""
+#~ ",\n"
+#~ "Parameter {} is invalid."
+#~ msgstr ""
+#~ ",\n"
+#~ "Parâmetro {} é inválido.;"
+
+#~ msgid "Starting pending app {}"
+#~ msgstr "Iniciando aplicação {} pendente"
+
+#~ msgid "Master received a ticket for app %s"
+#~ msgstr "Mestre recebeu um rótulo para a aplicação %s"
+
+#~ msgid "Unknown help reason %s"
+#~ msgstr "Motivo de ajuda desconhecido %s"
+
+#~ msgid "Querying Limonero URL: %s"
+#~ msgstr "Consultando a URL do Limonero: %s"
 
 #~ msgid "Bias Report"
 #~ msgstr "Relatório de viés"
@@ -1927,12 +2206,6 @@ msgstr "Porta inválida ou inexistente: '{op}' {s} {t}"
 
 #~ msgid "Audit Goal(s)"
 #~ msgstr "Meta(s) da auditoria"
-
-#~ msgid "Equal Parity"
-#~ msgstr "Paridade equalitária"
-
-#~ msgid "Proportional Parity"
-#~ msgstr "Paridade proporcional"
 
 #~ msgid "False Positive Rate Parity"
 #~ msgstr "Paridade baseada em taxa de falso-positivos"
