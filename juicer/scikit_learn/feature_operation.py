@@ -269,15 +269,17 @@ class QuantileDiscretizerOperation(Operation):
     tends to spread out the most frequent values.
     """
 
+    # TODO: in tahiti, change the translation "quantil number" to
+    # 'The number of bins to produce'
+
     ALIAS_PARAM = 'alias'
     ATTRIBUTE_PARAM = 'attribute'
     N_QUANTILES_PARAM = 'n_quantiles'
     DISTRIBUITION_PARAM = 'output_distribution'
-    SEED_PARAM = 'seed'
 
-    DISTRIBUITION_PARAM_NORMAL = 'normal'
+    DISTRIBUITION_PARAM_KMEANS = 'kmeans'
     DISTRIBUITION_PARAM_UNIFORM = 'uniform'
-    # TODO: existe uma mudança no tahiti para ser atualizada aqui
+    DISTRIBUITION_PARAM_QUANTIS = 'quantile'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
@@ -292,16 +294,16 @@ class QuantileDiscretizerOperation(Operation):
 
             self.output = self.named_outputs.get(
                     'output data', 'output_data_{}'.format(self.order))
-            self.model = self.named_outputs.get('model', 'model_{}'.format(self.order))
+            self.model = self.named_outputs.get(
+                    'model', 'model_{}'.format(self.order))
             self.attribute = parameters[self.ATTRIBUTE_PARAM]
             self.alias = parameters.get(self.ALIAS_PARAM,
                                         'quantiledisc_{}'.format(self.order))
             self.n_quantiles = parameters.get(
                     self.N_QUANTILES_PARAM, 1000) or 1000
             self.output_distribution = parameters.get(
-                    self.DISTRIBUITION_PARAM, self.DISTRIBUITION_PARAM_UNIFORM)\
-                or self.DISTRIBUITION_PARAM_UNIFORM
-            self.seed = parameters.get(self.SEED_PARAM, 'None') or 'None'
+                    self.DISTRIBUITION_PARAM, self.DISTRIBUITION_PARAM_QUANTIS)\
+                or self.DISTRIBUITION_PARAM_QUANTIS
 
             if int(self.n_quantiles) <= 0:
                 raise ValueError(
@@ -314,13 +316,14 @@ class QuantileDiscretizerOperation(Operation):
         {output} = {input}.copy()
         from sklearn.preprocessing import KBinsDiscretizer
         {model} = KBinsDiscretizer(n_bins={n_quantiles}, 
-            encode='ordinal', strategy='quantile')
+            encode='ordinal', strategy='{strategy}')
         X_train = get_X_train_data({input}, {att})
         
         {output}['{alias}'] = {model}.fit_transform(X_train).flatten().tolist()
         """.format(output=self.output,
                    model=self.model,
                    input=self.named_inputs['input data'],
+                   strategy=self.output_distribution,
                    att=self.attribute, alias=self.alias,
                    n_quantiles=self.n_quantiles,)
         return dedent(code)
