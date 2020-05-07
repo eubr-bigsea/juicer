@@ -54,7 +54,7 @@ class ClusteringModelOperation(Operation):
         if self.perform_transformation:
             code += """
         y = {algorithm}.predict(X)
-        {OUT} = {IN}
+        {OUT} = {IN}.copy()
         {OUT}['{predCol}'] = y
         """.format(OUT=self.output, model=self.model,
                    IN=self.named_inputs['train input data'],
@@ -537,7 +537,7 @@ class LdaClusteringOperation(Operation):
 
         if self.contains_results() or 'output data' in self.named_outputs:
             code += """
-            {output} = {input}
+            {output} = {input}.copy()
             {output}['{pred_col}'] = {model}.transform(X_train).tolist()
             """.format(output=self.output, model=self.model,
                        pred_col=self.prediction, input_col=self.features[0],

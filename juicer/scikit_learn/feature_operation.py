@@ -406,7 +406,7 @@ class PCAOperation(Operation):
     def generate_code(self):
         """Generate code."""
         code = """
-        {output} = {input}
+        {output} = {input}.copy()
         from sklearn.decomposition import PCA
         pca = PCA(n_components={n_comp})
         X_train = get_X_train_data({input}, {att})
