@@ -257,6 +257,13 @@ class Transpiler(object):
                 event['date'] = event['date'].isoformat()
             q.enqueue(AUDITING_JOB_NAME, json.dumps(audit_events))
 
+        # setting bifurcation flag in sklearn platform
+        if workflow['platform']['id'] == 4:
+            for task_id in instances:
+                for p_id in instances[task_id].parameters['task']['parents']:
+                    if instances[p_id].out_degree > 1:
+                        instances[task_id].parameters['bifurcation'] = True
+
         env_setup = {
             'dependency_controller': DependencyController(
                 params.get('requires_info', False)),
