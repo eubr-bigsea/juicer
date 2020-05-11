@@ -257,12 +257,18 @@ class Transpiler(object):
                 event['date'] = event['date'].isoformat()
             q.enqueue(AUDITING_JOB_NAME, json.dumps(audit_events))
 
-        # setting bifurcation flag in sklearn platform
-        if workflow['platform']['id'] == 4:
-            for task_id in instances:
-                for p_id in instances[task_id].parameters['task']['parents']:
-                    if instances[p_id].out_degree > 1:
-                        instances[task_id].parameters['bifurcation'] = True
+        # adding information about the parents's multiplicity
+        for task_id in instances:
+            instances[task_id].parameters['multiplicity'] = dict()
+            for p_id in instances[task_id].parameters['task']['parents']:
+                for flow in workflow['flows']:
+                    if flow['target_id'] == task_id and \
+                            flow['source_id'] == p_id:
+                        in_port = flow['target_port_name']
+                        source_port = flow['source_port']
+                        instances[task_id].parameters['multiplicity'][
+                            in_port] = sum([1 for f in workflow['flows']
+                                            if f['source_port'] == source_port])
 
         env_setup = {
             'dependency_controller': DependencyController(
