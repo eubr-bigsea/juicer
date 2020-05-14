@@ -173,8 +173,11 @@ class STDBSCANOperation(Operation):
 
     def generate_code(self):
         """Generate code."""
+        copy_code = ".copy()" \
+            if self.parameters['multiplicity']['input data'] > 1 else ""
+
         code = """
-        {output} = {data_input}.copy()
+        {output} = {data_input}{copy_code}
             
         st_dbscan = STDBSCAN(spatial_threshold={spatial}, 
             temporal_threshold={temporal}, min_neighbors={minPts})
@@ -183,7 +186,8 @@ class STDBSCANOperation(Operation):
                 col_lat='{col_latitude}', col_lon='{col_longitude}',
                 col_time='{col_datetime}', col_cluster='{alias}')
 
-        """.format(data_input=self.named_inputs['input data'],
+        """.format(copy_code=copy_code,
+                   data_input=self.named_inputs['input data'],
                    output=self.output, minPts=self.min_pts,
                    spatial=self.spatial_thr, temporal=self.temporal_thr,
                    col_latitude=self.lat_col, col_longitude=self.lon_col,
@@ -233,9 +237,12 @@ class CartographicProjectionOperation(Operation):
 
     def generate_code(self):
         """Generate code."""
+        copy_code = ".copy()" \
+            if self.parameters['multiplicity']['input data'] > 1 else ""
+
         code = """
         import pyproj
-        {output} = {data_input}.copy()
+        {output} = {data_input}{copy_code}
 
         old_proj = pyproj.Proj({src_epsg}, preserve_units=True)
         new_proj = pyproj.Proj({dst_epsg}, preserve_units=True)
@@ -247,7 +254,8 @@ class CartographicProjectionOperation(Operation):
         
         {output}['{alias_lon}'] = x2
         {output}['{alias_lat}'] = y2
-        """.format(data_input=self.named_inputs['input data'],
+        """.format(copy_code=copy_code,
+                   data_input=self.named_inputs['input data'],
                    output=self.output,
                    col_lat=self.lat_col, col_lon=self.lon_col,
                    alias_lon=self.lon_alias, alias_lat=self.lat_alias,
