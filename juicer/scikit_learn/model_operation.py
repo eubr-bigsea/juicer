@@ -59,15 +59,18 @@ class ApplyModelOperation(Operation):
         return sep.join([self.output, self.model])
 
     def generate_code(self):
+        copy_code = ".copy()" \
+            if self.parameters['multiplicity']['input data'] > 1 else ""
+
         code = dedent("""
-            {out} = {in1}.copy()
+            {out} = {in1}{copy_code}
             X_train = get_X_train_data({in1}, {features})
             if hasattr({in2}, 'predict'):
                 {out}['{new_attr}'] = {in2}.predict(X_train).tolist()
             else:
                 # to handle scaler operations
                 {out}['{new_attr}'] = {in2}.transform(X_train).tolist()
-            """.format(out=self.output, in1=self.named_inputs['input data'],
+            """.format(copy_code=copy_code, out=self.output, in1=self.named_inputs['input data'],
                        in2=self.model, new_attr=self.prediction,
                        features=self.features))
 
@@ -872,13 +875,15 @@ class CrossValidationOperation(Operation):
                                folds=self.num_folds,
                                metric=self.metric,
                                seed=self.seed))
+        copy_code = ".copy()" \
+            if self.parameters['multiplicity']['input data'] > 1 else ""
 
         code += dedent("""
                 metric_result = scores[best_score]
-                {output} = {input_data}.copy()
+                {output} = {input_data}{copy_code}
                 {output}['{prediction_attr}'] = {best_model}.predict(X_train.tolist())
                 {models} = models
-                """.format(algorithm=self.algorithm_port,
+                """.format(copy_code=copy_code, algorithm=self.algorithm_port,
                            input_data=self.input_port,
                            evaluator=self.evaluator,
                            output=self.output,

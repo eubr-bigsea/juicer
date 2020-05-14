@@ -234,17 +234,20 @@ class CleanMissingOperation(Operation):
     def generate_code(self):
 
         op = ""
+        copy_code = ".copy()" \
+            if self.parameters['multiplicity']['input data'] > 1 else ""
         if self.mode_CM == "REMOVE_ROW":
             code = """
                 min_missing_ratio = {min_thresh}
                 max_missing_ratio = {max_thresh}
-                {output} = {input}.copy()
+                {output} = {input}{copy_code}
                 ratio = {input}[{columns}].isnull().sum(axis=1) / len({columns})
                 ratio_mask = (ratio > min_missing_ratio) & (ratio <= max_missing_ratio)
                 {output} = {output}[~ratio_mask]
                 """ \
                 .format(min_thresh=self.min_ratio, max_thresh=self.max_ratio,
-                        output=self.output, input=self.named_inputs['input data'],
+                        copy_code=copy_code, output=self.output,
+                        input=self.named_inputs['input data'],
                         columns=self.attributes_CM, op=op)
 
         elif self.mode_CM == "REMOVE_COLUMN":
@@ -252,7 +255,7 @@ class CleanMissingOperation(Operation):
             code = """
                 min_missing_ratio = {min_thresh}
                 max_missing_ratio = {max_thresh}
-                {output} = {input}.copy()
+                {output} = {input}{copy_code}
                 to_remove = []
                 for col in {columns}:
                     ratio = {input}[col].isnull().sum() / len({input})
@@ -263,7 +266,8 @@ class CleanMissingOperation(Operation):
                 {output}.drop(columns=to_remove, inplace=True)
                 """ \
                 .format(min_thresh=self.min_ratio, max_thresh=self.max_ratio,
-                        output=self.output, input=self.named_inputs['input data'],
+                        output=self.output, copy_code=copy_code,
+                        input=self.named_inputs['input data'],
                         columns=self.attributes_CM, op=op)
 
         else:
@@ -290,7 +294,7 @@ class CleanMissingOperation(Operation):
             code = """
                     min_missing_ratio = {min_thresh}
                     max_missing_ratio = {max_thresh}
-                    {output} = {input}.copy()
+                    {output} = {input}{copy_code}
                     for col in {columns}:
                         ratio = {input}[col].isnull().sum() / len({input})
                         ratio_mask = (ratio > min_missing_ratio) & (ratio <= max_missing_ratio)
@@ -298,7 +302,8 @@ class CleanMissingOperation(Operation):
                             {op}
                             """ \
                 .format(min_thresh=self.min_ratio, max_thresh=self.max_ratio,
-                        output=self.output, input=self.named_inputs['input data'],
+                        output=self.output, copy_code=copy_code,
+                        input=self.named_inputs['input data'],
                         columns=self.attributes_CM, op=op)
         return dedent(code)
 
@@ -1013,13 +1018,16 @@ class TransformationOperation(Operation):
             functions += "['{}', {}],".format(expr['alias'], f)
             # row.append(expression.imports) #TODO: by operation itself
 
+        copy_code = ".copy()" \
+            if self.parameters['multiplicity']['input data'] > 1 else ""
+
         code = """
-        {out} = {input}.copy()
+        {out} = {input}{copy_code}
         functions = [{expr}]
         for col, function in functions:
             {out}[col] = {out}.apply(function, axis=1)
-        """.format(out=self.output,
-                   input=self.named_inputs['input data'],
+        """.format(copy_code=copy_code,
+                   out=self.output, input=self.named_inputs['input data'],
                    expr=functions)
         return dedent(code)
 
@@ -1105,7 +1113,6 @@ class SplitKFoldOperation(Operation):
 
         if self.stratified:
             code = """
-                {output_data} = {input}.copy()
                 if {shuffle}:
                     skf = StratifiedKFold(n_splits={n_splits}, 
                         shuffle={shuffle}, random_state={random_state})
@@ -1134,7 +1141,6 @@ class SplitKFoldOperation(Operation):
             return dedent(code)
         else:
             code = """
-                {output_data} = {input}.copy()
                 if {shuffle}:
                     kf = KFold(n_splits={n_splits}, shuffle={shuffle}, 
                         random_state={random_state})
