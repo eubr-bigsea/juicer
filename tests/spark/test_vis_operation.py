@@ -223,7 +223,7 @@ def atest_area_chart_success(time_series_data):
            config, {{}}, {workflow_id}, {job_id},
            '{task_id}',
            visualization, emit_event)""").format(
-            task_id=params['task']['id'], **params)
+        task_id=params['task']['id'], **params)
     ast.parse(expected_code)
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
     assert result, msg + format_code_comparison(code, expected_code)

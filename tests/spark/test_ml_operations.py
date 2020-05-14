@@ -47,7 +47,7 @@ def test_feature_indexer_operation_success():
     out = n_out['output data']
 
     instance = VectorIndexOperation(params, named_inputs=n_in,
-                                       named_outputs=n_out)
+                                    named_outputs=n_out)
 
     code = instance.generate_code()
 
@@ -95,7 +95,7 @@ def test_feature_indexer_string_type_param_operation_failure():
         n_out = {'output data': 'output_1'}
 
         indexer = VectorIndexOperation(params, named_inputs=n_in,
-                                          named_outputs=n_out)
+                                       named_outputs=n_out)
         indexer.generate_code()
 
 
@@ -110,7 +110,7 @@ def test_feature_indexer_string_missing_attribute_param_operation_failure():
         n_in = {'input data': 'input_1'}
         n_out = {'output data': 'output_1'}
         VectorIndexOperation(params, named_inputs=n_in,
-                                named_outputs=n_out)
+                             named_outputs=n_out)
 
 
 def test_feature_indexer_vector_missing_attribute_param_operation_failure():
@@ -123,7 +123,7 @@ def test_feature_indexer_vector_missing_attribute_param_operation_failure():
         n_in = {'input data': 'input_1'}
         n_out = {'output data': 'output_1'}
         VectorIndexOperation(params, named_inputs=n_in,
-                                named_outputs=n_out)
+                             named_outputs=n_out)
 
 
 def test_feature_indexer_missing_attribute_failure():
@@ -138,7 +138,7 @@ def test_feature_indexer_missing_attribute_failure():
 
     with pytest.raises(ValueError):
         instance = VectorIndexOperation(params, named_inputs=n_in,
-                                           named_outputs=n_out)
+                                        named_outputs=n_out)
 
 
 def test_feature_indexer_output_names_success():
@@ -154,7 +154,7 @@ def test_feature_indexer_output_names_success():
     n_out = {'output data': 'output_1', 'indexer models': 'models'}
 
     instance = VectorIndexOperation(params, named_inputs=n_in,
-                                       named_outputs=n_out)
+                                    named_outputs=n_out)
     assert instance.get_data_out_names() == n_out['output data']
     assert instance.get_output_names() == ','.join([n_out['output data'],
                                                     n_out['indexer models']])
@@ -175,7 +175,7 @@ def test_feature_indexer_vector_operation_success():
     out = n_out['output data']
 
     instance = VectorIndexOperation(params, named_inputs=n_in,
-                                       named_outputs=n_out)
+                                    named_outputs=n_out)
 
     code = instance.generate_code()
 
@@ -224,7 +224,7 @@ def test_feature_indexer_vector_operation_failure():
         n_in = {'input data': 'input_1'}
         n_out = {'output data': 'output_1'}
         VectorIndexOperation(params, named_inputs=n_in,
-                                named_outputs=n_out)
+                             named_outputs=n_out)
 
 
 def test_feature_indexer_operation_failure():
@@ -233,7 +233,7 @@ def test_feature_indexer_operation_failure():
         n_in = {'input data': 'input_1'}
         n_out = {'output data': 'output_1'}
         VectorIndexOperation(params, named_inputs=n_in,
-                                named_outputs=n_out)
+                             named_outputs=n_out)
 
 
 '''
@@ -1319,7 +1319,7 @@ def test_clustering_model_operation_success():
                    task_id=params['task_id'],
                    title=_("Clustering result"),
                    features=repr(params[
-                       ClusteringModelOperation.FEATURES_ATTRIBUTE_PARAM]),
+                                     ClusteringModelOperation.FEATURES_ATTRIBUTE_PARAM]),
                    msg1=_('Regression only support numerical features.'),
                    msg2=_('Features are not assembled as a vector. '
                           'They will be implicitly assembled and rows with '
