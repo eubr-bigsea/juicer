@@ -3,8 +3,8 @@ from __future__ import absolute_import
 
 import ast
 import gettext
-
 import os
+
 try:
     from itertools import zip_longest
 except ImportError:

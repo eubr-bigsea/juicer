@@ -3,10 +3,10 @@ from __future__ import absolute_import
 from __future__ import print_function
 
 import json
+import os
 from textwrap import dedent
 
 import mock
-import os
 import pytest
 from dummy_spark import SparkConf, SparkContext
 from juicer.runner.control import StateControlRedis

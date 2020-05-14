@@ -2,9 +2,9 @@
 from __future__ import absolute_import
 
 import gettext
+import os
 import sys
 
-import os
 import pytest
 
 sys.path.append(os.path.dirname(os.path.curdir))
