@@ -765,8 +765,11 @@ class SlidingWindowOperation(Operation):
             {out} = {in1}.select(functions.row_number().over(win_spec1).alias('row'), 
                       functions.collect_list('{attr}').over(win_spec2).alias('group'), 
                       functions.max('{attr}').over(win_spec3).alias('_tmp_1'))
-            {out} = {out}.filter(((functions.col('row')) % {gap} == 1) & 
-                (functions.size('group') == size))
+            if {gap} == 1:
+                {out} = {out}.filter(functions.size('group') == size)
+            else:
+                {out} = {out}.filter(((functions.col('row')) % {gap} == 1) & 
+                    (functions.size('group') == size))
             {out} = {out}.select(
                 [(functions.col('group')[i]).alias('{alias}{{}}'.format(i + 1)) 
                     for i in range(size)])
