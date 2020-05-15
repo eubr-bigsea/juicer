@@ -1286,9 +1286,9 @@ class ClassificationModelOperation(DeployModelMixin, Operation):
                 vector_field = next(filter(lambda ff: ff.name == final_features, 
                                     {train}.schema.fields))
                 individual_feat = [v['name'] for v in 
-                    vector_field.metadata['ml_attr']['attrs']['nominal']] + \
+                    vector_field.metadata['ml_attr']['attrs'].get('nominal',[])] + \
                     [v['name'] for v in 
-                        vector_field.metadata['ml_attr']['attrs']['numeric']]
+                        vector_field.metadata['ml_attr']['attrs'].get('numeric', [])]
 
             requires_revert_label = False
             if not dataframe_util.is_numeric({train}.schema, '{label}'):
