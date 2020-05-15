@@ -1258,6 +1258,7 @@ class ClassificationModelOperation(DeployModelMixin, Operation):
             keep_at_end.append('{prediction}')
 
             to_assemble = []
+            features_names = features
             if len(features) > 1 and not isinstance(
                 {train}.schema[str(features[0])].dataType, VectorUDT):
                 emit(message='{msg0}')
@@ -1282,6 +1283,12 @@ class ClassificationModelOperation(DeployModelMixin, Operation):
                 requires_pipeline = True
             else:
                 final_features = features[0]
+                vector_field = next(filter(lambda ff: ff.name == final_features, 
+                                    {train}.schema.fields))
+                individual_feat = [v['name'] for v in 
+                    vector_field.metadata['ml_attr']['attrs']['nominal']] + \
+                    [v['name'] for v in 
+                        vector_field.metadata['ml_attr']['attrs']['numeric']]
 
             requires_revert_label = False
             if not dataframe_util.is_numeric({train}.schema, '{label}'):
@@ -1368,7 +1375,8 @@ class ClassificationModelOperation(DeployModelMixin, Operation):
 
             if display_text:
                 ml_model = {model}
-                ml_model = ml_model.stages[0]
+                if isinstance(ml_model, PipelineModel):
+                    ml_model = ml_model.stages[0]
                 if requires_pipeline:
                     ml_model = ml_model.stages[-1]
 
@@ -1392,21 +1400,21 @@ class ClassificationModelOperation(DeployModelMixin, Operation):
                     result = '<h6>{title}</h6>' + content.generate()
 
                     if has_feat_importance and hasattr(ml_model, fi_name):
-                        fi = simpletablereport('table w-auto table-bordered', 
-                            none, zip(features, 
-                                      getattr(ml_model, fi_name)))
+                        fi = SimpleTableReport('table w-auto table-bordered', 
+                            None, zip(individual_feat, 
+                                      getattr(ml_model, fi_name)), numbered=0)
                         result += '<h6>{{}}</h6>{{}}'.format(
                             sst(fi_name), fi.generate())
 
                     emit(status='COMPLETED',
                          message=result,
                          type='HTML', title='{title}')
-                # if hasattr(ml_model, 'toDebugString'):
-                #    dt_report = DecisionTreeReport(ml_model.toDebugString,
-                #        features)
-                #    emit(status='COMPLETED',
-                #         message=dt_report.generate(),
-                #         type='HTML', title='{title}')
+                if hasattr(ml_model, 'toDebugString'):
+                   dt_report = DecisionTreeReport(ml_model,
+                       individual_feat)
+                   emit(status='COMPLETED',
+                        message=dt_report.generate(),
+                        type='HTML', title='{title}')
 
             """.format(
                 model=self.model,
@@ -1632,7 +1640,7 @@ class GBTClassifierOperation(ClassifierOperation):
         ClassifierOperation.__init__(self, parameters, named_inputs,
                                      named_outputs)
         self.metrics = ['featureImportances', 'numFeatures', 'totalNumNodes',
-                        'treeWeights', 'trees']
+                        'treeWeights']
 
         param_grid = parameters.get('paramgrid', {})
         ctor_params = {}
@@ -1702,7 +1710,7 @@ class RandomForestClassifierOperation(ClassifierOperation):
         ClassifierOperation.__init__(self, parameters, named_inputs,
                                      named_outputs)
         self.metrics = ['featureImportances', 'getNumTrees',
-                        'numClasses', 'numFeatures', 'trees']
+                        'numClasses', 'numFeatures']
 
         # param_grid = parameters.get('paramgrid', {})
         param_grid = parameters
