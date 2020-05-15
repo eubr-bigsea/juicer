@@ -115,7 +115,7 @@ class Node(object):
                 graph.edge(self.id, self.left.id, label='true', color=orange,
                            fontcolor=orange)
             else:
-                graph.node('ResL' + self.id, str(self.left), peripheries='2',
+                graph.node('ResL' + self.id, str(self.left), # peripheries='2',
                            color=green)
                 graph.edge(self.id, 'ResL' + self.id, label='true',
                            color=orange, fontcolor=orange)
@@ -245,7 +245,7 @@ def get_graph_from_model(m, feat):
     blue = '#0074D9'
     dot = Digraph()
     dot.attr(splines='polyline')  # , rankdir="LR")
-    dot.attr('node', shape='rect', fontname='helvetica', fontsize='8')
+    dot.attr('node', shape='rect', fontname='helvetica', fontsize='7', margin='0')
     color = blue
     dot.attr('node', color=color)
     dot.attr('node', fontcolor='#888888')
