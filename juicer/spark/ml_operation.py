@@ -1998,7 +1998,6 @@ class ClusteringModelOperation(Operation):
             {output} = dataframe_util.LazySparkTransformationDataframe(
                 {model}, {input}, call_transform)
 
-            summary = getattr({model}, 'summary', None)
 
             # Lazy execution in case of sampling the data in UI
             def call_clusters(clustering_model):
@@ -2013,29 +2012,77 @@ class ClusteringModelOperation(Operation):
                         types.StructType([]))
 
             # Last stage contains clustering model
-            {centroids} = dataframe_util.LazySparkTransformationDataframe(
-                {model}.stages[-1], {model}.stages[-1], call_clusters)
+            clustering_model = {model}.stages[-1]
 
-            if summary:
-                summary_rows = []
-                for p in dir(summary):
-                    if not p.startswith('_') and p != "cluster":
-                        try:
-                            summary_rows.append(
-                                [p, getattr(summary, p)])
-                        except Exception as e:
-                            summary_rows.append([p, e.message])
-                summary_content = SimpleTableReport(
-                    'table table-striped table-bordered w-auto', [],
-                    summary_rows,
-                    title='{summary}')
-                emit_event('update task', status='COMPLETED',
-                    identifier='{task_id}',
-                    message=summary_content.generate(),
-                    type='HTML', title='{title}',
-                    task={{'id': '{task_id}' }},
-                    operation={{'id': {operation_id} }},
-                    operation_id={operation_id})
+            display_text = {display_text}
+            if display_text:
+                metric_rows = []
+                df_aux = pipeline_model.transform({input})
+                evaluator = ClusteringEvaluator(
+                    predictionCol='{prediction}', featuresCol=final_features)
+                metric_rows.append(['{silhouette_euclidean}', 
+                    evaluator.evaluate(df_aux)])
+
+                evaluator = ClusteringEvaluator(
+                    distanceMeasure='cosine', predictionCol='{prediction}', 
+                    featuresCol=final_features)
+                metric_rows.append(['{silhouette_cosine}', 
+                    evaluator.evaluate(df_aux)])
+
+
+                if hasattr(clustering_model, 'computeCost'):
+                    metric_rows.append([
+                        '{compute_cost}', clustering_model.computeCost(df_aux)])
+
+                if hasattr(clustering_model, 'clusterCenters'):
+                    metric_rows.append([
+                        '{cluster_centers}', clustering_model.clusterCenters()])
+                if hasattr(clustering_model, 'gaussianDF'):
+                    metric_rows.append([
+                        'Gaussian distribution', 
+                        clustering_model.gaussianDF.collect()])
+
+                if hasattr(clustering_model, 'weights'):
+                    metric_rows.append([
+                        '{weights}', clustering_model.weights])
+
+                if metric_rows:
+                    metrics_content = SimpleTableReport(
+                        'table table-striped table-bordered w-auto', [],
+                        metric_rows,
+                        title='{metrics}')
+ 
+                    emit_event('update task', status='COMPLETED',
+                        identifier='{task_id}',
+                        message=metrics_content.generate(),
+                        type='HTML', title='{metrics}',
+                        task={{'id': '{task_id}' }},
+                        operation={{'id': {operation_id} }},
+                        operation_id={operation_id})
+
+                summary = getattr(clustering_model, 'summary', None)
+                if summary:
+                    summary_rows = []
+                    for p in dir(summary):
+                        if not p.startswith('_') and p != "cluster" \
+                                and p not in ['featuresCol', 'predictionCol', 
+                                'predictions', 'probability']:
+                            try:
+                                summary_rows.append(
+                                    [p, getattr(summary, p)])
+                            except Exception as e:
+                                summary_rows.append([p, e.message])
+                    summary_content = SimpleTableReport(
+                        'table table-striped table-bordered w-auto', [],
+                        summary_rows,
+                        title='{summary}')
+                    emit_event('update task', status='COMPLETED',
+                        identifier='{task_id}',
+                        message=summary_content.generate(),
+                        type='HTML', title='{title}',
+                        task={{'id': '{task_id}' }},
+                        operation={{'id': {operation_id} }},
+                        operation_id={operation_id})
             """.format(model=self.model,
                        algorithm=self.named_inputs['algorithm'],
                        input=self.named_inputs['train input data'],
@@ -2047,12 +2094,22 @@ class ClusteringModelOperation(Operation):
                        title=_("Clustering result"),
                        centroids=self.centroids,
                        summary=gettext('Summary'),
+                       metrics=gettext('Metrics'),
+                       weights=gettext('Weights'),
+                       silhouette_euclidean=gettext(
+                           'Silhouette (Euclidean distance)'),
+                       silhouette_cosine=gettext(
+                           'Silhouette (Cosine distance)'),
+                       compute_cost=gettext('Compute cost'),
+                       cluster_centers=gettext('Cluster centers'),
                        msg1=_('Regression only support numerical features.'),
                        msg2=_('Features are not assembled as a vector. '
                               'They will be implicitly assembled and rows with '
                               'null values will be discarded. If this is '
                               'undesirable, explicitly add a feature assembler '
-                              'in the workflow.'), )
+                              'in the workflow.'), 
+                       display_text=self.parameters['task']['forms'].get(
+                           'display_text', {}).get('value') in (1, '1'))
 
             return dedent(code)
 
