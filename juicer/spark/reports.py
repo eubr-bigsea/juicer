@@ -15,6 +15,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+from juicer.spark.util.tree_visualization import get_graph_from_model 
 
 try:
     from html import escape  # python 3.x
@@ -131,7 +132,7 @@ class ConfusionMatrixImageReport(BaseHtmlReport):
 
 
 class SimpleTableReport(BaseHtmlReport):
-    def __init__(self, table_class, headers, rows, title=None, numbered=False):
+    def __init__(self, table_class, headers, rows, title=None, numbered=None):
         self.table_class = table_class
         self.headers = headers
         self.rows = rows
@@ -145,7 +146,7 @@ class SimpleTableReport(BaseHtmlReport):
         code.append('<table class="{}">'.format(self.table_class))
         if self.headers:
             code.append('<thead><tr>')
-            if self.numbered:
+            if self.numbered is not None:
                 code.append('<th>#</th>')
 
             for col in self.headers:
@@ -156,8 +157,8 @@ class SimpleTableReport(BaseHtmlReport):
         code.append('<tbody>')
         for i, row in enumerate(self.rows):
             code.append('<tr>')
-            if self.numbered:
-                code.append('<td>{}</td>'.format(i + 1))
+            if self.numbered is not None:
+                code.append('<td>{}</td>'.format(i + self.numbered))
             for col in row:
                 if col.__class__.__name__ == 'DenseMatrix':
                     new_rows = col.toArray().tolist()
@@ -328,8 +329,10 @@ class DecisionTreeReport(BaseHtmlReport):
     Based on: https://github.com/tristaneljed/Decision-Tree-Visualization-Spark/
     """
 
-    def __init__(self, debug_string, features):
-        self.tree = debug_string
+    def __init__(self, model, features):
+        self.model = model
+        self.tree = model.toDebugString
+        self.features = features
         for (i, f) in enumerate(features):
             self.tree = self.tree.replace('feature {}'.format(i), f)
 
@@ -360,5 +363,8 @@ class DecisionTreeReport(BaseHtmlReport):
         return block
 
     def generate(self):
-        return '<code><pre>{tree}</pre></code>'.format(
-            tree=json.dumps(self._tree_json(), indent=2))
+        #return '<code><pre>{tree}</pre></code>'.format(
+        #    tree=json.dumps(self._tree_json(), indent=2))
+        return "<h6>{}</h6>{}".format(
+                gettext.gettext('Tree'),
+                get_graph_from_model(self.model, self.features).decode('utf-8'))
