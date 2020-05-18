@@ -3,7 +3,7 @@ from juicer.scikit_learn.etl_operation import AddColumnsOperation
 import pytest
 
 # Add columns operation
-def test_add_columns_success(iris):
+def test_add_columns_success():
     slice_size = 10
     left_df = ['df1', util.iris(['sepallength', 'sepalwidth'], slice_size)]
     right_df = ['df2', util.iris(['petallength', 'petalwidth', 'class'], 
