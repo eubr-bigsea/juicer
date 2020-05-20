@@ -96,3 +96,5 @@ New messages can be extracted and written to the template file using this comman
 ```
 pybabel extract -F babel.cfg -o juicer/i18n/juicer.pot .
 ```
+
+For more informations, please visit https://docs.lemonade.org.br. 
