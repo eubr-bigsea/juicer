@@ -955,8 +955,7 @@ class SplitOperation(Operation):
 
         self.weights = float(self.parameters.get('weights', 50))/100
         self.seed = self.parameters.get("seed", 'None')
-        self.seed = 'None' if self.seed == "" else self.seed
-
+        self.seed = 'None' if self.seed == "" and 4294967296 <= int(self.seed) < 0 else self.seed
         self.out1 = self.named_outputs.get('split 1',
                                            'split_1_task_{}'.format(self.order))
         self.out2 = self.named_outputs.get('split 2',
