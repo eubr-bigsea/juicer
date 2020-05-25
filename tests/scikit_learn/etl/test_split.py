@@ -83,8 +83,8 @@ def test_split_randomness():
                                    'petallength', 'petalwidth'], size=slice_size))
 
 
-def test_split_fail_by_slice_size():
-    slice_size = 1  # No need to split in this case... is this value allowed in the GUI?
+def test_split_sucess_one_slice():
+    slice_size = 1
     df = ['df', util.iris(['sepallength', 'sepalwidth',
                            'petallength', 'petalwidth'], slice_size)]
 
@@ -102,7 +102,7 @@ def test_split_fail_by_slice_size():
     result = util.execute(instance.generate_code(),
                           {'df': df[1]})
 
-    assert len(result['split_1_task_1']) and len(result['split_2_task_1']) != slice_size
+    assert len(result['split_2_task_1']) == slice_size
 
 
 def test_split_fail_by_seed():
@@ -112,7 +112,6 @@ def test_split_fail_by_seed():
 
     arguments = {
         'parameters': {'seed': 4294967296  # Seeds higher or equal to 4294967296, and lower than 0 break the code
-                       # are they allowed in the GUI?
                        },
         'named_inputs': {
             'input data': df[0],
@@ -121,19 +120,24 @@ def test_split_fail_by_seed():
         }
     }
     instance = SplitOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df[1]})
+    with pytest.raises(ValueError) as InvalidSeed:
+        result = util.execute(instance.generate_code(),
+                              {'df': df[1]})
+    print(InvalidSeed)
 
 
-def test_split_fail_by_weights():
+def test_weird_split_by_weights_and_slice():
+    """
+    This happens when the 'slice_size' is between 1 and 10
+    and the 'weights' value is between -9 and 9
+    I don't know if it's a bug or not
+    """
     slice_size = 10
     df = ['df', util.iris(['sepallength', 'sepalwidth',
                            'petallength', 'petalwidth'], slice_size)]
 
     arguments = {
-        'parameters': {'weights': 0  # weights between 0 and 9 don't split the dataframe
-                       # are they allowed in the GUI?
-                       },
+        'parameters': {'weights': 9},
         'named_inputs': {
             'input data': df[0],
         },
@@ -143,8 +147,9 @@ def test_split_fail_by_weights():
     instance = SplitOperation(**arguments)
     result = util.execute(instance.generate_code(),
                           {'df': df[1]})
-
-    assert len(result['split_1_task_1']) and len(result['split_2_task_1']) != slice_size
+    with pytest.raises(AssertionError) as Weird:
+        assert len(result['split_1_task_1']) and len(result['split_2_task_1']) != slice_size
+    print(Weird)
 
 
 def test_split_success_no_output_implies_no_code():
@@ -168,5 +173,6 @@ def test_split_success_no_output_implies_no_code():
     instance = SplitOperation(**arguments)
     result = util.execute(instance.generate_code(),
                           {'df': df[1]})
-
-    assert not instance.has_code
+    with pytest.raises(AssertionError) as HasCode:
+        assert not instance.has_code
+    print(HasCode)

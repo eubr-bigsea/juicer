@@ -31,16 +31,8 @@ def titanic(columns=None, size=None):
     return read('titanic', columns, size)
 
 def get_common_imports():
-    """
-    If 'import pandas as pd', test_split and other tests return:
-
-    >   ???
-    E   NameError: name 'np' is not defined
-    <string>:2: NameError
-
-    """
     return '\n'.join([
-	'import numpy as np'
+	'import pandas as pd', 'import numpy as np'
     ])
 def execute(code, arguments):
     final_code = '\n'.join([
