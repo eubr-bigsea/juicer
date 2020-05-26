@@ -97,6 +97,7 @@ venv3/
 
 libs/
 logs/
+plugin/
 
 metastore_db/
 *.swp
