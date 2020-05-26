@@ -16,6 +16,7 @@ from juicer.scikit_learn.transpiler import ScikitLearnTranspiler
 from juicer.service.tahiti_service import query_tahiti
 from juicer.spark.transpiler import SparkTranspiler
 from juicer.workflow.workflow import Workflow
+import juicer.plugin.util as plugin_util
 
 logging.config.fileConfig('logging_config.ini')
 
@@ -38,7 +39,8 @@ def main(workflow_id, execute_main, params, config, deploy, export_notebook):
     ops = query_tahiti(
         base_url=tahiti_conf['url'], item_path='/operations',
         token=str(tahiti_conf['auth_token']), item_id='',
-        qs='fields=id,slug,ports.id,ports.slug,ports.interfaces&platform=1')
+        qs='fields=id,slug,ports.id,ports.slug,ports.interfaces&platform={}'.format( 
+            resp['platform']['id']))
     slug_to_op_id = dict([(op['slug'], op['id']) for op in ops])
     port_id_to_port = dict([(p['id'], p) for op in ops for p in op['ports']])
 
@@ -52,6 +54,12 @@ def main(workflow_id, execute_main, params, config, deploy, export_notebook):
             transpiler = ScikitLearnTranspiler(configuration.get_config())
         elif loader.platform == 'keras':
             transpiler = KerasTranspiler(configuration.get_config())
+        elif loader.platform.get('plugin'):
+            plugin_factories = plugin_util.prepare_and_get_plugin_factory(
+                configuration.get_config(), loader.platform.get('id'))
+            # import pdb; pdb.set_trace()
+            factory = plugin_factories.get(loader.platform['id'])
+            transpiler = factory.get_transpiler(configuration.get_config())
         else:
             raise ValueError(
                 _('Invalid platform value: {}').format(loader.platform))

@@ -59,9 +59,9 @@ class Workflow(object):
         self.sorted_tasks = []
 
         # Spark or COMPSs
-        self.platform = workflow_data.get('platform', {}).get('slug', 'spark')
+        self.platform = workflow_data.get('platform', {})
 
-        if self.platform == 'spark':
+        if self.platform['slug'] == 'spark':
             self._build_privacy_restrictions()
 
         # Verify null edges to topological_sorted_tasks

@@ -15,6 +15,7 @@ from juicer.keras.keras_minion import KerasMinion
 from juicer.scikit_learn.scikit_learn_minion import ScikitLearnMinion
 from juicer.jobs.script_minion import ScriptMinion
 from juicer.spark.spark_minion import SparkMinion
+from juicer.plugin.plugin_minion import PluginMinion
 
 # Important!
 # See https://stackoverflow.com/a/29172195/1646932
@@ -93,6 +94,14 @@ if __name__ == '__main__':
                                   app_id=0,
                                   config=juicer_config,
                                   lang=args.lang)
+        elif args.type == 'plugin':
+            log.info('Starting Plugin Minion')
+            minion = PluginMinion(redis_conn,
+                                 args.workflow_id,
+                                 args.app_id or args.workflow_id,
+                                 juicer_config,
+                                 args.lang)
+
         else:
             raise ValueError(
                 _("{type} is not supported (yet!)").format(type=args.type))
