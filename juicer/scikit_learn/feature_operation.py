@@ -28,12 +28,14 @@ class FeatureAssemblerOperation(Operation):
                                                          self.order))
 
     def generate_code(self):
+        copy_code = ".copy()" \
+            if self.parameters['multiplicity']['input data'] > 1 else ""
         code = """
         cols = {cols}
         {input}_without_na = {input}.dropna(subset=cols)
-        {output} = {input}_without_na.copy()
+        {output} = {input}_without_na{copy_code}
         {output}['{alias}'] = {input}_without_na[cols].to_numpy().tolist()
-        """.format(output=self.output, alias=self.alias,
+        """.format(copy_code=copy_code, output=self.output, alias=self.alias,
                    input=self.named_inputs['input data'],
                    cols=self.parameters[self.ATTRIBUTES_PARAM])
 
@@ -96,6 +98,9 @@ class MinMaxScalerOperation(Operation):
 
     def generate_code(self):
         """Generate code."""
+        copy_code = ".copy()" \
+            if self.parameters['multiplicity']['input data'] > 1 else ""
+
         code = """        
         {model} = MinMaxScaler(feature_range=({min},{max}))
         X_train = get_X_train_data({input}, {att})
@@ -108,9 +113,10 @@ class MinMaxScalerOperation(Operation):
         # TODO: corrigir essa checagem
         if self.contains_results() or len(self.named_outputs) > 0:
             code += """
-            {output} = {input}.copy()
+            {output} = {input}{copy_code}
             {output}['{alias}'] = {model}.transform(X_train).tolist()
-            """.format(output=self.output, input=self.named_inputs['input data'],
+            """.format(copy_code=copy_code, output=self.output,
+                       input=self.named_inputs['input data'],
                        model=self.model, alias=self.alias)
         return dedent(code)
 
@@ -163,6 +169,9 @@ class MaxAbsScalerOperation(Operation):
 
     def generate_code(self):
         """Generate code."""
+        copy_code = ".copy()" \
+            if self.parameters['multiplicity']['input data'] > 1 else ""
+
         code = """
         {model} = MaxAbsScaler()
         X_train = get_X_train_data({input}, {att})
@@ -175,9 +184,10 @@ class MaxAbsScalerOperation(Operation):
         # TODO: corrigir essa checagem
         if self.contains_results() or len(self.named_outputs) > 0:
             code += """
-            {output} = {input}.copy()
+            {output} = {input}{copy_code}
             {output}['{alias}'] = {model}.transform(X_train).tolist()
-            """.format(output=self.output, input=self.named_inputs['input data'],
+            """.format(copy_code=copy_code,
+                       output=self.output, input=self.named_inputs['input data'],
                        model=self.model, alias=self.alias)
         return dedent(code)
 
@@ -240,6 +250,8 @@ class StandardScalerOperation(Operation):
             .format(value=self.with_mean)
         op += ", with_std={value}" \
             .format(value=self.with_std)
+        copy_code = ".copy()" \
+            if self.parameters['multiplicity']['input data'] > 1 else ""
 
         """Generate code."""
         code = """
@@ -252,9 +264,9 @@ class StandardScalerOperation(Operation):
 
         if self.contains_results() or len(self.named_outputs) > 0:
             code += """
-            {output} = {input}.copy()
+            {output} = {input}{copy_code}
             {output}['{alias}'] = {model}.transform(X_train).tolist()
-            """.format(output=self.output,
+            """.format(copy_code=copy_code, output=self.output,
                        input=self.named_inputs['input data'],
                        model=self.model, alias=self.alias)
         return dedent(code)
@@ -269,15 +281,17 @@ class QuantileDiscretizerOperation(Operation):
     tends to spread out the most frequent values.
     """
 
+    # TODO: in tahiti, change the translation "quantil number" to
+    # 'The number of bins to produce'
+
     ALIAS_PARAM = 'alias'
     ATTRIBUTE_PARAM = 'attribute'
     N_QUANTILES_PARAM = 'n_quantiles'
     DISTRIBUITION_PARAM = 'output_distribution'
-    SEED_PARAM = 'seed'
 
-    DISTRIBUITION_PARAM_NORMAL = 'normal'
+    DISTRIBUITION_PARAM_KMEANS = 'kmeans'
     DISTRIBUITION_PARAM_UNIFORM = 'uniform'
-    # TODO: existe uma mudança no tahiti para ser atualizada aqui
+    DISTRIBUITION_PARAM_QUANTIS = 'quantile'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
@@ -292,16 +306,16 @@ class QuantileDiscretizerOperation(Operation):
 
             self.output = self.named_outputs.get(
                     'output data', 'output_data_{}'.format(self.order))
-            self.model = self.named_outputs.get('model', 'model_{}'.format(self.order))
+            self.model = self.named_outputs.get(
+                    'model', 'model_{}'.format(self.order))
             self.attribute = parameters[self.ATTRIBUTE_PARAM]
             self.alias = parameters.get(self.ALIAS_PARAM,
                                         'quantiledisc_{}'.format(self.order))
             self.n_quantiles = parameters.get(
                     self.N_QUANTILES_PARAM, 1000) or 1000
             self.output_distribution = parameters.get(
-                    self.DISTRIBUITION_PARAM, self.DISTRIBUITION_PARAM_UNIFORM)\
-                or self.DISTRIBUITION_PARAM_UNIFORM
-            self.seed = parameters.get(self.SEED_PARAM, 'None') or 'None'
+                    self.DISTRIBUITION_PARAM, self.DISTRIBUITION_PARAM_QUANTIS)\
+                or self.DISTRIBUITION_PARAM_QUANTIS
 
             if int(self.n_quantiles) <= 0:
                 raise ValueError(
@@ -310,17 +324,21 @@ class QuantileDiscretizerOperation(Operation):
 
     def generate_code(self):
         """Generate code."""
+        copy_code = ".copy()" \
+            if self.parameters['multiplicity']['input data'] > 1 else ""
+
         code = """
-        {output} = {input}.copy()
+        {output} = {input}{copy_code}
         from sklearn.preprocessing import KBinsDiscretizer
         {model} = KBinsDiscretizer(n_bins={n_quantiles}, 
-            encode='ordinal', strategy='quantile')
+            encode='ordinal', strategy='{strategy}')
         X_train = get_X_train_data({input}, {att})
         
         {output}['{alias}'] = {model}.fit_transform(X_train).flatten().tolist()
-        """.format(output=self.output,
+        """.format(copy_code=copy_code, output=self.output,
                    model=self.model,
                    input=self.named_inputs['input data'],
+                   strategy=self.output_distribution,
                    att=self.attribute, alias=self.alias,
                    n_quantiles=self.n_quantiles,)
         return dedent(code)
@@ -357,13 +375,16 @@ class OneHotEncoderOperation(Operation):
 
     def generate_code(self):
         """Generate code."""
+        copy_code = ".copy()" \
+            if self.parameters['multiplicity']['input data'] > 1 else ""
+
         code = """
-        {output} = {input}.copy()
+        {output} = {input}{copy_code}
         from sklearn.preprocessing import OneHotEncoder
         enc = OneHotEncoder()
         X_train = get_X_train_data({input}, {att})
         {output}['{alias}'] = enc.fit_transform(X_train).toarray().tolist()
-        """.format(output=self.output,
+        """.format(copy_code=copy_code, output=self.output,
                    input=self.named_inputs['input data'],
                    att=self.attribute, alias=self.alias)
         return dedent(code)
@@ -405,13 +426,16 @@ class PCAOperation(Operation):
 
     def generate_code(self):
         """Generate code."""
+        copy_code = ".copy()" \
+            if self.parameters['multiplicity']['input data'] > 1 else ""
+
         code = """
-        {output} = {input}
+        {output} = {input}{copy_code}
         from sklearn.decomposition import PCA
         pca = PCA(n_components={n_comp})
         X_train = get_X_train_data({input}, {att})
         {output}['{alias}'] = pca.fit_transform(X_train).tolist()
-        """.format(output=self.output,
+        """.format(copy_code=copy_code, output=self.output,
                    input=self.named_inputs['input data'],
                    att=self.attributes, alias=self.alias,
                    n_comp=self.n_components)
@@ -484,8 +508,11 @@ class LSHOperation(Operation):
         """Generate code."""
         #TODO: LSHForest algorithm is using all columns.
 
+        copy_code = ".copy()" \
+            if self.parameters['multiplicity']['input data'] > 1 else ""
+
         code = """
-            {output_data} = {input}.copy()
+            {output_data} = {input}{copy_code}
             X_train = {input}.to_numpy().tolist()
             lshf = LSHForest(min_hash_match={min_hash_match}, 
                 n_candidates={n_candidates}, n_estimators={n_estimators},
@@ -493,7 +520,7 @@ class LSHOperation(Operation):
                 radius_cutoff_ratio={radius_cutoff_ratio}, 
                 random_state={random_state})
             {model} = lshf.fit(X_train) 
-            """.format(output=self.output,
+            """.format(copy_code=copy_code, output=self.output,
                        input=input_data,
                        number_neighbors=self.number_neighbors,
                        n_estimators=self.n_estimators,
@@ -547,15 +574,18 @@ class StringIndexerOperation(Operation):
 
         models = self.named_outputs.get('models',
                                         'models_task_{}'.format(self.order))
+        copy_code = ".copy()" \
+            if self.parameters['multiplicity']['input data'] > 1 else ""
+
         code = dedent("""
-           {output} = {input}.copy()
+           {output} = {input}{copy_code}
            {models} = dict()
            le = LabelEncoder()
            for col, new_col in zip({columns}, {alias}):
                 data = {input}[col].to_numpy().tolist()
                 {models}[new_col] = le.fit_transform(data)
                 {output}[new_col] =le.fit_transform(data)    
-           """.format(input=input_data,
+           """.format(copy_code=copy_code, input=input_data,
                       output=output,
                       models=models,
                       columns=self.attributes,
