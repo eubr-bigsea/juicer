@@ -1,5 +1,6 @@
 from tests.scikit_learn import util
 from juicer.scikit_learn.etl_operation import AddColumnsOperation
+import pandas as pd
 import pytest
 
 
@@ -32,8 +33,7 @@ def test_add_columns_fail_different_row_number():
     In this case, AddColumnsOperation() creates a result
     the size of the smallest slice_size.
 
-    It doesn't look like a bug, but the test name is
-    test_add_columns_'fail'_different_row_number
+    Is this a expected behavior?
     """
     slice_size_1 = 10
     slice_size_2 = 5
@@ -59,13 +59,13 @@ def test_add_columns_fail_different_row_number():
     print(different_row_number)
 
 
-def test_add_columns_success_same_column_names_but_with_suffixes():
+def test_add_columns_success_same_column_names_with_parameter():
     slice_size = 10
     left_df = ['df1', util.iris(['sepallength', 'sepalwidth'], slice_size)]
     right_df = ['df2', util.iris(['sepallength', 'sepalwidth'], slice_size)]
 
     arguments = {
-        'parameters': {AddColumnsOperation.ALIASES_PARAM: '_ds0,_ds1'},
+        'parameters': {AddColumnsOperation.ALIASES_PARAM: '_value0,_value1'},
         'named_inputs': {
             'input data 1': left_df[0],
             'input data 2': right_df[0]
@@ -78,15 +78,13 @@ def test_add_columns_success_same_column_names_but_with_suffixes():
     result = util.execute(instance.generate_code(),
                           {'df1': left_df[1], 'df2': right_df[1]})
 
-    assert not result['out'].equals(left_df[1])
-    assert not result['out'].equals(right_df[1])
+    x = pd.merge(left_df[1], right_df[1], left_index=True,
+                 right_index=True, suffixes=('_value0', '_value1'))
+
+    assert result['out'].equals(x)
 
 
-def test_add_columns_fail_same_column_names():
-    """
-    In this case, AddColumnsOperation() creates
-    a result with duplicated columns names
-    """
+def test_add_columns_success_same_column_names_no_parameters():
     slice_size = 10
     left_df = ['df1', util.iris(['sepallength', 'class'], slice_size)]
     right_df = ['df2', util.iris(['sepallength', 'class'], slice_size)]
@@ -104,13 +102,14 @@ def test_add_columns_fail_same_column_names():
     instance = AddColumnsOperation(**arguments)
     result = util.execute(instance.generate_code(),
                           {'df1': left_df[1], 'df2': right_df[1]})
-    with pytest.raises(AssertionError) as same_column_names:
-        assert result['out'].equals(left_df[1])
-        assert result['out'].equals(right_df[1])
-    print(same_column_names)
+
+    x = pd.merge(left_df[1], right_df[1], left_index=True,
+                 right_index=True, suffixes=('_ds0', '_ds1'))
+
+    assert result['out'].equals(x)
 
 
-def test_add_columns_success_using_prefix():
+def test_add_columns_success_adding_prefixes():
     slice_size = 10
     left_df = ['df1', util.iris(['sepallength', 'sepalwidth'], slice_size)]
     right_df = ['df2', util.iris(['sepallength', 'sepalwidth'], slice_size)]
@@ -130,9 +129,11 @@ def test_add_columns_success_using_prefix():
                           {'df1': left_df[1], 'df2': right_df[1]})
 
     result['out'] = result['out'].add_prefix('col_')
+    x = pd.merge(left_df[1], right_df[1], left_index=True,
+                 right_index=True, suffixes=('_ds0', '_ds1'))
+    x = x.add_prefix('col_')
 
-    assert not result['out'].equals(left_df[1])
-    assert not result['out'].equals(right_df[1])
+    assert result['out'].equals(x)
 
 
 def no_output():
