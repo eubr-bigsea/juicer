@@ -32,7 +32,7 @@ def titanic(columns=None, size=None):
 
 def get_common_imports():
     return '\n'.join([
-	'import pandas as pd'
+	'import pandas as pd', 'import numpy as np'
     ])
 def execute(code, arguments):
     final_code = '\n'.join([
