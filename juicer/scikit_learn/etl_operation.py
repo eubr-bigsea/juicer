@@ -956,12 +956,12 @@ class SplitOperation(Operation):
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
 
-        self.has_code = len(named_inputs) == 1
+        self.has_code = len(named_outputs) >= 1 and len(named_inputs) == 1
 
         self.weights = float(self.parameters.get('weights', 50))/100
-        self.seed = self.parameters.get("seed", 'None')
-        self.seed = 'None' if self.seed == "" else self.seed
-
+        self.seed = self.parameters.get("seed")
+        self.seed = 'None' if (not self.seed) or (
+                4294967296 <= int(self.seed) < 0) else self.seed
         self.out1 = self.named_outputs.get('split 1',
                                            'split_1_task_{}'.format(self.order))
         self.out2 = self.named_outputs.get('split 2',
