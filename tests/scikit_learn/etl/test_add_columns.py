@@ -32,8 +32,6 @@ def test_add_columns_fail_different_row_number():
     """
     In this case, AddColumnsOperation() creates a result
     the size of the smallest slice_size.
-
-    Is this a expected behavior?
     """
     slice_size_1 = 10
     slice_size_2 = 5
@@ -84,7 +82,7 @@ def test_add_columns_success_same_column_names_with_parameter():
     assert result['out'].equals(x)
 
 
-def test_add_columns_success_same_column_names_no_parameters():
+def test_add_columns_success_same_column_names_no_parameter():
     slice_size = 10
     left_df = ['df1', util.iris(['sepallength', 'class'], slice_size)]
     right_df = ['df2', util.iris(['sepallength', 'class'], slice_size)]
@@ -109,34 +107,7 @@ def test_add_columns_success_same_column_names_no_parameters():
     assert result['out'].equals(x)
 
 
-def test_add_columns_success_adding_prefixes():
-    slice_size = 10
-    left_df = ['df1', util.iris(['sepallength', 'sepalwidth'], slice_size)]
-    right_df = ['df2', util.iris(['sepallength', 'sepalwidth'], slice_size)]
-
-    arguments = {
-        'parameters': {},
-        'named_inputs': {
-            'input data 1': left_df[0],
-            'input data 2': right_df[0]
-        },
-        'named_outputs': {
-            'output data': 'out'
-        }
-    }
-    instance = AddColumnsOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df1': left_df[1], 'df2': right_df[1]})
-
-    result['out'] = result['out'].add_prefix('col_')
-    x = pd.merge(left_df[1], right_df[1], left_index=True,
-                 right_index=True, suffixes=('_ds0', '_ds1'))
-    x = x.add_prefix('col_')
-
-    assert result['out'].equals(x)
-
-
-def no_output():
+def test_add_columns_success_no_output_implies_no_code():
     slice_size = 10
     left_df = ['df1', util.iris(['sepallength', 'sepalwidth'], slice_size)]
     right_df = ['df2', util.iris(['petallength', 'petalwidth', 'class'],
@@ -154,8 +125,4 @@ def no_output():
     result = util.execute(instance.generate_code(),
                           {'df1': left_df[1], 'df2': right_df[1]})
 
-
-def test_add_columns_success_no_output_implies_no_code():
-    with pytest.raises(ValueError) as no_out:
-        no_output()
-    print(f'\n\n{no_out}')
+    assert not instance.has_code
