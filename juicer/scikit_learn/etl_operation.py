@@ -15,15 +15,10 @@ class AddColumnsOperation(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs, named_outputs)
 
-        self.has_code = len(named_inputs) == 2
+        self.has_code = len(named_outputs) >= 1 and len(named_inputs) == 2
 
         self.suffixes = parameters.get(self.ALIASES_PARAM, '_ds0,_ds1')
         self.suffixes = [s for s in self.suffixes.replace(" ", "").split(',')]
-
-        if not self.has_code:
-            raise ValueError(
-                _("Parameters '{}' and '{}' must be informed for task {}")
-                .format('input data 1',  'input data  2', self.__class__))
 
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
