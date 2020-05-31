@@ -13,7 +13,7 @@ class AddColumnsOperation(Operation):
     ALIASES_PARAM = 'aliases'
 
     def __init__(self, parameters, named_inputs, named_outputs):
-        Operation.__init__(self, parameters,  named_inputs, named_outputs)
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         self.has_code = len(named_outputs) >= 1 and len(named_inputs) == 2
 
@@ -24,7 +24,6 @@ class AddColumnsOperation(Operation):
             'output data', 'output_data_{}'.format(self.order))
 
     def generate_code(self):
-
         code = """
         {out} = pd.merge({input1}, {input2}, left_index=True, 
             right_index=True, suffixes=('{s1}', '{s2}')) 
@@ -52,7 +51,7 @@ class AggregationOperation(Operation):
     PIVOT_VALUE_ATTRIBUTE = 'pivot_values'
 
     def __init__(self, parameters, named_inputs, named_outputs):
-        Operation.__init__(self, parameters,  named_inputs, named_outputs)
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         self.attributes = parameters.get(self.ATTRIBUTES_PARAM, [])
         self.functions = parameters.get(self.FUNCTION_PARAM)
@@ -67,12 +66,12 @@ class AggregationOperation(Operation):
 
         if not all([self.FUNCTION_PARAM in parameters, self.functions]):
             raise ValueError(
-                _("Parameter '{}' must be informed for task {}").format(
+                "Parameter '{}' must be informed for task {}".format(
                     self.FUNCTION_PARAM, self.__class__))
 
         for f in parameters[self.FUNCTION_PARAM]:
             if not all([f.get('attribute'), f.get('f'), f.get('alias')]):
-                raise ValueError(_('Missing parameter in aggregation function'))
+                raise ValueError('Missing parameter in aggregation function')
 
         for dictionary in self.functions:
             att = dictionary['attribute']
@@ -189,7 +188,7 @@ class CleanMissingOperation(Operation):
     VALUE_PARAMETER = 'value'
 
     def __init__(self, parameters, named_inputs, named_outputs):
-        Operation.__init__(self, parameters,  named_inputs, named_outputs)
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         self.has_code = len(self.named_inputs) == 1
 
@@ -198,30 +197,30 @@ class CleanMissingOperation(Operation):
                 self.attributes_CM = parameters[self.ATTRIBUTES_PARAM]
             else:
                 raise ValueError(
-                    _("Parameter '{}' must be informed for task {}").format(
-                            'attributes', self.__class__))
+                    "Parameter '{}' must be informed for task {}".format
+                    ('attributes', self.__class__))
 
             self.min_ratio = abs(float(parameters.get(
-                    self.MIN_MISSING_RATIO_PARAM, 0.0)))
+                self.MIN_MISSING_RATIO_PARAM, 0.0)))
             self.max_ratio = abs(float(parameters.get(
-                    self.MAX_MISSING_RATIO_PARAM, 1.0)))
+                self.MAX_MISSING_RATIO_PARAM, 1.0)))
 
             if any([self.min_ratio > self.max_ratio,
                     self.min_ratio > 1.0,
                     self.max_ratio > 1.0]):
                 raise ValueError(
-                    _("Parameter '{}' must be 0<=x<=1 for task {}").format(
+                    "Parameter '{}' must be 0<=x<=1 for task {}".format(
                         'attributes', self.__class__))
 
             self.mode_CM = self.parameters.get(self.CLEANING_MODE_PARAM,
                                                "REMOVE_ROW")
             self.value_CM = self.parameters.get(self.VALUE_PARAMETER, None)
 
-            if all([self.value_CM is None,  self.mode_CM == "VALUE"]):
+            if all([self.value_CM is None, self.mode_CM == "VALUE"]):
                 raise ValueError(
-                    _("Parameter '{}' must be not None when"
-                      " mode is '{}' for task {}").format(
-                        self.VALUE_PARAMETER, 'VALUE', self.__class__))
+                    "Parameter '{}' must be not None when"
+                    " mode is '{}' for task {}".format
+                    (self.VALUE_PARAMETER, 'VALUE', self.__class__))
 
             self.output = self.named_outputs.get(
                 'output result', 'output_data_{}'.format(self.order))
@@ -279,7 +278,7 @@ class CleanMissingOperation(Operation):
                      "[col].median(), inplace=True)".format(output=self.output)
 
             elif self.mode_CM == "MODE":
-                op = "{out}[col].fillna(value={out}[col].mode()[0], inplace=True)"\
+                op = "{out}[col].fillna(value={out}[col].mode()[0], inplace=True)" \
                     .format(out=self.output)
 
             code = """
@@ -297,6 +296,8 @@ class CleanMissingOperation(Operation):
                         columns=self.attributes_CM, op=op)
         return dedent(code)
 
+    # This method here may be static
+    # Should I add @staticmethod?
     def check_parameter(self, parameter):
         output = ""
         try:
@@ -316,8 +317,8 @@ class DifferenceOperation(Operation):
     frame.
     """
 
-    def __init__(self, parameters,  named_inputs, named_outputs):
-        Operation.__init__(self, parameters,  named_inputs,  named_outputs)
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
         self.has_code = len(named_inputs) == 2
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
@@ -340,8 +341,8 @@ class DistinctOperation(Operation):
     Parameters: attributes to consider during operation (keys)
     """
 
-    def __init__(self, parameters,  named_inputs, named_outputs):
-        Operation.__init__(self, parameters,  named_inputs,  named_outputs)
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         self.attributes = parameters.get('attributes', 'None')
         self.has_code = len(named_inputs) == 1
@@ -349,7 +350,7 @@ class DistinctOperation(Operation):
             'output data', 'output_data_{}'.format(self.order))
 
     def generate_code(self):
-        code = "{out} = {in1}.drop_duplicates(subset={columns}, keep='first')"\
+        code = "{out} = {in1}.drop_duplicates(subset={columns}, keep='first')" \
             .format(out=self.output, in1=self.named_inputs['input data'],
                     columns=self.attributes)
         return dedent(code)
@@ -363,22 +364,22 @@ class DropOperation(Operation):
     """
     ATTRIBUTES_PARAM = 'attributes'
 
-    def __init__(self, parameters,  named_inputs, named_outputs):
-        Operation.__init__(self, parameters,  named_inputs,  named_outputs)
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
         if self.ATTRIBUTES_PARAM in parameters:
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
             self.cols = ','.join(['"{}"'.format(x) for x in self.attributes])
         else:
             raise ValueError(
-                _("Parameter '{}' must be informed for task {}").format(
+                "Parameter '{}' must be informed for task {}".format(
                     self.ATTRIBUTES_PARAM, self.__class__))
 
-        self.has_code = len(named_inputs) == 1
+        self.has_code = len(named_outputs) >= 1 and len(named_inputs) == 1
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
 
     def generate_code(self):
-        code = "{output} = {input}.drop(columns={columns})"\
+        code = "{output} = {input}.drop(columns={columns})" \
             .format(output=self.output, input=self.named_inputs['input data'],
                     columns=self.attributes)
         return dedent(code)
@@ -391,7 +392,7 @@ class ExecutePythonOperation(Operation):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         if not all([self.PYTHON_CODE_PARAM in parameters]):
-            msg = _("Required parameter {} must be informed for task {}")
+            msg = "Required parameter {} must be informed for task {}"
             raise ValueError(msg.format(self.PYTHON_CODE_PARAM, self.__class__))
 
         self.code = parameters.get(self.PYTHON_CODE_PARAM)
@@ -487,13 +488,13 @@ class ExecuteSQLOperation(Operation):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         if not all([self.QUERY_PARAM in parameters]):
-            msg = _("Required parameter {} must be informed for task {}")
+            msg = "Required parameter {} must be informed for task {}"
             raise ValueError(msg.format(self.QUERY_PARAM, self.__class__))
 
         self.query = ExecuteSQLOperation._escape_string(
             parameters.get(self.QUERY_PARAM).strip().replace('\n', ' '))
         if self.query[:6].upper() != 'SELECT':
-            raise ValueError(_('Invalid query. Only SELECT is allowed.'))
+            raise ValueError('Invalid query. Only SELECT is allowed.')
 
         if self.NAMES_PARAM in parameters:
             self.names = [
@@ -543,8 +544,8 @@ class ExecuteSQLOperation(Operation):
             {out}.rename(columns=rename, inplace=True)
         """.format(in1=self.input1, in2=self.input2, query=repr(self.query),
                    out=self.output, names=repr(self.names),
-                   invalid_names=_('Invalid names. Number of attributes in '
-                                   'result differs from names informed.')))
+                   invalid_names='Invalid names. Number of attributes in '
+                                 'result differs from names informed.'))
         return code
 
 
@@ -557,14 +558,14 @@ class FilterOperation(Operation):
     FILTER_PARAM = 'filter'
     ADVANCED_FILTER_PARAM = 'expression'
 
-    def __init__(self, parameters,  named_inputs, named_outputs):
-        Operation.__init__(self, parameters,  named_inputs,  named_outputs)
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         if self.FILTER_PARAM not in parameters and self.ADVANCED_FILTER_PARAM \
                 not in parameters:
             raise ValueError(
-                _("Parameter '{}' must be informed for task {}".format(
-                    self.FILTER_PARAM, self.__class__)))
+                "Parameter '{}' must be informed for task {}".format(
+                    self.FILTER_PARAM, self.__class__))
 
         self.advanced_filter = parameters.get(self.ADVANCED_FILTER_PARAM) or []
         self.filter = parameters.get(self.FILTER_PARAM) or []
@@ -613,14 +614,14 @@ class IntersectionOperation(Operation):
     frame and another frame.
     """
 
-    def __init__(self, parameters,  named_inputs, named_outputs):
-        Operation.__init__(self, parameters,  named_inputs,  named_outputs)
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
         self.has_code = len(named_inputs) == 2
 
         if not self.has_code:
             raise ValueError(
-                _("Parameter '{}' and '{}' must be informed for task {}")
-                .format('input data 1',  'input data 2', self.__class__))
+                "Parameter '{}' and '{}' must be informed for task {}".format
+                ('input data 1', 'input data 2', self.__class__))
 
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
@@ -659,8 +660,7 @@ class JoinOperation(Operation):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
         self.not_keep_right_keys = not \
             parameters.get(self.KEEP_RIGHT_KEYS_PARAM, False) in (1, '1', True)
-        self.match_case = parameters.get(self.MATCH_CASE_PARAM, False) \
-                          in (1, '1', True)
+        self.match_case = parameters.get(self.MATCH_CASE_PARAM, False) in (1, '1', True)
         self.join_type = parameters.get(self.JOIN_TYPE_PARAM, 'inner')
 
         self.join_type = self.join_type.replace("_outer", "")
@@ -668,16 +668,16 @@ class JoinOperation(Operation):
         if not all([self.LEFT_ATTRIBUTES_PARAM in parameters,
                     self.RIGHT_ATTRIBUTES_PARAM in parameters]):
             raise ValueError(
-                _("Parameters '{}' and '{}' must be informed for task {}")\
-                    .format(self.LEFT_ATTRIBUTES_PARAM,
-                            self.RIGHT_ATTRIBUTES_PARAM,
-                            self.__class__))
+                "Parameters '{}' and '{}' must be informed for task {}".format
+                (self.LEFT_ATTRIBUTES_PARAM,
+                 self.RIGHT_ATTRIBUTES_PARAM,
+                 self.__class__))
 
         self.has_code = len(named_inputs) == 2
         if not self.has_code:
             raise ValueError(
-                _("Parameter '{}' and '{}' must be informed for task {}")
-                .format('input data 1',  'input data 2', self.__class__))
+                "Parameter '{}' and '{}' must be informed for task {}".format
+                ('input data 1', 'input data 2', self.__class__))
 
         self.left_attributes = parameters.get(self.LEFT_ATTRIBUTES_PARAM)
         self.right_attributes = parameters.get(self.RIGHT_ATTRIBUTES_PARAM)
@@ -686,7 +686,7 @@ class JoinOperation(Operation):
         self.suffixes = [s for s in self.suffixes.split(',')]
         self.output = self.named_outputs.get('output data',
                                              'output_data_{}'.format(
-                                                     self.order))
+                                                 self.order))
 
     def generate_code(self):
 
@@ -753,17 +753,18 @@ class ReplaceValuesOperation(Operation):
     Parameters:
     - The list of columns selected.
     """
+
     def __init__(self, parameters, named_inputs, named_outputs):
-        Operation.__init__(self, parameters,  named_inputs, named_outputs)
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         self.replaces = {}
 
         if any(['value' not in parameters,
                 'replacement' not in parameters]):
             raise ValueError(
-                _("Parameter {} and {} must be informed if is using "
-                  "replace by value in task {}.").format(
-                        'value', 'replacement', self.__class__))
+                "Parameter {} and {} must be informed if is using "
+                "replace by value in task {}.".format
+                ('value', 'replacement', self.__class__))
 
         for att in parameters['attributes']:
             if att not in self.replaces:
@@ -775,6 +776,8 @@ class ReplaceValuesOperation(Operation):
         self.output = self.named_outputs.get('output data',
                                              'output_data_{}'.format(self.order))
 
+    # This method here may be static
+    # Should I add @staticmethod?
     def check_parameter(self, parameter):
         output = ""
         try:
@@ -813,8 +816,8 @@ class SampleOrPartitionOperation(Operation):
     TYPE_HEAD = 'head'
     SEED = 'seed'
 
-    def __init__(self, parameters,  named_inputs, named_outputs):
-        Operation.__init__(self, parameters,  named_inputs,  named_outputs)
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         self.type = self.parameters.get('type', self.TYPE_PERCENT)
         self.value = int(self.parameters.get('value', -1))
@@ -822,22 +825,22 @@ class SampleOrPartitionOperation(Operation):
 
         if self.value < 0 and self.type != self.TYPE_PERCENT:
             raise ValueError(
-                _("Parameter 'value' must be [x>=0] if is using "
-                  "the current type of sampling in task {}.")
-                .format(self.__class__))
+                "Parameter 'value' must be [x>=0] if is using "
+                "the current type of sampling in task {}.".format
+                (self.__class__))
         if self.type == self.TYPE_PERCENT and any([self.fraction > 1.0,
                                                    self.fraction < 0]):
             raise ValueError(
-                    _("Parameter 'fraction' must be 0<=x<=1 if is using "
-                      "the current type of sampling in task {}.").format(
-                            self.__class__))
+                "Parameter 'fraction' must be 0<=x<=1 if is using "
+                "the current type of sampling in task {}.".format
+                (self.__class__))
 
         self.seed = self.parameters.get(self.SEED, 'None')
         self.seed = self.seed if self.seed != "" else 'None'
 
         self.output = self.named_outputs.get('sampled data',
                                              'output_data_{}'.format(
-                                                     self.order))
+                                                 self.order))
 
         self.has_code = len(self.named_inputs) == 1
 
@@ -871,8 +874,8 @@ class SelectOperation(Operation):
     """
     ATTRIBUTES_PARAM = 'attributes'
 
-    def __init__(self, parameters,  named_inputs, named_outputs):
-        Operation.__init__(self, parameters,  named_inputs,  named_outputs)
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         if self.ATTRIBUTES_PARAM in parameters:
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
@@ -880,8 +883,8 @@ class SelectOperation(Operation):
                                   for x in self.attributes])
         else:
             raise ValueError(
-                _("Parameter '{}' must be informed for task {}").format(
-                    self.ATTRIBUTES_PARAM, self.__class__))
+                "Parameter '{}' must be informed for task {}".format
+                (self.ATTRIBUTES_PARAM, self.__class__))
 
         self.has_code = len(named_inputs) == 1
         self.output = self.named_outputs.get(
@@ -889,7 +892,7 @@ class SelectOperation(Operation):
 
     def generate_code(self):
 
-        code = "{output} = {input}[[{column}]]"\
+        code = "{output} = {input}[[{column}]]" \
             .format(output=self.output, column=self.cols,
                     input=self.named_inputs['input data'])
         return dedent(code)
@@ -907,7 +910,7 @@ class SortOperation(Operation):
     ATTRIBUTES_PARAM = 'attributes'
 
     def __init__(self, parameters, named_inputs, named_outputs):
-        Operation.__init__(self, parameters,  named_inputs, named_outputs)
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         attributes = parameters.get(self.ATTRIBUTES_PARAM, '')
         if len(attributes) == 0:
@@ -927,7 +930,7 @@ class SortOperation(Operation):
             'output data', 'output_data_{}'.format(self.order))
 
     def generate_code(self):
-        code = "{out} = {input}.sort_values(by={columns}, ascending={asc})"\
+        code = "{out} = {input}.sort_values(by={columns}, ascending={asc})" \
             .format(out=self.output, input=self.named_inputs['input data'],
                     columns=self.columns, asc=self.ascending)
         return dedent(code)
@@ -943,12 +946,12 @@ class SplitOperation(Operation):
 
     """
 
-    def __init__(self, parameters,  named_inputs, named_outputs):
-        Operation.__init__(self, parameters,  named_inputs,  named_outputs)
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         self.has_code = len(named_outputs) >= 1 and len(named_inputs) == 1
 
-        self.weights = float(self.parameters.get('weights', 50))/100
+        self.weights = float(self.parameters.get('weights', 50)) / 100
         self.seed = self.parameters.get("seed")
         self.seed = 'None' if (not self.seed) or (
                 4294967296 <= int(self.seed) < 0) else self.seed
@@ -958,7 +961,7 @@ class SplitOperation(Operation):
                                            'split_2_task_{}'.format(self.order))
 
     def get_data_out_names(self, sep=','):
-            return ''
+        return ''
 
     def get_output_names(self, sep=', '):
         return sep.join([self.out2, self.out1])
@@ -991,11 +994,11 @@ class TransformationOperation(Operation):
             if self.EXPRESSION_PARAM in parameters:
                 self.expressions = parameters[self.EXPRESSION_PARAM]
             else:
-                msg = _("Parameter must be informed for task {}.")
+                msg = "Parameter must be informed for task {}."
                 raise ValueError(
                     msg.format(self.EXPRESSION_PARAM, self.__class__))
             self.output = self.named_outputs.get(
-                    'output data', 'sampled_data_{}'.format(self.order))
+                'output data', 'sampled_data_{}'.format(self.order))
 
     def generate_code(self):
         # Builds the expression and identify the target column
@@ -1025,13 +1028,16 @@ class UnionOperation(Operation):
     Takes no parameters.
     """
 
-    def __init__(self, parameters,  named_inputs, named_outputs):
-        Operation.__init__(self, parameters,  named_inputs,  named_outputs)
-        self.has_code = len(self.named_inputs) == 2
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+
+        self.has_code = len(self.named_outputs) >= 1 and len(self.named_inputs) == 2
+
+        # Should this validation be removed?
         if not self.has_code:
             raise ValueError(
-                _("Parameter '{}' and '{}' must be informed for task {}")
-                    .format('input data 1',  'input data 2', self.__class__))
+                "Parameter '{}', '{}' and '{}' must be informed for task {}".format
+                ('input data 1', 'input data 2', 'output data', self.__class__))
 
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
@@ -1039,14 +1045,13 @@ class UnionOperation(Operation):
     def generate_code(self):
         code = """
         {0} = pd.concat([{1}, {2}], sort=False, axis=0, ignore_index=True)
-        """.format( self.output,
-                    self.named_inputs['input data 1'],
-                    self.named_inputs['input data 2'])
+        """.format(self.output,
+                   self.named_inputs['input data 1'],
+                   self.named_inputs['input data 2'])
         return dedent(code)
 
 
 class SplitKFoldOperation(Operation):
-
     N_SPLITS_ATTRIBUTE_PARAM = 'n_splits'
     SHUFFLE_ATTRIBUTE_PARAM = 'shuffle'
     RANDOM_STATE_ATTRIBUTE_PARAM = 'random_state'
@@ -1055,8 +1060,8 @@ class SplitKFoldOperation(Operation):
     STRATIFIED_ATTRIBUTE_PARAM = 'stratified'
     COLUMN_ATTRIBUTE_PARAM = 'column'
 
-    def __init__(self, parameters,  named_inputs, named_outputs):
-        Operation.__init__(self, parameters,  named_inputs,  named_outputs)
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         self.has_code = any([len(self.named_inputs) == 1,
                              self.contains_results()])
@@ -1087,8 +1092,8 @@ class SplitKFoldOperation(Operation):
     def input_treatment(self):
         if self.n_splits < 2:
             raise ValueError(
-                _("Parameter '{}' must be x>=2 for task {}").format(
-                    self.N_SPLITS_ATTRIBUTE_PARAM, self.__class__))
+                "Parameter '{}' must be x>=2 for task {}".format
+                (self.N_SPLITS_ATTRIBUTE_PARAM, self.__class__))
 
         self.shuffle = True if int(self.shuffle) == 1 else False
         self.stratified = True if int(self.stratified) == 1 else False
