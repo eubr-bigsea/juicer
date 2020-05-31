@@ -2,6 +2,7 @@ from tests.scikit_learn import util
 from juicer.scikit_learn.etl_operation import DropOperation
 import pytest
 
+
 # Drop
 # 
 def test_drop_success():
@@ -20,10 +21,11 @@ def test_drop_success():
         }
     }
     instance = DropOperation(**arguments)
-    result = util.execute(instance.generate_code(), 
-            {'df': df[1]})
+    result = util.execute(instance.generate_code(),
+                          {'df': df[1]})
     assert result['out'].equals(
-            util.iris(size=slice_size).drop(['class'], axis=1))
+        util.iris(size=slice_size).drop(['class'], axis=1))
+
 
 def test_drop_fail_missing_parameter():
     slice_size = 10
@@ -43,6 +45,7 @@ def test_drop_fail_missing_parameter():
         instance = DropOperation(**arguments)
     assert "'attributes' must be informed for task" in str(exc_info.value)
 
+
 def test_drop_fail_invalid_attribute():
     slice_size = 10
     df = ['df', util.iris(size=slice_size)]
@@ -60,10 +63,11 @@ def test_drop_fail_invalid_attribute():
     }
     instance = DropOperation(**arguments)
     with pytest.raises(KeyError) as exc_info:
-        result = util.execute(instance.generate_code(), 
-            {'df': df[1]})
+        result = util.execute(instance.generate_code(),
+                              {'df': df[1]})
     assert "['invalid'] not found in axis" in str(exc_info.value)
-    
+
+
 def test_drop_success_missing_input_implies_no_code():
     slice_size = 10
     df = ['df', util.iris(size=slice_size)]
@@ -79,7 +83,8 @@ def test_drop_success_missing_input_implies_no_code():
     }
     instance = DropOperation(**arguments)
     assert not instance.has_code
-    
+
+
 def test_drop_success_no_output_implies_no_code():
     """
     Change DropOperation: it shouldn't generate
