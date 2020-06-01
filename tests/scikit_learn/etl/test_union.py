@@ -26,8 +26,7 @@ def test_union_success():
     result = util.execute(instance.generate_code(),
                           {'df1': df1[1], 'df2': df2[1]})
 
-    x = pd.concat([df1[1], df2[1]], sort=False, axis=0, ignore_index=True)
-    assert result['out'].equals(x)
+    assert result['out'].equals(pd.concat([df1[1], df2[1]], sort=False, axis=0, ignore_index=True))
     assert len(result['out']) == 20
 
 
@@ -51,9 +50,8 @@ def test_union_fail():
     result = util.execute(instance.generate_code(),
                           {'df1': df1[1], 'df2': df2[1]})
 
-    x = pd.concat([df1[1], df2[1]], sort=False, axis=0, ignore_index=True)
     with pytest.raises(AssertionError) as assertion_error:
-        assert not result['out'].equals(x)
+        assert not result['out'].equals(pd.concat([df1[1], df2[1]], sort=False, axis=0, ignore_index=True))
         assert not len(result['out']) == 20
     print(assertion_error)
 
@@ -77,8 +75,7 @@ def test_union_success_different_columns():
     result = util.execute(instance.generate_code(),
                           {'df1': df1[1], 'df2': df2[1]})
 
-    x = pd.concat([df1[1], df2[1]], sort=False, axis=0, ignore_index=True)
-    assert result['out'].equals(x)
+    assert result['out'].equals(pd.concat([df1[1], df2[1]], sort=False, axis=0, ignore_index=True))
     assert len(result['out']) == 20
 
 
