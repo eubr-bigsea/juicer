@@ -82,7 +82,7 @@ def test_union_success_different_columns():
     assert len(result['out']) == 20
 
 
-def no_output():
+def test_union_success_no_output_implies_no_code():
     slice_size = 10
     df1 = ['df', util.iris(['sepallength', 'sepalwidth',
                             'petallength', 'petalwidth'], slice_size)]
@@ -97,12 +97,9 @@ def no_output():
         },
         'named_outputs': {}
     }
-    instance = UnionOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df1': df1[1], 'df2': df2[1]})
 
-
-def test_union_success_no_output_implies_no_code():
     with pytest.raises(ValueError) as no_output_code:
-        no_output()
+        instance = UnionOperation(**arguments)
+        result = util.execute(instance.generate_code(),
+                              {'df1': df1[1], 'df2': df2[1]})
     print(no_output_code)
