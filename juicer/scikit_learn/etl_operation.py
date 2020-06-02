@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import itertools
 from gettext import gettext
 from textwrap import dedent
 
@@ -59,7 +60,7 @@ class AggregationOperation(Operation):
         self.input_operations = {}
 
         self.has_code = len(self.named_inputs) == 1 and any(
-            [len(self.named_outputs) == 1, self.contains_results()])
+            [len(self.named_outputs) >= 1, self.contains_results()])
 
         # Attributes are optional
         self.group_all = len(self.attributes) == 0
@@ -83,11 +84,7 @@ class AggregationOperation(Operation):
             else:
                 self.input_operations[att] = [agg]
                 self.input_aliases[att] = [alias]
-
         self.values = [agg for agg in self.input_operations]
-        self.input_operations = str(self.input_operations) \
-            .replace("u'collect_set'", '_merge_set') \
-            .replace("u'collect_list'", '_collect_list')
 
         # noinspection PyArgumentEqualDefault
         self.pivot = parameters.get(self.PIVOT_ATTRIBUTE, None)
@@ -95,6 +92,23 @@ class AggregationOperation(Operation):
         self.pivot_values = parameters.get(self.PIVOT_VALUE_ATTRIBUTE, None)
         self.output = self.named_outputs.get(
             'output data', 'data_{}'.format(self.order))
+        self.input_operations_formatted = []
+        agg_functions = {
+                'collect_list': '_collect_list',
+                'collect_set': '_collect_set',
+                'avg': "'mean'",
+                'count': "'count'",
+                'first': "'first'",
+                'last': "'last'",
+                'max': "'max'",
+                'min': "'min'",
+                'sum': "'sum'",
+                }
+        for k, functions in self.input_operations.items():
+            f = [agg_functions[f1] for f1 in functions]
+            self.input_operations_formatted.append('"{}": [{}]'.format(
+                k, ', '.join(f)))
+
 
     def get_data_out_names(self, sep=','):
         return self.output
@@ -107,8 +121,7 @@ class AggregationOperation(Operation):
         code = """
             def _collect_list(x):
                 return x.tolist()
-            
-            def _merge_set(x):
+            def _collect_set(x):
                 return set(x.tolist())
             """
         if self.pivot:
@@ -123,7 +136,7 @@ class AggregationOperation(Operation):
                     pivot=self.pivot)
 
             code += """
-            aggfunc = {aggfunc}
+            aggfunc = {{{aggfunc}}}
             {output} = pd.pivot_table({input}, index={index}, values={values},
                                       columns=['{pivot}'], aggfunc=aggfunc)
             # rename columns and convert to DataFrame
@@ -138,12 +151,16 @@ class AggregationOperation(Operation):
             """.format(pivot=self.pivot, values=self.values,
                        index=self.attributes, output=self.output,
                        input=self.named_inputs['input data'],
-                       aggfunc=self.input_operations)
+                       aggfunc=', '.join(
+                           self.input_operations_formatted))
         else:
             code += """
             columns = {columns}
             target = {aliases}
-            operations = {operations}
+
+            # print(collect_list)
+
+            operations = {{{operations}}}
     
             {output} = {input}.groupby(columns).agg(operations)
             new_idx = []
@@ -163,7 +180,8 @@ class AggregationOperation(Operation):
                        input=self.named_inputs['input data'],
                        columns=self.attributes,
                        aliases=self.input_aliases,
-                       operations=self.input_operations)
+                       operations=', '.join(
+                           self.input_operations_formatted))
         return dedent(code)
 
 
