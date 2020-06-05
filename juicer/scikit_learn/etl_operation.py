@@ -94,21 +94,20 @@ class AggregationOperation(Operation):
             'output data', 'data_{}'.format(self.order))
         self.input_operations_formatted = []
         agg_functions = {
-                'collect_list': '_collect_list',
-                'collect_set': '_collect_set',
-                'avg': "'mean'",
-                'count': "'count'",
-                'first': "'first'",
-                'last': "'last'",
-                'max': "'max'",
-                'min': "'min'",
-                'sum': "'sum'",
-                }
+            'collect_list': '_collect_list',
+            'collect_set': '_collect_set',
+            'avg': "'mean'",
+            'count': "'count'",
+            'first': "'first'",
+            'last': "'last'",
+            'max': "'max'",
+            'min': "'min'",
+            'sum': "'sum'",
+        }
         for k, functions in self.input_operations.items():
             f = [agg_functions[f1] for f1 in functions]
             self.input_operations_formatted.append('"{}": [{}]'.format(
                 k, ', '.join(f)))
-
 
     def get_data_out_names(self, sep=','):
         return self.output
@@ -314,9 +313,8 @@ class CleanMissingOperation(Operation):
                         columns=self.attributes_CM, op=op)
         return dedent(code)
 
-    # This method here may be static
-    # Should I add @staticmethod?
-    def check_parameter(self, parameter):
+    @staticmethod
+    def check_parameter(parameter):
         output = ""
         try:
             if parameter.isdigit():
@@ -794,9 +792,8 @@ class ReplaceValuesOperation(Operation):
         self.output = self.named_outputs.get('output data',
                                              'output_data_{}'.format(self.order))
 
-    # This method here may be static
-    # Should I add @staticmethod?
-    def check_parameter(self, parameter):
+    @staticmethod
+    def check_parameter(parameter):
         output = ""
         try:
             if parameter.isdigit():
