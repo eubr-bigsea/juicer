@@ -105,9 +105,11 @@ class DataReaderOperation(Operation):
                 url, token, self.data_source_id)
             self.parameters['workflow']['data_source_cache'][
                 self.data_source_id] = self.metadata
-        if not self.metadata.get('url'):
-            raise ValueError(
-                _('Incorrect data source configuration (empty url)'))
+
+        # URL can be empty for HIVE    
+        # if not self.metadata.get('url'):
+        #    raise ValueError(
+        #        _('Incorrect data source configuration (empty url)'))
 
         self.header = parameters.get(
             self.HEADER_PARAM, False) not in ('0', 0, 'false', False)
@@ -140,7 +142,8 @@ class DataReaderOperation(Operation):
 
         if self.has_code:
             date_format = "yyyy/MM/dd HH:mm:ss"
-            if infer_from_limonero:
+            if infer_from_limonero and self.metadata['format'] not in [
+                    'HIVE', 'HIVE_WAREHOUSE']:
                 if 'attributes' in self.metadata:
                     code.append(
                         'schema_{0} = types.StructType()'.format(self.output))
@@ -225,6 +228,18 @@ class DataReaderOperation(Operation):
             elif self.metadata['format'] == 'PARQUET':
                 self._generate_code_for_parquet(code, infer_from_data,
                                                 infer_from_limonero)
+            elif self.metadata['format'] == 'HIVE':
+                # import pdb; pdb.set_trace()
+                # Notifies the transpiler that Hive is required.
+                # In order to support Hive, SparkSession must be
+                # correctly configured.
+                self.parameters['transpiler'].on('requires-hive', self.metadata)
+                code_hive = dedent("""
+                    {out} = spark_session.sql(
+                        '''{sql}''')
+                """.format(sql=self.metadata.get('command'),
+                           out=self.output))
+                code.append(code_hive)
             elif self.metadata['format'] == 'JSON':
                 code_json = dedent("""
                     schema_{output} = types.StructType()
