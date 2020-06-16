@@ -29,6 +29,15 @@ class SparkTranspiler(Transpiler):
         super(SparkTranspiler, self).__init__(
             configuration, os.path.abspath(os.path.dirname(__file__)),
             slug_to_op_id, port_id_to_port)
+        self.requires_hive = False
+        self.requires_hive_warehouse = False
+        self.hive_metadata = None
+
+    def on(self, event, params):
+        """ Manage events from Operations during code conversion """
+        if event == 'requires-hive':
+            self.requires_hive = True
+            self.hive_metadata = params
 
     # noinspection SpellCheckingInspection
     def _assign_operations(self):

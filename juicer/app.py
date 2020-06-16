@@ -45,14 +45,14 @@ def main(workflow_id, execute_main, params, config, deploy, export_notebook):
     port_id_to_port = dict([(p['id'], p) for op in ops for p in op['ports']])
 
     try:
-        if loader.platform == "spark":
+        if loader.platform['slug'] == "spark":
             transpiler = SparkTranspiler(configuration.get_config(),
                                          slug_to_op_id, port_id_to_port)
-        elif loader.platform == "compss":
+        elif loader.platform['slug'] == "compss":
             transpiler = COMPSsTranspiler(configuration.get_config())
         elif loader.platform == "scikit-learn":
             transpiler = ScikitLearnTranspiler(configuration.get_config())
-        elif loader.platform == 'keras':
+        elif loader.platform['slug']  == 'keras':
             transpiler = KerasTranspiler(configuration.get_config())
         elif loader.platform.get('plugin'):
             plugin_factories = plugin_util.prepare_and_get_plugin_factory(

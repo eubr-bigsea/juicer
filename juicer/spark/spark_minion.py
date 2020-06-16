@@ -79,6 +79,11 @@ class SparkMinion(Minion):
         else:
             log.warn(_('SPARK_HOME environment variable is not defined'))
 
+        spark_dist_classpath = os.environ.get('SPARK_DIST_CLASSPATH')
+        if not spark_dist_classpath:
+            log.error(_('SPARK_DIST_CLASSPATH environment variable is not defined, '
+                'minion will not run correctly.'))
+        
         self.spark_session = None
 
         self.mgr = socketio.RedisManager(
@@ -322,6 +327,9 @@ class SparkMinion(Minion):
                        'executor_cores': 'spark.executor.cores',
                        'executor_memory': 'spark.executor.memory',
                        }
+            if cluster_type == 'YARN':
+                del options['address']
+                self.cluster_options['spark.master'] = 'yarn'
 
             if cluster_type == "KUBERNETES":
                 options['executors'] = 'spark.executor.instances'
@@ -399,8 +407,6 @@ class SparkMinion(Minion):
         start = timer()
         try:
             loader = Workflow(workflow, self.config)
-            # force the spark context creation
-            self.get_or_create_spark_session(loader, app_configs, job_id)
 
             # Mark job as running
             if self.new_session:
@@ -427,6 +433,8 @@ class SparkMinion(Minion):
                 self.transpiler.transpile(
                     loader.workflow, loader.graph, {}, out, job_id,
                     self._state)
+            # force the spark context creation
+            self.get_or_create_spark_session(loader, app_configs, job_id)
 
             # Get rid of .pyc file if it exists
             if os.path.isfile('{}c'.format(generated_code_path)):
@@ -553,6 +561,17 @@ class SparkMinion(Minion):
             app_name = ''.join([i if ord(i) < 128 else ' ' for i in app_name])
             spark_builder = SparkSession.builder.appName(
                 app_name)
+            if self.transpiler.requires_hive:
+                log.info(_('Enabling HIVE Support'))
+                spark_builder = spark_builder.enableHiveSupport()
+                spark_builder = spark_builder.config('hive.metastore.uris',
+                        self.transpiler.hive_metadata['storage']['url'])
+
+            elif self.transpiler.requires_hive_warehouse:
+                log.info(_('Enabling HIVE Warehouse Support'))
+                # FIXME
+                spark_builder = spark_builder.config('hive.metastore.uris',
+                        self.transpiler.hive_metadata['storage']['url'])
 
             # Use config file default configurations to set up Spark session
             for option, value in self.config['juicer'].get('spark', {}).items():
