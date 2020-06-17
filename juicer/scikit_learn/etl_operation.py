@@ -67,15 +67,18 @@ class AggregationOperation(Operation):
 
         if not all([self.FUNCTION_PARAM in parameters, self.functions]):
             raise ValueError(
-                "Parameter '{}' must be informed for task {}".format(
-                    self.FUNCTION_PARAM, self.__class__))
+                f"Parameter '{self.FUNCTION_PARAM}'"
+                f" must be informed for task '{self.__class__}' ")
 
         for f in parameters[self.FUNCTION_PARAM]:
             if not all([f.get('attribute'), f.get('f'), f.get('alias')]):
                 raise ValueError('Missing parameter in aggregation function')
 
         for dictionary in self.functions:
-            att = dictionary['attribute']
+            if dictionary['attribute'] == '*':
+                att = self.attributes[0]
+            else:
+                att = dictionary['attribute']
             agg = dictionary['f']
             alias = dictionary['alias']
             if att in self.input_operations:
@@ -127,60 +130,44 @@ class AggregationOperation(Operation):
             self.pivot = self.pivot[0]
 
             if self.pivot_values:
-                code += """
-            values = {values}
-            {input} = {input}[{input}['{pivot}'].isin(values)]""".format(
-                    output=self.output, values=self.pivot_values,
-                    input=self.named_inputs['input data'],
-                    pivot=self.pivot)
+                code += f"""
+            {self.named_inputs['input data']} = (
+            {self.named_inputs['input data']}[{self.named_inputs['input data']}['{self.pivot}'].isin({self.pivot_values}
+            )])"""
 
-            code += """
-            aggfunc = {{{aggfunc}}}
-            {output} = pd.pivot_table({input}, index={index}, values={values},
-                                      columns=['{pivot}'], aggfunc=aggfunc)
+            code += f"""
+            {self.output} = pd.pivot_table({self.named_inputs['input data']}, index={self.attributes},
+            values={self.values},columns=['{self.pivot}'], aggfunc={{{', '.join(self.input_operations_formatted)}}})
             # rename columns and convert to DataFrame
-            {output}.reset_index(inplace=True)
-            new_idx = [n[0] if n[1] is ''
+            {self.output}.reset_index(inplace=True)
+            new_idx = [n[0] if n[1] == ''
                        else "%s_%s_%s" % (n[0],n[1], n[2])
-                       for n in {output}.columns.ravel()]    
-            {output} = pd.DataFrame({output}.to_records())
-            {output}.reset_index(drop=True, inplace=True)
-            {output} = {output}.drop(columns='index')
-            {output}.columns = new_idx
-            """.format(pivot=self.pivot, values=self.values,
-                       index=self.attributes, output=self.output,
-                       input=self.named_inputs['input data'],
-                       aggfunc=', '.join(
-                           self.input_operations_formatted))
+                       for n in {self.output}.columns.ravel()]    
+            {self.output} = pd.DataFrame({self.output}.to_records())
+            {self.output}.reset_index(drop=True, inplace=True)
+            {self.output} = {self.output}.drop(columns='index')
+            {self.output}.columns = new_idx
+            """
         else:
-            code += """
-            columns = {columns}
-            target = {aliases}
-
+            code += f"""
             # print(collect_list)
-
-            operations = {{{operations}}}
-    
-            {output} = {input}.groupby(columns).agg(operations)
+            {self.output} = {self.named_inputs['input data']}.groupby({self.attributes}).agg(
+            {{{', '.join(self.input_operations_formatted)}}}
+            )
             new_idx = []
             i = 0
             old = None
-            for (n1, n2) in {output}.columns.ravel():
+            for (n1, n2) in {self.output}.columns.ravel():
                 if old != n1:
                     old = n1
                     i = 0
-                new_idx.append(target[n1][i])
+                new_idx.append({self.input_aliases}[n1][i])
                 i += 1
-        
-            {output}.columns = new_idx
-            {output} = {output}.reset_index()
-            {output}.reset_index(drop=True, inplace=True)
-            """.format(output=self.output,
-                       input=self.named_inputs['input data'],
-                       columns=self.attributes,
-                       aliases=self.input_aliases,
-                       operations=', '.join(
-                           self.input_operations_formatted))
+
+            {self.output}.columns = new_idx
+            {self.output} = {self.output}.reset_index()
+            {self.output}.reset_index(drop=True, inplace=True)
+            """
         return dedent(code)
 
 
