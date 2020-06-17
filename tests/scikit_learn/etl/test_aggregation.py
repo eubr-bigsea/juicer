@@ -11,10 +11,10 @@ import pytest
 class IrisAggregationOperationDebug:
     def __init__(self, slice_size=None, df=None, arguments=None, instance=None, result=None):
         self.slice_size = 10 if slice_size is None else slice_size
-        self.df = ['df', util.iris(['class'], slice_size)] if df is None else df
+        self.df = ['df', util.iris(['class', 'sepalwidth', 'petalwidth'], self.slice_size)] if df is None else df
         self.arguments = {
             'parameters': {
-                AggregationOperation.ATTRIBUTES_PARAM: ['class'],
+                AggregationOperation.ATTRIBUTES_PARAM: ['class', 'sepalwidth', 'petalwidth'],
                 AggregationOperation.FUNCTION_PARAM:
                     [{'attribute': '*', 'alias': 'total_per_class', 'f': 'count'}]},
             'named_inputs': {
@@ -28,21 +28,20 @@ class IrisAggregationOperationDebug:
         self.result = util.execute(self.instance.generate_code(), {'df': self.df[1]}) if result is None else result
 
 
-def xtest_aggregation_count_with_asterisc_success():
+def test_aggregation_count_with_asterisc_success():
     """ 
     Count is the only aggregation function that allows to use '*'.
     It is not working with scikit implementation.
+
+    May be fixed, needs an assertion
     """
-    operation = IrisAggregationOperationDebug()
-    print('=' * 10)
-    print(operation.instance.generate_code())
-    print('=' * 10)
-    result = util.execute(operation.instance.generate_code(), {'df': operation.df[1]})
+    operation = IrisAggregationOperationDebug(slice_size=150)
+    print(f'{operation.result["out"]}')
 
 
-def xtest_aggregation_fail_missing_parameters():
+def test_aggregation_fail_missing_parameters():
     with pytest.raises(ValueError) as value_error:
-        operation = IrisAggregationOperationDebug(arguments={
+        IrisAggregationOperationDebug(arguments={
             'parameters': {},
             'named_inputs': {
                 'input data': IrisAggregationOperationDebug().df[0],
@@ -54,9 +53,9 @@ def xtest_aggregation_fail_missing_parameters():
     print(value_error)
 
 
-def xtest_aggregation_fail_invalid_parameters():
+def test_aggregation_fail_invalid_parameters():
     with pytest.raises(KeyError) as key_error:
-        operation = IrisAggregationOperationDebug(arguments={
+        IrisAggregationOperationDebug(arguments={
             'parameters': {
                 AggregationOperation.ATTRIBUTES_PARAM: ['invalid'],
                 AggregationOperation.FUNCTION_PARAM:
@@ -71,26 +70,9 @@ def xtest_aggregation_fail_invalid_parameters():
     print(key_error)
 
 
-def xtest_aggregation_fail_blank_parameters():
-    with pytest.raises(ValueError) as value_error:
-        operation = IrisAggregationOperationDebug(arguments={
-            'parameters': {
-                AggregationOperation.ATTRIBUTES_PARAM: [''],
-                AggregationOperation.FUNCTION_PARAM:
-                    [{'attribute': '', 'alias': '', 'f': ''}]},
-            'named_inputs': {
-                'input data': IrisAggregationOperationDebug().df[0],
-            },
-            'named_outputs': {
-                'output data': 'out'
-            }
-        })
-    print(value_error)
-
-
-def xtest_aggregation_fail_missing_input_port():
+def test_aggregation_fail_missing_input_port():
     with pytest.raises(KeyError) as key_error:
-        operation = IrisAggregationOperationDebug(arguments={
+        IrisAggregationOperationDebug(arguments={
             'parameters': {
                 AggregationOperation.ATTRIBUTES_PARAM: ['class'],
                 AggregationOperation.FUNCTION_PARAM:
@@ -103,7 +85,7 @@ def xtest_aggregation_fail_missing_input_port():
     print(key_error)
 
 
-def xtest_aggregation_success_no_output_implies_no_code():
+def test_aggregation_success_no_output_implies_no_code():
     operation = IrisAggregationOperationDebug(arguments={
         'parameters': {
             AggregationOperation.ATTRIBUTES_PARAM: ['class'],
@@ -170,46 +152,43 @@ class IrisAggregationOperation:
 
 
 def test_aggregation_by_class_success():
-    operation = IrisAggregationOperation()
-    for inx, val in operation.result['out'].iterrows():
+    for inx, val in IrisAggregationOperation().result['out'].iterrows():
         specie = val['class']
-        for k in operation.functions.keys():
+        for k in IrisAggregationOperation().functions.keys():
             assert pytest.approx(
-                operation.result_by_specie[specie][k], 0.00001) == val[k]
+                IrisAggregationOperation().result_by_specie[specie][k], 0.00001) == val[k]
 
 
-def test_aggregation_by_class_fail_invalid_function_name():
+def test_aggregation_by_class_fail_invalid_functions():
     with pytest.raises(KeyError) as key_error:
-        operation = IrisAggregationOperation(functions={'invalid': lambda x: sum(x)})
+        IrisAggregationOperation(functions={'invalid': lambda x: sum(x)})
     print(key_error)
 
 
-def test_aggregation_by_class_fail_missing_parameters():
-    operation = IrisAggregationOperation()
+def test_aggregation_by_class_fail_missing_functions():
     with pytest.raises(ValueError) as value_error:
-        operation = IrisAggregationOperation(arguments={
+        IrisAggregationOperation(functions={})
+    print(value_error)
+
+
+def test_aggregation_by_class_fail_missing_parameters():
+    with pytest.raises(ValueError) as value_error:
+        IrisAggregationOperation(arguments={
             'parameters': {},
-            'named_inputs': {'input data': operation.df[0]},
+            'named_inputs': {'input data': IrisAggregationOperation().df[0]},
             'named_outputs': {'output data': 'out'}
         })
     print(value_error)
 
 
-def test_aggregation_by_class_fail_no_function_passed():
-    with pytest.raises(ValueError) as value_error:
-        operation = IrisAggregationOperation(functions={})
-    print(value_error)
-
-
 def test_aggregation_by_class_fail_missing_input_port():
-    operation = IrisAggregationOperation()
     with pytest.raises(KeyError) as key_error:
-        operation = IrisAggregationOperation(arguments={'parameters': {
+        IrisAggregationOperation(arguments={'parameters': {
             AggregationOperation.ATTRIBUTES_PARAM: ['class'],
             AggregationOperation.FUNCTION_PARAM:
                 [
                     {'attribute': 'sepalwidth', 'alias': k, 'f': k}
-                    for k in operation.functions.keys()
+                    for k in IrisAggregationOperation().functions.keys()
                 ]},
             'named_inputs': {},
             'named_outputs': {'output data': 'out'}
@@ -218,27 +197,50 @@ def test_aggregation_by_class_fail_missing_input_port():
 
 
 def test_aggregation_by_class_success_no_output_implies_no_code():
-    operation = IrisAggregationOperation()
     operation = IrisAggregationOperation(arguments={'parameters': {
         AggregationOperation.ATTRIBUTES_PARAM: ['class'],
         AggregationOperation.FUNCTION_PARAM:
             [
                 {'attribute': 'sepalwidth', 'alias': k, 'f': k}
-                for k in operation.functions.keys()
+                for k in IrisAggregationOperation().functions.keys()
             ]},
-        'named_inputs': {'input data': operation.df[0]},
+        'named_inputs': {'input data': IrisAggregationOperation().df[0]},
         'named_outputs': {}
     })
 
     assert not operation.instance.has_code
 
 
+def test_aggregation_by_class_success_with_pivot_attribute_and_pivot_value_attribute():
+    # Todo
+    # Need study and an assertion
+    # with PIVOT VALUE ATTRIBUTE return an empty dataframe
+    operation = IrisAggregationOperation(arguments={
+        'parameters': {
+            AggregationOperation.ATTRIBUTES_PARAM: ['class'],
+            AggregationOperation.FUNCTION_PARAM:
+                [
+                    {'attribute': 'sepalwidth', 'alias': k, 'f': k}
+                    for k in IrisAggregationOperation().functions.keys()
+                ],
+            AggregationOperation.PIVOT_ATTRIBUTE: ['class'],
+            AggregationOperation.PIVOT_VALUE_ATTRIBUTE: ['class']},
+
+        'named_inputs': {
+            'input data': IrisAggregationOperation().df[0],
+        },
+        'named_outputs': {
+            'output data': 'out'
+        }
+    })
+    print(f'{operation.result["out"]}')
+
+
 def test_aggregation_by_class_success_with_pivot_table():
-    # TODO:
-    # Needs an assertion
+    # Needs Study
     operation = IrisAggregationOperation(iris=util.iris(['sepalwidth', 'class'], 50),
                                          functions={
-                                             'count': lambda x: len(x)})
+                                             'sum': lambda x: len(x)})
     operation = IrisAggregationOperation(arguments={
         'parameters': {
             AggregationOperation.ATTRIBUTES_PARAM: ['class'],
@@ -256,7 +258,18 @@ def test_aggregation_by_class_success_with_pivot_table():
         }
     })
 
-    print(f'{operation.result["out"]}')
+    out = pd.pivot_table(operation.df[1], index=['class'],
+                         values=['sepalwidth'], columns=['class'], aggfunc={"sepalwidth": ['sum']})
+    out.reset_index(inplace=True)
+    new_idx = [n[0] if n[1] == ''
+               else "%s_%s_%s" % (n[0], n[1], n[2])
+               for n in out.columns.ravel()]
+    out = pd.DataFrame(out.to_records())
+    out.reset_index(drop=True, inplace=True)
+    out = out.drop(columns='index')
+    out.columns = new_idx
+
+    assert operation.result['out'].equals(out)
 
 
 def test_aggregation_by_class_success_non_numeric_camps():
@@ -334,15 +347,19 @@ def test_aggregation_by_class_fail_non_numeric_camps():
     }
 
     instance = AggregationOperation(**arguments)
+    with pytest.raises(pd.core.base.DataError) as data_error:
+        util.execute(instance.generate_code(), {'df': df[1]})
+    print(data_error)
 
 # Tests
 # TODO:
-# test of pivot table;
+# test with pivot attribute and pivot value attribute
 # use of size versus count (requires study and changes in the operation code);
-# use of asterisk (requires changes in operation);
 
 # OK:
+# test of pivot table;
 # missing parameters;
 # missing ports;
 # invalid function name; (valids are avg, collect_list, collect_set, count, first, last, max, min, sum)
 # tests with non numeric camps;
+# use of asterisk (requires changes in operation);
