@@ -730,7 +730,8 @@ class SlidingWindowOperation(Operation):
     ATTRIBUTE_PARAM = 'attribute'
     ALIAS_PARAM = 'alias'
     SIZE_PARAM = 'window_size'
-    OFFSET_PARAM = 'window_gap'
+    OFFSET_PARAM = 'window_pass'
+    HORIZONTAL_PARAM = 'window_gap'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
@@ -741,7 +742,8 @@ class SlidingWindowOperation(Operation):
 
         self.attribute = (parameters.get(self.ATTRIBUTE_PARAM,  ["col"]))[0]
         self.alias = parameters.get(self.ALIAS_PARAM) or 'attr_'
-        self.gap = int(parameters.get(self.OFFSET_PARAM, '0')) 
+        self.offset = int(parameters.get(self.OFFSET_PARAM, '0'))
+        self.gap = int(parameters.get(self.HORIZONTAL_PARAM, '0'))
         self.size = int(parameters.get(self.SIZE_PARAM, '0')) 
 
         self.has_code = any(
@@ -755,6 +757,7 @@ class SlidingWindowOperation(Operation):
 
         code = """
             size = {size}
+            gap = {gap}
             win_spec1 = Window.orderBy(functions.lit(1)).rowsBetween(
                 Window.unboundedPreceding, Window.currentRow)
             win_spec2 = Window.orderBy(functions.lit(1)).rowsBetween(
@@ -765,16 +768,18 @@ class SlidingWindowOperation(Operation):
             {out} = {in1}.select(functions.row_number().over(win_spec1).alias('row'), 
                       functions.collect_list('{attr}').over(win_spec2).alias('group'), 
                       functions.max('{attr}').over(win_spec3).alias('_tmp_1'))
-            if {gap} == 1:
+            if {offset} == 1:
                 {out} = {out}.filter(functions.size('group') == size)
             else:
-                {out} = {out}.filter(((functions.col('row')) % {gap} == 1) & 
+                {out} = {out}.filter(((functions.col('row')) % {offset} == 1) & 
                     (functions.size('group') == size))
+            attr_ids = [i for i in range(0, size-gap)] + [size-1]
             {out} = {out}.select(
-                [(functions.col('group')[i]).alias('{alias}{{}}'.format(i + 1)) 
-                    for i in range(size)])
-            """.format(attr=self.attribute, gap=self.gap, alias=self.alias,
-                       out=self.output, in1=input_data, size=self.size)
+                [(functions.col('group')[id]).alias('{alias}{{}}'.format(id + 1)) 
+                    for id in attr_ids])
+            """.format(attr=self.attribute, offset=self.offset,
+                       alias=self.alias, out=self.output, in1=input_data,
+                       size=self.size, gap=self.gap)
 
         return dedent(code)
 
