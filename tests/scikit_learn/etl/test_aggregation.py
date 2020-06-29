@@ -281,7 +281,6 @@ def test_aggregation_by_class_success_with_pivot_attribute_and_value_attribute()
                 'output data': 'out'
             }
         })
-    print('=*=*=*=*=BemAqui=*=*=*=*=')
     print(f'{operation.result["out"]}')
 
 
@@ -310,7 +309,6 @@ def test_aggregation_by_class_fail_with_pivot_attribute_and_value_attribute():
                 'output data': 'out'
             }
         })
-    print('=*=*=*=*=BemAqui=*=*=*=*=')
     print(f'{operation.result["out"]}')
 
 
