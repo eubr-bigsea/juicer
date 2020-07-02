@@ -81,6 +81,7 @@ class SparkTranspiler(Transpiler):
             'one-vs-rest-classifier': ml_operation.OneVsRestClassifier,
             'evaluate-model': ml_operation.EvaluateModelOperation,
             'feature-assembler': ml_operation.FeatureAssemblerOperation,
+            'feature-disassembler': ml_operation.FeatureDisassemblerOperation,
             'vector-indexer': ml_operation.VectorIndexOperation,
             'feature-indexer': ml_operation.StringIndexerOperation,
             'gaussian-mixture-clustering':

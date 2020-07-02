@@ -459,6 +459,70 @@ class FeatureAssemblerOperation(Operation):
         return dedent(code)
 
 
+class FeatureDisassemblerOperation(Operation):
+    """
+    The Feature Disassembler is a class for Apache Spark which takes a
+    DataFrame Vector data type column as input, and creates a new column
+    in the DataFrame for each item in the Vector.
+    """
+
+    TOP_N = 'top_n'
+    FEATURE_PARAM = 'feature'
+    PREFIX_PARAM = 'alias'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+
+        if self.FEATURE_PARAM in parameters:
+            self.feature = parameters.get(self.FEATURE_PARAM)
+        else:
+            raise ValueError(
+                    _("Parameter '{}' must be informed for task {}").format(
+                            self.FEATURE_PARAM, self.__class__))
+        self.topn = int(self.parameters.get(self.TOP_N, 0))
+        self.alias = self.parameters.get(self.PREFIX_PARAM, 'vector_')
+
+        self.has_code = any(
+                [len(self.named_inputs) > 0, self.contains_results()])
+        self.output = self.named_outputs.get('output data',
+                                             'out_{}'.format(self.order))
+
+    def generate_code(self):
+
+        input_data = self.named_inputs['input data']
+
+        # Important: asNondeterministic requires Spark 2.3 or later
+        # It can be safely removed i.e.
+        # return udf(to_array_, ArrayType(DoubleType()))(col)
+        # but at the cost of decreased performance
+
+        code = """
+    
+        from pyspark.sql.functions import udf, col
+        from pyspark.sql.types import ArrayType, DoubleType
+
+        def to_array(col):
+            def to_array_(v):
+                return v.toArray().tolist()
+            return udf(to_array_, ArrayType(DoubleType()))\
+                .asNondeterministic()(col)
+
+        columns = {input}.columns
+        {out} = {input}.withColumn("tmp_vector", to_array(col("{feature}")))
+        n_features = len({out}.select("tmp_vector").take(1)[0][0])
+        top_n = {topn}
+        if top_n > 0 and top_n < n_features:
+            n_features = top_n
+        {out} = {out}.select(columns + 
+            [col("tmp_vector")[i].alias("{alias}"+str(i)) 
+             for i in range(n_features)])
+        """.format(input=input_data, out=self.output,
+                   feature=self.feature[0],
+                   topn=self.topn, alias=self.alias)
+
+        return dedent(code)
+
+
 class ApplyModelOperation(Operation):
     NEW_ATTRIBUTE_PARAM = 'prediction'
 
@@ -2645,10 +2709,16 @@ class RegressionModelOperation(DeployModelMixin, Operation):
                 stages.append(feature.VectorAssembler(
                     inputCols=features, outputCol=final_features))
                 requires_pipeline = True
-
+                individual_feat = features
             else:
                 # If more than 1 vector is passed, use only the first
                 final_features = features[0]
+                vector_field = next(filter(lambda ff: ff.name == final_features, 
+                                    {input}.schema.fields))
+                individual_feat = [v['name'] for v in 
+                    vector_field.metadata['ml_attr']['attrs'].get('nominal',[])] + \
+                    [v['name'] for v in 
+                        vector_field.metadata['ml_attr']['attrs'].get('numeric', [])]
 
             algorithm.setFeaturesCol(final_features)
             stages.append(algorithm)
@@ -2666,27 +2736,32 @@ class RegressionModelOperation(DeployModelMixin, Operation):
                     pipeline_model, {input}, call_transform)
 
                 {model} = pipeline_model
-
+                from juicer.spark import spark_summary_translations as sst
                 display_text = {display_text}
                 if display_text:
                     regression_model = pipeline_model.stages[-1]
                     headers = []
                     rows = []
-                    metrics = ['coefficients', 'intercept', 'scale', ]
+                    metrics = ['coefficients', 'intercept', 'scale', 
+                        'featureImportances']
                     metric_names = ['{coefficients}', '{intercept}', '{scale}']
 
                     coef_name = 'coefficients'
+                    fi_name = 'featureImportances'
                     has_coefficients = False
+                    has_feat_importance = False
                     for i, metric in enumerate(metrics):
                         value = getattr(regression_model, metric, None)
                         if value:
                             if metric == coef_name:
                                 has_coefficients = True
+                            elif metric == fi_name:
+                                has_feat_importance = True
                             else:
                                 rows.append([metric_names[i], value])
                     
                            
-                    if rows:
+                    if rows or has_coefficients or has_feat_importance:
                         content = SimpleTableReport(
                             'table table-striped table-bordered w-auto',
                             headers, rows).generate()
@@ -2697,6 +2772,13 @@ class RegressionModelOperation(DeployModelMixin, Operation):
                                           getattr(regression_model, coef_name)),
                                           title=metric_names[0])
                             content += fi.generate()
+                            
+                        if has_feat_importance and hasattr(regression_model, fi_name):
+                            fi = SimpleTableReport('table w-auto table-bordered', 
+                                None, zip(individual_feat, 
+                                          getattr(regression_model, fi_name)), numbered=0)
+                            content += '<h6>{{}}</h6>{{}}'.format(
+                                sst(fi_name), fi.generate())
  
                         emit_event('update task', status='COMPLETED',
                             identifier='{task_id}',
@@ -2706,6 +2788,13 @@ class RegressionModelOperation(DeployModelMixin, Operation):
                             operation={{'id': {operation_id} }},
                             operation_id={operation_id})
 
+                    if hasattr(regression_model, 'toDebugString'):
+                       dt_report = DecisionTreeReport(regression_model,
+                           individual_feat)
+                       emit(status='COMPLETED',
+                            message=dt_report.generate(),
+                            type='HTML', title='{title}')
+                        
                     summary = getattr({model}, 'summary', None)
                     if summary:
                         summary_rows = []
