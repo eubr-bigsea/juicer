@@ -761,19 +761,19 @@ class SlidingWindowOperation(Operation):
             win_spec1 = Window.orderBy(functions.lit(1)).rowsBetween(
                 Window.unboundedPreceding, Window.currentRow)
             win_spec2 = Window.orderBy(functions.lit(1)).rowsBetween(
-                0, size -1)
+                0, size + gap+ -1)
             win_spec3 = Window.orderBy(functions.lit(1)).rowsBetween(
-                size, size)
+                size+gap, size+gap)
             
             {out} = {in1}.select(functions.row_number().over(win_spec1).alias('row'), 
                       functions.collect_list('{attr}').over(win_spec2).alias('group'), 
                       functions.max('{attr}').over(win_spec3).alias('_tmp_1'))
             if {offset} == 1:
-                {out} = {out}.filter(functions.size('group') == size)
+                {out} = {out}.filter(functions.size('group') == size+gap)
             else:
                 {out} = {out}.filter(((functions.col('row')) % {offset} == 1) & 
-                    (functions.size('group') == size))
-            attr_ids = [i for i in range(0, size-gap)] + [size-1]
+                    (functions.size('group') == size+gap))
+            attr_ids = [i for i in range(0, size-1)] + [gap+size-2]
             {out} = {out}.select(
                 [(functions.col('group')[id]).alias('{alias}{{}}'.format(id + 1)) 
                     for id in attr_ids])
