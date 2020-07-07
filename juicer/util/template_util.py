@@ -42,19 +42,19 @@ class HandleExceptionExtension(Extension):
     def _handle(instance, caller):
         try:
             return caller()
-        except KeyError:
+        except KeyError as ke:
             msg = _('Key error parsing template for instance {instance} {id}. '
                     'Probably there is a problem with port specification') \
                 .format(instance=instance.__class__.__name__,
                         id=instance.parameters['task']['id'])
-            raise_(JuicerException(msg + ': ' + str(sys.exc_info()[1])),
+            raise_(lambda: JuicerException(msg + ': ' + str(sys.exc_info()[1])),
                    None, sys.exc_info()[2])
         except TypeError:
             logging.exception(_('Type error in template'))
             msg = _('Type error parsing template for instance {id} '
                     '{instance}.').format(instance=instance.__class__.__name__,
                                           id=instance.parameters['task']['id'])
-            raise_(JuicerException(msg), None, sys.exc_info()[2])
+            raise_(lambda: JuicerException(msg), None, sys.exc_info()[2])
 
 
 def strip_accents(s):
