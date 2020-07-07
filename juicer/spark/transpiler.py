@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 
+import juicer.spark.advanced_operation as advanced_operation
 import juicer.spark.data_operation as data_operation
 import juicer.spark.data_quality_operation as data_quality_operation
 import juicer.spark.dm_operation as dm_operation
@@ -41,6 +42,10 @@ class SparkTranspiler(Transpiler):
 
     # noinspection SpellCheckingInspection
     def _assign_operations(self):
+        
+        advanced_ops = {
+            'user-filter': advanced_operation.UserFilterOperation,
+        }
         etl_ops = {
             'add-columns': etl_operation.AddColumnsOperation,
             'add-rows': etl_operation.AddRowsOperation,
@@ -237,7 +242,8 @@ class SparkTranspiler(Transpiler):
         }
 
         self.operations = {}
-        for ops in [data_ops, etl_ops, geo_ops, ml_ops, other_ops, text_ops,
-                    statistics_ops, ws_ops, vis_ops, dm_ops, data_quality_ops,
-                    feature_ops, trustworthy_operations, ml_model_operations2]:
+        for ops in [advanced_ops, data_ops, etl_ops, geo_ops, ml_ops, other_ops, 
+                    text_ops, statistics_ops, ws_ops, vis_ops, dm_ops, 
+                    data_quality_ops, feature_ops, trustworthy_operations, 
+                    ml_model_operations2]:
             self.operations.update(ops)
