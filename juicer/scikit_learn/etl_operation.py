@@ -39,11 +39,39 @@ class AddColumnsOperation(Operation):
 class AggregationOperation(Operation):
     """
     Computes aggregates and returns the result as a DataFrame.
+
     Parameters:
-        - Expression: a single dict mapping from string to string, then the key
-        is the column to perform aggregation on, and the value is the aggregate
-        function. The available aggregate functions are avg, max, min, sum,
-        count.
+
+        Required:
+
+            ATTRIBUTES_PARAM: receives a list with dataframe columns values;
+
+            FUNCTION_PARAM: receives a list with dicts inside, each one
+            containing the keys 'attribute', 'aggregate' and 'alias'.
+
+                'attribute' receives a string column value;
+                'aggregate' receives a list with methods to aggregate;
+                'alias' receives a list with names to rename resulting
+                 columns from 'aggregate';
+
+                'alias' is not required if PIVOT_ATTRIBUTE is passed.
+
+            The operation will use df.groupby(columns).agg(operations)
+            columns = ATTRIBUTES_PARAM
+            operations = {FUNCTION_PARAM.get('attribute): FUNCTION_PARAM.get(
+            'aggregate')}
+
+        Optional:
+
+            PIVOT_ATTRIBUTE: receives a list with dataframe colums values
+
+                The operation will use pd.pivot_table(df, index, values, columns)
+                index = ATTRIBUTES_PARAM
+                values = FUNCTION_PARAM.get('attribute')
+                columns = PIVOT_ATTRIBUTE
+
+            PIVOT_VALUE_ATTRIBUTE:
+                Deprecated(?)
     """
 
     ATTRIBUTES_PARAM = 'attributes'
@@ -54,48 +82,45 @@ class AggregationOperation(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-        self.attributes = parameters.get(self.ATTRIBUTES_PARAM, [])
+        self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
         self.functions = parameters.get(self.FUNCTION_PARAM)
+        self.pivot = parameters.get(self.PIVOT_ATTRIBUTE, None)
+        self.pivot_values = parameters.get(self.PIVOT_VALUE_ATTRIBUTE, None)
+
         self.input_aliases = {}
         self.input_operations = {}
+        self.input_operations_formatted = []
 
         self.has_code = len(self.named_inputs) == 1 and any(
             [len(self.named_outputs) >= 1, self.contains_results()])
 
-        # Attributes are optional
-        self.group_all = len(self.attributes) == 0
+        # ATTRIBUTES_PARAM isnt't optional
+        # PIVOT_ATTRIBUTE and PIVOT_VALUE_ATTRIBUTE are optional
 
         if not all([self.FUNCTION_PARAM in parameters, self.functions]):
             raise ValueError(
                 _("Parameter '{}' must be informed for task {}").format(
                     self.FUNCTION_PARAM, self.__class__))
 
-        for f in parameters[self.FUNCTION_PARAM]:
-            if not all([f.get('attribute'), f.get('f'), f.get('alias')]):
-                raise ValueError(_('Missing parameter in aggregation function'))
+        # This verification causes problems with pivot,
+        # where 'alias' isn't necessary
+
+        # for f in parameters[self.FUNCTION_PARAM]:
+        #     if not all([f.get('attribute'), f.get('aggregate'), f.get('alias')]):
+        #         raise ValueError(_('Missing parameter in aggregation function'))
 
         for dictionary in self.functions:
-            if dictionary['attribute'] == '*':
-                att = self.attributes[0]
-            else:
-                att = dictionary['attribute']
-            agg = dictionary['f']
-            alias = dictionary['alias']
-            if att in self.input_operations:
-                self.input_operations[att].append(agg)
-                self.input_aliases[att].append(alias)
-            else:
-                self.input_operations[att] = [agg]
-                self.input_aliases[att] = [alias]
+            att = dictionary['attribute']
+            agg = dictionary['aggregate']
+            if self.pivot is None and self.pivot_values is None:
+                alias = dictionary['alias']
+                self.input_aliases[att] = alias
+            self.input_operations[att] = agg
         self.values = [agg for agg in self.input_operations]
 
-        # noinspection PyArgumentEqualDefault
-        self.pivot = parameters.get(self.PIVOT_ATTRIBUTE, None)
-
-        self.pivot_values = parameters.get(self.PIVOT_VALUE_ATTRIBUTE, None)
         self.output = self.named_outputs.get(
             'output data', 'data_{}'.format(self.order))
-        self.input_operations_formatted = []
+
         agg_functions = {
             'collect_list': '_collect_list',
             'collect_set': '_collect_set',
@@ -106,6 +131,7 @@ class AggregationOperation(Operation):
             'max': "'max'",
             'min': "'min'",
             'sum': "'sum'",
+            'size': "'size'",
         }
         for k, functions in self.input_operations.items():
             f = [agg_functions[f1] for f1 in functions]
@@ -126,23 +152,25 @@ class AggregationOperation(Operation):
                 return set(x.tolist())
             """
         if self.pivot:
-            self.pivot = self.pivot[0]
 
-            if self.pivot_values:
-                code += """
-            values = {values}
-            {input} = {input}[{input}['{pivot}'].isin(values)]""".format(
-                    output=self.output, values=self.pivot_values,
-                    input=self.named_inputs['input data'],
-                    pivot=self.pivot)
+            # This doesn't seem to be working properly... , it returns an empty
+            # dataframe
+
+            # if self.pivot_values:
+            #     code += """
+            # values = {values}
+            # {input} = {input}[{input}{pivot}.isin(values)]""".format(
+            #         output=self.output, values=self.pivot_values,
+            #         input=self.named_inputs['input data'],
+            #         pivot=self.pivot)
 
             code += """
             aggfunc = {{{aggfunc}}}
             {output} = pd.pivot_table({input}, index={index}, values={values},
-                                      columns=['{pivot}'], aggfunc=aggfunc)
+                                      columns={pivot}, aggfunc=aggfunc)
             # rename columns and convert to DataFrame
             {output}.reset_index(inplace=True)
-            new_idx = [n[0] if n[1] is ''
+            new_idx = [n[0] if n[1] == ''
                        else "%s_%s_%s" % (n[0],n[1], n[2])
                        for n in {output}.columns.ravel()]    
             {output} = pd.DataFrame({output}.to_records())
@@ -158,16 +186,13 @@ class AggregationOperation(Operation):
             code += """
             columns = {columns}
             target = {aliases}
-
-            # print(collect_list)
-
             operations = {{{operations}}}
-
             {output} = {input}.groupby(columns).agg(operations)
+            
             new_idx = []
-            i = 0
             old = None
-            for (n1, n2) in {output}.columns.ravel():
+            i = 0
+            for (n1, n2) in {output}.columns:
                 if old != n1:
                     old = n1
                     i = 0
@@ -181,8 +206,7 @@ class AggregationOperation(Operation):
                        input=self.named_inputs['input data'],
                        columns=self.attributes,
                        aliases=self.input_aliases,
-                       operations=', '.join(
-                           self.input_operations_formatted))
+                       operations=', '.join(self.input_operations_formatted))
         return dedent(code)
 
 
