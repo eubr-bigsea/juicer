@@ -23,13 +23,14 @@ class IrisAggregationOperation:
         self.slice_size = 10 if slice_size is None else slice_size
         self.df = ['df', util.iris(['class', 'sepalwidth', 'petalwidth'],
                                    self.slice_size)] if df is None else df
+
         self.arguments = {
             'parameters': {
                 AggregationOperation.ATTRIBUTES_PARAM: ['class'],
                 AggregationOperation.FUNCTION_PARAM:
                     [{'attribute': 'sepalwidth',
-                      'aggregate': ['count'],
-                      'alias': ['count_sepalwidth']}]
+                      'f': 'count',
+                      'alias': 'count_sepalwidth'}]
             },
             'named_inputs': {
                 'input data': self.df[0],
@@ -46,25 +47,9 @@ class IrisAggregationOperation:
 
 def test_aggregation_success():
     operation = IrisAggregationOperation()
-
-    columns = ['class']
-    target = {'sepalwidth': ['count_sepalwidth']}
-    operations = {"sepalwidth": ['count']}
-    out = operation.df[1].groupby(columns).agg(operations)
-
-    new_idx = []
-    old = None
-    i = 0
-    for (n1, n2) in out.columns:
-        if old != n1:
-            old = n1
-            i = 0
-        new_idx.append(target[n1][i])
-        i += 1
-
-    out.columns = new_idx
-    out = out.reset_index()
-    out.reset_index(drop=True, inplace=True)
+    out = operation.df[1]\
+        .groupby(['class'])\
+        .agg(count_sepalwidth=('sepalwidth', 'count')).reset_index()
     assert operation.result['out'].equals(out)
 
 
@@ -74,13 +59,25 @@ def test_multiple_aggregation_success():
             AggregationOperation.ATTRIBUTES_PARAM: ['class'],
             AggregationOperation.FUNCTION_PARAM:
                 [{'attribute': 'sepalwidth',
-                  'aggregate': ['avg', 'collect_list', 'collect_set', 'count',
-                                'first', 'last', 'max', 'min', 'sum', 'size'],
-                  'alias': ['sepal_avg', 'sepal_collect_list',
-                            'sepal_collect_set',
-                            'sepal_count', 'sepal_first', 'sepal_last',
-                            'sepal_max', 'sepal_min', 'sepal_sum',
-                            'sepal_size']}]
+                  'f': 'avg', 'alias': 'sepal_avg'},
+                 {'attribute': 'sepalwidth',
+                  'f': 'collect_list', 'alias': 'sepal_collect_list'},
+                 {'attribute': 'sepalwidth',
+                  'f': 'collect_set', 'alias': 'sepal_collect_set'},
+                 {'attribute': 'sepalwidth',
+                  'f': 'count', 'alias': 'sepal_count'},
+                 {'attribute': 'sepalwidth',
+                  'f': 'first', 'alias': 'sepal_first'},
+                 {'attribute': 'sepalwidth',
+                  'f': 'last', 'alias': 'sepal_last'},
+                 {'attribute': 'sepalwidth',
+                  'f': 'max', 'alias': 'sepal_max'},
+                 {'attribute': 'sepalwidth',
+                  'f': 'min', 'alias': 'sepal_min'},
+                 {'attribute': 'sepalwidth',
+                  'f': 'sum', 'alias': 'sepal_sum'},
+                 {'attribute': 'sepalwidth',
+                  'f': 'size', 'alias': 'sepal_size'}]
         },
         'named_inputs': {
             'input data': IrisAggregationOperation(arguments=False,
@@ -93,28 +90,20 @@ def test_multiple_aggregation_success():
     })
 
     columns = ['class']
-    target = {
-        'sepalwidth': ['sepal_avg', 'sepal_collect_list', 'sepal_collect_set',
-                       'sepal_count', 'sepal_first', 'sepal_last', 'sepal_max',
-                       'sepal_min', 'sepal_sum', 'sepal_size']}
-    operations = {
-        "sepalwidth": ['mean', _collect_list, _collect_set, 'count', 'first',
-                       'last', 'max', 'min', 'sum', 'size']}
-    out = operation.df[1].groupby(columns).agg(operations)
 
-    new_idx = []
-    old = None
-    i = 0
-    for (n1, n2) in out.columns:
-        if old != n1:
-            old = n1
-            i = 0
-        new_idx.append(target[n1][i])
-        i += 1
+    out = operation.df[1].groupby(columns)\
+        .agg(sepal_avg=('sepalwidth', 'mean'),
+             sepal_collect_list=('sepalwidth', _collect_list),
+             sepal_collect_set=('sepalwidth', _collect_set),
+             sepal_count=('sepalwidth', 'count'),
+             sepal_first=('sepalwidth', 'first'),
+             sepal_last=('sepalwidth', 'last'),
+             sepal_max=('sepalwidth', 'max'),
+             sepal_min=('sepalwidth', 'min'),
+             sepal_sum=('sepalwidth', 'sum'),
+             sepal_size=('sepalwidth', 'size'))\
+        .reset_index()
 
-    out.columns = new_idx
-    out = out.reset_index()
-    out.reset_index(drop=True, inplace=True)
     assert operation.result['out'].equals(out)
 
 
@@ -122,7 +111,7 @@ def test_multiple_dicts_success():
     # Feature or Bug?
 
     # You can pass multiple dicts to FUNCTION_PARAM and this allows to
-    # specify each 'attribute', 'aggregate' and 'alias'.
+    # specify each 'attribute', 'f' and 'alias'.
     # In the test below, 'sepalwidth' receives 'sum' and 'size' with their
     # respective aliases, and 'petalwidth' receives 'min' and 'max' also
     # with their own aliases.
@@ -131,12 +120,12 @@ def test_multiple_dicts_success():
         'parameters': {
             AggregationOperation.ATTRIBUTES_PARAM: ['class'],
             AggregationOperation.FUNCTION_PARAM:
-                [{'attribute': 'sepalwidth',
-                  'aggregate': ['sum', 'size'],
-                  'alias': ['sepal_sum', 'sepal_size']},
-                 {'attribute': 'petalwidth',
-                  'aggregate': ['min', 'max'],
-                  'alias': ['petal_min', 'petal_max']}]
+                [{'attribute': 'sepalwidth', 'f': 'sum', 'alias': 'sepal_sum'},
+                 {'attribute': 'sepalwidth', 'f': 'size',
+                  'alias': 'sepal_size'},
+                 {'attribute': 'petalwidth', 'f': 'min', 'alias': 'petal_min'},
+                 {'attribute': 'petalwidth', 'f': 'max', 'alias': 'petal_max'}
+                 ]
         },
         'named_inputs': {
             'input data': IrisAggregationOperation(arguments=False,
@@ -148,25 +137,13 @@ def test_multiple_dicts_success():
         }
     })
 
-    columns = ['class']
-    target = {'sepalwidth': ['sepal_sum', 'sepal_size'],
-              'petalwidth': ['petal_min', 'petal_max']}
-    operations = {"sepalwidth": ['sum', 'size'], "petalwidth": ['min', 'max']}
-    out = operation.df[1].groupby(columns).agg(operations)
+    out = operation.df[1].groupby(['class'])\
+        .agg(sepal_sum=("sepalwidth", "sum"),
+             sepal_size=("sepalwidth", "size"),
+             petal_min=("petalwidth", "min"),
+             petal_max=("petalwidth", "max")
+             ).reset_index()
 
-    new_idx = []
-    old = None
-    i = 0
-    for (n1, n2) in out.columns:
-        if old != n1:
-            old = n1
-            i = 0
-        new_idx.append(target[n1][i])
-        i += 1
-
-    out.columns = new_idx
-    out = out.reset_index()
-    out.reset_index(drop=True, inplace=True)
     assert operation.result['out'].equals(out)
 
 
@@ -192,8 +169,8 @@ def test_aggregation_fail_missing_attributes_param():
         IrisAggregationOperation(arguments={
             'parameters': {
                 AggregationOperation.FUNCTION_PARAM:
-                    [{'attribute': 'sepalwidth', 'alias': ['sum_sepalwidth'],
-                      'aggregate': ['sum']}]},
+                    [{'attribute': 'sepalwidth', 'alias': 'sum_sepalwidth',
+                      'f': 'sum'}]},
             'named_inputs': {
                 'input data': IrisAggregationOperation(arguments=False,
                                                        instance=False,
@@ -212,8 +189,8 @@ def test_aggregation_fail_invalid_attributes_param():
             'parameters': {
                 AggregationOperation.ATTRIBUTES_PARAM: ['invalid'],
                 AggregationOperation.FUNCTION_PARAM:
-                    [{'attribute': 'sepalwidth', 'alias': ['sum_sepalwidth'],
-                      'aggregate': ['sum']}]},
+                    [{'attribute': 'sepalwidth', 'alias': 'sum_sepalwidth',
+                      'f': 'sum'}]},
             'named_inputs': {
                 'input data': IrisAggregationOperation(arguments=False,
                                                        instance=False,
@@ -223,7 +200,7 @@ def test_aggregation_fail_invalid_attributes_param():
                 'output data': 'out'
             }
         })
-    assert "ExceptionInfo KeyError('invalid')" in str(key_error)
+    assert "ExceptionInfo KeyError('invalid'" in str(key_error)
 
 
 def test_aggregation_fail_invalid_function_param_attribute():
@@ -232,8 +209,8 @@ def test_aggregation_fail_invalid_function_param_attribute():
             'parameters': {
                 AggregationOperation.ATTRIBUTES_PARAM: ['class'],
                 AggregationOperation.FUNCTION_PARAM:
-                    [{'attribute': 'invalid', 'alias': ['sum_invalid'],
-                      'aggregate': ['sum']}]},
+                    [{'attribute': 'invalid', 'alias': 'sum_invalid',
+                      'f': 'sum'}]},
             'named_inputs': {
                 'input data': IrisAggregationOperation(arguments=False,
                                                        instance=False,
@@ -243,8 +220,8 @@ def test_aggregation_fail_invalid_function_param_attribute():
                 'output data': 'out'
             }
         })
-    assert 'ExceptionInfo KeyError("Column \'invalid\' does not exist!")' in str(
-        key_error)
+    assert 'ExceptionInfo KeyError("Column \'invalid\' does not exist!"' in \
+           str(key_error)
 
 
 def test_aggregation_fail_invalid_function_param_aggregate():
@@ -253,8 +230,8 @@ def test_aggregation_fail_invalid_function_param_aggregate():
             'parameters': {
                 AggregationOperation.ATTRIBUTES_PARAM: ['class'],
                 AggregationOperation.FUNCTION_PARAM:
-                    [{'attribute': 'class', 'alias': ['invalid_class'],
-                      'aggregate': ['invalid']}]},
+                    [{'attribute': 'class', 'alias': 'invalid_class',
+                      'f': 'invalid'}]},
             'named_inputs': {
                 'input data': IrisAggregationOperation(arguments=False,
                                                        instance=False,
@@ -264,7 +241,7 @@ def test_aggregation_fail_invalid_function_param_aggregate():
                 'output data': 'out'
             }
         }, result=False)
-    assert "ExceptionInfo KeyError('invalid')" in str(key_error)
+    assert "ExceptionInfo KeyError('invalid'" in str(key_error)
 
 
 def test_aggregation_fail_missing_input_port():
@@ -273,25 +250,24 @@ def test_aggregation_fail_missing_input_port():
             'parameters': {
                 AggregationOperation.ATTRIBUTES_PARAM: ['class'],
                 AggregationOperation.FUNCTION_PARAM:
-                    [{'attribute': 'class', 'alias': ['total_per_class'],
-                      'aggregate': ['count']}]},
+                    [{'attribute': 'class', 'alias': 'total_per_class',
+                      'f': 'count'}]},
             'named_inputs': {},
             'named_outputs': {
                 'output data': 'out'
             }
         })
-    assert "ExceptionInfo KeyError('input data')" in str(key_error)
+    assert "ExceptionInfo KeyError('input data'" in str(key_error)
 
 
 def test_aggregation_success_no_output_implies_no_code():
-    # Weird one, I don't know if it's really not generating code.
 
     operation = IrisAggregationOperation(arguments={
         'parameters': {
             AggregationOperation.ATTRIBUTES_PARAM: ['class'],
             AggregationOperation.FUNCTION_PARAM:
-                [{'attribute': 'class', 'alias': ['total_per_class'],
-                  'aggregate': ['count']}]},
+                [{'attribute': 'class', 'alias': 'total_per_class',
+                  'f': 'count'}]},
         'named_inputs': {
             'input data': IrisAggregationOperation(arguments=False,
                                                    instance=False,
@@ -312,14 +288,26 @@ def test_aggregation_success_non_numeric_attributes():
             'parameters': {
                 AggregationOperation.ATTRIBUTES_PARAM: ['name', 'homedest'],
                 AggregationOperation.FUNCTION_PARAM:
-                    [{'attribute': 'homedest',
-                      'aggregate': ['size', 'sum', 'min', 'max', 'last', 'first',
-                                    'count', 'collect_set', 'collect_list'],
-                      'alias': ['homedest_size', 'homedest_sum', 'homedest_min',
-                                'homedest_max', 'homedest_last',
-                                'homedest_first',
-                                'homedest_count', 'collect_set',
-                                'collect_list']}]
+                    [
+                        {'attribute': 'homedest', 'f': 'size',
+                         'alias': 'homedest_size'},
+                        {'attribute': 'homedest', 'f': 'sum',
+                         'alias': 'homedest_sum'},
+                        {'attribute': 'homedest', 'f': 'min',
+                         'alias': 'homedest_min'},
+                        {'attribute': 'homedest', 'f': 'max',
+                         'alias': 'homedest_max'},
+                        {'attribute': 'homedest', 'f': 'last',
+                         'alias': 'homedest_last'},
+                        {'attribute': 'homedest', 'f': 'first',
+                         'alias': 'homedest_first'},
+                        {'attribute': 'homedest', 'f': 'count',
+                         'alias': 'homedest_count'},
+                        {'attribute': 'homedest', 'f': 'collect_set',
+                         'alias': 'collect_set'},
+                        {'attribute': 'homedest', 'f': 'collect_list',
+                         'alias': 'collect_list'}
+                    ]
             },
             'named_inputs': {
                 'input data': IrisAggregationOperation(arguments=False,
@@ -331,28 +319,18 @@ def test_aggregation_success_non_numeric_attributes():
             }
         })
 
-    columns = ['name', 'homedest']
-    target = {
-        'homedest': ['homedest_size', 'homedest_sum', 'homedest_min',
-                     'homedest_max', 'homedest_last', 'homedest_first',
-                     'homedest_count', 'collect_set', 'collect_list']}
-    operations = {
-        "homedest": ['size', 'sum', 'min', 'max', 'last', 'first', 'count',
-                     _collect_set, _collect_list]}
-    out = operation.df[1].groupby(columns).agg(operations)
-    new_idx = []
-    old = None
-    i = 0
-    for (n1, n2) in out.columns:
-        if old != n1:
-            old = n1
-            i = 0
-        new_idx.append(target[n1][i])
-        i += 1
+    out = operation.df[1].groupby(['name', 'homedest'])\
+        .agg(homedest_size=('homedest', 'size'),
+             homedest_sum=('homedest', 'sum'),
+             homedest_min=('homedest', 'min'),
+             homedest_max=('homedest', 'max'),
+             homedest_last=('homedest', 'last'),
+             homedest_first=('homedest', 'first'),
+             homedest_count=('homedest', 'count'),
+             collect_set=('homedest', _collect_set),
+             collect_list=('homedest', _collect_list),
+             ).reset_index()
 
-    out.columns = new_idx
-    out = out.reset_index()
-    out.reset_index(drop=True, inplace=True)
     assert operation.result['out'].equals(out)
 
 
@@ -368,8 +346,8 @@ def test_aggregation_fail_non_numeric_attributes():
                     AggregationOperation.ATTRIBUTES_PARAM: ['name', 'homedest'],
                     AggregationOperation.FUNCTION_PARAM:
                         [{'attribute': 'homedest',
-                          'aggregate': ['avg'],
-                          'alias': ['homedest_avg']}]
+                          'f': 'avg',
+                          'alias': 'homedest_avg'}]
                     # avg doesn't work with non numeric attribute
                 },
                 'named_inputs': {
@@ -381,8 +359,8 @@ def test_aggregation_fail_non_numeric_attributes():
                     'output data': 'out'
                 }
             })
-    assert "ExceptionInfo DataError('No numeric types to aggregate')" in \
-           str(data_error)
+    assert "ExceptionInfo DataError('No numeric types to aggregate'" \
+           in str(data_error)
 
 
 def test_aggregation_success_with_pivot_table():
@@ -390,9 +368,8 @@ def test_aggregation_success_with_pivot_table():
         'parameters': {
             AggregationOperation.ATTRIBUTES_PARAM: ['class'],
             AggregationOperation.FUNCTION_PARAM:
-                [{'attribute': 'petalwidth',
-                  'aggregate': ['count']}, {'attribute': 'sepalwidth',
-                                            'aggregate': ['count']}],
+                [{'attribute': 'petalwidth', 'f': 'count'},
+                 {'attribute': 'sepalwidth', 'f': 'count'}],
             AggregationOperation.PIVOT_ATTRIBUTE: ['sepalwidth', 'class'],
         },
 
@@ -407,33 +384,28 @@ def test_aggregation_success_with_pivot_table():
     })
 
     aggfunc = {"petalwidth": ['count'], "sepalwidth": ['count']}
-    out = pd.pivot_table(operation.df[1], index=['class'],
-                         values=['petalwidth', 'sepalwidth'],
-                         columns=['sepalwidth', 'class'], aggfunc=aggfunc)
 
+    out = pd.pivot_table(operation.df[1], index=['class'],
+                         columns=['sepalwidth', 'class'], aggfunc=aggfunc)
+    # rename columns and convert to DataFrame
     out.reset_index(inplace=True)
     new_idx = [n[0] if n[1] == ''
                else "%s_%s_%s" % (n[0], n[1], n[2])
                for n in out.columns.ravel()]
-    out = pd.DataFrame(out.to_records())
-    out.reset_index(drop=True, inplace=True)
-    out = out.drop(columns='index')
     out.columns = new_idx
 
     assert operation.result['out'].equals(out)
 
 
 def test_aggregation_success_with_pivot_attribute_and_value_attribute():
-    # TODO
-    # This seems deprecated...
+
     operation = IrisAggregationOperation(arguments={
         'parameters': {
             AggregationOperation.ATTRIBUTES_PARAM: ['class'],
             AggregationOperation.FUNCTION_PARAM:
-                [{'attribute': 'sepalwidth',
-                  'aggregate': ['count']}],
+                [{'attribute': 'sepalwidth', 'f': 'count'}],
             AggregationOperation.PIVOT_ATTRIBUTE: ['class'],
-            AggregationOperation.PIVOT_VALUE_ATTRIBUTE: False
+            AggregationOperation.PIVOT_VALUE_ATTRIBUTE: '"Iris-setosa"'
         },
 
         'named_inputs': {
@@ -445,7 +417,20 @@ def test_aggregation_success_with_pivot_attribute_and_value_attribute():
             'output data': 'out'
         }
     })
-    print(operation.result['out'])
+
+    aggfunc = {"sepalwidth": ['count']}
+    values = ["Iris-setosa"]
+    input_data = operation.df[1].loc[operation.df[1]['class'].isin(values)]
+    out = pd.pivot_table(input_data, index=['class'],
+                         columns=['class'], aggfunc=aggfunc)
+    # rename columns and convert to DataFrame
+    out.reset_index(inplace=True)
+    new_idx = [n[0] if n[1] == ''
+               else "%s_%s_%s" % (n[0], n[1], n[2])
+               for n in out.columns.ravel()]
+    out.columns = new_idx
+
+    assert operation.result['out'].equals(out)
 
 
 def xtest_aggregation_fail_with_pivot_attribute_and_value_attribute():
