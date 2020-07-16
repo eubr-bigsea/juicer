@@ -42,6 +42,14 @@ class JuicerServer:
     TERMINATED = 'TERMINATED'
     HELP_UNHANDLED_EXCEPTION = 1
     HELP_STATE_LOST = 2
+    BANNER = """
+     ██╗██╗   ██╗██╗ ██████╗███████╗██████╗ 
+     ██║██║   ██║██║██╔════╝██╔════╝██╔══██╗
+     ██║██║   ██║██║██║     █████╗  ██████╔╝
+██   ██║██║   ██║██║██║     ██╔══╝  ██╔══██╗
+╚█████╔╝╚██████╔╝██║╚██████╗███████╗██║  ██║
+ ╚════╝  ╚═════╝ ╚═╝ ╚═════╝╚══════╝╚═╝  ╚═╝
+"""                                            
 
     def __init__(self, config, minion_executable, log_dir='/tmp',
                  config_file_path=None):
@@ -99,9 +107,6 @@ class JuicerServer:
                                        port=parsed_url.port,
                                        decode_responses=True)
 
-        print(parsed_url.port)
-
-        print(redis_conn)
         # Start pending minions
         apps = [q.split('_')[-1] for q in redis_conn.keys('queue_app_*')]
         self.state_control = StateControlRedis(redis_conn)
@@ -518,4 +523,5 @@ if __name__ == '__main__':
 
     server = JuicerServer(juicer_config, _minion_executable,
                           config_file_path=args.config)
+    print(server.BANNER)
     server.process()

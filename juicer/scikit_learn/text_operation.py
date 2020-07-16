@@ -69,6 +69,8 @@ class TokenizerOperation(Operation):
 
     def generate_code(self):
         """Generate code."""
+        copy_code = ".copy()" \
+            if self.parameters['multiplicity']['input data'] > 1 else ""
 
         if self.min_token_lenght is not None:
             self.min_token_lenght = \
@@ -76,7 +78,7 @@ class TokenizerOperation(Operation):
 
         if self.type == self.TYPE_SIMPLE:
             code = """
-            {output} = {input}.copy()
+            {output} = {input}{copy_code}
             result = []
             toktok = TweetTokenizer()
     
@@ -84,13 +86,13 @@ class TokenizerOperation(Operation):
                 result.append([word 
                 for word in toktok.tokenize(row){limit}])
             {output}['{alias}'] = result
-            """.format(output=self.output,
+            """.format(copy_code=copy_code, output=self.output,
                        input=self.named_inputs['input data'],
                        att=self.attributes[0], alias=self.alias[0],
                        limit=self.min_token_lenght)
         else:
             code = """
-           {output} = {input}.copy()
+           {output} = {input}{copy_code}
            result = []
 
            for row in {output}['{att}'].to_numpy():
@@ -98,7 +100,7 @@ class TokenizerOperation(Operation):
                               regexp_tokenize(row, pattern='{exp}'){limit}])
 
            {output}['{alias}'] = result
-           """.format(output=self.output,
+           """.format(copy_code=copy_code, output=self.output,
                       input=self.named_inputs['input data'],
                       att=self.attributes[0], alias=self.alias[0],
                       exp=self.expression_param, limit=self.min_token_lenght)
@@ -161,10 +163,14 @@ class RemoveStopWordsOperation(Operation):
 
     def generate_code(self):
         """Generate code."""
+        copy_code = ".copy()" \
+            if self.parameters['multiplicity']['input data'] > 1 else ""
+
         code = """
         stop_words = []
-        {OUT} = {IN}.copy()
-        """.format(OUT=self.output, IN=self.named_inputs['input data'])
+        {OUT} = {IN}{copy_code}
+        """.format(copy_code=copy_code, OUT=self.output,
+                   IN=self.named_inputs['input data'])
         if len(self.lang) > 0:
             code += """
         stop_words += stopwords.words('{language}')""".format(
@@ -252,15 +258,19 @@ class GenerateNGramsOperation(Operation):
 
     def generate_code(self):
         input_data = self.named_inputs['input data']
+        copy_code = ".copy()" \
+            if self.parameters['multiplicity']['input data'] > 1 else ""
+
         code = dedent("""
-            {output} = {input}.copy()
+            {output} = {input}{copy_code}
                     
             grams = []
             for row in {output}['{att}'].to_numpy():
                 grams.append([" ".join(gram) for gram in ngrams(row, {n})])
                 
             {output}['{alias}'] = grams
-            """).format(att=self.attributes, alias=self.alias,
+            """).format(copy_code=copy_code,
+                        att=self.attributes, alias=self.alias,
                         n=self.n, input=input_data, output=self.output)
 
         return code
@@ -354,9 +364,12 @@ class WordToVectorOperation(Operation):
     def generate_code(self):
         input_data = self.named_inputs['input data']
 
+        copy_code = ".copy()" \
+            if self.parameters['multiplicity']['input data'] > 1 else ""
+
         if self.type == self.TYPE_COUNT:
             code = dedent("""
-            {out} = {input}.copy()
+            {out} = {input}{copy_code}
             
             def do_nothing(tokens):
                 return tokens
@@ -370,6 +383,7 @@ class WordToVectorOperation(Operation):
             {out}['{alias}'] = {model}.transform(corpus).toarray().tolist()
             {vocab} = {model}.get_feature_names()
             """.format(
+                    copy_code=copy_code,
                     input=input_data,
                     out=self.output,
                     att=self.attributes,
@@ -381,7 +395,7 @@ class WordToVectorOperation(Operation):
 
         elif self.type == self.TYPE_TFIDF:
             code = dedent("""
-            {out} = {input}.copy()
+            {out} = {input}{copy_code}
             
             def do_nothing(tokens):
                 return tokens
@@ -395,6 +409,7 @@ class WordToVectorOperation(Operation):
             {out}['{alias}'] = {model}.transform(corpus).toarray().tolist()
             {vocab} = {model}.get_feature_names()
             """.format(
+                    copy_code=copy_code,
                     input=input_data,
                     out=self.output,
                     att=self.attributes,
@@ -406,24 +421,24 @@ class WordToVectorOperation(Operation):
 
         elif self.type == self.TYPE_HASHING_TF:
             code = dedent("""
-            {out} = {input}.copy()
             
             def do_nothing(tokens):
                 return tokens
                 
+            {out} = {input}{copy_code}  
             corpus = {out}['{att}'].to_numpy().tolist()
             {model} = HashingVectorizer(tokenizer=do_nothing,
                              preprocessor=None, lowercase=False, 
                              n_features={vocab_size})
-                
             {model}.fit(corpus)
-            {out} = {input}.copy()
+
             vector = {model}.transform(corpus).toarray().tolist()
             {out}['{alias}'] = vector
 
             # There is no vocabulary in this type of transformer
             {vocab} = None
             """.format(
+                    copy_code=copy_code,
                     input=input_data,
                     out=self.output,
                     att=self.attributes,
@@ -436,7 +451,7 @@ class WordToVectorOperation(Operation):
             # the number of vocabulary. Currently, the generated code force
             # to be equals.
             code = dedent("""
-            {out} = {input}.copy()
+            {out} = {input}{copy_code}
             dim = {max_dim}
             corpus = {out}['{att}'].to_numpy().tolist()
             {model} = Word2Vec(corpus, min_count={min_df}, 
@@ -446,7 +461,8 @@ class WordToVectorOperation(Operation):
                       or [np.zeros(dim)], axis=0) for words in corpus]     
             {out}['{alias}'] = vector
             {vocab} = [w for w in {model}.wv.vocab]
-                """.format(att=self.attributes,
+                """.format(copy_code=copy_code,
+                           att=self.attributes,
                            input=input_data,
                            min_df=self.minimum_df,
                            alias=self.alias,

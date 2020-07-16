@@ -489,9 +489,19 @@ class ChiSquaredSelectorOperation(Operation):
                 {output} = {model}.transform({input})
 
                 content = '<h5>{title}</h5>'
+                tmp = {input}.select(to_assemble).head(1)[0]
+                tmp = [len(i.toArray()) if hasattr(i, 'toArray') 
+                        else 1 for i in tmp ]
+
+                import numpy as np
+                cumsum = np.cumsum(tmp)
+                final_idx = []
+                for idx in chi_model.selectedFeatures:
+                    final_idx.append(cumsum.searchsorted(idx, side='right'))
+    
                 content += ', '.join(
-                    [{input}.schema[inx].name for inx in
-                        chi_model.selectedFeatures])
+                    [{input}.select(to_assemble).schema[int(inx)].name for inx in
+                        final_idx])
                 emit_event(
                     'update task', status='COMPLETED',
                     identifier='{task_id}',

@@ -364,6 +364,7 @@ class MapOperation(VisualizationMethodOperation):
 
 class SummaryStatisticsOperation(VisualizationMethodOperation):
     ATTRIBUTES_PARAM = 'attributes'
+    CORRELATION_PARAM = 'correlation'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         if not parameters.get(self.TITLE_PARAM):
@@ -371,9 +372,12 @@ class SummaryStatisticsOperation(VisualizationMethodOperation):
         VisualizationMethodOperation.__init__(self, parameters, named_inputs,
                                               named_outputs)
         self.attributes = parameters.get(self.ATTRIBUTES_PARAM, None)
+        self.correlation = parameters.get(self.CORRELATION_PARAM) \
+                           in [True, '1', 1]
 
     def get_model_parameters(self):
-        return {self.ATTRIBUTES_PARAM: self.attributes or []}
+        return {self.ATTRIBUTES_PARAM: self.attributes or [],
+                self.CORRELATION_PARAM: self.correlation}
 
     def get_model_name(self):
         return SummaryStatisticsModel.__name__
@@ -1008,9 +1012,10 @@ class SummaryStatisticsModel(TableVisualizationModel):
                       _('approx. distinct'), _('missing'), _('skewness'),
                       _('kurtosis')]
 
-        self.names.extend(
-            [_('correlation to {} (Pearson)').format(attr) for attr in
-             self.attrs])
+        if self.params['correlation']:
+            self.names.extend(
+                [_('correlation to {} (Pearson)').format(attr) for attr in
+                 self.attrs])
         self.column_names = self.names
 
     def get_icon(self):
@@ -1073,14 +1078,15 @@ class SummaryStatisticsModel(TableVisualizationModel):
                 stats.append(functions.lit('-'))
                 stats.append(functions.lit('-'))
 
-            for pair in corr_pairs[i]:
-                if all([pair[0] in self.numeric_attrs,
-                        pair[1] in self.numeric_attrs]):
-                    stats.append(
-                        functions.round(functions.corr(*pair), 4).alias(
-                            'corr_{}'.format(i)))
-                else:
-                    stats.append(functions.lit('-'))
+            if self.params['correlation']:
+                for pair in corr_pairs[i]:
+                    if all([pair[0] in self.numeric_attrs,
+                            pair[1] in self.numeric_attrs]):
+                        stats.append(
+                            functions.round(functions.corr(*pair), 4).alias(
+                                'corr_{}'.format(i)))
+                    else:
+                        stats.append(functions.lit('-'))
 
         self.data = self.data.agg(*stats)
         aggregated = self.data.take(1)[0]
