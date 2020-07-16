@@ -125,7 +125,10 @@ class AggregationOperation(Operation):
             att = dictionary[self.FUNCTION_PARAM_ATTRIBUTE]
             agg = dictionary[self.FUNCTION_PARAM_FUNCTION]
             agg = agg_functions[agg]
+
             if self.pivot is None:
+                if "*" is att:
+                    att = self.attributes[0]
                 if 'collect' in agg:
                     self.input_operations_non_pivot.append(
                         "{alias}=('{col}', {f})".format(
