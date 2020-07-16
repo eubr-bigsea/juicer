@@ -54,6 +54,9 @@ class ClassificationModelOperation(Operation):
 
     def generate_code(self):
         """Generate code."""
+        copy_code = ".copy()" \
+            if self.parameters['multiplicity']['train input data'] > 1 else ""
+
         code = """
             X = get_X_train_data({input}, {features})
             y = get_label_data({input}, {label})
@@ -65,10 +68,11 @@ class ClassificationModelOperation(Operation):
 
         if self.perform_transformation:
             code += """
-            {OUT} = {IN}
+            {OUT} = {IN}{copy_code}
             
             {OUT}['{predCol}'] = {model}.predict(X).tolist()
-            """.format(predCol=self.prediction, OUT=self.output,
+            """.format(predCol=self.prediction, copy_code=copy_code,
+                       OUT=self.output,
                        model=self.model,
                        IN=self.named_inputs['train input data'])
         else:
@@ -183,8 +187,11 @@ class DecisionTreeClassifierOperation(Operation):
 
     def generate_code(self):
         """Generate code."""
+        copy_code = ".copy()" \
+            if self.parameters['multiplicity']['train input data'] > 1 else ""
+
         code = """
-            {output_data} = {input_data}.copy()            
+            {output_data} = {input_data}{copy_code}         
             X_train = get_X_train_data({input_data}, {columns})
             y = get_label_data({input_data}, {label})
             y = np.reshape(y, len(y))
@@ -199,7 +206,8 @@ class DecisionTreeClassifierOperation(Operation):
                 class_weight={class_weight}, presort={presort})
             {model}.fit(X_train, y)          
             {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
-            """.format(output_data=self.output,
+            """.format(copy_code=copy_code,
+                       output_data=self.output,
                        prediction=self.prediction,
                        columns=self.features,
                        model=self.model,
@@ -343,8 +351,11 @@ class GBTClassifierOperation(Operation):
 
     def generate_code(self):
         """Generate code."""
+        copy_code = ".copy()" \
+            if self.parameters['multiplicity']['train input data'] > 1 else ""
+
         code = """ 
-            {output_data} = {input_data}.copy()
+            {output_data} = {input_data}{copy_code}
             X_train = get_X_train_data({input_data}, {columns})
             y = get_label_data({input_data}, {label})           
             y = np.reshape(y, len(y))
@@ -363,6 +374,7 @@ class GBTClassifierOperation(Operation):
             {model}.fit(X_train, y)          
             {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
             """.format(output_data=self.output,
+                       copy_code=copy_code,
                        prediction=self.prediction,
                        columns=self.features,
                        model=self.model,
@@ -462,8 +474,11 @@ class KNNClassifierOperation(Operation):
 
     def generate_code(self):
         """Generate code."""
+        copy_code = ".copy()" \
+            if self.parameters['multiplicity']['train input data'] > 1 else ""
+
         code = """
-            {output_data} = {input_data}.copy()
+            {output_data} = {input_data}{copy_code}
             X_train = get_X_train_data({input_data}, {features})
             y = get_label_data({input_data}, {label})
             {model} = KNeighborsClassifier(n_neighbors={n_neighbors}, 
@@ -472,7 +487,8 @@ class KNNClassifierOperation(Operation):
                 metric_params={metric_params}, n_jobs={n_jobs})
             {model}.fit(X_train, y)          
             {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
-            """.format(n_neighbors=self.n_neighbors,
+            """.format(copy_code=copy_code,
+                       n_neighbors=self.n_neighbors,
                        output_data=self.output,
                        model=self.model,
                        input_data=self.input_port,
@@ -648,6 +664,9 @@ class LogisticRegressionOperation(Operation):
 
     def generate_code(self):
         """Generate code."""
+        copy_code = ".copy()" \
+            if self.parameters['multiplicity']['train input data'] > 1 else ""
+
         code = """
             {model} = LogisticRegression(tol={tol}, C={C}, max_iter={max_iter},
             solver='{solver}', random_state={seed}, penalty='{penalty}', 
@@ -659,9 +678,9 @@ class LogisticRegressionOperation(Operation):
             y = get_label_data({input}, {label})
             {model}.fit(X_train, y)
 
-            {output} = {input}.copy()
+            {output} = {input}{copy_code}
             {output}['{prediction_column}'] = {model}.predict(X_train).tolist()
-            """.format(tol=self.tol, C=self.regularization,
+            """.format(copy_code=copy_code, tol=self.tol, C=self.regularization,
                        max_iter=self.max_iter, seed=self.seed,
                        solver=self.solver, penalty=self.penalty,
                        dual=self.dual, fit_intercept=self.fit_intercept,
@@ -916,14 +935,17 @@ class MLPClassifierOperation(Operation):
 
     def generate_code(self):
         """Generate code."""
+        copy_code = ".copy()" \
+            if self.parameters['multiplicity']['train input data'] > 1 else ""
+
         code = """
-            {output_data} = {input_data}.copy()
+            {output_data} = {input_data}{copy_code}
             X_train = get_X_train_data({input_data}, {columns})
             y = get_label_data({input_data}, {label})
             {model} = MLPClassifier({add_functions_required})
             {model}.fit(X_train, y)          
             {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
-            """.format(output_data=self.output,
+            """.format(copy_code=copy_code, output_data=self.output,
                        prediction=self.prediction,
                        columns=self.features,
                        model=self.model,
@@ -1015,16 +1037,20 @@ class NaiveBayesClassifierOperation(Operation):
 
     def generate_code(self):
         """Generate code."""
+        copy_code = ".copy()" \
+            if self.parameters['multiplicity']['train input data'] > 1 else ""
+
         if self.model_type == self.MODEL_TYPE_PARAM_M:
             code = """
-                {output_data} = {input_data}.copy()
+                {output_data} = {input_data}{copy_code}
                 X_train = get_X_train_data({input_data}, {features})
                 y = get_label_data({input_data}, {label})
                 {model} = MultinomialNB(alpha={alpha}, 
                     class_prior={class_prior}, fit_prior={fit_prior})
                 {model}.fit(X_train, y)          
                 {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
-                """.format(output_data=self.output,
+                """.format(copy_code=copy_code,
+                           output_data=self.output,
                            model=self.model,
                            input_data=self.input_port,
                            prediction=self.prediction,
@@ -1035,7 +1061,7 @@ class NaiveBayesClassifierOperation(Operation):
                            fit_prior=self.fit_prior)
         elif self.model_type == self.MODEL_TYPE_PARAM_B:
             code = """
-                {output_data} = {input_data}.copy()
+                {output_data} = {input_data}{copy_code}
                 X_train = get_X_train_data({input_data}, {features})
                 y = get_label_data({input_data}, {label})
                 {model} = BernoulliNB(alpha={alpha}, 
@@ -1043,7 +1069,8 @@ class NaiveBayesClassifierOperation(Operation):
                     binarize={binarize})
                 {model}.fit(X_train, y)          
                 {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
-                """.format(output_data=self.output,
+                """.format(copy_code=copy_code,
+                           output_data=self.output,
                            model=self.model,
                            input_data=self.input_port,
                            prediction=self.prediction,
@@ -1055,14 +1082,15 @@ class NaiveBayesClassifierOperation(Operation):
                            binarize=self.binarize)
         else:
             code = """
-                {output_data} = {input_data}.copy()            
+                {output_data} = {input_data}{copy_code}         
                 X_train = get_X_train_data({input_data}, {features})
                 y = get_label_data({input_data}, {label})
                 {model} = GaussianNB(priors={priors}, 
                     var_smoothing={var_smoothing})  
                 {model}.fit(X_train, y)          
                 {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
-                """.format(output_data=self.output,
+                """.format(copy_code=copy_code,
+                           output_data=self.output,
                            model=self.model,
                            input_data=self.input_port,
                            prediction=self.prediction,
@@ -1170,8 +1198,11 @@ class PerceptronClassifierOperation(Operation):
 
     def generate_code(self):
         """Generate code."""
+        copy_code = ".copy()" \
+            if self.parameters['multiplicity']['train input data'] > 1 else ""
+
         code = """
-            {output_data} = {input_data}.copy()
+            {output_data} = {input_data}{copy_code}
             X_train = get_X_train_data({input_data}, {features})
             y = get_label_data({input_data}, {label})
 
@@ -1189,7 +1220,8 @@ class PerceptronClassifierOperation(Operation):
                                       warm_start=False)
             {model}.fit(X_train, y)          
             {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
-            """.format(tol=self.tol,
+            """.format(copy_code=copy_code,
+                       tol=self.tol,
                        alpha=self.alpha,
                        max_iter=self.max_iter,
                        shuffle=self.shuffle,
@@ -1353,8 +1385,10 @@ class RandomForestClassifierOperation(Operation):
         return returned_param
 
     def generate_code(self):
-
         """Generate code."""
+        copy_code = ".copy()" \
+            if self.parameters['multiplicity']['train input data'] > 1 else ""
+
         code = """
         {model} = RandomForestClassifier(n_estimators={n_estimators}, 
         max_depth={max_depth},  min_samples_split={min_split}, 
@@ -1368,7 +1402,7 @@ class RandomForestClassifierOperation(Operation):
         y = get_label_data({input}, {label})
         {model}.fit(X_train, y)
 
-        {output} = {input}.copy()
+        {output} = {input}{copy_code}
         {output}['{prediction_column}'] = {model}.predict(X_train).tolist()
         """.format(output=self.output, model=self.model, input=self.input_port,
                    n_estimators=self.n_estimators, max_depth=self.max_depth,
@@ -1378,7 +1412,8 @@ class RandomForestClassifierOperation(Operation):
                    min_impurity_decrease=self.min_impurity_decrease, bootstrap=self.bootstrap,
                    oob_score=self.oob_score, ccp_alpha=self.ccp_alpha,
                    max_samples=self.max_samples, features=self.features,
-                   prediction_column=self.prediction_column, label=self.label)
+                   prediction_column=self.prediction_column, label=self.label,
+                   copy_code=copy_code)
 
         return dedent(code)
 
@@ -1483,6 +1518,9 @@ class SvmClassifierOperation(Operation):
 
     def generate_code(self):
         """Generate code."""
+        copy_code = ".copy()" \
+            if self.parameters['multiplicity']['train input data'] > 1 else ""
+
         code = """
         {model} = SVC(tol={tol}, C={c}, max_iter={max_iter}, 
                        degree={degree}, kernel='{kernel}', random_state={seed},
@@ -1495,7 +1533,7 @@ class SvmClassifierOperation(Operation):
         y = get_label_data({input}, {label})
         {model}.fit(X_train, y)
 
-        {output} = {input}.copy()
+        {output} = {input}{copy_code}
         {output}['{prediction_column}'] = {model}.predict(X_train).tolist()
         
         """.format(tol=self.tol, c=self.c, max_iter=self.max_iter,
@@ -1505,5 +1543,5 @@ class SvmClassifierOperation(Operation):
                    decision_func_shape=self.decision_function_shape,
                    model=self.model, input=self.input_port, label=self.label,
                    features=self.features, prediction_column=self.prediction,
-                   output=self.output)
+                   output=self.output, copy_code=copy_code)
         return dedent(code)

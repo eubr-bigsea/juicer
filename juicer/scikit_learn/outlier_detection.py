@@ -78,9 +78,11 @@ class OutlierDetectionOperation(Operation):
 
     def generate_code(self):
         """Generate code."""
+        copy_code = ".copy()" \
+            if self.parameters['multiplicity']['input data'] > 1 else ""
 
         code = """
-            {output_data} = {input}.copy()
+            {output_data} = {input}{copy_code}
             if '{metric}' is 'minkowski':
                 clf = LocalOutlierFactor(n_neighbors={number_neighbors}, contamination={contamination}, 
                                              metric='{metric}', algorithm='{algorithm}', n_jobs={n_jobs}, 
@@ -96,7 +98,7 @@ class OutlierDetectionOperation(Operation):
             clf2 = clf.negative_outlier_factor_ 
             T2 = pd.DataFrame(p, columns = ['{outlier}'])
             {output_data} = pd.concat([{input},T2],axis=1)
-            """.format(output=self.output,
+            """.format(copy_code=copy_code, output=self.output,
                        input=self.named_inputs['input data'],
                        number_neighbors=self.number_neighbors,
                        contamination=self.contamination,

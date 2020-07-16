@@ -84,18 +84,21 @@ class RegressionModelOperation(Operation):
         return sep.join([self.output, self.model])
 
     def generate_code(self):
+        copy_code = ".copy()" \
+            if self.parameters['multiplicity']['train input data'] > 1 else ""
 
         if self.has_code:
             code = """
             algorithm = {algorithm}
-            {output_data} = {input}.copy()
+            {output_data} = {input}{copy_code}
             X_train = get_X_train_data({input}, {features})
             y = get_label_data({input}, {label})
             if 'IsotonicRegression' in str(algorithm):
                 X_train = np.ravel(X_train)
             {model} = algorithm.fit(X_train, y)
             {output_data}['{prediction}'] = algorithm.predict(X_train).tolist()
-            """.format(model=self.model, algorithm=self.algorithm,
+            """.format(copy_code=copy_code, model=self.model,
+                       algorithm=self.algorithm,
                        input=self.named_inputs['train input data'],
                        output_data=self.output, prediction=self.prediction,
                        label=self.label[0], features=self.features[0])
@@ -246,8 +249,11 @@ class GradientBoostingRegressorOperation(RegressionOperation):
                     self.MIN_IMPURITY_DECREASE_PARAM, self.__class__))
 
     def generate_code(self):
+        copy_code = ".copy()" \
+            if self.parameters['multiplicity']['train input data'] > 1 else ""
+
         code = dedent("""
-            {output_data} = {input_data}.copy()            
+            {output_data} = {input_data}{copy_code}            
             X_train = get_X_train_data({input_data}, {features})
             y = get_label_data({input_data}, {label})
 
@@ -267,7 +273,7 @@ class GradientBoostingRegressorOperation(RegressionOperation):
                 n_iter_no_change={n_iter_no_change}, tol={tol})
             {model}.fit(X_train, y)          
             {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
-            """.format(output_data=self.output,
+            """.format(copy_code=copy_code, output_data=self.output,
                        learning_rate=self.learning_rate,
                        n_estimators=self.n_estimators,
                        max_depth=self.max_depth,
@@ -365,8 +371,11 @@ class HuberRegressorOperation(RegressionOperation):
         self.fit_intercept = True if int(self.fit_intercept) == 1 else False
 
     def generate_code(self):
+        copy_code = ".copy()" \
+            if self.parameters['multiplicity']['train input data'] > 1 else ""
+
         code = dedent("""
-            {output_data} = {input_data}.copy()
+            {output_data} = {input_data}{copy_code}
             X_train = get_X_train_data({input_data}, {features})
             y = get_label_data({input_data}, {label})
 
@@ -375,7 +384,8 @@ class HuberRegressorOperation(RegressionOperation):
                     warm_start=False)
             {model}.fit(X_train, y)
             {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
-            """).format(output_data=self.output,
+            """).format(copy_code=copy_code,
+                        output_data=self.output,
                         epsilon=self.epsilon,
                         alpha=self.alpha,
                         max_iter=self.max_iter,
@@ -469,18 +479,22 @@ class IsotonicRegressionOperation(RegressionOperation):
         # y = np.array({input_data}[{label}].to_numpy().tolist()).flatten()
 
         #observar se e' possivel trocar a entrada por uma lista de elementos unicos
+        copy_code = ".copy()" \
+            if self.parameters['multiplicity']['train input data'] > 1 else ""
+
         code = dedent("""
         {model} = IsotonicRegression(y_min={min}, y_max={max}, increasing={isotonic}, 
                                      out_of_bounds='{bounds}')
 
-        {output_data} = {input_data}.copy()
+        {output_data} = {input_data}{copy_code}
         X_train = get_X_train_data({input_data}, {columns})
         y = get_label_data({input_data}, {label})
 
         {model}.fit(X_train, y)      
 
         {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
-        """).format(output_data=self.output,
+        """).format(copy_code=copy_code,
+                    output_data=self.output,
                     isotonic=self.isotonic,
                     output=self.output,
                     model=self.model,
@@ -571,8 +585,12 @@ class LinearRegressionOperation(RegressionOperation):
         return sep.join([self.output, self.model])
 
     def generate_code(self):
+
+        copy_code = ".copy()" \
+            if self.parameters['multiplicity']['train input data'] > 1 else ""
+
         code = dedent("""
-        {output_data} = {input_data}.copy()
+        {output_data} = {input_data}{copy_code}
         X_train = get_X_train_data({input_data}, {columns})
         y = get_label_data({input_data}, {label})
 
@@ -582,7 +600,8 @@ class LinearRegressionOperation(RegressionOperation):
                 fit_intercept={fit_intercept})  
         {model}.fit(X_train, y)
         {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
-        """.format(output_data=self.output,
+        """.format(copy_code=copy_code,
+                   output_data=self.output,
                    max_iter=self.max_iter,
                    alpha=self.alpha,
                    elastic=self.elastic,
@@ -817,15 +836,19 @@ class MLPRegressorOperation(Operation):
 
     def generate_code(self):
         """Generate code."""
+        copy_code = ".copy()" \
+            if self.parameters['multiplicity']['train input data'] > 1 else ""
+
         code = """
-            {output_data} = {input_data}.copy()
+            {output_data} = {input_data}{copy_code}
             X_train = get_X_train_data({input_data}, {columns})
             y = get_label_data({input_data}, {label})
 
             {model} = MLPRegressor({add_functions_required})
             {model}.fit(X_train, y)          
             {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
-            """.format(output_data=self.output,
+            """.format(copy_code=copy_code,
+                       output_data=self.output,
                        prediction=self.prediction,
                        columns=self.features,
                        model=self.model,
@@ -970,8 +993,12 @@ class RandomForestRegressorOperation(RegressionOperation):
                     self.VERBOSE_PARAM, self.__class__))
 
     def generate_code(self):
+
+        copy_code = ".copy()" \
+            if self.parameters['multiplicity']['train input data'] > 1 else ""
+
         code = dedent("""
-            {output_data} = {input_data}.copy()
+            {output_data} = {input_data}{copy_code}
             X_train = get_X_train_data({input_data}, {features})
             y = get_label_data({input_data}, {label})
 
@@ -989,7 +1016,8 @@ class RandomForestRegressorOperation(RegressionOperation):
                     oob_score={oob_score}, verbose={verbose}, warm_start=False)
             {model}.fit(X_train, y)          
             {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
-            """).format(n_estimators=self.n_estimators,
+            """).format(copy_code=copy_code,
+                        n_estimators=self.n_estimators,
                         max_features=self.max_features,
                         max_depth=self.max_depth,
                         min_samples_split=self.min_samples_split,
@@ -1178,15 +1206,20 @@ class SGDRegressorOperation(RegressionOperation):
         self.add_functions_required = ',\n    '.join(functions_required)
 
     def generate_code(self):
+
+        copy_code = ".copy()" \
+            if self.parameters['multiplicity']['train input data'] > 1 else ""
+
         code = dedent("""
-            {output_data} = {input_data}.copy()
+            {output_data} = {input_data}{copy_code}
             X_train = get_X_train_data({input_data}, {columns})
             y = get_label_data({input_data}, {label})
 
             {model} = SGDRegressor({add_functions_required})
             {model}.fit(X_train, y)          
             {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
-            """).format(output_data=self.output,
+            """).format(copy_code=copy_code,
+                        output_data=self.output,
                         prediction=self.prediction,
                         columns=self.features,
                         model=self.model,
@@ -1261,8 +1294,11 @@ class GeneralizedLinearRegressionOperation(RegressionOperation):
 
     def generate_code(self):
         """Generate code."""
+        copy_code = ".copy()" \
+            if self.parameters['multiplicity']['input data'] > 1 else ""
+
         code = """
-            {output_data} = {input_data}.copy()
+            {output_data} = {input_data}{copy_code}
             X_train = get_X_train_data({input_data}, {columns})
             y = get_label_data({input_data}, {label})
 
@@ -1276,7 +1312,8 @@ class GeneralizedLinearRegressionOperation(RegressionOperation):
                     n_jobs={n_jobs})
             {model}.fit(X_train, y)          
             {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
-            """.format(fit_intercept=self.fit_intercept,
+            """.format(copy_code=copy_code,
+                       fit_intercept=self.fit_intercept,
                        normalize=self.normalize,
                        copy_X=self.copy_X,
                        n_jobs=self.n_jobs,
