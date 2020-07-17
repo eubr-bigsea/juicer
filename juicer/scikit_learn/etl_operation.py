@@ -912,7 +912,7 @@ class SelectOperation(Operation):
                 _("Parameter '{}' must be informed for task {}").format
                 (self.ATTRIBUTES_PARAM, self.__class__))
 
-        self.has_code = len(named_inputs) == 1
+        self.has_code = (len(named_inputs) == 1 and len(named_outputs)>=1) or self.contains_results()
         self.output = self.named_outputs.get(
             'output projected data', 'projection_data_{}'.format(self.order))
 
