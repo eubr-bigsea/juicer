@@ -2,7 +2,7 @@ from tests.scikit_learn import util
 from juicer.scikit_learn.etl_operation import SelectOperation
 import pytest
 
-# Select
+# Select test
 
 
 def test_select_success():
