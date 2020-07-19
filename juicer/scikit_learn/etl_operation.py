@@ -39,39 +39,11 @@ class AddColumnsOperation(Operation):
 class AggregationOperation(Operation):
     """
     Computes aggregates and returns the result as a DataFrame.
-
     Parameters:
-
-        Required:
-
-            ATTRIBUTES_PARAM: receives a list with dataframe columns values;
-
-            FUNCTION_PARAM: receives a list with dicts inside, each one
-            containing the keys 'attribute', 'aggregate' and 'alias'.
-
-                'attribute' receives a string column value;
-                'aggregate' receives a list with methods to aggregate;
-                'alias' receives a list with names to rename resulting
-                 columns from 'aggregate';
-
-                'alias' is not required if PIVOT_ATTRIBUTE is passed.
-
-            The operation will use df.groupby(columns).agg(operations)
-            columns = ATTRIBUTES_PARAM
-            operations = {FUNCTION_PARAM.get('attribute): FUNCTION_PARAM.get(
-            'aggregate')}
-
-        Optional:
-
-            PIVOT_ATTRIBUTE: receives a list with dataframe colums values
-
-                The operation will use pd.pivot_table(df, index, values, columns)
-                index = ATTRIBUTES_PARAM
-                values = FUNCTION_PARAM.get('attribute')
-                columns = PIVOT_ATTRIBUTE
-
-            PIVOT_VALUE_ATTRIBUTE:
-                Deprecated(?)
+        - Expression: a single dict mapping from string to string, then the key
+        is the column to perform aggregation on, and the value is the aggregate
+        function. The available aggregate functions avg, collect_list,
+        collect_set, count, first, last, max, min, sum and size
     """
 
     ATTRIBUTES_PARAM = 'attributes'
@@ -97,7 +69,7 @@ class AggregationOperation(Operation):
         self.has_code = len(self.named_inputs) == 1 and any(
             [len(self.named_outputs) >= 1, self.contains_results()])
 
-        # ATTRIBUTES_PARAM isnt't optional
+        # ATTRIBUTES_PARAM isn't optional
         # PIVOT_ATTRIBUTE and PIVOT_VALUE_ATTRIBUTE are optional
 
         if not all([self.FUNCTION_PARAM in parameters, self.functions]):
