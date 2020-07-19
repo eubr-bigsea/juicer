@@ -108,8 +108,6 @@ def test_multiple_aggregation_success():
 
 
 def test_multiple_dicts_success():
-    # Feature or Bug?
-
     # You can pass multiple dicts to FUNCTION_PARAM and this allows to
     # specify each 'attribute', 'f' and 'alias'.
     # In the test below, 'sepalwidth' receives 'sum' and 'size' with their
@@ -432,15 +430,7 @@ def test_aggregation_success_with_pivot_attribute_and_value_attribute():
 
     assert operation.result['out'].equals(out)
 
-
-def xtest_aggregation_fail_with_pivot_attribute_and_value_attribute():
-    pass
-    # TODO
-
-# TESTS TODO:
-
-# test swith pivot attribute and pivot value attribute
-# use of asterisk (requires changes in operation)
+# TESTS
 
 # DONE:
 # tests with non numeric camps
@@ -450,3 +440,6 @@ def xtest_aggregation_fail_with_pivot_attribute_and_value_attribute():
 # collect_set, count, first, last, max, min, sum, size)
 # use of size versus count (requires study and changes in the operation code)
 # tests of pivot table
+# use of asterisk (requires changes in operation)
+# test swith pivot attribute and pivot value attribute
+
