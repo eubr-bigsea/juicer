@@ -143,8 +143,7 @@ class PublishVisualizationOperation(Operation):
                 {workflow_id}, u'{workflow_name}',
                 {job_id}, '{task_id}', visualizations, emit_event)
             """.format(
-            title=self.title or 'Result for job ' + str(
-                self.parameters.get('job_id', '0')),
+            title=self.title or '',
             user=self.parameters['user'],
             workflow_id=self.parameters['workflow_id'],
             workflow_name=self.parameters['workflow_name'],
@@ -172,9 +171,7 @@ class VisualizationMethodOperation(Operation):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         # TODO: validate parameters
-        self.title = parameters.get(
-            self.TITLE_PARAM, 'Result for job ' + str(
-                self.parameters.get('job_id', '0')))
+        self.title = parameters.get(self.TITLE_PARAM, '')
         self.column_names = [c.strip() for c in
                              parameters.get(self.COLUMN_NAMES_PARAM, [])]
         self.orientation = parameters.get(self.ORIENTATION_PARAM, '')
@@ -202,11 +199,12 @@ class VisualizationMethodOperation(Operation):
                  'y_axis_attribute', 'z_axis_attribute', 't_axis_attribute',
                  'series_attribute', 'extra_data', 'polygon', 'geojson_id',
                  'polygon_url', 'fact_attributes', 'group_attribute',
-                 'show_outliers', 'title', 'attributes', 'bins']
+                 'show_outliers', 'title', 'attributes', 'bins', 'type']
 
         for k, v in list(self.parameters.items()):
             if k in valid:
                 result[k] = v
+        #### FIXME !!!! result.update(self.parameters)
         return result
 
     def get_output_names(self, sep=','):
@@ -217,6 +215,7 @@ class VisualizationMethodOperation(Operation):
                               "in {} subclass").format(self.__class__))
 
     def generate_code(self):
+
         code_lines = [dedent(
             """
             from juicer.spark.vis_operation import {model}
@@ -337,7 +336,74 @@ class ScatterPlotOperation(VisualizationMethodOperation):
     def get_model_name(self):
         return ScatterPlotModel.__name__
 
+# New visualizations 2020
+class IndicatorOperation(VisualizationMethodOperation):
+    def __init__(self, parameters, named_inputs, named_outputs):
+        VisualizationMethodOperation.__init__(self, parameters, named_inputs,
+                                              named_outputs)
 
+    def get_model_name(self):
+        return IndicatorModel.__name__
+
+class MarkdownOperation(VisualizationMethodOperation):
+    def __init__(self, parameters, named_inputs, named_outputs):
+        VisualizationMethodOperation.__init__(self, parameters, named_inputs,
+                                              named_outputs)
+
+    def get_model_name(self):
+        return MarkdownModel.__name__
+
+class WordCloudOperation(VisualizationMethodOperation):
+    def __init__(self, parameters, named_inputs, named_outputs):
+        VisualizationMethodOperation.__init__(self, parameters, named_inputs,
+                                              named_outputs)
+
+    def get_model_name(self):
+        return WordCloudModel.__name__
+
+
+class HeatmapOperation(VisualizationMethodOperation):
+    def __init__(self, parameters, named_inputs, named_outputs):
+        VisualizationMethodOperation.__init__(self, parameters, named_inputs,
+                                              named_outputs)
+
+    def get_model_name(self):
+        return HeatmapModel.__name__
+
+class BubbleChartOperation(VisualizationMethodOperation):
+    def __init__(self, parameters, named_inputs, named_outputs):
+        VisualizationMethodOperation.__init__(self, parameters, named_inputs,
+                                              named_outputs)
+
+    def get_model_name(self):
+        return BubbleChartModel.__name__
+
+class ForceDirectOperation(VisualizationMethodOperation):
+    def __init__(self, parameters, named_inputs, named_outputs):
+        VisualizationMethodOperation.__init__(self, parameters, named_inputs,
+                                              named_outputs)
+
+    def get_model_name(self):
+        return ForceDirectModel.__name__
+
+
+class IFrameOperation(VisualizationMethodOperation):
+    def __init__(self, parameters, named_inputs, named_outputs):
+        VisualizationMethodOperation.__init__(self, parameters, named_inputs,
+                                              named_outputs)
+
+    def get_model_name(self):
+        return IFrameModel.__name__
+
+class TreeMapOperation(VisualizationMethodOperation):
+    def __init__(self, parameters, named_inputs, named_outputs):
+        VisualizationMethodOperation.__init__(self, parameters, named_inputs,
+                                              named_outputs)
+
+    def get_model_name(self):
+        return TreeMapModel.__name__
+
+#=============================
 class MapOperation(VisualizationMethodOperation):
     def __init__(self, parameters, named_inputs, named_outputs):
 
@@ -499,6 +565,8 @@ class ChartVisualization(VisualizationModel):
         else:
             return value
 
+    def to_pandas(self):
+        return self.data.toPandas()
 
 class BarChartModel(ChartVisualization):
     """ Bar chart model for visualization of data """
@@ -600,7 +668,6 @@ class PieChartModel(ChartVisualization):
                                     params.get('type', 'pie-chart'),
                                     title, column_names, orientation,
                                     id_attribute, value_attribute, params)
-
     def get_icon(self):
         return 'fa-pie-chart'
 
@@ -628,7 +695,6 @@ class PieChartModel(ChartVisualization):
             raise ValueError(
                 _('Attribute {} for label does not exist in ({})').format(
                     label, ', '.join([c.name for c in schema])))
-
         return label_attr, None, value_attr
 
     def get_data(self):
@@ -654,7 +720,8 @@ class PieChartModel(ChartVisualization):
                 "suffix": self.params.get("x_suffix"),
                 "format": x_format.get('key'),
             },
-            "data": []
+            "data": [],
+            "pie_type": self.params.get('type', 'pie'),
 
         })
         for i, row in enumerate(rows):
@@ -716,7 +783,8 @@ class LineChartModel(ChartVisualization):
                 "prefix": self.params.get("x_prefix"),
                 "suffix": self.params.get("x_suffix"),
             },
-            "data": data
+            "data": data,
+            'using_date': x_type in ('date', 'time')
         })
 
         if x_type in ['number']:
@@ -1357,3 +1425,49 @@ class HistogramModel(ChartVisualization):
             }
             hist_data.append(v)
         return {'data': hist_data}
+
+# Models 2020
+
+class IndicatorModel(ChartVisualization):
+    """ Indicator (odometer/big number)  model for data visualization. """
+
+    def get_data(self):
+        
+        data = self.to_pandas()
+
+        displays =[]
+        if self.params.get('display_value', False) in ('1', 1, True):
+            displays.append('number')
+            number = True
+        if self.params.get('display_delta', False) in ('1', 1, True):
+            displays.append('delta')
+            delta = True
+        if self.params.get('display_gauge', False) in ('1', 1, True):
+            displays.append('gauge')
+
+        mode = '+'.join(displays)
+        result = {
+            'type': 'indicator',
+            'title': self.params.get('title')[0],
+            'mode': mode or 'number',
+            'footer': self.params.get('footer')
+        }
+        if delta:
+           delta_attr = self.params.get('delta', []) or []
+           if len(delta_attr) == 0:
+                raise ValueError(
+                    _('Parameter delta must be informed if '
+                       'display delta option is enabled.'))
+                result['delta'] = {'reference': data[value[0]].iloc[0]}
+
+        if number:
+           value_attr = self.params.get('value', []) or []
+           if len(value_attr) == 0:
+                raise ValueError(
+                    _('Parameter value must be informed if '
+                       'display value option is enabled.'))
+           result['value'] = data[value[0]].iloc[0]
+
+        return result
+
+
