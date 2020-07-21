@@ -42,11 +42,15 @@ def default_encoder(obj):
 
 class SimpleJsonEncoder(simplejson.JSONEncoder):
     def default(self, obj):
+        if isinstance(obj, (datetime.datetime, datetime.date, datetime.time)):
+            return obj.isoformat()
         return default_encoder(obj)
 
 
 class SimpleJsonEncoderSklearn(simplejson.JSONEncoder):
     def default(self, obj):
+        if isinstance(obj, (datetime.datetime, datetime.date, datetime.time)):
+            return obj.isoformat()
         return default_encoder_sklearn(obj)
 
 
