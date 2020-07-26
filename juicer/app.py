@@ -23,8 +23,10 @@ logging.config.fileConfig('logging_config.ini')
 log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
 
+  
 
-def main(workflow_id, execute_main, params, config, deploy, export_notebook):
+def main(workflow_id, execute_main, params, config, deploy, export_notebook, 
+         custom_vars=None):
     log.debug(_('Processing workflow queue %s'), workflow_id)
     tahiti_conf = config['juicer']['services']['tahiti']
 
@@ -32,15 +34,18 @@ def main(workflow_id, execute_main, params, config, deploy, export_notebook):
                         token=str(tahiti_conf['auth_token']),
                         item_id=workflow_id)
 
+
     loader = Workflow(resp, config)
+    loader.handle_variables(custom_vars)
+
     # FIXME: Implement validation
     configuration.set_config(config)
 
     ops = query_tahiti(
         base_url=tahiti_conf['url'], item_path='/operations',
         token=str(tahiti_conf['auth_token']), item_id='',
-        qs='fields=id,slug,ports.id,ports.slug,ports.interfaces&platform={}'.format( 
-            resp['platform']['id']))
+        qs='fields=id,slug,ports.id,ports.slug,ports.interfaces&platform={}&workflow={}'.format( 
+            resp['platform']['id'], workflow_id))
     slug_to_op_id = dict([(op['slug'], op['id']) for op in ops])
     port_id_to_port = dict([(p['id'], p) for op in ops for p in op['ports']])
 
@@ -57,7 +62,6 @@ def main(workflow_id, execute_main, params, config, deploy, export_notebook):
         elif loader.platform.get('plugin'):
             plugin_factories = plugin_util.prepare_and_get_plugin_factory(
                 configuration.get_config(), loader.platform.get('id'))
-            # import pdb; pdb.set_trace()
             factory = plugin_factories.get(loader.platform['id'])
             transpiler = factory.get_transpiler(configuration.get_config())
         else:
@@ -95,6 +99,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--lang", help="Minion messages language (i18n)",
                         required=False, default="en_US")
+    parser.add_argument("--vars", help="Add variables", required=False)
     parser.add_argument(
         "-p", "--plain", required=False, action="store_true",
         help="Indicates if workflow should be plain PySpark, "
@@ -111,6 +116,10 @@ if __name__ == "__main__":
         with open(args.config) as config_file:
             juicer_config = yaml.load(config_file.read(),
                                       Loader=yaml.FullLoader)
-
+    custom_vars = None
+    if args.vars:
+        with open(args.vars) as vars_file:
+            custom_vars = yaml.load(vars_file.read(),
+                             Loader=yaml.FullLoader)
     main(args.workflow, args.execute_main, {"plain": args.plain}, juicer_config,
-         args.deploy, args.notebook)
+         args.deploy, args.notebook, custom_vars)

@@ -151,7 +151,12 @@ class UserFilterOperation(Operation):
                     'to_date("{}")'.format(datetime.datetime.strptime(
                                 v, '%Y-%m-%d').strftime('%Y-%m-%d 00:00:00')))
             except:
-                return False, None
+                try:
+                    return (True, 
+                        'to_date("{}")'.format(datetime.datetime.strptime(
+                            v, '%Y-%m-%d %H:%M:%S').strftime('%Y-%m-%d %H:%M:%S')))
+                except:
+                    return False, None
         log.warn(_('Unknown data type %s for field %s', f.get('name'), 
             f.get('type')))
         return False, None
