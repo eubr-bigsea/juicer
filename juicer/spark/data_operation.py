@@ -174,6 +174,17 @@ class DataReaderOperation(Operation):
             if self.metadata['format'] in ['CSV', 'TEXT']:
                 # Multiple values not supported yet! See SPARK-17878
                 code.append("url = '{url}'".format(url=url))
+
+                if self.metadata['storage'].get('extra_params'):
+                    extra_params = json.loads(
+                            self.metadata['storage']['extra_params'])
+                    if 'user' in extra_params:
+                        code.append('jvm = spark_session._jvm')
+                        code.append(
+                            'jvm.java.lang.System.setProperty('
+                            '"HADOOP_USER_NAME", "' + extra_params.get('user') +
+                            '")')
+
                 null_values = self.null_values
                 if self.metadata.get('treat_as_missing'):
                     null_values.extend([x.strip() for x in self.metadata.get(
@@ -187,6 +198,7 @@ class DataReaderOperation(Operation):
                     # Spark does not works with encoding + multiline options
                     # See https://github.com/databricks/spark-csv/issues/448
                     # And there is no way to specify record delimiter!!!!!
+
                     code_csv = dedent("""
                         {output} = spark_session.read{null_option}.option(
                             'treatEmptyValuesAsNulls', 'true').option(
