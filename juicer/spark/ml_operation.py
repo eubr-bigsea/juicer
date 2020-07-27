@@ -582,6 +582,7 @@ class EvaluateModelOperation(Operation):
         'mse': ('evaluation.RegressionEvaluator', 'predictionCol'),
         'mae': ('evaluation.RegressionEvaluator', 'predictionCol'),
         'r2': ('evaluation.RegressionEvaluator', 'predictionCol'),
+        'mape': ('evaluation.RegressionEvaluator', 'predictionCol'),
     }
 
     def __init__(self, parameters, named_inputs,
@@ -693,8 +694,8 @@ class EvaluateModelOperation(Operation):
             elif self.metric in ['f1', 'weightedPrecision', 'weightedRecall',
                                  'accuracy']:
                 self._get_code_for_classification_metrics(code)
-            elif self.metric in ['rmse', 'mae', 'mse']:
-                self._get_code_for_regression_metrics(code)
+            elif self.metric in ['rmse', 'mae', 'mse', 'r2', 'var', 'mape']:
+                self._get_code_for_regression_metrics(code, self.metric)
 
             self._get_code_for_summary(code)
 
@@ -900,7 +901,7 @@ class EvaluateModelOperation(Operation):
         """))
 
     @staticmethod
-    def _get_code_for_regression_metrics(code):
+    def _get_code_for_regression_metrics(code, metric):
         """
         Code for the evaluator when metric is related to regression
         """
@@ -910,12 +911,26 @@ class EvaluateModelOperation(Operation):
                 (types.DoubleType, types.FloatType)):
                 df = {input}.withColumn(prediction_col,
                     {input}[prediction_col].cast('double'))
+                    
+            """))
 
-            evaluator = evaluation.RegressionEvaluator(
-                {prediction_arg}=prediction_col,
-                labelCol=label_col,
-                metricName=metric)
-            metric_value = evaluator.evaluate(df)
+        if metric == 'mape':
+            code.append(dedent("""
+            metric_value = df.withColumn('result', 
+                functions.abs(df[label_col] - df[prediction_col]) /
+                functions.when(functions.abs(df[label_col]) == 0.0, 0.0000001).otherwise(functions.abs(df[label_col]))
+                ).select((functions.sum("result")/functions.count("result"))).collect()[0][0]
+            """))
+        else:
+            code.append(dedent("""
+                evaluator = evaluation.RegressionEvaluator(
+                    {prediction_arg}=prediction_col,
+                    labelCol=label_col,
+                    metricName=metric)
+                metric_value = evaluator.evaluate(df)
+                """))
+
+        code.append(dedent("""
             if display_text:
                 result = '<h6>{{}}: {{}}</h6>'.format('{metric}',
                     metric_value)
@@ -1072,6 +1087,7 @@ class CrossValidationOperation(Operation):
         'rmse': ('evaluation.RegressionEvaluator', 'predictionCol'),
         'mse': ('evaluation.RegressionEvaluator', 'predictionCol'),
         'mae': ('evaluation.RegressionEvaluator', 'predictionCol'),
+        'r2': ('evaluation.RegressionEvaluator', 'predictionCol'),
     }
 
     def __init__(self, parameters, named_inputs, named_outputs):
