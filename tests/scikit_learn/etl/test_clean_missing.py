@@ -7,12 +7,10 @@ import pytest
 
 # CleanMissing
 #
-def test_clean_missing_fail_multiplicity_parameter_not_passed():
+def test_clean_missing_success_multiplicity_parameter_not_passed():
     slice_size = 10
     df = ['df', util.iris(['sepallength', 'sepalwidth',
                            'petalwidth', 'petallength'], slice_size)]
-
-    df[1].loc[0, 'sepalwidth'] = np.NaN
 
     arguments = {
         'parameters': {
@@ -28,6 +26,7 @@ def test_clean_missing_fail_multiplicity_parameter_not_passed():
     instance = CleanMissingOperation(**arguments)
     result = util.execute(instance.generate_code(),
                           {'df': df[1]})
+    assert result['output_data_1'].equals(df[1])
 
 
 def test_clean_missing_success_missing_parameters():
