@@ -8,8 +8,6 @@ import pytest
 # CleanMissing
 #
 def test_clean_missing_fail_multiplicity_parameter_not_passed():
-    # Multiplicity adds '.copy()' to the resulting code, but it works
-    # in a weird way. Is it intended to work like this?
     slice_size = 10
     df = ['df', util.iris(['sepallength', 'sepalwidth',
                            'petalwidth', 'petallength'], slice_size)]
@@ -148,7 +146,6 @@ def test_clean_missing_success_missing_named_inputs():
 
 
 def test_clean_missing_success_no_output_implies_no_code():
-    # It's generating code without output
     slice_size = 10
     df = ['df', util.iris(['sepallength', 'sepalwidth',
                            'petalwidth', 'petallength'], slice_size)]
@@ -432,7 +429,3 @@ def test_clean_missing_max_ratio_is_lower_than_min_ratio_success():
         result = util.execute(instance.generate_code(),
                               {'df': df[1]})
     assert ('Parameter \'attributes\' must be 0<=x<=1 for task' in str(val_err))
-
-# TODO
-
-# Fix multiplicity(?)
