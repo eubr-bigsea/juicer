@@ -193,7 +193,7 @@ class CleanMissingOperation(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-        self.has_code = len(self.named_inputs) == 1
+        self.has_code = len(named_outputs) >= 1 and len(named_inputs) == 1
 
         if self.has_code:
             if self.ATTRIBUTES_PARAM in parameters:
@@ -232,7 +232,8 @@ class CleanMissingOperation(Operation):
 
         op = ""
         copy_code = ".copy()" \
-            if self.parameters['multiplicity']['input data'] > 1 else ""
+            if self.parameters.get(
+            'multiplicity', {}).get('input data', 1) > 1 else ""
         if self.mode_CM == "REMOVE_ROW":
             code = """
                 min_missing_ratio = {min_thresh}
