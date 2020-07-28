@@ -479,7 +479,7 @@ class FeatureDisassemblerOperation(Operation):
             raise ValueError(
                     _("Parameter '{}' must be informed for task {}").format(
                             self.FEATURE_PARAM, self.__class__))
-        self.topn = int(self.parameters.get(self.TOP_N, 0))
+        self.topn = int(self.parameters.get(self.TOP_N, 1))
         self.alias = self.parameters.get(self.PREFIX_PARAM, 'vector_')
 
         self.has_code = any(
@@ -514,7 +514,7 @@ class FeatureDisassemblerOperation(Operation):
         if top_n > 0 and top_n < n_features:
             n_features = top_n
         {out} = {out}.select(columns + 
-            [col("tmp_vector")[i].alias("{alias}"+str(i)) 
+            [col("tmp_vector")[i].alias("{alias}"+str(i+1)) 
              for i in range(n_features)])
         """.format(input=input_data, out=self.output,
                    feature=self.feature[0],
