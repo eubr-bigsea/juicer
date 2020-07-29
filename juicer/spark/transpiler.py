@@ -171,13 +171,17 @@ class SparkTranspiler(Transpiler):
         }
         vis_ops = {
             'area-chart': vis_operation.AreaChartOperation,
-            'box-plot': vis_operation.BoxPlotOperation,
             'bar-chart': vis_operation.BarChartOperation,
+            'box-plot': vis_operation.BoxPlotOperation,
+            'bubble-chart': vis_operation.BubbleChartOperation,
             'donut-chart': vis_operation.DonutChartOperation,
             'histogram': vis_operation.HistogramOperation,
+            'iframe': vis_operation.IFrameOperation,
+            'indicator': vis_operation.IndicatorOperation,
             'line-chart': vis_operation.LineChartOperation,
             'map-chart': vis_operation.MapOperation,
             'map': vis_operation.MapOperation,
+            'markdown': vis_operation.MarkdownOperation,
             'pie-chart': vis_operation.PieChartOperation,
             'plot-chart': vis_operation.ScatterPlotOperation,
             'publish-as-visualization':

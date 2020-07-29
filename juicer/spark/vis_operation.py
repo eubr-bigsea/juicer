@@ -188,23 +188,14 @@ class VisualizationMethodOperation(Operation):
 
     def get_model_parameters(self):
         result = {}
-        valid = ['x_axis_attribute', "y_title", "y_prefix", 'legend',
-                 "y_suffix", "y_format", "x_title", "x_prefix", "x_suffix",
-                 "x_format", "x_format", 'type',
-                 'z_axis_attribute', 'z_title', 'z_prefix', 'z_suffix',
-                 'z_format',
-                 't_axis_attribute', 't_title', 't_prefix', 't_suffix',
-                 't_format',
-                 'latitude', 'longitude', 'value', 'label',
-                 'y_axis_attribute', 'z_axis_attribute', 't_axis_attribute',
-                 'series_attribute', 'extra_data', 'polygon', 'geojson_id',
-                 'polygon_url', 'fact_attributes', 'group_attribute',
-                 'show_outliers', 'title', 'attributes', 'bins', 'type']
+        invalid = {'configuration', 'export_notebook', 
+                'hash', 'transpiler', 'parents',
+                'parents_by_port', 'my_ports', 'audit_events',
+                'task', 'workflow',}
 
         for k, v in list(self.parameters.items()):
-            if k in valid:
+            if k not in invalid and not isinstance(v, (set,)):
                 result[k] = v
-        #### FIXME !!!! result.update(self.parameters)
         return result
 
     def get_output_names(self, sep=','):
@@ -215,22 +206,21 @@ class VisualizationMethodOperation(Operation):
                               "in {} subclass").format(self.__class__))
 
     def generate_code(self):
-
         code_lines = [dedent(
             """
             from juicer.spark.vis_operation import {model}
             from juicer.util.dataframe_util import SimpleJsonEncoder as enc
 
-            params = '{params}'
+            params = {params}
             {out} = {model}(
                 {input}, '{task}', '{op}',
                 '{op_slug}', '{title}',
                 {columns},
                 '{orientation}', {id_attr}, {value_attr},
-                params=json.loads(params))
+                params=params)
             """.format(out=self.output,
                        model=self.get_model_name(),
-                       input=self.named_inputs['input data'],
+                       input=self.named_inputs.get('input data', '"None"'),
                        task=self.parameters['task']['id'],
                        op=self.parameters['operation_id'],
                        op_slug=self.parameters['operation_slug'],
@@ -239,7 +229,7 @@ class VisualizationMethodOperation(Operation):
                        orientation=self.orientation,
                        id_attr=self.id_attribute,
                        value_attr=self.value_attribute,
-                       params=json.dumps(self.get_model_parameters() or {}),
+                       params=repr(self.get_model_parameters() or {}),
                        ))]
         if len(self.named_outputs) == 0:
             # Standalone visualization, without a dashboard
@@ -349,6 +339,7 @@ class MarkdownOperation(VisualizationMethodOperation):
     def __init__(self, parameters, named_inputs, named_outputs):
         VisualizationMethodOperation.__init__(self, parameters, named_inputs,
                                               named_outputs)
+        self.has_code = True
 
     def get_model_name(self):
         return MarkdownModel.__name__
@@ -371,6 +362,7 @@ class HeatmapOperation(VisualizationMethodOperation):
         return HeatmapModel.__name__
 
 class BubbleChartOperation(VisualizationMethodOperation):
+
     def __init__(self, parameters, named_inputs, named_outputs):
         VisualizationMethodOperation.__init__(self, parameters, named_inputs,
                                               named_outputs)
@@ -391,6 +383,7 @@ class IFrameOperation(VisualizationMethodOperation):
     def __init__(self, parameters, named_inputs, named_outputs):
         VisualizationMethodOperation.__init__(self, parameters, named_inputs,
                                               named_outputs)
+        self.has_code = True
 
     def get_model_name(self):
         return IFrameModel.__name__
@@ -1442,9 +1435,11 @@ class IndicatorModel(ChartVisualization):
         data = self.to_pandas()
 
         displays =[]
+        number = True
+        delta = False
+        
         if self.params.get('display_value', False) in ('1', 1, True):
             displays.append('number')
-            number = True
         if self.params.get('display_delta', False) in ('1', 1, True):
             displays.append('delta')
             delta = True
@@ -1464,7 +1459,9 @@ class IndicatorModel(ChartVisualization):
                 raise ValueError(
                     _('Parameter delta must be informed if '
                        'display delta option is enabled.'))
-                result['delta'] = {'reference': data[value[0]].iloc[0]}
+           result['delta'] = {'reference': data[delta_attr[0]].iloc[0]}
+           if self.params.get('delta_relative') in ('1', 1, True):
+               result['delta']['relative'] = True
 
         if number:
            value_attr = self.params.get('value', []) or []
@@ -1472,8 +1469,111 @@ class IndicatorModel(ChartVisualization):
                 raise ValueError(
                     _('Parameter value must be informed if '
                        'display value option is enabled.'))
-           result['value'] = data[value[0]].iloc[0]
+           result['value'] = data[value_attr[0]].iloc[0]
 
-        return result
+        return {'data': result}
 
+class IFrameModel(ChartVisualization):
+    """ IFrame visualization. """
 
+    def get_data(self):
+        link = self.params.get('link')
+        if link is None:
+           raise ValueError(
+                    _("Parameter '{}' must be informed for task {}").format(
+                        'link', 'Iframe'))
+        return {'data': {'link': link}}
+
+class MarkdownModel(ChartVisualization):
+    """ Markdown visualization. """
+
+    def get_data(self):
+        text = self.params.get('text')
+        if text is None:
+           raise ValueError(
+                    _("Parameter '{}' must be informed for task {}").format(
+                        'text', 'Markdown'))
+        return {'data': {'text': text}}
+
+class BubbleChartModel(ChartVisualization):
+    """ Bubble chart visualization chart """
+
+    TITLE_PARAM = 'title'                          
+    X_AXIS_ATTRIBUTE_PARAM = 'x_axis_attribute'    
+    Y_AXIS_ATTRIBUTE_PARAM = 'y_axis_attribute'    
+    SIZE_ATTRIBUTE_PARAM = 'size_attribute'        
+    COLOR_ATTRIBUTE_PARAM = 'color_attribute'
+    TEXT_ATTRIBUTE_PARAM = 'text_attribute'
+    X_TITLE_PARAM = 'x_title'                      
+    Y_TITLE_PARAM = 'y_title'                      
+    COLOR_PALETTE_PARAM = 'color_palette'                          
+
+    def get_data(self):
+        data = self.to_pandas()
+
+        x_name = self.params.get(self.X_AXIS_ATTRIBUTE_PARAM)
+        if x_name is None or len(x_name) == 0:
+            raise ValueError(
+                    _("Parameter '{}' must be informed for task {}").format(
+                        self.X_AXIS_ATTRIBUTE_PARAM, 'Bubble chart'))
+        else:
+            x_name = x_name[0]
+   
+        y_name = self.params.get(self.Y_AXIS_ATTRIBUTE_PARAM)
+        if y_name is None or len(y_name) == 0:
+            raise ValueError(
+                    _("Parameter '{}' must be informed for task {}").format(
+                        self.Y_AXIS_ATTRIBUTE_PARAM, 'Bubble chart'))
+        else:
+            y_name = y_name[0]
+
+        size_name = self.params.get(self.SIZE_ATTRIBUTE_PARAM)
+        if size_name is None or len(size_name) == 0:
+            raise ValueError(
+                    _("Parameter '{}' must be informed for task {}").format(
+                        self.SIZE_ATTRIBUTE_PARAM, 'Bubble chart'))
+        else:
+            size_name = size_name[0]
+
+        color_name = self.params.get(self.COLOR_ATTRIBUTE_PARAM)
+        if color_name and len(color_name) > 0:
+            color_name = color_name[0]
+        else:
+            color_name = None
+
+        text_name = self.params.get(self.TEXT_ATTRIBUTE_PARAM)
+        if text_name and len(text_name) > 0:
+            text_name = text_name[0]
+        else:
+            text_name = None
+
+        x, y, s, c, t = [], [], [], [], []
+
+        palette = self.params.get(self.COLOR_PALETTE_PARAM, COLORS_PALETTE)
+        color_map = {}
+
+        for index, row in data.iterrows():
+            x.append(row[x_name])
+            y.append(row[y_name])
+            s.append(row[size_name])
+            if color_name:
+                color_value = row[color_name]
+                if color_value not in color_map:
+                    color_map[color_value] = palette[len(color_map) % len(palette)]
+                c.append(color_map[color_value])
+            if text_name:
+                t.append(row[text_name])
+
+        result = {
+            'type': 'scatter',
+            'mode': 'markers',
+            'title': self.params.get('title'),
+            'x': x,
+            'y': y,
+            'sizes': s,
+            'colors': c,
+            'texts': t,
+            'x_title': self.params.get(self.X_TITLE_PARAM),
+            'y_title': self.params.get(self.Y_TITLE_PARAM),
+        }
+        return {'data': result}
