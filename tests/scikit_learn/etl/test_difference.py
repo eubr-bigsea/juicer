@@ -213,7 +213,14 @@ def test_difference_big_variation_success():
     result = util.execute(instance.generate_code(),
                           {'df1': df1[1],
                            'df2': df2[1]})
-    # needs a better assertion
+
+    tst = df1[1]
+    diff_oper = df1[1].ne(df2[1])
+    for i in range(40):
+        if not diff_oper.iloc[i, 0:].any():
+            tst.drop(i, inplace=True)
+
+    assert result['out'].eq(tst).equals(tst.eq(result['out']))
     assert len(result['out']) == 36
 
 

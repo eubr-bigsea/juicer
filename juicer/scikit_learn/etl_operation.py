@@ -336,8 +336,8 @@ class DifferenceOperation(Operation):
         intersection = {input1}.columns.intersection({input2}.columns)
 
         # Remove cols out of the intersection
-        input1_oper = {input1}[intersection]
-        input2_oper = {input2}[intersection]
+        input1_oper = {input1}.loc[:, intersection]
+        input2_oper = {input2}.loc[:, intersection]
     
         highest_len = len({input1}) if len({input1}) > len({input2}) \
 else len({input2})
@@ -345,7 +345,7 @@ else len({input2})
         # Creates the resulting df with unique df1 rows
         diff_oper = input1_oper.ne(input2_oper)
         for i in range(highest_len):
-            if diff_oper.iloc[i, 0:].any() == False:
+            if not diff_oper.iloc[i, 0:].any():
                 input1_oper.drop(i, inplace=True)
         {output} = input1_oper
         """.format(output=self.output,
