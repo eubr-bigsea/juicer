@@ -407,7 +407,7 @@ class SparkMinion(Minion):
         start = timer()
         try:
             loader = Workflow(workflow, self.config)
-            loader.handle_variables()
+            loader.handle_variables({'job_id': job_id})
 
             # Mark job as running
             if self.new_session:

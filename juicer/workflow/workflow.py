@@ -495,6 +495,8 @@ class Workflow(object):
             'user_name': self.workflow['user']['name'],
             'user_email': self.workflow['user']['login'], # FIXME
             'user_id': str(self.workflow['user']['id']),
+            'workflow_name': self.workflow['name'],
+            'workflow_id': self.workflow['id'],
         }
         if custom_vars:
             all_vars.update(custom_vars)
