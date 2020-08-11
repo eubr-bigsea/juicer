@@ -175,6 +175,7 @@ class SparkTranspiler(Transpiler):
             'box-plot': vis_operation.BoxPlotOperation,
             'bubble-chart': vis_operation.BubbleChartOperation,
             'donut-chart': vis_operation.DonutChartOperation,
+            'heatmap': vis_operation.HeatmapOperation,
             'histogram': vis_operation.HistogramOperation,
             'iframe': vis_operation.IFrameOperation,
             'indicator': vis_operation.IndicatorOperation,

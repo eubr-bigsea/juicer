@@ -1577,3 +1577,82 @@ class BubbleChartModel(ChartVisualization):
             'y_title': self.params.get(self.Y_TITLE_PARAM),
         }
         return {'data': result}
+
+class HeatmapModel(ChartVisualization):
+    """ Heatmap visualization """
+
+    TITLE_PARAM = 'title'                               
+    ROW_ATTRIBUTE_PARAM = 'row_attribute'               
+    COLUMN_ATTRIBUTE_PARAM = 'column_attribute'         
+    VALUE_ATTRIBUTE_PARAM = 'value_attribute'           
+    AGGREGATION_FUNCTION_PARAM = 'aggregation_function' 
+    ROW_TITLE_PARAM = 'row_title'
+    COLUMN_TITLE_PARAM = 'column_title'
+    COLOR_SCALE_PARAM = 'color_scale'
+
+    def _compute(self, agg_function, group, attr):
+
+        from pyspark.sql import functions
+        if agg_function == 'count':
+            df = self.data.groupBy(*group).count().withColumnRenamed(
+                    'count', 'tmp_value')
+        else:
+            f = getattr(functions, agg_function)
+            df = self.data.groupBy(*group).agg(
+                    f(functions.lit(attr)).alias('tmp_value'))
+
+        return df.toPandas()
+
+    def get_data(self):
+
+        col_name = self.params.get(self.COLUMN_ATTRIBUTE_PARAM)
+        if col_name is None or len(col_name) == 0:
+            raise ValueError(
+                    _("Parameter '{}' must be informed for task {}").format(
+                        self.COLUMN_ATTRIBUTE_PARAM, 'Heatmap'))
+        else:
+            col_name = col_name[0]
+   
+        row_name = self.params.get(self.ROW_ATTRIBUTE_PARAM)
+        if row_name is None or len(row_name) == 0:
+            raise ValueError(
+                    _("Parameter '{}' must be informed for task {}").format(
+                        self.ROW_ATTRIBUTE_PARAM, 'Heatmap'))
+        else:
+            row_name = row_name[0]
+
+        value_name = self.params.get(self.VALUE_ATTRIBUTE_PARAM)
+        if value_name is None or len(value_name) == 0:
+            raise ValueError(
+                    _("Parameter '{}' must be informed for task {}").format(
+                        self.VALUE_ATTRIBUTE_PARAM, 'Heatmap'))
+        else:
+            value_name = value_name[0]
+
+        rows, cols, values = [], [], []
+
+        palette = self.params.get(self.COLOR_SCALE_PARAM, COLORS_PALETTE)
+        agg_function = self.params.get(self.AGGREGATION_FUNCTION_PARAM, 'sum')
+
+        data = self._compute(agg_function, [row_name, col_name], value_name)
+        color_map = {}
+
+        for index, row in data.iterrows():
+            cols.append(row[col_name])
+            rows.append(row[row_name])
+            values.append(row['tmp_value'])
+
+        result = {
+            'type': 'scatter',
+            'mode': 'markers',
+            'title': self.params.get('title'),
+            'rows': rows,
+            'cols': cols,
+            'values': values,
+            'colors': self.params.get(self.COLOR_SCALE_PARAM, COLORS_PALETTE),
+            'row_title': self.params.get(self.ROW_TITLE_PARAM),
+            'column_title': self.params.get(self.COLUMN_TITLE_PARAM),
+        }
+        return {'data': result}
+
+
