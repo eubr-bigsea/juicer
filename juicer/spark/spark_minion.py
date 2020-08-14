@@ -633,7 +633,7 @@ class SparkMinion(Minion):
                 all_jars.append(app_configs['spark.driver.extraClassPath'])
 
             app_configs['spark.driver.extraClassPath'] = os.path.pathsep.join(
-                all_jars)
+                [jar for jar in all_jars if jar])
 
             log.info('JAVA CLASSPATH: %s',
                      app_configs['spark.driver.extraClassPath'])
