@@ -306,12 +306,20 @@ class SparkMinion(Minion):
 
             # Add general parameters in the form param1=value1,param2=value2
             try:
-                if cluster_info.get('general_parameters'):
-                    parameters = cluster_info['general_parameters'].split(',')
-                    for parameter in parameters:
-                        key, value = parameter.split('=')
-                        if key.startswith('spark'):
+                general_parameters = cluster_info.get('general_parameters')
+                if general_parameters:
+                    if general_parameters[0] == '{': # JSON
+                        gp = json.loads(general_parameters)
+                        for (key, value) in gp.get('spark', []):
                             self.cluster_options[key.strip()] = value.strip()
+                        for (key, value) in gp.get('environment', []):
+                            os.environ[key] = value
+                    else:
+                        parameters = general_parameters.split(',')
+                        for parameter in parameters:
+                            key, value = parameter.split('=')
+                            if key.startswith('spark'):
+                                self.cluster_options[key.strip()] = value.strip()
             except Exception as ex:
                 msg = _("Error in general cluster parameters: {}").format(ex)
                 self._emit_event(room=job_id, namespace='/stand')(
