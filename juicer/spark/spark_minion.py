@@ -310,10 +310,15 @@ class SparkMinion(Minion):
                 if general_parameters:
                     if general_parameters[0] == '{': # JSON
                         gp = json.loads(general_parameters)
-                        for (key, value) in gp.get('spark', []):
+                        for (key, value) in gp.get('spark', {}).items():
                             self.cluster_options[key.strip()] = value.strip()
-                        for (key, value) in gp.get('environment', []):
+                        for (key, value) in gp.get('environment', {}).items():
                             os.environ[key] = value
+                        if gp.get('python'):
+                            self.cluster_options[
+                                    'spark.submit.pyFiles'] = ','.join(
+                                            gp.get('python'))
+                            
                     else:
                         parameters = general_parameters.split(',')
                         for parameter in parameters:

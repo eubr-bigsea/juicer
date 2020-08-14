@@ -157,7 +157,7 @@ class DataReaderOperation(Operation):
                     else:
                         code.append(
                             "schema_{0}.add('value', "
-                            "types.StringType(), 1, None)".format(self.output))
+                            "types.StringType(), True, None)".format(self.output))
 
                     code.append("")
                 else:
@@ -242,14 +242,29 @@ class DataReaderOperation(Operation):
                                                 infer_from_limonero)
             elif self.metadata['format'] == 'HIVE':
                 # import pdb; pdb.set_trace()
-                # Notifies the transpiler that Hive is required.
-                # In order to support Hive, SparkSession must be
-                # correctly configured.
-                self.parameters['transpiler'].on('requires-hive', self.metadata)
-                code_hive = dedent("""
-                    {out} = spark_session.sql(
-                        '''{sql}''')
-                """.format(sql=self.metadata.get('command'),
+                # parsed = urlparse(self.metadata['url'])
+                if self.metadata['storage']['type'] == 'HIVE_WAREHOUSE':
+                    code_hive = dedent("""
+                        from pyspark_llap import HiveWarehouseSession
+                        if spark_session.conf.get(
+                            'spark.sql.hive.hiveserver2.jdbc.url') is None:
+                             raise ValueError('{missing_config}')
+                        hive = HiveWarehouseSession.session(spark_session).build();
+                        {out} = hive.executeQuery('''{sql}''')
+                    """.format(sql=self.metadata.get('command'),
+                           out=self.output, 
+                           missing_config=_(
+                            'Cluster is not configured for Hive Warehouse')))
+                else:
+                    # Notifies the transpiler that Hive is required.
+                    # In order to support Hive, SparkSession must be
+                    # correctly configured.
+                    self.parameters['transpiler'].on(
+                        'requires-hive', self.metadata)
+                    code_hive = dedent("""
+                        {out} = spark_session.sql(
+                            '''{sql}''')
+                    """.format(sql=self.metadata.get('command'),
                            out=self.output))
                 code.append(code_hive)
             elif self.metadata['format'] == 'JSON':
@@ -860,7 +875,7 @@ class StreamConsumerOperation(DataReaderOperation):
             for attr in attrs:
                 self._add_attribute_to_schema(attr, code)
             else:
-                v = "schema_{0}.add('value', types.StringType(), 1, None)"
+                v = "schema_{0}.add('value', types.StringType(), True, None)"
                 code.append(v.format(self.output))
             code.append("")
         else:
