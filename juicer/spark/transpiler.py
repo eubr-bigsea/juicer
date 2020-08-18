@@ -190,6 +190,7 @@ class SparkTranspiler(Transpiler):
             'scatter-plot': vis_operation.ScatterPlotOperation,
             'summary-statistics': vis_operation.SummaryStatisticsOperation,
             'table-visualization': vis_operation.TableVisualizationOperation,
+            'treemap': vis_operation.TreemapOperation,
         }
         feature_ops = {
             'bucketizer': feature_operation.BucketizerOperation,

@@ -17,6 +17,8 @@ from juicer.util import chunks
 from juicer.util import dataframe_util
 from juicer.util.dataframe_util import get_csv_schema
 
+TRUE_VALS = [True, 1, '1']
+
 COLORS_PALETTE = list(reversed([
     '#590400', '#720601', '#8F0701', '#9C241E', '#AD443F',  # red
     '#934400', '#BD5700', '#ED6E00', '#FF9030', '#FFA75C',  # orange
@@ -188,7 +190,7 @@ class VisualizationMethodOperation(Operation):
 
     def get_model_parameters(self):
         result = {}
-        invalid = {'configuration', 'export_notebook', 
+        invalid = {'configuration', 'export_notebook',
                 'hash', 'transpiler', 'parents',
                 'parents_by_port', 'my_ports', 'audit_events',
                 'task', 'workflow',}
@@ -388,13 +390,13 @@ class IFrameOperation(VisualizationMethodOperation):
     def get_model_name(self):
         return IFrameModel.__name__
 
-class TreeMapOperation(VisualizationMethodOperation):
+class TreemapOperation(VisualizationMethodOperation):
     def __init__(self, parameters, named_inputs, named_outputs):
         VisualizationMethodOperation.__init__(self, parameters, named_inputs,
                                               named_outputs)
 
     def get_model_name(self):
-        return TreeMapModel.__name__
+        return TreemapModel.__name__
 
 #=============================
 class MapOperation(VisualizationMethodOperation):
@@ -432,7 +434,7 @@ class SummaryStatisticsOperation(VisualizationMethodOperation):
                                               named_outputs)
         self.attributes = parameters.get(self.ATTRIBUTES_PARAM, None)
         self.correlation = parameters.get(self.CORRELATION_PARAM) \
-                           in [True, '1', 1]
+                           in TRUE_VALS
 
     def get_model_parameters(self):
         return {self.ATTRIBUTES_PARAM: self.attributes or [],
@@ -702,7 +704,7 @@ class PieChartModel(ChartVisualization):
         self.data.count()
         rows = self.data.collect()
         result = self._get_title_legend_tooltip()
-        result['legend']['isVisible'] = self.params.get('legend') in ('1', 1)
+        result['legend']['isVisible'] = self.params.get('legend') in TRUE_VALS
 
         x_format = self.params.get("x_format", {})
         if not isinstance(x_format, dict):
@@ -1207,7 +1209,7 @@ class BoxPlotModel(ChartVisualization):
 
         computed_cols = []
 
-        show_outliers = self.params.get('show_outliers') in (1, '1', True)
+        show_outliers = self.params.get('show_outliers') in TRUE_VALS
         group_offset = 1 if group is not None else 0
         for i, quartile_row in enumerate(quartiles):
             # First column in row is the label for the group, so it's ignored
@@ -1216,9 +1218,9 @@ class BoxPlotModel(ChartVisualization):
                 iqr = round(fact_quartiles[2] - fact_quartiles[0], 4)
 
                 # Calculates boundaries for identifying outliers
-                lower_bound = round(float(fact_quartiles[0]) - 
+                lower_bound = round(float(fact_quartiles[0]) -
                         1.5 * float(iqr), 4)
-                upper_bound = round(float(fact_quartiles[2]) + 
+                upper_bound = round(float(fact_quartiles[2]) +
                         1.5 * float(iqr), 4)
 
                 # Outliers are beyond boundaries
@@ -1431,19 +1433,19 @@ class IndicatorModel(ChartVisualization):
     """ Indicator (odometer/big number)  model for data visualization. """
 
     def get_data(self):
-        
+
         data = self.to_pandas()
 
         displays =[]
         number = True
         delta = False
-        
-        if self.params.get('display_value', False) in ('1', 1, True):
+
+        if self.params.get('display_value', False) in TRUE_VALS:
             displays.append('number')
-        if self.params.get('display_delta', False) in ('1', 1, True):
+        if self.params.get('display_delta', False) in TRUE_VAL:
             displays.append('delta')
             delta = True
-        if self.params.get('display_gauge', False) in ('1', 1, True):
+        if self.params.get('display_gauge', False) in TRUE_VALS:
             displays.append('gauge')
 
         mode = '+'.join(displays)
@@ -1460,7 +1462,7 @@ class IndicatorModel(ChartVisualization):
                     _('Parameter delta must be informed if '
                        'display delta option is enabled.'))
            result['delta'] = {'reference': data[delta_attr[0]].iloc[0]}
-           if self.params.get('delta_relative') in ('1', 1, True):
+           if self.params.get('delta_relative') in TRUE_VALS:
                result['delta']['relative'] = True
 
         if number:
@@ -1498,15 +1500,15 @@ class MarkdownModel(ChartVisualization):
 class BubbleChartModel(ChartVisualization):
     """ Bubble chart visualization chart """
 
-    TITLE_PARAM = 'title'                          
-    X_AXIS_ATTRIBUTE_PARAM = 'x_axis_attribute'    
-    Y_AXIS_ATTRIBUTE_PARAM = 'y_axis_attribute'    
-    SIZE_ATTRIBUTE_PARAM = 'size_attribute'        
+    TITLE_PARAM = 'title'
+    X_AXIS_ATTRIBUTE_PARAM = 'x_axis_attribute'
+    Y_AXIS_ATTRIBUTE_PARAM = 'y_axis_attribute'
+    SIZE_ATTRIBUTE_PARAM = 'size_attribute'
     COLOR_ATTRIBUTE_PARAM = 'color_attribute'
     TEXT_ATTRIBUTE_PARAM = 'text_attribute'
-    X_TITLE_PARAM = 'x_title'                      
-    Y_TITLE_PARAM = 'y_title'                      
-    COLOR_PALETTE_PARAM = 'color_palette'                          
+    X_TITLE_PARAM = 'x_title'
+    Y_TITLE_PARAM = 'y_title'
+    COLOR_PALETTE_PARAM = 'color_palette'
 
     def get_data(self):
         data = self.to_pandas()
@@ -1518,7 +1520,7 @@ class BubbleChartModel(ChartVisualization):
                         self.X_AXIS_ATTRIBUTE_PARAM, 'Bubble chart'))
         else:
             x_name = x_name[0]
-   
+
         y_name = self.params.get(self.Y_AXIS_ATTRIBUTE_PARAM)
         if y_name is None or len(y_name) == 0:
             raise ValueError(
@@ -1581,11 +1583,11 @@ class BubbleChartModel(ChartVisualization):
 class HeatmapModel(ChartVisualization):
     """ Heatmap visualization """
 
-    TITLE_PARAM = 'title'                               
-    ROW_ATTRIBUTE_PARAM = 'row_attribute'               
-    COLUMN_ATTRIBUTE_PARAM = 'column_attribute'         
-    VALUE_ATTRIBUTE_PARAM = 'value_attribute'           
-    AGGREGATION_FUNCTION_PARAM = 'aggregation_function' 
+    TITLE_PARAM = 'title'
+    ROW_ATTRIBUTE_PARAM = 'row_attribute'
+    COLUMN_ATTRIBUTE_PARAM = 'column_attribute'
+    VALUE_ATTRIBUTE_PARAM = 'value_attribute'
+    AGGREGATION_FUNCTION_PARAM = 'aggregation_function'
     ROW_TITLE_PARAM = 'row_title'
     COLUMN_TITLE_PARAM = 'column_title'
     COLOR_SCALE_PARAM = 'color_scale'
@@ -1612,7 +1614,7 @@ class HeatmapModel(ChartVisualization):
                         self.COLUMN_ATTRIBUTE_PARAM, 'Heatmap'))
         else:
             col_name = col_name[0]
-   
+
         row_name = self.params.get(self.ROW_ATTRIBUTE_PARAM)
         if row_name is None or len(row_name) == 0:
             raise ValueError(
@@ -1652,6 +1654,79 @@ class HeatmapModel(ChartVisualization):
             'colors': self.params.get(self.COLOR_SCALE_PARAM, COLORS_PALETTE),
             'row_title': self.params.get(self.ROW_TITLE_PARAM),
             'column_title': self.params.get(self.COLUMN_TITLE_PARAM),
+        }
+        return {'data': result}
+
+class TreemapModel(ChartVisualization):
+    """ Treemap visualization """
+
+    TITLE_PARAM = 'title'
+    LABEL_ATTRIBUTE_PARAM = 'label_attribute'
+    PARENT_ATTRIBUTE_PARAM = 'parent_attribute'
+    VALUE_ATTRIBUTE_PARAM = 'value_attribute'
+    DISPLAY_VALUE_PARAM = 'display_value'
+    DISPLAY_ENTRY_PERCENTAGE_PARAM = 'display_entry_percentage'
+    DISPLAY_PARENT_PERCENTAGE_PARAM = 'display_parent_percentage'
+
+    COLOR_PALETTE_PARAM = 'color_palette'
+
+    def get_data(self):
+
+        label = self.params.get(self.LABEL_ATTRIBUTE_PARAM)
+        if label is None or len(label) == 0:
+            raise ValueError(
+                    _("Parameter '{}' must be informed for task {}").format(
+                        self.LABEL_ATTRIBUTE_PARAM, 'Treemap'))
+        else:
+            label = label[0]
+
+        parent = self.params.get(self.PARENT_ATTRIBUTE_PARAM)
+        if parent is None or len(parent) == 0:
+            raise ValueError(
+                    _("Parameter '{}' must be informed for task {}").format(
+                        self.PARENT_ATTRIBUTE_PARAM, 'Treemap'))
+        else:
+            parent = parent[0]
+
+        value_name = self.params.get(self.VALUE_ATTRIBUTE_PARAM)
+        if value_name is None or len(value_name) == 0:
+            raise ValueError(
+                    _("Parameter '{}' must be informed for task {}").format(
+                        self.VALUE_ATTRIBUTE_PARAM, 'Treemap'))
+        else:
+            value_name = value_name[0]
+
+
+        data = self.data.toPandas()
+        labels, parents, values, colors = [], [], [], []
+        
+        palette = self.params.get(self.COLOR_PALETTE_PARAM)
+
+        for index, row in data.iterrows():
+            labels.append(row[label])
+            parents.append(row[parent])
+            values.append(row[value_name])
+            if palette:
+                colors.append(palette[index % len(palette)])
+
+        textinfo = ['label']
+
+        if self.params.get(self.DISPLAY_VALUE_PARAM) in TRUE_VALS:
+            textinfo.append('value')
+        if self.params.get(self.DISPLAY_ENTRY_PERCENTAGE_PARAM) in TRUE_VALS:
+            textinfo.append('percent entry')
+        if self.params.get(self.DISPLAY_PARENT_PERCENTAGE_PARAM) in TRUE_VALS:
+            textinfo.append('percent parent')
+
+        result = {
+            'branchvalues': 'total',     
+            'type': 'treemap',
+            'labels': labels,
+            'parents': parents,
+            'values': values,
+            'title': self.params.get('title'),
+            'colors': colors,
+            'textinfo': '+'.join(textinfo),
         }
         return {'data': result}
 
