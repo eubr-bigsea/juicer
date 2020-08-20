@@ -1026,11 +1026,9 @@ class TableVisualizationModel(VisualizationModel):
         Returns data as tabular (list of lists in Python).
         """
         if self.column_names:
-            rows = self.data.limit(500).select(*self.column_names).rdd.map(
-                dataframe_util.convert_to_python).collect()
+            rows = self.data.limit(500).select(*self.column_names).collect()
         else:
-            rows = self.data.limit(500).rdd.map(
-                dataframe_util.convert_to_python).collect()
+            rows = self.data.limit(500).collect()
 
         return {"rows": rows,
                 "attributes": self.get_column_names().split(',')}
