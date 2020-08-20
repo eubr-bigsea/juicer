@@ -255,7 +255,9 @@ class JuicerServer:
         minion_id = 'minion_{}_{}'.format(workflow_id, app_id)
         log.info(_('Starting minion %s in Kubernetes.'), minion_id)
 
-        minion_cmd = ['python', '/usr/local/juicer/juicer/runner/minion.py',
+        python_cmd = self.config['juicer'].get('minion', {}).get(
+                'python', 'python')
+        minion_cmd = [python_cmd, '/usr/local/juicer/juicer/runner/minion.py',
                       '-w', str(workflow_id),
                       '-a', str(app_id),
                       '-t', platform,
@@ -287,7 +289,10 @@ class JuicerServer:
         # created as part of an active minion.
         # spark.driver.port and spark.driver.blockManager.port are required
         # when running the driver inside a docker container.
-        minion_cmd = ['nohup', sys.executable, self.minion_executable,
+
+        python_cmd = self.config['juicer'].get('minion', {}).get(
+                'python') or sys.executable
+        minion_cmd = ['nohup', python_cmd, self.minion_executable,
                       '-w', str(workflow_id), '-a', str(app_id), '-t', platform,
                       '-c',
                       self.config_file_path, ]
@@ -308,7 +313,6 @@ class JuicerServer:
                                 stdout=open(stdout_log, 'a'),
                                 stderr=open(stderr_log, 'a'),
                                 env=cloned_env)
-
         # Expires in 30 seconds and sets only if it doesn't exist
         proc_id = int(proc.pid)
         state_control.set_minion_status(

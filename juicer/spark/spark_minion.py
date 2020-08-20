@@ -569,9 +569,9 @@ class SparkMinion(Minion):
         if not self.is_spark_session_available():
 
             log.info(_("Creating a new Spark session"))
-            app_name = '{name} (workflow_id={wf},app_id={app})'.format(
+            app_name = '{name} (workflow_id={wf})'.format(
                 name=strip_accents(loader.workflow.get('name', '')),
-                wf=self.workflow_id, app=self.app_id)
+                wf=self.workflow_id)
             app_name = ''.join([i if ord(i) < 128 else ' ' for i in app_name])
             spark_builder = SparkSession.builder.appName(
                 app_name)
