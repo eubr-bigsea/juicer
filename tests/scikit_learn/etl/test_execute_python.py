@@ -108,16 +108,11 @@ def test_execute_python_keywords_success():
         'parameters': {'code': dedent("""
         pass
         a = True and False
-        assert a is False
+        assert not a
         def testing():
             global b
             b = 'hello'
-            if a is True:
-                return True
-            elif a is False:
-                return False
-            else:
-                return None
+            return a
         testing()
         del testing
         try:
@@ -127,9 +122,9 @@ def test_execute_python_keywords_success():
         finally:
             pass
         for i in range(10):
-            if i is 5:
+            if i == 5:
                 continue
-            if i is 8:
+            if i == 8:
                 break
         c = lambda x: x + 10
         c(10)
@@ -138,7 +133,7 @@ def test_execute_python_keywords_success():
         while d not in e:
             e.append(d)
         f = True or False
-        assert f is True
+        assert f
         def creategen():
             lis = range(3)
             for i in lis:
@@ -164,16 +159,11 @@ def test_execute_python_keywords_success():
     assert result['user_code'] == dedent("""
         pass
         a = True and False
-        assert a is False
+        assert not a
         def testing():
             global b
             b = 'hello'
-            if a is True:
-                return True
-            elif a is False:
-                return False
-            else:
-                return None
+            return a
         testing()
         del testing
         try:
@@ -183,9 +173,9 @@ def test_execute_python_keywords_success():
         finally:
             pass
         for i in range(10):
-            if i is 5:
+            if i == 5:
                 continue
-            if i is 8:
+            if i == 8:
                 break
         c = lambda x: x + 10
         c(10)
@@ -194,7 +184,7 @@ def test_execute_python_keywords_success():
         while d not in e:
             e.append(d)
         f = True or False
-        assert f is True
+        assert f
         def creategen():
             lis = range(3)
             for i in lis:
