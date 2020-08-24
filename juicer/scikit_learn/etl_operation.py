@@ -442,12 +442,10 @@ class ExecutePythonOperation(Operation):
         # Input data
         in1 = {in1}
         in2 = {in2}
-
         # Output data, initialized as None
         out1 = None
         out2 = None
-        cpc = PrintCollector()
-        # Variables and language supported
+        # Variables and language supportedn 
         ctx = {{
             'wf_results': results,
             'in1': in1,
@@ -458,11 +456,11 @@ class ExecutePythonOperation(Operation):
             'createDataFrame': pd.DataFrame,
             
             # Restrictions in Python language
-             '_write_': lambda v: v,
-            '_getattr_': getattr,
+            '_write_': lambda v: v,
+            # '_getattr_': getattr,
             '_getitem_': lambda ob, index: ob[index],
             '_getiter_': lambda it: it,
-            '_print_': lambda x: cpc,
+            '_print_': PrintCollector,
             'json': json,
         }}
         user_code = {code}.decode('unicode_escape')
@@ -477,10 +475,9 @@ class ExecutePythonOperation(Operation):
             # Retrieve values changed in the context
             out1 = ctx['out1']
             out2 = ctx['out2']
-
-            if cpc.txt:
+            if '_print' in ctx:
                 emit_event(name='update task',
-                    message=''.join(cpc.txt),
+                    message=ctx['_print'](),
                     status='RUNNING',
                     identifier='{id}')
         except NameError as ne:
