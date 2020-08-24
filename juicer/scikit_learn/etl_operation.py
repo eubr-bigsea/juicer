@@ -364,7 +364,7 @@ class DistinctOperation(Operation):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         self.attributes = parameters.get('attributes', 'None')
-        self.has_code = len(named_inputs) == 1
+        self.has_code = len(named_inputs) == 1 and len(named_outputs) >= 1
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
 
@@ -908,7 +908,7 @@ class SelectOperation(Operation):
                 _("Parameter '{}' must be informed for task {}").format
                 (self.ATTRIBUTES_PARAM, self.__class__))
 
-        self.has_code = len(named_inputs) == 1
+        self.has_code = (len(named_inputs) == 1 and len(named_outputs)>=1) or self.contains_results()
         self.output = self.named_outputs.get(
             'output projected data', 'projection_data_{}'.format(self.order))
 
