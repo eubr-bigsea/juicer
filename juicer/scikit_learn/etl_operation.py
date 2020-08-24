@@ -99,7 +99,7 @@ class AggregationOperation(Operation):
             agg = agg_functions[agg]
 
             if self.pivot is None:
-                if "*" is att:
+                if "*" == att:
                     att = self.attributes[0]
                 if 'collect' in agg:
                     self.input_operations_non_pivot.append(
@@ -327,16 +327,27 @@ class DifferenceOperation(Operation):
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
-        self.has_code = len(named_inputs) == 2
+        self.has_code = len(named_outputs) >= 1 and len(named_inputs) == 2
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
 
     def generate_code(self):
         code = """
-        cols = {input1}.columns
-        {output} = pd.merge({input1}, {input2},
-            indicator=True, how='left', on=None)
-        {output} = {output}.loc[{output}['_merge'] == 'left_only', cols]
+        intersection = {input1}.columns.intersection({input2}.columns)
+
+        # Remove cols out of the intersection
+        input1_oper = {input1}.loc[:, intersection]
+        input2_oper = {input2}.loc[:, intersection]
+    
+        highest_len = len({input1}) if len({input1}) > len({input2}) \
+else len({input2})
+
+        # Creates the resulting df with unique df1 rows
+        diff_oper = input1_oper.ne(input2_oper)
+        for i in range(highest_len):
+            if not diff_oper.iloc[i, 0:].any():
+                input1_oper.drop(i, inplace=True)
+        {output} = input1_oper
         """.format(output=self.output,
                    input1=self.named_inputs['input data 1'],
                    input2=self.named_inputs['input data 2'])
@@ -353,7 +364,7 @@ class DistinctOperation(Operation):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         self.attributes = parameters.get('attributes', 'None')
-        self.has_code = len(named_inputs) == 1
+        self.has_code = len(named_inputs) == 1 and len(named_outputs) >= 1
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
 
@@ -431,12 +442,10 @@ class ExecutePythonOperation(Operation):
         # Input data
         in1 = {in1}
         in2 = {in2}
-
         # Output data, initialized as None
         out1 = None
         out2 = None
-        cpc = PrintCollector()
-        # Variables and language supported
+        # Variables and language supportedn 
         ctx = {{
             'wf_results': results,
             'in1': in1,
@@ -447,11 +456,11 @@ class ExecutePythonOperation(Operation):
             'createDataFrame': pd.DataFrame,
             
             # Restrictions in Python language
-             '_write_': lambda v: v,
-            '_getattr_': getattr,
+            '_write_': lambda v: v,
+            # '_getattr_': getattr,
             '_getitem_': lambda ob, index: ob[index],
             '_getiter_': lambda it: it,
-            '_print_': lambda x: cpc,
+            '_print_': PrintCollector,
             'json': json,
         }}
         user_code = {code}.decode('unicode_escape')
@@ -466,10 +475,9 @@ class ExecutePythonOperation(Operation):
             # Retrieve values changed in the context
             out1 = ctx['out1']
             out2 = ctx['out2']
-
-            if cpc.txt:
+            if '_print' in ctx:
                 emit_event(name='update task',
-                    message=''.join(cpc.txt),
+                    message=ctx['_print'](),
                     status='RUNNING',
                     identifier='{id}')
         except NameError as ne:
