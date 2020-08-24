@@ -161,8 +161,6 @@ def test_clean_missing_success_no_output_implies_no_code():
         'named_outputs': {}
     }
     instance = CleanMissingOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df[1]})
     assert not instance.has_code
 
 
