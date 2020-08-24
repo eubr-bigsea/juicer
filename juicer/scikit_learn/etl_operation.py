@@ -99,7 +99,7 @@ class AggregationOperation(Operation):
             agg = agg_functions[agg]
 
             if self.pivot is None:
-                if "*" is att:
+                if "*" == att:
                     att = self.attributes[0]
                 if 'collect' in agg:
                     self.input_operations_non_pivot.append(
