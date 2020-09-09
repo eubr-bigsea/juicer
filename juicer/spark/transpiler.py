@@ -204,6 +204,7 @@ class SparkTranspiler(Transpiler):
             'svm-classification-model': ml_operation2.SvmModelOperation,
 
             'k-means-clustering-model': ml_operation2.KMeansModelOperation,
+            'k-modes-clustering-model': ml_operation2.KModesModelOperation,
             'gaussian-mixture-clustering-model':
                 ml_operation2.GaussianMixtureModelOperation,
             'lda-clustering-model': ml_operation2.LDAModelOperation,
