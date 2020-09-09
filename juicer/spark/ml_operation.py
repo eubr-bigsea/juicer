@@ -2027,7 +2027,8 @@ class ClusteringModelOperation(Operation):
             # and this may cause concurrency problems
             params = dict([(p.name, v) for p, v in
                 alg.extractParamMap().items()])
-            algorithm_cls = globals()[alg.__class__.__name__]
+            algorithm_name = alg.__class__.__name__
+            algorithm_cls = globals()[algorithm_name]
             algorithm = algorithm_cls()
             algorithm.setParams(**params)
             features = {features}
@@ -2097,26 +2098,30 @@ class ClusteringModelOperation(Operation):
             display_text = {display_text}
             if display_text:
                 metric_rows = []
+
                 df_aux = pipeline_model.transform({input})
-                evaluator = ClusteringEvaluator(
-                    predictionCol='{prediction}', featuresCol=final_features)
-                metric_rows.append(['{silhouette_euclidean}', 
-                    evaluator.evaluate(df_aux)])
-
-                evaluator = ClusteringEvaluator(
-                    distanceMeasure='cosine', predictionCol='{prediction}', 
-                    featuresCol=final_features)
-                metric_rows.append(['{silhouette_cosine}', 
-                    evaluator.evaluate(df_aux)])
-
+                
+                if "IncrementalPartitionedKMetaModes" not in algorithm_name:
+                
+                    evaluator = ClusteringEvaluator(
+                        predictionCol='{prediction}', featuresCol=final_features)
+                    metric_rows.append(['{silhouette_euclidean}', 
+                        evaluator.evaluate(df_aux)])
+    
+                    evaluator = ClusteringEvaluator(
+                        distanceMeasure='cosine', predictionCol='{prediction}', 
+                        featuresCol=final_features)
+                    metric_rows.append(['{silhouette_cosine}', 
+                        evaluator.evaluate(df_aux)])
+    
+                if hasattr(clustering_model, 'clusterCenters'):
+                    metric_rows.append([
+                        '{cluster_centers}', clustering_model.clusterCenters()])
 
                 if hasattr(clustering_model, 'computeCost'):
                     metric_rows.append([
                         '{compute_cost}', clustering_model.computeCost(df_aux)])
 
-                if hasattr(clustering_model, 'clusterCenters'):
-                    metric_rows.append([
-                        '{cluster_centers}', clustering_model.clusterCenters()])
                 if hasattr(clustering_model, 'gaussianDF'):
                     metric_rows.append([
                         'Gaussian distribution', 
@@ -2278,6 +2283,41 @@ class LdaClusteringOperation(ClusteringOperation):
                 ['TopicConcentration', self.topic_concentration])
         self.has_code = any([len(named_outputs) > 0, self.contains_results()])
         self.name = "clustering.LDA"
+
+
+class KModesClusteringOperation(ClusteringOperation):
+    K_PARAM = 'number_of_clusters'
+    MAX_ITERATIONS_PARAM = 'max_iterations'
+
+    SIMILARITY_PARAM = "similarity"
+    METAMODESSIMILARITY_PARAM = 'metamodessimilarity'
+
+    SIMILARITY_ATTR_FREQ = 'frequency'
+    SIMILARITY_ATTR_HAMMING = 'hamming'
+    SIMILARITY_ATTR_ALL_FREQ = 'all_frequency'
+
+    def __init__(self, parameters, named_inputs,
+                 named_outputs):
+        ClusteringOperation.__init__(self, parameters, named_inputs,
+                                     named_outputs)
+        self.number_of_clusters = parameters.get(self.K_PARAM, 10)
+
+        self.max_iterations = parameters.get(self.MAX_ITERATIONS_PARAM, 10)
+        self.similarity = parameters.get(self.SIMILARITY_PARAM,
+                                         self.SIMILARITY_ATTR_HAMMING)
+        self.metamodessimilarity = parameters.get(
+                self.METAMODESSIMILARITY_PARAM, self.SIMILARITY_ATTR_HAMMING)
+
+        self.has_code = any([len(named_outputs) > 0, self.contains_results()])
+
+        self.name = "IncrementalPartitionedKMetaModes"
+        self.set_values = [
+            ['K', self.number_of_clusters],
+            ['MetamodesSimilarity', "'{}'".format(self.metamodessimilarity)],
+            ['Similarity', "'{}'".format(self.similarity)],
+            ['LocalKmodesIter', self.max_iterations],
+            ['MaxDistIter', self.max_iterations]
+        ]
 
 
 class KMeansClusteringOperation(ClusteringOperation):
