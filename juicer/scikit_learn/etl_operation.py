@@ -792,7 +792,7 @@ class ReplaceValuesOperation(Operation):
             self.replaces[att][1].append(
                 self.check_parameter(self.parameters['replacement']))
 
-        self.has_code = len(named_inputs) == 1
+        self.has_code = len(named_inputs) == 1 and len(named_outputs) >= 1
         self.output = self.named_outputs.get('output data',
                                              'output_data_{}'.format(self.order))
 
