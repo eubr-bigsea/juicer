@@ -34,10 +34,12 @@ class IncrementalPartitionedKMetaModesParams(HasFeaturesCol,
                        "distance functions for partitioned k-modes")
     metamodessimilarity = Param(Params._dummy(), "metamodessimilarity",
                                 "distance functions of merged k-modes.")
+    seed = Param(Params._dummy(), "seed", "Seed for select initial clusters.")
 
     @keyword_only
     def __init__(self, n_clusters=3, max_dist_iter=10, local_kmodes_iter=10,
-                 similarity="hamming", metamodessimilarity="hamming"):
+                 similarity="hamming", metamodessimilarity="hamming",
+                 seed=None):
         super(IncrementalPartitionedKMetaModesParams, self).__init__()
         self._setDefault(n_clusters=3, max_dist_iter=10,
                          local_kmodes_iter=10, similarity="hamming",
@@ -48,7 +50,7 @@ class IncrementalPartitionedKMetaModesParams(HasFeaturesCol,
 
     @keyword_only
     def setParams(self, n_clusters=3, max_dist_iter=10, local_kmodes_iter=10,
-                 similarity="hamming", metamodessimilarity="hamming",
+                 similarity="hamming", metamodessimilarity="hamming", seed=None,
                  featuresCol='features', predictionCol='prediction'):
         kwargs = self._input_kwargs
         return self._set(**kwargs)
@@ -101,6 +103,18 @@ class IncrementalPartitionedKMetaModesParams(HasFeaturesCol,
         """
         return self.getOrDefault(self.local_kmodes_iter)
 
+    def setSeed(self, value):
+        """
+        Sets the value of :py:attr:`seed`.
+        """
+        return self._set(seed=value)
+
+    def getSeed(self):
+        """
+        Gets the value of `seed` or its default value.
+        """
+        return self.getOrDefault(self.seed)
+
     def setSimilarity(self, value):
         """
         Sets the value of :py:attr:`similarity`.
@@ -139,12 +153,12 @@ class IncrementalPartitionedKMetaModes(Estimator,
 
     @keyword_only
     def __init__(self, n_clusters=3, max_dist_iter=10, local_kmodes_iter=10,
-                 similarity="hamming", metamodessimilarity="hamming",
+                 similarity="hamming", metamodessimilarity="hamming", seed=None,
                  featuresCol='features', predictionCol='prediction'):
         super(IncrementalPartitionedKMetaModes, self).__init__()
         self._setDefault(n_clusters=3, max_dist_iter=10,
                          local_kmodes_iter=10, similarity="hamming",
-                         metamodessimilarity="hamming")
+                         seed=None, metamodessimilarity="hamming")
 
         kwargs = self._input_kwargs
         self.setParams(**kwargs)
@@ -169,9 +183,11 @@ class IncrementalPartitionedKMetaModes(Estimator,
         """Compute distributed k-modes clustering."""
         feature_col = self.getFeaturesCol()
         k = self.getK()
-        max_partitioned_iter = self.getMaxDistIter()
+        max_local_iter = self.getLocalKmodesIter()
+        max_dist_iter = self.getMaxDistIter()
         similarity_func = self.getSimilarity()
         metamode_similarity = self.getMetamodesSimilarity()
+        seed = self.getSeed()
 
         if kmdata.rdd.getNumPartitions() == 1:
             spark = SparkSession.builder.getOrCreate()
@@ -185,12 +201,9 @@ class IncrementalPartitionedKMetaModes(Estimator,
 
         # Calculate the modes for each partition and return the
         # clusters and an indexed rdd.
-        print("Starting parallel incremental k-modes...")
-        start = time.time()
-        modes = k_modes_partitioned(rdd, k, max_partitioned_iter,
-                                    similarity_func)
-        print("Modes calculated within ", time.time() - start,
-              ". Starting calculation of metamodes...")
+        modes = k_modes_partitioned(rdd, k, max_dist_iter,
+                                    similarity_func, seed)
+
         # Calculate the modes for the set of all modes
         # 1) prepare rdd with modes from all partitions
         self.modes = []
@@ -200,8 +213,9 @@ class IncrementalPartitionedKMetaModes(Estimator,
 
         # 2) run k-modes on single partition
         self.meta_modes = k_metamodes_local(self.modes, k,
-                                            max_partitioned_iter,
-                                            metamode_similarity)
+                                            max_local_iter,
+                                            metamode_similarity,
+                                            seed)
         return self._copyValues(
                 IncrementalPartitionedKMetaModesModel(models=self.meta_modes))
 
@@ -299,7 +313,7 @@ class k_modes_record:
         # object and changes the cluster to contain the index of this mode.
         # It also updates the cluster frequencies.
 
-        if (similarity == "hamming"):
+        if similarity == "hamming":
             diss = hamming_dissim(self.record, clusters)
         else:  # if (similarity == "frequency"):
             diss = frequency_based_dissim(self.record, clusters)
@@ -334,7 +348,7 @@ class k_modes_record:
         return self, clusters, moved
 
 
-def iter_k_modes(iterator, similarity):
+def iter_k_modes(iterator, similarity, max_iter):
     """
     Function that is used with mapPartitionsWithIndex to perform a single
     iteration of the k-modes algorithm on each partition of data.
@@ -363,14 +377,18 @@ def iter_k_modes(iterator, similarity):
     if partition_moved == 0:
         yield records, partition_clusters, partition_moved
     else:
-        partition_records = []
+
         partition_moved = 0
-        # iterator should contain only 1 list of records
-        for record in records:
-            new_record, partition_clusters, temp_move = record.update_cluster(
-                partition_clusters, similarity)
-            partition_records.append(new_record)
-            partition_moved += temp_move
+        partition_records = []
+        for _ in range(max_iter):
+
+            # iterator should contain only 1 list of records
+            for record in records:
+                new_record, partition_clusters, temp_move = record.update_cluster(
+                    partition_clusters, similarity)
+                partition_records.append(new_record)
+                partition_moved += temp_move
+
         yield partition_records, partition_clusters, partition_moved
 
 
@@ -399,7 +417,7 @@ def get_unique_records_with_index(partition_records):
     return list(zip(indexes, uniq_record_list))
 
 
-def select_random_modes(pindex, partition_records, n_modes, uniq):
+def select_random_modes(pindex, partition_records, n_modes, uniq, seed):
     i = 0
     failed = 0
     partition_clusters = []
@@ -410,6 +428,7 @@ def select_random_modes(pindex, partition_records, n_modes, uniq):
         record_list = list(enumerate(partition_records))
 
     try:
+        random.seed(seed)
         sample = random.sample(record_list, n_modes)
     except ValueError:
         raise Exception(
@@ -439,7 +458,7 @@ def select_random_modes(pindex, partition_records, n_modes, uniq):
     return partition_clusters, failed, indexes
 
 
-def partition_to_list(pindex, iterator, n_modes):
+def partition_to_list(pindex, iterator, n_modes, seed):
     # records
     partition_records = []
     uniq = False
@@ -450,7 +469,7 @@ def partition_to_list(pindex, iterator, n_modes):
     # try to select modes randomly 3 times
     for trial in range(3):
         partition_clusters, failed, indexes = \
-            select_random_modes(pindex, partition_records, n_modes, uniq)
+            select_random_modes(pindex, partition_records, n_modes, uniq, seed)
         # if modes were sucessfully selected, break the loop
         if failed == 0:
             break
@@ -489,25 +508,12 @@ def k_modes_partitioned(rdd, n_clusters, max_iter, similarity, seed=None):
             - *rdd*: rdd containing the k_modes_record objects
     """
 
-    # Create initial set of cluster modes by randomly taking
-    # {num_clusters} records from each partition. For each partition, only the
-    # corresponding subset of modes will be used
-    # clusters = [Cluster(centroid.record) for centroid in
-    #               rdd.takeSample(False, n_partitions * n_clusters, seed=None)]
-    rdd = rdd.mapPartitionsWithIndex(lambda i, it:
-                                     partition_to_list(i, it, n_clusters))
+    rdd = rdd\
+        .mapPartitionsWithIndex(
+            lambda i, it: partition_to_list(i, it, n_clusters, seed))
 
-    # On each partition do an iteration of k modes analysis,
-    # passing back the final clusters. Repeat until no points move
-    for iter_count in range(max_iter):
-        # index is partition number
-        # iterator is to iterate all elements in the partition
-        rdd = rdd.mapPartitions(lambda it: iter_k_modes(it, similarity))
-
-    new_clusters = []
-
-    for partition_clusters in rdd.map(lambda x: x[1]).collect():
-        new_clusters.append(partition_clusters)
+    rdd = rdd.mapPartitions(lambda it: iter_k_modes(it, similarity, max_iter))
+    new_clusters = rdd.map(lambda x: x[1]).collect()
 
     return new_clusters
 
@@ -526,7 +532,7 @@ def get_unique_modes_with_index(all_modes):
     return list(zip(indexes, uniq_mode_list))
 
 
-def select_random_metamodes(all_modes, n_clusters, uniq, similarity):
+def select_random_metamodes(all_modes, n_clusters, uniq, similarity, seed):
     i = 0
     failed = 0
     metamodes = []
@@ -535,6 +541,8 @@ def select_random_metamodes(all_modes, n_clusters, uniq, similarity):
         modes_list = get_unique_modes_with_index(all_modes)
     else:
         modes_list = list(enumerate(all_modes))
+
+    random.seed(seed)
     for index, value in random.sample(modes_list, n_clusters):
         indexes.append(index)
         if all_modes[index].nmembers == 0:
@@ -567,7 +575,8 @@ def k_metamodes_local(all_modes, n_clusters, max_iter, similarity, seed=None):
     metamodes = None
     for trial in range(3):
         metamodes, failed, indexes = \
-            select_random_metamodes(all_modes, n_clusters, uniq, similarity)
+            select_random_metamodes(all_modes, n_clusters, uniq, similarity,
+                                    seed)
         # if metamodes were sucessfully selected, break the loop
         if failed == 0:
             break
