@@ -1080,7 +1080,8 @@ class SplitKFoldOperation(Operation):
     N_SPLITS_ATTRIBUTE_PARAM = 'n_splits'
     SHUFFLE_ATTRIBUTE_PARAM = 'shuffle'
     RANDOM_STATE_ATTRIBUTE_PARAM = 'random_state'
-    LABEL_ATTRIBUTE_PARAM = 'label'
+    # not being used
+    # LABEL_ATTRIBUTE_PARAM = 'label'
     ATTRIBUTE_ATTRIBUTE_PARAM = 'attribute'
     STRATIFIED_ATTRIBUTE_PARAM = 'stratified'
     COLUMN_ATTRIBUTE_PARAM = 'column'
@@ -1096,9 +1097,9 @@ class SplitKFoldOperation(Operation):
 
         self.n_splits = int(parameters.get(self.N_SPLITS_ATTRIBUTE_PARAM, 3))
         self.shuffle = int(parameters.get(self.SHUFFLE_ATTRIBUTE_PARAM, 0))
-        self.random_state = int(
-            parameters.get(self.RANDOM_STATE_ATTRIBUTE_PARAM, 0))
-        self.label = parameters.get(self.LABEL_ATTRIBUTE_PARAM, None)
+        self.random_state = parameters.get(self.RANDOM_STATE_ATTRIBUTE_PARAM, None)
+        # not being used
+        # self.label = parameters.get(self.LABEL_ATTRIBUTE_PARAM, None)
         self.attribute = parameters.get(self.ATTRIBUTE_ATTRIBUTE_PARAM, None)
         self.stratified = int(parameters.get(self.STRATIFIED_ATTRIBUTE_PARAM, 0))
         self.column = 0
@@ -1106,11 +1107,9 @@ class SplitKFoldOperation(Operation):
         self.input_treatment()
         self.has_import = \
             """
-            import numpy as np
-            from sklearn.model_selection import KFold
-            from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection import KFold
+from sklearn.model_selection import StratifiedKFold
             """
-
     @property
     def get_data_out_names(self, sep=','):
         return self.output
@@ -1129,25 +1128,23 @@ class SplitKFoldOperation(Operation):
     def generate_code(self):
         """Generate code."""
 
+        code = self.has_import
+
         if self.stratified:
-            code = """
-                if {shuffle}:
-                    skf = StratifiedKFold(n_splits={n_splits}, 
-                        shuffle={shuffle}, random_state={random_state})
-                else:
-                    skf = StratifiedKFold(n_splits={n_splits}, 
-                        shuffle={shuffle})
-                lista = []
-                j = 0
-                for train_index, test_index in skf.split(
-                    {input}.to_numpy().tolist(), 
-                    {input}['{column}'].to_numpy()):
-                    for i in range(len(test_index)):
-                        test_index[i] = j
-                    lista = np.concatenate((lista,test_index))
-                    j += 1 
-                T2 = pd.DataFrame(lista, columns = ['{attribute}'])
-                {output_data} = pd.concat([{input},T2],axis=1)
+            code += """
+skf = StratifiedKFold(n_splits={n_splits},
+shuffle={shuffle}, random_state={random_state}) if {shuffle} \
+else StratifiedKFold(n_splits={n_splits},shuffle={shuffle})
+
+j = 0
+df_aux = df.copy()
+df_aux['{attribute}'] = 0
+for train_index, test_index in skf.split({input}.to_numpy().tolist(),
+{input}['{column}'].to_numpy()):
+    for i in test_index:
+        df_aux.loc[i, '{attribute}'] = j 
+    j += 1
+{output_data} = df_aux
                 """.format(output=self.output,
                            input=self.named_inputs['input data'],
                            n_splits=self.n_splits,
@@ -1158,22 +1155,19 @@ class SplitKFoldOperation(Operation):
                            attribute=self.attribute)
             return dedent(code)
         else:
-            code = """
-                if {shuffle}:
-                    kf = KFold(n_splits={n_splits}, shuffle={shuffle}, 
-                        random_state={random_state})
-                else:
-                    kf = KFold(n_splits={n_splits}, shuffle={shuffle})
-                lista = []
-                j = 0
-                for train_index, test_index in kf.split(
-                    {input}.to_numpy().tolist()):
-                    for i in range(len(test_index)):
-                        test_index[i] = j
-                    lista = np.concatenate((lista,test_index))
-                    j += 1 
-                T2 = pd.DataFrame(lista, columns = ['{attribute}'])
-                {output_data} = pd.concat([{input},T2],axis=1)
+            code += """
+kf = KFold(n_splits={n_splits}, shuffle={shuffle},
+random_state={random_state}) if {shuffle} else KFold(n_splits={n_splits},
+shuffle={shuffle})
+
+j = 0
+df_aux = df.copy()
+df_aux['{attribute}'] = 0
+for train_index, test_index in kf.split({input}.to_numpy().tolist()):
+    for i in test_index:
+        df_aux.loc[i, '{attribute}'] = j
+    j += 1
+{output_data} = df_aux
                 """.format(output=self.output,
                            input=self.named_inputs['input data'],
                            n_splits=self.n_splits,
