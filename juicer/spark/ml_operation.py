@@ -2288,7 +2288,8 @@ class LdaClusteringOperation(ClusteringOperation):
 class KModesClusteringOperation(ClusteringOperation):
     K_PARAM = 'number_of_clusters'
     MAX_ITERATIONS_PARAM = 'max_iterations'
-
+    MAX_LOCAL_ITERATIONS_PARAM = 'max_local_iterations'
+    SEED_PARAM = "seed"
     SIMILARITY_PARAM = "similarity"
     METAMODESSIMILARITY_PARAM = 'metamodessimilarity'
 
@@ -2303,20 +2304,23 @@ class KModesClusteringOperation(ClusteringOperation):
         self.number_of_clusters = parameters.get(self.K_PARAM, 10)
 
         self.max_iterations = parameters.get(self.MAX_ITERATIONS_PARAM, 10)
+        self.max_local_iterations = \
+            parameters.get(self.MAX_LOCAL_ITERATIONS_PARAM, 10)
         self.similarity = parameters.get(self.SIMILARITY_PARAM,
                                          self.SIMILARITY_ATTR_HAMMING)
         self.metamodessimilarity = parameters.get(
                 self.METAMODESSIMILARITY_PARAM, self.SIMILARITY_ATTR_HAMMING)
 
         self.has_code = any([len(named_outputs) > 0, self.contains_results()])
-
+        self.seed = self.parameters.get(self.SEED_PARAM, None)
         self.name = "IncrementalPartitionedKMetaModes"
         self.set_values = [
             ['K', self.number_of_clusters],
             ['MetamodesSimilarity', "'{}'".format(self.metamodessimilarity)],
             ['Similarity', "'{}'".format(self.similarity)],
-            ['LocalKmodesIter', self.max_iterations],
-            ['MaxDistIter', self.max_iterations]
+            ['LocalKmodesIter', self.max_local_iterations],
+            ['MaxDistIter', self.max_iterations],
+            ['Seed', self.seed]
         ]
 
 
@@ -2326,6 +2330,7 @@ class KMeansClusteringOperation(ClusteringOperation):
     TYPE_PARAMETER = 'type'
     INIT_MODE_PARAMETER = 'init_mode'
     TOLERANCE_PARAMETER = 'tolerance'
+    SEED_PARAM = "seed"
 
     TYPE_TRADITIONAL = 'kmeans'
     TYPE_BISECTING = 'bisecting'
@@ -2343,12 +2348,14 @@ class KMeansClusteringOperation(ClusteringOperation):
         self.max_iterations = parameters.get(self.MAX_ITERATIONS_PARAM, 10)
         self.type = parameters.get(self.TYPE_PARAMETER)
         self.tolerance = float(parameters.get(self.TOLERANCE_PARAMETER, 0.001))
+        self.seed = self.parameters.get(self.SEED_PARAM, None)
 
         if self.type == self.TYPE_BISECTING:
             self.name = "BisectingKMeans"
             self.set_values = [
                 ['MaxIter', self.max_iterations],
                 ['K', self.number_of_clusters],
+                ['Seed', self.seed]
             ]
         elif self.type == self.TYPE_TRADITIONAL:
             if parameters.get(
@@ -2362,7 +2369,8 @@ class KMeansClusteringOperation(ClusteringOperation):
                 ['MaxIter', self.max_iterations],
                 ['K', self.number_of_clusters],
                 ['Tol', self.tolerance],
-                ['InitMode', '"{}"'.format(self.init_mode)]
+                ['InitMode', '"{}"'.format(self.init_mode)],
+                ['Seed', self.seed]
             ]
         else:
             raise ValueError(
