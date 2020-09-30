@@ -2330,6 +2330,7 @@ class KMeansClusteringOperation(ClusteringOperation):
     TYPE_PARAMETER = 'type'
     INIT_MODE_PARAMETER = 'init_mode'
     TOLERANCE_PARAMETER = 'tolerance'
+    SEED_PARAM = "seed"
 
     TYPE_TRADITIONAL = 'kmeans'
     TYPE_BISECTING = 'bisecting'
@@ -2347,12 +2348,14 @@ class KMeansClusteringOperation(ClusteringOperation):
         self.max_iterations = parameters.get(self.MAX_ITERATIONS_PARAM, 10)
         self.type = parameters.get(self.TYPE_PARAMETER)
         self.tolerance = float(parameters.get(self.TOLERANCE_PARAMETER, 0.001))
+        self.seed = self.parameters.get(self.SEED_PARAM, None)
 
         if self.type == self.TYPE_BISECTING:
             self.name = "BisectingKMeans"
             self.set_values = [
                 ['MaxIter', self.max_iterations],
                 ['K', self.number_of_clusters],
+                ['Seed', self.seed]
             ]
         elif self.type == self.TYPE_TRADITIONAL:
             if parameters.get(
@@ -2366,7 +2369,8 @@ class KMeansClusteringOperation(ClusteringOperation):
                 ['MaxIter', self.max_iterations],
                 ['K', self.number_of_clusters],
                 ['Tol', self.tolerance],
-                ['InitMode', '"{}"'.format(self.init_mode)]
+                ['InitMode', '"{}"'.format(self.init_mode)],
+                ['Seed', self.seed]
             ]
         else:
             raise ValueError(
