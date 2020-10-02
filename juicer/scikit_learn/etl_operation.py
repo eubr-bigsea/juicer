@@ -854,6 +854,8 @@ class SampleOrPartitionOperation(Operation):
                 (self.__class__))
 
         self.seed = self.parameters.get(self.SEED, 'None')
+        if type(self.seed) == int:
+            self.seed = 0 if self.seed >= 4294967296 else self.seed
         self.seed = self.seed if self.seed != "" else 'None'
 
         self.output = self.named_outputs.get('sampled data',
