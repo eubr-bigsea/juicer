@@ -147,8 +147,9 @@ def test_join_match_case_param_success():
 
     out = pd.merge(data1_tmp, data2_tmp, left_on=col1, right_on=col2,
                    copy=False, suffixes=['_l', '_r'], how='inner')
+
     # Why drop col_lower?
-    # out.drop(col1+col2, axis=1, inplace=True)
+    out.drop(col1+col2, axis=1, inplace=True)
 
     cols_to_remove = keys2
     out.drop(cols_to_remove, axis=1, inplace=True)
