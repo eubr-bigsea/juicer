@@ -548,6 +548,7 @@ class ExecuteSQLOperation(Operation):
 
     def generate_code(self):
         code = dedent("""
+        from pandasql import sqldf
         query = {query}
         {out} = sqldf(query, {{'ds1': {in1}, 'ds2': {in2}}})
         names = {names}
