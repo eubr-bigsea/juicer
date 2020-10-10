@@ -4,18 +4,23 @@ import pandas as pd
 import pytest
 
 
+# pd.set_option('display.max_rows', None)
+# pd.set_option('display.max_columns', None)
+# pd.set_option('display.max_colwidth', None)
+
+
 # Add columns operation
 #
+#
+# # # # # # # # # # Success # # # # # # # # # #
 def test_add_columns_success():
-    slice_size = 10
-    left_df = ['df1', util.iris(['sepallength', 'sepalwidth'], slice_size)]
-    right_df = ['df2', util.iris(['petallength', 'petalwidth', 'class'], slice_size)]
-
+    left_df = util.iris(['sepallength', 'sepalwidth'], size=10)
+    right_df = util.iris(['petallength', 'petalwidth', 'class'], size=10)
     arguments = {
         'parameters': {},
         'named_inputs': {
-            'input data 1': left_df[0],
-            'input data 2': right_df[0]
+            'input data 1': 'df1',
+            'input data 2': 'df2'
         },
         'named_outputs': {
             'output data': 'out'
@@ -23,26 +28,24 @@ def test_add_columns_success():
     }
     instance = AddColumnsOperation(**arguments)
     result = util.execute(instance.generate_code(),
-                          {'df1': left_df[1], 'df2': right_df[1]})
+                          {'df1': left_df, 'df2': right_df})
+    assert result['out'].equals(util.iris([
+        'sepallength', 'sepalwidth',
+        'petallength', 'petalwidth', 'class'], size=10))
 
-    assert result['out'].equals(util.iris(size=slice_size))
 
-
-def test_add_columns_fail_different_row_number():
+def test_add_columns_different_size_dataframes_success():
     """
-    In this case, AddColumnsOperation() creates a result
-    the size of the smallest slice_size.
+    In this case, AddColumnsOperation() returns a dataframe with the lowest
+    size passed.
     """
-    slice_size_1 = 10
-    slice_size_2 = 5
-    left_df = ['df1', util.iris(['sepallength', 'sepalwidth'], slice_size_1)]
-    right_df = ['df2', util.iris(['petallength', 'petalwidth', 'class'], slice_size_2)]
-
+    left_df = util.iris(['sepallength', 'sepalwidth'], size=10)
+    right_df = util.iris(['petallength', 'petalwidth', 'class'], size=5)
     arguments = {
         'parameters': {},
         'named_inputs': {
-            'input data 1': left_df[0],
-            'input data 2': right_df[0]
+            'input data 1': 'df1',
+            'input data 2': 'df2'
         },
         'named_outputs': {
             'output data': 'out'
@@ -50,23 +53,22 @@ def test_add_columns_fail_different_row_number():
     }
     instance = AddColumnsOperation(**arguments)
     result = util.execute(instance.generate_code(),
-                          {'df1': left_df[1], 'df2': right_df[1]})
+                          {'df1': left_df, 'df2': right_df})
+    assert result['out'].equals(util.iris([
+        'sepallength', 'sepalwidth',
+        'petallength', 'petalwidth', 'class'], size=5))
 
-    with pytest.raises(AssertionError) as different_row_number:
-        assert len(result['out']) == slice_size_1
-    print(different_row_number)
 
-
-def test_add_columns_success_same_column_names_with_parameter():
-    slice_size = 10
-    left_df = ['df1', util.iris(['sepallength', 'sepalwidth'], slice_size)]
-    right_df = ['df2', util.iris(['sepallength', 'sepalwidth'], slice_size)]
-
+def test_add_columns_aliases_param_success():
+    left_df = util.iris(['sepallength', 'sepalwidth'], size=10)
+    right_df = util.iris(['sepallength', 'sepalwidth'], size=10)
+    test_df = util.iris(
+        ['sepallength', 'sepalwidth', 'sepallength', 'sepalwidth'], size=10)
     arguments = {
-        'parameters': {AddColumnsOperation.ALIASES_PARAM: '_value0,_value1'},
+        'parameters': {'aliases': '_value0,_value1'},
         'named_inputs': {
-            'input data 1': left_df[0],
-            'input data 2': right_df[0]
+            'input data 1': 'df1',
+            'input data 2': 'df2'
         },
         'named_outputs': {
             'output data': 'out'
@@ -74,24 +76,25 @@ def test_add_columns_success_same_column_names_with_parameter():
     }
     instance = AddColumnsOperation(**arguments)
     result = util.execute(instance.generate_code(),
-                          {'df1': left_df[1], 'df2': right_df[1]})
-
-    x = pd.merge(left_df[1], right_df[1], left_index=True,
-                 right_index=True, suffixes=('_value0', '_value1'))
-
-    assert result['out'].equals(x)
+                          {'df1': left_df, 'df2': right_df})
+    test_df.columns = ['sepallength_value0', 'sepalwidth_value0',
+                       'sepallength_value1', 'sepalwidth_value1']
+    assert result['out'].equals(test_df)
 
 
-def test_add_columns_success_same_column_names_no_parameter():
-    slice_size = 10
-    left_df = ['df1', util.iris(['sepallength', 'class'], slice_size)]
-    right_df = ['df2', util.iris(['sepallength', 'class'], slice_size)]
-
+def test_add_columns_repetead_column_names_success():
+    """
+    AddColumnsOperation() automatically adds aliases to repetead column names
+    """
+    left_df = util.iris(['sepallength', 'class'], size=10)
+    right_df = util.iris(['sepallength', 'class'], size=10)
+    test_df = util.iris(
+        ['sepallength', 'class', 'sepallength', 'class'], size=10)
     arguments = {
         'parameters': {},
         'named_inputs': {
-            'input data 1': left_df[0],
-            'input data 2': right_df[0]
+            'input data 1': 'df1',
+            'input data 2': 'df2'
         },
         'named_outputs': {
             'output data': 'out'
@@ -99,30 +102,82 @@ def test_add_columns_success_same_column_names_no_parameter():
     }
     instance = AddColumnsOperation(**arguments)
     result = util.execute(instance.generate_code(),
-                          {'df1': left_df[1], 'df2': right_df[1]})
-
-    x = pd.merge(left_df[1], right_df[1], left_index=True,
-                 right_index=True, suffixes=('_ds0', '_ds1'))
-
-    assert result['out'].equals(x)
+                          {'df1': left_df, 'df2': right_df})
+    test_df.columns = ['sepallength_ds0', 'class_ds0',
+                       'sepallength_ds1', 'class_ds1']
+    assert result['out'].equals(test_df)
 
 
-def test_add_columns_success_no_output_implies_no_code():
-    slice_size = 10
-    left_df = ['df1', util.iris(['sepallength', 'sepalwidth'], slice_size)]
-    right_df = ['df2', util.iris(['petallength', 'petalwidth', 'class'],
-                                 slice_size)]
-
+def test_add_columns_no_output_implies_no_code_success():
     arguments = {
         'parameters': {},
         'named_inputs': {
-            'input data 1': left_df[0],
-            'input data 2': right_df[0]
+            'input data 1': 'df1',
+            'input data 2': 'df2'
         },
-        'named_outputs': {}
+        'named_outputs': {
+        }
+    }
+    instance = AddColumnsOperation(**arguments)
+    assert instance.generate_code() is None
+
+
+def test_add_columns_missing_input_implies_no_code_success():
+    arguments = {
+        'parameters': {},
+        'named_inputs': {
+        },
+        'named_outputs': {
+            'output data': 'out'
+        }
+    }
+    instance = AddColumnsOperation(**arguments)
+    assert instance.generate_code() is None
+
+
+# # # # # # # # # # Fail # # # # # # # # # #
+def test_add_columns_same_aliases_param_values_fail():
+    """
+    (?)
+    Passing the same aliases to the attributes is allowed
+    """
+    left_df = util.iris(['sepallength', 'sepalwidth'], size=10)
+    right_df = util.iris(['sepallength', 'sepalwidth'], size=10)
+    test_df = util.iris(
+        ['sepallength', 'sepalwidth', 'sepallength', 'sepalwidth'], size=10)
+    arguments = {
+        'parameters': {'aliases': '_col,_col'},
+        'named_inputs': {
+            'input data 1': 'df1',
+            'input data 2': 'df2'
+        },
+        'named_outputs': {
+            'output data': 'out'
+        }
     }
     instance = AddColumnsOperation(**arguments)
     result = util.execute(instance.generate_code(),
-                          {'df1': left_df[1], 'df2': right_df[1]})
+                          {'df1': left_df, 'df2': right_df})
+    test_df.columns = ['sepallength_col', 'sepalwidth_col',
+                       'sepallength_col', 'sepalwidth_col']
+    assert result['out'].equals(test_df)
 
-    assert not instance.has_code
+
+def test_add_columns_invalid_aliases_param_value_fail():
+    left_df = util.iris(['sepallength', 'sepalwidth'], size=10)
+    right_df = util.iris(['sepallength', 'sepalwidth'], size=10)
+    arguments = {
+        'parameters': {'aliases': 'invalid'},
+        'named_inputs': {
+            'input data 1': 'df1',
+            'input data 2': 'df2'
+        },
+        'named_outputs': {
+            'output data': 'out'
+        }
+    }
+    instance = AddColumnsOperation(**arguments)
+    with pytest.raises(IndexError) as idx_err:
+        util.execute(instance.generate_code(),
+                     {'df1': left_df, 'df2': right_df})
+    assert 'list index out of range' in str(idx_err.value)
