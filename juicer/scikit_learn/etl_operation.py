@@ -1080,8 +1080,6 @@ class SplitKFoldOperation(Operation):
     N_SPLITS_ATTRIBUTE_PARAM = 'n_splits'
     SHUFFLE_ATTRIBUTE_PARAM = 'shuffle'
     RANDOM_STATE_ATTRIBUTE_PARAM = 'random_state'
-    # not being used
-    # LABEL_ATTRIBUTE_PARAM = 'label'
     ATTRIBUTE_ATTRIBUTE_PARAM = 'attribute'
     STRATIFIED_ATTRIBUTE_PARAM = 'stratified'
     COLUMN_ATTRIBUTE_PARAM = 'column'
@@ -1089,8 +1087,8 @@ class SplitKFoldOperation(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-        self.has_code = any([len(self.named_inputs) == 1,
-                             self.contains_results()])
+        self.has_code = len(self.named_inputs) == 1 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
 
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
@@ -1098,18 +1096,12 @@ class SplitKFoldOperation(Operation):
         self.n_splits = int(parameters.get(self.N_SPLITS_ATTRIBUTE_PARAM, 3))
         self.shuffle = int(parameters.get(self.SHUFFLE_ATTRIBUTE_PARAM, 0))
         self.random_state = parameters.get(self.RANDOM_STATE_ATTRIBUTE_PARAM, None)
-        # not being used
-        # self.label = parameters.get(self.LABEL_ATTRIBUTE_PARAM, None)
         self.attribute = parameters.get(self.ATTRIBUTE_ATTRIBUTE_PARAM, None)
         self.stratified = int(parameters.get(self.STRATIFIED_ATTRIBUTE_PARAM, 0))
         self.column = 0
 
         self.input_treatment()
-        self.has_import = \
-            """
-from sklearn.model_selection import KFold
-from sklearn.model_selection import StratifiedKFold
-            """
+
     @property
     def get_data_out_names(self, sep=','):
         return self.output
@@ -1126,55 +1118,58 @@ from sklearn.model_selection import StratifiedKFold
             self.column = self.parameters['column'][0]
 
     def generate_code(self):
-        """Generate code."""
+        if self.has_code:
+            code = """"""
 
-        code = self.has_import
-
-        if self.stratified:
-            code += """
-skf = StratifiedKFold(n_splits={n_splits},
-shuffle={shuffle}, random_state={random_state}) if {shuffle} \
-else StratifiedKFold(n_splits={n_splits},shuffle={shuffle})
-
-j = 0
-df_aux = df.copy()
-df_aux['{attribute}'] = 0
-for train_index, test_index in skf.split({input}.to_numpy().tolist(),
-{input}['{column}'].to_numpy()):
-    for i in test_index:
-        df_aux.loc[i, '{attribute}'] = j 
-    j += 1
-{output_data} = df_aux
-                """.format(output=self.output,
-                           input=self.named_inputs['input data'],
-                           n_splits=self.n_splits,
-                           shuffle=self.shuffle,
-                           random_state=self.random_state,
-                           output_data=self.output,
-                           column=self.column,
-                           attribute=self.attribute)
-            return dedent(code)
-        else:
-            code += """
-kf = KFold(n_splits={n_splits}, shuffle={shuffle},
-random_state={random_state}) if {shuffle} else KFold(n_splits={n_splits},
-shuffle={shuffle})
-
-j = 0
-df_aux = df.copy()
-df_aux['{attribute}'] = 0
-for train_index, test_index in kf.split({input}.to_numpy().tolist()):
-    for i in test_index:
-        df_aux.loc[i, '{attribute}'] = j
-    j += 1
-{output_data} = df_aux
-                """.format(output=self.output,
-                           input=self.named_inputs['input data'],
-                           n_splits=self.n_splits,
-                           shuffle=self.shuffle,
-                           random_state=self.random_state,
-                           output_data=self.output,
-                           stratified=self.stratified,
-                           column=self.column,
-                           attribute=self.attribute)
-            return dedent(code)
+            if self.stratified:
+                code = """
+        from sklearn.model_selection import KFold
+        from sklearn.model_selection import StratifiedKFold
+        skf = StratifiedKFold(n_splits={n_splits},
+        shuffle={shuffle}, random_state={random_state}) if {shuffle} \
+        else StratifiedKFold(n_splits={n_splits},shuffle={shuffle})
+        
+        j = 0
+        df_aux = df.copy()
+        df_aux['{attribute}'] = 0
+        for train_index, test_index in skf.split({input}.to_numpy().tolist(),
+        {input}['{column}'].to_numpy()):
+            for i in test_index:
+                df_aux.loc[i, '{attribute}'] = j 
+            j += 1
+        {output_data} = df_aux
+                    """.format(output=self.output,
+                               input=self.named_inputs['input data'],
+                               n_splits=self.n_splits,
+                               shuffle=self.shuffle,
+                               random_state=self.random_state,
+                               output_data=self.output,
+                               column=self.column,
+                               attribute=self.attribute)
+                return dedent(code)
+            else:
+                code += """
+        from sklearn.model_selection import KFold
+        from sklearn.model_selection import StratifiedKFold
+        kf = KFold(n_splits={n_splits}, shuffle={shuffle},
+        random_state={random_state}) if {shuffle} else KFold(n_splits={n_splits},
+        shuffle={shuffle})
+        
+        j = 0
+        df_aux = df.copy()
+        df_aux['{attribute}'] = 0
+        for train_index, test_index in kf.split({input}.to_numpy().tolist()):
+            for i in test_index:
+                df_aux.loc[i, '{attribute}'] = j
+            j += 1
+        {output_data} = df_aux
+                    """.format(output=self.output,
+                               input=self.named_inputs['input data'],
+                               n_splits=self.n_splits,
+                               shuffle=self.shuffle,
+                               random_state=self.random_state,
+                               output_data=self.output,
+                               stratified=self.stratified,
+                               column=self.column,
+                               attribute=self.attribute)
+                return dedent(code)
