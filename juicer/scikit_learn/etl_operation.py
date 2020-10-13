@@ -341,21 +341,19 @@ class DifferenceOperation(Operation):
     def generate_code(self):
         if self.has_code:
             code = """
-            intersection = {input1}.columns.intersection({input2}.columns)
-    
-            # Remove cols out of the intersection
-            input1_oper = {input1}.loc[:, intersection]
-            input2_oper = {input2}.loc[:, intersection]
-        
-            highest_len = len({input1}) if len({input1}) > len({input2}) \
-    else len({input2})
-    
-            # Creates the resulting df with unique df1 rows
-            diff_oper = input1_oper.eq(input2_oper)
-            for i in range(highest_len):
-                if diff_oper.iloc[i, 0:].all():
-                    input1_oper.drop(i, inplace=True)
-            {output} = input1_oper
+            # Intersection treatment, remove cols out of the intersection
+            input1_oper = {input1}.loc[:,
+             {input1}.columns.intersection({input2}.columns)]
+            input2_oper = {input2}.loc[:,
+             {input1}.columns.intersection({input2}.columns)]
+             
+            # Operation, creates the resulting df with unique df1 rows
+            to_drop = []
+            diff_oper = input1_oper.ne(input2_oper)
+            for idx in diff_oper.index:
+                if diff_oper.loc[idx, :].any() == False:
+                    to_drop.append(idx)
+            {output} = input1_oper.drop(to_drop, axis=0)
             """.format(output=self.output,
                        input1=self.named_inputs['input data 1'],
                        input2=self.named_inputs['input data 2'])
