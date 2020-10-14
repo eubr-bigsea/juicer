@@ -15,7 +15,8 @@ class FeatureAssemblerOperation(Operation):
 
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
-        self.has_code = len(self.named_inputs) == 1
+        self.has_code = len(self.named_inputs) == 1 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
         if self.has_code:
             if self.ATTRIBUTES_PARAM not in parameters:
                 raise ValueError(
@@ -28,18 +29,18 @@ class FeatureAssemblerOperation(Operation):
                                                          self.order))
 
     def generate_code(self):
-        copy_code = ".copy()" \
-            if self.parameters['multiplicity']['input data'] > 1 else ""
-        code = """
-        cols = {cols}
-        {input}_without_na = {input}.dropna(subset=cols)
-        {output} = {input}_without_na{copy_code}
-        {output}['{alias}'] = {input}_without_na[cols].to_numpy().tolist()
-        """.format(copy_code=copy_code, output=self.output, alias=self.alias,
-                   input=self.named_inputs['input data'],
-                   cols=self.parameters[self.ATTRIBUTES_PARAM])
-
-        return dedent(code)
+        if self.has_code:
+            copy_code = ".copy()" \
+                if self.parameters['multiplicity']['input data'] > 1 else ""
+            code = """
+            cols = {cols}
+            {input}_without_na = {input}.dropna(subset=cols)
+            {output} = {input}_without_na{copy_code}
+            {output}['{alias}'] = {input}_without_na[cols].to_numpy().tolist()
+            """.format(copy_code=copy_code, output=self.output, alias=self.alias,
+                       input=self.named_inputs['input data'],
+                       cols=self.parameters[self.ATTRIBUTES_PARAM])
+            return dedent(code)
 
 
 class MinMaxScalerOperation(Operation):
