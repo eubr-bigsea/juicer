@@ -69,9 +69,16 @@ def test_feature_assembler_alias_param_success():
 
 
 def test_feature_assembler_na_drop_success():
+    """
+    The chained assignment warnings / exceptions are aiming to inform the user
+    of a possibly invalid assignment. There may be false positives; situations
+    where a chained assignment is inadvertently reported.
+    https://pandas.pydata.org/pandas-docs/stable/user_guide/indexing.html#returning-a-view-versus-a-copy
+    """
     df = util.iris(['sepallength', 'sepalwidth',
                     'petalwidth', 'petallength'], size=10)
-    df.iloc[0:3, 1] = np.NaN
+    # Line below is causing a false positive warning (?)
+    df.loc[0:2, 'sepalwidth'] = np.NaN
     test_df = df.copy()
 
     arguments = {
@@ -200,3 +207,35 @@ def test_feature_assembler_invalid_multiplicity_param_fail():
         util.execute(instance.generate_code(),
                      {'df': df})
     assert "string indices must be integers" in str(typ_err)
+
+
+def test_feature_assembler_invalid_dtype_input_fail():
+    df = util.iris(['sepallength', 'sepalwidth',
+                    'petalwidth', 'petallength'], size=10)
+    test_out = {
+        'Feat': [[3.1, 0.2], [3.5, 0.3], [3.3, 0.4], [3.1, 0.2],
+                 [3.6, 0.2], [3.9, 0.4], [3.4, 0.3], [3.4, 0.2],
+                 [2.9, 0.2], [3.1, 0.1]]}
+    test_out_2 = {
+        'Feat2': ['3.1', '0.3', '0.4', '0.2',
+                  '3.6', '3.9', '0.3', '0.2',
+                  '2.9', '0.1']}
+    test_out = pd.DataFrame(test_out)
+    test_out_2 = pd.DataFrame(test_out_2)
+    df = pd.concat([df, test_out, test_out_2], axis=1, join='inner')
+    arguments = {
+        'parameters': {'attributes': ['sepalwidth', 'Feat', 'Feat2'],
+                       'multiplicity': {'input data': 0}},
+        'named_inputs': {
+            'input data': 'df',
+        },
+        'named_outputs': {
+            'output data': 'out'
+        }
+    }
+    instance = FeatureAssemblerOperation(**arguments)
+    with pytest.raises(ValueError) as val_err:
+        util.execute(instance.generate_code(),
+                     {'df': df})
+    assert "Input 'df' must contain numeric values only for task" in str(
+        val_err.value)
