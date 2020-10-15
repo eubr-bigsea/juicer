@@ -35,15 +35,19 @@ class IncrementalPartitionedKMetaModesParams(HasFeaturesCol,
     metamodessimilarity = Param(Params._dummy(), "metamodessimilarity",
                                 "distance functions of merged k-modes.")
     seed = Param(Params._dummy(), "seed", "Seed for select initial clusters.")
+    fragmentation = Param(Params._dummy(), "fragmentation",
+                          "Reduce fragmentation. If enabled, it will reduce "
+                          "the parallelization in favor of the ability to "
+                          "handle small databases.")
 
     @keyword_only
     def __init__(self, n_clusters=3, max_dist_iter=10, local_kmodes_iter=10,
                  similarity="hamming", metamodessimilarity="hamming",
-                 seed=None):
+                 fragmentation=False, seed=None):
         super(IncrementalPartitionedKMetaModesParams, self).__init__()
         self._setDefault(n_clusters=3, max_dist_iter=10,
                          local_kmodes_iter=10, similarity="hamming",
-                         metamodessimilarity="hamming")
+                         metamodessimilarity="hamming", fragmentation=False)
 
         kwargs = self._input_kwargs
         self.setParams(**kwargs)
@@ -51,7 +55,8 @@ class IncrementalPartitionedKMetaModesParams(HasFeaturesCol,
     @keyword_only
     def setParams(self, n_clusters=3, max_dist_iter=10, local_kmodes_iter=10,
                  similarity="hamming", metamodessimilarity="hamming", seed=None,
-                 featuresCol='features', predictionCol='prediction'):
+                 fragmentation=False, featuresCol='features',
+                 predictionCol='prediction'):
         kwargs = self._input_kwargs
         return self._set(**kwargs)
 
@@ -102,6 +107,18 @@ class IncrementalPartitionedKMetaModesParams(HasFeaturesCol,
         Gets the value of `local_kmodes_iter` or its default value.
         """
         return self.getOrDefault(self.local_kmodes_iter)
+
+    def setFragmentation(self, value):
+        """
+        Sets the value of :py:attr:`fragmentation`.
+        """
+        return self._set(fragmentation=value)
+
+    def getFragmentation(self):
+        """
+        Gets the value of `fragmentation` or its default value.
+        """
+        return self.getOrDefault(self.fragmentation)
 
     def setSeed(self, value):
         """
@@ -154,11 +171,13 @@ class IncrementalPartitionedKMetaModes(Estimator,
     @keyword_only
     def __init__(self, n_clusters=3, max_dist_iter=10, local_kmodes_iter=10,
                  similarity="hamming", metamodessimilarity="hamming", seed=None,
-                 featuresCol='features', predictionCol='prediction'):
+                 fragmentation=False, featuresCol='features',
+                 predictionCol='prediction'):
         super(IncrementalPartitionedKMetaModes, self).__init__()
         self._setDefault(n_clusters=3, max_dist_iter=10,
                          local_kmodes_iter=10, similarity="hamming",
-                         seed=None, metamodessimilarity="hamming")
+                         seed=None, fragmentation=False,
+                         metamodessimilarity="hamming")
 
         kwargs = self._input_kwargs
         self.setParams(**kwargs)
@@ -188,11 +207,15 @@ class IncrementalPartitionedKMetaModes(Estimator,
         similarity_func = self.getSimilarity()
         metamode_similarity = self.getMetamodesSimilarity()
         seed = self.getSeed()
+        reduce_fragmentation = self.getFragmentation()
 
-        if kmdata.rdd.getNumPartitions() == 1:
+        if not reduce_fragmentation and kmdata.rdd.getNumPartitions() == 1:
             spark = SparkSession.builder.getOrCreate()
             available_cores = spark.sparkContext.defaultParallelism
             kmdata = kmdata.repartition(available_cores)
+
+        elif reduce_fragmentation and kmdata.rdd.getNumPartitions() != 1:
+            kmdata = kmdata.coalesce(1)
 
         rdd = kmdata\
             .rdd\
@@ -265,6 +288,7 @@ class IncrementalPartitionedKMetaModesModel(
                                          self.models,
                                          diss_function, predict_col))\
             .toDF()
+
         return data_with_cluster
 
     def clusterCenters(self):
