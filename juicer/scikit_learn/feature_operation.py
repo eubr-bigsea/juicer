@@ -33,13 +33,17 @@ class FeatureAssemblerOperation(Operation):
             copy_code = ".copy()" \
                 if self.parameters['multiplicity']['input data'] > 1 else ""
             code = """
+            if {input}.dtypes.all() == np.object:
+                raise ValueError("Input '{input}' must contain numeric values"
+                " only for task {cls}")
             cols = {cols}
             {input}_without_na = {input}.dropna(subset=cols)
             {output} = {input}_without_na{copy_code}
             {output}['{alias}'] = {input}_without_na[cols].to_numpy().tolist()
             """.format(copy_code=copy_code, output=self.output, alias=self.alias,
                        input=self.named_inputs['input data'],
-                       cols=self.parameters[self.ATTRIBUTES_PARAM])
+                       cols=self.parameters[self.ATTRIBUTES_PARAM],
+                       cls=self.__class__)
             return dedent(code)
 
 
