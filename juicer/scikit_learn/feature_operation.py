@@ -61,34 +61,21 @@ class MinMaxScalerOperation(Operation):
 
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
-
-        self.has_code = len(self.named_inputs) == 1
-        if self.has_code:
-
-            if self.ATTRIBUTE_PARAM not in parameters:
-                raise ValueError(
-                    _("Parameters '{}' must be informed for task {}")
+        self.has_code = len(self.named_inputs) == 1 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
+        if self.ATTRIBUTE_PARAM not in parameters:
+            raise ValueError(
+                _("Parameters '{}' must be informed for task {}")
                     .format(self.ATTRIBUTE_PARAM, self.__class__))
-
-            self.output = self.named_outputs.get(
-                    'output data', 'output_data_{}'.format(self.order))
-            self.model = named_outputs.get(
-                'transformation model', 'model_{}'.format(self.order))
-
-            if self.ATTRIBUTE_PARAM not in self.parameters:
-                msg = _("Parameters '{}' must be informed for task {}")
-                raise ValueError(msg.format(
-                    self.ATTRIBUTE_PARAM, self.__class__.__name__))
-            self.attribute = parameters[self.ATTRIBUTE_PARAM]
-
-            self.alias = parameters.get(self.ALIAS_PARAM,
-                                        'scaled_{}'.format(self.order))
-
-            self.min = parameters.get(self.MIN_PARAM, 0) or 0
-            self.max = parameters.get(self.MAX_PARAM, 1) or 1
-
-            self.has_import = \
-                "from sklearn.preprocessing import MinMaxScaler\n"
+        self.output = self.named_outputs.get(
+                'output data', 'output_data_{}'.format(self.order))
+        self.model = named_outputs.get(
+            'transformation model', 'model_{}'.format(self.order))
+        self.attribute = parameters[self.ATTRIBUTE_PARAM]
+        self.alias = parameters.get(self.ALIAS_PARAM,
+                                    'scaled_{}'.format(self.order))
+        self.min = parameters.get(self.MIN_PARAM, 0)
+        self.max = parameters.get(self.MAX_PARAM, 1)
 
     def get_data_out_names(self, sep=','):
         return self.output
@@ -97,28 +84,29 @@ class MinMaxScalerOperation(Operation):
         return sep.join([self.output, self.model])
 
     def generate_code(self):
-        """Generate code."""
-        copy_code = ".copy()" \
-            if self.parameters['multiplicity']['input data'] > 1 else ""
+        if self.has_code:
+            """Generate code."""
+            copy_code = ".copy()" \
+                if self.parameters['multiplicity']['input data'] > 1 else ""
 
-        code = """        
-        {model} = MinMaxScaler(feature_range=({min},{max}))
-        X_train = get_X_train_data({input}, {att})
-        {model}.fit(X_train)
-        """.format(output=self.output, model=self.model,
-                   input=self.named_inputs['input data'],
-                   att=self.attribute, alias=self.alias,
-                   min=self.min, max=self.max)
-
-        # TODO: corrigir essa checagem
-        if self.contains_results() or len(self.named_outputs) > 0:
-            code += """
-            {output} = {input}{copy_code}
-            {output}['{alias}'] = {model}.transform(X_train).tolist()
-            """.format(copy_code=copy_code, output=self.output,
+            code = """
+    from sklearn.preprocessing import MinMaxScaler    
+    from juicer.scikit_learn.util import get_X_train_data    
+    {model} = MinMaxScaler(feature_range=({min},{max}))
+    X_train = get_X_train_data({input}, {att})
+    {model}.fit(X_train)
+            """.format(output=self.output, model=self.model,
                        input=self.named_inputs['input data'],
-                       model=self.model, alias=self.alias)
-        return dedent(code)
+                       att=self.attribute, alias=self.alias,
+                       min=self.min, max=self.max)
+
+            code += """
+    {output} = {input}{copy_code}
+    {output}['{alias}'] = {model}.transform(X_train).tolist()
+                """.format(copy_code=copy_code, output=self.output,
+                           input=self.named_inputs['input data'],
+                           model=self.model, alias=self.alias)
+            return dedent(code)
 
 
 class MaxAbsScalerOperation(Operation):
