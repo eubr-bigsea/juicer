@@ -2101,18 +2101,16 @@ class ClusteringModelOperation(Operation):
 
                 df_aux = pipeline_model.transform({input})
                 
-                if "IncrementalPartitionedKMetaModes" not in algorithm_name:
-                
-                    evaluator = ClusteringEvaluator(
-                        predictionCol='{prediction}', featuresCol=final_features)
-                    metric_rows.append(['{silhouette_euclidean}', 
-                        evaluator.evaluate(df_aux)])
-    
-                    evaluator = ClusteringEvaluator(
-                        distanceMeasure='cosine', predictionCol='{prediction}', 
-                        featuresCol=final_features)
-                    metric_rows.append(['{silhouette_cosine}', 
-                        evaluator.evaluate(df_aux)])
+                evaluator = ClusteringEvaluator(
+                    predictionCol='{prediction}', featuresCol=final_features)
+                metric_rows.append(['{silhouette_euclidean}', 
+                    evaluator.evaluate(df_aux)])
+
+                evaluator = ClusteringEvaluator(
+                    distanceMeasure='cosine', predictionCol='{prediction}', 
+                    featuresCol=final_features)
+                metric_rows.append(['{silhouette_cosine}', 
+                    evaluator.evaluate(df_aux)])
     
                 if hasattr(clustering_model, 'clusterCenters'):
                     metric_rows.append([
@@ -2297,6 +2295,8 @@ class KModesClusteringOperation(ClusteringOperation):
     SIMILARITY_ATTR_HAMMING = 'hamming'
     SIMILARITY_ATTR_ALL_FREQ = 'all_frequency'
 
+    FRAGMENTATION_PARAM = 'fragmentation'
+
     def __init__(self, parameters, named_inputs,
                  named_outputs):
         ClusteringOperation.__init__(self, parameters, named_inputs,
@@ -2310,6 +2310,8 @@ class KModesClusteringOperation(ClusteringOperation):
                                          self.SIMILARITY_ATTR_HAMMING)
         self.metamodessimilarity = parameters.get(
                 self.METAMODESSIMILARITY_PARAM, self.SIMILARITY_ATTR_HAMMING)
+        self.reduce_fragmentation = parameters.get(
+                self.FRAGMENTATION_PARAM, False)
 
         self.has_code = any([len(named_outputs) > 0, self.contains_results()])
         self.seed = self.parameters.get(self.SEED_PARAM, None)
@@ -2320,7 +2322,8 @@ class KModesClusteringOperation(ClusteringOperation):
             ['Similarity', "'{}'".format(self.similarity)],
             ['LocalKmodesIter', self.max_local_iterations],
             ['MaxDistIter', self.max_iterations],
-            ['Seed', self.seed]
+            ['Seed', self.seed],
+            ['Fragmentation', self.reduce_fragmentation]
         ]
 
 
@@ -2330,10 +2333,14 @@ class KMeansClusteringOperation(ClusteringOperation):
     TYPE_PARAMETER = 'type'
     INIT_MODE_PARAMETER = 'init_mode'
     TOLERANCE_PARAMETER = 'tolerance'
+    DISTANCE_PARAMETER = 'distance'
     SEED_PARAM = "seed"
 
     TYPE_TRADITIONAL = 'kmeans'
     TYPE_BISECTING = 'bisecting'
+
+    EUCLIDEAN_DISTANCE = 'euclidean'
+    COSINE_DISTANCE = 'cosine'
 
     INIT_MODE_KMEANS_PARALLEL = 'k-means||'
     INIT_MODE_RANDOM = 'random'
@@ -2349,13 +2356,16 @@ class KMeansClusteringOperation(ClusteringOperation):
         self.type = parameters.get(self.TYPE_PARAMETER)
         self.tolerance = float(parameters.get(self.TOLERANCE_PARAMETER, 0.001))
         self.seed = self.parameters.get(self.SEED_PARAM, None)
+        self.distance = self.parameters.get(self.DISTANCE_PARAMETER,
+                                            self.EUCLIDEAN_DISTANCE)
 
         if self.type == self.TYPE_BISECTING:
             self.name = "BisectingKMeans"
             self.set_values = [
                 ['MaxIter', self.max_iterations],
                 ['K', self.number_of_clusters],
-                ['Seed', self.seed]
+                ['Seed', self.seed],
+                ['DistanceMeasure', "'{}'".format(self.distance)]
             ]
         elif self.type == self.TYPE_TRADITIONAL:
             if parameters.get(
@@ -2370,7 +2380,8 @@ class KMeansClusteringOperation(ClusteringOperation):
                 ['K', self.number_of_clusters],
                 ['Tol', self.tolerance],
                 ['InitMode', '"{}"'.format(self.init_mode)],
-                ['Seed', self.seed]
+                ['Seed', self.seed],
+                ['DistanceMeasure', "'{}'".format(self.distance)]
             ]
         else:
             raise ValueError(
