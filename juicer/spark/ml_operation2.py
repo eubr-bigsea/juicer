@@ -10,7 +10,8 @@ from juicer.spark.ml_operation import SvmClassifierOperation, \
     GBTClassifierOperation, NaiveBayesClassifierOperation, \
     RandomForestClassifierOperation, PerceptronClassifier, \
     ClassificationModelOperation, ClusteringModelOperation, \
-    KMeansClusteringOperation, GaussianMixtureClusteringOperation, \
+    KMeansClusteringOperation, KModesClusteringOperation, \
+    GaussianMixtureClusteringOperation, \
     LdaClusteringOperation, RegressionModelOperation, LinearRegressionOperation, \
     GeneralizedLinearRegressionOperation, DecisionTreeRegressionOperation, \
     GBTRegressorOperation, AFTSurvivalRegressionOperation, \
@@ -242,6 +243,14 @@ class KMeansModelOperation(ClusteringOperation):
             parameters, named_inputs, {'algorithm': 'algorithm'})
         super(KMeansModelOperation, self).__init__(
             parameters, named_inputs, named_outputs, algorithm)
+
+
+class KModesModelOperation(ClusteringOperation):
+    def __init__(self, parameters, named_inputs, named_outputs):
+        algorithm = KModesClusteringOperation(
+                parameters, named_inputs, {'algorithm': 'algorithm'})
+        super(KModesModelOperation, self).__init__(
+                parameters, named_inputs, named_outputs, algorithm)
 
 
 class GaussianMixtureModelOperation(ClusteringOperation):
