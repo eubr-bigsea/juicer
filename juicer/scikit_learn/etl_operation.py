@@ -341,15 +341,12 @@ class DifferenceOperation(Operation):
     def generate_code(self):
         if self.has_code:
             code = """
-            # Intersection treatment, remove cols out of the intersection
-            input1_oper = {input1}.loc[:,
-             {input1}.columns.intersection({input2}.columns)]
-            input2_oper = {input2}.loc[:,
-             {input1}.columns.intersection({input2}.columns)]
-             
-            # Operation, creates the resulting df with unique df1 rows
-            to_drop = []
+            inter = {input1}.copy().columns.intersection({input2}.copy().columns)
+            input1_oper = {input1}.copy().loc[:, inter]
+            input2_oper = {input2}.copy().loc[:, inter]
             diff_oper = input1_oper.ne(input2_oper)
+            
+            to_drop = []
             for idx in diff_oper.index:
                 if diff_oper.loc[idx, :].any() == False:
                     to_drop.append(idx)
