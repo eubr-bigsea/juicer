@@ -4,17 +4,17 @@ import pytest
 
 
 # Drop
-# 
+#
+#
+# # # # # # # # # # Success # # # # # # # # # #
 def test_drop_success():
-    slice_size = 10
-    df = ['df', util.iris(size=slice_size)]
-
+    df = util.iris(size=10)
     arguments = {
         'parameters': {
-            DropOperation.ATTRIBUTES_PARAM: ['class']
+            'attributes': ['class']
         },
         'named_inputs': {
-            'input data': df[0],
+            'input data': 'df',
         },
         'named_outputs': {
             'output data': 'out'
@@ -22,59 +22,30 @@ def test_drop_success():
     }
     instance = DropOperation(**arguments)
     result = util.execute(instance.generate_code(),
-                          {'df': df[1]})
+                          {'df': df})
     assert result['out'].equals(
-        util.iris(size=slice_size).drop(['class'], axis=1))
+        util.iris(size=10).drop(['class'], axis=1))
 
 
-def test_drop_fail_missing_parameter():
-    slice_size = 10
-    df = ['df', util.iris(size=slice_size)]
-
+def test_drop_no_output_implies_no_code_success():
     arguments = {
         'parameters': {
+            'attributes': ['class']
         },
         'named_inputs': {
-            'input data': df[0],
+            'input data': 'df',
         },
         'named_outputs': {
-            'output data': 'out'
-        }
-    }
-    with pytest.raises(ValueError) as exc_info:
-        instance = DropOperation(**arguments)
-    assert "'attributes' must be informed for task" in str(exc_info.value)
-
-
-def test_drop_fail_invalid_attribute():
-    slice_size = 10
-    df = ['df', util.iris(size=slice_size)]
-
-    arguments = {
-        'parameters': {
-            DropOperation.ATTRIBUTES_PARAM: ['invalid']
-        },
-        'named_inputs': {
-            'input data': df[0],
-        },
-        'named_outputs': {
-            'output data': 'out'
         }
     }
     instance = DropOperation(**arguments)
-    with pytest.raises(KeyError) as exc_info:
-        result = util.execute(instance.generate_code(),
-                              {'df': df[1]})
-    assert "['invalid'] not found in axis" in str(exc_info.value)
+    assert instance.generate_code() is None
 
 
-def test_drop_success_missing_input_implies_no_code():
-    slice_size = 10
-    df = ['df', util.iris(size=slice_size)]
-
+def test_drop_missing_input_implies_no_code_success():
     arguments = {
         'parameters': {
-            DropOperation.ATTRIBUTES_PARAM: ['class']
+            'attributes': ['class']
         },
         'named_inputs': {},
         'named_outputs': {
@@ -82,26 +53,45 @@ def test_drop_success_missing_input_implies_no_code():
         }
     }
     instance = DropOperation(**arguments)
-    assert not instance.has_code
+    assert instance.generate_code() is None
 
 
-def test_drop_success_no_output_implies_no_code():
-    """
-    Change DropOperation: it shouldn't generate
-    code if there is not output!
-    """
+# # # # # # # # # # Fail # # # # # # # # # #
+def test_drop_missing_parameters_fail():
     slice_size = 10
     df = ['df', util.iris(size=slice_size)]
 
     arguments = {
         'parameters': {
-            DropOperation.ATTRIBUTES_PARAM: ['class']
         },
         'named_inputs': {
             'input data': df[0],
         },
         'named_outputs': {
+            'output data': 'out'
+        }
+    }
+    with pytest.raises(ValueError) as val_err:
+        DropOperation(**arguments)
+    assert "'attributes' must be informed for task" in str(val_err.value)
+
+
+def test_drop_invalid_attribute_param_fail():
+    df = util.iris(size=10)
+
+    arguments = {
+        'parameters': {
+            'attributes': ['invalid']
+        },
+        'named_inputs': {
+            'input data': 'df',
+        },
+        'named_outputs': {
+            'output data': 'out'
         }
     }
     instance = DropOperation(**arguments)
-    assert not instance.has_code
+    with pytest.raises(KeyError) as key_err:
+        util.execute(instance.generate_code(),
+                     {'df': df})
+    assert "['invalid'] not found in axis" in str(key_err.value)
