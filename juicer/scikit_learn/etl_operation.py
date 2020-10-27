@@ -200,7 +200,7 @@ class CleanMissingOperation(Operation):
                 self.attributes_CM = parameters[self.ATTRIBUTES_PARAM]
             else:
                 raise ValueError(
-                    ("Parameter '{}' must be informed for task {}").format
+                    _("Parameter '{}' must be informed for task {}").format
                     ('attributes', self.__class__))
 
             self.min_ratio = abs(float(parameters.get(
@@ -644,7 +644,6 @@ class IntersectionOperation(Operation):
         {in1} = pd.merge({in1}, {in2}, how='left', on=keys, 
         indicator=True, copy=False)
         {out} = {in1}.loc[{in1}['_merge'] == 'both', keys]
-        #{out} = {in1}
         """.format(out=self.output,
                    in1=self.named_inputs['input data 1'],
                    in2=self.named_inputs['input data 2'],
