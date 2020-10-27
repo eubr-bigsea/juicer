@@ -2,23 +2,28 @@ from tests.scikit_learn import util
 from juicer.scikit_learn.etl_operation import DifferenceOperation
 import pandas as pd
 import numpy as np
-import pytest
+
+
+# pd.set_option('display.max_rows', None)
+# pd.set_option('display.max_columns', None)
+# pd.set_option('display.max_colwidth', None)
 
 
 # Difference
 #
+#
+# # # # # # # # # # Success # # # # # # # # # #
 def test_difference_one_col_success():
-    df1 = ['df1', util.iris(['sepallength'], 15)]
-
-    df2 = ['df2', util.iris(['sepallength'], 10)]
-
-    df1[1].loc[7:9, 'sepallength'] = 1
+    df1 = util.iris(['sepallength'], size=15)
+    df2 = util.iris(['sepallength'], size=10)
+    df1.loc[7:9, 'sepallength'] = 1
+    test_df = df1.copy()
 
     arguments = {
         'parameters': {},
         'named_inputs': {
-            'input data 1': df1[0],
-            'input data 2': df2[0]
+            'input data 1': 'df1',
+            'input data 2': 'df2'
         },
         'named_outputs': {
             'output data': 'out'
@@ -26,25 +31,23 @@ def test_difference_one_col_success():
     }
     instance = DifferenceOperation(**arguments)
     result = util.execute(instance.generate_code(),
-                          {'df1': df1[1],
-                           'df2': df2[1]})
-
-    assert result['out'].equals(df1[1].loc[7:14, 'sepallength'].to_frame())
+                          {'df1': df1,
+                           'df2': df2})
+    assert result['out'].equals(test_df.loc[7:14, 'sepallength'].to_frame())
     assert len(result['out']) == 8
 
 
 def test_difference_multiple_col_success():
-    df1 = ['df1', util.iris(['sepallength', 'petalwidth'], 15)]
-
-    df2 = ['df2', util.iris(['sepallength', 'petalwidth'], 10)]
-
-    df1[1].loc[7:9, 'sepallength'] = 1
+    df1 = util.iris(['sepallength', 'petalwidth'], size=15)
+    df2 = util.iris(['sepallength', 'petalwidth'], size=10)
+    df1.loc[7:9, 'sepallength'] = 1
+    test_df = df1.copy()
 
     arguments = {
         'parameters': {},
         'named_inputs': {
-            'input data 1': df1[0],
-            'input data 2': df2[0]
+            'input data 1': 'df1',
+            'input data 2': 'df2'
         },
         'named_outputs': {
             'output data': 'out'
@@ -52,24 +55,23 @@ def test_difference_multiple_col_success():
     }
     instance = DifferenceOperation(**arguments)
     result = util.execute(instance.generate_code(),
-                          {'df1': df1[1],
-                           'df2': df2[1]})
-    assert result['out'].equals(df1[1].loc[7:14, ['sepallength', 'petalwidth']])
+                          {'df1': df1,
+                           'df2': df2})
+    assert result['out'].equals(test_df.loc[7:14, ['sepallength', 'petalwidth']])
     assert len(result['out']) == 8
 
 
 def test_difference_col_reorder_success():
-    df1 = ['df1', util.iris(['sepallength', 'petalwidth', 'class'], 15)]
-
-    df2 = ['df2', util.iris(['class', 'petalwidth', 'sepallength'], 10)]
-
-    df1[1].loc[7:9, 'class'] = 'replaced'
+    df1 = util.iris(['sepallength', 'petalwidth', 'class'], size=15)
+    df2 = util.iris(['class', 'petalwidth', 'sepallength'], size=10)
+    df1.loc[7:9, 'class'] = 'replaced'
+    test_df = df1.copy()
 
     arguments = {
         'parameters': {},
         'named_inputs': {
-            'input data 1': df1[0],
-            'input data 2': df2[0]
+            'input data 1': 'df1',
+            'input data 2': 'df2'
         },
         'named_outputs': {
             'output data': 'out'
@@ -77,25 +79,24 @@ def test_difference_col_reorder_success():
     }
     instance = DifferenceOperation(**arguments)
     result = util.execute(instance.generate_code(),
-                          {'df1': df1[1],
-                           'df2': df2[1]})
+                          {'df1': df1,
+                           'df2': df2})
     assert result['out'].equals(
-        df1[1].loc[7:14, ['sepallength', 'petalwidth', 'class']])
+        test_df.loc[7:14, ['sepallength', 'petalwidth', 'class']])
     assert len(result['out']) == 8
 
 
 def test_difference_col_intersection_success():
-    df1 = ['df1', util.iris(['sepallength'], 15)]
-
-    df2 = ['df2', util.iris(['petalwidth', 'sepallength'], 10)]
-
-    df1[1].loc[7:9, 'sepallength'] = 1
+    df1 = util.iris(['sepallength'], size=15)
+    df2 = util.iris(['petalwidth', 'sepallength'], size=10)
+    df1.loc[7:9, 'sepallength'] = 1
+    test_df = df1.copy()
 
     arguments = {
         'parameters': {},
         'named_inputs': {
-            'input data 1': df1[0],
-            'input data 2': df2[0]
+            'input data 1': 'df1',
+            'input data 2': 'df2'
         },
         'named_outputs': {
             'output data': 'out'
@@ -103,25 +104,24 @@ def test_difference_col_intersection_success():
     }
     instance = DifferenceOperation(**arguments)
     result = util.execute(instance.generate_code(),
-                          {'df1': df1[1],
-                           'df2': df2[1]})
+                          {'df1': df1,
+                           'df2': df2})
 
-    assert result['out'].equals(df1[1].loc[7:14, ['sepallength']])
+    assert result['out'].equals(test_df.loc[7:14, ['sepallength']])
     assert len(result['out']) == 8
 
 
 def test_difference_col_intersection_2_success():
-    df1 = ['df1', util.iris(['sepallength', 'petalwidth'], 15)]
-
-    df2 = ['df2', util.iris(['petalwidth'], 10)]
-
-    df1[1].loc[7:9, 'petalwidth'] = 1
+    df1 = util.iris(['sepallength', 'petalwidth'], size=15)
+    df2 = util.iris(['petalwidth'], size=10)
+    df1.loc[7:9, 'petalwidth'] = 1
+    test_df = df1.copy()
 
     arguments = {
         'parameters': {},
         'named_inputs': {
-            'input data 1': df1[0],
-            'input data 2': df2[0]
+            'input data 1': 'df1',
+            'input data 2': 'df2'
         },
         'named_outputs': {
             'output data': 'out'
@@ -129,25 +129,24 @@ def test_difference_col_intersection_2_success():
     }
     instance = DifferenceOperation(**arguments)
     result = util.execute(instance.generate_code(),
-                          {'df1': df1[1],
-                           'df2': df2[1]})
+                          {'df1': df1,
+                           'df2': df2})
 
-    assert result['out'].equals(df1[1].loc[7:14, ['petalwidth']])
+    assert result['out'].equals(test_df.loc[7:14, ['petalwidth']])
     assert len(result['out']) == 8
 
 
 def test_difference_input2_is_bigger_success():
-    # It only returns the dataframe column
-    # Maybe it should return nothing?
-    df1 = ['df1', util.iris(['petalwidth'], 10)]
-
-    df2 = ['df2', util.iris(['petalwidth'], 15)]
+    """It only returns the dataframe column, maybe it should return nothing?"""
+    df1 = util.iris(['petalwidth'], size=10)
+    df2 = util.iris(['petalwidth'], size=15)
+    test_df = df1.copy().drop(range(10))
 
     arguments = {
         'parameters': {},
         'named_inputs': {
-            'input data 1': df1[0],
-            'input data 2': df2[0]
+            'input data 1': 'df1',
+            'input data 2': 'df2'
         },
         'named_outputs': {
             'output data': 'out'
@@ -155,24 +154,24 @@ def test_difference_input2_is_bigger_success():
     }
     instance = DifferenceOperation(**arguments)
     result = util.execute(instance.generate_code(),
-                          {'df1': df1[1],
-                           'df2': df2[1]})
+                          {'df1': df1,
+                           'df2': df2})
 
-    test = df1[1].drop(range(10))
-    assert result['out'].equals(test)
+    assert result['out'].equals(test_df)
     assert len(result['out']) == 0
 
 
 def test_difference_different_cols_success():
-    # Returns nothing
-    df1 = ['df1', util.iris(['petalwidth'], 20)]
-    df2 = ['df2', util.iris(['class'], 10)]
+    """Returns nothing"""
+    df1 = util.iris(['petalwidth'], size=20)
+    df2 = util.iris(['class'], size=10)
+    test_df = df1.copy().drop(columns='petalwidth', index=range(20))
 
     arguments = {
         'parameters': {'attributes': 2},
         'named_inputs': {
-            'input data 1': df1[0],
-            'input data 2': df2[0]
+            'input data 1': 'df1',
+            'input data 2': 'df2'
         },
         'named_outputs': {
             'output data': 'out'
@@ -180,30 +179,30 @@ def test_difference_different_cols_success():
     }
     instance = DifferenceOperation(**arguments)
     result = util.execute(instance.generate_code(),
-                          {'df1': df1[1],
-                           'df2': df2[1]})
+                          {'df1': df1,
+                           'df2': df2})
 
-    test = df1[1].drop(columns='petalwidth', index=range(20))
-    assert result['out'].equals(test)
+    assert result['out'].equals(test_df)
     assert len(result['out']) == 0
 
 
 def test_difference_big_variation_success():
-    df1 = ['df1', util.iris(['petalwidth'], 40)]
-    df2 = ['df2', util.iris(['petalwidth'], 10)]
+    df1 = util.iris(['petalwidth'], size=40)
+    df2 = util.iris(['petalwidth'], size=10)
+    test_df = df1.copy()
 
-    df1[1].loc[4, 'petalwidth'] = np.int64(50)
-    df1[1].loc[5, 'petalwidth'] = pd.Timestamp(1596509236)
-    df1[1].loc[6, 'petalwidth'] = np.float(1.56)
-    df1[1].loc[7, 'petalwidth'] = np.array('test')
-    df1[1].loc[8, 'petalwidth'] = np.bool(False)
-    df1[1].loc[9, 'petalwidth'] = np.NaN
+    df1.loc[4, 'petalwidth'] = np.int64(50)
+    df1.loc[5, 'petalwidth'] = pd.Timestamp(1596509236)
+    df1.loc[6, 'petalwidth'] = np.float(1.56)
+    df1.loc[7, 'petalwidth'] = np.array('test')
+    df1.loc[8, 'petalwidth'] = np.bool(False)
+    df1.loc[10, 'petalwidth'] = np.NaN
 
     arguments = {
         'parameters': {},
         'named_inputs': {
-            'input data 1': df1[0],
-            'input data 2': df2[0]
+            'input data 1': 'df1',
+            'input data 2': 'df2'
         },
         'named_outputs': {
             'output data': 'out'
@@ -211,56 +210,39 @@ def test_difference_big_variation_success():
     }
     instance = DifferenceOperation(**arguments)
     result = util.execute(instance.generate_code(),
-                          {'df1': df1[1],
-                           'df2': df2[1]})
+                          {'df1': df1,
+                           'df2': df2})
 
-    tst = df1[1]
-    diff_oper = df1[1].ne(df2[1])
+    diff_oper = df1.eq(df2)
     for i in range(40):
-        if not diff_oper.iloc[i, 0:].any():
-            tst.drop(i, inplace=True)
+        if diff_oper.iloc[i, 0:].all():
+            test_df.drop(i, inplace=True)
+    assert result['out'].eq(test_df).equals(test_df.eq(result['out']))
+    assert len(result['out']) == 35
 
-    assert result['out'].eq(tst).equals(tst.eq(result['out']))
-    assert len(result['out']) == 36
 
-
-def test_difference_missing_inputs_success():
-    df1 = ['df1', util.iris(['sepallength'], 15)]
-
-    df2 = ['df2', util.iris(['sepallength'], 10)]
-
-    df1[1].loc[7:9, 'sepallength'] = 1
-
+def test_difference_no_output_implies_no_code_success():
     arguments = {
         'parameters': {},
-        'named_inputs': {},
+        'named_inputs': {
+            'input data 1': 'df1',
+            'input data 2': 'df2'
+        },
+        'named_outputs': {
+        }
+    }
+    instance = DifferenceOperation(**arguments)
+    assert instance.generate_code() is None
+
+
+def test_difference_missing_input_implies_no_code_success():
+    arguments = {
+        'parameters': {},
+        'named_inputs': {
+        },
         'named_outputs': {
             'output data': 'out'
         }
     }
-    with pytest.raises(KeyError) as key_err:
-        instance = DifferenceOperation(**arguments)
-        result = util.execute(instance.generate_code(),
-                              {'df1': df1[1],
-                               'df2': df2[1]})
-    assert 'input data 1' in str(key_err)
-
-
-def test_difference_no_output_implies_no_code():
-    df1 = ['df1', util.iris(['sepallength', 'petallength'], 15)]
-
-    df2 = ['df2', util.iris(['sepallength', 'petallength'], 10)]
-
-    arguments = {
-        'parameters': {},
-        'named_inputs': {
-            'input data 1': df1[0],
-            'input data 2': df2[0]
-        },
-        'named_outputs': {}
-    }
     instance = DifferenceOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df1': df1[1],
-                           'df2': df2[1]})
-    assert not instance.has_code
+    assert instance.generate_code() is None

@@ -16,7 +16,8 @@ class AddColumnsOperation(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-        self.has_code = len(named_outputs) >= 1 and len(named_inputs) == 2
+        self.has_code = len(self.named_inputs) == 2 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
 
         self.suffixes = parameters.get(self.ALIASES_PARAM, '_ds0,_ds1')
         self.suffixes = [s for s in self.suffixes.replace(" ", "").split(',')]
@@ -25,15 +26,16 @@ class AddColumnsOperation(Operation):
             'output data', 'output_data_{}'.format(self.order))
 
     def generate_code(self):
-        code = """
-        {out} = pd.merge({input1}, {input2}, left_index=True, 
+        if self.has_code:
+            code = """
+            {out} = pd.merge({input1}, {input2}, left_index=True, 
             right_index=True, suffixes=('{s1}', '{s2}')) 
         """.format(out=self.output,
                    s1=self.suffixes[0],
                    s2=self.suffixes[1],
                    input1=self.named_inputs['input data 1'],
                    input2=self.named_inputs['input data 2'])
-        return dedent(code)
+            return dedent(code)
 
 
 class AggregationOperation(Operation):
@@ -78,7 +80,7 @@ class AggregationOperation(Operation):
                     self.FUNCTION_PARAM, self.__class__))
 
         self.output = self.named_outputs.get(
-                'output data', 'data_{}'.format(self.order))
+            'output data', 'data_{}'.format(self.order))
 
         agg_functions = {
             'collect_list': "_collect_list",
@@ -104,13 +106,13 @@ class AggregationOperation(Operation):
                 if 'collect' in agg:
                     self.input_operations_non_pivot.append(
                         "{alias}=('{col}', {f})".format(
-                                alias=dictionary[self.FUNCTION_PARAM_ALIAS],
-                                col=att, f=agg))
+                            alias=dictionary[self.FUNCTION_PARAM_ALIAS],
+                            col=att, f=agg))
                 else:
                     self.input_operations_non_pivot.append(
-                            "{alias}=('{col}', '{f}')".format(
-                                    alias=dictionary[self.FUNCTION_PARAM_ALIAS],
-                                    col=att, f=agg))
+                        "{alias}=('{col}', '{f}')".format(
+                            alias=dictionary[self.FUNCTION_PARAM_ALIAS],
+                            col=att, f=agg))
             else:
                 if att in self.input_operations_pivot:
                     self.input_operations_pivot[att].append(agg)
@@ -127,7 +129,8 @@ class AggregationOperation(Operation):
         return self.output
 
     def generate_code(self):
-        code = dedent(
+        if self.has_code:
+            code = dedent(
                 """
                 def _collect_list(x):
                     return x.tolist()
@@ -135,39 +138,40 @@ class AggregationOperation(Operation):
                 def _collect_set(x):
                     return set(x.tolist())
                 """)
-        if self.pivot:
+            if self.pivot:
 
-            if self.pivot_values:
+                if self.pivot_values:
+                    code += dedent("""
+                input_data = {input}.loc[{input}['{pivot}'].isin([{values}])]
+                """.format(input=self.named_inputs['input data'],
+                           pivot=self.pivot[0], values=self.pivot_values))
+                else:
+                    code += dedent("""
+                input_data = {input}
+                """.format(input=self.named_inputs['input data']))
+
                 code += dedent("""
-            input_data = {input}.loc[{input}['{pivot}'].isin([{values}])]
-            """.format(input=self.named_inputs['input data'],
-                       pivot=self.pivot[0], values=self.pivot_values))
+                aggfunc = {aggfunc}
+                {output} = pd.pivot_table(input_data, index={index}, 
+                    columns={pivot}, aggfunc=aggfunc)
+                # rename columns and convert to DataFrame
+                {output}.reset_index(inplace=True)
+                new_idx = [n[0] if n[1] == ''
+                           else "%s_%s_%s" % (n[0],n[1], n[2])
+                           for n in {output}.columns.ravel()]    
+                {output}.columns = new_idx
+                """.format(pivot=self.pivot, values=self.values,
+                           index=self.attributes, output=self.output,
+                           aggfunc=self.input_operations_pivot))
             else:
-                code += dedent("""
-            input_data = {input}
-            """.format(input=self.named_inputs['input data']))
-
-            code += dedent("""
-            aggfunc = {aggfunc}
-            {output} = pd.pivot_table(input_data, index={index}, 
-                columns={pivot}, aggfunc=aggfunc)
-            # rename columns and convert to DataFrame
-            {output}.reset_index(inplace=True)
-            new_idx = [n[0] if n[1] == ''
-                       else "%s_%s_%s" % (n[0],n[1], n[2])
-                       for n in {output}.columns.ravel()]    
-            {output}.columns = new_idx
-            """.format(pivot=self.pivot, values=self.values,
-                       index=self.attributes, output=self.output,
-                       aggfunc=self.input_operations_pivot))
-        else:
-            code += dedent("""   
-            {output} = {input}.groupby({columns}).agg({operations}).reset_index()
-            """.format(output=self.output,
-                       input=self.named_inputs['input data'],
-                       columns=self.attributes,
-                       operations=', '.join(self.input_operations_non_pivot)))
-        return dedent(code)
+                code += dedent("""   
+                {output} = {input}.groupby({columns}).agg({operations}).reset_index()
+                """.format(output=self.output,
+                           input=self.named_inputs['input data'],
+                           columns=self.attributes,
+                           operations=', '.join(
+                               self.input_operations_non_pivot)))
+            return dedent(code)
 
 
 class CleanMissingOperation(Operation):
@@ -193,7 +197,8 @@ class CleanMissingOperation(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-        self.has_code = len(named_outputs) >= 1 and len(named_inputs) == 1
+        self.has_code = len(self.named_inputs) == 1 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
 
         if self.has_code:
             if self.ATTRIBUTES_PARAM in parameters:
@@ -229,81 +234,82 @@ class CleanMissingOperation(Operation):
                 'output result', 'output_data_{}'.format(self.order))
 
     def generate_code(self):
-
-        op = ""
-        copy_code = ".copy()" \
-            if self.parameters.get(
-            'multiplicity', {}).get('input data', 1) > 1 else ""
-        if self.mode_CM == "REMOVE_ROW":
-            code = """
-                min_missing_ratio = {min_thresh}
-                max_missing_ratio = {max_thresh}
-                {output} = {input}{copy_code}
-                ratio = {input}[{columns}].isnull().sum(axis=1) / len({columns})
-                ratio_mask = (ratio > min_missing_ratio) & (ratio <= max_missing_ratio)
-                {output} = {output}[~ratio_mask]
-                """ \
-                .format(min_thresh=self.min_ratio, max_thresh=self.max_ratio,
-                        copy_code=copy_code, output=self.output,
-                        input=self.named_inputs['input data'],
-                        columns=self.attributes_CM, op=op)
-
-        elif self.mode_CM == "REMOVE_COLUMN":
-
-            code = """
-                min_missing_ratio = {min_thresh}
-                max_missing_ratio = {max_thresh}
-                {output} = {input}{copy_code}
-                to_remove = []
-                for col in {columns}:
-                    ratio = {input}[col].isnull().sum() / len({input})
-                    ratio_mask = (ratio > min_missing_ratio) & (ratio <= max_missing_ratio)
-                    if ratio_mask:
-                        to_remove.append(col)
-                
-                {output}.drop(columns=to_remove, inplace=True)
-                """ \
-                .format(min_thresh=self.min_ratio, max_thresh=self.max_ratio,
-                        output=self.output, copy_code=copy_code,
-                        input=self.named_inputs['input data'],
-                        columns=self.attributes_CM, op=op)
-
-        else:
-
-            if self.mode_CM == "VALUE":
-                if isinstance(self.check_parameter(self.value_CM), str):
-                    op = "{output}[col].fillna(value='{value}', inplace=True)" \
-                        .format(output=self.output, value=self.value_CM)
-                else:
-                    op = "{output}[col].fillna(value={value}, inplace=True)" \
-                        .format(output=self.output, value=self.value_CM)
-
-            elif self.mode_CM == "MEAN":
-                op = "{output}[col].fillna(value={output}" \
-                     "[col].mean(), inplace=True)".format(output=self.output)
-            elif self.mode_CM == "MEDIAN":
-                op = "{output}[col].fillna(value={output}" \
-                     "[col].median(), inplace=True)".format(output=self.output)
-
-            elif self.mode_CM == "MODE":
-                op = "{out}[col].fillna(value={out}[col].mode()[0], inplace=True)" \
-                    .format(out=self.output)
-
-            code = """
+        if self.has_code:
+            op = ""
+            copy_code = ".copy()" \
+                if self.parameters.get('multiplicity',
+                                       {}).get('input data', 1) > 1 else ""
+            if self.mode_CM == "REMOVE_ROW":
+                code = """
                     min_missing_ratio = {min_thresh}
                     max_missing_ratio = {max_thresh}
                     {output} = {input}{copy_code}
+                    ratio = {input}[{columns}].isnull().sum(axis=1) / len({columns})
+                    ratio_mask = (ratio > min_missing_ratio) & (ratio <= max_missing_ratio)
+                    {output} = {output}[~ratio_mask]
+                    """ \
+                    .format(min_thresh=self.min_ratio, max_thresh=self.max_ratio,
+                            copy_code=copy_code, output=self.output,
+                            input=self.named_inputs['input data'],
+                            columns=self.attributes_CM, op=op)
+
+            elif self.mode_CM == "REMOVE_COLUMN":
+
+                code = """
+                    min_missing_ratio = {min_thresh}
+                    max_missing_ratio = {max_thresh}
+                    {output} = {input}{copy_code}
+                    to_remove = []
                     for col in {columns}:
                         ratio = {input}[col].isnull().sum() / len({input})
                         ratio_mask = (ratio > min_missing_ratio) & (ratio <= max_missing_ratio)
                         if ratio_mask:
-                            {op}
-                            """ \
-                .format(min_thresh=self.min_ratio, max_thresh=self.max_ratio,
-                        output=self.output, copy_code=copy_code,
-                        input=self.named_inputs['input data'],
-                        columns=self.attributes_CM, op=op)
-        return dedent(code)
+                            to_remove.append(col)
+                    
+                    {output}.drop(columns=to_remove, inplace=True)
+                    """ \
+                    .format(min_thresh=self.min_ratio, max_thresh=self.max_ratio,
+                            output=self.output, copy_code=copy_code,
+                            input=self.named_inputs['input data'],
+                            columns=self.attributes_CM, op=op)
+
+            else:
+
+                if self.mode_CM == "VALUE":
+                    if isinstance(self.check_parameter(self.value_CM), str):
+                        op = "{output}[col].fillna(value='{value}', inplace=True)" \
+                            .format(output=self.output, value=self.value_CM)
+                    else:
+                        op = "{output}[col].fillna(value={value}, inplace=True)" \
+                            .format(output=self.output, value=self.value_CM)
+
+                elif self.mode_CM == "MEAN":
+                    op = "{output}[col].fillna(value={output}" \
+                         "[col].mean(), inplace=True)".format(output=self.output)
+                elif self.mode_CM == "MEDIAN":
+                    op = "{output}[col].fillna(value={output}" \
+                         "[col].median(), inplace=True)".format(
+                        output=self.output)
+
+                elif self.mode_CM == "MODE":
+                    op = "{out}[col].fillna(value={out}[col].mode()[0], inplace=True)" \
+                        .format(out=self.output)
+
+                code = """
+                        min_missing_ratio = {min_thresh}
+                        max_missing_ratio = {max_thresh}
+                        {output} = {input}{copy_code}
+                        for col in {columns}:
+                            ratio = {input}[col].isnull().sum() / len({input})
+                            ratio_mask = (ratio > min_missing_ratio) & (ratio <= max_missing_ratio)
+                            if ratio_mask:
+                                {op}
+                                """ \
+                    .format(min_thresh=self.min_ratio, max_thresh=self.max_ratio,
+                            output=self.output, copy_code=copy_code,
+                            input=self.named_inputs['input data'],
+                            columns=self.attributes_CM, op=op)
+            return dedent(code)
 
     @staticmethod
     def check_parameter(parameter):
@@ -327,31 +333,28 @@ class DifferenceOperation(Operation):
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
-        self.has_code = len(named_outputs) >= 1 and len(named_inputs) == 2
+        self.has_code = len(self.named_inputs) == 2 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
 
     def generate_code(self):
-        code = """
-        intersection = {input1}.columns.intersection({input2}.columns)
-
-        # Remove cols out of the intersection
-        input1_oper = {input1}.loc[:, intersection]
-        input2_oper = {input2}.loc[:, intersection]
-    
-        highest_len = len({input1}) if len({input1}) > len({input2}) \
-else len({input2})
-
-        # Creates the resulting df with unique df1 rows
-        diff_oper = input1_oper.ne(input2_oper)
-        for i in range(highest_len):
-            if not diff_oper.iloc[i, 0:].any():
-                input1_oper.drop(i, inplace=True)
-        {output} = input1_oper
-        """.format(output=self.output,
-                   input1=self.named_inputs['input data 1'],
-                   input2=self.named_inputs['input data 2'])
-        return dedent(code)
+        if self.has_code:
+            code = """
+            inter = {input1}.copy().columns.intersection({input2}.copy().columns)
+            input1_oper = {input1}.copy().loc[:, inter]
+            input2_oper = {input2}.copy().loc[:, inter]
+            diff_oper = input1_oper.ne(input2_oper)
+            
+            to_drop = []
+            for idx in diff_oper.index:
+                if diff_oper.loc[idx, :].any() == False:
+                    to_drop.append(idx)
+            {output} = input1_oper.drop(to_drop, axis=0)
+            """.format(output=self.output,
+                       input1=self.named_inputs['input data 1'],
+                       input2=self.named_inputs['input data 2'])
+            return dedent(code)
 
 
 class DistinctOperation(Operation):
@@ -364,15 +367,17 @@ class DistinctOperation(Operation):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         self.attributes = parameters.get('attributes', 'None')
-        self.has_code = len(named_inputs) == 1 and len(named_outputs) >= 1
+        self.has_code = len(self.named_inputs) == 1 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
 
     def generate_code(self):
-        code = "{out} = {in1}.drop_duplicates(subset={columns}, keep='first')" \
-            .format(out=self.output, in1=self.named_inputs['input data'],
-                    columns=self.attributes)
-        return dedent(code)
+        if self.has_code:
+            code = "{out} = {in1}.drop_duplicates(subset={columns}, keep='first')" \
+                .format(out=self.output, in1=self.named_inputs['input data'],
+                        columns=self.attributes)
+            return dedent(code)
 
 
 class DropOperation(Operation):
@@ -393,15 +398,18 @@ class DropOperation(Operation):
                 _("Parameter '{}' must be informed for task {}").format(
                     self.ATTRIBUTES_PARAM, self.__class__))
 
-        self.has_code = len(named_outputs) >= 1 and len(named_inputs) == 1
+        self.has_code = len(self.named_inputs) == 1 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
 
     def generate_code(self):
-        code = "{output} = {input}.drop(columns={columns})" \
-            .format(output=self.output, input=self.named_inputs['input data'],
-                    columns=self.attributes)
-        return dedent(code)
+        if self.has_code:
+            code = "{output} = {input}.drop(columns={columns})" \
+                .format(output=self.output,
+                        input=self.named_inputs['input data'],
+                        columns=self.attributes)
+            return dedent(code)
 
 
 class ExecutePythonOperation(Operation):
@@ -503,6 +511,9 @@ class ExecuteSQLOperation(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
+        self.has_code = len(self.named_inputs) >= 1 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
+
         if not all([self.QUERY_PARAM in parameters]):
             msg = _("Required parameter {} must be informed for task {}")
             raise ValueError(msg.format(self.QUERY_PARAM, self.__class__))
@@ -519,8 +530,6 @@ class ExecuteSQLOperation(Operation):
         else:
             self.names = None
 
-        self.has_code = any([len(self.named_outputs) > 0,
-                             self.contains_results()])
         self.input1 = self.named_inputs.get('input data 1')
         self.input2 = self.named_inputs.get('input data 2')
         self.output = self.named_outputs.get('output data',
@@ -547,23 +556,24 @@ class ExecuteSQLOperation(Operation):
         # return value.translate(_escape_table)
 
     def generate_code(self):
-        code = dedent("""
-        from pandasql import sqldf
-        query = {query}
-        {out} = sqldf(query, {{'ds1': {in1}, 'ds2': {in2}}})
-        names = {names}
-        
-        if names is not None and len(names) > 0:
-            old_names = {out}.columns
-            if len(old_names) != len(names):
-                raise ValueError('{invalid_names}')
-            rename = dict(zip(old_names, names))
-            {out}.rename(columns=rename, inplace=True)
-        """.format(in1=self.input1, in2=self.input2, query=repr(self.query),
-                   out=self.output, names=repr(self.names),
-                   invalid_names=_('Invalid names. Number of attributes in '
-                                   'result differs from names informed.')))
-        return code
+        if self.has_code:
+            code = dedent("""
+            from pandasql import sqldf
+            query = {query}
+            {out} = sqldf(query, {{'ds1': {in1}, 'ds2': {in2}}})
+            names = {names}
+            
+            if names is not None and len(names) > 0:
+                old_names = {out}.columns
+                if len(old_names) != len(names):
+                    raise ValueError('{invalid_names}')
+                rename = dict(zip(old_names, names))
+                {out}.rename(columns=rename, inplace=True)
+            """.format(in1=self.input1, in2=self.input2, query=repr(self.query),
+                       out=self.output, names=repr(self.names),
+                       invalid_names=_('Invalid names. Number of attributes in '
+                                       'result differs from names informed.')))
+            return code
 
 
 class FilterOperation(Operation):
@@ -692,12 +702,8 @@ class JoinOperation(Operation):
                  self.RIGHT_ATTRIBUTES_PARAM,
                  self.__class__))
 
-        self.has_code = len(named_outputs) >= 1 and len(named_inputs) == 2
-        if not self.has_code:
-            raise ValueError(
-                _("Parameter '{}', '{}' and '{}' must be informed for task {}").format
-                ('input data 1', 'input data 2', 'named_outputs' , self.__class__))
-
+        self.has_code = len(self.named_inputs) == 2 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
         self.left_attributes = parameters.get(self.LEFT_ATTRIBUTES_PARAM)
         self.right_attributes = parameters.get(self.RIGHT_ATTRIBUTES_PARAM)
 
@@ -708,60 +714,61 @@ class JoinOperation(Operation):
                                                  self.order))
 
     def generate_code(self):
-        code = """
-        cols1 = [ c + '{suf_l}' for c in {in1}.columns]
-        cols2 = [ c + '{suf_r}' for c in {in2}.columns]
-        
-        {in1}.columns = cols1
-        {in2}.columns = cols2
-        
-        keys1 = [c + '{suf_l}' for c in {keys1}]
-        keys2 = [c + '{suf_r}' for c in {keys2}]
-        """.format(in1=self.named_inputs['input data 1'],
-                   in2=self.named_inputs['input data 2'],
-                   suf_l=self.suffixes[0], suf_r=self.suffixes[1],
-                   keys1=self.left_attributes, keys2=self.right_attributes)
-
-        # Should be positive boolean logic? ---> '''if self.match_case:'''
-        if not self.match_case:
-            code += """
-        data1_tmp = {in1}[keys1].applymap(lambda col: str(col).lower()).copy()
-        data1_tmp.columns = [c + "_lower" for c in data1_tmp.columns]
-        col1 = list(data1_tmp.columns)
-        data1_tmp = pd.concat([{in1}, data1_tmp], axis=1, sort=False)
+        if self.has_code:
+            code = """
+            cols1 = [ c + '{suf_l}' for c in {in1}.columns]
+            cols2 = [ c + '{suf_r}' for c in {in2}.columns]
             
-        data2_tmp = {in2}[keys2].applymap(lambda col: str(col).lower()).copy()
-        data2_tmp.columns = [c + "_lower" for c in data2_tmp.columns]
-        col2 = list(data2_tmp.columns)
-        data2_tmp = pd.concat([{in2}, data2_tmp], axis=1, sort=False)
+            {in1}.columns = cols1
+            {in2}.columns = cols2
+            
+            keys1 = [c + '{suf_l}' for c in {keys1}]
+            keys2 = [c + '{suf_r}' for c in {keys2}]
+            """.format(in1=self.named_inputs['input data 1'],
+                       in2=self.named_inputs['input data 2'],
+                       suf_l=self.suffixes[0], suf_r=self.suffixes[1],
+                       keys1=self.left_attributes, keys2=self.right_attributes)
 
-        {out} = pd.merge(data1_tmp, data2_tmp, left_on=col1, right_on=col2,
-            copy=False, suffixes={suffixes}, how='{type}')
-        # Why drop col_lower?
-        {out}.drop(col1+col2, axis=1, inplace=True)
-             """.format(out=self.output, type=self.join_type,
-                        in1=self.named_inputs['input data 1'],
-                        in2=self.named_inputs['input data 2'],
-                        id1=self.left_attributes,
-                        id2=self.right_attributes,
-                        suffixes=self.suffixes)
-        else:
-            code += """
-        {out} = pd.merge({in1}, {in2}, how='{type}', 
-                suffixes={suffixes},
-                left_on=keys1, right_on=keys2)
-             """.format(out=self.output, type=self.join_type,
-                        in1=self.named_inputs['input data 1'],
-                        in2=self.named_inputs['input data 2'],
-                        suffixes=self.suffixes)
+            # Should be positive boolean logic? ---> '''if self.match_case:'''
+            if not self.match_case:
+                code += """
+            data1_tmp = {in1}[keys1].applymap(lambda col: str(col).lower()).copy()
+            data1_tmp.columns = [c + "_lower" for c in data1_tmp.columns]
+            col1 = list(data1_tmp.columns)
+            data1_tmp = pd.concat([{in1}, data1_tmp], axis=1, sort=False)
+                
+            data2_tmp = {in2}[keys2].applymap(lambda col: str(col).lower()).copy()
+            data2_tmp.columns = [c + "_lower" for c in data2_tmp.columns]
+            col2 = list(data2_tmp.columns)
+            data2_tmp = pd.concat([{in2}, data2_tmp], axis=1, sort=False)
+    
+            {out} = pd.merge(data1_tmp, data2_tmp, left_on=col1, right_on=col2,
+                copy=False, suffixes={suffixes}, how='{type}')
+            # Why drop col_lower?
+            {out}.drop(col1+col2, axis=1, inplace=True)
+                 """.format(out=self.output, type=self.join_type,
+                            in1=self.named_inputs['input data 1'],
+                            in2=self.named_inputs['input data 2'],
+                            id1=self.left_attributes,
+                            id2=self.right_attributes,
+                            suffixes=self.suffixes)
+            else:
+                code += """
+            {out} = pd.merge({in1}, {in2}, how='{type}', 
+                    suffixes={suffixes},
+                    left_on=keys1, right_on=keys2)
+                 """.format(out=self.output, type=self.join_type,
+                            in1=self.named_inputs['input data 1'],
+                            in2=self.named_inputs['input data 2'],
+                            suffixes=self.suffixes)
 
-        if self.not_keep_right_keys:
-            code += """
-        cols_to_remove = keys2
-        {out}.drop(cols_to_remove, axis=1, inplace=True)
-            """.format(out=self.output)
+            if self.not_keep_right_keys:
+                code += """
+            cols_to_remove = keys2
+            {out}.drop(cols_to_remove, axis=1, inplace=True)
+                """.format(out=self.output)
 
-        return dedent(code)
+            return dedent(code)
 
 
 class ReplaceValuesOperation(Operation):
@@ -791,7 +798,8 @@ class ReplaceValuesOperation(Operation):
             self.replaces[att][1].append(
                 self.check_parameter(self.parameters['replacement']))
 
-        self.has_code = len(named_inputs) == 1 and len(named_outputs) >= 1
+        self.has_code = len(self.named_inputs) == 1 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
         self.output = self.named_outputs.get('output data',
                                              'output_data_{}'.format(self.order))
 
@@ -809,15 +817,16 @@ class ReplaceValuesOperation(Operation):
         return output
 
     def generate_code(self):
-        code = """
-        {out} = {in1}
-        replacement = {replaces}
-        for col in replacement:
-            list_replaces = replacement[col]
-            {out}[col] = {out}[col].replace(list_replaces[0], list_replaces[1])
-        """.format(out=self.output, in1=self.named_inputs['input data'],
-                   replaces=self.replaces)
-        return dedent(code)
+        if self.has_code:
+            code = """
+            {out} = {in1}
+            replacement = {replaces}
+            for col in replacement:
+                list_replaces = replacement[col]
+                {out}[col] = {out}[col].replace(list_replaces[0], list_replaces[1])
+            """.format(out=self.output, in1=self.named_inputs['input data'],
+                       replaces=self.replaces)
+            return dedent(code)
 
 
 class SampleOrPartitionOperation(Operation):
@@ -855,35 +864,37 @@ class SampleOrPartitionOperation(Operation):
 
         self.seed = self.parameters.get(self.SEED, 'None')
         if type(self.seed) == int:
-            self.seed = 0 if self.seed >= 4294967296 else self.seed
-        self.seed = self.seed if self.seed != "" else 'None'
+            self.seed = 0 if self.seed >= 4294967296 or self.seed < 0 else self.seed
 
         self.output = self.named_outputs.get('sampled data',
                                              'output_data_{}'.format(
                                                  self.order))
 
-        self.has_code = len(self.named_inputs) == 1
+        self.has_code = len(self.named_inputs) == 1 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
 
     def generate_code(self):
-        if self.type == self.TYPE_PERCENT:
-            code = """
-            {output} = {input}.sample(frac={value}, random_state={seed})
-            """.format(output=self.output,
-                       input=self.named_inputs['input data'],
-                       seed=self.seed, value=self.fraction)
-        elif self.type == self.TYPE_HEAD:
-            code = """
-            {output} = {input}.head({value})
-            """.format(output=self.output,
-                       input=self.named_inputs['input data'], value=self.value)
-        else:
-            code = """
-            {output} = {input}.sample(n={value}, random_state={seed})
-            """.format(output=self.output,
-                       input=self.named_inputs['input data'],
-                       seed=self.seed, value=self.value)
+        if self.has_code:
+            if self.type == self.TYPE_PERCENT:
+                code = """
+                {output} = {input}.sample(frac={value}, random_state={seed})
+                """.format(output=self.output,
+                           input=self.named_inputs['input data'],
+                           seed=self.seed, value=self.fraction)
+            elif self.type == self.TYPE_HEAD:
+                code = """
+                {output} = {input}.head({value})
+                """.format(output=self.output,
+                           input=self.named_inputs['input data'],
+                           value=self.value)
+            else:
+                code = """
+                {output} = {input}.sample(n={value}, random_state={seed})
+                """.format(output=self.output,
+                           input=self.named_inputs['input data'],
+                           seed=self.seed, value=self.value)
 
-        return dedent(code)
+            return dedent(code)
 
 
 class SelectOperation(Operation):
@@ -906,16 +917,17 @@ class SelectOperation(Operation):
                 _("Parameter '{}' must be informed for task {}").format
                 (self.ATTRIBUTES_PARAM, self.__class__))
 
-        self.has_code = (len(named_inputs) == 1 and len(named_outputs)>=1) or self.contains_results()
+        self.has_code = len(self.named_inputs) == 1 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
         self.output = self.named_outputs.get(
             'output projected data', 'projection_data_{}'.format(self.order))
 
     def generate_code(self):
-
-        code = "{output} = {input}[[{column}]]" \
-            .format(output=self.output, column=self.cols,
-                    input=self.named_inputs['input data'])
-        return dedent(code)
+        if self.has_code:
+            code = "{output} = {input}[[{column}]]" \
+                .format(output=self.output, column=self.cols,
+                        input=self.named_inputs['input data'])
+            return dedent(code)
 
 
 class SortOperation(Operation):
@@ -969,12 +981,12 @@ class SplitOperation(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-        self.has_code = len(named_outputs) >= 1 and len(named_inputs) == 1
-
+        self.has_code = len(self.named_inputs) == 1 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
         self.weights = float(self.parameters.get('weights', 50)) / 100
-        self.seed = self.parameters.get("seed")
-        self.seed = 'None' if (not self.seed) or (
-                4294967296 <= int(self.seed) < 0) else self.seed
+        self.seed = self.parameters.get('seed', 'None')
+        if type(self.seed) == int:
+            self.seed = 0 if self.seed >= 4294967296 or self.seed < 0 else self.seed
         self.out1 = self.named_outputs.get('split 1',
                                            'split_1_task_{}'.format(self.order))
         self.out2 = self.named_outputs.get('split 2',
@@ -987,12 +999,13 @@ class SplitOperation(Operation):
         return sep.join([self.out2, self.out1])
 
     def generate_code(self):
-        code = """{out1}, {out2} = np.split({input}.sample(frac=1, 
-            random_state={seed}), [int({weights}*len({input}))])
-        """.format(out1=self.out1, out2=self.out2,
-                   input=self.named_inputs['input data'],
-                   seed=self.seed, weights=self.weights)
-        return dedent(code)
+        if self.has_code:
+            code = """{out1}, {out2} = np.split({input}.sample(frac=1, 
+                random_state={seed}), [int({weights}*len({input}))])
+            """.format(out1=self.out1, out2=self.out2,
+                       input=self.named_inputs['input data'],
+                       seed=self.seed, weights=self.weights)
+            return dedent(code)
 
 
 class TransformationOperation(Operation):
@@ -1054,27 +1067,20 @@ class UnionOperation(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-        self.has_code = len(self.named_outputs) >= 1 and len(
-            self.named_inputs) == 2
-
-        # Should this validation be removed?
-        if not self.has_code:
-            raise ValueError(
-                _(
-                    "Parameter '{}', '{}' and '{}' must be informed for task {}")
-                    .format('input data 1', 'input data 2', 'output data',
-                            self.__class__))
+        self.has_code = len(self.named_inputs) == 2 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
 
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
 
     def generate_code(self):
-        code = """
-        {0} = pd.concat([{1}, {2}], sort=False, axis=0, ignore_index=True)
-        """.format(self.output,
-                   self.named_inputs['input data 1'],
-                   self.named_inputs['input data 2'])
-        return dedent(code)
+        if self.has_code:
+            code = """
+            {0} = pd.concat([{1}, {2}], sort=False, axis=0, ignore_index=True)
+            """.format(self.output,
+                       self.named_inputs['input data 1'],
+                       self.named_inputs['input data 2'])
+            return dedent(code)
 
 
 class SplitKFoldOperation(Operation):
