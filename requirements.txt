@@ -24,7 +24,7 @@ chardet==3.0.4
 Click==7.0
 configparser==3.8.1
 coverage==4.5.4
-cryptography==2.7
+cryptography==3.2
 cycler==0.10.0
 decorator==4.4.0
 dnspython==1.16.0
