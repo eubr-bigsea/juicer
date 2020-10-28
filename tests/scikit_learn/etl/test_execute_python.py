@@ -9,6 +9,7 @@ import pandas as pd
 # pd.set_option('display.max_columns', None)
 # pd.set_option('display.max_colwidth', None)
 
+
 class TestingBypass:
     # task_futures for testing
     @staticmethod
@@ -377,7 +378,8 @@ def test_execute_python_missing_parameters_fail():
     }
     with pytest.raises(ValueError) as val_err:
         ExecutePythonOperation(**arguments)
-    assert "Required parameter code must be informed for task" in str(val_err.value)
+    assert "Required parameter code must be informed for task" in str(
+        val_err.value)
 
 
 def test_execute_python_prohibited_data_types_fail():

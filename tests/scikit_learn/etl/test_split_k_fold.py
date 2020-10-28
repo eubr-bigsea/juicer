@@ -8,6 +8,7 @@ import pandas as pd
 # pd.set_option('display.max_columns', None)
 # pd.set_option('display.max_colwidth', None)
 
+
 def percent(df, n_groups):
     alpha = {}
     for i in range(n_groups):
