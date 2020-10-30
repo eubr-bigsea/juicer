@@ -364,6 +364,8 @@ class OneHotEncoderOperation(Operation):
             if self.parameters['multiplicity']['input data'] > 1 else ""
 
         code = """
+        from juicer.scikit_learn.util import get_X_train_data
+        from juicer.scikit_learn.util import get_label_data
         {output} = {input}{copy_code}
         from sklearn.preprocessing import OneHotEncoder
         enc = OneHotEncoder()
