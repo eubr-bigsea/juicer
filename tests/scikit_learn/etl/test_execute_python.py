@@ -268,7 +268,9 @@ def test_execute_python_print_success():
 
 
 def test_execute_python_dangerous_zfill_method_success():
-    # The zfill() can cause a crash
+    """
+    The zfill() can cause a crash
+    """
     arguments = {
         'parameters': {'code': dedent("""
         str_ing = ''
