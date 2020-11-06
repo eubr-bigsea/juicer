@@ -415,8 +415,9 @@ class PCAOperation(Operation):
             if self.parameters['multiplicity']['input data'] > 1 else ""
 
         code = """
-        {output} = {input}{copy_code}
+        from juicer.scikit_learn.util import get_X_train_data  
         from sklearn.decomposition import PCA
+        {output} = {input}{copy_code}
         pca = PCA(n_components={n_comp})
         X_train = get_X_train_data({input}, {att})
         {output}['{alias}'] = pca.fit_transform(X_train).tolist()
