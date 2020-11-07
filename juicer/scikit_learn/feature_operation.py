@@ -390,7 +390,8 @@ class PCAOperation(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-        self.has_code = len(self.named_inputs) == 1
+        self.has_code = len(self.named_inputs) == 1 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
         if self.has_code:
 
             if self.ATTRIBUTE_PARAM not in parameters:
@@ -411,21 +412,22 @@ class PCAOperation(Operation):
 
     def generate_code(self):
         """Generate code."""
-        copy_code = ".copy()" \
-            if self.parameters['multiplicity']['input data'] > 1 else ""
+        if self.has_code:
+            copy_code = ".copy()" \
+                if self.parameters['multiplicity']['input data'] > 1 else ""
 
-        code = """
-        from juicer.scikit_learn.util import get_X_train_data  
-        from sklearn.decomposition import PCA
-        {output} = {input}{copy_code}
-        pca = PCA(n_components={n_comp})
-        X_train = get_X_train_data({input}, {att})
-        {output}['{alias}'] = pca.fit_transform(X_train).tolist()
-        """.format(copy_code=copy_code, output=self.output,
-                   input=self.named_inputs['input data'],
-                   att=self.attributes, alias=self.alias,
-                   n_comp=self.n_components)
-        return dedent(code)
+            code = """
+            from juicer.scikit_learn.util import get_X_train_data  
+            from sklearn.decomposition import PCA
+            {output} = {input}{copy_code}
+            pca = PCA(n_components={n_comp})
+            X_train = get_X_train_data({input}, {att})
+            {output}['{alias}'] = pca.fit_transform(X_train).tolist()
+            """.format(copy_code=copy_code, output=self.output,
+                       input=self.named_inputs['input data'],
+                       att=self.attributes, alias=self.alias,
+                       n_comp=self.n_components)
+            return dedent(code)
 
 
 class LSHOperation(Operation):
