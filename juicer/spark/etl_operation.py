@@ -371,7 +371,7 @@ class JoinOperation(Operation):
         input_data1 = self.named_inputs['input data 1']
         input_data2 = self.named_inputs['input data 2']
 
-        on_clause = [(f['first'], f['second'], self._get_operator(f['op'])) 
+        on_clause = [(f['first'], f['second'], self._get_operator(f.get('op', '='))) 
                 for f in self.join_parameters.get('conditions')]
 
         if self.match_case:
@@ -445,8 +445,6 @@ class JoinOperation(Operation):
             {out} = result_df.select(*selected_attrs)    
         """).format(out=self.output, in1=input_data1, in2=input_data2))
 
-        print(''.join(code))
-        # import pdb; pdb.set_trace()
         return dedent('\n'.join(code))
 
     def _code_for_select_all_prefixed(self, df, prefix, ignore=None):
