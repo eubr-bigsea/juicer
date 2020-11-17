@@ -488,9 +488,14 @@ class Workflow(object):
         Handles variable substitution
         """
         now = datetime.datetime.now()
+        date_at_min = datetime.datetime.combine(datetime.datetime.now(), datetime.time.min)
+        date_at_max = datetime.datetime.combine(datetime.datetime.now(), datetime.time.max)
+
         all_vars = {
             'date': now.strftime('%Y-%m-%d'),
             'now': now.strftime('%Y-%m-%d %H:%M:%S'),
+            'date_at_min': date_at_min.strftime('%Y-%m-%d %H:%M:%S'),
+            'date_at_max': date_at_max.strftime('%Y-%m-%d %H:%M:%S'),
             'user_login': self.workflow['user']['login'],
             'user_name': self.workflow['user']['name'],
             'user_email': self.workflow['user']['login'], # FIXME
