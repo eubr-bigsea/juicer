@@ -297,36 +297,168 @@ class JoinOperation(Operation):
     LEFT_ATTRIBUTES_PARAM = 'left_attributes'
     RIGHT_ATTRIBUTES_PARAM = 'right_attributes'
     ALIASES_PARAM = 'aliases'
+    JOIN_PARAMS = 'join_parameters'
+
+    __aslots__ = ('join_parameters', 'join_type', 'new_parameters_format',
+            'left_attributes', 'right_attributes', 'aliases', 'output', 
+            'match_case', 'keep_right_keys')
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
+        
         self.keep_right_keys = parameters.get(self.KEEP_RIGHT_KEYS_PARAM, False)
         self.match_case = parameters.get(self.MATCH_CASE_PARAM, False) in [
-            'true', 'True', True, '1', 1
-        ]
-        self.join_type = parameters.get(self.JOIN_TYPE_PARAM, 'inner')
+            'true', 'True', True, '1', 1]
 
-        if not all([self.LEFT_ATTRIBUTES_PARAM in parameters,
-                    self.RIGHT_ATTRIBUTES_PARAM in parameters]):
-            raise ValueError(
-                _("Parameters '{}' and {} must be informed for task {}").format(
-                    self.LEFT_ATTRIBUTES_PARAM, self.RIGHT_ATTRIBUTES_PARAM,
-                    self.__class__))
+        self.new_parameters_format = self.JOIN_PARAMS in parameters
+        self.join_parameters = None
+
+        if self.new_parameters_format: # New parameters format
+            self.join_parameters = parameters.get(self.JOIN_PARAMS, {})
+
+            conditions = self.join_parameters.get('conditions', []) or []
+            fields_ok = all(['first' in f and 'second' in f for f in conditions])
+
+            self.join_type = self.join_parameters.get('joinType', 'inner') or 'inner'
+
+            if len(conditions) == 0 or not fields_ok:
+                    msg = _("Parameter '{}' must be informed for task {}")
+                    raise ValueError(msg.format('condition', self.__class__))
         else:
-            self.left_attributes = parameters.get(self.LEFT_ATTRIBUTES_PARAM)
-            self.right_attributes = parameters.get(self.RIGHT_ATTRIBUTES_PARAM)
-
-        self.aliases = [
-            alias.strip() for alias in
-            parameters.get(self.ALIASES_PARAM, 'ds0_, ds1_').split(',')]
-
-        if len(self.aliases) != 2:
-            raise ValueError(_('You must inform 2 values for alias'))
+            self.join_type = parameters.get(self.JOIN_TYPE_PARAM, 'inner')
+            if not all([self.LEFT_ATTRIBUTES_PARAM in parameters,
+                        self.RIGHT_ATTRIBUTES_PARAM in parameters]):
+                raise ValueError(
+                    _("Parameters '{}' and {} must be informed for task {}").format(
+                        self.LEFT_ATTRIBUTES_PARAM, self.RIGHT_ATTRIBUTES_PARAM,
+                        self.__class__))
+            else:
+                self.left_attributes = parameters.get(self.LEFT_ATTRIBUTES_PARAM)
+                self.right_attributes = parameters.get(self.RIGHT_ATTRIBUTES_PARAM)
+    
+            self.aliases = [
+                alias.strip() for alias in
+                parameters.get(self.ALIASES_PARAM, 'ds0_, ds1_').split(',')]
+    
+            if len(self.aliases) != 2:
+                raise ValueError(_('You must inform 2 values for alias'))
 
         self.output = self.named_outputs.get(
             'output data', 'out_data_{}'.format(self.order))
 
     def generate_code(self):
+        if self.new_parameters_format: 
+            return self._new_generate_code()
+        else:
+            return self._legacy_generate_code()
+    
+    def _get_operator(self, value):
+        if value == 'ne':
+            return '!='
+        elif value == 'gt':
+            return '>'
+        elif value == 'lt':
+            return '<'
+        elif value == 'ge':
+            return '>='
+        elif value == 'le':
+            return '<='
+        else:
+            return '=='
+
+    def _new_generate_code(self):
+
+        input_data1 = self.named_inputs['input data 1']
+        input_data2 = self.named_inputs['input data 2']
+
+        on_clause = [(f['first'], f['second'], self._get_operator(f['op'])) 
+                for f in self.join_parameters.get('conditions')]
+
+        if self.match_case:
+            join_condition = ',\n                '.join(
+                [("functions.lower({in0}['{p0}']) {op} "
+                  "functions.lower({in1}['{p1}'])").format(
+                    in0=input_data1, p0=clause[0], in1=input_data2, p1=clause[1],
+                    op=clause[2]) for clause in on_clause])
+        else:
+            join_condition = ', '.join(
+                ["{in0}['{p0}'] == {in1}['{p1}']".format(
+                    in0=input_data1, p0=pair[0], in1=input_data2, p1=pair[1])
+                    for pair in on_clause])
+
+        code = [dedent("""
+            conditions = [
+                {cond}
+            ]
+            result_df = {in0}.join({in1}, on=conditions, how='{how}')""".format(
+            cond=join_condition, in0=input_data1,
+            in1=input_data2, how=self.join_type))]
+
+        selection_type1 = self.join_parameters.get('firstSelectionType')
+        selection_type2 = self.join_parameters.get('secondSelectionType')
+
+        select_code = ''
+        if selection_type1 == 3: 
+            if selection_type2 == 3:
+                raise ValueError(_('No attribute was selected'))
+            else:
+                code.append("\n{in1}_attrs = []".format(in1=input_data1))
+
+        elif selection_type1 == 2:
+            attrs = ["{in1}['{name}'].alias('{alias}')".format(name=attr.get('attribute'), 
+                            alias=attr.get('alias'), 
+                            in1=input_data1) 
+                    for attr in self.join_parameters.get('firstSelect', [])
+                    if attr.get('select')]
+            code.append(dedent("""
+                {in1}_attrs = [
+                    {attrs}
+                ]
+                """.format(in1=input_data1, attrs=',\n                    '.join(attrs))))
+        elif selection_type1 == 1:
+            code.append(self._code_for_select_all_prefixed(input_data1, 
+                self.join_parameters.get('firstPrefix') or 'ds1_'))
+
+        if selection_type2 == 3:
+             code.append("\n{in2}_attrs = []".format(in2=input_data2))
+        if selection_type2 == 2:
+            attrs = ["{in2}['{name}'].alias('{alias}')".format(name=attr.get('attribute'), 
+                            alias=attr.get('alias'), 
+                            in2=input_data2) 
+                    for attr in self.join_parameters.get('secondSelect', [])
+                    if attr.get('select')]
+            code.append(dedent("""
+                {in2}_attrs = [
+                    {attrs}
+                ]
+                """.format(in2=input_data2, attrs=',\n                    '.join(attrs))))
+        elif selection_type2 == 1:
+            if self.keep_right_keys in ["False", "false", False]:
+                remove = [clause[1] for clause in on_clause]
+            else:
+                remove = None
+            code.append(self._code_for_select_all_prefixed(input_data2, 
+                self.join_parameters.get('secondPrefix') or 'ds2_', remove))
+
+        code.append(dedent("""
+            selected_attrs = {in1}_attrs + {in2}_attrs
+            {out} = result_df.select(*selected_attrs)    
+        """).format(out=self.output, in1=input_data1, in2=input_data2))
+
+        print(''.join(code))
+        # import pdb; pdb.set_trace()
+        return dedent('\n'.join(code))
+
+    def _code_for_select_all_prefixed(self, df, prefix, ignore=None):
+        if ignore is None:
+            ignore = []
+        return dedent("""
+            {df}_ignore = {ignore}
+            {df}_attrs = [{df}[name].alias('{prefix}' + name) 
+                for name in {df}.schema.names if name not in {df}_ignore]
+        """.format(df=df, prefix=prefix, ignore=repr(ignore)))
+
+    def _legacy_generate_code(self):
 
         input_data1 = self.named_inputs['input data 1']
         input_data2 = self.named_inputs['input data 2']
