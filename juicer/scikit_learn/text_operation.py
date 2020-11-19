@@ -26,9 +26,8 @@ class TokenizerOperation(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-        self.has_code = 'input data' in self.named_inputs \
-                        and any([self.contains_results(),
-                                 len(named_outputs) > 0])
+        self.has_code = len(self.named_inputs) == 1 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
         if self.has_code:
 
             self.type = self.parameters.get(self.TYPE_PARAM, self.TYPE_SIMPLE)
@@ -62,50 +61,48 @@ class TokenizerOperation(Operation):
             self.output = self.named_outputs.get(
                     'output data', 'output_data_{}'.format(self.order))
 
-            if self.type == self.TYPE_SIMPLE:
-                self.has_import = "from nltk.tokenize import TweetTokenizer\n"
-            else:
-                self.has_import = "from nltk.tokenize import regexp_tokenize\n"
-
     def generate_code(self):
         """Generate code."""
-        copy_code = ".copy()" \
-            if self.parameters['multiplicity']['input data'] > 1 else ""
+        if self.has_code:
+            copy_code = ".copy()" \
+                if self.parameters['multiplicity']['input data'] > 1 else ""
 
-        if self.min_token_lenght is not None:
-            self.min_token_lenght = \
-                ' if len(word) >= {}'.format(self.min_token_lenght)
+            if self.min_token_lenght is not None:
+                self.min_token_lenght = \
+                    ' if len(word) >= {}'.format(self.min_token_lenght)
 
-        if self.type == self.TYPE_SIMPLE:
-            code = """
-            {output} = {input}{copy_code}
-            result = []
-            toktok = TweetTokenizer()
+            if self.type == self.TYPE_SIMPLE:
+                code = """
+                from nltk.tokenize import TweetTokenizer
+                {output} = {input}{copy_code}
+                result = []
+                toktok = TweetTokenizer()
+        
+                for row in {output}['{att}'].to_numpy():
+                    result.append([word 
+                    for word in toktok.tokenize(row){limit}])
+                {output}['{alias}'] = result
+                """.format(copy_code=copy_code, output=self.output,
+                           input=self.named_inputs['input data'],
+                           att=self.attributes[0], alias=self.alias[0],
+                           limit=self.min_token_lenght)
+            else:
+                code = """
+                from nltk.tokenize import regexp_tokenize
+                {output} = {input}{copy_code}
+                result = []
     
-            for row in {output}['{att}'].to_numpy():
-                result.append([word 
-                for word in toktok.tokenize(row){limit}])
-            {output}['{alias}'] = result
-            """.format(copy_code=copy_code, output=self.output,
-                       input=self.named_inputs['input data'],
-                       att=self.attributes[0], alias=self.alias[0],
-                       limit=self.min_token_lenght)
-        else:
-            code = """
-           {output} = {input}{copy_code}
-           result = []
+                for row in {output}['{att}'].to_numpy():
+                    result.append([word for word in 
+                                  regexp_tokenize(row, pattern='{exp}'){limit}])
+    
+                {output}['{alias}'] = result
+                """.format(copy_code=copy_code, output=self.output,
+                          input=self.named_inputs['input data'],
+                          att=self.attributes[0], alias=self.alias[0],
+                          exp=self.expression_param, limit=self.min_token_lenght)
 
-           for row in {output}['{att}'].to_numpy():
-               result.append([word for word in 
-                              regexp_tokenize(row, pattern='{exp}'){limit}])
-
-           {output}['{alias}'] = result
-           """.format(copy_code=copy_code, output=self.output,
-                      input=self.named_inputs['input data'],
-                      att=self.attributes[0], alias=self.alias[0],
-                      exp=self.expression_param, limit=self.min_token_lenght)
-
-        return dedent(code)
+            return dedent(code)
 
 
 class RemoveStopWordsOperation(Operation):
