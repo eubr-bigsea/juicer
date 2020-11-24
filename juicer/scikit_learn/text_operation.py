@@ -239,9 +239,9 @@ class GenerateNGramsOperation(Operation):
         Operation.__init__(self, parameters, named_inputs,
                            named_outputs)
 
-        self.has_code = 'input data' in self.named_inputs \
-                        and any([self.contains_results(),
-                                 len(named_outputs) > 0])
+        self.has_code = len(self.named_inputs) == 1 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
+
         if self.has_code:
             self.output = self.named_outputs.get('output data',
                                                  'out_{}'.format(self.order))
@@ -265,23 +265,25 @@ class GenerateNGramsOperation(Operation):
             self.has_import = "from nltk.util import ngrams\n"
 
     def generate_code(self):
-        input_data = self.named_inputs['input data']
-        copy_code = ".copy()" \
-            if self.parameters['multiplicity']['input data'] > 1 else ""
+        if self.has_code:
+            input_data = self.named_inputs['input data']
+            copy_code = ".copy()" \
+                if self.parameters['multiplicity']['input data'] > 1 else ""
 
-        code = dedent("""
-            {output} = {input}{copy_code}
+            code = dedent("""
+                from nltk.util import ngrams
+                {output} = {input}{copy_code}
+                        
+                grams = []
+                for row in {output}['{att}'].to_numpy():
+                    grams.append([" ".join(gram) for gram in ngrams(row, {n})])
                     
-            grams = []
-            for row in {output}['{att}'].to_numpy():
-                grams.append([" ".join(gram) for gram in ngrams(row, {n})])
-                
-            {output}['{alias}'] = grams
-            """).format(copy_code=copy_code,
-                        att=self.attributes, alias=self.alias,
-                        n=self.n, input=input_data, output=self.output)
+                {output}['{alias}'] = grams
+                """).format(copy_code=copy_code,
+                            att=self.attributes, alias=self.alias,
+                            n=self.n, input=input_data, output=self.output)
 
-        return code
+            return code
 
 
 class WordToVectorOperation(Operation):
