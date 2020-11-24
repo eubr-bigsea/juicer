@@ -137,6 +137,7 @@ class SparkTranspiler(Transpiler):
         data_ops = {
             'change-attribute': data_operation.ChangeAttributeOperation,
             'data-reader': data_operation.DataReaderOperation,
+            'data-source': data_operation.DataSourceOperation,
             'data-writer': data_operation.SaveOperation,
             'external-input': data_operation.ExternalInputOperation,
             'read-csv': data_operation.ReadCSVOperation,

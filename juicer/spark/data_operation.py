@@ -453,6 +453,9 @@ class DataReaderOperation(Operation):
     def is_data_source(self):
         return True
 
+class DataSourceOperation(DataReaderOperation):
+    def __init__(self, parameters, named_inputs, named_outputs):
+        DataReaderOperation.__init__(self, parameters, named_inputs, named_outputs)
 
 class SaveOperation(Operation):
     """
