@@ -35,10 +35,6 @@ def test_add_columns_success():
 
 
 def test_add_columns_different_size_dataframes_success():
-    """
-    In this case, AddColumnsOperation() returns a dataframe with the lowest
-    size passed.
-    """
     left_df = util.iris(['sepallength', 'sepalwidth'], size=10)
     right_df = util.iris(['petallength', 'petalwidth', 'class'], size=5)
     arguments = {
@@ -82,10 +78,7 @@ def test_add_columns_aliases_param_success():
     assert result['out'].equals(test_df)
 
 
-def test_add_columns_repetead_column_names_success():
-    """
-    AddColumnsOperation() automatically adds aliases to repetead column names
-    """
+def test_add_columns_repeated_column_names_success():
     left_df = util.iris(['sepallength', 'class'], size=10)
     right_df = util.iris(['sepallength', 'class'], size=10)
     test_df = util.iris(
@@ -136,34 +129,7 @@ def test_add_columns_missing_input_implies_no_code_success():
 
 
 # # # # # # # # # # Fail # # # # # # # # # #
-def test_add_columns_same_aliases_param_values_fail():
-    """
-    (?)
-    Passing the same aliases to the attributes is allowed
-    """
-    left_df = util.iris(['sepallength', 'sepalwidth'], size=10)
-    right_df = util.iris(['sepallength', 'sepalwidth'], size=10)
-    test_df = util.iris(
-        ['sepallength', 'sepalwidth', 'sepallength', 'sepalwidth'], size=10)
-    arguments = {
-        'parameters': {'aliases': '_col,_col'},
-        'named_inputs': {
-            'input data 1': 'df1',
-            'input data 2': 'df2'
-        },
-        'named_outputs': {
-            'output data': 'out'
-        }
-    }
-    instance = AddColumnsOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df1': left_df, 'df2': right_df})
-    test_df.columns = ['sepallength_col', 'sepalwidth_col',
-                       'sepallength_col', 'sepalwidth_col']
-    assert result['out'].equals(test_df)
-
-
-def test_add_columns_invalid_aliases_param_value_fail():
+def test_add_columns_invalid_aliases_param_fail():
     left_df = util.iris(['sepallength', 'sepalwidth'], size=10)
     right_df = util.iris(['sepallength', 'sepalwidth'], size=10)
     arguments = {
