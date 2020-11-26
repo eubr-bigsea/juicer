@@ -89,6 +89,8 @@ class RegressionModelOperation(Operation):
 
         if self.has_code:
             code = """
+            from sklearn.linear_model import *
+            from juicer.scikit_learn.util import get_X_train_data, get_label_data
             algorithm = {algorithm}
             {output_data} = {input}{copy_code}
             X_train = get_X_train_data({input}, {features})
