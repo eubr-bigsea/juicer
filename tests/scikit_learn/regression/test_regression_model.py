@@ -79,3 +79,72 @@ def test_regression_model_various_models_success():
                         test_out.loc[idx, col], 0.1)
         else:
             assert result['out'].equals(test_out)
+
+
+def test_regression_model_no_output_implies_no_code_success():
+    arguments = {
+        f'parameters': {'multiplicity': {'train input data': 1},
+                        'features': [['sepallength', 'sepalwidth']],
+                        'label': [['sepalwidth']]},
+        'named_inputs': {
+            'algorithm': 'LinearRegression()',
+            'train input data': 'df'
+        },
+        'named_outputs': {
+        }
+    }
+    instance = RegressionModelOperation(**arguments)
+    assert instance.generate_code() is None
+
+
+def test_regression_model_missing_input_implies_no_code_success():
+    arguments = {
+        f'parameters': {'multiplicity': {'train input data': 1},
+                        'features': [['sepallength', 'sepalwidth']],
+                        'label': [['sepalwidth']]},
+        'named_inputs': {
+        },
+        'named_outputs': {
+            'output data': 'out'
+        }
+    }
+    instance = RegressionModelOperation(**arguments)
+    assert instance.generate_code() is None
+
+
+# # # # # # # # # # Fail # # # # # # # # # #
+def test_regression_model_missing_features_label_params_fail():
+    arguments = {
+        f'parameters': {'multiplicity': {'train input data': 1}},
+        'named_inputs': {
+            'algorithm': 'LinearRegression()',
+            'train input data': 'df'
+        },
+        'named_outputs': {
+            'output data': 'out'
+        }
+    }
+    with pytest.raises(ValueError) as val_err:
+        RegressionModelOperation(**arguments)
+    assert "Parameters 'features' and 'label' must be informed for task" in \
+           str(val_err.value)
+
+
+def test_regression_model_missing_multiplicity_param_fail():
+    df = util.iris(['sepallength', 'sepalwidth'], size=10)
+    arguments = {
+        f'parameters': {'features': [['sepallength', 'sepalwidth']],
+                        'label': [['sepalwidth']]},
+        'named_inputs': {
+            'algorithm': 'LinearRegression()',
+            'train input data': 'df'
+        },
+        'named_outputs': {
+            'output data': 'out'
+        }
+    }
+    instance = RegressionModelOperation(**arguments)
+    with pytest.raises(KeyError) as key_err:
+        util.execute(instance.generate_code(),
+                     {'df': df})
+    assert 'multiplicity' in str(key_err.value)
