@@ -417,7 +417,8 @@ class IsotonicRegressionOperation(RegressionOperation):
                                      named_outputs)
         self.parameters = parameters
         self.name = 'regression.IsotonicRegression'
-        self.has_code = any([len(self.named_inputs) == 1, self.contains_results()])
+        self.has_code = len(self.named_inputs) == 1 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
 
@@ -479,33 +480,36 @@ class IsotonicRegressionOperation(RegressionOperation):
         # y = np.array({input_data}[{label}].to_numpy().tolist()).flatten()
 
         #observar se e' possivel trocar a entrada por uma lista de elementos unicos
-        copy_code = ".copy()" \
-            if self.parameters['multiplicity']['train input data'] > 1 else ""
+        if self.has_code:
+            copy_code = ".copy()" \
+                if self.parameters['multiplicity']['train input data'] > 1 else ""
 
-        code = dedent("""
-        {model} = IsotonicRegression(y_min={min}, y_max={max}, increasing={isotonic}, 
-                                     out_of_bounds='{bounds}')
-
-        {output_data} = {input_data}{copy_code}
-        X_train = get_X_train_data({input_data}, {columns})
-        y = get_label_data({input_data}, {label})
-
-        {model}.fit(X_train, y)      
-
-        {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
-        """).format(copy_code=copy_code,
-                    output_data=self.output,
-                    isotonic=self.isotonic,
-                    output=self.output,
-                    model=self.model,
-                    input_data=self.input_port,
-                    min=self.y_min,
-                    max=self.y_max,
-                    bounds=self.out_of_bounds,
-                    columns=self.features,
-                    label=self.label,
-                    prediction=self.prediction)
-        return code
+            code = dedent("""
+            from sklearn.isotonic import IsotonicRegression
+            from juicer.scikit_learn.util import get_X_train_data, get_label_data
+            {model} = IsotonicRegression(y_min={min}, y_max={max}, increasing={isotonic}, 
+                                         out_of_bounds='{bounds}')
+    
+            {output_data} = {input_data}{copy_code}
+            X_train = get_X_train_data({input_data}, {columns})
+            y = get_label_data({input_data}, {label})
+    
+            {model}.fit(X_train, y)      
+    
+            {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
+            """).format(copy_code=copy_code,
+                        output_data=self.output,
+                        isotonic=self.isotonic,
+                        output=self.output,
+                        model=self.model,
+                        input_data=self.input_port,
+                        min=self.y_min,
+                        max=self.y_max,
+                        bounds=self.out_of_bounds,
+                        columns=self.features,
+                        label=self.label,
+                        prediction=self.prediction)
+            return code
 
 
 class LinearRegressionOperation(RegressionOperation):
