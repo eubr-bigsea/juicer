@@ -321,7 +321,8 @@ class HuberRegressorOperation(RegressionOperation):
                                      named_outputs)
         self.parameters = parameters
         self.name = 'regression.HuberRegressor'
-        self.has_code = any([len(self.named_inputs) == 1, self.contains_results()])
+        self.has_code = len(self.named_inputs) == 1 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
 
@@ -371,33 +372,36 @@ class HuberRegressorOperation(RegressionOperation):
         self.fit_intercept = True if int(self.fit_intercept) == 1 else False
 
     def generate_code(self):
-        copy_code = ".copy()" \
-            if self.parameters['multiplicity']['train input data'] > 1 else ""
+        if self.has_code:
+            copy_code = ".copy()" \
+                if self.parameters['multiplicity']['train input data'] > 1 else ""
 
-        code = dedent("""
-            {output_data} = {input_data}{copy_code}
-            X_train = get_X_train_data({input_data}, {features})
-            y = get_label_data({input_data}, {label})
+            code = dedent("""
+                from juicer.scikit_learn.util import get_X_train_data, get_label_data
+                from sklearn.linear_model import HuberRegressor
+                {output_data} = {input_data}{copy_code}
+                X_train = get_X_train_data({input_data}, {features})
+                y = get_label_data({input_data}, {label})
+    
+                {model} = HuberRegressor(epsilon={epsilon}, max_iter={max_iter}, 
+                        alpha={alpha}, tol={tol}, fit_intercept={fit_intercept}, 
+                        warm_start=False)
+                {model}.fit(X_train, y)
+                {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
+                """).format(copy_code=copy_code,
+                            output_data=self.output,
+                            epsilon=self.epsilon,
+                            alpha=self.alpha,
+                            max_iter=self.max_iter,
+                            tol=self.tol,
+                            input_data=self.input_port,
+                            model=self.model,
+                            fit_intercept=self.fit_intercept,
+                            features=self.features,
+                            label=self.label,
+                            prediction=self.prediction)
 
-            {model} = HuberRegressor(epsilon={epsilon}, max_iter={max_iter}, 
-                    alpha={alpha}, tol={tol}, fit_intercept={fit_intercept}, 
-                    warm_start=False)
-            {model}.fit(X_train, y)
-            {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
-            """).format(copy_code=copy_code,
-                        output_data=self.output,
-                        epsilon=self.epsilon,
-                        alpha=self.alpha,
-                        max_iter=self.max_iter,
-                        tol=self.tol,
-                        input_data=self.input_port,
-                        model=self.model,
-                        fit_intercept=self.fit_intercept,
-                        features=self.features,
-                        label=self.label,
-                        prediction=self.prediction)
-
-        return code
+            return code
 
 
 class IsotonicRegressionOperation(RegressionOperation):
