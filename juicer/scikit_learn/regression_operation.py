@@ -1259,7 +1259,8 @@ class GeneralizedLinearRegressionOperation(RegressionOperation):
         RegressionOperation.__init__(self, parameters,  named_inputs,  named_outputs)
 
         self.name = 'regression.GeneralizedLinearRegression'
-        self.has_code = any([len(self.named_inputs) == 1, self.contains_results()])
+        self.has_code = len(self.named_inputs) == 1 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
 
@@ -1308,35 +1309,38 @@ class GeneralizedLinearRegressionOperation(RegressionOperation):
         self.copy_X = True if int(self.copy_X) == 1 else False
 
     def generate_code(self):
-        """Generate code."""
-        copy_code = ".copy()" \
-            if self.parameters['multiplicity']['input data'] > 1 else ""
+        if self.has_code:
+            """Generate code."""
+            copy_code = ".copy()" \
+                if self.parameters['multiplicity']['input data'] > 1 else ""
 
-        code = """
-            {output_data} = {input_data}{copy_code}
-            X_train = get_X_train_data({input_data}, {columns})
-            y = get_label_data({input_data}, {label})
+            code = """
+                from sklearn.linear_model import LinearRegression
+                from juicer.scikit_learn.util import get_X_train_data, get_label_data
+                {output_data} = {input_data}{copy_code}
+                X_train = get_X_train_data({input_data}, {columns})
+                y = get_label_data({input_data}, {label})
+    
+                if {fit_intercept}:
+                    {model} = LinearRegression(
+                        fit_intercept={fit_intercept}, normalize={normalize}, 
+                        copy_X={copy_X}, n_jobs={n_jobs})
+                else:
+                    {model} = LinearRegression(
+                        fit_intercept={fit_intercept}, copy_X={copy_X}, 
+                        n_jobs={n_jobs})
+                {model}.fit(X_train, y)          
+                {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
+                """.format(copy_code=copy_code,
+                           fit_intercept=self.fit_intercept,
+                           normalize=self.normalize,
+                           copy_X=self.copy_X,
+                           n_jobs=self.n_jobs,
+                           model=self.model,
+                           input_data=self.input_port,
+                           label=self.label,
+                           output_data=self.output,
+                           prediction=self.alias,
+                           columns=self.features_atr)
 
-            if {fit_intercept} == 1:
-                {model} = LinearRegression(
-                    fit_intercept={fit_intercept}, normalize={normalize}, 
-                    copy_X={copy_X}, n_jobs={n_jobs})
-            else:
-                {model} = LinearRegression(
-                    fit_intercept={fit_intercept}, copy_X={copy_X}, 
-                    n_jobs={n_jobs})
-            {model}.fit(X_train, y)          
-            {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
-            """.format(copy_code=copy_code,
-                       fit_intercept=self.fit_intercept,
-                       normalize=self.normalize,
-                       copy_X=self.copy_X,
-                       n_jobs=self.n_jobs,
-                       model=self.model,
-                       input_data=self.input_port,
-                       label=self.label,
-                       output_data=self.output,
-                       prediction=self.alias,
-                       columns=self.features_atr)
-
-        return dedent(code)
+            return dedent(code)
