@@ -63,14 +63,13 @@ def test_drop_missing_input_implies_no_code_success():
 
 # # # # # # # # # # Fail # # # # # # # # # #
 def test_drop_missing_parameters_fail():
-    slice_size = 10
-    df = ['df', util.iris(size=slice_size)]
+    df = util.iris(size=10)
 
     arguments = {
         'parameters': {
         },
         'named_inputs': {
-            'input data': df[0],
+            'input data': 'df',
         },
         'named_outputs': {
             'output data': 'out'
