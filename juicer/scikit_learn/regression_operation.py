@@ -527,7 +527,8 @@ class LinearRegressionOperation(RegressionOperation):
                                      named_outputs)
 
         self.name = 'regression.LinearRegression'
-        self.has_code = any([len(self.named_inputs) == 1, self.contains_results()])
+        self.has_code = len(self.named_inputs) == 1 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
 
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
@@ -560,7 +561,7 @@ class LinearRegressionOperation(RegressionOperation):
                             _("Parameter '{}' must be x>0 for task {}").format(
                                     att, self.__class__))
 
-            if 0 > self.elastic > 1:
+            if self.elastic < 0 or self.elastic > 1:
                 raise ValueError(
                         _("Parameter '{}' must be 0<=x<=1 for task {}").format(
                                 self.ELASTIC_NET_PARAM, self.__class__))
@@ -585,39 +586,41 @@ class LinearRegressionOperation(RegressionOperation):
         return sep.join([self.output, self.model])
 
     def generate_code(self):
+        if self.has_code:
+            copy_code = ".copy()" \
+                if self.parameters['multiplicity']['train input data'] > 1 else ""
 
-        copy_code = ".copy()" \
-            if self.parameters['multiplicity']['train input data'] > 1 else ""
+            code = dedent("""
+            from sklearn.linear_model import ElasticNet
+            from juicer.scikit_learn.util import get_X_train_data, get_label_data
+            {output_data} = {input_data}{copy_code}
+            X_train = get_X_train_data({input_data}, {columns})
+            y = get_label_data({input_data}, {label})
+    
+            {model} = ElasticNet(alpha={alpha}, l1_ratio={elastic}, tol={tol}, 
+                    max_iter={max_iter}, random_state={seed},
+                    normalize={normalize}, positive={positive}, 
+                    fit_intercept={fit_intercept})  
+            {model}.fit(X_train, y)
+            {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
+            """.format(copy_code=copy_code,
+                       output_data=self.output,
+                       max_iter=self.max_iter,
+                       alpha=self.alpha,
+                       elastic=self.elastic,
+                       seed=self.seed,
+                       tol=self.tol,
+                       normalize=self.normalize,
+                       input_data=self.input_port,
+                       prediction=self.prediction,
+                       columns=self.features,
+                       label=self.label,
+                       model=self.model,
+                       output=self.output,
+                       fit_intercept=self.fit_intercept,
+                       positive=self.positive))
 
-        code = dedent("""
-        {output_data} = {input_data}{copy_code}
-        X_train = get_X_train_data({input_data}, {columns})
-        y = get_label_data({input_data}, {label})
-
-        {model} = ElasticNet(alpha={alpha}, l1_ratio={elastic}, tol={tol}, 
-                max_iter={max_iter}, random_state={seed},
-                normalize={normalize}, positive={positive}, 
-                fit_intercept={fit_intercept})  
-        {model}.fit(X_train, y)
-        {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
-        """.format(copy_code=copy_code,
-                   output_data=self.output,
-                   max_iter=self.max_iter,
-                   alpha=self.alpha,
-                   elastic=self.elastic,
-                   seed=self.seed,
-                   tol=self.tol,
-                   normalize=self.normalize,
-                   input_data=self.input_port,
-                   prediction=self.prediction,
-                   columns=self.features,
-                   label=self.label,
-                   model=self.model,
-                   output=self.output,
-                   fit_intercept=self.fit_intercept,
-                   positive=self.positive))
-
-        return code
+            return code
 
 
 class MLPRegressorOperation(Operation):
