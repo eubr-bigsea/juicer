@@ -137,7 +137,8 @@ class GradientBoostingRegressorOperation(RegressionOperation):
                                      named_outputs)
 
         self.name = 'regression.GradientBoostingRegressor'
-        self.has_code = any([len(self.named_inputs) == 1, self.contains_results()])
+        self.has_code = len(self.named_inputs) == 1 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
 
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
@@ -209,7 +210,7 @@ class GradientBoostingRegressorOperation(RegressionOperation):
             self.random_state = int(self.random_state)
             if self.random_state < 0:
                 raise ValueError(
-                    _("Parameter '{}' must be x => 0  or None for task {}").format(
+                    _("Parameter '{}' must be x >= 0 or None for task {}").format(
                         self.RANDOM_STATE_PARAM, self.__class__))
         else:
             self.random_state = None
@@ -218,31 +219,31 @@ class GradientBoostingRegressorOperation(RegressionOperation):
             self.n_iter_no_change = int(self.n_iter_no_change)
             if self.n_iter_no_change < 0:
                 raise ValueError(
-                    _("Parameter '{}' must be x => 0  or None for task {}").format(
+                    _("Parameter '{}' must be x >= 0 or None for task {}").format(
                         self.N_ITER_NO_CHANGE_PARAM, self.__class__))
         else:
             self.n_iter_no_change = None
 
         if self.cc_alpha < 0:
             raise ValueError(
-                _("Parameter '{}' must be x => 0 for task {}").format(
+                _("Parameter '{}' must be x >= 0 for task {}").format(
                     self.CC_APLHA_PARAM, self.__class__))
 
         if self.validation_fraction < 0 or self.validation_fraction > 1:
             raise ValueError(
-                _("Parameter '{}' must be 0 <= x =< 1 for task {}").format(
+                _("Parameter '{}' must be 0 <= x <= 1 for task {}").format(
                     self.VALIDATION_FRACTION_PARAM, self.__class__))
 
         if self.subsample > 1 \
             or self.subsample <= 0:
             raise ValueError(
-                _("Parameter '{}' must be 0 < x =< 1 for task {}").format(
+                _("Parameter '{}' must be 0 < x <= 1 for task {}").format(
                     self.SUBSAMPLE_PARAM, self.__class__))
 
         if self.min_weight_fraction_leaf > 0.5 \
             or self.min_weight_fraction_leaf < 0:
             raise ValueError(
-                _("Parameter '{}' must be 0 <= x =< 0.5 for task {}").format(
+                _("Parameter '{}' must be 0 <= x <= 0.5 for task {}").format(
                     self.MIN_WEIGHT_FRACTION_LEAF_PARAM, self.__class__))
 
         if self.min_impurity_decrease < 0:
@@ -251,56 +252,59 @@ class GradientBoostingRegressorOperation(RegressionOperation):
                     self.MIN_IMPURITY_DECREASE_PARAM, self.__class__))
 
     def generate_code(self):
-        copy_code = ".copy()" \
-            if self.parameters['multiplicity']['train input data'] > 1 else ""
+        if self.has_code:
+            copy_code = ".copy()" \
+                if self.parameters['multiplicity']['train input data'] > 1 else ""
 
-        code = dedent("""
-            {output_data} = {input_data}{copy_code}            
-            X_train = get_X_train_data({input_data}, {features})
-            y = get_label_data({input_data}, {label})
-
-            {model} = GradientBoostingRegressor(loss='{loss}',
-                learning_rate={learning_rate}, 
-                n_estimators={n_estimators}, subsample={subsample}, 
-                criterion='{criterion}', min_samples_split={min_samples_split}, 
-                min_samples_leaf={min_samples_leaf}, 
-                min_weight_fraction_leaf={min_weight_fraction_leaf}, 
-                max_depth={max_depth}, 
-                min_impurity_decrease={min_impurity_decrease}, 
-                random_state={random_state}, max_features={max_features}, 
-                alpha={alpha}, verbose={verbose},
-                max_leaf_nodes={max_leaf_nodes}, 
-                warm_start=False, ccp_alpha={cc_alpha}, 
-                validation_fraction={validation_fraction}, 
-                n_iter_no_change={n_iter_no_change}, tol={tol})
-            {model}.fit(X_train, y)          
-            {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
-            """.format(copy_code=copy_code, output_data=self.output,
-                       learning_rate=self.learning_rate,
-                       n_estimators=self.n_estimators,
-                       max_depth=self.max_depth,
-                       min_samples_split=self.min_samples_split,
-                       min_samples_leaf=self.min_samples_leaf,
-                       model=self.model,
-                       input_data=self.input_port,
-                       loss=self.loss,
-                       subsample=self.subsample,
-                       criterion=self.criterion,
-                       min_weight_fraction_leaf=self.min_weight_fraction_leaf,
-                       min_impurity_decrease=self.min_impurity_decrease,
-                       random_state=self.random_state,
-                       max_features=self.max_features,
-                       alpha=self.alpha,
-                       verbose=self.verbose,
-                       max_leaf_nodes=self.max_leaf_nodes,
-                       cc_alpha=self.cc_alpha,
-                       validation_fraction=self.validation_fraction,
-                       n_iter_no_change=self.n_iter_no_change,
-                       tol=self.tol,
-                       prediction=self.prediction,
-                       features=self.features,
-                       label=self.label))
-        return code
+            code = dedent("""
+                from sklearn.ensemble import GradientBoostingRegressor
+                from juicer.scikit_learn.util import get_X_train_data, get_label_data
+                {output_data} = {input_data}{copy_code}            
+                X_train = get_X_train_data({input_data}, {features})
+                y = get_label_data({input_data}, {label})
+    
+                {model} = GradientBoostingRegressor(loss='{loss}',
+                    learning_rate={learning_rate}, 
+                    n_estimators={n_estimators}, subsample={subsample}, 
+                    criterion='{criterion}', min_samples_split={min_samples_split}, 
+                    min_samples_leaf={min_samples_leaf}, 
+                    min_weight_fraction_leaf={min_weight_fraction_leaf}, 
+                    max_depth={max_depth}, 
+                    min_impurity_decrease={min_impurity_decrease}, 
+                    random_state={random_state}, max_features={max_features}, 
+                    alpha={alpha}, verbose={verbose},
+                    max_leaf_nodes={max_leaf_nodes}, 
+                    warm_start=False, ccp_alpha={cc_alpha}, 
+                    validation_fraction={validation_fraction}, 
+                    n_iter_no_change={n_iter_no_change}, tol={tol})
+                {model}.fit(X_train, y)          
+                {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
+                """.format(copy_code=copy_code, output_data=self.output,
+                           learning_rate=self.learning_rate,
+                           n_estimators=self.n_estimators,
+                           max_depth=self.max_depth,
+                           min_samples_split=self.min_samples_split,
+                           min_samples_leaf=self.min_samples_leaf,
+                           model=self.model,
+                           input_data=self.input_port,
+                           loss=self.loss,
+                           subsample=self.subsample,
+                           criterion=self.criterion,
+                           min_weight_fraction_leaf=self.min_weight_fraction_leaf,
+                           min_impurity_decrease=self.min_impurity_decrease,
+                           random_state=self.random_state,
+                           max_features=self.max_features,
+                           alpha=self.alpha,
+                           verbose=self.verbose,
+                           max_leaf_nodes=self.max_leaf_nodes,
+                           cc_alpha=self.cc_alpha,
+                           validation_fraction=self.validation_fraction,
+                           n_iter_no_change=self.n_iter_no_change,
+                           tol=self.tol,
+                           prediction=self.prediction,
+                           features=self.features,
+                           label=self.label))
+            return code
 
 
 class HuberRegressorOperation(RegressionOperation):
