@@ -15,52 +15,6 @@ import pytest
 #
 #
 # # # # # # # # # # Success # # # # # # # # # #
-def xtest_gradient_boosting_regressor_success():
-    df = util.iris(['sepallength', 'sepalwidth'], size=10)
-    test_df = df.copy()
-
-    arguments = {
-        'parameters': {'features': ['sepallength', 'sepalwidth'],
-                       'multiplicity': {'train input data': 0},
-                       'label': ['sepallength']},
-        'named_inputs': {
-            'train input data': 'df',
-        },
-        'named_outputs': {
-            'output data': 'out'
-        }
-    }
-    instance = GradientBoostingRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
-
-    test_out = test_df
-    X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
-    y = get_label_data(test_df, ['sepallength'])
-
-    model_1 = GradientBoostingRegressor(
-        loss='ls',
-        learning_rate=0.1,
-        n_estimators=100, subsample=1.0,
-        criterion='friedman_mse',
-        min_samples_split=2,
-        min_samples_leaf=1,
-        min_weight_fraction_leaf=0.0,
-        max_depth=3,
-        min_impurity_decrease=0.0,
-        random_state=None, max_features=None,
-        alpha=0.9, verbose=0,
-        max_leaf_nodes=None,
-        warm_start=False, ccp_alpha=0.0,
-        validation_fraction=0.1,
-        n_iter_no_change=None, tol=0.0001
-    )
-
-    model_1.fit(X_train, y)
-    test_out['prediction'] = model_1.predict(X_train).tolist()
-    assert result['out'].equals(test_out)
-
-
 def test_gradient_boosting_regressor_success():
     df = util.iris(['sepallength', 'sepalwidth'], size=10)
     test_df = df.copy()
