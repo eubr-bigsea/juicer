@@ -1096,7 +1096,8 @@ class SGDRegressorOperation(RegressionOperation):
                                      named_outputs)
         self.parameters = parameters
         self.name = 'regression.SGDRegressor'
-        self.has_code = any([len(self.named_inputs) == 1, self.contains_results()])
+        self.has_code = len(self.named_inputs) == 1 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
 
@@ -1227,28 +1228,30 @@ class SGDRegressorOperation(RegressionOperation):
         self.add_functions_required = ',\n    '.join(functions_required)
 
     def generate_code(self):
+        if self.has_code:
 
-        copy_code = ".copy()" \
-            if self.parameters['multiplicity']['train input data'] > 1 else ""
+            copy_code = ".copy()" \
+                if self.parameters['multiplicity']['train input data'] > 1 else ""
 
-        code = dedent("""
-            {output_data} = {input_data}{copy_code}
-            X_train = get_X_train_data({input_data}, {columns})
-            y = get_label_data({input_data}, {label})
-
-            {model} = SGDRegressor({add_functions_required})
-            {model}.fit(X_train, y)          
-            {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
-            """).format(copy_code=copy_code,
-                        output_data=self.output,
-                        prediction=self.prediction,
-                        columns=self.features,
-                        model=self.model,
-                        input_data=self.input_port,
-                        label=self.label,
-                        add_functions_required=self.add_functions_required)
-
-        return code
+            code = dedent("""
+                from sklearn.linear_model import SGDRegressor
+                from juicer.scikit_learn.util import get_X_train_data, get_label_data
+                {output_data} = {input_data}{copy_code}
+                X_train = get_X_train_data({input_data}, {columns})
+                y = get_label_data({input_data}, {label})
+    
+                {model} = SGDRegressor({add_functions_required})
+                {model}.fit(X_train, y)          
+                {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
+                """).format(copy_code=copy_code,
+                            output_data=self.output,
+                            prediction=self.prediction,
+                            columns=self.features,
+                            model=self.model,
+                            input_data=self.input_port,
+                            label=self.label,
+                            add_functions_required=self.add_functions_required)
+            return code
 
 
 class GeneralizedLinearRegressionOperation(RegressionOperation):
