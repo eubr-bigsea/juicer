@@ -2,6 +2,8 @@
 
 import collections
 import logging
+import re
+import datetime
 from gettext import gettext
 
 import networkx as nx
@@ -59,9 +61,9 @@ class Workflow(object):
         self.sorted_tasks = []
 
         # Spark or COMPSs
-        self.platform = workflow_data.get('platform', {}).get('slug', 'spark')
+        self.platform = workflow_data.get('platform', {})
 
-        if self.platform == 'spark':
+        if self.platform['slug'] == 'spark':
             self._build_privacy_restrictions()
 
         # Verify null edges to topological_sorted_tasks
@@ -143,7 +145,8 @@ class Workflow(object):
     def _build_initial_workflow_graph(self):
         """ Builds a graph with the tasks """
 
-        operations_tahiti = {op['id']: op for op in self._get_operations()}
+        operations_tahiti = {op['id']: op for op 
+                in self._get_operations(self.workflow['id'])}
         # Querying all operations from tahiti one time
         task_map = {}
 
@@ -398,14 +401,15 @@ class Workflow(object):
                 return False
         return True
 
-    def _get_operations(self):
+    def _get_operations(self, workflow_id):
         """ Returns operations available in Tahiti """
         tahiti_conf = self.config['juicer']['services']['tahiti']
         params = {
             'base_url': tahiti_conf['url'],
             'item_path': 'operations',
             'token': str(tahiti_conf['auth_token']),
-            'item_id': ''
+            'item_id': '',
+            'qs': 'workflow={}'.format(workflow_id)
         }
 
         # Querying tahiti operations to get number of inputs and outputs
@@ -479,3 +483,61 @@ class Workflow(object):
         #                 )
         #     if self.query_operations:
         #         return self.query_operations()
+    def handle_variables(self, custom_vars=None):
+        """
+        Handles variable substitution
+        """
+        now = datetime.datetime.now()
+        date_at_min = datetime.datetime.combine(datetime.datetime.now(), datetime.time.min)
+        date_at_max = datetime.datetime.combine(datetime.datetime.now(), datetime.time.max)
+
+        all_vars = {
+            'date': now.strftime('%Y-%m-%d'),
+            'now': now.strftime('%Y-%m-%d %H:%M:%S'),
+            'date_at_min': date_at_min.strftime('%Y-%m-%d %H:%M:%S'),
+            'date_at_max': date_at_max.strftime('%Y-%m-%d %H:%M:%S'),
+            'user_login': self.workflow['user']['login'],
+            'user_name': self.workflow['user']['name'],
+            'user_email': self.workflow['user']['login'], # FIXME
+            'user_id': str(self.workflow['user']['id']),
+            'workflow_name': self.workflow['name'],
+            'workflow_id': self.workflow['id'],
+        }
+        if custom_vars:
+            all_vars.update(custom_vars)
+
+        for variable in self.workflow.get('variables'):
+            all_vars[variable['name']] = variable.get('value', variable.get('default_value'))
+
+        variable_re = re.compile(r'\$\{[_A-Za-z][_A-Za-z0-9]*\}')
+        for task in self.workflow['tasks']:
+            if 'forms' in task and task['enabled']:
+                for k, v in list(task.get('forms').items()):
+                    value = v.get('value')
+                    if task['operation']['slug'] == 'user-filter' and \
+                            k == 'filters': # FIXME: Needs to be dynamic
+                        for filter_value in value:
+                            value1 = str(filter_value.get('value', filter_value.get('default_value', '')))
+                            filter_value['value'] = value1
+                            for found in variable_re.findall(value1):
+                                var_name = found[2:-1]
+                                if var_name in all_vars:
+                                    new_value = str(all_vars[var_name])
+                                    filter_value['value'] = filter_value.get(
+                                            'value').replace(found, new_value)
+                                else:
+                                    raise ValueError(
+                                         _('Variable "{}" is used in task "{}", but it is undefined.'.format(
+                                          var_name, task['name'])))
+
+                    if isinstance(value, (str,)):
+                        for found in variable_re.findall(value):
+                            var_name = found[2:-1]
+                            if var_name in all_vars:
+                                new_value = str(all_vars[var_name])
+                                v['value'] = v.get('value').replace(found, new_value)
+                            else:
+                                raise ValueError(
+                                     _('Variable "{}" is used in task "{}", but it is undefined.'.format(
+                                     var_name, task['name'])))
+            

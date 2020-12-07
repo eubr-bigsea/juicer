@@ -221,6 +221,7 @@ class Transpiler(object):
                 'order': i,
                 'task': task,
                 'task_id': task['id'],
+                'transpiler': self, # Allows operation to notify transpiler
                 'user': workflow['user'],
                 'workflow': workflow,
                 'workflow_id': workflow['id'],
