@@ -132,3 +132,4 @@ Werkzeug==0.15.5
 wrapt==1.11.2
 xgboost==0.90
 zipp==0.6.0
+GitPython==3.1.2

@@ -9,6 +9,8 @@ import requests
 log = logging.getLogger()
 log.setLevel(logging.DEBUG)
 
+def get_platform(base_url, token, platform_id):
+    return query_tahiti(base_url, '/platforms', token, platform_id)
 
 def query_tahiti(base_url, item_path, token, item_id, qs=None):
     headers = {'X-Auth-Token': token}

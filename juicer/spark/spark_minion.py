@@ -79,6 +79,11 @@ class SparkMinion(Minion):
         else:
             log.warn(_('SPARK_HOME environment variable is not defined'))
 
+        spark_dist_classpath = os.environ.get('SPARK_DIST_CLASSPATH')
+        if not spark_dist_classpath:
+            log.error(_('SPARK_DIST_CLASSPATH environment variable is not defined, '
+                'minion will not run correctly.'))
+        
         self.spark_session = None
 
         self.mgr = socketio.RedisManager(
@@ -301,12 +306,25 @@ class SparkMinion(Minion):
 
             # Add general parameters in the form param1=value1,param2=value2
             try:
-                if cluster_info.get('general_parameters'):
-                    parameters = cluster_info['general_parameters'].split(',')
-                    for parameter in parameters:
-                        key, value = parameter.split('=')
-                        if key.startswith('spark'):
+                general_parameters = cluster_info.get('general_parameters')
+                if general_parameters:
+                    if general_parameters[0] == '{': # JSON
+                        gp = json.loads(general_parameters)
+                        for (key, value) in gp.get('spark', {}).items():
                             self.cluster_options[key.strip()] = value.strip()
+                        for (key, value) in gp.get('environment', {}).items():
+                            os.environ[key] = value
+                        if gp.get('python'):
+                            self.cluster_options[
+                                    'spark.submit.pyFiles'] = ','.join(
+                                            gp.get('python'))
+                            
+                    else:
+                        parameters = general_parameters.split(',')
+                        for parameter in parameters:
+                            key, value = parameter.split('=')
+                            if key.startswith('spark'):
+                                self.cluster_options[key.strip()] = value.strip()
             except Exception as ex:
                 msg = _("Error in general cluster parameters: {}").format(ex)
                 self._emit_event(room=job_id, namespace='/stand')(
@@ -322,6 +340,9 @@ class SparkMinion(Minion):
                        'executor_cores': 'spark.executor.cores',
                        'executor_memory': 'spark.executor.memory',
                        }
+            if cluster_type == 'YARN':
+                del options['address']
+                self.cluster_options['spark.master'] = 'yarn'
 
             if cluster_type == "KUBERNETES":
                 options['executors'] = 'spark.executor.instances'
@@ -399,8 +420,7 @@ class SparkMinion(Minion):
         start = timer()
         try:
             loader = Workflow(workflow, self.config)
-            # force the spark context creation
-            self.get_or_create_spark_session(loader, app_configs, job_id)
+            loader.handle_variables({'job_id': job_id})
 
             # Mark job as running
             if self.new_session:
@@ -427,6 +447,8 @@ class SparkMinion(Minion):
                 self.transpiler.transpile(
                     loader.workflow, loader.graph, {}, out, job_id,
                     self._state)
+            # force the spark context creation
+            self.get_or_create_spark_session(loader, app_configs, job_id)
 
             # Get rid of .pyc file if it exists
             if os.path.isfile('{}c'.format(generated_code_path)):
@@ -547,12 +569,23 @@ class SparkMinion(Minion):
         if not self.is_spark_session_available():
 
             log.info(_("Creating a new Spark session"))
-            app_name = '{name} (workflow_id={wf},app_id={app})'.format(
+            app_name = '{name} (workflow_id={wf})'.format(
                 name=strip_accents(loader.workflow.get('name', '')),
-                wf=self.workflow_id, app=self.app_id)
+                wf=self.workflow_id)
             app_name = ''.join([i if ord(i) < 128 else ' ' for i in app_name])
             spark_builder = SparkSession.builder.appName(
                 app_name)
+            if self.transpiler.requires_hive:
+                log.info(_('Enabling HIVE Support'))
+                spark_builder = spark_builder.enableHiveSupport()
+                spark_builder = spark_builder.config('hive.metastore.uris',
+                        self.transpiler.hive_metadata['storage']['url'])
+
+            elif self.transpiler.requires_hive_warehouse:
+                log.info(_('Enabling HIVE Warehouse Support'))
+                # FIXME
+                spark_builder = spark_builder.config('hive.metastore.uris',
+                        self.transpiler.hive_metadata['storage']['url'])
 
             # Use config file default configurations to set up Spark session
             for option, value in self.config['juicer'].get('spark', {}).items():
@@ -605,7 +638,7 @@ class SparkMinion(Minion):
                 all_jars.append(app_configs['spark.driver.extraClassPath'])
 
             app_configs['spark.driver.extraClassPath'] = os.path.pathsep.join(
-                all_jars)
+                [jar for jar in all_jars if jar])
 
             log.info('JAVA CLASSPATH: %s',
                      app_configs['spark.driver.extraClassPath'])
