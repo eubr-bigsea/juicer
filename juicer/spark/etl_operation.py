@@ -755,10 +755,10 @@ class AggregationOperation(Operation):
             if self.pivot:
                 # no alias
                 elements.append('''functions.{}('{}')'''.format(
-                    function['f'].lower(), function['attribute']))
+                    function['f'], function['attribute']))
             else:
                 elements.append('''functions.{}('{}').alias('{}')'''.format(
-                    function['f'].lower(), function['attribute'],
+                    function['f'], function['attribute'],
                     function.get('alias', function.get('value'))))
 
         input_data = self.named_inputs['input data']
