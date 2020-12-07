@@ -11,7 +11,6 @@ log = logging.getLogger('juicer.kb8s')
 
 def eval_and_kill_pending_jobs(cluster, timeout=60 * 5):
     configuration = client.Configuration()
-    configuration.host = cluster['address']
     configuration.verify_ssl = False
     configuration.debug = False
     if 'general_parameters' not in cluster:
@@ -21,7 +20,10 @@ def eval_and_kill_pending_jobs(cluster, timeout=60 * 5):
     for parameter in cluster['general_parameters'].split(','):
         key, value = parameter.split('=')
         if key.startswith('kubernetes'):
-            cluster_params[key] = value
+            if key == 'kubernetes.apiserver':
+                configuration.host = value
+            else:
+                cluster_params[key] = value
 
     token = cluster['auth_token']
     configuration.api_key = {"authorization": "Bearer " + token}
@@ -41,7 +43,6 @@ def eval_and_kill_pending_jobs(cluster, timeout=60 * 5):
 def delete_kb8s_job(workflow_id, cluster):
     return
     configuration = client.Configuration()
-    configuration.host = cluster['address']
     configuration.verify_ssl = False
     configuration.debug = False
     if 'general_parameters' not in cluster:
@@ -51,8 +52,10 @@ def delete_kb8s_job(workflow_id, cluster):
     for parameter in cluster['general_parameters'].split(','):
         key, value = parameter.split('=')
         if key.startswith('kubernetes'):
-            cluster_params[key] = value
-
+            if key == 'kubernetes.apiserver':
+                configuration.host = value
+            else:
+                cluster_params[key] = value
     token = cluster['auth_token']
     configuration.api_key = {"authorization": "Bearer " + token}
     # noinspection PyUnresolvedReferences
@@ -74,7 +77,6 @@ def delete_kb8s_job(workflow_id, cluster):
 
 def create_kb8s_job(workflow_id, minion_cmd, cluster):
     configuration = client.Configuration()
-    configuration.host = cluster['address']
     configuration.verify_ssl = False
     configuration.debug = False
     if 'general_parameters' not in cluster:
@@ -84,7 +86,10 @@ def create_kb8s_job(workflow_id, minion_cmd, cluster):
     for parameter in cluster['general_parameters'].split(','):
         key, value = parameter.split('=')
         if key.startswith('kubernetes'):
-            cluster_params[key] = value
+            if key == 'kubernetes.apiserver':
+                configuration.host = value
+            else:
+                cluster_params[key] = value
     env_vars = {
         'HADOOP_CONF_DIR': '/usr/local/juicer/conf',
     }
