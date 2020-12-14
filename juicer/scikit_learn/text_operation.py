@@ -35,7 +35,7 @@ class TokenizerOperation(Operation):
                 raise ValueError(_('Invalid type for '
                                    'operation Tokenizer: {}').format(self.type))
 
-            self.expression_param = parameters.get(self.EXPRESSION_PARAM, '\s+')
+            self.expression_param = parameters.get(self.EXPRESSION_PARAM, '\\s+')
 
             self.min_token_lenght = parameters.get(self.MINIMUM_SIZE, 3)
             if self.ATTRIBUTES_PARAM in parameters:
@@ -54,9 +54,9 @@ class TokenizerOperation(Operation):
                           zip_longest(self.attributes,
                                       self.alias[:len(self.attributes)])]
 
-            self.expression_param = parameters.get(self.EXPRESSION_PARAM, '\s+')
+            self.expression_param = parameters.get(self.EXPRESSION_PARAM, '\\s+')
             if len(self.expression_param) == 0:
-                self.expression_param = '\s+'
+                self.expression_param = '\\s+'
 
             self.output = self.named_outputs.get(
                     'output data', 'output_data_{}'.format(self.order))
@@ -94,7 +94,7 @@ class TokenizerOperation(Operation):
     
                 for row in {output}['{att}'].to_numpy():
                     result.append([word for word in 
-                                  regexp_tokenize(row, pattern='{exp}'){limit}])
+                                  regexp_tokenize(row, pattern=r'{exp}'){limit}])
     
                 {output}['{alias}'] = result
                 """.format(copy_code=copy_code, output=self.output,
