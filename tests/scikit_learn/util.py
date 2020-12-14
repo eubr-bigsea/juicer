@@ -2,6 +2,7 @@
 Utilities for testing scikit-learn usage in Lemonade.
 """
 import pandas as pd
+import numpy as np
 import os
 
 DATA_SETS = ['iris', 'titanic', 'wine']
