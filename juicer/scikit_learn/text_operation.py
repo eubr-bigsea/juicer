@@ -128,9 +128,8 @@ class RemoveStopWordsOperation(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-        self.has_code = 'input data' in self.named_inputs \
-                        and any([self.contains_results(),
-                                 len(named_outputs) > 0])
+        self.has_code = len(self.named_inputs) >= 1 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
 
         if self.has_code:
             self.output = self.named_outputs.get(
@@ -163,57 +162,69 @@ class RemoveStopWordsOperation(Operation):
 
     def generate_code(self):
         """Generate code."""
-        copy_code = ".copy()" \
-            if self.parameters['multiplicity']['input data'] > 1 else ""
+        if self.has_code:
+            copy_code = ".copy()" \
+                if self.parameters['multiplicity']['input data'] > 1 else ""
 
-        code = """
-        stop_words = []
-        {OUT} = {IN}{copy_code}
-        """.format(copy_code=copy_code, OUT=self.output,
-                   IN=self.named_inputs['input data'])
-        if len(self.lang) > 0:
-            code += """
-        stop_words += stopwords.words('{language}')""".format(
-                    language=self.lang.lower())
+            code = """
+            stop_words = []
+            {OUT} = {IN}{copy_code}
+            """.format(copy_code=copy_code, OUT=self.output,
+                       IN=self.named_inputs['input data'])
+            if len(self.lang) > 0:
+                code += """
+            import nltk
+            nltk.download('stopwords')
+            from nltk.corpus import stopwords
+            stop_words += stopwords.words('{language}')""".format(
+                        language=self.lang.lower())
 
-        if len(self.named_inputs) == 2 and len(self.stop_word_attribute) > 0:
-            code += """
-        stop_words += {in2}['{att2}'].to_numpy().tolist()
-        """.format(in2=self.stopwords_input, att2=self.stop_word_attribute)
-        if len(self.stop_word_list) > 1:
-            code += """
-        stop_words += {stop_word_list}
-        """.format(stop_word_list=self.stop_word_list)
+            if len(self.named_inputs) == 2 and len(self.stop_word_attribute) > 0:
+                code += """
+            stop_words += {in2}['{att2}'].to_numpy().tolist()
+            """.format(in2=self.stopwords_input, att2=self.stop_word_attribute)
+            if len(self.stop_word_list) > 1:
+                code += """
+            stop_words += {stop_word_list}
+            """.format(stop_word_list=self.stop_word_list)
 
-        if self.sw_case_sensitive == "1":
-            code += """
-        word_tokens = {OUT}['{att}'].to_numpy()       
-        result = []
-        case_sensitive = True
-        for row in word_tokens:
-            result.append([w for w in row if not w in stop_words])
-        {OUT}['{alias}'] = result
-        """.format(att=self.attributes,
-                   att_stop=self.stop_word_attribute,
-                   alias=self.alias, case=self.sw_case_sensitive,
-                   OUT=self.output,
-                   stoplist=self.stop_word_list, sw=self.stopwords_input)
-        else:
-            code += """
-        stop_words = [w.lower() for w in stop_words]
-        word_tokens = {OUT}['{att}'].to_numpy()       
-        result = []
-        case_sensitive = False
-        for row in word_tokens:
-            result.append([w for w in row if not w.lower() in stop_words])
-        {OUT}['{alias}'] = result
-        """.format(att=self.attributes,
-                   att_stop=self.stop_word_attribute,
-                   alias=self.alias, case=self.sw_case_sensitive,
-                   OUT=self.output,
-                   stoplist=self.stop_word_list, sw=self.stopwords_input)
+            if self.sw_case_sensitive == "1":
+                code += """
+            word_tokens = {OUT}['{att}'].to_numpy()       
+            result = []
+            case_sensitive = True
+            for row in word_tokens:
+                itr = []
+                for w in row:
+                    if not w in stop_words:
+                        itr.append(w)
+                result.append(itr)
+            {OUT}['{alias}'] = result
+            """.format(att=self.attributes,
+                       att_stop=self.stop_word_attribute,
+                       alias=self.alias, case=self.sw_case_sensitive,
+                       OUT=self.output,
+                       stoplist=self.stop_word_list, sw=self.stopwords_input)
+            else:
+                code += """
+            stop_words = [w.lower() for w in stop_words]
+            word_tokens = {OUT}['{att}'].to_numpy()       
+            result = []
+            case_sensitive = False
+            for row in word_tokens:
+                itr = []
+                for w in row:
+                    if not w.lower() in stop_words:
+                        itr.append(w)
+                result.append(itr)                
+            {OUT}['{alias}'] = result
+            """.format(att=self.attributes,
+                       att_stop=self.stop_word_attribute,
+                       alias=self.alias, case=self.sw_case_sensitive,
+                       OUT=self.output,
+                       stoplist=self.stop_word_list, sw=self.stopwords_input)
 
-        return dedent(code)
+            return dedent(code)
 
 
 class GenerateNGramsOperation(Operation):
