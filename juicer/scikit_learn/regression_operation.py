@@ -674,7 +674,7 @@ class MLPRegressorOperation(Operation):
             self.hidden_layers = parameters.get(self.HIDDEN_LAYER_SIZES_PARAM, '(1,100,1)') or '(1,100,1)'
             self.hidden_layers = \
                 self.hidden_layers.replace("(", "").replace(")", "")
-            if not bool(re.match('(\d+,)+\d*', self.hidden_layers)):
+            if not bool(re.match(r'(\d+,)+\d*', self.hidden_layers)):
                 raise ValueError(
                         _("Parameter '{}' must be a tuple with the size "
                           "of each layer for task {}").format(
@@ -889,7 +889,8 @@ class RandomForestRegressorOperation(RegressionOperation):
                                      named_outputs)
         self.parameters = parameters
         self.name = 'regression.RandomForestRegressor'
-        self.has_code = any([len(self.named_inputs) == 1, self.contains_results()])
+        self.has_code = len(self.named_inputs) == 1 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
 
@@ -993,52 +994,55 @@ class RandomForestRegressorOperation(RegressionOperation):
                     self.VERBOSE_PARAM, self.__class__))
 
     def generate_code(self):
+        if self.has_code:
 
-        copy_code = ".copy()" \
-            if self.parameters['multiplicity']['train input data'] > 1 else ""
+            copy_code = ".copy()" \
+                if self.parameters['multiplicity']['train input data'] > 1 else ""
 
-        code = dedent("""
-            {output_data} = {input_data}{copy_code}
-            X_train = get_X_train_data({input_data}, {features})
-            y = get_label_data({input_data}, {label})
+            code = dedent("""
+                from sklearn.ensemble import RandomForestRegressor
+                from juicer.scikit_learn.util import get_X_train_data, get_label_data
+                {output_data} = {input_data}{copy_code}
+                X_train = get_X_train_data({input_data}, {features})
+                y = get_label_data({input_data}, {label})
+    
+                {model} = RandomForestRegressor(n_estimators={n_estimators}, 
+                        max_features='{max_features}', 
+                        max_depth={max_depth}, 
+                        min_samples_split={min_samples_split}, 
+                        min_samples_leaf={min_samples_leaf}, 
+                        random_state={random_state},
+                        n_jobs={n_jobs}, criterion='{criterion}', 
+                        min_weight_fraction_leaf={min_weight_fraction_leaf},
+                        max_leaf_nodes={max_leaf_nodes}, 
+                        min_impurity_decrease={min_impurity_decrease}, 
+                        bootstrap={bootstrap},
+                        oob_score={oob_score}, verbose={verbose}, warm_start=False)
+                {model}.fit(X_train, y)          
+                {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
+                """).format(copy_code=copy_code,
+                            n_estimators=self.n_estimators,
+                            max_features=self.max_features,
+                            max_depth=self.max_depth,
+                            min_samples_split=self.min_samples_split,
+                            min_samples_leaf=self.min_samples_leaf,
+                            random_state=self.random_state,
+                            model=self.model,
+                            n_jobs=self.n_jobs,
+                            input_data=self.input_port,
+                            output_data=self.output,
+                            prediction=self.prediction,
+                            criterion=self.criterion,
+                            min_weight_fraction_leaf=self.min_weight_fraction_leaf,
+                            max_leaf_nodes=self.max_leaf_nodes,
+                            min_impurity_decrease=self.min_impurity_decrease,
+                            bootstrap=self.bootstrap,
+                            oob_score=self.oob_score,
+                            verbose=self.verbose,
+                            features=self.features,
+                            label=self.label)
 
-            {model} = RandomForestRegressor(n_estimators={n_estimators}, 
-                    max_features='{max_features}', 
-                    max_depth={max_depth}, 
-                    min_samples_split={min_samples_split}, 
-                    min_samples_leaf={min_samples_leaf}, 
-                    random_state={random_state},
-                    n_jobs={n_jobs}, criterion='{criterion}', 
-                    min_weight_fraction_leaf={min_weight_fraction_leaf},
-                    max_leaf_nodes={max_leaf_nodes}, 
-                    min_impurity_decrease={min_impurity_decrease}, 
-                    bootstrap={bootstrap},
-                    oob_score={oob_score}, verbose={verbose}, warm_start=False)
-            {model}.fit(X_train, y)          
-            {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
-            """).format(copy_code=copy_code,
-                        n_estimators=self.n_estimators,
-                        max_features=self.max_features,
-                        max_depth=self.max_depth,
-                        min_samples_split=self.min_samples_split,
-                        min_samples_leaf=self.min_samples_leaf,
-                        random_state=self.random_state,
-                        model=self.model,
-                        n_jobs=self.n_jobs,
-                        input_data=self.input_port,
-                        output_data=self.output,
-                        prediction=self.prediction,
-                        criterion=self.criterion,
-                        min_weight_fraction_leaf=self.min_weight_fraction_leaf,
-                        max_leaf_nodes=self.max_leaf_nodes,
-                        min_impurity_decrease=self.min_impurity_decrease,
-                        bootstrap=self.bootstrap,
-                        oob_score=self.oob_score,
-                        verbose=self.verbose,
-                        features=self.features,
-                        label=self.label)
-
-        return code
+            return code
 
 
 class SGDRegressorOperation(RegressionOperation):
