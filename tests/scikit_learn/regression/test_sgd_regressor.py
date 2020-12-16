@@ -644,7 +644,7 @@ def test_sgd_regressor_eta0_and_learning_rate_params_success():
     for col in result['out'].columns:
         for idx in result['out'].index:
             assert result['out'].loc[idx, col] == pytest.approx(
-                test_out.loc[idx, col], 60)
+                test_out.loc[idx, col], 3.0e+11, 3.0e-11)
 
 
 def test_sgd_regressor_verbose_param_success():
