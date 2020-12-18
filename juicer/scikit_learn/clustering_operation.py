@@ -11,7 +11,8 @@ class ClusteringModelOperation(Operation):
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
 
-        self.has_code = len(self.named_inputs) == 2
+        self.has_code = len(self.named_inputs) >= 1 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
         if self.has_code:
 
             if self.FEATURES_PARAM in parameters:
@@ -43,31 +44,34 @@ class ClusteringModelOperation(Operation):
         return sep.join([self.output, self.model])
 
     def generate_code(self):
-        """Generate code."""
-        code = """
-        X = get_X_train_data({input}, {features})
-        {model} = {algorithm}.fit(X)
-        """.format(model=self.model, features=self.features,
-                   input=self.named_inputs['train input data'],
-                   algorithm=self.named_inputs['algorithm'])
+        if self.has_code:
+            """Generate code."""
+            code = """
+            from sklearn.cluster import *
+            from juicer.scikit_learn.util import get_X_train_data, get_label_data
+            X = get_X_train_data({input}, {features})
+            {model} = {algorithm}.fit(X)
+            """.format(model=self.model, features=self.features,
+                       input=self.named_inputs['train input data'],
+                       algorithm=self.named_inputs['algorithm'])
 
-        copy_code = ".copy()" \
-            if self.parameters['multiplicity']['train input data'] > 1 else ""
+            copy_code = ".copy()" \
+                if self.parameters['multiplicity']['train input data'] > 1 else ""
 
-        if self.perform_transformation:
-            code += """
-        y = {algorithm}.predict(X)
-        {OUT} = {IN}{copy_code}
-        {OUT}['{predCol}'] = y
-        """.format(copy_code=copy_code, OUT=self.output, model=self.model,
-                   IN=self.named_inputs['train input data'],
-                   predCol=self.alias, algorithm=self.named_inputs['algorithm'])
-        else:
-            code += """
-        {output} = None
-        """.format(output=self.output)
+            if self.perform_transformation:
+                code += """
+            y = {model}.predict(X)
+            {OUT} = {IN}{copy_code}
+            {OUT}['{predCol}'] = y
+            """.format(copy_code=copy_code, OUT=self.output, model=self.model,
+                       IN=self.named_inputs['train input data'],
+                       predCol=self.alias, algorithm=self.named_inputs['algorithm'])
+            else:
+                code += """
+            {output} = None
+            """.format(output=self.output)
 
-        return dedent(code)
+            return dedent(code)
 
 
 class AgglomerativeClusteringOperation(Operation):
