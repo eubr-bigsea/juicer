@@ -246,7 +246,8 @@ class GaussianMixtureClusteringOperation(Operation):
                  named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-        self.has_code = any([len(self.named_inputs) == 1, self.contains_results()])
+        self.has_code = len(self.named_inputs) == 1 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
 
@@ -293,32 +294,33 @@ class GaussianMixtureClusteringOperation(Operation):
             self.random_state = None
 
     def generate_code(self):
-        """Generate code."""
-        copy_code = ".copy()" \
-            if self.parameters['multiplicity']['train input data'] > 1 else ""
-
-        code = """
-        {output_data} = {input_data}{copy_code}
-        X_train = get_X_train_data({input_data}, {columns})
-        {model} = GaussianMixture(n_components={k}, max_iter={iter}, tol={tol}, 
-            covariance_type='{covariance_type}', reg_covar={reg_covar}, 
-            n_init={n_init}, random_state={random_state})
-        {output_data}['{prediction}'] = {model}.fit_predict(X_train)
-        """.format(copy_code=copy_code,
-                   k=self.n_components,
-                   iter=self.max_iter,
-                   tol=self.tol,
-                   output_data=self.output,
-                   model=self.model,
-                   input_data=self.input_port,
-                   prediction=self.prediction,
-                   columns=self.features,
-                   covariance_type=self.covariance_type,
-                   reg_covar=self.reg_covar,
-                   n_init=self.n_init,
-                   random_state=self.random_state)
-
-        return dedent(code)
+        if self.has_code:
+            """Generate code."""
+            copy_code = ".copy()" \
+                if self.parameters['multiplicity']['train input data'] > 1 else ""
+            code = """
+            from juicer.scikit_learn.util import get_X_train_data, get_label_data
+            from sklearn.mixture import GaussianMixture
+            {output_data} = {input_data}{copy_code}
+            X_train = get_X_train_data({input_data}, {columns})
+            {model} = GaussianMixture(n_components={k}, max_iter={iter}, tol={tol}, 
+                covariance_type='{covariance_type}', reg_covar={reg_covar}, 
+                n_init={n_init}, random_state={random_state})
+            {output_data}['{prediction}'] = {model}.fit_predict(X_train)
+            """.format(copy_code=copy_code,
+                       k=self.n_components,
+                       iter=self.max_iter,
+                       tol=self.tol,
+                       output_data=self.output,
+                       model=self.model,
+                       input_data=self.input_port,
+                       prediction=self.prediction,
+                       columns=self.features,
+                       covariance_type=self.covariance_type,
+                       reg_covar=self.reg_covar,
+                       n_init=self.n_init,
+                       random_state=self.random_state)
+            return dedent(code)
 
 
 class KMeansClusteringOperation(Operation):
