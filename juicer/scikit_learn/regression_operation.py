@@ -120,7 +120,6 @@ class GradientBoostingRegressorOperation(RegressionOperation):
     MAX_LEAF_NODES_PARAM = 'max_leaf_nodes'
     MIN_IMPURITY_DECREASE_PARAM = 'min_impurity_decrease'
     RANDOM_STATE_PARAM = 'random_state'
-    VERBOSE_PARAM = 'verbose'
     PREDICTION_PARAM = 'prediction'
     LABEL_PARAM = 'label'
     FEATURES_PARAM = 'features'
@@ -161,7 +160,6 @@ class GradientBoostingRegressorOperation(RegressionOperation):
             self.max_leaf_nodes = parameters.get(self.MAX_LEAF_NODES_PARAM, None)
             self.min_impurity_decrease = float(parameters.get(self.MIN_IMPURITY_DECREASE_PARAM, 0) or 0)
             self.random_state = parameters.get(self.RANDOM_STATE_PARAM, None)
-            self.verbose = int(parameters.get(self.VERBOSE_PARAM, 0) or 0)
             self.features = parameters['features']
             self.label = parameters.get(self.LABEL_PARAM, None)
             self.prediction = self.parameters.get(self.PREDICTION_PARAM, 'prediction')
@@ -272,7 +270,7 @@ class GradientBoostingRegressorOperation(RegressionOperation):
                     max_depth={max_depth}, 
                     min_impurity_decrease={min_impurity_decrease}, 
                     random_state={random_state}, max_features={max_features}, 
-                    alpha={alpha}, verbose={verbose},
+                    alpha={alpha},
                     max_leaf_nodes={max_leaf_nodes}, 
                     warm_start=False, ccp_alpha={cc_alpha}, 
                     validation_fraction={validation_fraction}, 
@@ -295,7 +293,6 @@ class GradientBoostingRegressorOperation(RegressionOperation):
                            random_state=self.random_state,
                            max_features=self.max_features,
                            alpha=self.alpha,
-                           verbose=self.verbose,
                            max_leaf_nodes=self.max_leaf_nodes,
                            cc_alpha=self.cc_alpha,
                            validation_fraction=self.validation_fraction,
@@ -896,7 +893,6 @@ class RandomForestRegressorOperation(RegressionOperation):
     OOB_SCORE_PARAM = 'oob_score'
     N_JOBS_PARAM = 'n_jobs'
     RANDOM_STATE_PARAM = 'random_state'
-    VERBOSE_PARAM = 'verbose'
     PREDICTION_PARAM = 'prediction'
     LABEL_PARAM = 'label'
     FEATURES_PARAM = 'features'
@@ -931,7 +927,6 @@ class RandomForestRegressorOperation(RegressionOperation):
             self.oob_score = int(parameters.get(self.OOB_SCORE_PARAM, 1) or 1)
             self.n_jobs = int(parameters.get(self.N_JOBS_PARAM, 0) or 0)
             self.random_state = parameters.get(self.RANDOM_STATE_PARAM, None)
-            self.verbose = int(parameters.get(self.VERBOSE_PARAM, 0) or 0)
             self.features = parameters['features']
             self.label = parameters.get(self.LABEL_PARAM, None)
             self.prediction = self.parameters.get(self.PREDICTION_PARAM, 'prediction')
@@ -1005,11 +1000,6 @@ class RandomForestRegressorOperation(RegressionOperation):
                 _("Parameter '{}' must be x>=0 or None for task {}").format(
                     self.MIN_IMPURITY_DECREASE_PARAM, self.__class__))
 
-        if self.verbose < 0:
-            raise ValueError(
-                _("Parameter '{}' must be x>=0 or None for task {}").format(
-                    self.VERBOSE_PARAM, self.__class__))
-
     def generate_code(self):
         if self.has_code:
 
@@ -1034,7 +1024,7 @@ class RandomForestRegressorOperation(RegressionOperation):
                         max_leaf_nodes={max_leaf_nodes}, 
                         min_impurity_decrease={min_impurity_decrease}, 
                         bootstrap={bootstrap},
-                        oob_score={oob_score}, verbose={verbose}, warm_start=False)
+                        oob_score={oob_score}, warm_start=False)
                 {model}.fit(X_train, y)          
                 {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
                 """).format(copy_code=copy_code,
@@ -1055,7 +1045,6 @@ class RandomForestRegressorOperation(RegressionOperation):
                             min_impurity_decrease=self.min_impurity_decrease,
                             bootstrap=self.bootstrap,
                             oob_score=self.oob_score,
-                            verbose=self.verbose,
                             features=self.features,
                             label=self.label)
 
@@ -1086,7 +1075,6 @@ class SGDRegressorOperation(RegressionOperation):
     PENALTY_PARAM = 'penalty'
     FIT_INTERCEPT_PARAM = 'fit_intercept'
     ETA0_PARAM = 'eta0'
-    VERBOSE_PARAM = 'verbose'
     AVERAGE_PARAM = 'average'
     LEARNING_RATE_PARAM = 'learning_rate'
     SHUFFLE_PARAM = 'shuffle'
@@ -1130,7 +1118,6 @@ class SGDRegressorOperation(RegressionOperation):
             self.penalty = parameters.get(self.PENALTY_PARAM, 'l2')
             self.fit_intercept = int(parameters.get(self.FIT_INTERCEPT_PARAM, 1))
             self.eta0 = float(parameters.get(self.ETA0_PARAM, 0.01))
-            self.verbose = int(parameters.get(self.VERBOSE_PARAM, 0))
             self.average = int(parameters.get(self.AVERAGE_PARAM, 1))
             self.learning_rate = parameters.get(self.LEARNING_RATE_PARAM, 'invscaling')
             self.shuffle = int(parameters.get(self.SHUFFLE_PARAM, 1))
@@ -1195,8 +1182,6 @@ class SGDRegressorOperation(RegressionOperation):
         self.fit_intercept = """fit_intercept={fit_intercept}"""\
             .format(fit_intercept=self.fit_intercept)
         functions_required.append(self.fit_intercept)
-        self.verbose = """verbose={verbose}""".format(verbose=self.verbose)
-        functions_required.append(self.verbose)
         self.average = """average={average}""".format(average=self.average)
         functions_required.append(self.average)
         self.learning_rate = """learning_rate='{learning_rate}'"""\
