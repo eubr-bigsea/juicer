@@ -708,7 +708,7 @@ class JoinOperation(Operation):
         self.right_attributes = parameters.get(self.RIGHT_ATTRIBUTES_PARAM)
 
         self.suffixes = parameters.get('aliases', '_l,_r')
-        self.suffixes = [s for s in self.suffixes.split(',')]
+        self.suffixes = [s for s in self.suffixes.replace(" ", "").split(',')]
         self.output = self.named_outputs.get('output data',
                                              'output_data_{}'.format(
                                                  self.order))

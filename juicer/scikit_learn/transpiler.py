@@ -97,7 +97,7 @@ class ScikitLearnTranspiler(Transpiler):
             'quantile-discretizer':
                 feature_extraction.QuantileDiscretizerOperation,
             'standard-scaler': feature_extraction.StandardScalerOperation,
-            'string-indexer': feature_extraction.StringIndexerOperation,
+            'feature-indexer': feature_extraction.StringIndexerOperation,
 
             # ------ Model Operations  ------#
             'apply-model': model.ApplyModelOperation,

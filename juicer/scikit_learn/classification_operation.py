@@ -367,7 +367,7 @@ class GBTClassifierOperation(Operation):
                 criterion='{criterion}', 
                 min_weight_fraction_leaf={min_weight_fraction_leaf}, 
                 min_impurity_decrease={min_impurity_decrease}, init={init},
-                max_features={max_features}, verbose=False, 
+                max_features={max_features},
                 max_leaf_nodes={max_leaf_nodes}, warm_start=False, 
                 presort='{presort}', validation_fraction={validation_fraction}, 
                 n_iter_no_change={n_iter_no_change}, tol={tol})
@@ -521,7 +521,6 @@ class LogisticRegressionOperation(Operation):
     MULTI_CLASS_PARAM = 'multi_class'
     N_JOBS_PARAM = 'n_jobs'
     L1_RATIO_PARAM = 'l1_ratio'
-    VERBOSE_PARAM = 'verbose'
 
     SOLVER_PARAM_NEWTON = 'newton-cg'
     SOLVER_PARAM_LBFGS = 'lbfgs'
@@ -589,12 +588,6 @@ class LogisticRegressionOperation(Operation):
                 raise ValueError(
                         _("Parameter '{}' must be x>0 for task {}").format(
                             self.INTERCEPT_SCALING_PARAM, self.__class__))
-
-            self.verbose = int(parameters.get(self.VERBOSE_PARAM, 0))
-            if(self.verbose < 0):
-                raise ValueError(
-                        _("Parameter '{}' must be x>=0 for task {}").format(
-                            self.VERBOSE_PARAM, self.__class__))
 
             n_jobs_ = parameters.get(self.N_JOBS_PARAM, None)
             if n_jobs_ is not None:
@@ -672,7 +665,7 @@ class LogisticRegressionOperation(Operation):
             solver='{solver}', random_state={seed}, penalty='{penalty}', 
             dual={dual}, fit_intercept={fit_intercept}, 
             intercept_scaling={intercept_scaling}, multi_class='{multi_class}',
-            verbose={verbose}, n_jobs={n_jobs}, l1_ratio={l1_ratio})
+            n_jobs={n_jobs}, l1_ratio={l1_ratio})
 
             X_train = get_X_train_data({input}, {features})
             y = get_label_data({input}, {label})
@@ -685,7 +678,7 @@ class LogisticRegressionOperation(Operation):
                        solver=self.solver, penalty=self.penalty,
                        dual=self.dual, fit_intercept=self.fit_intercept,
                        intercept_scaling=self.intercept_scaling,
-                       multi_class=self.multi_class, verbose=self.verbose,
+                       multi_class=self.multi_class,
                        n_jobs=self.n_jobs, l1_ratio=self.l1_ratio,
                        model=self.model, input=self.input_port,
                        label=self.label, output=self.output,
@@ -1111,7 +1104,6 @@ class PerceptronClassifierOperation(Operation):
     PENALTY_PARAM = 'penalty'
     MAX_ITER_PARAM = 'max_iter'
     FIT_INTERCEPT_PARAM = 'fit_intercept'
-    VERBOSE_PARAM = 'verbose'
     ETA0_PARAM = 'eta0'
     N_JOBS_PARAM = 'n_jobs'
     EARLY_STOPPING_PARAM = 'early_stopping'
@@ -1151,7 +1143,6 @@ class PerceptronClassifierOperation(Operation):
                     self.PENALTY_PARAM,
                     self.PENALTY_PARAM_NONE) or self.PENALTY_PARAM_NONE
             self.fit_intercept = int(parameters.get(self.FIT_INTERCEPT_PARAM, 1) or 1)
-            self.verbose = int(parameters.get(self.VERBOSE_PARAM, 0) or 0)
             self.eta0 = float(parameters.get(self.ETA0_PARAM, 1) or 1)
             self.n_jobs = parameters.get(self.N_JOBS_PARAM, None) or None
             self.early_stopping = int(parameters.get(self.EARLY_STOPPING_PARAM, 0) or 0)
@@ -1209,13 +1200,13 @@ class PerceptronClassifierOperation(Operation):
             if {early_stopping} == 1:
                 {model} = Perceptron(tol={tol}, alpha={alpha}, max_iter={max_iter}, shuffle={shuffle}, 
                                       random_state={seed}, penalty='{penalty}', fit_intercept={fit_intercept}, 
-                                      verbose={verbose}, eta0={eta0}, n_jobs={n_jobs}, early_stopping={early_stopping}, 
+                                      eta0={eta0}, n_jobs={n_jobs}, early_stopping={early_stopping}, 
                                       validation_fraction={validation_fraction}, n_iter_no_change={n_iter_no_change}, 
                                       class_weight={class_weight}, warm_start=False)
             else:
                 {model} = Perceptron(tol={tol}, alpha={alpha}, max_iter={max_iter}, shuffle={shuffle}, 
                                       random_state={seed}, penalty='{penalty}', fit_intercept={fit_intercept}, 
-                                      verbose={verbose}, eta0={eta0}, n_jobs={n_jobs}, early_stopping={early_stopping}, 
+                                      eta0={eta0}, n_jobs={n_jobs}, early_stopping={early_stopping}, 
                                       n_iter_no_change={n_iter_no_change}, class_weight={class_weight}, 
                                       warm_start=False)
             {model}.fit(X_train, y)          
@@ -1234,7 +1225,6 @@ class PerceptronClassifierOperation(Operation):
                        features=self.features,
                        label=self.label,
                        fit_intercept=self.fit_intercept,
-                       verbose=self.verbose,
                        eta0=self.eta0,
                        n_jobs=self.n_jobs,
                        early_stopping=self.early_stopping,
@@ -1261,7 +1251,6 @@ class RandomForestClassifierOperation(Operation):
     BOOTSTRAP_PARAM = 'bootstrap'
     OOB_SCORE_PARAM = 'oob_score'
     N_JOBS_PARAM = 'n_jobs'
-    VERBOSE_PARAM = 'verbose'
     CCP_ALPHA_PARAM = 'ccp_alpha'
     MAX_SAMPLES_PARAM = 'max_samples'
 
@@ -1344,8 +1333,8 @@ class RandomForestClassifierOperation(Operation):
                         _("Parameter '{}' must be x>0 and x < n_features for task {}").format(
                         self.MAX_FEATURES_PARAM, self.__class__))
 
-            vals = [self.verbose, self.min_impurity_decrease, self.ccp_alpha]
-            atts = [self.VERBOSE_PARAM, self.MIN_IMPURITY_DECREASE_PARAM, self.CCP_ALPHA_PARAM]
+            vals = [self.min_impurity_decrease, self.ccp_alpha]
+            atts = [self.MIN_IMPURITY_DECREASE_PARAM, self.CCP_ALPHA_PARAM]
             for var, att in zip(vals, atts):
                 if var < 0:
                     raise ValueError(
@@ -1481,24 +1470,15 @@ class SvmClassifierOperation(Operation):
                     self.KERNEL_PARAM_RBF) or self.KERNEL_PARAM_RBF
             self.c = float(parameters.get(self.PENALTY_PARAM, 1.0) or 1.0)
 
-            gamma_ = parameters.get(self.GAMMA_PARAM, None)
-            if gamma_ is None:
-                self.gamma = 'scale'
-            else:
-                self.gamma = float(gamma_)
-                if self.gamma < 0 and self.kernel != 'linear':
-                    raise ValueError(
-                        _("Parameter '{}' must be x>=0 for task {}").format(
-                            self.GAMMA_PARAM, self.__class__))
+            self.gamma = parameters.get(self.GAMMA_PARAM, 'scale')
 
             self.coef0 = float(parameters.get(self.COEF0_PARAM, 0.0) or 0.0)
             self.shrinking = int(parameters.get(self.SHRINKING_PARAM, 1)) == 1
             self.probability = int(parameters.get(self.PROBABILITY_PARAM, 0)) == 1
-            self.cache_size = float(parameters.get(self.CACHE_SIZE_PARAM, 200.0) or 200.0)
             self.decision_function_shape = parameters.get(
                     self.DECISION_FUNCTION_SHAPE_PARAM, 'ovr') or 'ovr'
 
-            vals = [self.degree, self.c, self.cache_size]
+            vals = [self.degree, self.c]
             atts = [self.DEGREE_PARAM, self.PENALTY_PARAM, self.CACHE_SIZE_PARAM]
             for var, att in zip(vals, atts):
                 if var <= 0:
@@ -1524,10 +1504,10 @@ class SvmClassifierOperation(Operation):
         code = """
         {model} = SVC(tol={tol}, C={c}, max_iter={max_iter}, 
                        degree={degree}, kernel='{kernel}', random_state={seed},
-                       gamma={gamma}, coef0={coef0}, probability={prob},
-                       cache_size={cache},shrinking={shrinking}, 
+                       gamma='{gamma}', coef0={coef0}, probability={prob},
+                       shrinking={shrinking}, 
                        decision_function_shape='{decision_func_shape}',
-                       class_weight=None, verbose=False)
+                       class_weight=None)
 
         X_train = get_X_train_data({input}, {features})
         y = get_label_data({input}, {label})
@@ -1539,7 +1519,7 @@ class SvmClassifierOperation(Operation):
         """.format(tol=self.tol, c=self.c, max_iter=self.max_iter,
                    degree=self.degree, kernel=self.kernel, seed=self.seed,
                    gamma=self.gamma, coef0=self.coef0, prob=self.probability,
-                   cache=self.cache_size, shrinking=self.shrinking,
+                   shrinking=self.shrinking,
                    decision_func_shape=self.decision_function_shape,
                    model=self.model, input=self.input_port, label=self.label,
                    features=self.features, prediction_column=self.prediction,
