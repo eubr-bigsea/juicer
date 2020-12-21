@@ -140,6 +140,7 @@ class DataReaderOperation(Operation):
         infer_from_limonero = self.infer_schema == self.INFER_FROM_LIMONERO
         do_not_infer = self.infer_schema == self.DO_NOT_INFER
         mode_failfast = self.mode == self.OPT_MODE_FAILFAST
+        new_columns = None
         if self.has_code:
             if infer_from_limonero:
                 self.header = self.metadata.get('is_first_line_header')
@@ -148,8 +149,10 @@ class DataReaderOperation(Operation):
                     parse_dates = []
                     converters = {}
                     attrs = self.metadata.get('attributes', [])
+                    new_columns = []
                     if attrs:
                         for attr in attrs:
+                            new_columns.append(attr['name'])
                             if attr['type'] == 'DATETIME':
                                 parse_dates.append(attr['name'])
                             # elif attr['type'] == 'DECIMAL':
@@ -218,12 +221,14 @@ class DataReaderOperation(Operation):
                         {output} = pd.read_csv(f, sep='{sep}',
                                                encoding='{encoding}',
                                                header=header,
+                                               names={new_columns},
                                                na_values={na_values},
                                                dtype=columns,
                                                parse_dates=parse_dates,
                                                converters=converters,
                                                error_bad_lines={mode})
                         f.close()
+                           
                         if header is None:
                             {output}.columns = ['col_{{col}}'.format(
                                 col=col) for col in {output}.columns]
@@ -231,6 +236,7 @@ class DataReaderOperation(Operation):
                                 input=parsed.path,
                                 sep=self.sep,
                                 encoding=encoding,
+                                new_columns=new_columns,
                                 mode=mode_failfast,
                                 header=0 if self.header else 'None',
                                 na_values=self.null_values if len(
