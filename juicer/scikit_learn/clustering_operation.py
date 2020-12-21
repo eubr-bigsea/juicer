@@ -483,8 +483,8 @@ class LdaClusteringOperation(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-        self.has_code = len(named_inputs) > 0 and any(
-            [len(self.named_outputs) > 0, self.contains_results()])
+        self.has_code = len(self.named_inputs) >= 1 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
         if self.has_code:
             self.output = named_outputs.get(
                     'output data', 'sampled_data_{}'.format(self.order))
@@ -499,16 +499,16 @@ class LdaClusteringOperation(Operation):
             self.max_iter = parameters.get(self.MAX_ITER_PARAM, 10) or 10
 
             self.doc_topic_pior = \
-                parameters.get(self.ALPHA_PARAM, 'None') or 'None'
+                parameters.get(self.ALPHA_PARAM, None) or None
             self.topic_word_prior = parameters.get(self.ETA_PARAM,
-                                                   'None') or 'None'
+                                                   None) or None
 
-            self.seed = parameters.get(self.SEED_PARAM, 'None') or 'None'
+            self.seed = parameters.get(self.SEED_PARAM, None) or None
 
             if self.learning_method not in [self.LEARNING_METHOD_ON,
                                             self.LEARNING_METHOD_BA]:
                 raise ValueError(
-                    _('Invalid optimizer value {} for class {}').format(
+                    _("Invalid optimizer value '{}' for class {}").format(
                         self.learning_method, self.__class__))
 
             vals = [self.n_clusters, self.max_iter]
@@ -537,36 +537,40 @@ class LdaClusteringOperation(Operation):
         return sep.join([self.output, self.model])
 
     def generate_code(self):
-        """Generate code."""
-        copy_code = ".copy()" \
-            if self.parameters['multiplicity']['train input data'] > 1 else ""
+        if self.has_code:
+            """Generate code."""
+            copy_code = ".copy()" \
+                if self.parameters['multiplicity']['train input data'] > 1 else ""
 
-        code = """
-        {model} = LatentDirichletAllocation(n_components={n_components}, 
-        doc_topic_prior={doc_topic_prior}, topic_word_prior={topic_word_prior}, 
-        learning_method='{learning_method}', max_iter={max_iter})
-        
-        X_train = get_X_train_data({input}, '{input_col}')
-        {model}.fit(X_train)
-        """.format(n_components=self.n_clusters, max_iter=self.max_iter,
-                   doc_topic_prior=self.doc_topic_pior,
-                   topic_word_prior=self.topic_word_prior,
-                   learning_method=self.learning_method,
-                   output=self.output,
-                   model=self.model,
-                   input_col=self.features[0],
-                   input=self.named_inputs['train input data'])
+            code = """
+            from sklearn.decomposition import LatentDirichletAllocation
+            from juicer.scikit_learn.util import get_label_data, get_X_train_data
+            {model} = LatentDirichletAllocation(n_components={n_components}, 
+            doc_topic_prior={doc_topic_prior}, topic_word_prior={topic_word_prior}, 
+            learning_method='{learning_method}', max_iter={max_iter}, random_state={seed})
+            
+            X_train = get_X_train_data({input}, {input_col})
+            {model}.fit(X_train)
+            """.format(n_components=self.n_clusters, max_iter=self.max_iter,
+                       doc_topic_prior=self.doc_topic_pior,
+                       topic_word_prior=self.topic_word_prior,
+                       learning_method=self.learning_method,
+                       output=self.output,
+                       model=self.model,
+                       input_col=self.features,
+                       input=self.named_inputs['train input data'],
+                       seed=self.seed)
 
-        if self.contains_results() or 'output data' in self.named_outputs:
-            code += """
+            if self.contains_results() or 'output data' in self.named_outputs:
+                code += """
             {output} = {input}{copy_code}
             {output}['{pred_col}'] = {model}.transform(X_train).tolist()
-            """.format(copy_code=copy_code,
-                       output=self.output, model=self.model,
-                       pred_col=self.prediction, input_col=self.features[0],
-                       input=self.named_inputs['train input data'])
+                """.format(copy_code=copy_code,
+                           output=self.output, model=self.model,
+                           pred_col=self.prediction, input_col=self.features[0],
+                           input=self.named_inputs['train input data'])
 
-        return dedent(code)
+            return dedent(code)
 
 
 class TopicReportOperation(ReportOperation):
