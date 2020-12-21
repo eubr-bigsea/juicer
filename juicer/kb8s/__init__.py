@@ -4,6 +4,7 @@ import logging.config
 
 from kubernetes import client
 from kubernetes.client.rest import ApiException
+from gettext import gettext
 
 logging.config.fileConfig('logging_config.ini')
 log = logging.getLogger('juicer.kb8s')
@@ -80,7 +81,9 @@ def create_kb8s_job(workflow_id, minion_cmd, cluster):
     configuration.verify_ssl = False
     configuration.debug = False
     if 'general_parameters' not in cluster:
-        raise ValueError('Incorrect cluster config.')
+        raise ValueError(
+            gettext(
+                'Incorrect cluster config (missing general_parameters).'))
 
     cluster_params = {}
     for parameter in cluster['general_parameters'].split(','):
