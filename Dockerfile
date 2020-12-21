@@ -12,7 +12,7 @@ ENV TERM=xterm\
     DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y \
-      python3 \
+      python3.7-dev \
       python3-pip \
       python3-dev \
       python3-tk \
@@ -21,7 +21,9 @@ RUN apt-get update && apt-get install -y \
       curl \
       graphviz \
       locales \
-  && update-alternatives --install /usr/bin/python python /usr/bin/python3.6 10 \
+  && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.7 2 \
+  && update-alternatives --install /usr/bin/python python /usr/bin/python3 1 \
+  && update-alternatives --install /usr/bin/pip pip /usr/bin/pip3 1\
   && sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen \
   && locale-gen \
   && update-locale LANG=en_US.UTF-8 \
