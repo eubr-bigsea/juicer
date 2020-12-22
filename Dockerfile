@@ -11,7 +11,7 @@ ENV TERM=xterm\
     TZ=America/Sao_Paulo\
     DEBIAN_FRONTEND=noninteractive
 
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y \ 
       python3.7-dev \
       python3-pip \
       python3-dev \
@@ -49,6 +49,21 @@ RUN SPARK_LATEST_VERSION=$(\
     ln -s /usr/local/spark /opt/spark
 
 WORKDIR $JUICER_HOME
+
+ENV ARROW_LIBHDFS_DIR /usr/local/juicer/native
+ENV HADOOP_HOME /usr/local/juicer/
+ENV HADOOP_VERSION_BASE=2.10.1
+
+RUN curl -sL https://downloads.apache.org/hadoop/common/hadoop-${HADOOP_VERSION_BASE}/hadoop-${HADOOP_VERSION_BASE}.tar.gz | tar -xz -C /tmp/ &&\
+    mv /tmp/hadoop-${HADOOP_VERSION_BASE}/lib/native ${ARROW_LIBHDFS_DIR} &&\
+    mv /tmp/hadoop-${HADOOP_VERSION_BASE}/share/hadoop/common/lib/* ${JUICER_HOME}/jars/ &&\
+    mv /tmp/hadoop-${HADOOP_VERSION_BASE}/share/hadoop/common/*.jar ${JUICER_HOME}/jars/ &&\
+    mv /tmp/hadoop-${HADOOP_VERSION_BASE}/share/hadoop/hdfs/lib/* ${JUICER_HOME}/jars/ &&\
+    mv /tmp/hadoop-${HADOOP_VERSION_BASE}/share/hadoop/hdfs/lib/*.jar ${JUICER_HOME}/jars/ &&\
+    rm -r /tmp/hadoop-${HADOOP_VERSION_BASE}
+
+ENV CLASSPATH /usr/local/juicer/jars/*
+
 COPY requirements.txt $JUICER_HOME
 
 RUN pip3 install -r $JUICER_HOME/requirements.txt --no-cache-dir
