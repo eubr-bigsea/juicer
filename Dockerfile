@@ -60,7 +60,7 @@ RUN curl -sL https://downloads.apache.org/hadoop/common/hadoop-${HADOOP_VERSION_
     mv /tmp/hadoop-${HADOOP_VERSION_BASE}/share/hadoop/common/lib/* ${JUICER_HOME}/jars/ &&\
     mv /tmp/hadoop-${HADOOP_VERSION_BASE}/share/hadoop/common/*.jar ${JUICER_HOME}/jars/ &&\
     mv /tmp/hadoop-${HADOOP_VERSION_BASE}/share/hadoop/hdfs/lib/* ${JUICER_HOME}/jars/ &&\
-    mv /tmp/hadoop-${HADOOP_VERSION_BASE}/share/hadoop/hdfs/lib/*.jar ${JUICER_HOME}/jars/ &&\
+    mv /tmp/hadoop-${HADOOP_VERSION_BASE}/share/hadoop/hdfs/*.jar ${JUICER_HOME}/jars/ &&\
     rm -r /tmp/hadoop-${HADOOP_VERSION_BASE}
 
 ENV CLASSPATH /usr/local/juicer/jars/*
