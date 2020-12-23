@@ -1,5 +1,7 @@
 from textwrap import dedent
 from juicer.operation import Operation
+from .util import get_X_train_data
+
 import json
 try:
     from itertools import zip_longest as zip_longest
@@ -81,6 +83,7 @@ class MinMaxScalerOperation(Operation):
                                     'scaled_{}'.format(self.order))
         self.min = parameters.get(self.MIN_PARAM, 0)
         self.max = parameters.get(self.MAX_PARAM, 1)
+
 
     def get_data_out_names(self, sep=','):
         return self.output
@@ -307,6 +310,12 @@ class QuantileDiscretizerOperation(Operation):
                         _("Parameter '{}' must be x>0 for task {}").format(
                                 self.N_QUANTILES_PARAM, self.__class__))
 
+            self.transpiler_utils.add_custom_function(
+                'get_X_train_data', get_X_train_data)
+            self.transpiler_utils.add_import(
+                'from sklearn.preprocessing import KBinsDiscretizer')
+
+
     def generate_code(self):
         """Generate code."""
         copy_code = ".copy()" \
@@ -314,7 +323,6 @@ class QuantileDiscretizerOperation(Operation):
 
         code = """
         {output} = {input}{copy_code}
-        from sklearn.preprocessing import KBinsDiscretizer
         {model} = KBinsDiscretizer(n_bins={n_quantiles}, 
             encode='ordinal', strategy='{strategy}')
         X_train = get_X_train_data({input}, {att})
