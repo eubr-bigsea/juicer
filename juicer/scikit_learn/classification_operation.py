@@ -191,6 +191,8 @@ class DecisionTreeClassifierOperation(Operation):
             if self.parameters['multiplicity']['train input data'] > 1 else ""
 
         code = """
+            from juicer.scikit_learn.util import get_label_data, get_X_train_data
+            from sklearn.tree import DecisionTreeClassifier
             {output_data} = {input_data}{copy_code}         
             X_train = get_X_train_data({input_data}, {columns})
             y = get_label_data({input_data}, {label})
