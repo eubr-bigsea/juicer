@@ -84,7 +84,6 @@ class ClassificationModelOperation(Operation):
 
 
 class DecisionTreeClassifierOperation(Operation):
-
     MAX_DEPTH_PARAM = 'max_depth'
     MIN_SPLIT_PARAM = 'min_samples_split'
     MIN_LEAF_PARAM = 'min_samples_leaf'
@@ -104,7 +103,8 @@ class DecisionTreeClassifierOperation(Operation):
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
 
-        self.has_code = any([len(self.named_inputs) == 1, self.contains_results()])
+        self.has_code = len(self.named_inputs) == 1 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
 
@@ -123,7 +123,7 @@ class DecisionTreeClassifierOperation(Operation):
             self.criterion = parameters.get(self.CRITERION_PARAM, 'gini') or 'gini'
             self.splitter = parameters.get(self.SPLITTER_PARAM, 'best') or 'best'
             max_features_ = parameters.get(self.MAX_FEATURES_PARAM, None)
-            self.max_features = None if max_features_ is None else "'"+max_features_+"'"
+            self.max_features = max_features_
             self.max_leaf_nodes = parameters.get(self.MAX_LEAF_NODES_PARAM, None) or None
             self.min_impurity_decrease = float(parameters.get(self.MIN_IMPURITY_DECREASE_PARAM, 0) or 0)
             self.class_weight = parameters.get(self.CLASS_WEIGHT_PARAM, None) or None
@@ -186,48 +186,49 @@ class DecisionTreeClassifierOperation(Operation):
             self.seed = None
 
     def generate_code(self):
-        """Generate code."""
-        copy_code = ".copy()" \
-            if self.parameters['multiplicity']['train input data'] > 1 else ""
+        if self.has_code:
+            """Generate code."""
+            copy_code = ".copy()" \
+                if self.parameters['multiplicity']['train input data'] > 1 else ""
 
-        code = """
-            from juicer.scikit_learn.util import get_label_data, get_X_train_data
-            from sklearn.tree import DecisionTreeClassifier
-            {output_data} = {input_data}{copy_code}         
-            X_train = get_X_train_data({input_data}, {columns})
-            y = get_label_data({input_data}, {label})
-            y = np.reshape(y, len(y))
-            {model} = DecisionTreeClassifier(max_depth={max_depth}, 
-                min_samples_split={min_split}, 
-                min_samples_leaf={min_leaf}, 
-                min_weight_fraction_leaf={min_weight}, 
-                random_state={seed}, criterion='{criterion}', 
-                splitter='{splitter}', max_features={max_features},
-                max_leaf_nodes={max_leaf_nodes}, 
-                min_impurity_decrease={min_impurity_decrease}, 
-                class_weight={class_weight}, presort={presort})
-            {model}.fit(X_train, y)          
-            {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
-            """.format(copy_code=copy_code,
-                       output_data=self.output,
-                       prediction=self.prediction,
-                       columns=self.features,
-                       model=self.model,
-                       input_data=self.input_port,
-                       label=self.label,
-                       min_split=self.min_split,
-                       min_leaf=self.min_leaf,
-                       min_weight=self.min_weight,
-                       seed=self.seed,
-                       max_depth=self.max_depth,
-                       criterion=self.criterion,
-                       splitter=self.splitter,
-                       max_features=self.max_features,
-                       max_leaf_nodes=self.max_leaf_nodes,
-                       min_impurity_decrease=self.min_impurity_decrease,
-                       class_weight=self.class_weight,
-                       presort=self.presort)
-        return dedent(code)
+            code = """
+                from juicer.scikit_learn.util import get_label_data, get_X_train_data
+                from sklearn.tree import DecisionTreeClassifier
+                {output_data} = {input_data}{copy_code}         
+                X_train = get_X_train_data({input_data}, {columns})
+                y = get_label_data({input_data}, {label})
+                y = np.reshape(y, len(y))
+                {model} = DecisionTreeClassifier(max_depth={max_depth}, 
+                    min_samples_split={min_split}, 
+                    min_samples_leaf={min_leaf}, 
+                    min_weight_fraction_leaf={min_weight}, 
+                    random_state={seed}, criterion='{criterion}', 
+                    splitter='{splitter}', max_features={max_features},
+                    max_leaf_nodes={max_leaf_nodes}, 
+                    min_impurity_decrease={min_impurity_decrease}, 
+                    class_weight={class_weight}, presort={presort})
+                {model}.fit(X_train, y)          
+                {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
+                """.format(copy_code=copy_code,
+                           output_data=self.output,
+                           prediction=self.prediction,
+                           columns=self.features,
+                           model=self.model,
+                           input_data=self.input_port,
+                           label=self.label,
+                           min_split=self.min_split,
+                           min_leaf=self.min_leaf,
+                           min_weight=self.min_weight,
+                           seed=self.seed,
+                           max_depth=self.max_depth,
+                           criterion=self.criterion,
+                           splitter=self.splitter,
+                           max_features=self.max_features,
+                           max_leaf_nodes=self.max_leaf_nodes,
+                           min_impurity_decrease=self.min_impurity_decrease,
+                           class_weight=self.class_weight,
+                           presort=self.presort)
+            return dedent(code)
 
 
 class GBTClassifierOperation(Operation):
