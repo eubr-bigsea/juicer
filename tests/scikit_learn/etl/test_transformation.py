@@ -33,6 +33,7 @@ def test_function_implementation():
     """ Test if all functions supported in Lemonade are 
     mapped in scikit-learn transpiler. 
     """
+    now = datetime.datetime.now()
     all_functions = [
         ##("abs", "sepalwidth", [], None),
         ##("acos", "sepalwidth", [], None),
@@ -174,27 +175,35 @@ def test_function_implementation():
         ("to_json", "sepalwidth", [], None),
         #("to_timestamp", "sepalwidth", [], None),
         #("to_utc_timestamp", "date", [], None),
-        # ("translate", "sepalwidth", [], None),
+        ("translate", "class", ['ris', 'XYZ'], 
+                lambda row: row['translate_new'] != row['class'].replace('ris', 'XYZ')),
         ("trim", "class", [], None),
-        ("trunc", "sepalwidth", [], None),
+        ("trunc", "date", ['yyyy'], 
+            lambda row: row['trunc_new'] != datetime.date.today().replace(month=1, day=1)),
+        ("trunc", "date", ['yyyy'], 
+            lambda row: row['trunc_new'] != datetime.date.today().replace(day=1)),
+        ("trunc", "date", ['mm'], 
+            lambda row: row['trunc_new'] != datetime.date.today().replace(day=1)),
         ("unbase64", "base64", [], None),
         ("unhex", "hex", [], None),
         ("unix_timestamp", "date_str", [], None),
         ("upper", "class", [], None),
     ]
+    to_test = ['translate']
     dd = ['df', util.iris(['sepalwidth', 
          'petalwidth', 'class'], 10)]
 
     df = dd[1]
 
     df['date_str'] = pd.Series(['2020-01-01 12:32:12' for x in range(10)]) 
-    df['date'] = pd.Series([datetime.datetime.now() for x in range(10)]) 
+    df['date'] = pd.Series([now for x in range(10)]) 
     df['hex'] = pd.Series(['Fa03' for x in range(10)]) 
     df['base64'] = pd.Series([base64.b64encode('test lemonade'.encode('utf8')) for x in range(10)]) 
     df['int_value'] = pd.Series([888 for x in range(10)]) 
     df['array_value'] = pd.Series([[random.randrange(1, 10, 1) for i in range(5)] for x in range(10)]) 
 
-    for f, field, args, test in all_functions[:10]:
+    test_functions = [x for x in all_functions if x[0] in to_test]
+    for f, field, args, test in test_functions:
         expr = {
                 "alias":"{}_new".format(f),
                 "expression":"{}(attr0)".format(f),

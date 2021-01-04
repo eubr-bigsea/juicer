@@ -445,15 +445,11 @@ class Expression:
         self.translate_functions.update(translate_functions)
 
         # define functions for strings
-        string_overwrites = {
-            "upper": "upper",
-        }
-        self.translate_functions.update(string_overwrites)
-
         self.imports_functions = {
             "str2time": "from dateutil import parser",
             "strip_accents": "import unicodedata",
             "strip_punctuation": "import string",
+            "translate": "from string import maketrans",
 
         }
 
@@ -512,10 +508,20 @@ class Expression:
             'shiftRight': lambda s, p: self.get_numpy_function_call(s, p, 'right_shift'),
             'signum': lambda s, p: self.get_numpy_function_call(s, p, 'sign'),
             'to_json': lambda s, p: self.get_function_call(s, p, 'json.dumps'), # TODO: Handle some data types
+            'translate': lambda s, p: '{}.translate(maketrans({}, {}))'.format(
+                    self.parse(s['arguments'][0], p), 
+                    self.parse(s['arguments'][1], p),
+                    self.parse(s['arguments'][2], p)),
             'trim': lambda s, p: self.get_function_call(s, p, 'str.strip'),
+            'trunc': lambda s, p: '{}.replace(day=1, hour=0, minute=0, second=0, microsecond=0)'.format(
+                    self.parse(s['arguments'][0], p)) if s['arguments'][1] in ['month', 'mon', 'mm'] 
+                    else '{}.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)'.format(
+                        self.parse(s['arguments'][0], p)),
             'unbase64': lambda s, p: self.get_function_call(s, p, 'base64.b64decode'),
             'unhex': lambda s, p: self.get_function_call(
                 self.inject_argument(s, 1, {'type': 'Literal', 'value': 16, 'raw': 16}), p, 'int'),
             'unix_timestamp': lambda s, p: self.get_function_call(s, p, 'pd.to_datetime'),
+            "upper": "upper",
         }
         self.functions.update(others_functions)
+        import pdb; pdb.set_trace()

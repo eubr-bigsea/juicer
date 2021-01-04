@@ -40,9 +40,9 @@ def get_common_imports():
     return '\n'.join([
         'import pandas as pd', 'import numpy as np', 
         'import base64', 'import json',
-        'import datetime',
+        'import datetime', 'import string',
         'global np', 'global pd', 'global base64', 
-        'global json', 'global datetime'
+        'global json', 'global datetime', 'global string',
     ])
 
 
