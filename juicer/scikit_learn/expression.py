@@ -68,7 +68,7 @@ class Expression:
 
         return result
 
-    def get_numpy_function_call(self, spec, params):
+    def get_numpy_function_call(self, spec, params, alias=None):
         """
         Wrap column name with row() function call, if such call is not present.
         Convert the function to np.function.
@@ -78,6 +78,9 @@ class Expression:
         """
         callee = spec['arguments'][0].get('callee', {})
         function = spec['callee']['name']
+        if alias is not None and alias != function:
+            function = alias
+
         function = self.translate_functions[
             function] if function in self.translate_functions else function
         # Evaluates if column name is wrapped in a col() function call
@@ -87,18 +90,21 @@ class Expression:
         result = " np.{}({})".format(function, arguments)
         return result
 
-    def get_function_call(self, spec, params):
+    def get_function_call(self, spec, params, alias=None):
         """
         Wrap column name with row() function call, if such call is not present.
         Custom functions or like "len()" or "str()"
 
         Example: len(col) will be converted to len(col)
         """
+        # import pdb; pdb.set_trace()
         callee = spec['arguments'][0].get('callee', {})
         # Evaluates if column name is wrapped in a col() function call
         arguments = ', '.join(
             [self.parse(x, params) for x in spec['arguments']])
         function_name = spec['callee']['name']
+        if alias is not None and alias != function_name:
+            function_name = alias
         result = "{}({})".format(function_name, arguments)
         return result
 
@@ -157,6 +163,28 @@ class Expression:
         result = "{}.{}({})".format(origin, function, arguments)
         return result
 
+    def get_date_instance_attribute_call(self, spec, params, alias=None):
+        """
+        """
+        callee = spec['arguments'][0].get('callee', {})
+        function = spec['callee']['name']
+        if function in self.imports_functions:
+            imp = self.imports_functions[function] + "\n"
+            if imp not in self.imports:
+                self.imports += imp
+        # Evaluates if column name is wrapped in a col() function call
+        args = [self.parse(x, params) for x in spec['arguments']]
+        origin = args[0]
+
+        arguments = ', '.join(args[1:])
+
+        if alias is not None and alias != function:
+            function = alias
+
+        result = "{}.{}".format(origin, function)
+        return result
+
+
     def get_window_function(self, spec, params):
         """
             Window function: group a datetime in bins
@@ -204,6 +232,10 @@ class Expression:
         result = '{}{}'.format(arguments, strip_punctuation)
         return result
 
+    def inject_argument(self, spec, inx, arg):
+        spec['arguments'].insert(inx, arg)
+        return spec
+
     def build_functions_dict(self):
 
         str_builtin_functions = \
@@ -226,6 +258,8 @@ class Expression:
             # See more at:
             # https://docs.scipy.org/doc/numpy-1.13.0/reference/routines.math.html
 
+            'abs': self.get_numpy_function_call,
+
             # Trigonometric functions:
             'sin': self.get_numpy_function_call,
             'cos': self.get_numpy_function_call,
@@ -233,6 +267,11 @@ class Expression:
             'arcsin': self.get_numpy_function_call,
             'arccos': self.get_numpy_function_call,
             'arctan': self.get_numpy_function_call,
+
+            'asin': lambda s, p: self.get_numpy_function_call(s, p, 'arcsin'),
+            'acos': lambda s, p: self.get_numpy_function_call(s, p, 'arccos'),
+            'atan': lambda s, p: self.get_numpy_function_call(s, p, 'arctan'),
+
             'hypot': self.get_numpy_function_call,
             'arctan2': self.get_numpy_function_call,
             'deg2rad': self.get_numpy_function_call,
@@ -335,6 +374,7 @@ class Expression:
             'utcfromtimestamp': self.get_date_function_call,
             'fromordinal': self.get_date_function_call,
             'combine': self.get_date_function_call,
+
         }
 
         date_instance_functions = {
@@ -404,6 +444,12 @@ class Expression:
         }
         self.translate_functions.update(translate_functions)
 
+        # define functions for strings
+        string_overwrites = {
+            "upper": "upper",
+        }
+        self.translate_functions.update(string_overwrites)
+
         self.imports_functions = {
             "str2time": "from dateutil import parser",
             "strip_accents": "import unicodedata",
@@ -420,6 +466,56 @@ class Expression:
             'strip_punctuation': self.get_strip_punctuation_function,
             'str': self.get_function_call,
             'length': self.get_function_call,
-            'len': self.get_function_call
+            'len': self.get_function_call,
+
+            'array_contains': lambda s, p: '{1} in {0}'.format(
+                self.parse(s['arguments'][0], p), self.parse(s['arguments'][1], p)),
+            'array_distinct': lambda s, p: 'np.unique({0}).ravel()'.format(self.parse(s['arguments'][0], p)),
+
+            'ascii': self.get_function_call, 
+            'atan2': lambda s, p: self.get_numpy_function_call(s, p, 'arctan2'), 
+            'bin': self.get_function_call, # TODO handle differences: python adds 0b to the result
+            'current_date': lambda s, p: 'datetime.date.today()',
+            'current_timestamp': lambda s, p: 'datetime.datetime.now()',
+            # 'datediff': lambda s, p: '{}[::-1]'.format(self.parse(s['arguments'][0], p))
+            'dayofmonth': lambda s,p: self.get_date_instance_attribute_call(s, p, 'day'),
+            'dayofweek': self.get_date_instance_attribute_call,
+            'dayofyear': self.get_date_instance_attribute_call,
+            'degrees': self.get_numpy_function_call,
+            'instr': lambda s, p: self.get_function_call(s, p, 'str.find'), 
+            'hex': self.get_function_call, 
+            'hour': self.get_date_instance_attribute_call,
+            'initcap': lambda s, p: self.get_function_call(s, p, 'str.title'), 
+            'instr': lambda s, p: self.get_function_call(s, p, 'str.find'), 
+            'isnan': lambda s, p: self.get_numpy_function_call(s, p, 'isnan'), 
+            'least': lambda s, p: self.get_numpy_function_call(s, p, 'min'), 
+            'length': lambda s,p: self.get_function_call(s, p, 'len'),  
+            #'levenshtein': 
+            'lit': lambda s, p: self.parse(s['arguments'][0], p),
+            #'locate': lambda s, p: 'str.find()'.format(self.parse(s['arguments'][0], p)), #TODO: inverse order of params
+            'lower': lambda s, p: self.get_function_call(s, p, 'str.lower'),
+            'lpad': lambda s, p: self.get_function_call(s, p, 'str.ljust'),
+            'ltrim': lambda s, p: self.get_function_call(s, p, 'str.rstrip'),
+            'minute': self.get_date_instance_attribute_call,
+            'month': self.get_date_instance_attribute_call,
+            'pow': lambda s, p: self.get_numpy_function_call(s, p, 'power'), 
+            'quarter': self.get_date_instance_attribute_call,
+            'radians': self.get_numpy_function_call, 
+            'rand': lambda s, p: self.get_numpy_function_call(s, p, 'random.rand'), 
+            'randn': lambda s, p: self.get_numpy_function_call(s, p, 'random.randn'), 
+            'reverse': lambda s, p: '{}[::-1]'.format(self.parse(s['arguments'][0], p)), #TODO: handle array
+            'round': lambda s, p: self.get_numpy_function_call(s, p, 'around'),
+            'rpad': lambda s, p: self.get_function_call(s, p, 'str.rjust'),
+            'rtrim': lambda s, p: self.get_function_call(s, p, 'str.rstrip'),
+            'second': self.get_date_instance_attribute_call,
+            'shiftLeft': lambda s, p: self.get_numpy_function_call(s, p, 'right_shift'),
+            'shiftRight': lambda s, p: self.get_numpy_function_call(s, p, 'right_shift'),
+            'signum': lambda s, p: self.get_numpy_function_call(s, p, 'sign'),
+            'to_json': lambda s, p: self.get_function_call(s, p, 'json.dumps'), # TODO: Handle some data types
+            'trim': lambda s, p: self.get_function_call(s, p, 'str.strip'),
+            'unbase64': lambda s, p: self.get_function_call(s, p, 'base64.b64decode'),
+            'unhex': lambda s, p: self.get_function_call(
+                self.inject_argument(s, 1, {'type': 'Literal', 'value': 16, 'raw': 16}), p, 'int'),
+            'unix_timestamp': lambda s, p: self.get_function_call(s, p, 'pd.to_datetime'),
         }
         self.functions.update(others_functions)
