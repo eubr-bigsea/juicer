@@ -38,7 +38,11 @@ def titanic(columns=None, size=None):
 
 def get_common_imports():
     return '\n'.join([
-        'import pandas as pd', 'import numpy as np'
+        'import pandas as pd', 'import numpy as np', 
+        'import base64', 'import json',
+        'import datetime',
+        'global np', 'global pd', 'global base64', 
+        'global json', 'global datetime'
     ])
 
 
