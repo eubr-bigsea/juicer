@@ -582,9 +582,9 @@ class StringIndexerOperation(Operation):
            {models} = dict()
            le = LabelEncoder()
            for col, new_col in zip({columns}, {alias}):
-                data = {input}[col].to_numpy().tolist()
-                {models}[new_col] = le.fit_transform(data)
-                {output}[new_col] =le.fit_transform(data)    
+               data = {input}[col].to_numpy().tolist()
+               {models}[new_col] = le.fit_transform(data)
+               {output}[new_col] =le.fit_transform(data)    
            """.format(copy_code=copy_code, input=input_data,
                       output=output,
                       models=models,
