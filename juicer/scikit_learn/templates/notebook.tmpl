@@ -118,7 +118,7 @@
             {%- if transpiler.custom_functions %}
             {%- for code in transpiler.custom_functions.values() %}
             {%- for line in code.split('\n') %}
-            "{{line}}\n",
+            "{{line.replace('"', '\\"') }}\n",
             {%- endfor -%}
             {%- endfor -%}
             {%- endif %}
