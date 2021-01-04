@@ -173,10 +173,15 @@ def test_function_implementation():
         ("tanh", "sepalwidth", [], None),
         #("to_date", "sepalwidth", [], None),
         ("to_json", "sepalwidth", [], None),
-        #("to_timestamp", "sepalwidth", [], None),
-        #("to_utc_timestamp", "date", [], None),
-        ("translate", "class", ['ris', 'XYZ'], 
-                lambda row: row['translate_new'] != row['class'].replace('ris', 'XYZ')),
+        ("to_timestamp", "date_str", ['yyyy-MM-dd HH:mm:ss'], None),
+        ("to_utc_timestamp", "date", ['America/Santiago'], 
+                lambda row: row['to_utc_timestamp_new'].tzinfo.zone != 'America/Santiago'
+        ),
+        ("to_utc_timestamp", "date", ['Europe/Berlin'], 
+                lambda row: row['to_utc_timestamp_new'].tzinfo.zone != 'Europe/Berlin'
+        ),
+        ("translate", "class", ['ri', 'XY'], 
+                lambda row: row['translate_new'] != row['class'].replace('ri', 'XY')),
         ("trim", "class", [], None),
         ("trunc", "date", ['yyyy'], 
             lambda row: row['trunc_new'] != datetime.date.today().replace(month=1, day=1)),
@@ -189,13 +194,14 @@ def test_function_implementation():
         ("unix_timestamp", "date_str", [], None),
         ("upper", "class", [], None),
     ]
-    to_test = ['translate']
+    to_test = ['to_timestamp']
     dd = ['df', util.iris(['sepalwidth', 
          'petalwidth', 'class'], 10)]
 
     df = dd[1]
 
     df['date_str'] = pd.Series(['2020-01-01 12:32:12' for x in range(10)]) 
+    df['date_str2'] = pd.Series(['12-11-21' for x in range(10)]) 
     df['date'] = pd.Series([now for x in range(10)]) 
     df['hex'] = pd.Series(['Fa03' for x in range(10)]) 
     df['base64'] = pd.Series([base64.b64encode('test lemonade'.encode('utf8')) for x in range(10)]) 
@@ -223,7 +229,7 @@ def test_function_implementation():
         arguments = {
             'parameters': {
                 'multiplicity': {'input data': 1},
-                'expression': [expr]
+                'expression': [expr],
             },
             'named_inputs': {
                 'input data': dd[0],
@@ -233,10 +239,11 @@ def test_function_implementation():
             }
         }   
         instance = TransformationOperation(**arguments)
-        result = util.execute(instance.generate_code(), dict([dd]))
+        code = instance.generate_code()
+        result = util.execute(code, dict([dd]))
         if test is not None:
-            #import pdb
-            #pdb.set_trace()
+            import pdb
+            pdb.set_trace()
             assert len(df[df.apply(test, axis=1)]) == 0
             #assert test( 
         # assert result['out'].equals(util.iris(size=slice_size))

@@ -2,7 +2,8 @@
 # -*- coding: utf-8 -*-
 
 from six import text_type
-
+import string
+import re
 
 class Expression:
     def __init__(self, json_code, params):
@@ -97,7 +98,6 @@ class Expression:
 
         Example: len(col) will be converted to len(col)
         """
-        # import pdb; pdb.set_trace()
         callee = spec['arguments'][0].get('callee', {})
         # Evaluates if column name is wrapped in a col() function call
         arguments = ', '.join(
@@ -235,6 +235,25 @@ class Expression:
     def inject_argument(self, spec, inx, arg):
         spec['arguments'].insert(inx, arg)
         return spec
+
+    def get_to_timestamp_function(self, spec, params, alias=None):
+        mapping = {
+                'yyyy': '%Y', 'yy': '%y', 
+                'MM': '%m', 'MMM': '%b', 'MMMM': '%B',
+                'dd': '%d', 
+                'HH': '%H', 'h': '%I',
+                'mm': '%M', 
+                'ss': '%S', 
+                'EEE': '%a', 'EEEE': '%A',
+                'a': '%p',
+                "'": ''
+                }
+        value = self.parse(spec['arguments'][0], params)
+        fmt = spec['arguments'][1]['value'] # no parsing
+        parts = re.split(r'(\W)', fmt)
+        py_fmt = ''.join([mapping.get(x, x) for x in parts])
+
+        return "datetime.datetime.strptime({}, '{}')".format(value, py_fmt)
 
     def build_functions_dict(self):
 
@@ -508,7 +527,10 @@ class Expression:
             'shiftRight': lambda s, p: self.get_numpy_function_call(s, p, 'right_shift'),
             'signum': lambda s, p: self.get_numpy_function_call(s, p, 'sign'),
             'to_json': lambda s, p: self.get_function_call(s, p, 'json.dumps'), # TODO: Handle some data types
-            'translate': lambda s, p: '{}.translate(maketrans({}, {}))'.format(
+            'to_timestamp': self.get_to_timestamp_function,
+            'to_utc_timestamp': lambda s, p: '{0}.tz_localize({1})'.format(self.parse(s['arguments'][0], p), 
+                    self.parse(s['arguments'][1], p)),
+            'translate': lambda s, p: '{}.translate(str.maketrans({}, {}))'.format(
                     self.parse(s['arguments'][0], p), 
                     self.parse(s['arguments'][1], p),
                     self.parse(s['arguments'][2], p)),
@@ -524,4 +546,3 @@ class Expression:
             "upper": "upper",
         }
         self.functions.update(others_functions)
-        import pdb; pdb.set_trace()
