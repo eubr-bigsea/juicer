@@ -1032,6 +1032,7 @@ class TransformationOperation(Operation):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
         self.has_code = any([len(self.named_inputs) > 0,
                              self.contains_results()])
+        self.imports = set()
         if self.has_code:
             if self.EXPRESSION_PARAM in parameters:
                 self.expressions = parameters[self.EXPRESSION_PARAM]
@@ -1042,6 +1043,7 @@ class TransformationOperation(Operation):
             self.output = self.named_outputs.get(
                 'output data', 'sampled_data_{}'.format(self.order))
 
+
     def generate_code(self):
         # Builds the expression and identify the target column
         params = {'input': self.named_inputs['input data']}
@@ -1051,6 +1053,8 @@ class TransformationOperation(Operation):
             expression = Expression(expression, params)
             f = expression.parsed_expression
             functions += "['{}', {}],".format(expr['alias'], f)
+
+            self.imports.update(expression.imports)
             # row.append(expression.imports) #TODO: by operation itself
 
         copy_code = ".copy()" \
