@@ -111,9 +111,9 @@ def create_kb8s_job(workflow_id, minion_cmd, cluster):
 
     gpus = int(cluster_params.get('kubernetes.resources.gpus', 0))
 
-    print('-' * 30)
-    print('GPU KB8s specification: ' + str(gpus))
-    print('-' * 30)
+    # print('-' * 30)
+    # print('GPU KB8s specification: ' + str(gpus))
+    # print('-' * 30)
     log.info('GPU specification: %s', gpus)
 
     job.metadata = client.V1ObjectMeta(namespace=namespace, name=name)
