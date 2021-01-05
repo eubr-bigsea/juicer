@@ -41,8 +41,12 @@ def get_common_imports():
         'import pandas as pd', 'import numpy as np', 
         'import base64', 'import json',
         'import datetime', 'import string',
+        'import functools', 'import re',
+        'import hashlib',
         'global np', 'global pd', 'global base64', 
         'global json', 'global datetime', 'global string',
+        'global functools', 'global re',
+        'global hashlib',
     ])
 
 
