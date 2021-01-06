@@ -40,8 +40,12 @@ def generate(workflow_id, template_name, lang='pt'):
                                       Loader=yaml.FullLoader)
         out = StringIO()
         try:
-            _generate(workflow_id, template == 'notebook', {}, juicer_config,
-                      out=out, plain=template == 'python')
+            _generate(workflow_id, 
+                      template_name == 'notebook', 
+                      {}, 
+                      juicer_config,
+                      out=out, 
+                      plain=template_name == 'python')
             result['code'] = str(out.getvalue())
             result['status'] = 'OK'
         except Exception as e:
