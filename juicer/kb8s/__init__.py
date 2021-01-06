@@ -1,5 +1,6 @@
 # coding=utf-8
 import json
+import datetime
 import logging.config
 
 from kubernetes import client
@@ -62,7 +63,8 @@ def delete_kb8s_job(workflow_id, cluster):
     # noinspection PyUnresolvedReferences
     client.Configuration.set_default(configuration)
 
-    name = 'job-{}'.format(workflow_id)
+    name = 'job-{}-{}'.format(workflow_id, 
+            round(datetime.datetime.now().timestamp()))
     namespace = cluster_params['kubernetes.namespace']
 
     api = client.ApiClient(configuration)
@@ -103,7 +105,9 @@ def create_kb8s_job(workflow_id, minion_cmd, cluster):
     client.Configuration.set_default(configuration)
 
     job = client.V1Job(api_version="batch/v1", kind="Job")
-    name = 'job-{}'.format(workflow_id)
+
+    name = 'job-{}-{}'.format(workflow_id, 
+            round(datetime.datetime.now().timestamp()))
     container_name = 'juicer-job'
     container_image = cluster_params['kubernetes.container']
     namespace = cluster_params['kubernetes.namespace']
