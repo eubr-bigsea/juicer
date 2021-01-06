@@ -40,11 +40,12 @@ def generate(workflow_id, template_name, lang='pt'):
                                       Loader=yaml.FullLoader)
         out = StringIO()
         try:
-            _generate(workflow_id, 
-                      template_name == 'notebook', 
+            _generate(workflow_id,
+                      False,
                       {}, 
                       juicer_config,
                       out=out, 
+                      export_notebook=template_name == 'notebook', 
                       plain=template_name == 'python')
             result['code'] = str(out.getvalue())
             result['status'] = 'OK'
@@ -62,7 +63,12 @@ def generate(workflow_id, template_name, lang='pt'):
 def _generate(workflow_id, execute_main, params, config, out=sys.stdout,
               deploy=False, export_notebook=False, plain=False,
               custom_vars=None):
-    log.debug(gettext('Generating code for workflow %s'), workflow_id)
+    log.debug(gettext(
+        'Generating code for workflow %s, notebook=%s, plain=%s'), 
+        workflow_id,
+        export_notebook,
+        plain
+        )
     tahiti_conf = config['juicer']['services']['tahiti']
 
     resp = query_tahiti(base_url=tahiti_conf['url'],
