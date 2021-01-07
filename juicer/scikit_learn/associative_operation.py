@@ -54,7 +54,8 @@ class FrequentItemSetOperation(Operation):
         code = """
         col = {col}
         transactions = {input}[col].to_numpy().tolist()
-        min_support = 100 * {min_support}
+        dim = len(transactions)
+        min_support = {min_support} * dim
         
         patterns = pyfpgrowth.find_frequent_patterns(transactions, min_support)
         result = [[list(f), s] for f, s in patterns.items()]
@@ -62,12 +63,13 @@ class FrequentItemSetOperation(Operation):
         col_item, col_freq = 'itemsets', 'support'
               
         {output} = pd.DataFrame(result, columns=[col_item, col_freq])
+        {output}[col_freq] = {output}[col_freq] / dim
+        {output} = {output}.sort_values(by=col_freq, ascending=False)
         
         # generating rules
-        columns = ['Pre-Rule', 'Post-Rule', 'confidence']  
-        rules = pyfpgrowth.generate_association_rules(patterns, {min_conf})
-        rules = [[list(a), list(b[0]), b[1]] for a, b in rules.items()]
-        {rules} = pd.DataFrame(rules, columns=columns) 
+        from juicer.scikit_learn.library.rules_generator import RulesGenerator
+        rg = RulesGenerator(min_conf={min_conf}, max_len=-1)
+        {rules} = rg.get_rules({output}, col_item, col_freq)
         """.format(output=self.output, col=self.column,
                    input=self.named_inputs['input data'],
                    min_support=self.min_support, min_conf=self.confidence,
