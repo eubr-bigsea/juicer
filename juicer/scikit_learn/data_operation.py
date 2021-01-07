@@ -236,9 +236,9 @@ class DataReaderOperation(Operation):
                                                error_bad_lines={mode})
                         f.close()
                            
-                        if header is None:
-                            {output}.columns = ['col_{{col}}'.format(
-                                col=col) for col in {output}.columns]
+                        if header == 'infer':
+                            {output}.columns = ['attr{{i}}'.format(i=i) 
+                            for i, _ in enumerate({output}.columns)]
                     """).format(output=self.output,
                                 input=parsed.path,
                                 sep=self.sep,
