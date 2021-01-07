@@ -29,21 +29,21 @@ class RulesGenerator:
                     antecedent = tuple(sorted(antecedent))
                     consequent = tuple(sorted(set(itemset) - set(antecedent)))
 
-                    if antecedent in patterns:
+                    lower_support = patterns.get(antecedent, 0.0)
+                    if lower_support > 0.0:
 
-                        lower_support = patterns[antecedent]
                         confidence = upper_support / lower_support
 
-                        consequent_support = patterns.get(consequent, 0)
+                        consequent_support = patterns.get(consequent, 0.0)
 
                         # lift
                         lift = float("inf")
-                        if consequent_support != 0:
+                        if consequent_support > 0.0:
                             lift = confidence / consequent_support
 
                         # conviction
                         conviction = float("inf")
-                        if (1 - confidence) != 0:
+                        if (1 - confidence) > 0.0:
                             conviction = (1 - consequent_support) / (
                                         1 - confidence)
 
