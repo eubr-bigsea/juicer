@@ -187,7 +187,8 @@ class DataReaderOperation(Operation):
                 code.append("header = 'infer'")
                 self.header = 'infer'
 
-            code.append("url = '{url}'".format(url=self.metadata['url']))
+            if not self.plain:
+                code.append("url = '{url}'".format(url=self.metadata['url']))
             null_values = self.null_values
             if self.metadata.get('treat_as_missing'):
                 null_values.extend([x.strip() for x in self.metadata.get(
@@ -199,12 +200,18 @@ class DataReaderOperation(Operation):
             parsed = urlparse(self.metadata['url'])
             if parsed.scheme in ('hdfs', 'file'):
                 if parsed.scheme == 'hdfs':
-                    open_code = dedent("""
+                    if self.plain: # Hide information about path
+                        name = parsed.path.split('/')[-1]
+                        open_code = dedent("""
+                            # TODO: Change the path of input data!
+                            f = open('{path}', 'rb')""".format(path=name))
+                    else:
+                        open_code = dedent("""
                                     fs = pa.hdfs.connect('{hdfs_server}', {hdfs_port})
                                     f = fs.open('{path}', 'rb')""".format(
-                        path=parsed.path,
-                        hdfs_server=parsed.hostname,
-                        hdfs_port=parsed.port,
+                            path=parsed.path,
+                            hdfs_server=parsed.hostname,
+                            hdfs_port=parsed.port,
                     ))
                 else:
                     open_code = "f = open('{path}', 'rb')".format(
