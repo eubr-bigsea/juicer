@@ -258,7 +258,8 @@ class GBTClassifierOperation(Operation):
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
 
-        self.has_code = any([len(self.named_inputs) == 1, self.contains_results()])
+        self.has_code = len(self.named_inputs) == 1 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
 
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
@@ -287,11 +288,11 @@ class GBTClassifierOperation(Operation):
             self.max_features = None if max_features_ is None else "'"+max_features_+"'"
             max_leaf_nodes_ = parameters.get(self.MAX_LEAF_NODES_PARAM, None)
             self.max_leaf_nodes = None if max_leaf_nodes_ is None else int(max_leaf_nodes_)
-            self.presort = parameters.get(self.PRESORT_PARAM, 'auto') or 'auto'
+            self.presort = parameters.get(self.PRESORT_PARAM, "'auto'") or "'auto'"
             self.validation_fraction = float(parameters.get(self.VALIDATION_FRACTION_PARAM, 0.1) or 0.1)
             n_iter_no_change_ = parameters.get(self.N_ITER_NO_CHANGE_PARAM, None)
             self.n_iter_no_change = None if n_iter_no_change_ is None else int(n_iter_no_change_)
-            self.tol = float(parameters.get(self.LEARNING_RATE_PARAM, 1e-4) or 1e-4)
+            self.tol = float(parameters.get(self.TOL_PARAM, 1e-4) or 1e-4)
             self.features = parameters['features']
             self.label = parameters.get(self.LABEL_PARAM, None)
             self. prediction = self.parameters.get(self.PREDICTION_PARAM, 'prediction')
@@ -350,55 +351,58 @@ class GBTClassifierOperation(Operation):
                     self.MIN_WEIGHT_FRACTION_LEAF_PARAM, self.__class__))
 
     def generate_code(self):
-        """Generate code."""
-        copy_code = ".copy()" \
-            if self.parameters['multiplicity']['train input data'] > 1 else ""
+        if self.has_code:
+            """Generate code."""
+            copy_code = ".copy()" \
+                if self.parameters['multiplicity']['train input data'] > 1 else ""
 
-        code = """ 
-            {output_data} = {input_data}{copy_code}
-            X_train = get_X_train_data({input_data}, {columns})
-            y = get_label_data({input_data}, {label})           
-            y = np.reshape(y, len(y))
-            {model} = GradientBoostingClassifier(loss='{loss}', 
-                learning_rate={learning_rate}, 
-                n_estimators={n_estimators}, min_samples_split={min_split},
-                max_depth={max_depth}, min_samples_leaf={min_leaf}, 
-                random_state={seed}, subsample={subsample}, 
-                criterion='{criterion}', 
-                min_weight_fraction_leaf={min_weight_fraction_leaf}, 
-                min_impurity_decrease={min_impurity_decrease}, init={init},
-                max_features={max_features},
-                max_leaf_nodes={max_leaf_nodes}, warm_start=False, 
-                presort='{presort}', validation_fraction={validation_fraction}, 
-                n_iter_no_change={n_iter_no_change}, tol={tol})
-            {model}.fit(X_train, y)          
-            {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
-            """.format(output_data=self.output,
-                       copy_code=copy_code,
-                       prediction=self.prediction,
-                       columns=self.features,
-                       model=self.model,
-                       input_data=self.input_port,
-                       label=self.label,
-                       loss=self.loss,
-                       n_estimators=self.n_estimators,
-                       min_leaf=self.min_leaf,
-                       min_split=self.min_split,
-                       learning_rate=self.learning_rate,
-                       max_depth=self.max_depth,
-                       seed=self.seed,
-                       subsample=self.subsample,
-                       criterion=self.criterion,
-                       min_weight_fraction_leaf=self.min_weight_fraction_leaf,
-                       min_impurity_decrease=self.min_impurity_decrease,
-                       init=self.init,
-                       max_features=self.max_features,
-                       max_leaf_nodes=self.max_leaf_nodes,
-                       presort=self.presort,
-                       validation_fraction=self.validation_fraction,
-                       n_iter_no_change=self.n_iter_no_change,
-                       tol=self.tol)
-        return dedent(code)
+            code = """
+                from juicer.scikit_learn.util import get_X_train_data, get_label_data
+                from sklearn.ensemble import GradientBoostingClassifier
+                {output_data} = {input_data}{copy_code}
+                X_train = get_X_train_data({input_data}, {columns})
+                y = get_label_data({input_data}, {label})           
+                y = np.reshape(y, len(y))
+                {model} = GradientBoostingClassifier(loss='{loss}', 
+                    learning_rate={learning_rate}, 
+                    n_estimators={n_estimators}, min_samples_split={min_split},
+                    max_depth={max_depth}, min_samples_leaf={min_leaf}, 
+                    random_state={seed}, subsample={subsample}, 
+                    criterion='{criterion}', 
+                    min_weight_fraction_leaf={min_weight_fraction_leaf}, 
+                    min_impurity_decrease={min_impurity_decrease}, init={init},
+                    max_features={max_features},
+                    max_leaf_nodes={max_leaf_nodes}, warm_start=False, 
+                    presort={presort}, validation_fraction={validation_fraction}, 
+                    n_iter_no_change={n_iter_no_change}, tol={tol})
+                {model}.fit(X_train, y)          
+                {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
+                """.format(output_data=self.output,
+                           copy_code=copy_code,
+                           prediction=self.prediction,
+                           columns=self.features,
+                           model=self.model,
+                           input_data=self.input_port,
+                           label=self.label,
+                           loss=self.loss,
+                           n_estimators=self.n_estimators,
+                           min_leaf=self.min_leaf,
+                           min_split=self.min_split,
+                           learning_rate=self.learning_rate,
+                           max_depth=self.max_depth,
+                           seed=self.seed,
+                           subsample=self.subsample,
+                           criterion=self.criterion,
+                           min_weight_fraction_leaf=self.min_weight_fraction_leaf,
+                           min_impurity_decrease=self.min_impurity_decrease,
+                           init=self.init,
+                           max_features=self.max_features,
+                           max_leaf_nodes=self.max_leaf_nodes,
+                           presort=self.presort,
+                           validation_fraction=self.validation_fraction,
+                           n_iter_no_change=self.n_iter_no_change,
+                           tol=self.tol)
+            return dedent(code)
 
 
 class KNNClassifierOperation(Operation):
