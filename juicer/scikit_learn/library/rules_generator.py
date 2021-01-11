@@ -16,7 +16,7 @@ class RulesGenerator:
         [antecedent, consequent, confidence, lift, conviction,
         leverage, jaccard]
         """
-        patterns = {tuple(k): v for (k, v) in
+        patterns = {tuple(sorted(k)): v for (k, v) in
                     freq_items[[col_item, col_freq]].to_numpy().tolist()}
         rules = []
 
@@ -29,17 +29,16 @@ class RulesGenerator:
                     antecedent = tuple(sorted(antecedent))
                     consequent = tuple(sorted(set(itemset) - set(antecedent)))
 
-                    lower_support = patterns.get(antecedent, 0.0)
-                    if lower_support > 0.0:
+                    antecedent_support = patterns.get(antecedent, 0.0)
+                    consequent_support = patterns.get(consequent, 0.0)
 
-                        confidence = upper_support / lower_support
+                    if antecedent_support > 0.0 and consequent_support > 0.0:
 
-                        consequent_support = patterns.get(consequent, 0.0)
+                        confidence = upper_support / antecedent_support
 
                         # lift
                         lift = float("inf")
-                        if consequent_support > 0.0:
-                            lift = confidence / consequent_support
+                        lift = confidence / consequent_support
 
                         # conviction
                         conviction = float("inf")
@@ -49,12 +48,12 @@ class RulesGenerator:
 
                         # leverage
                         leverage = upper_support - consequent_support * \
-                                   lower_support
+                                   antecedent_support
 
                         # jaccard
                         try:
                             jaccard = upper_support / (
-                                    consequent_support + lower_support -
+                                    consequent_support + antecedent_support -
                                     upper_support)
                         except ZeroDivisionError:
                             jaccard = 1.0
@@ -67,11 +66,11 @@ class RulesGenerator:
                    "Leverage", 'Jaccard']
         rules = pd.DataFrame(rules, columns=columns)
 
-        if self.min_conf > 0:
+        if self.min_conf > 0.0:
             rules = rules[rules['Confidence'] > self.min_conf]
 
         rules.sort_values(by='Confidence', inplace=True, ascending=False)
-        if 0 < self.max_len < len(rules):
+        if 0.0 < self.max_len < len(rules):
             rules = rules.head(self.max_len)
 
         return rules
