@@ -77,5 +77,5 @@ COPY . $JUICER_HOME
 RUN pybabel compile -d $JUICER_HOME/juicer/i18n/locales
 
 COPY ./entrypoint.sh /opt/
-RUN wget -O $JUICER_HOME/dist https://github.com/eubr-bigsea/lemonade-spark-ext/raw/master/dist/lemonade-spark-ext-1.0.jar
+RUN curl -o $JUICER_HOME/jars/lemonade-spark-ext-1.0.jar https://github.com/eubr-bigsea/lemonade-spark-ext/raw/master/dist/lemonade-spark-ext-1.0.jar
 ENTRYPOINT [ "/opt/entrypoint.sh" ]
