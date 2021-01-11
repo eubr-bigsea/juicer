@@ -36,7 +36,7 @@ juicer:
         spark.localdir: /tmp
         spark.submit.deployMode: client
         spark.driver.extraClassPath: null
-        spark.executor.extraClassPath: null
+        spark.executor.extraClassPath: jars/lemonade-spark-ext-1.0.jar
         spark.jars: null
     # listeners:
     #   - class: lemonade.juicer.spark.LemonadeSparkListener
