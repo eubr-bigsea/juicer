@@ -37,6 +37,18 @@ import traceback
 {% endfor %}
 {% for imps in list_imports %}{{imps}}{% endfor %}
 
+{%- for imps in transpiler.imports %}
+{{imps}}
+{%- endfor %}
+
+{%- if transpiler.custom_functions %}
+# Custom functions
+{%- for code in transpiler.custom_functions.values() %}
+{{code}}
+{%- endfor -%}
+# End custom functions
+{%- endif %}
+
 def sklearn_logging(msg):
     print(msg)
 
