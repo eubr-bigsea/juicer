@@ -577,3 +577,6 @@ class TranspilerUtils(object):
         """
         code = inspect.getsource(f)
         self.custom_functions[name] = dedent(code)
+
+    def __unicode__(self):
+        return 'TranspilerUtils object'
