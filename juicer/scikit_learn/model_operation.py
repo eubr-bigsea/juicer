@@ -15,7 +15,7 @@ except ImportError:
     from urllib.request import urlopen
 
 import string
-
+from .util import get_X_train_data
 
 class SafeDict(dict):
     # noinspection PyMethodMayBeStatic
@@ -51,6 +51,9 @@ class ApplyModelOperation(Operation):
         if not self.has_code and len(self.named_outputs) > 0:
             raise ValueError(
                 _('Model is being used, but at least one input is missing'))
+        if self.has_code:
+            self.transpiler_utils.add_custom_function(
+                'get_X_train_data', f=get_X_train_data)
 
     def get_data_out_names(self, sep=','):
         return self.output
@@ -397,6 +400,11 @@ class EvaluateModelOperation(Operation):
 
         self.supports_cache = False
         self.has_import = "from sklearn.metrics import * \n"
+        if self.has_code:
+            self.transpiler_utils.add_import(
+                'from pandas.api.types import is_numeric_dtype')
+            self.transpiler_utils.add_import(
+                'from sklearn.metrics import *')
 
     def get_data_out_names(self, sep=','):
         return ''
@@ -424,7 +432,6 @@ class EvaluateModelOperation(Operation):
                 y_pred = {input}[prediction_col].to_numpy().tolist()
                 y_true = {input}[label_col].to_numpy().tolist()
                 # Code for evaluating if the Label attribute is categorical
-                from pandas.api.types import is_numeric_dtype
                 if not is_numeric_dtype({input}[label_col]):
                     from sklearn.preprocessing import LabelEncoder
                     le = LabelEncoder()

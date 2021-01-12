@@ -122,6 +122,13 @@ class AggregationOperation(Operation):
         if self.pivot:
             self.values = list(self.input_operations_pivot.keys())
 
+        if self.has_code:
+            self.transpiler_utils.add_custom_function(
+                '_collect_set', f=_collect_set)
+            self.transpiler_utils.add_custom_function(
+                '_collect_list', f=_collect_list)
+
+
     def get_data_out_names(self, sep=','):
         return self.output
 
@@ -130,14 +137,7 @@ class AggregationOperation(Operation):
 
     def generate_code(self):
         if self.has_code:
-            code = dedent(
-                """
-                def _collect_list(x):
-                    return x.tolist()
-
-                def _collect_set(x):
-                    return set(x.tolist())
-                """)
+            code = ''
             if self.pivot:
 
                 if self.pivot_values:
@@ -431,19 +431,28 @@ class ExecutePythonOperation(Operation):
         self.out2 = self.named_outputs.get('output data 2',
                                            'out_2_{}'.format(self.order))
 
+        self.plain = parameters.get('plain', False)
+        self.export_notebook = parameters.get('export_notebook', False)
+
+        if self.has_code and not self.plain and not self.export_notebook:
+            self.transpiler_utils.add_import(
+                'from RestrictedPython.Guards import safe_builtins')
+            self.transpiler_utils.add_import(
+                'from RestrictedPython import compile_restricted')
+            self.transpiler_utils.add_import(
+                'from RestrictedPython.PrintCollector import PrintCollector')
+
     def get_output_names(self, sep=", "):
         return sep.join([self.out1, self.out2])
 
     def generate_code(self):
         in1 = self.named_inputs.get('input data 1', 'None')
-
         in2 = self.named_inputs.get('input data 2', 'None')
 
+        if self.plain:
+            return dedent(self.code)
+
         code = dedent("""
-        import json
-        from RestrictedPython.Guards import safe_builtins
-        from RestrictedPython import compile_restricted
-        from RestrictedPython.PrintCollector import PrintCollector
 
         results = [r[1].result() for r in task_futures.items() if r[1].done()]
         results = dict([(r['task_name'], r) for r in results])
@@ -1023,6 +1032,7 @@ class TransformationOperation(Operation):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
         self.has_code = any([len(self.named_inputs) > 0,
                              self.contains_results()])
+        self.imports = set()
         if self.has_code:
             if self.EXPRESSION_PARAM in parameters:
                 self.expressions = parameters[self.EXPRESSION_PARAM]
@@ -1033,6 +1043,7 @@ class TransformationOperation(Operation):
             self.output = self.named_outputs.get(
                 'output data', 'sampled_data_{}'.format(self.order))
 
+
     def generate_code(self):
         # Builds the expression and identify the target column
         params = {'input': self.named_inputs['input data']}
@@ -1042,6 +1053,8 @@ class TransformationOperation(Operation):
             expression = Expression(expression, params)
             f = expression.parsed_expression
             functions += "['{}', {}],".format(expr['alias'], f)
+
+            self.imports.update(expression.imports)
             # row.append(expression.imports) #TODO: by operation itself
 
         copy_code = ".copy()" \
@@ -1180,3 +1193,10 @@ class SplitKFoldOperation(Operation):
                                column=self.column,
                                attribute=self.attribute)
                 return dedent(code)
+
+# Custom functions
+def _collect_list(x):
+    return x.tolist()
+
+def _collect_set(x):
+    return set(x.tolist())

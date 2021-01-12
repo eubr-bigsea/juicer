@@ -1384,12 +1384,13 @@ class RandomForestClassifierOperation(Operation):
 
         code = """
         {model} = RandomForestClassifier(n_estimators={n_estimators}, 
-        max_depth={max_depth},  min_samples_split={min_split}, 
-        min_samples_leaf={min_leaf}, random_state={seed},
-        criterion='{criterion}', min_weight_fraction_leaf={min_weight_fraction_leaf},
-        max_features={max_features}, max_leaf_nodes={max_leaf_nodes}, 
-        min_impurity_decrease={min_impurity_decrease}, bootstrap={bootstrap},
-        oob_score={oob_score}, ccp_alpha={ccp_alpha}, max_samples={max_samples})
+            max_depth={max_depth},  min_samples_split={min_split}, 
+            min_samples_leaf={min_leaf}, random_state={seed},
+            criterion='{criterion}', 
+            min_weight_fraction_leaf={min_weight_fraction_leaf},
+            max_features={max_features}, max_leaf_nodes={max_leaf_nodes}, 
+            min_impurity_decrease={min_impurity_decrease}, bootstrap={bootstrap},
+            oob_score={oob_score}, ccp_alpha={ccp_alpha}, max_samples={max_samples})
 
         X_train = get_X_train_data({input}, {features})
         y = get_label_data({input}, {label})
