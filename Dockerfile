@@ -52,9 +52,9 @@ WORKDIR $JUICER_HOME
 
 ENV ARROW_LIBHDFS_DIR /usr/local/juicer/native
 ENV HADOOP_HOME /usr/local/juicer/
-ENV HADOOP_VERSION_BASE=2.10.1
+ENV HADOOP_VERSION_BASE=2.7.7
 
-RUN curl -sL https://downloads.apache.org/hadoop/common/hadoop-${HADOOP_VERSION_BASE}/hadoop-${HADOOP_VERSION_BASE}.tar.gz | tar -xz -C /tmp/ &&\
+RUN curl -sL https://archive.apache.org/dist/hadoop/core/hadoop-${HADOOP_VERSION_BASE}/hadoop-${HADOOP_VERSION_BASE}.tar.gz | tar -xz -C /tmp/ &&\
     mkdir ${JUICER_HOME}/jars  &&\
     mv /tmp/hadoop-${HADOOP_VERSION_BASE}/lib/native ${ARROW_LIBHDFS_DIR} &&\
     mv /tmp/hadoop-${HADOOP_VERSION_BASE}/share/hadoop/common/lib/* ${JUICER_HOME}/jars/ &&\
@@ -77,4 +77,5 @@ COPY . $JUICER_HOME
 RUN pybabel compile -d $JUICER_HOME/juicer/i18n/locales
 
 COPY ./entrypoint.sh /opt/
+RUN curl -o $JUICER_HOME/jars/lemonade-spark-ext-1.0.jar https://github.com/eubr-bigsea/lemonade-spark-ext/raw/master/dist/lemonade-spark-ext-1.0.jar
 ENTRYPOINT [ "/opt/entrypoint.sh" ]
