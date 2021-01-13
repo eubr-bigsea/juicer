@@ -128,7 +128,6 @@ class AggregationOperation(Operation):
             self.transpiler_utils.add_custom_function(
                 '_collect_list', f=_collect_list)
 
-
     def get_data_out_names(self, sep=','):
         return self.output
 
@@ -544,7 +543,7 @@ class ExecuteSQLOperation(Operation):
         self.output = self.named_outputs.get('output data',
                                              'out_{}'.format(self.order))
 
-        self.has_import = 'from pandasql import sqldf\n'
+        self.transpiler_utils.add_import("from pandasql import sqldf")
 
     def get_data_out_names(self, sep=','):
         return self.output
@@ -567,7 +566,6 @@ class ExecuteSQLOperation(Operation):
     def generate_code(self):
         if self.has_code:
             code = dedent("""
-            from pandasql import sqldf
             query = {query}
             {out} = sqldf(query, {{'ds1': {in1}, 'ds2': {in2}}})
             names = {names}
@@ -652,7 +650,8 @@ class IntersectionOperation(Operation):
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
-        self.has_code = len(named_inputs) == 2 and len(named_outputs)>0 or self.contains_results()
+        self.has_code = len(named_inputs) == 2 and \
+                        len(named_outputs) > 0 or self.contains_results()
 
         if not self.has_code:
             raise ValueError(
@@ -809,8 +808,8 @@ class ReplaceValuesOperation(Operation):
 
         self.has_code = len(self.named_inputs) == 1 and any(
             [len(self.named_outputs) >= 1, self.contains_results()])
-        self.output = self.named_outputs.get('output data',
-                                             'output_data_{}'.format(self.order))
+        self.output = self.named_outputs.get(
+                'output data', 'output_data_{}'.format(self.order))
 
     @staticmethod
     def check_parameter(parameter):
@@ -873,7 +872,8 @@ class SampleOrPartitionOperation(Operation):
 
         self.seed = self.parameters.get(self.SEED, 'None')
         if type(self.seed) == int:
-            self.seed = 0 if self.seed >= 4294967296 or self.seed < 0 else self.seed
+            self.seed = 0 if self.seed >= 4294967296 or \
+                             self.seed < 0 else self.seed
 
         self.output = self.named_outputs.get('sampled data',
                                              'output_data_{}'.format(
@@ -995,7 +995,8 @@ class SplitOperation(Operation):
         self.weights = float(self.parameters.get('weights', 50)) / 100
         self.seed = self.parameters.get('seed', 'None')
         if type(self.seed) == int:
-            self.seed = 0 if self.seed >= 4294967296 or self.seed < 0 else self.seed
+            self.seed = 0 if self.seed >= 4294967296 or \
+                             self.seed < 0 else self.seed
         self.out1 = self.named_outputs.get('split 1',
                                            'split_1_task_{}'.format(self.order))
         self.out2 = self.named_outputs.get('split 2',
@@ -1042,7 +1043,6 @@ class TransformationOperation(Operation):
                     msg.format(self.EXPRESSION_PARAM, self.__class__))
             self.output = self.named_outputs.get(
                 'output data', 'sampled_data_{}'.format(self.order))
-
 
     def generate_code(self):
         # Builds the expression and identify the target column
@@ -1115,11 +1115,15 @@ class SplitKFoldOperation(Operation):
 
         self.n_splits = int(parameters.get(self.N_SPLITS_ATTRIBUTE_PARAM, 3))
         self.shuffle = int(parameters.get(self.SHUFFLE_ATTRIBUTE_PARAM, 0))
-        self.random_state = parameters.get(self.RANDOM_STATE_ATTRIBUTE_PARAM, None)
+        self.random_state = parameters.get(self.RANDOM_STATE_ATTRIBUTE_PARAM,
+                                           None)
         self.attribute = parameters.get(self.ATTRIBUTE_ATTRIBUTE_PARAM, None)
         self.stratified = int(parameters.get(self.STRATIFIED_ATTRIBUTE_PARAM, 0))
         self.column = 0
-
+        self.transpiler_utils.add_import("from sklearn.model_selection "
+                                         "import KFold")
+        self.transpiler_utils.add_import("from sklearn.model_selection "
+                                         "import StratifiedKFold")
         self.input_treatment()
 
     @property
@@ -1143,8 +1147,6 @@ class SplitKFoldOperation(Operation):
 
             if self.stratified:
                 code = """
-        from sklearn.model_selection import KFold
-        from sklearn.model_selection import StratifiedKFold
         skf = StratifiedKFold(n_splits={n_splits},
         shuffle={shuffle}, random_state={random_state}) if {shuffle} \
         else StratifiedKFold(n_splits={n_splits},shuffle={shuffle})
@@ -1169,8 +1171,6 @@ class SplitKFoldOperation(Operation):
                 return dedent(code)
             else:
                 code += """
-        from sklearn.model_selection import KFold
-        from sklearn.model_selection import StratifiedKFold
         kf = KFold(n_splits={n_splits}, shuffle={shuffle},
         random_state={random_state}) if {shuffle} else KFold(n_splits={n_splits},
         shuffle={shuffle})

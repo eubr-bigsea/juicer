@@ -36,7 +36,7 @@ class FrequentItemSetOperation(Operation):
                                                   'rules_{}'.format(
                                                            self.order))
 
-            self.has_import = "import pyfpgrowth\n"
+            self.transpiler_utils.add_import("import pyfpgrowth")
 
     def get_output_names(self, sep=', '):
         return sep.join([self.output,
@@ -107,7 +107,8 @@ class SequenceMiningOperation(Operation):
 
             self.max_length = abs(int(parameters.get(self.MAX_LENGTH_PARAM,
                                                      10))) or 10
-            self.has_import = "from prefixspan import PrefixSpan\n"
+            self.transpiler_utils.add_import(
+                    "from prefixspan import PrefixSpan")
 
     def generate_code(self):
         """Generate code."""
@@ -168,10 +169,10 @@ class AssociationRulesOperation(Operation):
             if self.confidence < .0001 or self.confidence > 1.0:
                 raise ValueError('Confidence must be greater or equal '
                                  'to 0.0001 and smaller than 1.0')
-
-            self.has_import = \
-                "from juicer.scikit_learn.library.rules_generator " \
-                "import RulesGenerator\n"
+            from juicer.scikit_learn.library.rules_generator import \
+                RulesGenerator
+            self.transpiler_utils.add_custom_function("RulesGenerator",
+                                                      RulesGenerator)
 
             self.support_col = \
                 parameters.get(self.SUPPORT_ATTR_PARAM,
