@@ -153,9 +153,10 @@ class RemoveStopWordsOperation(Operation):
                     self.STOP_WORD_ATTRIBUTE_PARAM, [''])[0]
             self.lang = self.parameters.get(self.LANG_PARAM, '') or ''
 
-            self.has_import = "import nltk\n" \
-                              "nltk.download('stopwords')\n" \
-                              "from nltk.corpus import stopwords\n"
+            self.transpiler_utils.add_import(
+                    "import nltk\nnltk.download('stopwords')")
+            self.transpiler_utils.add_import(
+                    "from nltk.corpus import stopwords")
 
     def generate_code(self):
         """Generate code."""
@@ -170,9 +171,6 @@ class RemoveStopWordsOperation(Operation):
                        IN=self.named_inputs['input data'])
             if len(self.lang) > 0:
                 code += """
-            import nltk
-            nltk.download('stopwords')
-            from nltk.corpus import stopwords
             stop_words += stopwords.words('{language}')""".format(
                         language=self.lang.lower())
 
@@ -262,7 +260,7 @@ class GenerateNGramsOperation(Operation):
             self.alias = parameters.get(
                         self.ALIAS_PARAM, '{}_ngram'.format(self.attributes))
 
-            self.has_import = "from nltk.util import ngrams\n"
+            self.transpiler_utils.add_import("from nltk.util import ngrams")
 
     def generate_code(self):
         if self.has_code:
@@ -350,20 +348,20 @@ class WordToVectorOperation(Operation):
                                                               self.__class__))
 
             if self.type == self.TYPE_COUNT:
-                self.has_import = \
-                    'from sklearn.feature_extraction.text ' \
-                    'import CountVectorizer\n'
+                self.transpiler_utils.add_import(
+                    'from sklearn.feature_extraction.text '
+                    'import CountVectorizer')
             elif self.type == self.TYPE_HASHING_TF:
-                self.has_import = \
-                    'from sklearn.feature_extraction.text ' \
-                    'import HashingVectorizer\n'
+                self.transpiler_utils.add_import(
+                    'from sklearn.feature_extraction.text '
+                    'import HashingVectorizer')
             elif self.type == self.TYPE_WORD2VEC:
-                self.has_import = \
-                    'from gensim.models import Word2Vec\n'
+                self.transpiler_utils.add_import(
+                    'from gensim.models import Word2Vec')
             elif self.type == self.TYPE_TFIDF:
-                self.has_import = \
-                    'from sklearn.feature_extraction.text ' \
-                    'import TfidfVectorizer\n'
+                self.transpiler_utils.add_import(
+                    'from sklearn.feature_extraction.text '
+                    'import TfidfVectorizer')
 
     def get_data_out_names(self, sep=','):
         return self.output
