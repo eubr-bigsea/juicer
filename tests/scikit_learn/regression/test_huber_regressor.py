@@ -29,7 +29,7 @@ def test_huber_regressor_success():
         }
     }
     instance = HuberRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
 
     test_out = test_df
@@ -62,7 +62,7 @@ def test_huber_regressor_epsilon_param_success():
         }
     }
     instance = HuberRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
 
     test_out = test_df
@@ -95,7 +95,7 @@ def test_huber_regressor_max_iter_param_success():
         }
     }
     instance = HuberRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
 
     test_out = test_df
@@ -128,7 +128,7 @@ def test_huber_regressor_alpha_param_success():
         }
     }
     instance = HuberRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
 
     test_out = test_df
@@ -161,7 +161,7 @@ def test_huber_regressor_tol_param_success():
         }
     }
     instance = HuberRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
     test_out = test_df
     X_train = util.get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -193,7 +193,7 @@ def test_huber_regressor_fit_intercept_param_success():
         }
     }
     instance = HuberRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
 
     test_out = test_df
@@ -225,7 +225,7 @@ def test_huber_regressor_prediction_param_success():
         }
     }
     instance = HuberRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
     assert result['out'].columns[2] == 'success'
 
@@ -367,6 +367,6 @@ def test_huber_regressor_missing_label_param_fail():
     }
     instance = HuberRegressorOperation(**arguments)
     with pytest.raises(TypeError) as typ_err:
-        util.execute(instance.generate_code(),
+        util.execute(util.get_complete_code(instance),
                      {'df': df})
     assert "object of type 'NoneType' has no len()" in str(typ_err.value)
