@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import ast
 import pprint
+import numpy as np
 from textwrap import dedent
 from juicer.operation import Operation
 from itertools import zip_longest
@@ -356,6 +357,8 @@ class WordToVectorOperation(Operation):
                     'from sklearn.feature_extraction.text '
                     'import HashingVectorizer')
             elif self.type == self.TYPE_WORD2VEC:
+                self.transpiler_utils.add_custom_function(
+                        'get_w2v_vector', get_w2v_vector)
                 self.transpiler_utils.add_import(
                     'from gensim.models import Word2Vec')
             elif self.type == self.TYPE_TFIDF:
@@ -370,118 +373,124 @@ class WordToVectorOperation(Operation):
         return sep.join([self.output, self.vocab, self.output_model])
 
     def generate_code(self):
-        input_data = self.named_inputs['input data']
+        if self.has_code:
+            input_data = self.named_inputs['input data']
+            copy_code = ".copy()" \
+                if self.parameters['multiplicity']['input data'] > 1 else ""
 
-        copy_code = ".copy()" \
-            if self.parameters['multiplicity']['input data'] > 1 else ""
-
-        if self.type == self.TYPE_COUNT:
-            code = dedent("""
-            {out} = {input}{copy_code}
-            
-            def do_nothing(tokens):
-                return tokens
-            
-            corpus = {out}['{att}'].to_numpy().tolist()
-            {model} = CountVectorizer(tokenizer=do_nothing,
-                             preprocessor=None, lowercase=False, 
-                             min_df={min_df}, max_features={vocab_size})
-                            
-            {model}.fit(corpus)
-            {out}['{alias}'] = {model}.transform(corpus).toarray().tolist()
-            {vocab} = {model}.get_feature_names()
-            """.format(
-                    copy_code=copy_code,
-                    input=input_data,
-                    out=self.output,
-                    att=self.attributes,
-                    alias=self.alias,
-                    min_df=self.minimum_df,
-                    vocab_size=self.vocab_size,
-                    model=self.output_model,
-                    vocab=self.vocab))
-
-        elif self.type == self.TYPE_TFIDF:
-            code = dedent("""
-            {out} = {input}{copy_code}
-            
-            def do_nothing(tokens):
-                return tokens
-            
-            corpus = {out}['{att}'].to_numpy().tolist()
-            {model} = TfidfVectorizer(tokenizer=do_nothing,
-                             preprocessor=None, lowercase=False, 
-                             min_df={min_df}, max_features={vocab_size})
-                            
-            {model}.fit(corpus)
-            {out}['{alias}'] = {model}.transform(corpus).toarray().tolist()
-            {vocab} = {model}.get_feature_names()
-            """.format(
-                    copy_code=copy_code,
-                    input=input_data,
-                    out=self.output,
-                    att=self.attributes,
-                    alias=self.alias,
-                    min_df=self.minimum_df,
-                    vocab_size=self.vocab_size,
-                    model=self.output_model,
-                    vocab=self.vocab))
-
-        elif self.type == self.TYPE_HASHING_TF:
-            code = dedent("""
-            
-            def do_nothing(tokens):
-                return tokens
+            if self.type == self.TYPE_COUNT:
+                code = dedent("""
+                {out} = {input}{copy_code}
                 
-            {out} = {input}{copy_code}  
-            corpus = {out}['{att}'].to_numpy().tolist()
-            {model} = HashingVectorizer(tokenizer=do_nothing,
-                             preprocessor=None, lowercase=False, 
-                             n_features={vocab_size})
-            {model}.fit(corpus)
+                def do_nothing(tokens):
+                    return tokens
+                
+                corpus = {out}['{att}'].to_numpy().tolist()
+                {model} = CountVectorizer(tokenizer=do_nothing,
+                                 preprocessor=None, lowercase=False, 
+                                 min_df={min_df}, max_features={vocab_size})
+                                
+                {model}.fit(corpus)
+                {out}['{alias}'] = {model}.transform(corpus).toarray().tolist()
+                {vocab} = {model}.get_feature_names()
+                """.format(
+                        copy_code=copy_code,
+                        input=input_data,
+                        out=self.output,
+                        att=self.attributes,
+                        alias=self.alias,
+                        min_df=self.minimum_df,
+                        vocab_size=self.vocab_size,
+                        model=self.output_model,
+                        vocab=self.vocab))
 
-            vector = {model}.transform(corpus).toarray().tolist()
-            {out}['{alias}'] = vector
+            elif self.type == self.TYPE_TFIDF:
+                code = dedent("""
+                {out} = {input}{copy_code}
+                
+                def do_nothing(tokens):
+                    return tokens
+                
+                corpus = {out}['{att}'].to_numpy().tolist()
+                {model} = TfidfVectorizer(tokenizer=do_nothing,
+                                 preprocessor=None, lowercase=False, 
+                                 min_df={min_df}, max_features={vocab_size})
+                                
+                {model}.fit(corpus)
+                {out}['{alias}'] = {model}.transform(corpus).toarray().tolist()
+                {vocab} = {model}.get_feature_names()
+                """.format(
+                        copy_code=copy_code,
+                        input=input_data,
+                        out=self.output,
+                        att=self.attributes,
+                        alias=self.alias,
+                        min_df=self.minimum_df,
+                        vocab_size=self.vocab_size,
+                        model=self.output_model,
+                        vocab=self.vocab))
 
-            # There is no vocabulary in this type of transformer
-            {vocab} = None
-            """.format(
-                    copy_code=copy_code,
-                    input=input_data,
-                    out=self.output,
-                    att=self.attributes,
-                    alias=self.alias,
-                    vocab_size=self.vocab_size,
-                    model=self.output_model,
-                    vocab=self.vocab))
-        elif self.type == self.TYPE_WORD2VEC:
-            # in word2vec, the number of features its not always equals to
-            # the number of vocabulary. Currently, the generated code force
-            # to be equals.
-            code = dedent("""
-            {out} = {input}{copy_code}
-            dim = {max_dim}
-            corpus = {out}['{att}'].to_numpy().tolist()
-            {model} = Word2Vec(corpus, min_count={min_df}, 
-                max_vocab_size={max_vocab}, size=dim)
-            
-            vector = [np.mean([{model}.wv[w] for w in words if w in {model}.wv]
-                      or [np.zeros(dim)], axis=0) for words in corpus]     
-            {out}['{alias}'] = vector
-            {vocab} = [w for w in {model}.wv.vocab]
-                """.format(copy_code=copy_code,
-                           att=self.attributes,
-                           input=input_data,
-                           min_df=self.minimum_df,
-                           alias=self.alias,
-                           max_dim=self.vocab_size,
-                           out=self.output,
-                           max_vocab=self.vocab_size,
-                           vocab=self.vocab,
-                           model=self.output_model))
+            elif self.type == self.TYPE_HASHING_TF:
+                code = dedent("""
+                
+                def do_nothing(tokens):
+                    return tokens
+                    
+                {out} = {input}{copy_code}  
+                corpus = {out}['{att}'].to_numpy().tolist()
+                {model} = HashingVectorizer(tokenizer=do_nothing,
+                                 preprocessor=None, lowercase=False, 
+                                 n_features={vocab_size})
+                {model}.fit(corpus)
+    
+                vector = {model}.transform(corpus).toarray().tolist()
+                {out}['{alias}'] = vector
+    
+                # There is no vocabulary in this type of transformer
+                {vocab} = None
+                """.format(
+                        copy_code=copy_code,
+                        input=input_data,
+                        out=self.output,
+                        att=self.attributes,
+                        alias=self.alias,
+                        vocab_size=self.vocab_size,
+                        model=self.output_model,
+                        vocab=self.vocab))
+            elif self.type == self.TYPE_WORD2VEC:
+                # in word2vec, the number of features its not always equals to
+                # the number of vocabulary. Currently, the generated code force
+                # to be equals.
+                code = dedent("""
+                {out} = {input}{copy_code}
+                dim = {max_dim}
+                corpus = {out}['{att}'].to_numpy().tolist()
 
-        else:
-            raise ValueError(
-                _("Invalid type '{}' for task {}").format(self.type,
-                                                          self.__class__))
-        return code
+                {model} = Word2Vec(corpus, min_count={min_df}, 
+                    max_vocab_size={max_vocab}, size=dim)
+                                
+                {out}['{alias}'] = get_w2v_vector(corpus, {model}, dim)
+                {vocab} = [w for w in {model}.wv.vocab]
+                    """.format(copy_code=copy_code,
+                               att=self.attributes,
+                               input=input_data,
+                               min_df=self.minimum_df,
+                               alias=self.alias,
+                               max_dim=self.vocab_size,
+                               out=self.output,
+                               max_vocab=self.vocab_size,
+                               vocab=self.vocab,
+                               model=self.output_model))
+
+            else:
+                raise ValueError(
+                    _("Invalid type '{}' for task {}").format(self.type,
+                                                              self.__class__))
+            return code
+
+
+def get_w2v_vector(corpus, model, dim):
+    vector = [np.mean(
+            [model.wv[w] for w in words if w in model.wv] or
+            [np.zeros(dim)], axis=0) for words in corpus]
+    return vector
