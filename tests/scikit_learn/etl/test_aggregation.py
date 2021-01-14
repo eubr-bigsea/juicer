@@ -55,7 +55,7 @@ def test_aggregation_success():
         }
     }
     instance = AggregationOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
     test_out = test_out.groupby(['class']).agg(class_count=(
         'class', 'count')).reset_index()
@@ -80,7 +80,7 @@ def test_aggregation_asterisk_success():
         }
     }
     instance = AggregationOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
     test_out = test_out.groupby(['class']).agg(class_count=(
         'class', 'count')).reset_index()
@@ -103,7 +103,7 @@ def test_aggregation_multiple_functions_success():
         }
     }
     instance = AggregationOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
     test_out = test_out.groupby('class').agg(
         sepal_avg=('sepalwidth', 'mean'),
@@ -144,7 +144,7 @@ def test_aggregation_multiple_attributes_and_functions_success():
         }
     }
     instance = AggregationOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
     test_out = test_out.groupby(['class']).agg(
         sepal_sum=("sepalwidth", "sum"),
@@ -172,7 +172,7 @@ def test_aggregation_non_numeric_attributes_success():
         }
     }
     instance = AggregationOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
 
     test_out = test_out.groupby(['homedest']).agg(
@@ -204,7 +204,7 @@ def test_aggregation_pivot_table_success():
         }
     }
     instance = AggregationOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
     aggfunc = {"petalwidth": ['count']}
     test_out = pd.pivot_table(test_out, index=['petalwidth'],
@@ -237,7 +237,7 @@ def test_aggregation_pivot_attribute_param_and_value_attribute_param_success():
         }
     }
     instance = AggregationOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
     aggfunc = {"class": ['count']}
     values = ["Iris-setosa"]
@@ -306,7 +306,7 @@ def test_aggregation_missing_attribute_param_fail():
     }
     instance = AggregationOperation(**arguments)
     with pytest.raises(TypeError) as typ_err:
-        util.execute(instance.generate_code(),
+        util.execute(util.get_complete_code(instance),
                      {'df': df})
     assert "You have to supply one of 'by' and 'level'" in str(typ_err.value)
 
@@ -402,7 +402,7 @@ def test_aggregation_invalid_attribute_param_fail():
     }
     instance = AggregationOperation(**arguments)
     with pytest.raises(NameError) as nam_err:
-        util.execute(instance.generate_code(),
+        util.execute(util.get_complete_code(instance),
                      {'df': df})
     assert "name 'invalid' is not defined" in str(nam_err.value)
 
@@ -442,7 +442,7 @@ def test_aggregation_invalid_function_param_attribute_fail():
     }
     instance = AggregationOperation(**arguments)
     with pytest.raises(KeyError) as key_err:
-        util.execute(instance.generate_code(),
+        util.execute(util.get_complete_code(instance),
                      {'df': df})
     assert "Column 'invalid' does not exist!" in str(key_err.value)
 
@@ -485,7 +485,7 @@ def test_aggregation_invalid_function_param_alias_fail():
     }
     instance = AggregationOperation(**arguments)
     with pytest.raises(SyntaxError) as syn_err:
-        util.execute(instance.generate_code(),
+        util.execute(util.get_complete_code(instance),
                      {'df': df})
     assert "invalid syntax" in str(syn_err.value)
 
@@ -509,7 +509,7 @@ def test_aggregation_invalid_pivot_table_fail():
     }
     instance = AggregationOperation(**arguments)
     with pytest.raises(NameError) as nam_err:
-        util.execute(instance.generate_code(),
+        util.execute(util.get_complete_code(instance),
                      {'df': df})
     assert "name 'invalid' is not defined" in str(nam_err.value)
 
@@ -534,7 +534,7 @@ def test_aggregation_invalid_pivot_value_attribute_fail():
     }
     instance = AggregationOperation(**arguments)
     with pytest.raises(NameError) as nam_err:
-        util.execute(instance.generate_code(),
+        util.execute(util.get_complete_code(instance),
                      {'df': df})
     assert "name 'invalid' is not defined" in str(nam_err.value)
 
@@ -555,7 +555,7 @@ def test_aggregation_non_numeric_attributes_fail():
     }
     instance = AggregationOperation(**arguments)
     with pytest.raises(pd.core.base.DataError) as data_err:
-        util.execute(instance.generate_code(),
+        util.execute(util.get_complete_code(instance),
                      {'df': df})
     assert "No numeric types to aggregate" in str(data_err.value)
 
