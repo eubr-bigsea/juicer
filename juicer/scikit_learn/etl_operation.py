@@ -340,19 +340,23 @@ class DifferenceOperation(Operation):
     def generate_code(self):
         if self.has_code:
             code = """
-            inter = {input1}.copy().columns.intersection({input2}.copy().columns)
-            input1_oper = {input1}.copy().loc[:, inter]
-            input2_oper = {input2}.copy().loc[:, inter]
-            diff_oper = input1_oper.ne(input2_oper)
-            
-            to_drop = []
-            for idx in diff_oper.index:
-                if diff_oper.loc[idx, :].any() == False:
-                    to_drop.append(idx)
-            {output} = input1_oper.drop(to_drop, axis=0)
+            # check if columns have the same name and data types
+            cols1 = {input1}.columns
+            cols = cols1.intersection({input2}.columns)
+            if len(cols) != len(cols1) or \\
+               any([{input1}[c].dtype != {input2}[c].dtype for c in cols]):
+                raise ValueError('{error}')
+                            
+            {output} = {input1}\
+                .merge({input2}, indicator = True, how='left')\
+                .loc[lambda x : x['_merge']=='left_only']\
+                .drop(['_merge'], axis=1)\
+                .reset_index(drop=True)
             """.format(output=self.output,
                        input1=self.named_inputs['input data 1'],
-                       input2=self.named_inputs['input data 2'])
+                       input2=self.named_inputs['input data 2'],
+                       error=_('Both data need to have the same columns '
+                               'and data types'))
             return dedent(code)
 
 
