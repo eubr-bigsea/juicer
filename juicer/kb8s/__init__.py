@@ -1,9 +1,11 @@
 # coding=utf-8
 import json
+import datetime
 import logging.config
 
 from kubernetes import client
 from kubernetes.client.rest import ApiException
+from gettext import gettext
 
 logging.config.fileConfig('logging_config.ini')
 log = logging.getLogger('juicer.kb8s')
@@ -61,7 +63,8 @@ def delete_kb8s_job(workflow_id, cluster):
     # noinspection PyUnresolvedReferences
     client.Configuration.set_default(configuration)
 
-    name = 'job-{}'.format(workflow_id)
+    name = 'job-{}-{}'.format(workflow_id, 
+            round(datetime.datetime.now().timestamp()))
     namespace = cluster_params['kubernetes.namespace']
 
     api = client.ApiClient(configuration)
@@ -80,7 +83,9 @@ def create_kb8s_job(workflow_id, minion_cmd, cluster):
     configuration.verify_ssl = False
     configuration.debug = False
     if 'general_parameters' not in cluster:
-        raise ValueError('Incorrect cluster config.')
+        raise ValueError(
+            gettext(
+                'Incorrect cluster config (missing general_parameters).'))
 
     cluster_params = {}
     for parameter in cluster['general_parameters'].split(','):
@@ -100,7 +105,9 @@ def create_kb8s_job(workflow_id, minion_cmd, cluster):
     client.Configuration.set_default(configuration)
 
     job = client.V1Job(api_version="batch/v1", kind="Job")
-    name = 'job-{}'.format(workflow_id)
+
+    name = 'job-{}-{}'.format(workflow_id, 
+            round(datetime.datetime.now().timestamp()))
     container_name = 'juicer-job'
     container_image = cluster_params['kubernetes.container']
     namespace = cluster_params['kubernetes.namespace']
@@ -108,9 +115,9 @@ def create_kb8s_job(workflow_id, minion_cmd, cluster):
 
     gpus = int(cluster_params.get('kubernetes.resources.gpus', 0))
 
-    print('-' * 30)
-    print('GPU KB8s specification: ' + str(gpus))
-    print('-' * 30)
+    # print('-' * 30)
+    # print('GPU KB8s specification: ' + str(gpus))
+    # print('-' * 30)
     log.info('GPU specification: %s', gpus)
 
     job.metadata = client.V1ObjectMeta(namespace=namespace, name=name)

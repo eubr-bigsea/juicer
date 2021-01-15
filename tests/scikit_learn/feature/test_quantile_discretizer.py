@@ -1,24 +1,43 @@
 from tests.scikit_learn import util
-from juicer.scikit_learn.etl_operation import QuantileDiscretizerOperation
+from juicer.scikit_learn.feature_operation \
+    import QuantileDiscretizerOperation as QDO
+from sklearn.preprocessing import KBinsDiscretizer
 import pytest
 
 # QuantileDiscretizer
-# 
+#
+
+
 def test_quantile_discretizer_success():
     slice_size = 10
-    df = ['df', util.iris(['sepallength', 'sepalwidth', 
-        'petalwidth', 'petallength'], slice_size)]
+    columns = ['sepallength']
+    df = util.iris(columns, slice_size)
+    test_df = df.copy()
 
     arguments = {
-        'parameters': {},
+        'parameters': {QDO.ATTRIBUTE_PARAM: columns,
+                       QDO.N_QUANTILES_PARAM: 2,
+                       'multiplicity': {'input data': 0},
+                       QDO.ALIAS_PARAM: "out"
+                       },
         'named_inputs': {
-            'input data': df[0],
+            'input data': 'df',
         },
         'named_outputs': {
             'output data': 'out'
         }
     }
-    instance = QuantileDiscretizerOperation(**arguments)
-    result = util.execute(instance.generate_code(), 
-                          dict([df]))
-    assert result['out'].equals(util.iris(size=slice_size))
+    instance = QDO(**arguments)
+    result = util.execute(util.get_complete_code(instance), {'df': df})
+
+    test_out = test_df
+    model_1 = KBinsDiscretizer(n_bins=2,
+                               encode='ordinal',
+                               strategy=QDO.DISTRIBUITION_PARAM_QUANTIS)
+    X_train = util.get_X_train_data(test_df, columns)
+
+    test_out["out"] = model_1.fit_transform(X_train).flatten().tolist()
+
+    for idx in result['out'].index:
+        assert result['out'].loc[idx, "out"] == pytest.approx(
+                test_out.loc[idx, "out"], 0.1)

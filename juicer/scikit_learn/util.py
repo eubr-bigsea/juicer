@@ -4,25 +4,28 @@ import numpy as np
 def get_X_train_data(df, features):
     """
     Method to convert some Pandas's columns to the Sklearn input format.
+    Many sklearn ML algorithm receives an array-like of shape
+    (n_samples, n_features)
 
     :param df: Pandas DataFrame;
     :param features: a list of columns;
 
     :return: a DataFrame's subset as a list of list.
     """
+
+    # Finding columns of list type (e.g., data produced by OneHotEncode)
+    # to convert in a 2D-array
     column_list = []
     for feature in features:
-        # Validating OneHotEncode data existence
         if isinstance(df[feature].iloc[0], list):
             column_list.append(feature)
-    columns = [col for col in features if col not in column_list]
 
+    columns = [col for col in features if col not in column_list]
     tmp1 = df[columns].to_numpy()
-    if (len(column_list) > 0):
+
+    if len(column_list) > 0:
         tmp2 = df[column_list].sum(axis=1).to_numpy().tolist()
         output = np.concatenate((tmp1, tmp2), axis=1)
-    elif len(features) == 1:
-        output = tmp1.flatten()
     else:
         output = tmp1
     return output.tolist()

@@ -33,8 +33,7 @@ def test_generalized_linear_regression_success():
         }
     }
     instance = GeneralizedLinearRegressionOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
     y = get_label_data(test_df, ['sepallength'])
@@ -65,8 +64,7 @@ def test_generalized_linear_regression_fit_intercept_param_success():
         }
     }
     instance = GeneralizedLinearRegressionOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
     y = get_label_data(test_df, ['sepallength'])
@@ -98,8 +96,7 @@ def test_generalized_linear_regression_normalize_param_success():
         }
     }
     instance = GeneralizedLinearRegressionOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -131,8 +128,7 @@ def test_generalized_linear_regression_copy_x_param_success():
         }
     }
     instance = GeneralizedLinearRegressionOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -164,8 +160,7 @@ def test_generalized_linear_regression_n_jobs_param_success():
         }
     }
     instance = GeneralizedLinearRegressionOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -194,8 +189,7 @@ def test_generalized_linear_regression_alias_param_success():
         }
     }
     instance = GeneralizedLinearRegressionOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     assert result['out'].columns[2] == 'success'
 
@@ -279,6 +273,5 @@ def test_generalized_linear_regression_missing_multiplicity_param_fail():
     }
     instance = GeneralizedLinearRegressionOperation(**arguments)
     with pytest.raises(KeyError) as key_err:
-        util.execute(instance.generate_code(),
-                     {'df': df})
+        util.execute(instance.generate_code(), {'df': df})
     assert 'multiplicity' in str(key_err.value)
