@@ -12,8 +12,8 @@ class LemonadeAssociativeRules(object):
         self.max_rules = rulesCount
 
     def run(self, df):
-        itemsets = df.select(self.col_items, self.col_freq).rdd.map(
-            lambda row: (tuple(set(row[0])), row[1])).cache()
+        itemsets = df.select(self.col_items, self.col_freq)\
+                .rdd.map(lambda row: (tuple(set(row[0])), row[1])).cache()
 
         def gen_candidates(row):
             itemset, upper_support = row
@@ -21,14 +21,15 @@ class LemonadeAssociativeRules(object):
             output = []
             for i in range(1, len(itemset)):
                 for antecedent in itertools.combinations(itemset, r=i):
-                    antecedent = tuple(antecedent)
+                    antecedent = tuple(set(antecedent))
                     consequent = tuple(set(set(itemset) - set(antecedent)))
                     output.append([antecedent, consequent, upper_support])
 
             return output
 
         rules = itemsets\
-            .flatMap(gen_candidates).map(lambda item: (item[0], item)) \
+            .flatMap(gen_candidates)\
+            .map(lambda item: (item[0], item)) \
             .join(itemsets) \
             .map(lambda item: (item[1][0][1],
                                (item[1][0][0], item[1][0][1],
