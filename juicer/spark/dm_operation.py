@@ -65,8 +65,7 @@ class FrequentItemSetOperation(Operation):
                 emit_event(name='update task', message='{model_trained}',
                            status='RUNNING', identifier='{task_id}')
                 {output} = model.freqItemsets\
-                    .withColumn('relative_support',
-                                functions.col('freq') / size)
+                    .withColumn('freq', functions.col('freq') / size)
                 {rules} = model.associationRules
             except Exception as e:
                 sparkException = 'org.apache.spark.SparkException'
@@ -125,7 +124,7 @@ class AssociationRulesOperation(Operation):
 
     def generate_code(self):
         code = """
-        arules = LemonadeAssociativeRules('{attr}', '{freq}', \\
+        arules = LemonadeAssociativeRules('{attr}', '{freq}', 
             {confidence}, {rules_count})
         {output} = arules.run({input})
         
