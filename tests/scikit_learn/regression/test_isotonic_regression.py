@@ -30,7 +30,7 @@ def test_isotonic_regression_success():
         }
     }
     instance = IsotonicRegressionOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
 
     model_1 = IsotonicRegression(y_min=None, y_max=None, increasing=False,
@@ -64,7 +64,7 @@ def test_isotonic_regression_isotonic_param_success():
         }
     }
     instance = IsotonicRegressionOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
 
     model_1 = IsotonicRegression(y_min=None, y_max=None, increasing=True,
@@ -97,7 +97,7 @@ def test_isotonic_regression_prediction_param_success():
         }
     }
     instance = IsotonicRegressionOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
     assert result['out'].columns[2] == 'success'
 
@@ -121,7 +121,7 @@ def test_isotonic_regression_y_min_y_max_params_success():
         }
     }
     instance = IsotonicRegressionOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
 
     model_1 = IsotonicRegression(y_min=2.0, y_max=4.0, increasing=False,
@@ -156,7 +156,7 @@ def test_isotonic_regression_out_of_bounds_param_success():
         }
     }
     instance = IsotonicRegressionOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
 
     model_1 = IsotonicRegression(y_min=None, y_max=None, increasing=False,
