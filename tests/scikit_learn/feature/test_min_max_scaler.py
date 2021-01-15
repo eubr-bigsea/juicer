@@ -39,8 +39,7 @@ def test_min_max_scaler_success():
         }
     }
     instance = MinMaxScalerOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     test_out = scaler(test_df, ['sepalwidth', 'petalwidth'], 0, 1)
     assert result['out'].loc[:, 'scaled_1'].equals(test_out.loc[:, 'scaled_1'])
 
@@ -62,8 +61,7 @@ def test_min_max_scaler_2_success():
         }
     }
     instance = MinMaxScalerOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     test_out = scaler(test_df, ['sepalwidth', 'petalwidth'], 2, 6)
     assert result['out'].loc[:, 'scaled_1'].equals(test_out.loc[:, 'scaled_1'])
 
@@ -85,8 +83,7 @@ def test_min_max_scaler_alias_param_success():
         }
     }
     instance = MinMaxScalerOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     assert result['out'].iloc[:, 2].name == "success"
 
 
@@ -159,8 +156,7 @@ def test_min_max_scaler_invalid_attribute_param_fail():
     }
     instance = MinMaxScalerOperation(**arguments)
     with pytest.raises(ValueError) as val_err:
-        util.execute(instance.generate_code(),
-                     {'df': df})
+        util.execute(util.get_complete_code(instance), {'df': df})
     assert "could not convert string to float: 'Iris-setosa'" in str(
         val_err.value)
 
@@ -182,7 +178,6 @@ def test_min_max_scaler_invalid_min_max_param_fail():
     }
     instance = MinMaxScalerOperation(**arguments)
     with pytest.raises(ValueError) as val_err:
-        util.execute(instance.generate_code(),
-                     {'df': df})
+        util.execute(util.get_complete_code(instance), {'df': df})
     assert "Minimum of desired feature range must be smaller than maximum." \
            " Got (1, 1)." in str(val_err.value)

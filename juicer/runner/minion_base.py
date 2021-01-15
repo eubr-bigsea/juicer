@@ -75,6 +75,8 @@ class Minion:
         self.MNN010 = ('MNN010', _(
             'Task completed, but not executed (not used in the workflow).'))
 
+        self.MNN011 = ('MNN011', _(
+            'Error accessing data. Probably attribute "{}" does not exist.'))
         # Used in the template file, declared here to gettext detect them
         self.msgs = [
             _('Task running'), _('Task completed'),
