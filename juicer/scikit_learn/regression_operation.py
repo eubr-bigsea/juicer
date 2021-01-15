@@ -875,8 +875,6 @@ class MLPRegressorOperation(Operation):
                 if self.parameters['multiplicity']['train input data'] > 1 else ""
 
             code = """
-                from sklearn.neural_network import MLPRegressor
-                from juicer.scikit_learn.util import get_X_train_data, get_label_data
                 {output_data} = {input_data}{copy_code}
                 X_train = get_X_train_data({input_data}, {columns})
                 y = get_label_data({input_data}, {label})

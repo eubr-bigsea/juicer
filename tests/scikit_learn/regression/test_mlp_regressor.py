@@ -31,8 +31,7 @@ def test_mlp_regressor_success():
         }
     }
     instance = MLPRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -68,8 +67,7 @@ def test_mlp_regressor_layer_sizes_param_success():
         }
     }
     instance = MLPRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -105,8 +103,7 @@ def test_mlp_regressor_identity_activation_param_success():
         }
     }
     instance = MLPRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -142,8 +139,7 @@ def test_mlp_regressor_logistic_activation_param_success():
         }
     }
     instance = MLPRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -179,8 +175,7 @@ def test_mlp_regressor_tanh_activation_param_success():
         }
     }
     instance = MLPRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -216,8 +211,7 @@ def test_mlp_regressor_lbfgs_solver_param_success():
         }
     }
     instance = MLPRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -253,8 +247,7 @@ def test_mlp_regressor_sgd_solver_param_success():
         }
     }
     instance = MLPRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -290,8 +283,7 @@ def test_mlp_regressor_alpha_param_success():
         }
     }
     instance = MLPRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -327,8 +319,7 @@ def test_mlp_regressor_max_iter_param_success():
         }
     }
     instance = MLPRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -364,8 +355,7 @@ def test_mlp_regressor_tol_param_success():
         }
     }
     instance = MLPRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -401,8 +391,7 @@ def test_mlp_regressor_random_state_param_success():
         }
     }
     instance = MLPRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -435,8 +424,7 @@ def test_mlp_regressor_batch_size_param_success():
         }
     }
     instance = MLPRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -473,8 +461,7 @@ def test_mlp_regressor_learning_rate_param_success():
         }
     }
     instance = MLPRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -511,8 +498,7 @@ def test_mlp_regressor_prediction_param_success():
         }
     }
     instance = MLPRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     assert result['out'].columns[4] == 'success'
 
 
@@ -535,8 +521,7 @@ def test_mlp_regressor_learning_rate_init_param_success():
         }
     }
     instance = MLPRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -575,8 +560,7 @@ def test_mlp_regressor_power_t_param_success():
         }
     }
     instance = MLPRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -616,8 +600,7 @@ def test_mlp_regressor_shuffle_param_success():
         }
     }
     instance = MLPRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -651,8 +634,7 @@ def test_mlp_regressor_n_iter_no_change_param_success():
         }
     }
     instance = MLPRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -691,14 +673,13 @@ def test_mlp_regressor_momentum_param_success():
         }
     }
     instance = MLPRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
     y = get_label_data(test_df, ['sepallength'])
 
-    model_1 = model_1 = MLPRegressor(hidden_layer_sizes=(1, 100, 1),
+    model_1 = MLPRegressor(hidden_layer_sizes=(1, 100, 1),
                                      activation='relu', solver='sgd',
                                      alpha=0.0001, max_iter=200, tol=0.0001,
                                      batch_size='auto', learning_rate='constant',
@@ -734,8 +715,7 @@ def test_mlp_regressor_nesterovs_momentum_param_success():
         }
     }
     instance = MLPRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -775,8 +755,7 @@ def test_mlp_regressor_early_stopping_and_validation_fraction_params_success():
         }
     }
     instance = MLPRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -816,8 +795,7 @@ def test_mlp_regressor_beta_1_beta_2_params_success():
         }
     }
     instance = MLPRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -855,8 +833,7 @@ def test_mlp_regressor_epsilon_param_success():
         }
     }
     instance = MLPRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
