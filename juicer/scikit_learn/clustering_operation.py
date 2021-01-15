@@ -144,8 +144,6 @@ class AgglomerativeClusteringOperation(Operation):
                 if self.parameters['multiplicity']['input data'] > 1 else ""
 
             code = """
-            from sklearn.cluster import AgglomerativeClustering
-            from juicer.scikit_learn.util import get_label_data, get_X_train_data
             {output_data} = {input_data}{copy_code}
             X = get_X_train_data({output_data}, {features})
             agg = AgglomerativeClustering(n_clusters={n_clusters}, 

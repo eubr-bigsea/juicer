@@ -30,8 +30,7 @@ def test_agglomerative_clustering_success():
         }
     }
     instance = AgglomerativeClusteringOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X = get_X_train_data(test_out, ['petalwidth', 'petallength'])
@@ -56,8 +55,7 @@ def test_agglomerative_clustering_alias_param_success():
         }
     }
     instance = AgglomerativeClusteringOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     assert result['out'].columns[2] == 'success'
 
 
@@ -77,8 +75,7 @@ def test_agglomerative_clustering_number_of_clusters_param_success():
         }
     }
     instance = AgglomerativeClusteringOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X = get_X_train_data(test_out, ['petalwidth', 'petallength'])
@@ -106,8 +103,7 @@ def test_agglomerative_clustering_affinity_and_linkage_params_success():
         }
     }
     instance = AgglomerativeClusteringOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X = get_X_train_data(test_out, ['petalwidth', 'petallength'])
