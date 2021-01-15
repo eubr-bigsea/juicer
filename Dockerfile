@@ -11,7 +11,7 @@ ENV TERM=xterm\
     TZ=America/Sao_Paulo\
     DEBIAN_FRONTEND=noninteractive
 
-RUN apt-get update && apt-get install -y \ 
+RUN apt-get update && apt-get install -y \
       python3.7-dev \
       python3-pip \
       python3-dev \
@@ -49,22 +49,6 @@ RUN SPARK_LATEST_VERSION=$(\
     ln -s /usr/local/spark /opt/spark
 
 WORKDIR $JUICER_HOME
-
-ENV ARROW_LIBHDFS_DIR /usr/local/juicer/native
-ENV HADOOP_HOME /usr/local/juicer/
-ENV HADOOP_VERSION_BASE=2.7.7
-
-RUN curl -sL https://archive.apache.org/dist/hadoop/core/hadoop-${HADOOP_VERSION_BASE}/hadoop-${HADOOP_VERSION_BASE}.tar.gz | tar -xz -C /tmp/ &&\
-    mkdir ${JUICER_HOME}/jars  &&\
-    mv /tmp/hadoop-${HADOOP_VERSION_BASE}/lib/native ${ARROW_LIBHDFS_DIR} &&\
-    mv /tmp/hadoop-${HADOOP_VERSION_BASE}/share/hadoop/common/lib/* ${JUICER_HOME}/jars/ &&\
-    mv /tmp/hadoop-${HADOOP_VERSION_BASE}/share/hadoop/common/*.jar ${JUICER_HOME}/jars/ &&\
-    mv /tmp/hadoop-${HADOOP_VERSION_BASE}/share/hadoop/hdfs/lib/* ${JUICER_HOME}/jars/ &&\
-    mv /tmp/hadoop-${HADOOP_VERSION_BASE}/share/hadoop/hdfs/*.jar ${JUICER_HOME}/jars/ &&\
-    rm -r /tmp/hadoop-${HADOOP_VERSION_BASE}
-
-ENV CLASSPATH /usr/local/juicer/jars/*
-
 COPY requirements.txt $JUICER_HOME
 
 RUN pip3 install -r $JUICER_HOME/requirements.txt --no-cache-dir
@@ -77,5 +61,6 @@ COPY . $JUICER_HOME
 RUN pybabel compile -d $JUICER_HOME/juicer/i18n/locales
 
 COPY ./entrypoint.sh /opt/
-RUN curl -o $JUICER_HOME/jars/lemonade-spark-ext-1.0.jar https://github.com/eubr-bigsea/lemonade-spark-ext/raw/master/dist/lemonade-spark-ext-1.0.jar
+RUN mkdir ${JUICER_HOME}/jars &&\
+    curl -o $JUICER_HOME/jars/lemonade-spark-ext-1.0.jar https://github.com/eubr-bigsea/lemonade-spark-ext/raw/master/dist/lemonade-spark-ext-1.0.jar
 ENTRYPOINT [ "/opt/entrypoint.sh" ]

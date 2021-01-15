@@ -89,13 +89,14 @@ protobuf==3.9.1
 py==1.8.0
 py4j==0.10.8.1
 pyaml==19.4.1
-pyarrow==0.17.0
+pyarrow==2.0.0
 pyasn1==0.4.7
 pyasn1-modules==0.2.6
 pycodestyle==2.5.0
 pycparser==2.19
 pyinotify==0.9.6
 pyfpgrowth==1.0
+PyHDFS==0.3.1
 pylint==2.3.1
 PyMySQL==0.9.3
 pyparsing==2.4.2

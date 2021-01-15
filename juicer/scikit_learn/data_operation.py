@@ -115,6 +115,21 @@ class DataReaderOperation(Operation):
             raise ValueError(
                 _('Incorrect data source configuration (empty url)'))
 
+        storage_url = self.metadata['storage']['url']
+        client_url = self.metadata['storage'].get('client_url', None)
+
+        if client_url is None:
+            client_url = storage_url
+
+        parsed = urlparse(client_url)
+        host, port, scheme = parsed.hostname, parsed.port, parsed.scheme
+        if scheme == 'hdfs':
+            domain = host+":"+str(port)
+            self.url = urlparse(self.metadata['url'])\
+                    ._replace(netloc=domain).geturl()
+        else:
+            self.url = self.metadata['url']
+
         self.header = parameters.get(
             self.HEADER_PARAM, False) not in ('0', 0, 'false', False)
         self.null_values = [v.strip() for v in parameters.get(
@@ -192,7 +207,7 @@ class DataReaderOperation(Operation):
                  self.parameters.get('plain', False)) or self.plain
 
             if not protect:
-                code.append("url = '{url}'".format(url=self.metadata['url']))
+                code.append("url = '{url}'".format(url=self.url))
             null_values = self.null_values
             if self.metadata.get('treat_as_missing'):
                 null_values.extend([x.strip() for x in self.metadata.get(
@@ -201,7 +216,7 @@ class DataReaderOperation(Operation):
                 [".option('nullValue', '{}')".format(n) for n in
                  set(null_values)]) if null_values else ""
 
-            parsed = urlparse(self.metadata['url'])
+            parsed = urlparse(self.url)
             extra_params = {}
             if 'extra_params' in self.metadata['storage']:
                 if self.metadata['storage']['extra_params']:
@@ -217,13 +232,11 @@ class DataReaderOperation(Operation):
                             f = open('{path}', 'rb')""".format(path=name))
                     else:
                         open_code = dedent("""
-                                    fs = pa.hdfs.connect(host='{hdfs_server}', 
-                                                         port={hdfs_port},
-                                                         user='{hdfs_user}')
-                                    f = fs.open('{path}', 'rb')""".format(
+                                    fs = pyhdfs.HdfsClient(hosts='{webhdfs}', 
+                                    user_name='{hdfs_user}')
+                                    f = fs.open('{path}')""".format(
                             path=parsed.path,
-                            hdfs_server=parsed.hostname,
-                            hdfs_port=parsed.port,
+                            webhdfs=parsed.hostname+':'+ str(parsed.port),
                             hdfs_user=extra_params.get(
                                 'user', parsed.username) or 'hadoop'
                     ))
@@ -236,15 +249,20 @@ class DataReaderOperation(Operation):
 
             if self.metadata['format'] in ['CSV', 'TEXT']:
                 encoding = self.metadata.get('encoding', 'utf-8') or 'utf-8'
+                # engine must be 'python' due to bug reported in
+                # https://github.com/pandas-dev/pandas/issues/38489. Changed it
+                # in Pandas > 1.2.0
                 if self.metadata['format'] == 'CSV':
                     code_csv = dedent("""
                         header = {header}
-                        {output} = pd.read_csv(f, sep='{sep}',
+                        s =  StringIO(f.read().decode('{encoding}')) 
+                        {output} = pd.read_csv(s, sep='{sep}',
                                                encoding='{encoding}',
                                                header=header,
                                                names={new_columns},
                                                na_values={na_values},
                                                dtype=columns,
+                                               engine='python',
                                                parse_dates=parse_dates,
                                                converters=converters,
                                                error_bad_lines={mode})
@@ -265,7 +283,8 @@ class DataReaderOperation(Operation):
                     code.append(code_csv)
                 else:
                     code_csv = dedent("""
-                        {output} = pd.read_csv(f, sep='{sep}',
+                        s =  StringIO(f.read().decode('{encoding}')) 
+                        {output} = pd.read_csv(s, sep='{sep}',
                                                encoding='{encoding}',
                                                names = ['value'],
                                                error_bad_lines={mode})
@@ -277,13 +296,15 @@ class DataReaderOperation(Operation):
                     code.append(code_csv)
             elif self.metadata['format'] == 'PARQUET':
                 code_parquet = dedent("""
-                    {output} = pd.read_parquet(f, engine='pyarrow')
+                    s = BytesIO(f.read())
+                    {output} = pd.read_parquet(s, engine='pyarrow')
                     f.close()
                     """).format(output=self.output)
                 code.append(code_parquet)
             elif self.metadata['format'] == 'JSON':
                 code_json = dedent("""
-                    {output} = pd.read_json(f, orient='records')
+                    s =  StringIO(f.read().decode('{encoding}')) 
+                    {output} = pd.read_json(s, orient='records')
                     f.close()
                     """).format(output=self.output)
                 code.append(code_json)
@@ -404,19 +425,31 @@ class SaveOperation(Operation):
 
         limonero_config = \
             self.parameters['configuration']['juicer']['services']['limonero']
-        url = '{}'.format(limonero_config['url'], self.mode)
+        base_url = '{}'.format(limonero_config['url'], self.mode)
         token = str(limonero_config['auth_token'])
-        storage = limonero_service.get_storage_info(url, token, self.storage_id)
+        storage = limonero_service.get_storage_info(base_url, token,
+                                                    self.storage_id)
 
         if storage['type'] != 'HDFS':
             raise ValueError(_('Storage type not supported: {}').format(
                 storage['type']))
 
-        protect = (self.parameters.get('export_notebook', False) or 
+        storage_url = storage['url']
+        if storage_url.endswith('/'):
+            storage_url = storage_url[:-1]
+        parsed = urlparse(storage_url)
+        storage_host, storage_port, storage_scheme = \
+            parsed.hostname, parsed.port, parsed.scheme
+
+        protect = (self.parameters.get('export_notebook', False) or
              self.parameters.get('plain', False)) or self.plain
 
-        if storage['url'].endswith('/'):
-            storage['url'] = storage['url'][:-1]
+        url = storage.get('client_url')
+        if url is None:
+            url = storage_url
+
+        if url.endswith('/'):
+            url = url[:-1]
         if self.path.endswith('/'):
             self.path = self.path[:-1]
 
@@ -424,7 +457,7 @@ class SaveOperation(Operation):
             self.path = self.path[1:]
 
         final_url = '{}/limonero/user_data/{}/{}/{}'.format(
-            storage['url'],
+            url,
             self.user['id'],
             self.path,
             self.name.replace(' ', '_'))
@@ -438,20 +471,17 @@ class SaveOperation(Operation):
                 '.parquet'):
             final_url += '.parquet'
 
-        parsed = urlparse(final_url)
-
         df_input = self.named_inputs['input data']
-        extra_params = {}
-        if 'extra_params' in storage:
-            extra_params = json.loads(storage['extra_params'])
+
+        extra_params = storage.get('extra_params') \
+            if storage.get('extra_params') is not None else "{}"
+        extra_params = json.loads(extra_params)
 
         hdfs_user = extra_params.get('user', parsed.username) or 'hadoop'
         code_template = """
             path = '{{path}}'
-            {%- if scheme == 'hdfs' and not protect %}
-            fs = pa.hdfs.connect(host='{{hdfs_server}}', 
-                                 port={{hdfs_port}},
-                                 user='{{hdfs_user}}')
+            {%- if scheme == 'hdfs' or protect %}
+            fs = pyhdfs.HdfsClient(hosts='{{webhdfs}}', user_name='{{hdfs_user}}')
             exists = fs.exists(path)
             {%- elif scheme == 'file' or protect %}
             exists = os.path.exists(path)
@@ -470,43 +500,34 @@ class SaveOperation(Operation):
                         identifier='{{task_id}}')
                 else:
                     {%- if scheme == 'hdfs' and not protect %}
-                        fs.delete(path, False)
+                        fs.delete(path, recursive=True)
                     {%- elif scheme == 'file' or protect %}
                         os.remove(path)
-                        parent_dir = os.path.dirname(path)
-                        if not os.path.exists(parent_dir):
-                            os.makedirs(parent_dir)
-                    {%- endif %}
-            else:
-                {%-if scheme == 'hdfs' and not protect %}    
-                fs.mkdir(os.path.dirname(path))
-                {%- elif scheme == 'file' %}
-                parent_dir = os.path.dirname(path)
+                        
+            parent_dir = os.path.dirname(path)
+            if not os.path.exists(parent_dir):
                 os.makedirs(parent_dir)
-                {%- else %}
-                pass
-                {%- endif%}
+            {%- endif %}
+    
+            {%- if mode != 'ignore' %}
             
             {%- if format == FORMAT_CSV %}
             {%- if scheme == 'hdfs' and not protect %}
             from io import StringIO
-            with fs.open(path, 'wb') as f:
-                s = StringIO()
-                {{input}}.to_csv(s, sep=str(','), mode='w',
-                header={{header}}, index=False, encoding='utf-8')
-                f.write(s.getvalue().encode())               
+            s = StringIO()
+            {{input}}.to_csv(s, sep=',', 
+            header={{header}}, index=False, encoding='utf-8')
+            fs.create(path, data=s.getvalue().encode(), overwrite=False)
             {%- elif scheme == 'file' or protect %}
-            {{input}}.to_csv(path, sep=str(','), mode='w',
+            {{input}}.to_csv(path, sep=',', mode='w',
             header={{header}}, index=False, encoding='utf-8')
             {%- endif %}
             
             {%- elif format == FORMAT_PARQUET %}
             {%- if scheme == 'hdfs' and not protect %}
-            from io import ByteIO
-            with fs.open(path, 'wb') as f:
-                s = ByteIO()
-                {{input}}.to_parquet(s, engine='pyarrow')
-                f.write(s.getvalue())               
+            s = BytesIO()
+            {{input}}.to_parquet(s, engine='pyarrow')
+            fs.create(path, data=s.getvalue())               
             {%- elif scheme == 'file' or protect %}
             {{input}}.to_parquet(path, engine='pyarrow')
             {%- endif %}
@@ -514,10 +535,9 @@ class SaveOperation(Operation):
             {%- elif format == FORMAT_JSON %}
             {%- if scheme == 'hdfs' and not protect %}
             from io import StringIO
-            with fs.open(path, 'wb') as f:
-                s = StringIO()
-                {{input}}.to_json(s, orient='records')
-                f.write(s.getvalue().encode())             
+            s = StringIO()
+            {{input}}.to_json(s, orient='records')
+            fs.create(path, data=s.getvalue().encode())
             {%- elif scheme == 'file' or protect %}
             {{input}}.to_json(path, orient='records')
             {%- endif %}
@@ -558,20 +578,29 @@ class SaveOperation(Operation):
                 'user_name': "{{user_name}}",
                 'workflow_id': "{{workflow_id}}",
                 'task_id': '{{task_id}}',
-                'url': "{{final_url}}",
+                'url': "{{final_storage_url}}",
                 'attributes': attributes
             }
-            register_datasource('{{url}}', parameters, '{{token}}', 'overwrite')
+            register_datasource('{{base_url}}', parameters, '{{token}}', 'overwrite')
             {%- endif %}
+        {%- endif %}
         """
+        parsed = urlparse(final_url)
         template = Environment(loader=BaseLoader).from_string(
             code_template)
         path = parsed.path
+        domain_webhdfs = ""
+        if storage_scheme == "hdfs":
+            domain = storage_host+":"+str(storage_port)
+            domain_webhdfs = parsed.hostname + ":" + str(parsed.port)
+            final_storage_url = parsed._replace(netloc=domain).geturl()
+        else:
+            final_storage_url = final_url
 
         ctx = dict(protect=protect,
                    path=path if not protect else os.path.basename(path),
-                   hdfs_server=parsed.hostname,
-                   hdfs_port=parsed.port,
+                   final_storage_url=final_storage_url,
+                   webhdfs=domain_webhdfs,
                    hdfs_user=hdfs_user,
                    scheme=parsed.scheme,
                    name=self.name,
@@ -599,7 +628,7 @@ class SaveOperation(Operation):
                    warn_ignored=_('File not written (already exists)'),
                    error_invalid_mode=_('Invalid mode {}').format(self.mode),
                    uuid=uuid.uuid4().hex,
-                   storage_url=storage['url'],
+                   base_url=base_url,
                    task_id=self.parameters['task_id'],
                    )
 
