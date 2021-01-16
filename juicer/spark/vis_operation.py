@@ -193,7 +193,7 @@ class VisualizationMethodOperation(Operation):
         invalid = {'configuration', 'export_notebook',
                 'hash', 'transpiler', 'parents',
                 'parents_by_port', 'my_ports', 'audit_events',
-                'task', 'workflow',}
+                'task', 'workflow', 'transpiler_utils'}
 
         for k, v in list(self.parameters.items()):
             if k not in invalid and not isinstance(v, (set,)):

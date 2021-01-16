@@ -1,0 +1,97 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+"""
+Auto-generated Scikit-Learn code from Lemonade Workflow.
+(c) Speed Labs - Departamento de Ciência da Computação
+    Universidade Federal de Minas Gerais
+"""
+
+import datetime
+import decimal
+import functools
+import os
+import re
+import json
+import simplejson
+import string
+import sys
+import time
+import unicodedata
+import numpy as np
+import pandas as pd
+import pyarrow as pa
+
+from juicer.util import dataframe_util
+from juicer.scikit_learn.model_operation import ModelsEvaluationResultList
+from juicer.spark.reports import *
+import traceback
+
+{%- autopep8 %}
+{%- for imps in transpiler.imports %}
+{{imps}}
+{%- endfor %}
+
+{%- if transpiler.custom_functions %}
+{%- for code in transpiler.custom_functions.values() %}
+{{code}}
+{%- endfor -%}
+{%- endif %}
+
+def emit(df, n=20):
+    """
+    Print first n records from DataFrame
+    """
+    print(df.head(n))
+
+def emit_schema(df):
+    """
+    Print a concise summary of a DataFrame.
+    """
+    df.info(verbose=True)
+
+def main():
+    """
+    Generated code.
+    """
+{%- for instance in instances %}
+{%-  handleinstance instance %}
+{%- if instance.has_code and instance.enabled %}
+{%- set task = instance.parameters.task %}
+{%- set task_id = task.id %}
+
+    # ---------------------------------------------------------------------------
+    # {{task.operation.name}}
+    # task_id = '{{task_id}}'
+    # ---------------------------------------------------------------------------
+{%- if task.forms.comment and task.forms.comment.value %}
+{%- for comment in task.forms.comment and task.forms.comment.value.split('\n') %}
+    # {{comment.replace('"', '')}}
+{%- endfor %}
+{%- endif %}
+{%- if instance.set_plain(True) %}{% endif %}
+{{instance.generate_code().strip()|indent(4, True)}}
+
+{%- if instance.contains_results() %}
+
+    {%- for out in instance.get_output_names(',').split(',') %}
+    {%- if instance.has_code and instance.enabled %}
+    {%- if instance.contains_sample %}
+    emit({{out}})
+    {%- endif%}
+    {%- if instance.contains_schema %}
+    emit_schema({{out}})
+    {%- endif%}
+    {%- endif%}
+    {%- endfor %}
+
+{%- endif %}
+
+
+{%- endif %}
+{%- endhandleinstance %}
+{% endfor %}
+
+if __name__ == '__main__':
+    main()
+
+{% endautopep8 %}

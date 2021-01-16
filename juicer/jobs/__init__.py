@@ -7,12 +7,34 @@ from urllib.parse import urlparse
 
 import pyarrow as pa
 import yaml
+from redis import StrictRedis
 from juicer.atmosphere import opt_ic, gpu_prediction
 from juicer.atmosphere.vallum import perform_copy
 from juicer.service import limonero_service, stand_service
 from rq import get_current_job
+from gettext import gettext
 
+class JuicerStrictRedis(StrictRedis):
+    def __init__(self, *args, **kwargs):
+        config_file = os.environ.get('JUICER_CONF')
+        if config_file is None:
+            raise ValueError(
+                    'You must inform the JUICER_CONF env variable')
+        with open(config_file) as f:
+            config = yaml.load(f, Loader=yaml.FullLoader)
 
+        redis_url = config['juicer']['servers']['redis_url']
+        parsed = urlparse(redis_url)
+        print(redis_url)
+        super(JuicerStrictRedis, self).__init__(
+                host=parsed.hostname, port=parsed.port)
+
+def start_workflow(payload):
+    """ Starts a workflow, creating a job """
+    print(payload)
+
+    return payload
+    
 def estimate_time_with_performance_model(payload):
     """
     Job for performance models
@@ -27,7 +49,7 @@ def estimate_time_with_performance_model(payload):
             return result
 
         with open(config_file) as f:
-            config = yaml.load(f)
+            config = yaml.load(f, Loader=yaml.FullLoader)
 
         print('-' * 20)
         print(payload)
@@ -176,7 +198,7 @@ def cache_vallum_data(payload):
             return result
 
         with open(config_file) as f:
-            config = yaml.load(f)
+            config = yaml.load(f, Loader=yaml.FullLoader)
 
         print('-' * 20)
         job = get_current_job()
