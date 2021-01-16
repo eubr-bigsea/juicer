@@ -31,7 +31,7 @@ def test_remove_stop_words_success():
         }
     }
     instance = RemoveStopWordsOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
 
     test_out = test_df
@@ -64,7 +64,7 @@ def test_remove_stop_words_alias_param_success():
         }
     }
     instance = RemoveStopWordsOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
 
     assert result['out'].columns[1] == 'success'
@@ -85,7 +85,7 @@ def test_remove_stop_words_stop_word_list_param_success():
         }
     }
     instance = RemoveStopWordsOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
 
     test_out = test_df
@@ -124,7 +124,7 @@ def test_remove_stop_words_stop_word_attribute_param_success():
         }
     }
     instance = RemoveStopWordsOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df,
                            'stp_w': stp_w})
 
@@ -162,7 +162,7 @@ def test_remove_stop_words_stop_word_language_param_success():
         }
     }
     instance = RemoveStopWordsOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
 
     test_out = test_df
