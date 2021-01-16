@@ -32,7 +32,7 @@ def test_execute_sql_success():
         }
     }
     instance = ExecuteSQLOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df1': df1})
     assert result['out'].equals(test_df)
 
@@ -50,7 +50,7 @@ def test_execute_sql_names_param_not_informed_success():
         }
     }
     instance = ExecuteSQLOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df1': df1})
     assert result['out'].equals(test_df)
 
@@ -75,7 +75,7 @@ def test_execute_sql_multiple_dataframes_success():
         }
     }
     instance = ExecuteSQLOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df1': df1,
                            'df2': df2})
     assert result['out'].equals(test_df)
@@ -126,7 +126,7 @@ def test_execute_sql_column_not_found_fail():
     }
     instance = ExecuteSQLOperation(**arguments)
     with pytest.raises(pandasql.PandaSQLException) as psql_err:
-        util.execute(instance.generate_code(),
+        util.execute(util.get_complete_code(instance),
                      {'df1': df1})
     assert "(sqlite3.OperationalError) no such column: unknown" in str(
         psql_err.value)
@@ -148,7 +148,7 @@ def test_execute_sql_wrong_number_of_attributes_informed_fail():
     }
     instance = ExecuteSQLOperation(**arguments)
     with pytest.raises(ValueError) as val_err:
-        util.execute(instance.generate_code(),
+        util.execute(util.get_complete_code(instance),
                      {'df1': df1})
     assert "Invalid names. Number of attributes in" \
            " result differs from names informed." in str(val_err.value)

@@ -1,7 +1,8 @@
 from textwrap import dedent
-from juicer.operation import Operation
 import re
+from juicer.operation import Operation
 from juicer.util.template_util import *
+from juicer.scikit_learn.util import get_X_train_data, get_label_data
 
 
 class ClassificationModelOperation(Operation):
@@ -140,9 +141,12 @@ class DecisionTreeClassifierOperation(Operation):
                             _("Parameter '{}' must be x>0 for task {}").format(
                                     att, self.__class__))
 
-            self.has_import = \
-                "from sklearn.tree import DecisionTreeClassifier\n"
-
+            self.transpiler_utils.add_import(
+                    'from sklearn.tree import DecisionTreeClassifier')
+            self.transpiler_utils.add_custom_function(
+                    'get_X_train_data', get_X_train_data)
+            self.transpiler_utils.add_custom_function(
+                    'get_label_data', get_label_data)
             self.input_treatment()
 
     @property
@@ -307,8 +311,12 @@ class GBTClassifierOperation(Operation):
                             _("Parameter '{}' must be x>0 for task {}").format(
                                     att, self.__class__))
 
-            self.has_import = \
-                "from sklearn.ensemble import GradientBoostingClassifier\n"
+            self.transpiler_utils.add_import(
+                    "from sklearn.ensemble import GradientBoostingClassifier")
+            self.transpiler_utils.add_custom_function(
+                    'get_X_train_data', get_X_train_data)
+            self.transpiler_utils.add_custom_function(
+                    'get_label_data', get_label_data)
             self.input_treatment()
 
     @property
@@ -367,7 +375,7 @@ class GBTClassifierOperation(Operation):
                 criterion='{criterion}', 
                 min_weight_fraction_leaf={min_weight_fraction_leaf}, 
                 min_impurity_decrease={min_impurity_decrease}, init={init},
-                max_features={max_features}, verbose=False, 
+                max_features={max_features},
                 max_leaf_nodes={max_leaf_nodes}, warm_start=False, 
                 presort='{presort}', validation_fraction={validation_fraction}, 
                 n_iter_no_change={n_iter_no_change}, tol={tol})
@@ -447,9 +455,12 @@ class KNNClassifierOperation(Operation):
                         _("Parameter '{}' must be x>0 for task {}").format(
                                 self.K_PARAM, self.__class__))
 
-            self.has_import = \
-                "from sklearn.neighbors import KNeighborsClassifier\n"
-
+            self.transpiler_utils.add_import(
+                    "from sklearn.neighbors import KNeighborsClassifier")
+            self.transpiler_utils.add_custom_function(
+                    'get_X_train_data', get_X_train_data)
+            self.transpiler_utils.add_custom_function(
+                    'get_label_data', get_label_data)
             self.input_treatment()
 
     @property
@@ -521,7 +532,6 @@ class LogisticRegressionOperation(Operation):
     MULTI_CLASS_PARAM = 'multi_class'
     N_JOBS_PARAM = 'n_jobs'
     L1_RATIO_PARAM = 'l1_ratio'
-    VERBOSE_PARAM = 'verbose'
 
     SOLVER_PARAM_NEWTON = 'newton-cg'
     SOLVER_PARAM_LBFGS = 'lbfgs'
@@ -590,12 +600,6 @@ class LogisticRegressionOperation(Operation):
                         _("Parameter '{}' must be x>0 for task {}").format(
                             self.INTERCEPT_SCALING_PARAM, self.__class__))
 
-            self.verbose = int(parameters.get(self.VERBOSE_PARAM, 0))
-            if(self.verbose < 0):
-                raise ValueError(
-                        _("Parameter '{}' must be x>=0 for task {}").format(
-                            self.VERBOSE_PARAM, self.__class__))
-
             n_jobs_ = parameters.get(self.N_JOBS_PARAM, None)
             if n_jobs_ is not None:
                 self.n_jobs = int(n_jobs_)
@@ -652,8 +656,12 @@ class LogisticRegressionOperation(Operation):
             else:
                 self.l1_ratio = 'None'
 
-            self.has_import = \
-                "from sklearn.linear_model import LogisticRegression\n"
+            self.transpiler_utils.add_import(
+                    "from sklearn.linear_model import LogisticRegression")
+            self.transpiler_utils.add_custom_function(
+                    'get_X_train_data', get_X_train_data)
+            self.transpiler_utils.add_custom_function(
+                    'get_label_data', get_label_data)
 
     @property
     def get_data_out_names(self, sep=','):
@@ -672,7 +680,7 @@ class LogisticRegressionOperation(Operation):
             solver='{solver}', random_state={seed}, penalty='{penalty}', 
             dual={dual}, fit_intercept={fit_intercept}, 
             intercept_scaling={intercept_scaling}, multi_class='{multi_class}',
-            verbose={verbose}, n_jobs={n_jobs}, l1_ratio={l1_ratio})
+            n_jobs={n_jobs}, l1_ratio={l1_ratio})
 
             X_train = get_X_train_data({input}, {features})
             y = get_label_data({input}, {label})
@@ -685,7 +693,7 @@ class LogisticRegressionOperation(Operation):
                        solver=self.solver, penalty=self.penalty,
                        dual=self.dual, fit_intercept=self.fit_intercept,
                        intercept_scaling=self.intercept_scaling,
-                       multi_class=self.multi_class, verbose=self.verbose,
+                       multi_class=self.multi_class,
                        n_jobs=self.n_jobs, l1_ratio=self.l1_ratio,
                        model=self.model, input=self.input_port,
                        label=self.label, output=self.output,
@@ -744,7 +752,8 @@ class MLPClassifierOperation(Operation):
             'train input data', 'input_data_{}'.format(self.order))
         if self.has_code:
             self.add_functions_required = ""
-            self.hidden_layers = parameters.get(self.HIDDEN_LAYER_SIZES_PARAM, '(100,1)') or '(100,1)'
+            self.hidden_layers = parameters.get(self.HIDDEN_LAYER_SIZES_PARAM,
+                                                '(100,1)') or '(100,1)'
             self.hidden_layers = \
                 self.hidden_layers.replace("(", "").replace(")", "")
             self.activation = parameters.get(
@@ -758,26 +767,42 @@ class MLPClassifierOperation(Operation):
             self.tol = float(parameters.get(self.TOLERANCE_PARAM, 0.0001)) or 0.0001
             self.seed = parameters.get(self.SEED_PARAM, None) or None
 
-            self.batch_size = parameters.get(self.BATCH_SIZE_PARAM, 'auto') or 'auto'
-            self.learning_rate = parameters.get(self.LEARNING_RATE_PRAM, 'constant') or 'constant'
-            self.learning_rate_init = float(parameters.get(self.LEARNING_RATE_INIT_PRAM, 0.001) or 0.001)
+            self.batch_size = parameters.get(self.BATCH_SIZE_PARAM, 'auto') \
+                              or 'auto'
+            self.learning_rate = parameters.get(self.LEARNING_RATE_PRAM,
+                                                'constant') or 'constant'
+            self.learning_rate_init = float(parameters.get(
+                    self.LEARNING_RATE_INIT_PRAM, 0.001) or 0.001)
             self.power_t = float(parameters.get(self.POWER_T_PARAM, 0.5) or 0.5)
             self.shuffle = int(parameters.get(self.SHUFFLE_PARAM, 1) or 1)
-            self.momentum = float(parameters.get(self.MOMENTUM_PARAM, 0.9) or 0.9)
-            self.nesterovs_momentum = int(parameters.get(self.NESTEROVS_MOMENTUM_PARAM, 1) or 1)
-            self.early_stopping = int(parameters.get(self.EARLY_STOPPING_PARAM, 0) or 0)
-            self.validation_fraction = float(parameters.get(self.VALIDATION_FRACTION_PARAM, 0.1) or 0.1)
+            self.momentum = float(parameters.get(
+                    self.MOMENTUM_PARAM, 0.9) or 0.9)
+            self.nesterovs_momentum = int(parameters.get(
+                    self.NESTEROVS_MOMENTUM_PARAM, 1) or 1)
+            self.early_stopping = int(parameters.get(
+                    self.EARLY_STOPPING_PARAM, 0) or 0)
+            self.validation_fraction = float(parameters.get(
+                    self.VALIDATION_FRACTION_PARAM, 0.1) or 0.1)
             self.beta1 = float(parameters.get(self.BETA_1_PARAM, 0.9) or 0.9)
-            self.beta2 = float(parameters.get(self.BETA_2_PARAM, 0.999) or 0.999)
-            self.epsilon = float(parameters.get(self.EPSILON_PARAM, 1e-8) or 1e-8)
-            self.n_iter_no_change = int(parameters.get(self.N_ITER_NO_CHANGE_PARAM, 10) or 10)
-            self.max_fun = int(parameters.get(self.MAX_FUN_PARAM, 15000) or 15000)
+            self.beta2 = float(parameters.get(
+                    self.BETA_2_PARAM, 0.999) or 0.999)
+            self.epsilon = float(parameters.get(self.EPSILON_PARAM,
+                                                1e-8) or 1e-8)
+            self.n_iter_no_change = int(parameters.get(
+                    self.N_ITER_NO_CHANGE_PARAM, 10) or 10)
+            self.max_fun = int(parameters.get(
+                    self.MAX_FUN_PARAM, 15000) or 15000)
             self.features = parameters['features']
             self.label = parameters.get(self.LABEL_PARAM, None)
-            self.prediction = self.parameters.get(self.PREDICTION_PARAM, 'prediction')
+            self.prediction = self.parameters.get(self.PREDICTION_PARAM,
+                                                  'prediction')
 
-            self.has_import = \
-                "from sklearn.neural_network import MLPClassifier\n"
+            self.transpiler_utils.add_import(
+                    "from sklearn.neural_network import MLPClassifier")
+            self.transpiler_utils.add_custom_function(
+                    'get_X_train_data', get_X_train_data)
+            self.transpiler_utils.add_custom_function(
+                    'get_label_data', get_label_data)
 
             self.input_treatment()
 
@@ -928,7 +953,7 @@ class MLPClassifierOperation(Operation):
                     _("Parameter '{}' must be x > 0 for task {}").format(
                         self.MAX_FUN_PARAM, self.__class__))
             else:
-                self.max_fun = """max_fun={max_fun}""".format(max_fun=self.max_fun)
+                self.max_fun = """max_fun={}""".format(self.max_fun)
                 functions_required.append(self.max_fun)
 
         self.add_functions_required = ',\n    '.join(functions_required)
@@ -975,7 +1000,8 @@ class NaiveBayesClassifierOperation(Operation):
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
 
-        self.has_code = any([len(self.named_inputs) == 1, self.contains_results()])
+        self.has_code = any([len(self.named_inputs) == 1,
+                             self.contains_results()])
 
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
@@ -987,30 +1013,37 @@ class NaiveBayesClassifierOperation(Operation):
             'train input data', 'input_data_{}'.format(self.order))
 
         if self.has_code:
-            self.class_prior = parameters.get(self.CLASS_PRIOR_PARAM, 'None') or 'None'
+            self.class_prior = parameters.get(self.CLASS_PRIOR_PARAM, 'None') \
+                               or 'None'
             self.alpha = float(parameters.get(self.ALPHA_PARAM, 1.0) or 1.0)
             self.fit_prior = int(parameters.get(self.FIT_PRIOR_PARAM, 1) or 1)
-            self.var_smoothing = float(parameters.get(self.VAR_SMOOTHING_PARAM, 1e-9) or 1e-9)
+            self.var_smoothing = float(parameters.get(self.VAR_SMOOTHING_PARAM,
+                                                      1e-9) or 1e-9)
             self.priors = parameters.get(self.PRIORS_PARAM, 'None') or 'None'
             self.binarize = float(parameters.get(self.BINARIZE_PARAM, 0) or 0)
             self.features = parameters['features']
             self.label = parameters.get(self.LABEL_PARAM, None)
-            self.prediction = self.parameters.get(self.PREDICTION_PARAM, 'prediction')
+            self.prediction = self.parameters.get(self.PREDICTION_PARAM,
+                                                  'prediction')
             self.smoothing = float(parameters.get(self.ALPHA_PARAM, 1.0) or 1.0)
             self.model_type = parameters.get(
                     self.MODEL_TYPE_PARAM,
                     self.MODEL_TYPE_PARAM_M) or self.MODEL_TYPE_PARAM_M
 
             if self.model_type == self.MODEL_TYPE_PARAM_M:
-                self.has_import = \
-                    "from sklearn.naive_bayes import MultinomialNB\n"
+                self.transpiler_utils.add_import(
+                        "from sklearn.naive_bayes import MultinomialNB")
             elif self.model_type == self.MODEL_TYPE_PARAM_B:
-                self.has_import = \
-                    "from sklearn.naive_bayes import BernoulliNB\n"
+                self.transpiler_utils.add_import(
+                        "from sklearn.naive_bayes import BernoulliNB")
             else:
-                self.has_import = \
-                    "from sklearn.naive_bayes import GaussianNB\n"
+                self.transpiler_utils.add_import(
+                        "from sklearn.naive_bayes import GaussianNB")
 
+            self.transpiler_utils.add_custom_function(
+                    'get_X_train_data', get_X_train_data)
+            self.transpiler_utils.add_custom_function(
+                    'get_label_data', get_label_data)
             self.input_treatment()
 
     @property
@@ -1030,7 +1063,8 @@ class NaiveBayesClassifierOperation(Operation):
             self.priors = '[' + self.priors + ']'
 
         if self.smoothing <= 0 and \
-           self.model_type in [self.MODEL_TYPE_PARAM_M, self.MODEL_TYPE_PARAM_B]:
+           self.model_type in [self.MODEL_TYPE_PARAM_M,
+                               self.MODEL_TYPE_PARAM_B]:
             raise ValueError(
                 _("Parameter '{}' must be x>0 for task {}").format(
                     self.ALPHA_PARAM, self.__class__))
@@ -1111,7 +1145,6 @@ class PerceptronClassifierOperation(Operation):
     PENALTY_PARAM = 'penalty'
     MAX_ITER_PARAM = 'max_iter'
     FIT_INTERCEPT_PARAM = 'fit_intercept'
-    VERBOSE_PARAM = 'verbose'
     ETA0_PARAM = 'eta0'
     N_JOBS_PARAM = 'n_jobs'
     EARLY_STOPPING_PARAM = 'early_stopping'
@@ -1130,7 +1163,8 @@ class PerceptronClassifierOperation(Operation):
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
 
-        self.has_code = any([len(self.named_inputs) == 1, self.contains_results()])
+        self.has_code = any([len(self.named_inputs) == 1,
+                             self.contains_results()])
 
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
@@ -1142,25 +1176,33 @@ class PerceptronClassifierOperation(Operation):
             'train input data', 'input_data_{}'.format(self.order))
 
         if self.has_code:
-            self.max_iter = int(parameters.get(self.MAX_ITER_PARAM, 1000) or 1000)
-            self.alpha = float(parameters.get(self.ALPHA_PARAM, 0.0001) or 0.0001)
-            self.tol = float(parameters.get(self.TOLERANCE_PARAM, 0.001)) or 0.001
+            self.max_iter = int(parameters.get(
+                    self.MAX_ITER_PARAM, 1000) or 1000)
+            self.alpha = float(parameters.get(
+                    self.ALPHA_PARAM, 0.0001) or 0.0001)
+            self.tol = float(parameters.get(
+                    self.TOLERANCE_PARAM, 0.001)) or 0.001
             self.shuffle = int(parameters.get(self.SHUFFLE_PARAM, 0) or 0)
             self.seed = parameters.get(self.SEED_PARAM, 'None') or 'None'
             self.penalty = parameters.get(
                     self.PENALTY_PARAM,
                     self.PENALTY_PARAM_NONE) or self.PENALTY_PARAM_NONE
-            self.fit_intercept = int(parameters.get(self.FIT_INTERCEPT_PARAM, 1) or 1)
-            self.verbose = int(parameters.get(self.VERBOSE_PARAM, 0) or 0)
+            self.fit_intercept = int(parameters.get(
+                    self.FIT_INTERCEPT_PARAM, 1) or 1)
             self.eta0 = float(parameters.get(self.ETA0_PARAM, 1) or 1)
             self.n_jobs = parameters.get(self.N_JOBS_PARAM, None) or None
-            self.early_stopping = int(parameters.get(self.EARLY_STOPPING_PARAM, 0) or 0)
-            self.validation_fraction = float(parameters.get(self.VALIDATION_FRACTION_PARAM, 0.1) or 0.1)
-            self.n_iter_no_change = int(parameters.get(self.N_ITER_NO_CHANGE_PARAM, 5) or 5)
-            self.class_weight = parameters.get(self.CLASS_WEIGHT_PARAM, None) or None
+            self.early_stopping = int(parameters.get(
+                    self.EARLY_STOPPING_PARAM, 0) or 0)
+            self.validation_fraction = float(parameters.get(
+                    self.VALIDATION_FRACTION_PARAM, 0.1) or 0.1)
+            self.n_iter_no_change = int(parameters.get(
+                    self.N_ITER_NO_CHANGE_PARAM, 5) or 5)
+            self.class_weight = parameters.get(
+                    self.CLASS_WEIGHT_PARAM, None) or None
             self.features = parameters['features']
             self.label = parameters.get(self.LABEL_PARAM, None)
-            self.prediction = self.parameters.get(self.PREDICTION_PARAM, 'prediction')
+            self.prediction = self.parameters.get(self.PREDICTION_PARAM,
+                                                  'prediction')
 
             vals = [self.max_iter, self.alpha]
             atts = [self.MAX_ITER_PARAM, self.ALPHA_PARAM]
@@ -1170,9 +1212,12 @@ class PerceptronClassifierOperation(Operation):
                             _("Parameter '{}' must be x>0 for task {}").format(
                                     att, self.__class__))
 
-            self.has_import = \
-                "from sklearn.linear_model import Perceptron\n"
-
+            self.transpiler_utils.add_import(
+                    "from sklearn.linear_model import Perceptron")
+            self.transpiler_utils.add_custom_function(
+                    'get_X_train_data', get_X_train_data)
+            self.transpiler_utils.add_custom_function(
+                    'get_label_data', get_label_data)
             self.input_treatment()
 
     @property
@@ -1209,13 +1254,13 @@ class PerceptronClassifierOperation(Operation):
             if {early_stopping} == 1:
                 {model} = Perceptron(tol={tol}, alpha={alpha}, max_iter={max_iter}, shuffle={shuffle}, 
                                       random_state={seed}, penalty='{penalty}', fit_intercept={fit_intercept}, 
-                                      verbose={verbose}, eta0={eta0}, n_jobs={n_jobs}, early_stopping={early_stopping}, 
+                                      eta0={eta0}, n_jobs={n_jobs}, early_stopping={early_stopping}, 
                                       validation_fraction={validation_fraction}, n_iter_no_change={n_iter_no_change}, 
                                       class_weight={class_weight}, warm_start=False)
             else:
                 {model} = Perceptron(tol={tol}, alpha={alpha}, max_iter={max_iter}, shuffle={shuffle}, 
                                       random_state={seed}, penalty='{penalty}', fit_intercept={fit_intercept}, 
-                                      verbose={verbose}, eta0={eta0}, n_jobs={n_jobs}, early_stopping={early_stopping}, 
+                                      eta0={eta0}, n_jobs={n_jobs}, early_stopping={early_stopping}, 
                                       n_iter_no_change={n_iter_no_change}, class_weight={class_weight}, 
                                       warm_start=False)
             {model}.fit(X_train, y)          
@@ -1234,7 +1279,6 @@ class PerceptronClassifierOperation(Operation):
                        features=self.features,
                        label=self.label,
                        fit_intercept=self.fit_intercept,
-                       verbose=self.verbose,
                        eta0=self.eta0,
                        n_jobs=self.n_jobs,
                        early_stopping=self.early_stopping,
@@ -1261,20 +1305,20 @@ class RandomForestClassifierOperation(Operation):
     BOOTSTRAP_PARAM = 'bootstrap'
     OOB_SCORE_PARAM = 'oob_score'
     N_JOBS_PARAM = 'n_jobs'
-    VERBOSE_PARAM = 'verbose'
     CCP_ALPHA_PARAM = 'ccp_alpha'
     MAX_SAMPLES_PARAM = 'max_samples'
 
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
 
-        self.has_code = any([len(self.named_inputs) == 1, self.contains_results()])
+        self.has_code = any([len(self.named_inputs) == 1,
+                             self.contains_results()])
         if self.has_code:
             self.output = self.named_outputs.get(
-            'output data', 'output_data_{}'.format(self.order))
+                    'output data', 'output_data_{}'.format(self.order))
 
             self.input_port = self.named_inputs.get(
-            'train input data', 'input_data_{}'.format(self.order))
+                    'train input data', 'input_data_{}'.format(self.order))
 
             self.model = self.named_outputs.get(
                 'model', 'model_{}'.format(self.order))
@@ -1293,35 +1337,41 @@ class RandomForestClassifierOperation(Operation):
                     self.__class__.__name__))
             else: self.features = parameters.get(self.FEATURES_PARAM, None)
 
-            self.prediction_column = parameters.get(self.PREDICTION_PARAM,
-                                             'prediction')
+            self.prediction_column = parameters.get(
+                    self.PREDICTION_PARAM, 'prediction')
 
             self.seed = parameters.get(self.SEED_PARAM, 'None') or 'None'
             self.min_split = int(parameters.get(self.MIN_SPLIT_PARAM, 2) or 2)
             self.min_leaf = int(parameters.get(self.MIN_LEAF_PARAM, 1) or 1)
 
-            self.max_depth = self.__positive_or_none_param(parameters, self.MAX_DEPTH_PARAM)
+            self.max_depth = self.__positive_or_none_param(parameters,
+                                                           self.MAX_DEPTH_PARAM)
             self.n_estimators = int(parameters.get(self.N_ESTIMATORS_PARAM,
                                                10) or 10)
 
             self.criterion = parameters.get(self.CRITERION_PARAM, 'gini')
 
-            self.min_weight_fraction_leaf = float(parameters.get(self.MIN_WEIGHT_FRACTION_LEAF_PARAM, 0.0))
-            if(self.min_weight_fraction_leaf < 0.0 or self.min_weight_fraction_leaf > 0.5):
+            self.min_weight_fraction_leaf = float(
+                    parameters.get(self.MIN_WEIGHT_FRACTION_LEAF_PARAM, 0.0))
+            if self.min_weight_fraction_leaf < 0.0 or \
+                    self.min_weight_fraction_leaf > 0.5:
                 raise ValueError(
-                    _("Parameter '{}' must be x>=0.0 and x<=0.5 for task {}").format(
-                            self.MIN_WEIGHT_FRACTION_LEAF_PARAM, self.__class__))
+                    _("Parameter '{}' must be x>=0.0 and x<=0.5 for task {}"
+                      ).format(self.MIN_WEIGHT_FRACTION_LEAF_PARAM,
+                               self.__class__))
 
+            self.max_features = \
+                self.__positive_or_none_param(parameters,
+                                              self.MAX_FEATURES_PARAM)
+            self.max_leaf_nodes = \
+                self.__positive_or_none_param(parameters,
+                                              self.MAX_LEAF_NODES_PARAM)
 
-            self.max_features = self.__positive_or_none_param(parameters, self.MAX_FEATURES_PARAM)
-            self.max_leaf_nodes = self.__positive_or_none_param(parameters, self.MAX_LEAF_NODES_PARAM)
-
-            self.min_impurity_decrease = float(parameters.get(self.MIN_IMPURITY_DECREASE_PARAM, 0.0))
+            self.min_impurity_decrease = float(parameters.get(
+                    self.MIN_IMPURITY_DECREASE_PARAM, 0.0))
 
             self.bootstrap = int(parameters.get(self.BOOTSTRAP_PARAM, 1)) == 1
             self.oob_score = int(parameters.get(self.OOB_SCORE_PARAM, 0)) == 1
-
-            # self.n_jobs = self.__positive_or_none_param(parameters, self.N_JOBS_PARAM)
 
             self.ccp_alpha = float(parameters.get(self.CCP_ALPHA_PARAM, 0.0))
 
@@ -1330,9 +1380,10 @@ class RandomForestClassifierOperation(Operation):
                 max_samples_ = float(max_samples_)
                 if max_samples_ <= 0.0 or max_samples_ >= 100.0:
                     raise ValueError(
-                            _("Parameter '{}' must be x>0 and x<100, or empty, case \
-                             you want to use a fully sample for task {}").format(
-                                    self.MAX_SAMPLES_PARAM, self.__class__))
+                            _("Parameter '{}' must be x>0 and x<100, or empty, "
+                              "case you want to use a fully sample for "
+                              "task {}").format(self.MAX_SAMPLES_PARAM,
+                                                self.__class__))
                 else:
                     self.max_samples = max_samples_/100.0
             else:
@@ -1341,11 +1392,12 @@ class RandomForestClassifierOperation(Operation):
             if self.max_features != 'None' and \
             (self.max_features <= 0 or self.max_features > len(self.features)):
                 raise ValueError(
-                        _("Parameter '{}' must be x>0 and x < n_features for task {}").format(
-                        self.MAX_FEATURES_PARAM, self.__class__))
+                        _("Parameter '{}' must be x>0 and "
+                          "x < n_features for task {}").format(
+                                self.MAX_FEATURES_PARAM, self.__class__))
 
-            vals = [self.verbose, self.min_impurity_decrease, self.ccp_alpha]
-            atts = [self.VERBOSE_PARAM, self.MIN_IMPURITY_DECREASE_PARAM, self.CCP_ALPHA_PARAM]
+            vals = [self.min_impurity_decrease, self.ccp_alpha]
+            atts = [self.MIN_IMPURITY_DECREASE_PARAM, self.CCP_ALPHA_PARAM]
             for var, att in zip(vals, atts):
                 if var < 0:
                     raise ValueError(
@@ -1361,8 +1413,12 @@ class RandomForestClassifierOperation(Operation):
                             _("Parameter '{}' must be x>0 for task {}").format(
                                     att, self.__class__))
 
-            self.has_import = \
-                "from sklearn.ensemble import RandomForestClassifier\n"
+            self.transpiler_utils.add_import(
+                    "from sklearn.ensemble import RandomForestClassifier")
+            self.transpiler_utils.add_custom_function(
+                    'get_X_train_data', get_X_train_data)
+            self.transpiler_utils.add_custom_function(
+                    'get_label_data', get_label_data)
 
     @property
     def get_data_out_names(self, sep=','):
@@ -1391,12 +1447,13 @@ class RandomForestClassifierOperation(Operation):
 
         code = """
         {model} = RandomForestClassifier(n_estimators={n_estimators}, 
-        max_depth={max_depth},  min_samples_split={min_split}, 
-        min_samples_leaf={min_leaf}, random_state={seed},
-        criterion='{criterion}', min_weight_fraction_leaf={min_weight_fraction_leaf},
-        max_features={max_features}, max_leaf_nodes={max_leaf_nodes}, 
-        min_impurity_decrease={min_impurity_decrease}, bootstrap={bootstrap},
-        oob_score={oob_score}, ccp_alpha={ccp_alpha}, max_samples={max_samples})
+            max_depth={max_depth},  min_samples_split={min_split}, 
+            min_samples_leaf={min_leaf}, random_state={seed},
+            criterion='{criterion}', 
+            min_weight_fraction_leaf={min_weight_fraction_leaf},
+            max_features={max_features}, max_leaf_nodes={max_leaf_nodes}, 
+            min_impurity_decrease={min_impurity_decrease}, bootstrap={bootstrap},
+            oob_score={oob_score}, ccp_alpha={ccp_alpha}, max_samples={max_samples})
 
         X_train = get_X_train_data({input}, {features})
         y = get_label_data({input}, {label})
@@ -1447,27 +1504,29 @@ class SvmClassifierOperation(Operation):
         self.has_code = True
         if self.has_code:
             self.output = self.named_outputs.get(
-            'output data', 'output_data_{}'.format(self.order))
+                    'output data', 'output_data_{}'.format(self.order))
 
             self.input_port = self.named_inputs.get(
-            'train input data', 'input_data_{}'.format(self.order))
+                    'train input data', 'input_data_{}'.format(self.order))
 
-            self.model = self.named_outputs.get(
-            'model', 'model_{}'.format(self.order))
+            self.model = self.named_outputs.get('model',
+                                                'model_{}'.format(self.order))
 
             if self.LABEL_PARAM not in parameters:
                 msg = _("Parameters '{}' must be informed for task {}")
                 raise ValueError(msg.format(
                     self.LABEL_PARAM,
                     self.__class__.__name__))
-            else: self.label = parameters.get(self.LABEL_PARAM, None)
+            else:
+                self.label = parameters.get(self.LABEL_PARAM, None)
 
             if self.FEATURES_PARAM not in parameters:
                 msg = _("Parameters '{}' must be informed for task {}")
                 raise ValueError(msg.format(
                     self.FEATURES_PARAM,
                     self.__class__.__name__))
-            else: self.features = parameters.get(self.FEATURES_PARAM, None)
+            else:
+                self.features = parameters.get(self.FEATURES_PARAM, None)
 
             self.prediction = parameters.get(self.PREDICTION_PARAM,
                                              'prediction')
@@ -1481,24 +1540,15 @@ class SvmClassifierOperation(Operation):
                     self.KERNEL_PARAM_RBF) or self.KERNEL_PARAM_RBF
             self.c = float(parameters.get(self.PENALTY_PARAM, 1.0) or 1.0)
 
-            gamma_ = parameters.get(self.GAMMA_PARAM, None)
-            if gamma_ is None:
-                self.gamma = 'scale'
-            else:
-                self.gamma = float(gamma_)
-                if self.gamma < 0 and self.kernel != 'linear':
-                    raise ValueError(
-                        _("Parameter '{}' must be x>=0 for task {}").format(
-                            self.GAMMA_PARAM, self.__class__))
+            self.gamma = parameters.get(self.GAMMA_PARAM, 'scale')
 
             self.coef0 = float(parameters.get(self.COEF0_PARAM, 0.0) or 0.0)
             self.shrinking = int(parameters.get(self.SHRINKING_PARAM, 1)) == 1
             self.probability = int(parameters.get(self.PROBABILITY_PARAM, 0)) == 1
-            self.cache_size = float(parameters.get(self.CACHE_SIZE_PARAM, 200.0) or 200.0)
             self.decision_function_shape = parameters.get(
                     self.DECISION_FUNCTION_SHAPE_PARAM, 'ovr') or 'ovr'
 
-            vals = [self.degree, self.c, self.cache_size]
+            vals = [self.degree, self.c]
             atts = [self.DEGREE_PARAM, self.PENALTY_PARAM, self.CACHE_SIZE_PARAM]
             for var, att in zip(vals, atts):
                 if var <= 0:
@@ -1506,8 +1556,11 @@ class SvmClassifierOperation(Operation):
                             _("Parameter '{}' must be x>0 for task {}").format(
                                     att, self.__class__))
 
-            self.has_import = \
-                "from sklearn.svm import SVC\n"
+            self.transpiler_utils.add_import("from sklearn.svm import SVC")
+            self.transpiler_utils.add_custom_function(
+                    'get_X_train_data', get_X_train_data)
+            self.transpiler_utils.add_custom_function(
+                    'get_label_data', get_label_data)
 
     @property
     def get_data_out_names(self, sep=','):
@@ -1524,10 +1577,10 @@ class SvmClassifierOperation(Operation):
         code = """
         {model} = SVC(tol={tol}, C={c}, max_iter={max_iter}, 
                        degree={degree}, kernel='{kernel}', random_state={seed},
-                       gamma={gamma}, coef0={coef0}, probability={prob},
-                       cache_size={cache},shrinking={shrinking}, 
+                       gamma='{gamma}', coef0={coef0}, probability={prob},
+                       shrinking={shrinking}, 
                        decision_function_shape='{decision_func_shape}',
-                       class_weight=None, verbose=False)
+                       class_weight=None)
 
         X_train = get_X_train_data({input}, {features})
         y = get_label_data({input}, {label})
@@ -1539,7 +1592,7 @@ class SvmClassifierOperation(Operation):
         """.format(tol=self.tol, c=self.c, max_iter=self.max_iter,
                    degree=self.degree, kernel=self.kernel, seed=self.seed,
                    gamma=self.gamma, coef0=self.coef0, prob=self.probability,
-                   cache=self.cache_size, shrinking=self.shrinking,
+                   shrinking=self.shrinking,
                    decision_func_shape=self.decision_function_shape,
                    model=self.model, input=self.input_port, label=self.label,
                    features=self.features, prediction_column=self.prediction,

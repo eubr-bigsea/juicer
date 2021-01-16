@@ -30,8 +30,7 @@ def test_sgd_regressor_success():
         }
     }
     instance = SGDRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -77,8 +76,7 @@ def test_sgd_regressor_alpha_param_success():
         }
     }
     instance = SGDRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -124,8 +122,7 @@ def test_sgd_regressor_l1_ratio_param_success():
         }
     }
     instance = SGDRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -171,8 +168,7 @@ def test_sgd_regressor_max_iter_param_success():
         }
     }
     instance = SGDRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -218,8 +214,7 @@ def test_sgd_regressor_tol_param_success():
         }
     }
     instance = SGDRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -266,8 +261,7 @@ def test_sgd_regressor_random_state_param_success():
         }
     }
     instance = SGDRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -308,8 +302,7 @@ def test_sgd_regressor_prediction_param_success():
         }
     }
     instance = SGDRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     assert result['out'].columns[2] == 'success'
 
 
@@ -330,8 +323,7 @@ def test_sgd_regressor_power_t_param_success():
         }
     }
     instance = SGDRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -378,8 +370,7 @@ def test_sgd_regressor_early_stopping_and_validation_fraction_params_success():
         }
     }
     instance = SGDRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -427,8 +418,7 @@ def test_sgd_regressor_loss_and_epsilon_params_success():
         }
     }
     instance = SGDRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -475,8 +465,7 @@ def test_sgd_regressor_n_iter_no_change_param_success():
         }
     }
     instance = SGDRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -522,8 +511,7 @@ def test_sgd_regressor_penalty_param_success():
         }
     }
     instance = SGDRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -569,8 +557,7 @@ def test_sgd_regressor_fit_intercept_param_success():
         }
     }
     instance = SGDRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -617,8 +604,7 @@ def test_sgd_regressor_eta0_and_learning_rate_params_success():
         }
     }
     instance = SGDRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -664,8 +650,7 @@ def test_sgd_regressor_verbose_param_success():
         }
     }
     instance = SGDRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -711,8 +696,7 @@ def test_sgd_regressor_average_param_success():
         }
     }
     instance = SGDRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -758,8 +742,7 @@ def test_sgd_regressor_shuffle_param_success():
         }
     }
     instance = SGDRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
