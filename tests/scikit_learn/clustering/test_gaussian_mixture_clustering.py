@@ -2,9 +2,9 @@ from tests.scikit_learn import util
 from juicer.scikit_learn.clustering_operation import \
     GaussianMixtureClusteringOperation
 from sklearn.mixture import GaussianMixture
-from tests.scikit_learn.util import get_label_data, get_X_train_data
-import pandas as pd
+from tests.scikit_learn.util import get_X_train_data
 import pytest
+import pandas as pd
 
 
 # pd.set_option('display.max_rows', None)
@@ -31,7 +31,7 @@ def test_gaussian_mixture_clustering_success():
         }
     }
     instance = GaussianMixtureClusteringOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -59,7 +59,7 @@ def test_gaussian_mixture_clustering_max_iter_param_success():
         }
     }
     instance = GaussianMixtureClusteringOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -87,7 +87,7 @@ def test_gaussian_mixture_clustering_tol_param_success():
         }
     }
     instance = GaussianMixtureClusteringOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -113,7 +113,7 @@ def test_gaussian_mixture_clustering_prediction_param_success():
         }
     }
     instance = GaussianMixtureClusteringOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
     assert result['out'].columns[2] == 'success'
 
@@ -134,7 +134,7 @@ def test_gaussian_mixture_clustering_n_components_param_success():
         }
     }
     instance = GaussianMixtureClusteringOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -166,7 +166,7 @@ def test_gaussian_mixture_clustering_covariance_type_param_success():
         }
     }
     instance = GaussianMixtureClusteringOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -194,7 +194,7 @@ def test_gaussian_mixture_clustering_reg_covar_param_success():
         }
     }
     instance = GaussianMixtureClusteringOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -222,7 +222,7 @@ def test_gaussian_mixture_clustering_n_init_param_success():
         }
     }
     instance = GaussianMixtureClusteringOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -250,7 +250,7 @@ def test_gaussian_mixture_clustering_random_state_param_success():
         }
     }
     instance = GaussianMixtureClusteringOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
