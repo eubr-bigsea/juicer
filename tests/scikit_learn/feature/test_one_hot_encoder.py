@@ -49,8 +49,7 @@ def test_one_hot_encoder_success():
         }
     }
     instance = OneHotEncoderOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     assert result['out'].loc[:, ['onehotenc_1']].equals(
         hotencoder(test_df, ['sepalwidth', 'petalwidth']))
 
@@ -75,8 +74,7 @@ def test_one_hot_encoder_big_size_dataframe_success():
         }
     }
     instance = OneHotEncoderOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     assert result['out'].loc[:, ['onehotenc_1']].equals(
         hotencoder(test_df, ['sepalwidth', 'petalwidth', 'sepallength',
                              'petallength', 'class']))
@@ -107,8 +105,7 @@ def test_one_hot_encoder_strings_success():
         }
     }
     instance = OneHotEncoderOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     assert result['out'].loc[:, ['onehotenc_1']].equals(
         hotencoder(test_df, ['sepalwidth', 'petalwidth']))
 
@@ -132,8 +129,7 @@ def test_one_hot_encoder_bools_success():
         }
     }
     instance = OneHotEncoderOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     assert result['out'].loc[:, ['onehotenc_1']].equals(
         hotencoder(test_df, ['sepalwidth', 'petalwidth']))
 
@@ -155,8 +151,7 @@ def test_one_hot_encoder_alias_success():
         }
     }
     instance = OneHotEncoderOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     assert result['out'].loc[:, ['test_result']].equals(
         hotencoder(test_df, ['sepalwidth', 'petalwidth'], 'test_result'))
 
@@ -243,11 +238,12 @@ def test_one_hot_encoder_str_and_int_fail():
     }
     instance = OneHotEncoderOperation(**arguments)
     with pytest.raises(TypeError) as typ_err:
-        util.execute(instance.generate_code(),
-                     {'df': df})
-    assert "argument must be a string or number" in str(typ_err.value)
+        util.execute(util.get_complete_code(instance), {'df': df})
+    assert "Encoders require their input to be uniformly strings or numbers" \
+           in str(typ_err.value)
 
 
+# TODO: New sklearn version possible changed this behavior
 def test_one_hot_encoder_nan_value_fail():
     df = util.iris(['sepalwidth',
                     'petalwidth'], size=10)
@@ -264,7 +260,6 @@ def test_one_hot_encoder_nan_value_fail():
     }
     instance = OneHotEncoderOperation(**arguments)
     with pytest.raises(ValueError) as val_err:
-        util.execute(instance.generate_code(),
-                     {'df': df})
+        util.execute(util.get_complete_code(instance), {'df': df})
     assert "Input contains NaN, infinity or a value too large for" \
            " dtype('float64')" in str(val_err.value)

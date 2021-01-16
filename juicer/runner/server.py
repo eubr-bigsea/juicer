@@ -256,7 +256,7 @@ class JuicerServer:
         log.info(_('Starting minion %s in Kubernetes.'), minion_id)
 
         python_cmd = self.config['juicer'].get('minion', {}).get(
-                'python', 'python')
+                'python', 'python') or 'python'
         minion_cmd = [python_cmd, '/usr/local/juicer/juicer/runner/minion.py',
                       '-w', str(workflow_id),
                       '-a', str(app_id),
@@ -433,13 +433,15 @@ class JuicerServer:
                                 if self.state_control is None:
                                     self.state_control = StateControlRedis(
                                         redis_conn)
-                                # FIXME: Cluster and platform and job_id
-                                print('-' * 10)
-                                print(pending)
-                                print('-' * 10)
-                                platform = 'spark'
+                                # print('-' * 10)
+                                # print(pending)
+                                # print('-' * 10)
+                                pending_msg = json.loads(pending[0])
+                                platform = pending_msg['workflow']['platform'][
+                                    'slug']
+                                job_id = pending_msg['workflow']['job_id']
                                 self._start_minion(
-                                    app_id, app_id, 0, self.state_control,
+                                    app_id, app_id, job_id, self.state_control,
                                     platform)
 
                     elif data == b'set':

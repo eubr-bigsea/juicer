@@ -35,8 +35,7 @@ def test_max_abs_scaler_success():
         }
     }
     instance = MaxAbsScalerOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     data = {'scaled_1': scaler(df, ['sepalwidth', 'petalwidth'])}
     data = pd.DataFrame(data)
 
@@ -60,8 +59,7 @@ def test_max_abs_scaler_alias_param_success():
         }
     }
     instance = MaxAbsScalerOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     assert result['out'].iloc[:, 2].name == 'test_pass'
 
 
