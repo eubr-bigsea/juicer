@@ -122,6 +122,12 @@ class AggregationOperation(Operation):
         if self.pivot:
             self.values = list(self.input_operations_pivot.keys())
 
+        if self.has_code:
+            self.transpiler_utils.add_custom_function(
+                '_collect_set', f=_collect_set)
+            self.transpiler_utils.add_custom_function(
+                '_collect_list', f=_collect_list)
+
     def get_data_out_names(self, sep=','):
         return self.output
 
@@ -130,14 +136,7 @@ class AggregationOperation(Operation):
 
     def generate_code(self):
         if self.has_code:
-            code = dedent(
-                """
-                def _collect_list(x):
-                    return x.tolist()
-
-                def _collect_set(x):
-                    return set(x.tolist())
-                """)
+            code = ''
             if self.pivot:
 
                 if self.pivot_values:
@@ -341,19 +340,23 @@ class DifferenceOperation(Operation):
     def generate_code(self):
         if self.has_code:
             code = """
-            inter = {input1}.copy().columns.intersection({input2}.copy().columns)
-            input1_oper = {input1}.copy().loc[:, inter]
-            input2_oper = {input2}.copy().loc[:, inter]
-            diff_oper = input1_oper.ne(input2_oper)
-            
-            to_drop = []
-            for idx in diff_oper.index:
-                if diff_oper.loc[idx, :].any() == False:
-                    to_drop.append(idx)
-            {output} = input1_oper.drop(to_drop, axis=0)
+            # check if columns have the same name and data types
+            cols1 = {input1}.columns
+            cols = cols1.intersection({input2}.columns)
+            if len(cols) != len(cols1) or \\
+               any([{input1}[c].dtype != {input2}[c].dtype for c in cols]):
+                raise ValueError('{error}')
+                            
+            {output} = {input1}\
+                .merge({input2}, indicator = True, how='left')\
+                .loc[lambda x : x['_merge']=='left_only']\
+                .drop(['_merge'], axis=1)\
+                .reset_index(drop=True)
             """.format(output=self.output,
                        input1=self.named_inputs['input data 1'],
-                       input2=self.named_inputs['input data 2'])
+                       input2=self.named_inputs['input data 2'],
+                       error=_('Both data need to have the same columns '
+                               'and data types'))
             return dedent(code)
 
 
@@ -431,19 +434,28 @@ class ExecutePythonOperation(Operation):
         self.out2 = self.named_outputs.get('output data 2',
                                            'out_2_{}'.format(self.order))
 
+        self.plain = parameters.get('plain', False)
+        self.export_notebook = parameters.get('export_notebook', False)
+
+        if self.has_code and not self.plain and not self.export_notebook:
+            self.transpiler_utils.add_import(
+                'from RestrictedPython.Guards import safe_builtins')
+            self.transpiler_utils.add_import(
+                'from RestrictedPython import compile_restricted')
+            self.transpiler_utils.add_import(
+                'from RestrictedPython.PrintCollector import PrintCollector')
+
     def get_output_names(self, sep=", "):
         return sep.join([self.out1, self.out2])
 
     def generate_code(self):
         in1 = self.named_inputs.get('input data 1', 'None')
-
         in2 = self.named_inputs.get('input data 2', 'None')
 
+        if self.plain:
+            return dedent(self.code)
+
         code = dedent("""
-        import json
-        from RestrictedPython.Guards import safe_builtins
-        from RestrictedPython import compile_restricted
-        from RestrictedPython.PrintCollector import PrintCollector
 
         results = [r[1].result() for r in task_futures.items() if r[1].done()]
         results = dict([(r['task_name'], r) for r in results])
@@ -535,7 +547,7 @@ class ExecuteSQLOperation(Operation):
         self.output = self.named_outputs.get('output data',
                                              'out_{}'.format(self.order))
 
-        self.has_import = 'from pandasql import sqldf\n'
+        self.transpiler_utils.add_import("from pandasql import sqldf")
 
     def get_data_out_names(self, sep=','):
         return self.output
@@ -558,7 +570,6 @@ class ExecuteSQLOperation(Operation):
     def generate_code(self):
         if self.has_code:
             code = dedent("""
-            from pandasql import sqldf
             query = {query}
             {out} = sqldf(query, {{'ds1': {in1}, 'ds2': {in2}}})
             names = {names}
@@ -643,7 +654,8 @@ class IntersectionOperation(Operation):
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
-        self.has_code = len(named_inputs) == 2 and len(named_outputs)>0 or self.contains_results()
+        self.has_code = len(named_inputs) == 2 and \
+                        len(named_outputs) > 0 or self.contains_results()
 
         if not self.has_code:
             raise ValueError(
@@ -708,7 +720,7 @@ class JoinOperation(Operation):
         self.right_attributes = parameters.get(self.RIGHT_ATTRIBUTES_PARAM)
 
         self.suffixes = parameters.get('aliases', '_l,_r')
-        self.suffixes = [s for s in self.suffixes.split(',')]
+        self.suffixes = [s for s in self.suffixes.replace(" ", "").split(',')]
         self.output = self.named_outputs.get('output data',
                                              'output_data_{}'.format(
                                                  self.order))
@@ -800,8 +812,8 @@ class ReplaceValuesOperation(Operation):
 
         self.has_code = len(self.named_inputs) == 1 and any(
             [len(self.named_outputs) >= 1, self.contains_results()])
-        self.output = self.named_outputs.get('output data',
-                                             'output_data_{}'.format(self.order))
+        self.output = self.named_outputs.get(
+                'output data', 'output_data_{}'.format(self.order))
 
     @staticmethod
     def check_parameter(parameter):
@@ -864,7 +876,8 @@ class SampleOrPartitionOperation(Operation):
 
         self.seed = self.parameters.get(self.SEED, 'None')
         if type(self.seed) == int:
-            self.seed = 0 if self.seed >= 4294967296 or self.seed < 0 else self.seed
+            self.seed = 0 if self.seed >= 4294967296 or \
+                             self.seed < 0 else self.seed
 
         self.output = self.named_outputs.get('sampled data',
                                              'output_data_{}'.format(
@@ -986,7 +999,8 @@ class SplitOperation(Operation):
         self.weights = float(self.parameters.get('weights', 50)) / 100
         self.seed = self.parameters.get('seed', 'None')
         if type(self.seed) == int:
-            self.seed = 0 if self.seed >= 4294967296 or self.seed < 0 else self.seed
+            self.seed = 0 if self.seed >= 4294967296 or \
+                             self.seed < 0 else self.seed
         self.out1 = self.named_outputs.get('split 1',
                                            'split_1_task_{}'.format(self.order))
         self.out2 = self.named_outputs.get('split 2',
@@ -1023,6 +1037,7 @@ class TransformationOperation(Operation):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
         self.has_code = any([len(self.named_inputs) > 0,
                              self.contains_results()])
+        self.imports = set()
         if self.has_code:
             if self.EXPRESSION_PARAM in parameters:
                 self.expressions = parameters[self.EXPRESSION_PARAM]
@@ -1042,6 +1057,8 @@ class TransformationOperation(Operation):
             expression = Expression(expression, params)
             f = expression.parsed_expression
             functions += "['{}', {}],".format(expr['alias'], f)
+
+            self.imports.update(expression.imports)
             # row.append(expression.imports) #TODO: by operation itself
 
         copy_code = ".copy()" \
@@ -1102,11 +1119,15 @@ class SplitKFoldOperation(Operation):
 
         self.n_splits = int(parameters.get(self.N_SPLITS_ATTRIBUTE_PARAM, 3))
         self.shuffle = int(parameters.get(self.SHUFFLE_ATTRIBUTE_PARAM, 0))
-        self.random_state = parameters.get(self.RANDOM_STATE_ATTRIBUTE_PARAM, None)
+        self.random_state = parameters.get(self.RANDOM_STATE_ATTRIBUTE_PARAM,
+                                           None)
         self.attribute = parameters.get(self.ATTRIBUTE_ATTRIBUTE_PARAM, None)
         self.stratified = int(parameters.get(self.STRATIFIED_ATTRIBUTE_PARAM, 0))
         self.column = 0
-
+        self.transpiler_utils.add_import("from sklearn.model_selection "
+                                         "import KFold")
+        self.transpiler_utils.add_import("from sklearn.model_selection "
+                                         "import StratifiedKFold")
         self.input_treatment()
 
     @property
@@ -1130,8 +1151,6 @@ class SplitKFoldOperation(Operation):
 
             if self.stratified:
                 code = """
-        from sklearn.model_selection import KFold
-        from sklearn.model_selection import StratifiedKFold
         skf = StratifiedKFold(n_splits={n_splits},
         shuffle={shuffle}, random_state={random_state}) if {shuffle} \
         else StratifiedKFold(n_splits={n_splits},shuffle={shuffle})
@@ -1156,8 +1175,6 @@ class SplitKFoldOperation(Operation):
                 return dedent(code)
             else:
                 code += """
-        from sklearn.model_selection import KFold
-        from sklearn.model_selection import StratifiedKFold
         kf = KFold(n_splits={n_splits}, shuffle={shuffle},
         random_state={random_state}) if {shuffle} else KFold(n_splits={n_splits},
         shuffle={shuffle})
@@ -1180,3 +1197,10 @@ class SplitKFoldOperation(Operation):
                                column=self.column,
                                attribute=self.attribute)
                 return dedent(code)
+
+# Custom functions
+def _collect_list(x):
+    return x.tolist()
+
+def _collect_set(x):
+    return set(x.tolist())
