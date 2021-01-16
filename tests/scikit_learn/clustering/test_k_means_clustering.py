@@ -30,8 +30,7 @@ def test_k_means_clustering_success():
         }
     }
     instance = KMeansClusteringOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
     model_1 = KMeans(n_clusters=8, init='k-means++', max_iter=100,
@@ -58,8 +57,7 @@ def test_k_means_clustering_n_clusters_param_success():
         }
     }
     instance = KMeansClusteringOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
     model_1 = KMeans(n_clusters=2, init='k-means++', max_iter=100,
@@ -90,8 +88,7 @@ def test_k_means_clustering_init_param_success():
         }
     }
     instance = KMeansClusteringOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
     model_1 = KMeans(n_clusters=8, init='random', max_iter=100,
@@ -118,8 +115,7 @@ def test_k_means_clustering_max_iter_param_success():
         }
     }
     instance = KMeansClusteringOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
     model_1 = KMeans(n_clusters=8, init='k-means++', max_iter=50,
@@ -146,8 +142,7 @@ def test_k_means_clustering_tolerance_param_success():
         }
     }
     instance = KMeansClusteringOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
     model_1 = KMeans(n_clusters=8, init='k-means++', max_iter=100,
@@ -174,8 +169,7 @@ def test_k_means_clustering_mini_batch_k_mean_type_param_success():
         }
     }
     instance = KMeansClusteringOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     test_out = test_df
     X_train = test_df[['sepallength', 'sepalwidth']].to_numpy().tolist()
     model_1 = MiniBatchKMeans(n_clusters=8, init='k-means++',
@@ -204,8 +198,7 @@ def test_k_means_clustering_random_state_param_success():
         }
     }
     instance = KMeansClusteringOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
     model_1 = KMeans(n_clusters=8, init='k-means++', max_iter=100,
@@ -232,8 +225,7 @@ def test_k_means_clustering_n_init_param_success():
         }
     }
     instance = KMeansClusteringOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
     model_1 = KMeans(n_clusters=8, init='k-means++', max_iter=100,
@@ -261,8 +253,7 @@ def test_k_means_clustering_n_init_mb_param_success():
         }
     }
     instance = KMeansClusteringOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     test_out = test_df
     X_train = test_df[['sepallength', 'sepalwidth']].to_numpy().tolist()
     model_1 = MiniBatchKMeans(n_clusters=8, init='k-means++',
@@ -291,8 +282,7 @@ def test_k_means_clustering_n_jobs_param_success():
         }
     }
     instance = KMeansClusteringOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
     model_1 = KMeans(n_clusters=8, init='k-means++', max_iter=100,
@@ -319,8 +309,7 @@ def test_k_means_clustering_algorithm_param_success():
         }
     }
     instance = KMeansClusteringOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
     model_1 = KMeans(n_clusters=8, init='k-means++', max_iter=100,
@@ -348,8 +337,7 @@ def test_k_means_clustering_batch_size_param_success():
         }
     }
     instance = KMeansClusteringOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     test_out = test_df
     X_train = test_df[['sepallength', 'sepalwidth']].to_numpy().tolist()
     model_1 = MiniBatchKMeans(n_clusters=8, init='k-means++',
@@ -379,8 +367,7 @@ def test_k_means_clustering_tol_param_success():
         }
     }
     instance = KMeansClusteringOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     test_out = test_df
     X_train = test_df[['sepallength', 'sepalwidth']].to_numpy().tolist()
     model_1 = MiniBatchKMeans(n_clusters=8, init='k-means++',
@@ -410,8 +397,7 @@ def test_k_means_clustering_max_no_improvement_param_success():
         }
     }
     instance = KMeansClusteringOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     test_out = test_df
     X_train = test_df[['sepallength', 'sepalwidth']].to_numpy().tolist()
     model_1 = MiniBatchKMeans(n_clusters=8, init='k-means++',
@@ -438,8 +424,7 @@ def test_k_means_clustering_prediction_param_success():
         }
     }
     instance = KMeansClusteringOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     assert result['out'].columns[2] == 'success'
 
 
