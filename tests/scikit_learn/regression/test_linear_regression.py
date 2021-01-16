@@ -32,7 +32,7 @@ def test_linear_regression_success():
         }
     }
     instance = LinearRegressionOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -64,7 +64,7 @@ def test_linear_regression_alpha_param_success():
         }
     }
     instance = LinearRegressionOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -96,7 +96,7 @@ def test_linear_regression_l1_ratio_param_success():
         }
     }
     instance = LinearRegressionOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -128,7 +128,7 @@ def test_linear_regression_normalize_param_success():
         }
     }
     instance = LinearRegressionOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -160,7 +160,7 @@ def test_linear_regression_max_iter_param_success():
         }
     }
     instance = LinearRegressionOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -192,7 +192,7 @@ def test_linear_regression_tol_param_success():
         }
     }
     instance = LinearRegressionOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -224,7 +224,7 @@ def test_linear_regression_random_state_param_success():
         }
     }
     instance = LinearRegressionOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -254,7 +254,7 @@ def test_linear_regression_prediction_param_success():
         }
     }
     instance = LinearRegressionOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
     assert result['out'].columns[2] == 'success'
 
@@ -276,7 +276,7 @@ def test_linear_regression_positive_param_success():
         }
     }
     instance = LinearRegressionOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -308,7 +308,7 @@ def test_linear_regression_fit_intercept_param_success():
         }
     }
     instance = LinearRegressionOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -457,7 +457,7 @@ def test_linear_regression_missing_label_param_fail():
     }
     instance = LinearRegressionOperation(**arguments)
     with pytest.raises(TypeError) as typ_err:
-        util.execute(instance.generate_code(),
+        util.execute(util.get_complete_code(instance),
                      {'df': df})
     assert "object of type 'NoneType' has no len()" in str(typ_err.value)
 

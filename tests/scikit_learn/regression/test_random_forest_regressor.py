@@ -15,50 +15,6 @@ import pandas as pd
 #
 #
 # # # # # # # # # # Success # # # # # # # # # #
-def xtest_random_forest_regressor_success():
-    df = util.iris(['sepallength', 'sepalwidth'], size=10)
-    test_df = df.copy()
-
-    arguments = {
-        'parameters': {'features': ['sepallength', 'sepalwidth'],
-                       'multiplicity': {'train input data': 0},
-                       'label': ['sepalwidth']},
-        'named_inputs': {
-            'train input data': 'df',
-        },
-        'named_outputs': {
-            'output data': 'out'
-        }
-    }
-    instance = RandomForestRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
-    test_out = test_df
-    X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
-    y = get_label_data(test_df, ['sepalwidth'])
-
-    model_1 = RandomForestRegressor(
-        n_estimators=100,
-        max_features='auto',
-        max_depth=None,
-        min_samples_split=2,
-        min_samples_leaf=1,
-        random_state=None,
-        n_jobs=1, criterion='mse',
-        min_weight_fraction_leaf=0.0,
-        max_leaf_nodes=None,
-        min_impurity_decrease=0.0,
-        bootstrap=True,
-        oob_score=True, verbose=0, warm_start=False
-    )
-    model_1.fit(X_train, y)
-    test_out['prediction'] = model_1.predict(X_train).tolist()
-    for col in result['out'].columns:
-        for idx in result['out'].index:
-            assert result['out'].loc[idx, col] == pytest.approx(
-                test_out.loc[idx, col], 0.1)
-
-
 def test_random_forest_regressor_success():
     df = util.iris(['sepallength', 'sepalwidth'], size=10)
     test_df = df.copy()
@@ -75,8 +31,8 @@ def test_random_forest_regressor_success():
         }
     }
     instance = RandomForestRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
     y = get_label_data(test_df, ['sepalwidth'])
@@ -120,8 +76,7 @@ def test_random_forest_regressor_n_estimators_param_success():
         }
     }
     instance = RandomForestRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
     y = get_label_data(test_df, ['sepalwidth'])
@@ -165,8 +120,7 @@ def test_random_forest_regressor_max_features_param_success():
         }
     }
     instance = RandomForestRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
     y = get_label_data(test_df, ['sepalwidth'])
@@ -210,8 +164,7 @@ def test_random_forest_regressor_max_depth_param_success():
         }
     }
     instance = RandomForestRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
     y = get_label_data(test_df, ['sepalwidth'])
@@ -255,8 +208,7 @@ def test_random_forest_regressor_min_samples_split_param_success():
         }
     }
     instance = RandomForestRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
     y = get_label_data(test_df, ['sepalwidth'])
@@ -300,8 +252,7 @@ def test_random_forest_regressor_min_samples_leaf_param_success():
         }
     }
     instance = RandomForestRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
     y = get_label_data(test_df, ['sepalwidth'])
@@ -345,8 +296,7 @@ def test_random_forest_regressor_criterion_param_success():
         }
     }
     instance = RandomForestRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
     y = get_label_data(test_df, ['sepalwidth'])
@@ -390,8 +340,7 @@ def test_random_forest_regressor_min_weight_fraction_leaf_param_success():
         }
     }
     instance = RandomForestRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
     y = get_label_data(test_df, ['sepalwidth'])
@@ -435,8 +384,7 @@ def test_random_forest_regressor_max_leaf_nodes_param_success():
         }
     }
     instance = RandomForestRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
     y = get_label_data(test_df, ['sepalwidth'])
@@ -480,8 +428,7 @@ def test_random_forest_regressor_min_impurity_decrease_param_success():
         }
     }
     instance = RandomForestRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
     y = get_label_data(test_df, ['sepalwidth'])
@@ -526,8 +473,7 @@ def test_random_forest_regressor_bootstrap_and_oob_score_params_success():
         }
     }
     instance = RandomForestRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
     y = get_label_data(test_df, ['sepalwidth'])
@@ -571,8 +517,7 @@ def test_random_forest_regressor_n_jobs_param_success():
         }
     }
     instance = RandomForestRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
     y = get_label_data(test_df, ['sepalwidth'])
@@ -616,8 +561,7 @@ def test_random_forest_regressor_random_state_param_success():
         }
     }
     instance = RandomForestRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
     y = get_label_data(test_df, ['sepalwidth'])
@@ -658,8 +602,7 @@ def test_random_forest_regressor_verbose_param_success():
         }
     }
     instance = RandomForestRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
     y = get_label_data(test_df, ['sepalwidth'])
@@ -701,8 +644,7 @@ def test_random_forest_regressor_prediction_param_success():
         }
     }
     instance = RandomForestRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     assert result['out'].columns[2] == 'success'
 
 
@@ -852,21 +794,3 @@ def test_random_forest_regressor_invalid_min_impurity_decrease_param_fail():
     assert "Parameter 'min_impurity_decrease' must be x>=0 or None for task" \
            in str(val_err.value)
 
-
-def test_random_forest_regressor_invalid_verbose_param_fail():
-    arguments = {
-        'parameters': {'features': ['sepallength', 'sepalwidth'],
-                       'multiplicity': {'train input data': 0},
-                       'label': ['sepalwidth'],
-                       'verbose': -1},
-        'named_inputs': {
-            'train input data': 'df',
-        },
-        'named_outputs': {
-            'output data': 'out'
-        }
-    }
-    with pytest.raises(ValueError) as val_err:
-        RandomForestRegressorOperation(**arguments)
-    assert "Parameter 'verbose' must be x>=0 or None for task" in str(
-        val_err.value)

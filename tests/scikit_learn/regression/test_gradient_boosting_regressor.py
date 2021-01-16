@@ -31,8 +31,7 @@ def test_gradient_boosting_regressor_success():
         }
     }
     instance = GradientBoostingRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -78,8 +77,7 @@ def test_gradient_boosting_regressor_learning_rate_param_success():
         }
     }
     instance = GradientBoostingRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -125,8 +123,7 @@ def test_gradient_boosting_regressor_n_estimators_param_success():
         }
     }
     instance = GradientBoostingRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -172,8 +169,7 @@ def test_gradient_boosting_regressor_max_depth_param_success():
         }
     }
     instance = GradientBoostingRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -219,8 +215,7 @@ def test_gradient_boosting_regressor_min_split_param_success():
         }
     }
     instance = GradientBoostingRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -266,8 +261,7 @@ def test_gradient_boosting_regressor_min_samples_leaf_success():
         }
     }
     instance = GradientBoostingRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -313,8 +307,7 @@ def test_gradient_boosting_regressor_max_features_param_success():
         }
     }
     instance = GradientBoostingRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -360,8 +353,7 @@ def test_gradient_boosting_regressor_criterion_parm_success():
         }
     }
     instance = GradientBoostingRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -407,8 +399,7 @@ def test_gradient_boosting_regressor_min_wieght_fraction_leaf_param_success():
         }
     }
     instance = GradientBoostingRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -454,8 +445,7 @@ def test_gradient_boosting_regressor_max_leaf_nodes_param_success():
         }
     }
     instance = GradientBoostingRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -501,8 +491,7 @@ def test_gradient_boosting_regressor_min_impurity_decrease_success():
         }
     }
     instance = GradientBoostingRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -548,8 +537,7 @@ def test_gradient_boosting_regressor_random_state_param_success():
         }
     }
     instance = GradientBoostingRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -595,8 +583,7 @@ def test_gradient_boosting_regressor_verbose_param_success():
         }
     }
     instance = GradientBoostingRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -640,8 +627,7 @@ def test_gradient_boosting_regressor_prediction_param_success():
         }
     }
     instance = GradientBoostingRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     assert result['out'].columns[2] == 'success'
 
 
@@ -662,8 +648,7 @@ def test_gradient_boosting_regressor_loss_param_success():
         }
     }
     instance = GradientBoostingRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -709,8 +694,7 @@ def test_gradient_boosting_regressor_subsample_param_success():
         }
     }
     instance = GradientBoostingRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -758,8 +742,7 @@ def test_gradient_boosting_regressor_alpha_param_success():
         }
     }
     instance = GradientBoostingRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -805,8 +788,7 @@ def test_gradient_boosting_regressor_cc_alpha_param_success():
         }
     }
     instance = GradientBoostingRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -852,8 +834,7 @@ def test_gradient_boosting_regressor_validation_fraction_param_success():
         }
     }
     instance = GradientBoostingRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -899,8 +880,7 @@ def test_gradient_boosting_regressor_n_iter_no_change_success():
         }
     }
     instance = GradientBoostingRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
@@ -949,8 +929,7 @@ def test_gradient_boosting_regressor_tol_param_success():
         }
     }
     instance = GradientBoostingRegressorOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])

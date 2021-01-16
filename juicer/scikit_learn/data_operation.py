@@ -1,5 +1,6 @@
 # coding=utf-8
 import json
+import os
 import uuid
 from textwrap import dedent
 
@@ -186,8 +187,12 @@ class DataReaderOperation(Operation):
                 code.append('converters = None')
                 code.append("header = 'infer'")
                 self.header = 'infer'
+            
+            protect = (self.parameters.get('export_notebook', False) or 
+                 self.parameters.get('plain', False)) or self.plain
 
-            code.append("url = '{url}'".format(url=self.metadata['url']))
+            if not protect:
+                code.append("url = '{url}'".format(url=self.metadata['url']))
             null_values = self.null_values
             if self.metadata.get('treat_as_missing'):
                 null_values.extend([x.strip() for x in self.metadata.get(
@@ -197,14 +202,30 @@ class DataReaderOperation(Operation):
                  set(null_values)]) if null_values else ""
 
             parsed = urlparse(self.metadata['url'])
+            extra_params = {}
+            if 'extra_params' in self.metadata['storage']:
+                if self.metadata['storage']['extra_params']:
+                    extra_params = json.loads(self.metadata['storage'][
+                        'extra_params'])
+
             if parsed.scheme in ('hdfs', 'file'):
                 if parsed.scheme == 'hdfs':
-                    open_code = dedent("""
-                                    fs = pa.hdfs.connect('{hdfs_server}', {hdfs_port})
+                    if protect: # Hide information about path
+                        name = parsed.path.split('/')[-1]
+                        open_code = dedent("""
+                            # TODO: Change the path of input data!
+                            f = open('{path}', 'rb')""".format(path=name))
+                    else:
+                        open_code = dedent("""
+                                    fs = pa.hdfs.connect(host='{hdfs_server}', 
+                                                         port={hdfs_port},
+                                                         user='{hdfs_user}')
                                     f = fs.open('{path}', 'rb')""".format(
-                        path=parsed.path,
-                        hdfs_server=parsed.hostname,
-                        hdfs_port=parsed.port,
+                            path=parsed.path,
+                            hdfs_server=parsed.hostname,
+                            hdfs_port=parsed.port,
+                            hdfs_user=extra_params.get(
+                                'user', parsed.username) or 'hadoop'
                     ))
                 else:
                     open_code = "f = open('{path}', 'rb')".format(
@@ -229,9 +250,9 @@ class DataReaderOperation(Operation):
                                                error_bad_lines={mode})
                         f.close()
                            
-                        if header is None:
-                            {output}.columns = ['col_{{col}}'.format(
-                                col=col) for col in {output}.columns]
+                        if header == 'infer':
+                            {output}.columns = ['attr{{i}}'.format(i=i) 
+                            for i, _ in enumerate({output}.columns)]
                     """).format(output=self.output,
                                 input=parsed.path,
                                 sep=self.sep,
@@ -391,6 +412,9 @@ class SaveOperation(Operation):
             raise ValueError(_('Storage type not supported: {}').format(
                 storage['type']))
 
+        protect = (self.parameters.get('export_notebook', False) or 
+             self.parameters.get('plain', False)) or self.plain
+
         if storage['url'].endswith('/'):
             storage['url'] = storage['url'][:-1]
         if self.path.endswith('/'):
@@ -414,13 +438,22 @@ class SaveOperation(Operation):
                 '.parquet'):
             final_url += '.parquet'
 
+        parsed = urlparse(final_url)
+
         df_input = self.named_inputs['input data']
+        extra_params = {}
+        if 'extra_params' in storage:
+            extra_params = json.loads(storage['extra_params'])
+
+        hdfs_user = extra_params.get('user', parsed.username) or 'hadoop'
         code_template = """
             path = '{{path}}'
-            {%- if scheme == 'hdfs' %}
-            fs = pa.hdfs.connect('{{hdfs_server}}', {{hdfs_port}})
+            {%- if scheme == 'hdfs' and not protect %}
+            fs = pa.hdfs.connect(host='{{hdfs_server}}', 
+                                 port={{hdfs_port}},
+                                 user='{{hdfs_user}}')
             exists = fs.exists(path)
-            {%- elif scheme == 'file' %}
+            {%- elif scheme == 'file' or protect %}
             exists = os.path.exists(path)
             {%- endif %}
 
@@ -436,52 +469,61 @@ class SaveOperation(Operation):
                         status='COMPLETED',
                         identifier='{{task_id}}')
                 else:
-                    {%- if scheme == 'hdfs'%}
+                    {%- if scheme == 'hdfs' and not protect %}
                         fs.delete(path, False)
-                    {%- elif scheme == 'file' %}
+                    {%- elif scheme == 'file' or protect %}
                         os.remove(path)
-
-            parent_dir = os.path.dirname(path)
-            if not os.path.exists(parent_dir):
+                        parent_dir = os.path.dirname(path)
+                        if not os.path.exists(parent_dir):
+                            os.makedirs(parent_dir)
+                    {%- endif %}
+            else:
+                {%-if scheme == 'hdfs' and not protect %}    
+                fs.mkdir(os.path.dirname(path))
+                {%- elif scheme == 'file' %}
+                parent_dir = os.path.dirname(path)
                 os.makedirs(parent_dir)
-            {%- endif %}
+                {%- else %}
+                pass
+                {%- endif%}
             
             {%- if format == FORMAT_CSV %}
-            {%- if scheme == 'hdfs' %}
+            {%- if scheme == 'hdfs' and not protect %}
             from io import StringIO
             with fs.open(path, 'wb') as f:
                 s = StringIO()
                 {{input}}.to_csv(s, sep=str(','), mode='w',
                 header={{header}}, index=False, encoding='utf-8')
                 f.write(s.getvalue().encode())               
-            {%- elif scheme == 'file' %}
+            {%- elif scheme == 'file' or protect %}
             {{input}}.to_csv(path, sep=str(','), mode='w',
             header={{header}}, index=False, encoding='utf-8')
             {%- endif %}
             
             {%- elif format == FORMAT_PARQUET %}
-            {%- if scheme == 'hdfs' %}
+            {%- if scheme == 'hdfs' and not protect %}
             from io import ByteIO
             with fs.open(path, 'wb') as f:
                 s = ByteIO()
                 {{input}}.to_parquet(s, engine='pyarrow')
                 f.write(s.getvalue())               
-            {%- elif scheme == 'file' %}
+            {%- elif scheme == 'file' or protect %}
             {{input}}.to_parquet(path, engine='pyarrow')
             {%- endif %}
             
             {%- elif format == FORMAT_JSON %}
-            {%- if scheme == 'hdfs' %}
+            {%- if scheme == 'hdfs' and not protect %}
             from io import StringIO
             with fs.open(path, 'wb') as f:
                 s = StringIO()
                 {{input}}.to_json(s, orient='records')
                 f.write(s.getvalue().encode())             
-            {%- elif scheme == 'file' %}
+            {%- elif scheme == 'file' or protect %}
             {{input}}.to_json(path, orient='records')
             {%- endif %}
             {%- endif %}
             
+            {%-if not protect %}
             # Code to update Limonero metadata information
             from juicer.service.limonero_service import register_datasource
             types_names = {{data_types}}
@@ -520,15 +562,17 @@ class SaveOperation(Operation):
                 'attributes': attributes
             }
             register_datasource('{{url}}', parameters, '{{token}}', 'overwrite')
+            {%- endif %}
         """
-        parsed = urlparse(final_url)
         template = Environment(loader=BaseLoader).from_string(
             code_template)
         path = parsed.path
 
-        ctx = dict(path=path,
+        ctx = dict(protect=protect,
+                   path=path if not protect else os.path.basename(path),
                    hdfs_server=parsed.hostname,
                    hdfs_port=parsed.port,
+                   hdfs_user=hdfs_user,
                    scheme=parsed.scheme,
                    name=self.name,
                    mode=self.mode,
