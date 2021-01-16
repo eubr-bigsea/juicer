@@ -1,6 +1,6 @@
 from tests.scikit_learn import util
 from juicer.scikit_learn.clustering_operation import DBSCANClusteringOperation
-from tests.scikit_learn.util import get_X_train_data, get_label_data
+from tests.scikit_learn.util import get_X_train_data
 from sklearn.cluster import DBSCAN
 import pytest
 import pandas as pd
@@ -30,8 +30,7 @@ def test_db_scan_clustering_success():
         }
     }
     instance = DBSCANClusteringOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X_train = get_X_train_data(test_out, ['sepallength', 'sepalwidth'])
@@ -57,8 +56,7 @@ def test_db_scan_clustering_eps_param_success():
         }
     }
     instance = DBSCANClusteringOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X_train = get_X_train_data(test_out, ['sepallength', 'sepalwidth'])
@@ -84,8 +82,7 @@ def test_db_scan_clustering_min_samples_param_success():
         }
     }
     instance = DBSCANClusteringOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X_train = get_X_train_data(test_out, ['sepallength', 'sepalwidth'])
@@ -109,8 +106,7 @@ def test_db_scan_clustering_prediction_param_success():
         }
     }
     instance = DBSCANClusteringOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     assert result['out'].columns[2] == 'success'
 
 
@@ -130,8 +126,7 @@ def test_db_scan_clustering_metric_param_success():
         }
     }
     instance = DBSCANClusteringOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     X_train = get_X_train_data(test_out, ['sepallength', 'sepalwidth'])
