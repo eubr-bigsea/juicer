@@ -309,8 +309,6 @@ class GaussianMixtureClusteringOperation(Operation):
             copy_code = ".copy()" \
                 if self.parameters['multiplicity']['train input data'] > 1 else ""
             code = """
-            from juicer.scikit_learn.util import get_X_train_data, get_label_data
-            from sklearn.mixture import GaussianMixture
             {output_data} = {input_data}{copy_code}
             X_train = get_X_train_data({input_data}, {columns})
             {model} = GaussianMixture(n_components={k}, max_iter={iter}, tol={tol}, 
