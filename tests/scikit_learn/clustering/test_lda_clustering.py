@@ -30,7 +30,7 @@ def test_lda_clustering_success():
         }
     }
     instance = LdaClusteringOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
 
     model_1 = LatentDirichletAllocation(n_components=10,
@@ -66,7 +66,7 @@ def test_lda_clustering_number_of_topics_param_success():
         }
     }
     instance = LdaClusteringOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
 
     model_1 = LatentDirichletAllocation(n_components=2,
@@ -102,7 +102,7 @@ def test_lda_clustering_doc_topic_pior_param_success():
         }
     }
     instance = LdaClusteringOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
 
     model_1 = LatentDirichletAllocation(n_components=10,
@@ -138,7 +138,7 @@ def test_lda_clustering_topic_word_prior_success():
         }
     }
     instance = LdaClusteringOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
 
     model_1 = LatentDirichletAllocation(n_components=10,
@@ -174,7 +174,7 @@ def test_lda_clustering_learning_method_param_success():
         }
     }
     instance = LdaClusteringOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
 
     model_1 = LatentDirichletAllocation(n_components=10,
@@ -210,7 +210,7 @@ def test_lda_clustering_max_iter_param_success():
         }
     }
     instance = LdaClusteringOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
 
     model_1 = LatentDirichletAllocation(n_components=10,
@@ -246,7 +246,7 @@ def test_lda_clustering_seed_param_success():
         }
     }
     instance = LdaClusteringOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
 
     model_1 = LatentDirichletAllocation(n_components=10,
@@ -277,7 +277,7 @@ def test_lda_clustering_prediction_param_success():
         }
     }
     instance = LdaClusteringOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
     assert result['out'].columns[2] == 'success'
 
