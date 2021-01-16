@@ -435,8 +435,6 @@ class KMeansClusteringOperation(Operation):
 
             if self.type.lower() == "k-means":
                 code = """
-                from juicer.scikit_learn.util import get_X_train_data, get_label_data
-                from sklearn.cluster import KMeans
                 {output_data} = {input_data}{copy_code}
                 X_train = get_X_train_data({input_data}, {columns})
                 {model} = KMeans(n_clusters={k}, init='{init}', max_iter={max_iter},
@@ -459,8 +457,6 @@ class KMeansClusteringOperation(Operation):
                            algorithm=self.algorithm)
             else:
                 code = """
-                from sklearn.cluster import MiniBatchKMeans
-                from juicer.scikit_learn.util import get_X_train_data, get_label_data
                 {output_data} = {input_data}{copy_code}
                 X_train = {input_data}[{columns}].to_numpy().tolist()
                 {model} = MiniBatchKMeans(n_clusters={k}, init='{init}', 
