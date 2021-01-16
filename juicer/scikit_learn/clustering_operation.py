@@ -561,8 +561,6 @@ class LdaClusteringOperation(Operation):
                 if self.parameters['multiplicity']['train input data'] > 1 else ""
 
             code = """
-            from sklearn.decomposition import LatentDirichletAllocation
-            from juicer.scikit_learn.util import get_label_data, get_X_train_data
             {model} = LatentDirichletAllocation(n_components={n_components}, 
             doc_topic_prior={doc_topic_prior}, topic_word_prior={topic_word_prior}, 
             learning_method='{learning_method}', max_iter={max_iter}, random_state={seed})
