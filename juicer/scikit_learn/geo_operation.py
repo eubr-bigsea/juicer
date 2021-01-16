@@ -38,9 +38,10 @@ class ReadShapefileOperation(Operation):
         self.attributes = parameters.get(self.ATTRIBUTES_PARAM, []) or []
         self.output = self.named_outputs.get(
                 'geo data', 'output_data_{}'.format(self.order))
-        self.has_import = \
-            "from juicer.scikit_learn.library.read_shapefile " \
-            "import ReadShapefile\n"
+
+        from juicer.scikit_learn.library.read_shapefile import ReadShapefile
+        self.transpiler_utils.add_custom_function("ReadShapefile",
+                                                  ReadShapefile)
 
     def generate_code(self):
         """Generate code."""
@@ -96,9 +97,10 @@ class GeoWithinOperation(Operation):
 
             self.output = self.named_outputs.get(
                 'output data', 'output_data_{}'.format(self.order))
-            self.has_import = \
-                "from juicer.scikit_learn.library.geo_within " \
-                "import GeoWithinOperation\n"
+            from juicer.scikit_learn.library.geo_within \
+                import GeoWithinOperation
+            self.transpiler_utils.add_custom_function("GeoWithinOperation",
+                                                      GeoWithinOperation)
 
     def generate_code(self):
         """Generate code."""
@@ -168,8 +170,8 @@ class STDBSCANOperation(Operation):
             self.min_pts = abs(int(self.min_pts))
             self.spatial_thr = abs(float(self.spatial_thr))
             self.temporal_thr = abs(int(self.temporal_thr))
-            self.has_import = "from juicer.scikit_learn.library.stdbscan " \
-                              "import STDBSCAN\n"
+            from juicer.scikit_learn.library.stdbscan import STDBSCAN
+            self.transpiler_utils.add_custom_function("STDBSCAN", STDBSCAN)
 
     def generate_code(self):
         """Generate code."""

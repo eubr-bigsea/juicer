@@ -290,6 +290,15 @@ class ScikitLearnMinion(Minion):
             self._generate_output(self.MNN006[1], 'ERROR', self.MNN006[0])
             result = False
 
+        except KeyError as ke:
+            message = self.MNN011[1].format(ke)
+            log.warn(message)
+            self._emit_event(room=job_id, namespace='/stand')(
+                name='update job', message=message,
+                status='ERROR', identifier=job_id)
+            self._generate_output(self.MNN006[1], 'ERROR', self.MNN006[0])
+            result = False
+
         except Exception as ee:
             import traceback
             tb = traceback.format_exception(*sys.exc_info())

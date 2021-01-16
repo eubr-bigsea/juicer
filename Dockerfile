@@ -11,8 +11,8 @@ ENV TERM=xterm\
     TZ=America/Sao_Paulo\
     DEBIAN_FRONTEND=noninteractive
 
-RUN apt-get update && apt-get install -y \
-      python3 \
+RUN apt-get update && apt-get install -y \ 
+      python3.7-dev \
       python3-pip \
       python3-dev \
       python3-tk \
@@ -21,7 +21,9 @@ RUN apt-get update && apt-get install -y \
       curl \
       graphviz \
       locales \
-  && update-alternatives --install /usr/bin/python python /usr/bin/python3.6 10 \
+  && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.7 2 \
+  && update-alternatives --install /usr/bin/python python /usr/bin/python3 1 \
+  && update-alternatives --install /usr/bin/pip pip /usr/bin/pip3 1\
   && sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen \
   && locale-gen \
   && update-locale LANG=en_US.UTF-8 \
@@ -47,6 +49,22 @@ RUN SPARK_LATEST_VERSION=$(\
     ln -s /usr/local/spark /opt/spark
 
 WORKDIR $JUICER_HOME
+
+ENV ARROW_LIBHDFS_DIR /usr/local/juicer/native
+ENV HADOOP_HOME /usr/local/juicer/
+ENV HADOOP_VERSION_BASE=2.7.7
+
+RUN curl -sL https://archive.apache.org/dist/hadoop/core/hadoop-${HADOOP_VERSION_BASE}/hadoop-${HADOOP_VERSION_BASE}.tar.gz | tar -xz -C /tmp/ &&\
+    mkdir ${JUICER_HOME}/jars  &&\
+    mv /tmp/hadoop-${HADOOP_VERSION_BASE}/lib/native ${ARROW_LIBHDFS_DIR} &&\
+    mv /tmp/hadoop-${HADOOP_VERSION_BASE}/share/hadoop/common/lib/* ${JUICER_HOME}/jars/ &&\
+    mv /tmp/hadoop-${HADOOP_VERSION_BASE}/share/hadoop/common/*.jar ${JUICER_HOME}/jars/ &&\
+    mv /tmp/hadoop-${HADOOP_VERSION_BASE}/share/hadoop/hdfs/lib/* ${JUICER_HOME}/jars/ &&\
+    mv /tmp/hadoop-${HADOOP_VERSION_BASE}/share/hadoop/hdfs/*.jar ${JUICER_HOME}/jars/ &&\
+    rm -r /tmp/hadoop-${HADOOP_VERSION_BASE}
+
+ENV CLASSPATH /usr/local/juicer/jars/*
+
 COPY requirements.txt $JUICER_HOME
 
 RUN pip3 install -r $JUICER_HOME/requirements.txt --no-cache-dir
@@ -59,4 +77,5 @@ COPY . $JUICER_HOME
 RUN pybabel compile -d $JUICER_HOME/juicer/i18n/locales
 
 COPY ./entrypoint.sh /opt/
+RUN curl -o $JUICER_HOME/jars/lemonade-spark-ext-1.0.jar https://github.com/eubr-bigsea/lemonade-spark-ext/raw/master/dist/lemonade-spark-ext-1.0.jar
 ENTRYPOINT [ "/opt/entrypoint.sh" ]

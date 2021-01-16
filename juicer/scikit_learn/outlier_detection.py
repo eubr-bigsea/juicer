@@ -42,12 +42,8 @@ class OutlierDetectionOperation(Operation):
         self.outlier = self.parameters.get(self.OUTLIER_PARAM, 'outlier')
 
         self.input_treatment()
-        self.has_import = \
-            """
-            import numpy as np
-            import matplotlib.pyplot as plt
-            from sklearn.neighbors import LocalOutlierFactor
-            """
+        self.transpiler_utils.add_import(
+            "from sklearn.neighbors import LocalOutlierFactor")
 
     @property
     def get_data_out_names(self, sep=','):

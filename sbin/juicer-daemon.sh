@@ -108,6 +108,7 @@ case $cmd_option in
           >> $log 2>&1 < /dev/null &
       jobs_pid=$!
       echo "Juicer jobs started, logging to $log (pid=$juicer_pid)"
+      wait
       ;;
 
    (stop-jobs)
