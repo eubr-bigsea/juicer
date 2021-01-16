@@ -65,7 +65,7 @@ def test_execute_python_data_types_success():
 
     output = []
     instance = ExecutePythonOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'task_futures': {'items': TestingBypass},
                            'emit_event': _emit_event(output)})
 
@@ -138,7 +138,7 @@ def test_execute_python_keywords_success():
 
     output = []
     instance = ExecutePythonOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'task_futures': {'items': TestingBypass},
                            'emit_event': _emit_event(output)})
     assert result['user_code'] == dedent("""
@@ -216,7 +216,7 @@ def test_execute_python_operators_success():
 
     output = []
     instance = ExecutePythonOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'task_futures': {'items': TestingBypass},
                            'emit_event': _emit_event(output)})
     assert result['user_code'] == dedent("""
@@ -260,7 +260,7 @@ def test_execute_python_print_success():
 
     output = []
     instance = ExecutePythonOperation(**arguments)
-    util.execute(instance.generate_code(),
+    util.execute(util.get_complete_code(instance),
                  {'task_futures': {'items': TestingBypass},
                   'emit_event': _emit_event(output)})
 
@@ -294,7 +294,7 @@ def test_execute_python_dangerous_zfill_method_success():
 
     output = []
     instance = ExecutePythonOperation(**arguments)
-    util.execute(instance.generate_code(),
+    util.execute(util.get_complete_code(instance),
                  {'task_futures': {'items': TestingBypass},
                   'emit_event': _emit_event(output)})
 
@@ -328,7 +328,7 @@ def test_execute_python_big_or_infinite_loops_success():
 
     output = []
     instance = ExecutePythonOperation(**arguments)
-    util.execute(instance.generate_code(),
+    util.execute(util.get_complete_code(instance),
                  {'task_futures': {'items': TestingBypass},
                   'emit_event': _emit_event(output)})
 
@@ -357,7 +357,7 @@ def test_execute_python_pandas_success():
 
     output = []
     instance = ExecutePythonOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'task_futures': {'items': TestingBypass},
                            'df1': df1,
                            'df2': df2,
@@ -406,7 +406,7 @@ def test_execute_python_prohibited_data_types_fail():
     output = []
     instance = ExecutePythonOperation(**arguments)
     with pytest.raises(ValueError) as val_err:
-        util.execute(instance.generate_code(),
+        util.execute(util.get_complete_code(instance),
                      {'task_futures': {'items': TestingBypass},
                       'emit_event': _emit_event(output)})
     assert "name 'bytearray' is not defined." \
@@ -439,7 +439,7 @@ def test_execute_python_prohibited_python_keywords_fail():
     output = []
     instance = ExecutePythonOperation(**arguments)
     with pytest.raises(SyntaxError) as syn_err:
-        util.execute(instance.generate_code(),
+        util.execute(util.get_complete_code(instance),
                      {'task_futures': {'items': TestingBypass},
                       'emit_event': _emit_event(output)})
     assert "Nonlocal statements are not allowed." in str(syn_err.value)

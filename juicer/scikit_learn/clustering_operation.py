@@ -2,6 +2,7 @@
 from textwrap import dedent
 from juicer.operation import Operation
 from juicer.operation import ReportOperation
+from juicer.scikit_learn.util import get_X_train_data
 
 
 class ClusteringModelOperation(Operation):
@@ -106,7 +107,8 @@ class AgglomerativeClusteringOperation(Operation):
 
         if self.FEATURES_PARAM not in parameters:
             raise ValueError(
-                     _("Parameter '{}' must be informed for task {}").format(self.FEATURES_PARAM, self.__class__))
+                     _("Parameter '{}' must be informed for task {}").format(
+                             self.FEATURES_PARAM, self.__class__))
 
         self.features = parameters['attributes']
         self.alias = parameters.get(self.ALIAS_PARAM, 'cluster')
@@ -123,8 +125,10 @@ class AgglomerativeClusteringOperation(Operation):
                      _("Parameter '{}' must be x>0 for task {}").format(
                             self.N_CLUSTERS_PARAM, self.__class__))
 
-        self.has_import = \
-            "from sklearn.cluster import AgglomerativeClustering\n"
+        self.transpiler_utils.add_import(
+                "from sklearn.cluster import AgglomerativeClustering")
+        self.transpiler_utils.add_custom_function(
+                'get_X_train_data', get_X_train_data)
 
     @property
     def get_data_out_names(self, sep=','):
@@ -167,7 +171,8 @@ class DBSCANClusteringOperation(Operation):
                  named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-        self.has_code = any([len(self.named_inputs) == 1, self.contains_results()])
+        self.has_code = any([len(self.named_inputs) == 1,
+                             self.contains_results()])
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
 
@@ -200,8 +205,10 @@ class DBSCANClusteringOperation(Operation):
                             _("Parameter '{}' must be x>0 for task {}").format(
                                     att, self.__class__))
 
-            self.has_import = \
-                "from sklearn.cluster import DBSCAN\n"
+            self.transpiler_utils.add_import(
+                    "from sklearn.cluster import DBSCAN")
+            self.transpiler_utils.add_custom_function(
+                    'get_X_train_data', get_X_train_data)
 
     @property
     def get_data_out_names(self, sep=','):
@@ -258,7 +265,8 @@ class GaussianMixtureClusteringOperation(Operation):
             'train input data', 'input_data_{}'.format(self.order))
         if self.has_code:
             self.features = parameters['features']
-            self.prediction = self.parameters.get(self.PREDICTION_PARAM, 'prediction')
+            self.prediction = self.parameters.get(self.PREDICTION_PARAM,
+                                                  'prediction')
             self.n_components = int(parameters.get(self.N_COMPONENTS_PARAM, 1) or 1)
             self.covariance_type = parameters.get(self.COVARIANCE_TYPE_PARAM, 'full')
             self.tol = float(parameters.get(self.TOL_PARAM, 0.001) or 0.001)
@@ -276,8 +284,10 @@ class GaussianMixtureClusteringOperation(Operation):
                             _("Parameter '{}' must be x>0 for task {}").format(
                                     att, self.__class__))
 
-            self.has_import = \
-                "from sklearn.mixture import GaussianMixture\n"
+            self.transpiler_utils.add_import(
+                "from sklearn.mixture import GaussianMixture")
+            self.transpiler_utils.add_custom_function(
+                    'get_X_train_data', get_X_train_data)
             self.input_treatment()
 
     @property
@@ -360,13 +370,15 @@ class KMeansClusteringOperation(Operation):
             'train input data', 'input_data_{}'.format(self.order))
         if self.has_code:
             self.features = parameters['features']
-            self.prediction = self.parameters.get(self.PREDICTION_PARAM, 'prediction')
+            self.prediction = self.parameters.get(self.PREDICTION_PARAM,
+                                                  'prediction')
             self.n_init = int(parameters.get(self.N_INIT_PARAM, 10) or 10)
             self.n_jobs = parameters.get(self.N_JOBS_PARAM, None) or None
             self.algorithm = parameters.get(self.ALGORITHM_PARAM, 'auto') or 'auto'
             self.n_init_mb = int(parameters.get(self.N_INIT_MB_PARAM, 3) or 3)
             self.tol = float(parameters.get(self.TOL_PARAM, 0.0) or 0.0)
-            self.max_no_improvement = int(parameters.get(self.MAX_NO_IMPROVEMENT_PARAM, 10) or 10)
+            self.max_no_improvement = int(parameters.get(
+                    self.MAX_NO_IMPROVEMENT_PARAM, 10) or 10)
             self.batch_size = int(parameters.get(self.BATCH_SIZE_PARAM, 100) or 100)
             self.n_clusters = int(parameters.get(self.N_CLUSTERS_PARAM, 8) or 8)
             self.max_iter = int(parameters.get(self.MAX_ITER_PARAM, 100) or 100)
@@ -389,11 +401,13 @@ class KMeansClusteringOperation(Operation):
                                     att, self.__class__))
 
             if self.type.lower() == "k-means":
-                self.has_import = \
-                    "from sklearn.cluster import KMeans\n"
+                self.transpiler_utils.add_import(
+                    "from sklearn.cluster import KMeans")
             else:
-                self.has_import = \
-                    "from sklearn.cluster import MiniBatchKMeans\n"
+                self.transpiler_utils.add_import(
+                    "from sklearn.cluster import MiniBatchKMeans")
+            self.transpiler_utils.add_custom_function(
+                    'get_X_train_data', get_X_train_data)
             self.input_treatment()
 
     @property
@@ -521,10 +535,14 @@ class LdaClusteringOperation(Operation):
                             _("Parameter '{}' must be x>0 for task {}").format(
                                     att, self.__class__))
 
-            self.has_import = \
-                "from sklearn.decomposition import LatentDirichletAllocation\n"
+            self.transpiler_utils.add_import(
+                    "from sklearn.decomposition "
+                    "import LatentDirichletAllocation")
+            self.transpiler_utils.add_custom_function(
+                    'get_X_train_data', get_X_train_data)
 
-            self.prediction = self.parameters.get(self.PREDICTION_PARAM, 'prediction')
+            self.prediction = self.parameters.get(self.PREDICTION_PARAM,
+                                                  'prediction')
 
             if self.FEATURES_PARAM not in self.parameters:
                 msg = _("Parameters '{}' must be informed for task {}")
@@ -594,6 +612,9 @@ class TopicReportOperation(ReportOperation):
 
         self.model = self.named_inputs['model']
         self.vocabulary_input = self.named_inputs.get('vocabulary')
+        from juicer.scikit_learn.library.topic_report import gen_top_words
+        self.transpiler_utils.add_custom_function(
+                'gen_top_words', gen_top_words)
 
     def get_output_names(self, sep=", "):
         return self.output
@@ -602,27 +623,7 @@ class TopicReportOperation(ReportOperation):
         return self.output
 
     def generate_code(self):
-        code = dedent("""
-                        
-            def gen_top_words(model, feature_names, n_top_words): 
-                topics = [i for i in range(len(model.components_))] 
-                terms = [0] * len(model.components_)
-                term_idx = [0] * len(model.components_)
-                term_weights = [0] * len(model.components_)
-                
-                for topic_idx, topic in enumerate(model.components_):
-                    terms[topic_idx] =  [feature_names[i] for i in topic.argsort()[:-n_top_words - 1:-1]]
-                    term_idx[topic_idx] =  [int(x) for x in topic.argsort()[:-n_top_words - 1:-1]]
-                    term_weights[topic_idx] = [x for x in np.sort(topic)[:-n_top_words - 1: -1]]
-                
-                df = pd.DataFrame()
-                df['{topic_col}'] = topics
-                df['{term_idx}'] = term_idx
-                df['{terms_weights}'] = term_weights
-                df['{terms_col}'] = terms
-                return df
-                
-                
+        code = dedent("""    
             {output} = gen_top_words({model}, {vocabulary}, {tpt})
         """.format(model=self.model,
                    tpt=self.terms_per_topic,
