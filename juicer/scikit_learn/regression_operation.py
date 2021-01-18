@@ -4,6 +4,7 @@ from textwrap import dedent
 from juicer.operation import Operation
 from itertools import zip_longest
 import re
+from juicer.scikit_learn.util import get_X_train_data, get_label_data
 
 
 # noinspection PyAbstractClass
@@ -71,6 +72,10 @@ class RegressionModelOperation(Operation):
                 'model', 'model_{}'.format(self.order))
             self.output = self.named_outputs.get(
                 'output data', 'out_task_{}'.format(self.order))
+            self.transpiler_utils.add_custom_function(
+                    'get_X_train_data', get_X_train_data)
+            self.transpiler_utils.add_custom_function(
+                    'get_label_data', get_label_data)
 
     @property
     def get_inputs_names(self):
@@ -89,8 +94,6 @@ class RegressionModelOperation(Operation):
 
         if self.has_code:
             code = """
-            from sklearn.linear_model import *
-            from juicer.scikit_learn.util import get_X_train_data, get_label_data
             algorithm = {algorithm}
             {output_data} = {input}{copy_code}
             X_train = get_X_train_data({input}, {features})
@@ -182,9 +185,12 @@ class GradientBoostingRegressorOperation(RegressionOperation):
                     raise ValueError(
                             _("Parameter '{}' must be x>0 for task {}").format(
                                     att, self.__class__))
-            self.has_import = \
-                "from sklearn.ensemble import GradientBoostingRegressor\n"
-
+            self.transpiler_utils.add_import(
+                    "from sklearn.ensemble import GradientBoostingRegressor")
+            self.transpiler_utils.add_custom_function(
+                    'get_X_train_data', get_X_train_data)
+            self.transpiler_utils.add_custom_function(
+                    'get_label_data', get_label_data)
             self.input_treatment()
 
     @property
@@ -255,8 +261,6 @@ class GradientBoostingRegressorOperation(RegressionOperation):
                 if self.parameters['multiplicity']['train input data'] > 1 else ""
 
             code = dedent("""
-                from sklearn.ensemble import GradientBoostingRegressor
-                from juicer.scikit_learn.util import get_X_train_data, get_label_data
                 {output_data} = {input_data}{copy_code}            
                 X_train = get_X_train_data({input_data}, {features})
                 y = get_label_data({input_data}, {label})
@@ -344,7 +348,8 @@ class HuberRegressorOperation(RegressionOperation):
             self.fit_intercept = int(parameters.get(self.FIT_INTERCEPT_PARAM, 1) or 1)
             self.features = parameters['features']
             self.label = parameters.get(self.LABEL_PARAM, None)
-            self.prediction = self.parameters.get(self.PREDICTION_PARAM, 'prediction')
+            self.prediction = self.parameters.get(self.PREDICTION_PARAM,
+                                                  'prediction')
 
             vals = [self.max_iter, self.alpha]
             atts = [self.MAX_ITER_PARAM, self.ALPHA_PARAM]
@@ -359,9 +364,12 @@ class HuberRegressorOperation(RegressionOperation):
                         _("Parameter '{}' must be x>1.0 for task {}").format(
                                 self.EPSILON_PARAM, self.__class__))
 
-            self.has_import = \
-                "from sklearn.linear_model import HuberRegressor\n"
-
+            self.transpiler_utils.add_import(
+                    "from sklearn.linear_model import HuberRegressor")
+            self.transpiler_utils.add_custom_function(
+                    'get_X_train_data', get_X_train_data)
+            self.transpiler_utils.add_custom_function(
+                    'get_label_data', get_label_data)
             self.input_treatment()
 
     @property
@@ -380,8 +388,6 @@ class HuberRegressorOperation(RegressionOperation):
                 if self.parameters['multiplicity']['train input data'] > 1 else ""
 
             code = dedent("""
-                from juicer.scikit_learn.util import get_X_train_data, get_label_data
-                from sklearn.linear_model import HuberRegressor
                 {output_data} = {input_data}{copy_code}
                 X_train = get_X_train_data({input_data}, {features})
                 y = get_label_data({input_data}, {label})
@@ -390,7 +396,7 @@ class HuberRegressorOperation(RegressionOperation):
                         alpha={alpha}, tol={tol}, fit_intercept={fit_intercept}, 
                         warm_start=False)
                 {model}.fit(X_train, y)
-                {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
+                {output_data}['{predict}'] = {model}.predict(X_train).tolist()
                 """).format(copy_code=copy_code,
                             output_data=self.output,
                             epsilon=self.epsilon,
@@ -402,7 +408,7 @@ class HuberRegressorOperation(RegressionOperation):
                             fit_intercept=self.fit_intercept,
                             features=self.features,
                             label=self.label,
-                            prediction=self.prediction)
+                            predict=self.prediction)
 
             return code
 
@@ -440,16 +446,20 @@ class IsotonicRegressionOperation(RegressionOperation):
                 self.ISOTONIC_PARAM, True) in (1, '1', 'true', True)
             self.features = parameters['features']
             self.label = parameters.get(self.LABEL_PARAM, None)
-            self.prediction = parameters.get(self.PREDICTION_PARAM, 'prediction')
+            self.prediction = parameters.get(self.PREDICTION_PARAM,
+                                             'prediction')
             self.y_min = parameters.get(self.Y_MIN_PARAM, None)
             self.y_max = parameters.get(self.Y_MAX_PARAM, None)
             self.out_of_bounds = parameters.get(self.OUT_OF_BOUNDS_PARAM, "nan")
 
             self.treatment()
 
-            self.has_import = \
-                "from sklearn.isotonic import IsotonicRegression\n"
-
+            self.transpiler_utils.add_import(
+                    "from sklearn.isotonic import IsotonicRegression")
+            self.transpiler_utils.add_custom_function(
+                    'get_X_train_data', get_X_train_data)
+            self.transpiler_utils.add_custom_function(
+                    'get_label_data', get_label_data)
             self.treatment()
 
     @property
@@ -483,26 +493,22 @@ class IsotonicRegressionOperation(RegressionOperation):
                                     self.__class__))
 
     def generate_code(self):
-        # X_train = np.array({input_data}[{columns}].to_numpy().tolist()).flatten()
-        # y = np.array({input_data}[{label}].to_numpy().tolist()).flatten()
 
-        #observar se e' possivel trocar a entrada por uma lista de elementos unicos
         if self.has_code:
             copy_code = ".copy()" \
-                if self.parameters['multiplicity']['train input data'] > 1 else ""
+                if self.parameters['multiplicity']['train input data'] > 1 \
+                else ""
 
             code = dedent("""
-            from sklearn.isotonic import IsotonicRegression
-            from juicer.scikit_learn.util import get_X_train_data, get_label_data
-            {model} = IsotonicRegression(y_min={min}, y_max={max}, increasing={isotonic}, 
-                                         out_of_bounds='{bounds}')
+            {model} = IsotonicRegression(y_min={min}, y_max={max}, 
+                increasing={isotonic}, out_of_bounds='{bounds}')
     
             {output_data} = {input_data}{copy_code}
             X_train = get_X_train_data({input_data}, {columns})
+            X_train = np.ravel(X_train)
             y = get_label_data({input_data}, {label})
-    
+        
             {model}.fit(X_train, y)      
-    
             {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
             """).format(copy_code=copy_code,
                         output_data=self.output,
@@ -559,9 +565,11 @@ class LinearRegressionOperation(RegressionOperation):
             seed_ = self.parameters.get(self.SEED_PARAM, None)
             self.features = parameters['features']
             self.label = parameters.get(self.LABEL_PARAM, None)
-            self.prediction = self.parameters.get(self.PREDICTION_PARAM, 'prediction')
+            self.prediction = self.parameters.get(self.PREDICTION_PARAM,
+                                                  'prediction')
 
-            self.fit_intercept = self.parameters.get(self.FIT_INTERCEPT_PARAM, False) == 1
+            self.fit_intercept = self.parameters.get(self.FIT_INTERCEPT_PARAM,
+                                                     False) == 1
             self.positive = self.parameters.get(self.POSITIVE_PARAM, False) == 1
 
             vals = [self.alpha, self.max_iter]
@@ -586,8 +594,12 @@ class LinearRegressionOperation(RegressionOperation):
                         _("Parameter '{}' must be x>=0 for task {}").format(
                                 self.SEED_PARAM, self.__class__))
 
-            self.has_import = \
-                "from sklearn.linear_model import ElasticNet\n"
+            self.transpiler_utils.add_import(
+                    "from sklearn.linear_model import ElasticNet")
+            self.transpiler_utils.add_custom_function(
+                    'get_X_train_data', get_X_train_data)
+            self.transpiler_utils.add_custom_function(
+                    'get_label_data', get_label_data)
 
     @property
     def get_data_out_names(self, sep=','):
@@ -602,8 +614,6 @@ class LinearRegressionOperation(RegressionOperation):
                 if self.parameters['multiplicity']['train input data'] > 1 else ""
 
             code = dedent("""
-            from sklearn.linear_model import ElasticNet
-            from juicer.scikit_learn.util import get_X_train_data, get_label_data
             {output_data} = {input_data}{copy_code}
             X_train = get_X_train_data({input_data}, {columns})
             y = get_label_data({input_data}, {label})
@@ -735,9 +745,12 @@ class MLPRegressorOperation(Operation):
                             _("Parameter '{}' must be x>=0 for task {}").format(
                                     att, self.__class__))
 
-            self.has_import = \
-                "from sklearn.neural_network import MLPRegressor\n"
-
+            self.transpiler_utils.add_import(
+                    "from sklearn.neural_network import MLPRegressor")
+            self.transpiler_utils.add_custom_function(
+                    'get_X_train_data', get_X_train_data)
+            self.transpiler_utils.add_custom_function(
+                    'get_label_data', get_label_data)
             self.input_treatment()
 
     @property
@@ -943,8 +956,12 @@ class RandomForestRegressorOperation(RegressionOperation):
 
             self.input_treatment()
 
-            self.has_import = \
-                "from sklearn.ensemble import RandomForestRegressor\n"
+            self.transpiler_utils.add_import(
+                    "from sklearn.ensemble import RandomForestRegressor")
+            self.transpiler_utils.add_custom_function(
+                    'get_X_train_data', get_X_train_data)
+            self.transpiler_utils.add_custom_function(
+                    'get_label_data', get_label_data)
 
     @property
     def get_data_out_names(self, sep=','):
@@ -1007,8 +1024,6 @@ class RandomForestRegressorOperation(RegressionOperation):
                 if self.parameters['multiplicity']['train input data'] > 1 else ""
 
             code = dedent("""
-                from sklearn.ensemble import RandomForestRegressor
-                from juicer.scikit_learn.util import get_X_train_data, get_label_data
                 {output_data} = {input_data}{copy_code}
                 X_train = get_X_train_data({input_data}, {features})
                 y = get_label_data({input_data}, {label})
@@ -1132,9 +1147,12 @@ class SGDRegressorOperation(RegressionOperation):
                             _("Parameter '{}' must be x>0 for task {}").format(
                                     att, self.__class__))
 
-            self.has_import = \
-                "from sklearn.linear_model import SGDRegressor\n"
-
+            self.transpiler_utils.add_import(
+                    "from sklearn.linear_model import SGDRegressor")
+            self.transpiler_utils.add_custom_function(
+                    'get_X_train_data', get_X_train_data)
+            self.transpiler_utils.add_custom_function(
+                    'get_label_data', get_label_data)
             self.input_treatment()
 
     @property
@@ -1219,8 +1237,6 @@ class SGDRegressorOperation(RegressionOperation):
                 if self.parameters['multiplicity']['train input data'] > 1 else ""
 
             code = dedent("""
-                from sklearn.linear_model import SGDRegressor
-                from juicer.scikit_learn.util import get_X_train_data, get_label_data
                 {output_data} = {input_data}{copy_code}
                 X_train = get_X_train_data({input_data}, {columns})
                 y = get_label_data({input_data}, {label})
@@ -1279,7 +1295,12 @@ class GeneralizedLinearRegressionOperation(RegressionOperation):
 
         self.input_treatment()
 
-        self.has_import = "from sklearn.linear_model import LinearRegression\n"
+        self.transpiler_utils.add_import(
+                "from sklearn.linear_model import LinearRegression")
+        self.transpiler_utils.add_custom_function(
+                'get_X_train_data', get_X_train_data)
+        self.transpiler_utils.add_custom_function(
+                'get_label_data', get_label_data)
 
     @property
     def get_data_out_names(self, sep=','):
@@ -1309,8 +1330,6 @@ class GeneralizedLinearRegressionOperation(RegressionOperation):
                 if self.parameters['multiplicity']['input data'] > 1 else ""
 
             code = """
-                from sklearn.linear_model import LinearRegression
-                from juicer.scikit_learn.util import get_X_train_data, get_label_data
                 {output_data} = {input_data}{copy_code}
                 X_train = get_X_train_data({input_data}, {columns})
                 y = get_label_data({input_data}, {label})

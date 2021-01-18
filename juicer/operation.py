@@ -4,6 +4,8 @@
 import logging
 from collections import namedtuple
 
+from juicer.transpiler import TranspilerUtils
+
 try:
     from itertools import zip_longest as zip_longest
 except ImportError:
@@ -42,8 +44,8 @@ class Operation(object):
         self.multiple_inputs = False
         self.out_degree = 0
         self.plain = False
-        self.transpiler_utils = parameters.get('transpiler_utils')
-
+        self.transpiler_utils = parameters.get('transpiler_utils',
+                                               TranspilerUtils())
 
         self.config = configuration.get_config()
         # Assume default as 1, useful for testing.

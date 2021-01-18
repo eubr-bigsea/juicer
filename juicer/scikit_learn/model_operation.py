@@ -399,7 +399,7 @@ class EvaluateModelOperation(Operation):
                 _('Model is being used, but at least one input is missing'))
 
         self.supports_cache = False
-        self.has_import = "from sklearn.metrics import * \n"
+        self.transpiler_utils.add_import("from sklearn.metrics import *")
         if self.has_code:
             self.transpiler_utils.add_import(
                 'from pandas.api.types import is_numeric_dtype')
@@ -798,8 +798,8 @@ class CrossValidationOperation(Operation):
         self.evaluator_port = self.named_inputs.get(
             'evaluator', 'eval_{}'.format(self.order))
 
-        self.has_import = \
-            "from sklearn.model_selection import cross_val_score, KFold\n"
+        self.transpiler_utils.add_import(
+                "from sklearn.model_selection import cross_val_score, KFold")
 
 
     @property
