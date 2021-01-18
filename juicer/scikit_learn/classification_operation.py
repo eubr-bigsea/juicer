@@ -96,7 +96,6 @@ class DecisionTreeClassifierOperation(Operation):
     MAX_LEAF_NODES_PARAM = 'max_leaf_nodes'
     MIN_IMPURITY_DECREASE_PARAM = 'min_impurity_decrease'
     CLASS_WEIGHT_PARAM = 'class_weight'
-    PRESORT_PARAM = 'presort'
     LABEL_PARAM = 'label'
     PREDICTION_PARAM = 'prediction'
     FEATURES_PARAM = 'features'
@@ -128,7 +127,6 @@ class DecisionTreeClassifierOperation(Operation):
             self.max_leaf_nodes = parameters.get(self.MAX_LEAF_NODES_PARAM, None) or None
             self.min_impurity_decrease = float(parameters.get(self.MIN_IMPURITY_DECREASE_PARAM, 0) or 0)
             self.class_weight = parameters.get(self.CLASS_WEIGHT_PARAM, None) or None
-            self.presort = int(parameters.get(self.PRESORT_PARAM, 0) or 0)
             self.features = parameters['features']
             self.label = parameters.get(self.LABEL_PARAM, None)
             self. prediction = self.parameters.get(self.PREDICTION_PARAM, 'prediction')
@@ -157,8 +155,6 @@ class DecisionTreeClassifierOperation(Operation):
         return sep.join([self.output, self.model])
 
     def input_treatment(self):
-        self.presort = True if int(self.presort) == 1 else False
-
         if self.min_weight < 0 or self.min_weight > 0.5:
             raise ValueError(
                 _("Parameter '{}' must be x>=0 or x<=0.5 for task {}").format(
@@ -196,8 +192,6 @@ class DecisionTreeClassifierOperation(Operation):
                 if self.parameters['multiplicity']['train input data'] > 1 else ""
 
             code = """
-                from juicer.scikit_learn.util import get_label_data, get_X_train_data
-                from sklearn.tree import DecisionTreeClassifier
                 {output_data} = {input_data}{copy_code}         
                 X_train = get_X_train_data({input_data}, {columns})
                 y = get_label_data({input_data}, {label})
@@ -210,7 +204,7 @@ class DecisionTreeClassifierOperation(Operation):
                     splitter='{splitter}', max_features={max_features},
                     max_leaf_nodes={max_leaf_nodes}, 
                     min_impurity_decrease={min_impurity_decrease}, 
-                    class_weight={class_weight}, presort={presort})
+                    class_weight={class_weight})
                 {model}.fit(X_train, y)          
                 {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
                 """.format(copy_code=copy_code,
@@ -230,8 +224,7 @@ class DecisionTreeClassifierOperation(Operation):
                            max_features=self.max_features,
                            max_leaf_nodes=self.max_leaf_nodes,
                            min_impurity_decrease=self.min_impurity_decrease,
-                           class_weight=self.class_weight,
-                           presort=self.presort)
+                           class_weight=self.class_weight)
             return dedent(code)
 
 

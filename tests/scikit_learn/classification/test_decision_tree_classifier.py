@@ -4,8 +4,8 @@ from juicer.scikit_learn.classification_operation import \
 from sklearn.tree import DecisionTreeClassifier
 from tests.scikit_learn.util import get_label_data, get_X_train_data
 import numpy as np
-import pandas as pd
 import pytest
+import pandas as pd
 
 
 # pd.set_option('display.max_rows', None)
@@ -35,7 +35,7 @@ def test_decision_tree_classifier_success():
         }
     }
     instance = DecisionTreeClassifierOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
     test_out = test_df
     X_train = get_X_train_data(df, ['sepallength', 'sepalwidth'])
@@ -49,7 +49,7 @@ def test_decision_tree_classifier_success():
                                      splitter='best', max_features=None,
                                      max_leaf_nodes=None,
                                      min_impurity_decrease=0.0,
-                                     class_weight=None, presort=False)
+                                     class_weight=None)
     model_1.fit(X_train, y)
     test_out['prediction'] = model_1.predict(X_train).tolist()
     assert result['out'].equals(test_out)
@@ -75,7 +75,7 @@ def test_decision_tree_classifier_max_depth_param_success():
         }
     }
     instance = DecisionTreeClassifierOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
     test_out = test_df
     X_train = get_X_train_data(df, ['sepallength', 'sepalwidth'])
@@ -89,7 +89,7 @@ def test_decision_tree_classifier_max_depth_param_success():
                                      splitter='best', max_features=None,
                                      max_leaf_nodes=None,
                                      min_impurity_decrease=0.0,
-                                     class_weight=None, presort=False)
+                                     class_weight=None)
     model_1.fit(X_train, y)
     test_out['prediction'] = model_1.predict(X_train).tolist()
     assert result['out'].equals(test_out)
@@ -115,7 +115,7 @@ def test_decision_tree_classifier_min_samples_split_param_success():
         }
     }
     instance = DecisionTreeClassifierOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
     test_out = test_df
     X_train = get_X_train_data(df, ['sepallength', 'sepalwidth'])
@@ -129,7 +129,7 @@ def test_decision_tree_classifier_min_samples_split_param_success():
                                      splitter='best', max_features=None,
                                      max_leaf_nodes=None,
                                      min_impurity_decrease=0.0,
-                                     class_weight=None, presort=False)
+                                     class_weight=None)
     model_1.fit(X_train, y)
     test_out['prediction'] = model_1.predict(X_train).tolist()
     assert result['out'].equals(test_out)
@@ -155,7 +155,7 @@ def test_decision_tree_classifier_min_samples_leaf_param_success():
         }
     }
     instance = DecisionTreeClassifierOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
     test_out = test_df
     X_train = get_X_train_data(df, ['sepallength', 'sepalwidth'])
@@ -169,7 +169,7 @@ def test_decision_tree_classifier_min_samples_leaf_param_success():
                                      splitter='best', max_features=None,
                                      max_leaf_nodes=None,
                                      min_impurity_decrease=0.0,
-                                     class_weight=None, presort=False)
+                                     class_weight=None)
     model_1.fit(X_train, y)
     test_out['prediction'] = model_1.predict(X_train).tolist()
     assert result['out'].equals(test_out)
@@ -195,7 +195,7 @@ def test_decision_tree_classifier_min_weight_param_success():
         }
     }
     instance = DecisionTreeClassifierOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
     test_out = test_df
     X_train = get_X_train_data(df, ['sepallength', 'sepalwidth'])
@@ -209,7 +209,7 @@ def test_decision_tree_classifier_min_weight_param_success():
                                      splitter='best', max_features=None,
                                      max_leaf_nodes=None,
                                      min_impurity_decrease=0.0,
-                                     class_weight=None, presort=False)
+                                     class_weight=None)
     model_1.fit(X_train, y)
     test_out['prediction'] = model_1.predict(X_train).tolist()
     assert result['out'].equals(test_out)
@@ -235,7 +235,7 @@ def test_decision_tree_classifier_random_state_param_success():
         }
     }
     instance = DecisionTreeClassifierOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
     test_out = test_df
     X_train = get_X_train_data(df, ['sepallength', 'sepalwidth'])
@@ -249,7 +249,7 @@ def test_decision_tree_classifier_random_state_param_success():
                                      splitter='best', max_features=None,
                                      max_leaf_nodes=None,
                                      min_impurity_decrease=0.0,
-                                     class_weight=None, presort=False)
+                                     class_weight=None)
     model_1.fit(X_train, y)
     test_out['prediction'] = model_1.predict(X_train).tolist()
     assert result['out'].equals(test_out)
@@ -275,7 +275,7 @@ def test_decision_tree_classifier_criterion_param_success():
         }
     }
     instance = DecisionTreeClassifierOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
     test_out = test_df
     X_train = get_X_train_data(df, ['sepallength', 'sepalwidth'])
@@ -289,7 +289,7 @@ def test_decision_tree_classifier_criterion_param_success():
                                      splitter='best', max_features=None,
                                      max_leaf_nodes=None,
                                      min_impurity_decrease=0.0,
-                                     class_weight=None, presort=False)
+                                     class_weight=None)
     model_1.fit(X_train, y)
     test_out['prediction'] = model_1.predict(X_train).tolist()
     assert result['out'].equals(test_out)
@@ -315,7 +315,7 @@ def test_decision_tree_classifier_splitter_param_success():
         }
     }
     instance = DecisionTreeClassifierOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
     test_out = test_df
     X_train = get_X_train_data(df, ['sepallength', 'sepalwidth'])
@@ -329,7 +329,7 @@ def test_decision_tree_classifier_splitter_param_success():
                                      splitter='random', max_features=None,
                                      max_leaf_nodes=None,
                                      min_impurity_decrease=0.0,
-                                     class_weight=None, presort=False)
+                                     class_weight=None)
     model_1.fit(X_train, y)
     test_out['prediction'] = model_1.predict(X_train).tolist()
     assert result['out'].equals(test_out)
@@ -355,7 +355,7 @@ def test_decision_tree_classifier_max_features_param_success():
         }
     }
     instance = DecisionTreeClassifierOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
     test_out = test_df
     X_train = get_X_train_data(df, ['sepallength', 'sepalwidth'])
@@ -369,7 +369,7 @@ def test_decision_tree_classifier_max_features_param_success():
                                      splitter='best', max_features=2,
                                      max_leaf_nodes=None,
                                      min_impurity_decrease=0.0,
-                                     class_weight=None, presort=False)
+                                     class_weight=None)
     model_1.fit(X_train, y)
     test_out['prediction'] = model_1.predict(X_train).tolist()
     assert result['out'].equals(test_out)
@@ -395,7 +395,7 @@ def test_decision_tree_classifier_max_leafs_nodes_param_success():
         }
     }
     instance = DecisionTreeClassifierOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
     test_out = test_df
     X_train = get_X_train_data(df, ['sepallength', 'sepalwidth'])
@@ -409,7 +409,7 @@ def test_decision_tree_classifier_max_leafs_nodes_param_success():
                                      splitter='best', max_features=None,
                                      max_leaf_nodes=2,
                                      min_impurity_decrease=0.0,
-                                     class_weight=None, presort=False)
+                                     class_weight=None)
     model_1.fit(X_train, y)
     test_out['prediction'] = model_1.predict(X_train).tolist()
     assert result['out'].equals(test_out)
@@ -435,7 +435,7 @@ def test_decision_tree_classifier_min_impurity_decrease_param_success():
         }
     }
     instance = DecisionTreeClassifierOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
     test_out = test_df
     X_train = get_X_train_data(df, ['sepallength', 'sepalwidth'])
@@ -449,7 +449,7 @@ def test_decision_tree_classifier_min_impurity_decrease_param_success():
                                      splitter='best', max_features=None,
                                      max_leaf_nodes=None,
                                      min_impurity_decrease=2.0,
-                                     class_weight=None, presort=False)
+                                     class_weight=None)
     model_1.fit(X_train, y)
     test_out['prediction'] = model_1.predict(X_train).tolist()
     assert result['out'].equals(test_out)
@@ -475,7 +475,7 @@ def test_decision_tree_classifier_class_weight_param_success():
         }
     }
     instance = DecisionTreeClassifierOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
     test_out = test_df
     X_train = get_X_train_data(df, ['sepallength', 'sepalwidth'])
@@ -489,7 +489,7 @@ def test_decision_tree_classifier_class_weight_param_success():
                                      splitter='best', max_features=None,
                                      max_leaf_nodes=None,
                                      min_impurity_decrease=0.0,
-                                     class_weight="balanced", presort=False)
+                                     class_weight="balanced")
     model_1.fit(X_train, y)
     test_out['prediction'] = model_1.predict(X_train).tolist()
     assert result['out'].equals(test_out)
@@ -515,7 +515,7 @@ def test_decision_tree_classifier_presort_param_success():
         }
     }
     instance = DecisionTreeClassifierOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
     test_out = test_df
     X_train = get_X_train_data(df, ['sepallength', 'sepalwidth'])
@@ -529,7 +529,7 @@ def test_decision_tree_classifier_presort_param_success():
                                      splitter='best', max_features=None,
                                      max_leaf_nodes=None,
                                      min_impurity_decrease=0.0,
-                                     class_weight=None, presort=True)
+                                     class_weight=None)
     model_1.fit(X_train, y)
     test_out['prediction'] = model_1.predict(X_train).tolist()
     assert result['out'].equals(test_out)
@@ -553,7 +553,7 @@ def test_decision_tree_classifier_prediction_param_success():
         }
     }
     instance = DecisionTreeClassifierOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
     assert result['out'].columns[2] == 'success'
 
