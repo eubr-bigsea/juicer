@@ -1,6 +1,6 @@
 from textwrap import dedent
 from juicer.operation import Operation
-from .util import get_X_train_data
+from juicer.scikit_learn.util import get_X_train_data
 
 import json
 try:
@@ -9,7 +9,6 @@ except ImportError:
     from itertools import zip_longest as zip_longest
 
 
-# TODO: https://spark.apache.org/docs/2.2.0/ml-features.html#vectorassembler
 class FeatureAssemblerOperation(Operation):
 
     ATTRIBUTES_PARAM = 'attributes'
@@ -35,10 +34,11 @@ class FeatureAssemblerOperation(Operation):
             copy_code = ".copy()" \
                 if self.parameters['multiplicity']['input data'] > 1 else ""
             code = """
-            if {input}.dtypes.all() == np.object:
+            cols = {cols}
+            if {input}[cols].dtypes.all() == np.object:
                 raise ValueError("Input '{input}' must contain numeric values"
                 " only for task {cls}")
-            cols = {cols}
+            
             {input}_without_na = {input}.dropna(subset=cols)
             {output} = {input}_without_na{copy_code}
             {output}['{alias}'] = {input}_without_na[cols].to_numpy().tolist()
@@ -84,6 +84,10 @@ class MinMaxScalerOperation(Operation):
         self.min = parameters.get(self.MIN_PARAM, 0)
         self.max = parameters.get(self.MAX_PARAM, 1)
 
+        self.transpiler_utils.add_import(
+                "from sklearn.preprocessing import MinMaxScaler")
+        self.transpiler_utils.add_custom_function(
+                'get_X_train_data', get_X_train_data)
 
     def get_data_out_names(self, sep=','):
         return self.output
@@ -98,8 +102,6 @@ class MinMaxScalerOperation(Operation):
                 if self.parameters['multiplicity']['input data'] > 1 else ""
 
             code = """
-    from sklearn.preprocessing import MinMaxScaler    
-    from juicer.scikit_learn.util import get_X_train_data    
     {model} = MinMaxScaler(feature_range=({min},{max}))
     X_train = get_X_train_data({input}, {att})
     {model}.fit(X_train)
@@ -148,6 +150,11 @@ class MaxAbsScalerOperation(Operation):
         self.alias = parameters.get(self.ALIAS_PARAM,
                                         'scaled_{}'.format(self.order))
 
+        self.transpiler_utils.add_import(
+                "from sklearn.preprocessing import MaxAbsScaler")
+        self.transpiler_utils.add_custom_function(
+                'get_X_train_data', get_X_train_data)
+
     def get_data_out_names(self, sep=','):
         return self.output
 
@@ -161,8 +168,6 @@ class MaxAbsScalerOperation(Operation):
                 if self.parameters['multiplicity']['input data'] > 1 else ""
 
             code = """
-    from sklearn.preprocessing import MaxAbsScaler
-    from juicer.scikit_learn.util import get_X_train_data
     {model} = MaxAbsScaler()
     X_train = get_X_train_data({input}, {att})
     {model}.fit(X_train)
@@ -224,8 +229,10 @@ class StandardScalerOperation(Operation):
             self.alias = parameters.get(self.ALIAS_PARAM,
                                         'scaled_{}'.format(self.order))
 
-            self.has_import = \
-                "from sklearn.preprocessing import StandardScaler\n"
+            self.transpiler_utils.add_import(
+                    "from sklearn.preprocessing import StandardScaler")
+            self.transpiler_utils.add_custom_function(
+                    'get_X_train_data', get_X_train_data)
 
     def get_data_out_names(self, sep=','):
         return self.output
@@ -234,6 +241,7 @@ class StandardScalerOperation(Operation):
         return sep.join([self.output, self.model])
 
     def generate_code(self):
+        """Generate code."""
         op = "with_mean={value}" \
             .format(value=self.with_mean)
         op += ", with_std={value}" \
@@ -241,7 +249,6 @@ class StandardScalerOperation(Operation):
         copy_code = ".copy()" \
             if self.parameters['multiplicity']['input data'] > 1 else ""
 
-        """Generate code."""
         code = """
         {model} = StandardScaler({op})
         X_train = get_X_train_data({input}, {att})
@@ -315,7 +322,6 @@ class QuantileDiscretizerOperation(Operation):
             self.transpiler_utils.add_import(
                 'from sklearn.preprocessing import KBinsDiscretizer')
 
-
     def generate_code(self):
         """Generate code."""
         copy_code = ".copy()" \
@@ -366,6 +372,10 @@ class OneHotEncoderOperation(Operation):
             self.attribute = parameters[self.ATTRIBUTE_PARAM]
             self.alias = parameters.get(self.ALIAS_PARAM,
                                         'onehotenc_{}'.format(self.order))
+            self.transpiler_utils.add_custom_function(
+                    'get_X_train_data', get_X_train_data)
+            self.transpiler_utils.add_import(
+                    'from sklearn.preprocessing import OneHotEncoder')
 
     def generate_code(self):
         """Generate code."""
@@ -374,10 +384,7 @@ class OneHotEncoderOperation(Operation):
                 if self.parameters['multiplicity']['input data'] > 1 else ""
 
             code = """
-            from juicer.scikit_learn.util import get_X_train_data
-            from juicer.scikit_learn.util import get_label_data
             {output} = {input}{copy_code}
-            from sklearn.preprocessing import OneHotEncoder
             enc = OneHotEncoder()
             X_train = get_X_train_data({input}, {att})
             {output}['{alias}'] = enc.fit_transform(X_train).toarray().tolist()
@@ -404,6 +411,10 @@ class PCAOperation(Operation):
 
         self.has_code = len(self.named_inputs) == 1 and any(
             [len(self.named_outputs) >= 1, self.contains_results()])
+        self.transpiler_utils.add_import(
+                "from sklearn.decomposition import PCA")
+        self.transpiler_utils.add_custom_function(
+                'get_X_train_data', get_X_train_data)
         if self.has_code:
 
             if self.ATTRIBUTE_PARAM not in parameters:
@@ -428,9 +439,7 @@ class PCAOperation(Operation):
             copy_code = ".copy()" \
                 if self.parameters['multiplicity']['input data'] > 1 else ""
 
-            code = """
-            from juicer.scikit_learn.util import get_X_train_data  
-            from sklearn.decomposition import PCA
+            code = """ 
             {output} = {input}{copy_code}
             pca = PCA(n_components={n_comp})
             X_train = get_X_train_data({input}, {att})
@@ -485,10 +494,10 @@ class LSHOperation(Operation):
 
         self.input_treatment()
 
-        self.has_import = \
-            """
-            from sklearn.neighbors import LSHForest
-            """
+        self.transpiler_utils.add_import(
+                "from sklearn.neighbors import LSHForest")
+        self.transpiler_utils.add_custom_function(
+                'get_X_train_data', get_X_train_data)
 
     @property
     def get_data_out_names(self, sep=','):
@@ -507,6 +516,8 @@ class LSHOperation(Operation):
         input_data = self.named_inputs['input data']
         """Generate code."""
         #TODO: LSHForest algorithm is using all columns.
+
+        #TODO: Is this working?
 
         copy_code = ".copy()" \
             if self.parameters['multiplicity']['input data'] > 1 else ""
@@ -562,10 +573,8 @@ class StringIndexerOperation(Operation):
         self.alias = [x[1] or '{}_indexed'.format(x[0]) for x in
                       zip_longest(self.attributes,
                                   self.alias[:len(self.attributes)])]
-        self.has_import = \
-            """
-            from sklearn.preprocessing import LabelEncoder
-            """
+        self.transpiler_utils.add_import(
+                "from sklearn.preprocessing import LabelEncoder")
 
     def generate_code(self):
         input_data = self.named_inputs['input data']

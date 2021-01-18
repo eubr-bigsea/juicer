@@ -32,8 +32,7 @@ def test_pca_success():
         }
     }
     instance = PCAOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     pca = PCA(n_components=1)
@@ -60,8 +59,7 @@ def test_pca_two_n_components_success():
         }
     }
     instance = PCAOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     pca = PCA(n_components=2)
@@ -89,8 +87,7 @@ def test_pca_alias_param_success():
         }
     }
     instance = PCAOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
     pca = PCA(n_components=1)

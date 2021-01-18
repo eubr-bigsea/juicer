@@ -40,7 +40,7 @@ def test_balanced_split_k_fold_success():
         }
     }
     instance = SplitKFoldOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
 
     data = {
@@ -76,7 +76,7 @@ def test_balanced_split_k_fold_shuffle_success():
         }
     }
     instance = SplitKFoldOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
     data = {
         "groups": [
@@ -121,7 +121,7 @@ def test_balanced_split_k_fold_stratified_success():
         }
     }
     instance = SplitKFoldOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
 
     data = {
@@ -170,7 +170,7 @@ def test_balanced_split_k_fold_shuffle_stratified_success():
         }
     }
     instance = SplitKFoldOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
 
     data = {
@@ -216,7 +216,7 @@ def test_unbalanced_split_k_fold_success():
         }
     }
     instance = SplitKFoldOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
     data = {
         "groups": [
@@ -257,7 +257,7 @@ def test_unbalanced_split_k_fold_shuffle_success():
         }
     }
     instance = SplitKFoldOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
     data = {
         "groups": [
@@ -302,7 +302,7 @@ def test_unbalanced_split_k_fold_stratified_success():
         }
     }
     instance = SplitKFoldOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
     data = {
         "groups": [
@@ -347,7 +347,7 @@ def test_unbalanced_split_k_fold_shuffle_stratified_success():
         }
     }
     instance = SplitKFoldOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
     data = {
         "groups": [
@@ -394,7 +394,7 @@ def test_uneven_split_k_fold_success():
         }
     }
     instance = SplitKFoldOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
 
     data = {
@@ -440,7 +440,7 @@ def test_uneven_split_k_fold_shuffle_success():
         }
     }
     instance = SplitKFoldOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
 
     data = {
@@ -493,7 +493,7 @@ def test_uneven_split_k_fold_stratified_success():
         }
     }
     instance = SplitKFoldOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
 
     data = {
@@ -546,7 +546,7 @@ def test_uneven_split_k_fold_shuffle_stratified_success():
         }
     }
     instance = SplitKFoldOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
 
     data = {

@@ -27,15 +27,6 @@ from juicer.spark.reports import *
 import traceback
 
 {%- autopep8 %}
-{%- set list_imports = [] %}
-{%- for instance in instances %}
-{%- if instance.has_import and instance.has_import not in list_imports %}
-{%- set _ = list_imports.append(instance.has_import) %}
-{%- endif %}
-{%- endfor %}
-{%- for imps in list_imports %}
-{{imps}}
-{% endfor %}
 {%- for imps in transpiler.imports %}
 {{imps}}
 {%- endfor %}
