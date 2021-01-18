@@ -32,8 +32,7 @@ def test_knn_classifier_success():
         }
     }
     instance = KNNClassifierOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     model_1 = KNeighborsClassifier(n_neighbors=5,
                                    weights='uniform', algorithm='auto',
                                    leaf_size=30, p=2, metric='minkowski',
@@ -62,8 +61,7 @@ def test_knn_classifier_n_neighbors_param_success():
         }
     }
     instance = KNNClassifierOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     model_1 = KNeighborsClassifier(n_neighbors=10,
                                    weights='uniform', algorithm='auto',
                                    leaf_size=30, p=2, metric='minkowski',
@@ -92,8 +90,7 @@ def test_knn_classifier_weights_param_success():
         }
     }
     instance = KNNClassifierOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     model_1 = KNeighborsClassifier(n_neighbors=5,
                                    weights='distance', algorithm='auto',
                                    leaf_size=30, p=2, metric='minkowski',
@@ -122,8 +119,7 @@ def test_knn_classifier_algorithm_param_success():
         }
     }
     instance = KNNClassifierOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     model_1 = KNeighborsClassifier(n_neighbors=5,
                                    weights='uniform', algorithm='brute',
                                    leaf_size=30, p=2, metric='minkowski',
@@ -152,8 +148,7 @@ def test_knn_classifier_leaf_size_param_success():
         }
     }
     instance = KNNClassifierOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     model_1 = KNeighborsClassifier(n_neighbors=5,
                                    weights='uniform', algorithm='auto',
                                    leaf_size=2, p=2, metric='minkowski',
@@ -182,8 +177,7 @@ def test_knn_classifier_p_param_success():
         }
     }
     instance = KNNClassifierOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     model_1 = KNeighborsClassifier(n_neighbors=5,
                                    weights='uniform', algorithm='auto',
                                    leaf_size=30, p=4, metric='minkowski',
@@ -212,8 +206,7 @@ def test_knn_classifier_metric_param_success():
         }
     }
     instance = KNNClassifierOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     model_1 = KNeighborsClassifier(n_neighbors=5,
                                    weights='uniform', algorithm='auto',
                                    leaf_size=30, p=2, metric='braycurtis',
@@ -242,8 +235,7 @@ def test_knn_classifier_metric_params_param_success():
         }
     }
     instance = KNNClassifierOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     model_1 = KNeighborsClassifier(n_neighbors=5,
                                    weights='uniform', algorithm='auto',
                                    leaf_size=30, p=2, metric='minkowski',
@@ -272,8 +264,7 @@ def test_knn_classifier_n_jobs_param_success():
         }
     }
     instance = KNNClassifierOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     model_1 = KNeighborsClassifier(n_neighbors=5,
                                    weights='uniform', algorithm='auto',
                                    leaf_size=30, p=2, metric='minkowski',
@@ -300,8 +291,7 @@ def test_knn_classifier_prediction_param_success():
         }
     }
     instance = KNNClassifierOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     assert result['out'].columns[2] == 'success'
 
 
