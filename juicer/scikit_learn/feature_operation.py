@@ -291,7 +291,8 @@ class QuantileDiscretizerOperation(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-        self.has_code = len(self.named_inputs) == 1
+        self.has_code = len(named_inputs) >= 1 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
         if self.has_code:
 
             if self.ATTRIBUTE_PARAM not in parameters:
@@ -323,24 +324,25 @@ class QuantileDiscretizerOperation(Operation):
                 'from sklearn.preprocessing import KBinsDiscretizer')
 
     def generate_code(self):
-        """Generate code."""
-        copy_code = ".copy()" \
-            if self.parameters['multiplicity']['input data'] > 1 else ""
+        if self.has_code:
+            """Generate code."""
+            copy_code = ".copy()" \
+                if self.parameters['multiplicity']['input data'] > 1 else ""
 
-        code = """
-        {output} = {input}{copy_code}
-        {model} = KBinsDiscretizer(n_bins={n_quantiles}, 
-            encode='ordinal', strategy='{strategy}')
-        X_train = get_X_train_data({input}, {att})
-        
-        {output}['{alias}'] = {model}.fit_transform(X_train).flatten().tolist()
-        """.format(copy_code=copy_code, output=self.output,
-                   model=self.model,
-                   input=self.named_inputs['input data'],
-                   strategy=self.output_distribution,
-                   att=self.attribute, alias=self.alias,
-                   n_quantiles=self.n_quantiles,)
-        return dedent(code)
+            code = """
+            {output} = {input}{copy_code}
+            {model} = KBinsDiscretizer(n_bins={n_quantiles}, 
+                encode='ordinal', strategy='{strategy}')
+            X_train = get_X_train_data({input}, {att})
+            
+            {output}['{alias}'] = {model}.fit_transform(X_train).flatten().tolist()
+            """.format(copy_code=copy_code, output=self.output,
+                       model=self.model,
+                       input=self.named_inputs['input data'],
+                       strategy=self.output_distribution,
+                       att=self.attribute, alias=self.alias,
+                       n_quantiles=self.n_quantiles,)
+            return dedent(code)
 
 
 class OneHotEncoderOperation(Operation):
