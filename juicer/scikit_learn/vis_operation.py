@@ -205,10 +205,12 @@ class VisualizationMethodOperation(Operation):
         return self.output
 
     def get_model_name(self):
-        NotImplementedError(_("Method generate_code should be implemented "
+        NotImplementedError(_("Method get_model_name should be implemented "
                               "in {} subclass").format(self.__class__))
 
     def generate_code(self):
+        if self.plain:
+            return self._generate_plain_code()
         code_lines = [dedent(
             """
             from juicer.scikit_learn.vis_operation import {model}
@@ -265,6 +267,21 @@ class VisualizationMethodOperation(Operation):
                 task_id=self.parameters['task']['id']
             )))
         return '\n'.join(code_lines)
+
+    def _generate_plain_code(self):
+        # model = klass = globals()[self.get_model_name()]
+        # instance = klass(data=self.named_inputs['input data'],
+        #                task_id=self.parameters['task']['id'],
+        #                type_id=self.parameters['operation_id'],
+        #                type_name=self.parameters['operation_slug'],
+        #                title=self.title,
+        #                column_names=json.dumps(self.column_names),
+        #                orientation=self.orientation,
+        #                id_attribute=self.id_attribute,
+        #                value_attribute=self.value_attribute,
+        #                params=json.dumps(self.get_model_parameters() or {})
+
+        return "# TODO: Visualization code generation not implemented!"
 
 
 class BarChartOperation(VisualizationMethodOperation):
