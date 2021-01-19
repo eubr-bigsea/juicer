@@ -1,7 +1,7 @@
 from tests.scikit_learn import util
 from juicer.scikit_learn.clustering_operation import ClusteringModelOperation
 from sklearn.cluster import *
-from tests.scikit_learn.util import get_X_train_data, get_label_data
+from tests.scikit_learn.util import get_X_train_data
 import pytest
 import pandas as pd
 
@@ -15,23 +15,12 @@ import pandas as pd
 #
 # # # # # # # # # # Success # # # # # # # # # #
 def test_clustering_model_success():
-    # Not working
-    # AgglomerativeClustering
-    # DBSCAN
-    # FeatureAgglomeration
-    # OPTICS()
-    # SpectralClustering()
-    # SpectralBiclustering()
-    # SpectralCoclustering()
     models = [
         'AffinityPropagation()',
-
         'Birch()',
-
         'KMeans()',
         'MiniBatchKMeans()',
         'MeanShift()',
-
     ]
 
     for mod in models:
@@ -51,7 +40,7 @@ def test_clustering_model_success():
             }
         }
         instance = ClusteringModelOperation(**arguments)
-        result = util.execute(instance.generate_code(),
+        result = util.execute(util.get_complete_code(instance),
                               {'df': df})
 
         X = get_X_train_data(df, ['sepallength', 'sepalwidth'])
@@ -64,7 +53,6 @@ def test_clustering_model_success():
         if mod in [
             'AffinityPropagation()',
             'Birch()',
-            'DBSCAN()',
             'MeanShift()'
         ]:
             assert result['out'].equals(test_out)
@@ -88,7 +76,7 @@ def test_clustering_model_prediction_param_success():
         }
     }
     instance = ClusteringModelOperation(**arguments)
-    result = util.execute(instance.generate_code(),
+    result = util.execute(util.get_complete_code(instance),
                           {'df': df})
 
     assert result['out'].columns[2] == 'success'

@@ -33,6 +33,10 @@ class ClusteringModelOperation(Operation):
                 self.output = self.named_outputs['output data']
                 self.alias = parameters.get(self.ALIAS_PARAM, 'prediction')
 
+            self.transpiler_utils.add_custom_function('get_X_train_data', get_X_train_data)
+            self.transpiler_utils.add_import(
+                "from sklearn.cluster import *")
+
     @property
     def get_inputs_names(self):
         return ', '.join([self.named_inputs['train input data'],
@@ -48,8 +52,6 @@ class ClusteringModelOperation(Operation):
         if self.has_code:
             """Generate code."""
             code = """
-            from sklearn.cluster import *
-            from juicer.scikit_learn.util import get_X_train_data, get_label_data
             X = get_X_train_data({input}, {features})
             {model} = {algorithm}.fit(X)
             """.format(model=self.model, features=self.features,
