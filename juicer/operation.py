@@ -4,6 +4,8 @@
 import logging
 from collections import namedtuple
 
+from juicer.transpiler import TranspilerUtils
+
 try:
     from itertools import zip_longest as zip_longest
 except ImportError:
@@ -32,7 +34,8 @@ class Operation(object):
     __slots__ = ('parameters', 'named_inputs', 'output',
                  'named_outputs', 'multiple_inputs', 'has_code',
                  'expected_output_ports', 'out_degree', 'order',
-                 'supports_cache', 'config', 'deployable')
+                 'supports_cache', 'config', 'deployable', 'plain',
+                 'transpiler_utils')
 
     def __init__(self, parameters, named_inputs, named_outputs):
         self.parameters = parameters
@@ -40,6 +43,9 @@ class Operation(object):
         self.named_outputs = named_outputs
         self.multiple_inputs = False
         self.out_degree = 0
+        self.plain = False
+        self.transpiler_utils = parameters.get('transpiler_utils',
+                                               TranspilerUtils())
 
         self.config = configuration.get_config()
         # Assume default as 1, useful for testing.
@@ -118,6 +124,9 @@ class Operation(object):
 
     def get_audit_events(self):
         return []
+
+    def set_plain(self, value):
+        self.plain = value
 
     def get_output_names(self, sep=", "):
         if self.output:
