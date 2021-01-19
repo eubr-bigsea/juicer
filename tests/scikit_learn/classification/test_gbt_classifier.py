@@ -1,8 +1,6 @@
 from tests.scikit_learn import util
 from juicer.scikit_learn.classification_operation import GBTClassifierOperation
 from sklearn.ensemble import GradientBoostingClassifier
-from tests.scikit_learn.util import get_X_train_data, get_label_data
-import numpy as np
 import pytest
 import pandas as pd
 
@@ -33,8 +31,7 @@ def test_gbt_classifier_success():
         }
     }
     instance = GBTClassifierOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     model_1 = GradientBoostingClassifier(loss='deviance',
                                          learning_rate=0.1,
                                          n_estimators=100, min_samples_split=2,
@@ -45,7 +42,7 @@ def test_gbt_classifier_success():
                                          min_impurity_decrease=0.0, init=None,
                                          max_features=None,
                                          max_leaf_nodes=None, warm_start=False,
-                                         presort='auto', validation_fraction=0.1,
+                                         validation_fraction=0.1,
                                          n_iter_no_change=None, tol=0.0001)
     assert str(result['model_1']) == str(model_1)
     assert not result['out'].equals(test_df)
@@ -70,8 +67,7 @@ def test_gbt_classifier_learning_rate_param_success():
         }
     }
     instance = GBTClassifierOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     model_1 = GradientBoostingClassifier(loss='deviance',
                                          learning_rate=0.3,
                                          n_estimators=100, min_samples_split=2,
@@ -82,7 +78,7 @@ def test_gbt_classifier_learning_rate_param_success():
                                          min_impurity_decrease=0.0, init=None,
                                          max_features=None,
                                          max_leaf_nodes=None, warm_start=False,
-                                         presort='auto', validation_fraction=0.1,
+                                         validation_fraction=0.1,
                                          n_iter_no_change=None, tol=0.0001)
     assert str(result['model_1']) == str(model_1)
     assert not result['out'].equals(test_df)
@@ -107,8 +103,7 @@ def test_gbt_classifier_n_estimators_param_success():
         }
     }
     instance = GBTClassifierOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     model_1 = GradientBoostingClassifier(loss='deviance',
                                          learning_rate=0.1,
                                          n_estimators=50, min_samples_split=2,
@@ -119,7 +114,7 @@ def test_gbt_classifier_n_estimators_param_success():
                                          min_impurity_decrease=0.0, init=None,
                                          max_features=None,
                                          max_leaf_nodes=None, warm_start=False,
-                                         presort='auto', validation_fraction=0.1,
+                                         validation_fraction=0.1,
                                          n_iter_no_change=None, tol=0.0001)
     assert str(result['model_1']) == str(model_1)
     assert not result['out'].equals(test_df)
@@ -144,8 +139,7 @@ def test_gbt_classifier_max_depth_param_success():
         }
     }
     instance = GBTClassifierOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     model_1 = GradientBoostingClassifier(loss='deviance',
                                          learning_rate=0.1,
                                          n_estimators=100, min_samples_split=2,
@@ -156,7 +150,7 @@ def test_gbt_classifier_max_depth_param_success():
                                          min_impurity_decrease=0.0, init=None,
                                          max_features=None,
                                          max_leaf_nodes=None, warm_start=False,
-                                         presort='auto', validation_fraction=0.1,
+                                         validation_fraction=0.1,
                                          n_iter_no_change=None, tol=0.0001)
     assert str(result['model_1']) == str(model_1)
     assert not result['out'].equals(test_df)
@@ -181,8 +175,7 @@ def test_gbt_classifier_min_samples_split_param_success():
         }
     }
     instance = GBTClassifierOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     model_1 = GradientBoostingClassifier(loss='deviance',
                                          learning_rate=0.1,
                                          n_estimators=100, min_samples_split=5,
@@ -193,7 +186,7 @@ def test_gbt_classifier_min_samples_split_param_success():
                                          min_impurity_decrease=0.0, init=None,
                                          max_features=None,
                                          max_leaf_nodes=None, warm_start=False,
-                                         presort='auto', validation_fraction=0.1,
+                                         validation_fraction=0.1,
                                          n_iter_no_change=None, tol=0.0001)
     assert str(result['model_1']) == str(model_1)
     assert not result['out'].equals(test_df)
@@ -218,8 +211,7 @@ def test_gbt_classifier_min_samples_leaf_param_success():
         }
     }
     instance = GBTClassifierOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     model_1 = GradientBoostingClassifier(loss='deviance',
                                          learning_rate=0.1,
                                          n_estimators=100, min_samples_split=2,
@@ -230,7 +222,7 @@ def test_gbt_classifier_min_samples_leaf_param_success():
                                          min_impurity_decrease=0.0, init=None,
                                          max_features=None,
                                          max_leaf_nodes=None, warm_start=False,
-                                         presort='auto', validation_fraction=0.1,
+                                         validation_fraction=0.1,
                                          n_iter_no_change=None, tol=0.0001)
     assert str(result['model_1']) == str(model_1)
     assert not result['out'].equals(test_df)
@@ -255,8 +247,7 @@ def test_gbt_classifier_loss_param_success():
         }
     }
     instance = GBTClassifierOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     model_1 = GradientBoostingClassifier(loss='exponential',
                                          learning_rate=0.1,
                                          n_estimators=100, min_samples_split=2,
@@ -267,7 +258,7 @@ def test_gbt_classifier_loss_param_success():
                                          min_impurity_decrease=0.0, init=None,
                                          max_features=None,
                                          max_leaf_nodes=None, warm_start=False,
-                                         presort='auto', validation_fraction=0.1,
+                                         validation_fraction=0.1,
                                          n_iter_no_change=None, tol=0.0001)
     assert str(result['model_1']) == str(model_1)
     assert not result['out'].equals(test_df)
@@ -292,8 +283,7 @@ def test_gbt_classifier_random_state_param_success():
         }
     }
     instance = GBTClassifierOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     model_1 = GradientBoostingClassifier(loss='deviance',
                                          learning_rate=0.1,
                                          n_estimators=100, min_samples_split=2,
@@ -304,7 +294,7 @@ def test_gbt_classifier_random_state_param_success():
                                          min_impurity_decrease=0.0, init=None,
                                          max_features=None,
                                          max_leaf_nodes=None, warm_start=False,
-                                         presort='auto', validation_fraction=0.1,
+                                         validation_fraction=0.1,
                                          n_iter_no_change=None, tol=0.0001)
     assert str(result['model_1']) == str(model_1)
     assert not result['out'].equals(test_df)
@@ -329,8 +319,7 @@ def test_gbt_classifier_subsample_param_success():
         }
     }
     instance = GBTClassifierOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     model_1 = GradientBoostingClassifier(loss='deviance',
                                          learning_rate=0.1,
                                          n_estimators=100, min_samples_split=2,
@@ -341,7 +330,7 @@ def test_gbt_classifier_subsample_param_success():
                                          min_impurity_decrease=0.0, init=None,
                                          max_features=None,
                                          max_leaf_nodes=None, warm_start=False,
-                                         presort='auto', validation_fraction=0.1,
+                                         validation_fraction=0.1,
                                          n_iter_no_change=None, tol=0.0001)
     assert str(result['model_1']) == str(model_1)
     assert not result['out'].equals(test_df)
@@ -366,8 +355,7 @@ def test_gbt_classifier_criterion_param_success():
         }
     }
     instance = GBTClassifierOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     model_1 = GradientBoostingClassifier(loss='deviance',
                                          learning_rate=0.1,
                                          n_estimators=100, min_samples_split=2,
@@ -378,7 +366,7 @@ def test_gbt_classifier_criterion_param_success():
                                          min_impurity_decrease=0.0, init=None,
                                          max_features=None,
                                          max_leaf_nodes=None, warm_start=False,
-                                         presort='auto', validation_fraction=0.1,
+                                         validation_fraction=0.1,
                                          n_iter_no_change=None, tol=0.0001)
     assert str(result['model_1']) == str(model_1)
     assert not result['out'].equals(test_df)
@@ -403,8 +391,7 @@ def test_gbt_classifier_min_weight_fraction_leaf_param_success():
         }
     }
     instance = GBTClassifierOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     model_1 = GradientBoostingClassifier(loss='deviance',
                                          learning_rate=0.1,
                                          n_estimators=100, min_samples_split=2,
@@ -415,7 +402,7 @@ def test_gbt_classifier_min_weight_fraction_leaf_param_success():
                                          min_impurity_decrease=0.0, init=None,
                                          max_features=None,
                                          max_leaf_nodes=None, warm_start=False,
-                                         presort='auto', validation_fraction=0.1,
+                                         validation_fraction=0.1,
                                          n_iter_no_change=None, tol=0.0001)
     assert str(result['model_1']) == str(model_1)
     assert not result['out'].equals(test_df)
@@ -440,8 +427,7 @@ def test_gbt_classifier_min_impurity_decrease_param_success():
         }
     }
     instance = GBTClassifierOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     model_1 = GradientBoostingClassifier(loss='deviance',
                                          learning_rate=0.1,
                                          n_estimators=100, min_samples_split=2,
@@ -452,7 +438,7 @@ def test_gbt_classifier_min_impurity_decrease_param_success():
                                          min_impurity_decrease=0.2, init=None,
                                          max_features=None,
                                          max_leaf_nodes=None, warm_start=False,
-                                         presort='auto', validation_fraction=0.1,
+                                         validation_fraction=0.1,
                                          n_iter_no_change=None, tol=0.0001)
     assert str(result['model_1']) == str(model_1)
     assert not result['out'].equals(test_df)
@@ -477,8 +463,7 @@ def test_gbt_classifier_init_param_success():
         }
     }
     instance = GBTClassifierOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     model_1 = GradientBoostingClassifier(loss='deviance',
                                          learning_rate=0.1,
                                          n_estimators=100, min_samples_split=2,
@@ -489,7 +474,7 @@ def test_gbt_classifier_init_param_success():
                                          min_impurity_decrease=0.0, init='zero',
                                          max_features=None,
                                          max_leaf_nodes=None, warm_start=False,
-                                         presort='auto', validation_fraction=0.1,
+                                         validation_fraction=0.1,
                                          n_iter_no_change=None, tol=0.0001)
     assert str(result['model_1']) == str(model_1)
     assert not result['out'].equals(test_df)
@@ -514,8 +499,7 @@ def test_gbt_classifier_max_features_param_success():
         }
     }
     instance = GBTClassifierOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     model_1 = GradientBoostingClassifier(loss='deviance',
                                          learning_rate=0.1,
                                          n_estimators=100, min_samples_split=2,
@@ -526,7 +510,7 @@ def test_gbt_classifier_max_features_param_success():
                                          min_impurity_decrease=0.0, init=None,
                                          max_features='auto',
                                          max_leaf_nodes=None, warm_start=False,
-                                         presort='auto', validation_fraction=0.1,
+                                         validation_fraction=0.1,
                                          n_iter_no_change=None, tol=0.0001)
     assert str(result['model_1']) == str(model_1)
     assert not result['out'].equals(test_df)
@@ -551,8 +535,7 @@ def test_gbt_classifier_max_leaf_nodes_param_success():
         }
     }
     instance = GBTClassifierOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     model_1 = GradientBoostingClassifier(loss='deviance',
                                          learning_rate=0.1,
                                          n_estimators=100, min_samples_split=2,
@@ -563,44 +546,7 @@ def test_gbt_classifier_max_leaf_nodes_param_success():
                                          min_impurity_decrease=0.0, init=None,
                                          max_features=None,
                                          max_leaf_nodes=2, warm_start=False,
-                                         presort='auto', validation_fraction=0.1,
-                                         n_iter_no_change=None, tol=0.0001)
-    assert str(result['model_1']) == str(model_1)
-    assert not result['out'].equals(test_df)
-
-
-def test_gbt_classifier_presort_param_success():
-    df = util.iris(['sepallength', 'sepalwidth'], size=10)
-    for idx in df.index:
-        for col in df.columns:
-            df.loc[idx, col] = int(df.loc[idx, col])
-    test_df = df.copy()
-    arguments = {
-        'parameters': {'features': ['sepallength', 'sepalwidth'],
-                       'multiplicity': {'train input data': 0},
-                       'label': ['sepallength'],
-                       'presort': True},
-        'named_inputs': {
-            'train input data': 'df',
-        },
-        'named_outputs': {
-            'output data': 'out'
-        }
-    }
-    instance = GBTClassifierOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
-    model_1 = GradientBoostingClassifier(loss='deviance',
-                                         learning_rate=0.1,
-                                         n_estimators=100, min_samples_split=2,
-                                         max_depth=3, min_samples_leaf=1,
-                                         random_state=None, subsample=1.0,
-                                         criterion='friedman_mse',
-                                         min_weight_fraction_leaf=0.0,
-                                         min_impurity_decrease=0.0, init=None,
-                                         max_features=None,
-                                         max_leaf_nodes=None, warm_start=False,
-                                         presort=True, validation_fraction=0.1,
+                                         validation_fraction=0.1,
                                          n_iter_no_change=None, tol=0.0001)
     assert str(result['model_1']) == str(model_1)
     assert not result['out'].equals(test_df)
@@ -625,8 +571,7 @@ def test_gbt_classifier_validation_fraction_param_success():
         }
     }
     instance = GBTClassifierOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     model_1 = GradientBoostingClassifier(loss='deviance',
                                          learning_rate=0.1,
                                          n_estimators=100, min_samples_split=2,
@@ -637,7 +582,7 @@ def test_gbt_classifier_validation_fraction_param_success():
                                          min_impurity_decrease=0.0, init=None,
                                          max_features=None,
                                          max_leaf_nodes=None, warm_start=False,
-                                         presort='auto', validation_fraction=0.2,
+                                         validation_fraction=0.2,
                                          n_iter_no_change=None, tol=0.0001)
     assert str(result['model_1']) == str(model_1)
     assert not result['out'].equals(test_df)
@@ -645,17 +590,16 @@ def test_gbt_classifier_validation_fraction_param_success():
 
 def test_gbt_classifier_n_iter_no_change_param_success():
     df = util.iris(['sepallength', 'sepalwidth',
-                    'petallength', 'petalwidth'], size=10)
+                    'petallength', 'petalwidth'], size=150)
     for idx in df.index:
         for col in df.columns:
             df.loc[idx, col] = int(df.loc[idx, col])
     test_df = df.copy()
     arguments = {
-        'parameters': {'features': ['sepallength', 'sepalwidth',
-                                    'petallength', 'petalwidth'],
+        'parameters': {'features': ['sepallength', 'sepalwidth'],
                        'multiplicity': {'train input data': 0},
-                       'label': ['sepallength'],
-                       'n_iter_no_change': 5},
+                       'label': ['sepalwidth'],
+                       'n_iter_no_change': 4},
         'named_inputs': {
             'train input data': 'df',
         },
@@ -664,8 +608,8 @@ def test_gbt_classifier_n_iter_no_change_param_success():
         }
     }
     instance = GBTClassifierOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
+
     model_1 = GradientBoostingClassifier(loss='deviance',
                                          learning_rate=0.1,
                                          n_estimators=100, min_samples_split=2,
@@ -676,8 +620,9 @@ def test_gbt_classifier_n_iter_no_change_param_success():
                                          min_impurity_decrease=0.0, init=None,
                                          max_features=None,
                                          max_leaf_nodes=None, warm_start=False,
-                                         presort='auto', validation_fraction=0.1,
-                                         n_iter_no_change=5, tol=0.0001)
+                                         validation_fraction=0.1,
+                                         n_iter_no_change=4, tol=0.0001)
+
     assert str(result['model_1']) == str(model_1)
     assert not result['out'].equals(test_df)
 
@@ -689,7 +634,7 @@ def test_gbt_classifier_tol_param_success():
             df.loc[idx, col] = int(df.loc[idx, col])
     test_df = df.copy()
     arguments = {
-        'parameters': {'features': ['sepallength', 'sepalwidth',],
+        'parameters': {'features': ['sepallength', 'sepalwidth', ],
                        'multiplicity': {'train input data': 0},
                        'label': ['sepallength'],
                        'tol': 0.1},
@@ -701,8 +646,7 @@ def test_gbt_classifier_tol_param_success():
         }
     }
     instance = GBTClassifierOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     model_1 = GradientBoostingClassifier(loss='deviance',
                                          learning_rate=0.1,
                                          n_estimators=100, min_samples_split=2,
@@ -713,7 +657,7 @@ def test_gbt_classifier_tol_param_success():
                                          min_impurity_decrease=0.0, init=None,
                                          max_features=None,
                                          max_leaf_nodes=None, warm_start=False,
-                                         presort='auto', validation_fraction=0.1,
+                                         validation_fraction=0.1,
                                          n_iter_no_change=None, tol=0.1)
     assert str(result['model_1']) == str(model_1)
     assert not result['out'].equals(test_df)
@@ -737,8 +681,7 @@ def test_gbt_classifier_prediction_param_success():
         }
     }
     instance = GBTClassifierOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     assert result['out'].columns[2] == 'success'
 
 

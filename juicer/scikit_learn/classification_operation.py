@@ -233,7 +233,6 @@ class DecisionTreeClassifierOperation(Operation):
 
 
 class GBTClassifierOperation(Operation):
-
     LEARNING_RATE_PARAM = 'learning_rate'
     N_ESTIMATORS_PARAM = 'n_estimators'
     MAX_DEPTH_PARAM = 'max_depth'
@@ -248,7 +247,6 @@ class GBTClassifierOperation(Operation):
     INIT_PARAM = 'init'
     MAX_FEATURES_PARAM = 'max_features'
     MAX_LEAF_NODES_PARAM = 'max_leaf_nodes'
-    PRESORT_PARAM = 'presort'
     VALIDATION_FRACTION_PARAM = 'validation_fraction'
     N_ITER_NO_CHANGE_PARAM = 'n_iter_no_change'
     TOL_PARAM = 'tol'
@@ -292,7 +290,6 @@ class GBTClassifierOperation(Operation):
             self.max_features = None if max_features_ is None else "'"+max_features_+"'"
             max_leaf_nodes_ = parameters.get(self.MAX_LEAF_NODES_PARAM, None)
             self.max_leaf_nodes = None if max_leaf_nodes_ is None else int(max_leaf_nodes_)
-            self.presort = parameters.get(self.PRESORT_PARAM, "'auto'") or "'auto'"
             self.validation_fraction = float(parameters.get(self.VALIDATION_FRACTION_PARAM, 0.1) or 0.1)
             n_iter_no_change_ = parameters.get(self.N_ITER_NO_CHANGE_PARAM, None)
             self.n_iter_no_change = None if n_iter_no_change_ is None else int(n_iter_no_change_)
@@ -365,8 +362,6 @@ class GBTClassifierOperation(Operation):
                 if self.parameters['multiplicity']['train input data'] > 1 else ""
 
             code = """
-                from juicer.scikit_learn.util import get_X_train_data, get_label_data
-                from sklearn.ensemble import GradientBoostingClassifier
                 {output_data} = {input_data}{copy_code}
                 X_train = get_X_train_data({input_data}, {columns})
                 y = get_label_data({input_data}, {label})           
@@ -381,7 +376,7 @@ class GBTClassifierOperation(Operation):
                     min_impurity_decrease={min_impurity_decrease}, init={init},
                     max_features={max_features},
                     max_leaf_nodes={max_leaf_nodes}, warm_start=False, 
-                    presort={presort}, validation_fraction={validation_fraction}, 
+                    validation_fraction={validation_fraction}, 
                     n_iter_no_change={n_iter_no_change}, tol={tol})
                 {model}.fit(X_train, y)          
                 {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
@@ -406,7 +401,6 @@ class GBTClassifierOperation(Operation):
                            init=self.init,
                            max_features=self.max_features,
                            max_leaf_nodes=self.max_leaf_nodes,
-                           presort=self.presort,
                            validation_fraction=self.validation_fraction,
                            n_iter_no_change=self.n_iter_no_change,
                            tol=self.tol)
