@@ -61,8 +61,6 @@ class JuicerServer:
         self.state_control = None
         self.minion_watch_process = None
 
-        self.active_minions = {}
-
         self.config = config
         configuration.set_config(config)
         self.config_file_path = config_file_path
@@ -87,6 +85,15 @@ class JuicerServer:
         self.mgr = socketio.RedisManager(
             config['juicer']['servers']['redis_url'],
             'job_output')
+        
+        parsed_url = urlparse(
+            self.config['juicer']['servers']['redis_url'])
+
+        self.redis_conn = redis.StrictRedis(host=parsed_url.hostname,
+                                       port=parsed_url.port,
+                                       decode_responses=True)
+
+        self.redis_conn.delete('active_minions')
 
     def _emit_event(self, room, name, namespace, message, status, identifier,
                     **kwargs):
@@ -101,12 +108,7 @@ class JuicerServer:
         signal.signal(signal.SIGTERM, self._terminate_minions)
         log.info(_('Starting master process. Reading "start" queue'))
 
-        parsed_url = urlparse(
-            self.config['juicer']['servers']['redis_url'])
-        redis_conn = redis.StrictRedis(host=parsed_url.hostname,
-                                       port=parsed_url.port,
-                                       decode_responses=True)
-
+        redis_conn = self.redis_conn 
         # Start pending minions
         apps = [q.split('_')[-1] for q in redis_conn.keys('queue_app_*')]
         self.state_control = StateControlRedis(redis_conn)
@@ -148,6 +150,7 @@ class JuicerServer:
             if msg_type in juicer_protocol.EXECUTE:
                 platform = msg_info['workflow'].get('platform', {}).get(
                     'slug', 'spark')
+
                 cluster = msg_info['cluster']
                 self._forward_to_minion(msg_type, workflow_id, app_id, job_id,
                                         msg, platform, cluster)
@@ -160,7 +163,7 @@ class JuicerServer:
                 job_id = 0
                 self._forward_to_minion(msg_type, workflow_id, app_id, job_id,
                                         msg, platform, cluster)
-                self._terminate_minion(workflow_id, app_id)
+                self._terminate_minion(workflow_id, cluster)
 
             else:
                 log.warn(_('Unknown message type %s'), msg_type)
@@ -198,18 +201,13 @@ class JuicerServer:
         else:
             # This is a special case when the minion timed out.
             # In this case we kill it before starting a new one
-            if (workflow_id, app_id) in self.active_minions:
-                self._terminate_minion(workflow_id, app_id)
+            active_minions = self.redis_conn.hgetall('active_minions')
+            if (workflow_id, app_id) in active_minions:
+                self._terminate_minion(workflow_id)
 
             minion_process = self._start_minion(
                 workflow_id, app_id, job_id, self.state_control, platform,
                 cluster=cluster)
-            # FIXME Kubernetes
-            self.active_minions[(workflow_id, app_id)] = {
-                'pid': minion_process.pid if minion_process else 0,
-                'process': minion_process,
-                'cluster': cluster,
-                'port': self._get_next_available_port()}
 
         # Forward the message to the minion, which can be an execute or a
         # deliver command
@@ -320,23 +318,31 @@ class JuicerServer:
             nx=False)
         return proc
 
-    def _terminate_minion(self, workflow_id, app_id):
+    def _terminate_minion(self, workflow_id, cluster=None):
         # In this case we got a request for terminating this workflow
         # execution instance (app). Thus, we are going to explicitly
         # terminate the workflow, clear any remaining metadata and return
-        if not (workflow_id, app_id) in self.active_minions:
-            log.warn('(%s, %s) not in active minions ', workflow_id, app_id)
+        
+        active_minions = self.redis_conn.hgetall('active_minions')
+        if not workflow_id in active_minions:
+            log.warn('(%s, %s) not in active minions ', workflow_id, workflow_id)
         log.info(_("Terminating (workflow_id=%s,app_id=%s)"),
-                 workflow_id, app_id)
-        minion_data = self.active_minions.get((workflow_id, app_id))
-        cluster = minion_data.get('cluster', {}) if minion_data else None
+                 workflow_id, workflow_id)
+        minion_data = active_minions.get(str(workflow_id))
         if cluster is not None and cluster.get('type') == 'KUBERNETES':
+            print('*' * 20)
+            print(cluster)
+            print('*' * 20)
             # try to kill Job in KB8s
             delete_kb8s_job(workflow_id, cluster)
-        elif (workflow_id, app_id) in self.active_minions:
-            os.kill(self.active_minions[(workflow_id, app_id)].get('pid'),
-                    signal.SIGTERM)
-            del self.active_minions[(workflow_id, app_id)]
+
+        elif workflow_id in active_minions:
+            try:
+                # os.system('kill - {}'.format(active_minions[workflow_id]))
+                os.killpg(os.getpgid(int(active_minions[workflow_id])), 
+                          signal.SIGTERM)
+            except:
+                pass
 
     def minion_support(self):
         """
@@ -394,6 +400,8 @@ class JuicerServer:
     #         log.exception(ex)
 
     def _get_next_available_port(self):
+        return self.port_range[0]
+        # FIXME
         used_ports = set(
             [minion['port'] for minion in list(self.active_minions.values())])
         for i in self.port_range:
@@ -420,9 +428,10 @@ class JuicerServer:
                     app_id = int(app_id)
                     key = (app_id, app_id)
                     data = msg.get('data', '')
-                    if key in self.active_minions:
+                    active_minions = self.redis_conn.hgetall('active_minions')
+                    if str(key[0]) in active_minions:
                         if data == b'del' or data == b'expired':
-                            del self.active_minions[key]
+                            self.redis_conn.hdel('active_minions', key[0])
                             log.info(_('Minion {} finished.').format(app_id))
                             pending = redis_conn.lrange('queue_app_{}'.format(
                                 app_id), 0, 0)
@@ -449,8 +458,11 @@ class JuicerServer:
                         minion_info = json.loads(redis_conn.get(
                             'key_minion_app_{}'.format(app_id)).decode('utf8'))
                         port = self._get_next_available_port()
-                        self.active_minions[key] = {
-                            'pid': minion_info.get('pid'), 'port': port}
+                        self.redis_conn.hset('active_minions', key[0], 
+                                minion_info.get('pid'))
+
+                        #self.active_minions[key] = {
+                        #    'pid': minion_info.get('pid'), 'port': port}
                         log.info(
                             _('Minion {} joined (pid: {}, port: {}).').format(
                                 app_id, minion_info.get('pid'), port))
@@ -487,10 +499,11 @@ class JuicerServer:
 
     # noinspection PyUnusedLocal
     def _terminate_minions(self, _signal, _frame):
-        log.info(_('Terminating %s active minions'), len(self.active_minions))
-        minions = [m for m in self.active_minions]
-        for (wid, aid) in minions:
-            self._terminate_minion(wid, aid)
+        active_minions = self.redis_conn.hgetall('active_minions')
+        log.info(_('Terminating %s active minions'), len(active_minions))
+        minions = [m for m in active_minions]
+        for wid in minions:
+            self._terminate_minion(wid)
         sys.exit(0)
 
     # noinspection PyUnusedLocal
