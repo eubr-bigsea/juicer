@@ -82,6 +82,7 @@ class Minion:
             _('Task running'), _('Task completed'),
             _('Task running (cached data)')
         ]
+        self.pid = os.getpid()
 
     def process(self):
         raise NotImplementedError()
@@ -100,7 +101,7 @@ class Minion:
 
     def _perform_ping(self):
         status = {
-            'status': 'READY', 'pid': os.getpid(),
+            'status': 'READY', 'pid': self.pid,
         }
         self.state_control.set_minion_status(
             self.app_id, json.dumps(status), ex=10, nx=False)
