@@ -560,6 +560,14 @@ class SaveOperation(Operation):
         final_url = '{}/limonero/user_data/{}/{}/{}'.format(
             storage['url'], self.user['id'], self.path,
             strip_accents(self.name.replace(' ', '_')))
+
+        hdfs_user = 'hadoop'
+        if storage.get('extra_params'):
+            extra_params = json.loads(storage['extra_params'])
+            if 'user' in extra_params:
+                hdfs_user = extra_params.get('user')
+
+
         code_save = ''
         if self.format == self.FORMAT_CSV:
             code_save = dedent("""
@@ -573,6 +581,7 @@ class SaveOperation(Operation):
 
             {input} = {input}.select(*cols)
             mode = '{mode}'
+
             # Write in a temporary directory
             # Header configuration will be handled by LemonadeFileUtil class
             {input}.write.csv('{url}{uuid}',
@@ -580,6 +589,8 @@ class SaveOperation(Operation):
             # Merge files using Hadoop HDFS API
             conf = spark_session._jsc.hadoopConfiguration()
             jvm = spark_session._jvm
+            jvm.java.lang.System.setProperty("HADOOP_USER_NAME", "{hdfs_user}")
+
             fs = jvm.org.apache.hadoop.fs.FileSystem.get(
                 jvm.java.net.URI('{storage_url}'), conf)
 
@@ -614,6 +625,7 @@ class SaveOperation(Operation):
                 input=self.named_inputs['input data'],
                 url=final_url, header=self.header, mode=self.mode,
                 uuid=uuid.uuid4().hex,
+                hdfs_user=hdfs_user,
                 storage_url=storage['url'],
                 task_id=self.parameters['task_id'],
                 error_file_exists=_('File already exists'),
