@@ -113,13 +113,6 @@ def create_kb8s_job(workflow_id, minion_cmd, cluster):
     namespace = cluster_params['kubernetes.namespace']
     pull_policy = cluster_params.get('kubernetes.pull_policy', 'Always')
 
-    gpus = int(cluster_params.get('kubernetes.resources.gpus', 0))
-
-    # print('-' * 30)
-    # print('GPU KB8s specification: ' + str(gpus))
-    # print('-' * 30)
-    log.info('GPU specification: %s', gpus)
-
     job.metadata = client.V1ObjectMeta(namespace=namespace, name=name)
     job.status = client.V1JobStatus()
 
@@ -147,10 +140,19 @@ def create_kb8s_job(workflow_id, minion_cmd, cluster):
     pvc_claim = client.V1PersistentVolumeClaimVolumeSource(
         claim_name='hdfs-pvc')
 
-    if gpus:
-        resources = {'limits': {'nvidia.com/gpu': gpus}}
-    else:
-        resources = {}
+    resources_params = [
+        ('gpus', int, 'nvidia.com/gpu'), 
+        ('cpu', str, 'cpu'), 
+        ('memory', str, 'memory')
+    ]
+
+    resources = {'limits': {}}
+    for resource_name, transform, kb8s_name in resources_params:
+        if resource_name in cluster_params:
+            resource_value = cluster_params.get(
+                'kubernetes.resources.' + resource_name)
+            if resource_value:
+                resources['limits'][kb8s_name] = transform(resource_value)
 
     container = client.V1Container(name=container_name,
                                    image=container_image,
