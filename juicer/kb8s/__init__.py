@@ -43,7 +43,6 @@ def eval_and_kill_pending_jobs(cluster, timeout=60 * 5):
 
 
 def delete_kb8s_job(workflow_id, cluster):
-    return
     configuration = client.Configuration()
     configuration.verify_ssl = False
     configuration.debug = False
@@ -69,13 +68,16 @@ def delete_kb8s_job(workflow_id, cluster):
 
     api = client.ApiClient(configuration)
     batch_api = client.BatchV1Api(api)
-
-    try:
-        log.info('Deleting Kubernetes job %s', name)
-        batch_api.delete_namespaced_job(
-            name, namespace, grace_period_seconds=10, pretty=True)
-    except ApiException as e:
-        print("Exception when calling BatchV1Api->: {}\n".format(e))
+    
+    all_jobs = batch_api.list_namespaced_job(namespace=namespace, watch=False)
+    for k8s_job in all_jobs.items:
+        if k8s_job.name.startswith('job-{}-'.format(workflow_id)):
+            try:
+                log.info('Deleting Kubernetes job %s', name)
+                batch_api.delete_namespaced_job(
+                    k8s_job.name, namespace, grace_period_seconds=10, pretty=True)
+            except ApiException as e:
+                print("Exception when calling BatchV1Api->: {}\n".format(e))
 
 
 def create_kb8s_job(workflow_id, minion_cmd, cluster):
