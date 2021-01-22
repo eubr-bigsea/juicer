@@ -164,6 +164,7 @@ class JuicerServer:
                 platform = msg_info.get('workflow', {}).get('platform', {}).get(
                     'slug', 'spark')
                 job_id = 0
+                cluster = msg_info.get('cluster')
                 self._forward_to_minion(msg_type, workflow_id, app_id, job_id,
                                         msg, platform, cluster)
                 self._terminate_minion(workflow_id, cluster)
