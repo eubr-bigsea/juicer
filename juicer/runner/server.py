@@ -121,7 +121,7 @@ class JuicerServer:
             if pending_list:
                 for pending in pending_list:
                     pending = json.loads(pending)
-                    if pending.get('type') != 'terminate':
+                    if pending.get('type') != 'terminate' and pending:
                         msg = json.loads(pending[0])
                         log.warn(_('Starting pending app_id {}').format(app_id))
                         # FIXME: cluster
@@ -161,10 +161,8 @@ class JuicerServer:
                                         msg, platform, cluster)
 
             elif msg_type == juicer_protocol.TERMINATE:
-                cluster = msg_info.get('cluster')
                 platform = msg_info.get('workflow', {}).get('platform', {}).get(
                     'slug', 'spark')
-                # FIXME
                 job_id = 0
                 self._forward_to_minion(msg_type, workflow_id, app_id, job_id,
                                         msg, platform, cluster)
@@ -335,15 +333,16 @@ class JuicerServer:
         log.info(_("Terminating (workflow_id=%s,app_id=%s)"),
                  workflow_id, workflow_id)
         minion_data = active_minions.get(str(workflow_id))
+        print('=' * 40)
+        print(cluster)
+        print('=' * 40)
         if cluster is not None and cluster.get('type') == 'KUBERNETES':
-            print('*' * 20)
-            print(cluster)
-            print('*' * 20)
             # try to kill Job in KB8s
             delete_kb8s_job(workflow_id, cluster)
 
         elif workflow_id in active_minions:
-                minion_pid = int(active_minions[workflow_id])
+            minion_pid = int(active_minions[workflow_id])
+            if minion_pid > 1000:
                 # os.system('kill - {}'.format(active_minions[workflow_id]))
                 log.info('SIGTERM %s', active_minions[workflow_id])
                 my_pgid = os.getpgid(os.getpid())
@@ -448,24 +447,26 @@ class JuicerServer:
                             if app_id in self.sub_processes:
                                 del self.sub_processes[app_id]
 
-                            pending = redis_conn.lrange('queue_app_{}'.format(
+                            pendings = redis_conn.lrange('queue_app_{}'.format(
                                 app_id), 0, 0)
-                            if pending and pending.get('type') != 'terminate':
-                                log.warn(
-                                    _('There are messages to process in app {} '
-                                      'queue, starting minion.').format(app_id))
-                                if self.state_control is None:
-                                    self.state_control = StateControlRedis(
-                                        redis_conn)
-                                pending_msg = json.loads(pending[0])
-                                platform = pending_msg['workflow']['platform'][
-                                    'slug']
-                                print(pending_msg.keys())
-                                job_id = pending_msg['workflow']['job_id']
-                                self._start_minion(
-                                    app_id, app_id, job_id, self.state_control,
-                                    platform)
-
+                            if pendings:
+                                for pending in pendings: 
+                                    if pending.get('type') != 'terminate':
+                                        log.warn(
+                                            _('There are messages to process in app {} '
+                                              'queue, starting minion.').format(app_id))
+                                        if self.state_control is None:
+                                            self.state_control = StateControlRedis(
+                                                redis_conn)
+                                        pending_msg = json.loads(pending[0])
+                                        platform = pending_msg['workflow']['platform'][
+                                            'slug']
+                                        print(pending_msg.keys())
+                                        job_id = pending_msg['workflow']['job_id']
+                                        self._start_minion(
+                                            app_id, app_id, job_id, self.state_control,
+                                            platform)
+        
                     elif data == b'set':
                         # Externally launched minion
                         minion_info = json.loads(redis_conn.get(
@@ -512,6 +513,8 @@ class JuicerServer:
 
     # noinspection PyUnusedLocal
     def _terminate_minions(self, _signal, _frame):
+        sys.exit(0)
+        return
         try:
             active_minions = self.redis_conn.hgetall('active_minions')
             log.info(_('Terminating %s active minions'), len(active_minions))
