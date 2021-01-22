@@ -70,12 +70,16 @@ def delete_kb8s_job(workflow_id, cluster):
     batch_api = client.BatchV1Api(api)
     
     all_jobs = batch_api.list_namespaced_job(namespace=namespace, watch=False)
+    body = client.V1DeleteOptions(propagation_policy='Background')
     for k8s_job in all_jobs.items:
-        if k8s_job.name.startswith('job-{}-'.format(workflow_id)):
+        name = k8s_job.metadata.name
+        if name.startswith('job-{}-'.format(workflow_id)):
             try:
+                import pdb;pdb.set_trace()
                 log.info('Deleting Kubernetes job %s', name)
+
                 batch_api.delete_namespaced_job(
-                    k8s_job.name, namespace, grace_period_seconds=10, pretty=True)
+                    name, namespace, body=body, grace_period_seconds=1, pretty=True)
             except ApiException as e:
                 print("Exception when calling BatchV1Api->: {}\n".format(e))
 
