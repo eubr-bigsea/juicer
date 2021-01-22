@@ -741,7 +741,8 @@ class MLPClassifierOperation(Operation):
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
 
-        self.has_code = any([len(self.named_inputs) == 1, self.contains_results()])
+        self.has_code = len(self.named_inputs) == 1 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
 
@@ -774,11 +775,11 @@ class MLPClassifierOperation(Operation):
             self.learning_rate_init = float(parameters.get(
                     self.LEARNING_RATE_INIT_PRAM, 0.001) or 0.001)
             self.power_t = float(parameters.get(self.POWER_T_PARAM, 0.5) or 0.5)
-            self.shuffle = int(parameters.get(self.SHUFFLE_PARAM, 1) or 1)
+            self.shuffle = int(parameters.get(self.SHUFFLE_PARAM, 1))
             self.momentum = float(parameters.get(
                     self.MOMENTUM_PARAM, 0.9) or 0.9)
             self.nesterovs_momentum = int(parameters.get(
-                    self.NESTEROVS_MOMENTUM_PARAM, 1) or 1)
+                    self.NESTEROVS_MOMENTUM_PARAM, 1))
             self.early_stopping = int(parameters.get(
                     self.EARLY_STOPPING_PARAM, 0) or 0)
             self.validation_fraction = float(parameters.get(
@@ -814,7 +815,7 @@ class MLPClassifierOperation(Operation):
         return sep.join([self.output, self.model])
 
     def input_treatment(self):
-        self.shuffle = True if int(self.shuffle) == 1 else False
+        self.shuffle = True if self.shuffle == 1 else False
         self.nesterovs_momentum = True \
             if int(self.nesterovs_momentum) == 1 else False
         self.early_stopping = True if int(self.early_stopping) == 1 else False
@@ -917,7 +918,7 @@ class MLPClassifierOperation(Operation):
                 n_iter_no_change=self.n_iter_no_change)
                 functions_required.append(self.n_iter_no_change)
 
-        if self.early_stopping == 1:
+        if self.early_stopping:
             if self.validation_fraction < 0 or self.validation_fraction > 1:
                 raise ValueError(
                     _("Parameter '{}' must be x between 0 and 1 for task {}").format(
@@ -959,25 +960,26 @@ class MLPClassifierOperation(Operation):
         self.add_functions_required = ',\n    '.join(functions_required)
 
     def generate_code(self):
-        """Generate code."""
-        copy_code = ".copy()" \
-            if self.parameters['multiplicity']['train input data'] > 1 else ""
+        if self.has_code:
+            """Generate code."""
+            copy_code = ".copy()" \
+                if self.parameters['multiplicity']['train input data'] > 1 else ""
 
-        code = """
-            {output_data} = {input_data}{copy_code}
-            X_train = get_X_train_data({input_data}, {columns})
-            y = get_label_data({input_data}, {label})
-            {model} = MLPClassifier({add_functions_required})
-            {model}.fit(X_train, y)          
-            {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
-            """.format(copy_code=copy_code, output_data=self.output,
-                       prediction=self.prediction,
-                       columns=self.features,
-                       model=self.model,
-                       input_data=self.input_port,
-                       label=self.label,
-                       add_functions_required=self.add_functions_required)
-        return dedent(code)
+            code = """
+    {output_data} = {input_data}{copy_code}
+    X_train = get_X_train_data({input_data}, {columns})
+    y = get_label_data({input_data}, {label})
+    {model} = MLPClassifier({add_functions_required})
+    {model}.fit(X_train, y)          
+    {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
+                """.format(copy_code=copy_code, output_data=self.output,
+                           prediction=self.prediction,
+                           columns=self.features,
+                           model=self.model,
+                           input_data=self.input_port,
+                           label=self.label,
+                           add_functions_required=self.add_functions_required)
+            return dedent(code)
 
 
 class NaiveBayesClassifierOperation(Operation):
