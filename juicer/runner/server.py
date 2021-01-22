@@ -343,7 +343,7 @@ class JuicerServer:
 
         elif workflow_id in active_minions:
             minion_pid = int(active_minions[workflow_id])
-            if minion_pid > 1000:
+            if minion_pid > 1:
                 # os.system('kill - {}'.format(active_minions[workflow_id]))
                 log.info('SIGTERM %s', active_minions[workflow_id])
                 my_pgid = os.getpgid(os.getpid())
