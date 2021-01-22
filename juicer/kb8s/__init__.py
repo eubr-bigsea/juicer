@@ -75,7 +75,6 @@ def delete_kb8s_job(workflow_id, cluster):
         name = k8s_job.metadata.name
         if name.startswith('job-{}-'.format(workflow_id)):
             try:
-                import pdb;pdb.set_trace()
                 log.info('Deleting Kubernetes job %s', name)
 
                 batch_api.delete_namespaced_job(
