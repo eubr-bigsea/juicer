@@ -864,17 +864,17 @@ class SparkMinion(Minion):
         self.execute_process = multiprocessing.Process(
             name="minion", target=self.execute,
             args=(self.terminate_proc_queue,))
-        self.execute_process.daemon = False
+        self.execute_process.daemon = True 
 
         self.ping_process = multiprocessing.Process(
             name="ping process", target=self.ping,
             args=(self.terminate_proc_queue,))
-        self.ping_process.daemon = False
+        self.ping_process.daemon = True
 
         self.reload_code_process = multiprocessing.Process(
             name="reload code process", target=self.reload_code,
             args=(self.terminate_proc_queue,))
-        self.reload_code_process.daemon = False
+        self.reload_code_process.daemon = True
 
         self.execute_process.start()
         self.ping_process.start()
