@@ -533,7 +533,7 @@ class SparkMinion(Minion):
             self._generate_output(str(ee), 'ERROR', code=1000)
             result = False
 
-        self.message_processed('execute')
+        self.message_processed('execute', workflow['id'], job_id, workflow)
 
         stop = self.config['juicer'].get('minion', {}).get(
             'terminate_after_run', False)
@@ -730,7 +730,7 @@ class SparkMinion(Minion):
         self._send_to_output(status_data)
         self._send_delivery(output, status_data, data)
 
-        self.message_processed('deliver')
+        self.message_processed('deliver', workflow['id'], job_id, workflow)
 
         return success
 
@@ -804,12 +804,14 @@ class SparkMinion(Minion):
                  ' due idleness timeout. Msg: ', termination_msg)
         self.state_control.push_start_queue(json.dumps(termination_msg))
 
-    def message_processed(self, msg_type):
+    def message_processed(self, msg_type, wid, job_id, workflow):
         msg_processed = {
-            'workflow_id': self.workflow_id,
-            'app_id': self.app_id,
+            'workflow_id': wid,
+            'app_id': wid,
             'type': SparkMinion.MSG_PROCESSED,
-            'msg_type': msg_type
+            'msg_type': msg_type,
+            'job_id': job_id,
+            'workflow': workflow
         }
         self.state_control.push_app_queue(self.app_id,
                                           json.dumps(msg_processed))
@@ -827,13 +829,16 @@ class SparkMinion(Minion):
         minion. In this case, we stop and release any allocated resource
         (spark_session) and kill the subprocess managed in here.
         """
-        if self.spark_session:
-            sc = self.spark_session.sparkContext
-
-            self.spark_session.stop()
-            self.spark_session.sparkContext.stop()
-            self.spark_session = None
-            sc._gateway.shutdown_callback_server()
+        if self.spark_session and multiprocessing.current_process().name == 'main':
+            try:
+                sc = self.spark_session.sparkContext
+    
+                self.spark_session.stop()
+                self.spark_session.sparkContext.stop()
+                self.spark_session = None
+                sc._gateway.shutdown_callback_server()
+            except:
+                pass # Ignore, maybe destroyed by other process
 
         log.info('Post terminate message in queue')
         self.terminate_proc_queue.put({'terminate': True})
@@ -850,6 +855,7 @@ class SparkMinion(Minion):
 
         self.self_terminate = False
         log.info('Minion finished')
+        # sys.exit(0)
 
     def process(self):
         log.info(_(
