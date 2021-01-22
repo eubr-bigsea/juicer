@@ -450,7 +450,8 @@ class JuicerServer:
 
                             pendings = redis_conn.lrange('queue_app_{}'.format(
                                 app_id), 0, 0)
-                            if pendings:
+                            # FIXME
+                            if pendings and False:
                                 for pending in pendings: 
                                     if pending.get('type') != 'terminate':
                                         log.warn(
