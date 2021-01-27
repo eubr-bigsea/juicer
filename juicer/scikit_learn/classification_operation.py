@@ -1000,8 +1000,8 @@ class NaiveBayesClassifierOperation(Operation):
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
 
-        self.has_code = any([len(self.named_inputs) == 1,
-                             self.contains_results()])
+        self.has_code = len(self.named_inputs) == 1 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
 
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
@@ -1016,11 +1016,11 @@ class NaiveBayesClassifierOperation(Operation):
             self.class_prior = parameters.get(self.CLASS_PRIOR_PARAM, 'None') \
                                or 'None'
             self.alpha = float(parameters.get(self.ALPHA_PARAM, 1.0) or 1.0)
-            self.fit_prior = int(parameters.get(self.FIT_PRIOR_PARAM, 1) or 1)
+            self.fit_prior = int(parameters.get(self.FIT_PRIOR_PARAM, 1))
             self.var_smoothing = float(parameters.get(self.VAR_SMOOTHING_PARAM,
                                                       1e-9) or 1e-9)
             self.priors = parameters.get(self.PRIORS_PARAM, 'None') or 'None'
-            self.binarize = float(parameters.get(self.BINARIZE_PARAM, 0) or 0)
+            self.binarize = float(parameters.get(self.BINARIZE_PARAM, 0))
             self.features = parameters['features']
             self.label = parameters.get(self.LABEL_PARAM, None)
             self.prediction = self.parameters.get(self.PREDICTION_PARAM,
@@ -1054,7 +1054,7 @@ class NaiveBayesClassifierOperation(Operation):
         return sep.join([self.output, self.model])
 
     def input_treatment(self):
-        self.fit_prior = True if int(self.fit_prior) == 1 else False
+        self.fit_prior = True if self.fit_prior == 1 else False
 
         if self.class_prior != "None":
             self.class_prior = '[' + self.class_prior + ']'
@@ -1070,70 +1070,71 @@ class NaiveBayesClassifierOperation(Operation):
                     self.ALPHA_PARAM, self.__class__))
 
     def generate_code(self):
-        """Generate code."""
-        copy_code = ".copy()" \
-            if self.parameters['multiplicity']['train input data'] > 1 else ""
+        if self.has_code:
+            """Generate code."""
+            copy_code = ".copy()" \
+                if self.parameters['multiplicity']['train input data'] > 1 else ""
 
-        if self.model_type == self.MODEL_TYPE_PARAM_M:
-            code = """
-                {output_data} = {input_data}{copy_code}
-                X_train = get_X_train_data({input_data}, {features})
-                y = get_label_data({input_data}, {label})
-                {model} = MultinomialNB(alpha={alpha}, 
-                    class_prior={class_prior}, fit_prior={fit_prior})
-                {model}.fit(X_train, y)          
-                {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
-                """.format(copy_code=copy_code,
-                           output_data=self.output,
-                           model=self.model,
-                           input_data=self.input_port,
-                           prediction=self.prediction,
-                           features=self.features,
-                           label=self.label,
-                           class_prior=self.class_prior,
-                           alpha=self.alpha,
-                           fit_prior=self.fit_prior)
-        elif self.model_type == self.MODEL_TYPE_PARAM_B:
-            code = """
-                {output_data} = {input_data}{copy_code}
-                X_train = get_X_train_data({input_data}, {features})
-                y = get_label_data({input_data}, {label})
-                {model} = BernoulliNB(alpha={alpha}, 
-                    class_prior={class_prior}, fit_prior={fit_prior}, 
-                    binarize={binarize})
-                {model}.fit(X_train, y)          
-                {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
-                """.format(copy_code=copy_code,
-                           output_data=self.output,
-                           model=self.model,
-                           input_data=self.input_port,
-                           prediction=self.prediction,
-                           features=self.features,
-                           label=self.label,
-                           alpha=self.alpha,
-                           class_prior=self.class_prior,
-                           fit_prior=self.fit_prior,
-                           binarize=self.binarize)
-        else:
-            code = """
-                {output_data} = {input_data}{copy_code}         
-                X_train = get_X_train_data({input_data}, {features})
-                y = get_label_data({input_data}, {label})
-                {model} = GaussianNB(priors={priors}, 
-                    var_smoothing={var_smoothing})  
-                {model}.fit(X_train, y)          
-                {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
-                """.format(copy_code=copy_code,
-                           output_data=self.output,
-                           model=self.model,
-                           input_data=self.input_port,
-                           prediction=self.prediction,
-                           features=self.features,
-                           label=self.label,
-                           priors=self.priors,
-                           var_smoothing=self.var_smoothing)
+            if self.model_type == self.MODEL_TYPE_PARAM_M:
+                code = """
+                    {output_data} = {input_data}{copy_code}
+                    X_train = get_X_train_data({input_data}, {features})
+                    y = get_label_data({input_data}, {label})
+                    {model} = MultinomialNB(alpha={alpha}, 
+                        class_prior={class_prior}, fit_prior={fit_prior})
+                    {model}.fit(X_train, y)          
+                    {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
+                    """.format(copy_code=copy_code,
+                               output_data=self.output,
+                               model=self.model,
+                               input_data=self.input_port,
+                               prediction=self.prediction,
+                               features=self.features,
+                               label=self.label,
+                               class_prior=self.class_prior,
+                               alpha=self.alpha,
+                               fit_prior=self.fit_prior)
+            elif self.model_type == self.MODEL_TYPE_PARAM_B:
+                code = """
+                    {output_data} = {input_data}{copy_code}
+                    X_train = get_X_train_data({input_data}, {features})
+                    y = get_label_data({input_data}, {label})
+                    {model} = BernoulliNB(alpha={alpha}, 
+                        class_prior={class_prior}, fit_prior={fit_prior}, 
+                        binarize={binarize})
+                    {model}.fit(X_train, y)          
+                    {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
+                    """.format(copy_code=copy_code,
+                               output_data=self.output,
+                               model=self.model,
+                               input_data=self.input_port,
+                               prediction=self.prediction,
+                               features=self.features,
+                               label=self.label,
+                               alpha=self.alpha,
+                               class_prior=self.class_prior,
+                               fit_prior=self.fit_prior,
+                               binarize=self.binarize)
+            else:
+                code = """
+                    {output_data} = {input_data}{copy_code}         
+                    X_train = get_X_train_data({input_data}, {features})
+                    y = get_label_data({input_data}, {label})
+                    {model} = GaussianNB(priors={priors}, 
+                        var_smoothing={var_smoothing})  
+                    {model}.fit(X_train, y)          
+                    {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
+                    """.format(copy_code=copy_code,
+                               output_data=self.output,
+                               model=self.model,
+                               input_data=self.input_port,
+                               prediction=self.prediction,
+                               features=self.features,
+                               label=self.label,
+                               priors=self.priors,
+                               var_smoothing=self.var_smoothing)
 
-        return dedent(code)
+            return dedent(code)
 
 
 class PerceptronClassifierOperation(Operation):
