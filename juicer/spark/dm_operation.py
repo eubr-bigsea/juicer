@@ -64,8 +64,8 @@ class FrequentItemSetOperation(Operation):
 
                 emit_event(name='update task', message='{model_trained}',
                            status='RUNNING', identifier='{task_id}')
-                {output} = model.freqItemsets.withColumn('{relative_support}',
-                    functions.col('freq') / size)
+                {output} = model.freqItemsets\
+                    .withColumn('freq', functions.col('freq') / size)
                 {rules} = model.associationRules
             except Exception as e:
                 sparkException = 'org.apache.spark.SparkException'
@@ -113,36 +113,27 @@ class AssociationRulesOperation(Operation):
             self.rules_count = parameters.get(self.RULES_COUNT_PARAM, 200)
             self.attribute = parameters.get(self.ATTRIBUTE_PARAM, ['items'])
             self.freq = parameters.get(self.FREQ_PARAM, ['freq'])
+            from juicer.spark.custom_library.association_rules import \
+                LemonadeAssociativeRules
+            self.transpiler_utils\
+                .add_custom_function("LemonadeAssociativeRules",
+                                     LemonadeAssociativeRules)
 
     def get_output_names(self, sep=", "):
         return self.output
 
     def generate_code(self):
         code = """
-            try:
-                ext_pkg = spark_session._jvm.br.ufmg.dcc.lemonade.ext.fpm
-                associative_impl = ext_pkg.LemonadeAssociativeRules()
-            except TypeError as te:
-                if 'JavaPackage' in str(te):
-                    raise ValueError('{required_pkg}')
-                else:
-                    raise
-            items = {input}
-            java_df = associative_impl.run(spark_session._jsparkSession,
-                items._jdf, {confidence}, '{attr}', '{freq}')
-
-            {output} = DataFrame(java_df, spark_session)
+        arules = LemonadeAssociativeRules('{attr}', '{freq}', 
+            {confidence}, {rules_count})
+        {output} = arules.run({input})
+        
         """.format(input=self.named_inputs['input data'],
                    confidence=self.confidence,
                    output=self.output,
                    rules_count=self.rules_count,
                    attr=self.attribute[0],
-                   freq=self.freq[0],
-                   task_id=self.parameters['task']['id'],
-                   model_trained=_('Model trained'),
-                   required_pkg=_('Required Lemonade Spark Extensions '
-                                  'not found in CLASSPATH.')
-                   )
+                   freq=self.freq[0])
 
         return dedent(code)
 
@@ -172,16 +163,9 @@ class SequenceMiningOperation(Operation):
         return self.output
 
     def generate_code(self):
+
         code = dedent("""
-            try:
-                # noinspection PyProtectedMember
-                ext_pkg = spark_session._jvm.br.ufmg.dcc.lemonade.ext.fpm
-                prefix_span_impl = ext_pkg.LemonadePrefixSpan()
-            except TypeError as te:
-                if 'JavaPackage' in str(te):
-                    raise ValueError('{required_pkg}')
-                else:
-                    raise
+        
             sequences = {input}
             meta = json.loads(sequences.schema[str('{attr}')].json())
             if meta['type'] != 'array' and meta['type'][
@@ -192,13 +176,30 @@ class SequenceMiningOperation(Operation):
                         types.ArrayType(types.ArrayType(elem_type)))(
                         '{attr}').alias(
                         '{attr}'))
-            # noinspection PyProtectedMember
-            java_df = prefix_span_impl.run(spark_session._jsparkSession,
-                sequences._jdf, {min_support}, {max_length}, '{attr}',
-                '{freq}')
-
-            {output} = DataFrame(java_df, spark_session)
-
+            
+            try:
+                from pyspark.ml.fpm import PrefixSpan
+                pspan = PrefixSpan(minSupport={min_support}, 
+                    maxPatternLength={max_length},  sequenceCol='{attr}')
+                    
+                {output} = pspan.findFrequentSequentialPatterns(sequences)
+            except:
+                try:
+                    # noinspection PyProtectedMember
+                    ext_pkg = spark_session._jvm.br.ufmg.dcc.lemonade.ext.fpm
+                    prefix_span_impl = ext_pkg.LemonadePrefixSpan()
+                except TypeError as te:
+                    if 'JavaPackage' in str(te):
+                        raise ValueError('{required_pkg}')
+                    else:
+                        raise
+    
+                    # noinspection PyProtectedMember
+                    java_df = prefix_span_impl.run(spark_session._jsparkSession,
+                        sequences._jdf, {min_support}, {max_length}, '{attr}',
+                        '{freq}')
+    
+                    {output} = DataFrame(java_df, spark_session)
         """.format(input=self.named_inputs['input data'],
                    min_support=self.min_support,
                    max_length=self.max_length,

@@ -43,7 +43,6 @@ def eval_and_kill_pending_jobs(cluster, timeout=60 * 5):
 
 
 def delete_kb8s_job(workflow_id, cluster):
-    return
     configuration = client.Configuration()
     configuration.verify_ssl = False
     configuration.debug = False
@@ -69,13 +68,19 @@ def delete_kb8s_job(workflow_id, cluster):
 
     api = client.ApiClient(configuration)
     batch_api = client.BatchV1Api(api)
+    
+    all_jobs = batch_api.list_namespaced_job(namespace=namespace, watch=False)
+    body = client.V1DeleteOptions(propagation_policy='Background')
+    for k8s_job in all_jobs.items:
+        name = k8s_job.metadata.name
+        if name.startswith('job-{}-'.format(workflow_id)):
+            try:
+                log.info('Deleting Kubernetes job %s', name)
 
-    try:
-        log.info('Deleting Kubernetes job %s', name)
-        batch_api.delete_namespaced_job(
-            name, namespace, grace_period_seconds=10, pretty=True)
-    except ApiException as e:
-        print("Exception when calling BatchV1Api->: {}\n".format(e))
+                batch_api.delete_namespaced_job(
+                    name, namespace, body=body, grace_period_seconds=1, pretty=True)
+            except ApiException as e:
+                print("Exception when calling BatchV1Api->: {}\n".format(e))
 
 
 def create_kb8s_job(workflow_id, minion_cmd, cluster):
@@ -113,13 +118,6 @@ def create_kb8s_job(workflow_id, minion_cmd, cluster):
     namespace = cluster_params['kubernetes.namespace']
     pull_policy = cluster_params.get('kubernetes.pull_policy', 'Always')
 
-    gpus = int(cluster_params.get('kubernetes.resources.gpus', 0))
-
-    # print('-' * 30)
-    # print('GPU KB8s specification: ' + str(gpus))
-    # print('-' * 30)
-    log.info('GPU specification: %s', gpus)
-
     job.metadata = client.V1ObjectMeta(namespace=namespace, name=name)
     job.status = client.V1JobStatus()
 
@@ -147,10 +145,19 @@ def create_kb8s_job(workflow_id, minion_cmd, cluster):
     pvc_claim = client.V1PersistentVolumeClaimVolumeSource(
         claim_name='hdfs-pvc')
 
-    if gpus:
-        resources = {'limits': {'nvidia.com/gpu': gpus}}
-    else:
-        resources = {}
+    resources_params = [
+        ('gpus', int, 'nvidia.com/gpu'), 
+        ('cpu', str, 'cpu'), 
+        ('memory', str, 'memory')
+    ]
+
+    resources = {'limits': {}}
+    for resource_name, transform, kb8s_name in resources_params:
+        if resource_name in cluster_params:
+            resource_value = cluster_params.get(
+                'kubernetes.resources.' + resource_name)
+            if resource_value:
+                resources['limits'][kb8s_name] = transform(resource_value)
 
     container = client.V1Container(name=container_name,
                                    image=container_image,

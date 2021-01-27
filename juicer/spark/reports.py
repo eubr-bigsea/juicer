@@ -15,7 +15,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from juicer.spark.util.tree_visualization import get_graph_from_model 
 
 try:
     from html import escape  # python 3.x
@@ -363,6 +362,7 @@ class DecisionTreeReport(BaseHtmlReport):
         return block
 
     def generate(self):
+        from juicer.spark.util.tree_visualization import get_graph_from_model 
         #return '<code><pre>{tree}</pre></code>'.format(
         #    tree=json.dumps(self._tree_json(), indent=2))
         return "<h6>{}</h6>{}".format(
