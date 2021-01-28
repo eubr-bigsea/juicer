@@ -1311,8 +1311,8 @@ class RandomForestClassifierOperation(Operation):
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
 
-        self.has_code = any([len(self.named_inputs) == 1,
-                             self.contains_results()])
+        self.has_code = len(self.named_inputs) == 1 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
         if self.has_code:
             self.output = self.named_outputs.get(
                     'output data', 'output_data_{}'.format(self.order))
@@ -1372,6 +1372,8 @@ class RandomForestClassifierOperation(Operation):
 
             self.bootstrap = int(parameters.get(self.BOOTSTRAP_PARAM, 1)) == 1
             self.oob_score = int(parameters.get(self.OOB_SCORE_PARAM, 0)) == 1
+
+            self.n_jobs = parameters.get(self.N_JOBS_PARAM, None)
 
             self.ccp_alpha = float(parameters.get(self.CCP_ALPHA_PARAM, 0.0))
 
@@ -1441,38 +1443,38 @@ class RandomForestClassifierOperation(Operation):
         return returned_param
 
     def generate_code(self):
-        """Generate code."""
-        copy_code = ".copy()" \
-            if self.parameters['multiplicity']['train input data'] > 1 else ""
+        if self.has_code:
+            """Generate code."""
+            copy_code = ".copy()" \
+                if self.parameters['multiplicity']['train input data'] > 1 else ""
 
-        code = """
-        {model} = RandomForestClassifier(n_estimators={n_estimators}, 
-            max_depth={max_depth},  min_samples_split={min_split}, 
-            min_samples_leaf={min_leaf}, random_state={seed},
-            criterion='{criterion}', 
-            min_weight_fraction_leaf={min_weight_fraction_leaf},
-            max_features={max_features}, max_leaf_nodes={max_leaf_nodes}, 
-            min_impurity_decrease={min_impurity_decrease}, bootstrap={bootstrap},
-            oob_score={oob_score}, ccp_alpha={ccp_alpha}, max_samples={max_samples})
-
-        X_train = get_X_train_data({input}, {features})
-        y = get_label_data({input}, {label})
-        {model}.fit(X_train, y)
-
-        {output} = {input}{copy_code}
-        {output}['{prediction_column}'] = {model}.predict(X_train).tolist()
-        """.format(output=self.output, model=self.model, input=self.input_port,
-                   n_estimators=self.n_estimators, max_depth=self.max_depth,
-                   min_split=self.min_split, min_leaf=self.min_leaf, seed=self.seed,
-                   criterion=self.criterion, min_weight_fraction_leaf=self.min_weight_fraction_leaf,
-                   max_features=self.max_features, max_leaf_nodes=self.max_leaf_nodes,
-                   min_impurity_decrease=self.min_impurity_decrease, bootstrap=self.bootstrap,
-                   oob_score=self.oob_score, ccp_alpha=self.ccp_alpha,
-                   max_samples=self.max_samples, features=self.features,
-                   prediction_column=self.prediction_column, label=self.label,
-                   copy_code=copy_code)
-
-        return dedent(code)
+            code = """
+            {model} = RandomForestClassifier(n_estimators={n_estimators}, 
+                max_depth={max_depth},  min_samples_split={min_split}, 
+                min_samples_leaf={min_leaf}, random_state={seed},
+                criterion='{criterion}', 
+                min_weight_fraction_leaf={min_weight_fraction_leaf},
+                max_features={max_features}, max_leaf_nodes={max_leaf_nodes}, 
+                min_impurity_decrease={min_impurity_decrease}, bootstrap={bootstrap},
+                oob_score={oob_score}, n_jobs={n_jobs}, ccp_alpha={ccp_alpha}, max_samples={max_samples})
+    
+            X_train = get_X_train_data({input}, {features})
+            y = get_label_data({input}, {label})
+            {model}.fit(X_train, y)
+    
+            {output} = {input}{copy_code}
+            {output}['{prediction_column}'] = {model}.predict(X_train).tolist()
+            """.format(output=self.output, model=self.model, input=self.input_port,
+                       n_estimators=self.n_estimators, max_depth=self.max_depth,
+                       min_split=self.min_split, min_leaf=self.min_leaf, seed=self.seed,
+                       criterion=self.criterion, min_weight_fraction_leaf=self.min_weight_fraction_leaf,
+                       max_features=self.max_features, max_leaf_nodes=self.max_leaf_nodes,
+                       min_impurity_decrease=self.min_impurity_decrease, bootstrap=self.bootstrap,
+                       oob_score=self.oob_score, n_jobs=self.n_jobs, ccp_alpha=self.ccp_alpha,
+                       max_samples=self.max_samples, features=self.features,
+                       prediction_column=self.prediction_column, label=self.label,
+                       copy_code=copy_code)
+            return dedent(code)
 
 
 class SvmClassifierOperation(Operation):
