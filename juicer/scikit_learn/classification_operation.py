@@ -1501,7 +1501,8 @@ class SvmClassifierOperation(Operation):
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
 
-        self.has_code = True
+        self.has_code = len(self.named_inputs) == 1 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
         if self.has_code:
             self.output = self.named_outputs.get(
                     'output data', 'output_data_{}'.format(self.order))
@@ -1545,10 +1546,11 @@ class SvmClassifierOperation(Operation):
             self.coef0 = float(parameters.get(self.COEF0_PARAM, 0.0) or 0.0)
             self.shrinking = int(parameters.get(self.SHRINKING_PARAM, 1)) == 1
             self.probability = int(parameters.get(self.PROBABILITY_PARAM, 0)) == 1
+            self.cache_size = float(parameters.get(self.CACHE_SIZE_PARAM, 200.0))
             self.decision_function_shape = parameters.get(
                     self.DECISION_FUNCTION_SHAPE_PARAM, 'ovr') or 'ovr'
 
-            vals = [self.degree, self.c]
+            vals = [self.degree, self.c, self.cache_size]
             atts = [self.DEGREE_PARAM, self.PENALTY_PARAM, self.CACHE_SIZE_PARAM]
             for var, att in zip(vals, atts):
                 if var <= 0:
@@ -1570,31 +1572,32 @@ class SvmClassifierOperation(Operation):
         return sep.join([self.output, self.model])
 
     def generate_code(self):
-        """Generate code."""
-        copy_code = ".copy()" \
-            if self.parameters['multiplicity']['train input data'] > 1 else ""
+        if self.has_code:
+            """Generate code."""
+            copy_code = ".copy()" \
+                if self.parameters['multiplicity']['train input data'] > 1 else ""
 
-        code = """
-        {model} = SVC(tol={tol}, C={c}, max_iter={max_iter}, 
-                       degree={degree}, kernel='{kernel}', random_state={seed},
-                       gamma='{gamma}', coef0={coef0}, probability={prob},
-                       shrinking={shrinking}, 
-                       decision_function_shape='{decision_func_shape}',
-                       class_weight=None)
-
-        X_train = get_X_train_data({input}, {features})
-        y = get_label_data({input}, {label})
-        {model}.fit(X_train, y)
-
-        {output} = {input}{copy_code}
-        {output}['{prediction_column}'] = {model}.predict(X_train).tolist()
-        
-        """.format(tol=self.tol, c=self.c, max_iter=self.max_iter,
-                   degree=self.degree, kernel=self.kernel, seed=self.seed,
-                   gamma=self.gamma, coef0=self.coef0, prob=self.probability,
-                   shrinking=self.shrinking,
-                   decision_func_shape=self.decision_function_shape,
-                   model=self.model, input=self.input_port, label=self.label,
-                   features=self.features, prediction_column=self.prediction,
-                   output=self.output, copy_code=copy_code)
-        return dedent(code)
+            code = """
+            {model} = SVC(tol={tol}, C={c}, max_iter={max_iter}, 
+                           degree={degree}, kernel='{kernel}', random_state={seed},
+                           gamma='{gamma}', coef0={coef0}, probability={prob},
+                           cache_size={cache_size}, shrinking={shrinking}, 
+                           decision_function_shape='{decision_func_shape}',
+                           class_weight=None)
+    
+            X_train = get_X_train_data({input}, {features})
+            y = get_label_data({input}, {label})
+            {model}.fit(X_train, y)
+    
+            {output} = {input}{copy_code}
+            {output}['{prediction_column}'] = {model}.predict(X_train).tolist()
+            
+            """.format(tol=self.tol, c=self.c, max_iter=self.max_iter,
+                       degree=self.degree, kernel=self.kernel, seed=self.seed,
+                       gamma=self.gamma, coef0=self.coef0, prob=self.probability,
+                       cache_size=self.cache_size, shrinking=self.shrinking,
+                       decision_func_shape=self.decision_function_shape,
+                       model=self.model, input=self.input_port, label=self.label,
+                       features=self.features, prediction_column=self.prediction,
+                       output=self.output, copy_code=copy_code)
+            return dedent(code)
