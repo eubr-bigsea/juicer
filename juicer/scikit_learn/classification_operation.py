@@ -14,7 +14,8 @@ class ClassificationModelOperation(Operation):
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
 
-        self.has_code = len(self.named_inputs) == 2
+        self.has_code = len(self.named_inputs) == 2 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
 
         if self.has_code:
             if any([self.FEATURES_ATTRIBUTE_PARAM not in parameters,
@@ -29,23 +30,28 @@ class ClassificationModelOperation(Operation):
             self.prediction = parameters.get(self.PREDICTION_ATTRIBUTE_PARAM,
                                              'prediction')
 
-        if not self.has_code:
-            raise ValueError(
-                _("Parameters '{}' and '{}' must be informed for task {}")
-                .format('train input data',  'algorithm', self.__class__))
+        if len(self.named_inputs) < 2:
+            if len(self.named_outputs) > 0:
+                    raise ValueError(
+                    _('Model is being used, but at least one input is missing'))
+            else:
+                raise ValueError(
+                    _("Parameters '{}' and '{}' must be informed for task {}")
+                    .format('train input data', 'algorithm', self.__class__))
 
         self.model = named_outputs.get('model',
                                        'model_task_{}'.format(self.order))
-
-        if not self.has_code and len(self.named_outputs) > 0:
-            raise ValueError(
-                _('Model is being used, but at least one input is missing'))
 
         self.perform_transformation = 'output data' in self.named_outputs
         if not self.perform_transformation:
             self.output = 'task_{}'.format(self.order)
         else:
             self.output = self.named_outputs['output data']
+
+        self.transpiler_utils.add_custom_function(
+            'get_X_train_data', get_X_train_data)
+        self.transpiler_utils.add_custom_function(
+            'get_label_data', get_label_data)
 
     def get_data_out_names(self, sep=','):
         return ''
@@ -54,34 +60,35 @@ class ClassificationModelOperation(Operation):
         return sep.join([self.output, self.model])
 
     def generate_code(self):
-        """Generate code."""
-        copy_code = ".copy()" \
-            if self.parameters['multiplicity']['train input data'] > 1 else ""
+        if self.has_code:
+            """Generate code."""
+            copy_code = ".copy()" \
+                if self.parameters['multiplicity']['train input data'] > 1 else ""
 
-        code = """
-            X = get_X_train_data({input}, {features})
-            y = get_label_data({input}, {label})
-            {model} = {algorithm}.fit(X, y)
-            """.format(model=self.model, label=self.label,
-                       input=self.named_inputs['train input data'],
-                       algorithm=self.named_inputs['algorithm'],
-                       features=self.features)
+            code = """
+                X = get_X_train_data({input}, {features})
+                y = get_label_data({input}, {label})
+                {model} = {algorithm}.fit(X, y)
+                """.format(model=self.model, label=self.label,
+                           input=self.named_inputs['train input data'],
+                           algorithm=self.named_inputs['algorithm'],
+                           features=self.features)
 
-        if self.perform_transformation:
-            code += """
-            {OUT} = {IN}{copy_code}
-            
-            {OUT}['{predCol}'] = {model}.predict(X).tolist()
-            """.format(predCol=self.prediction, copy_code=copy_code,
-                       OUT=self.output,
-                       model=self.model,
-                       IN=self.named_inputs['train input data'])
-        else:
-            code += """
-            {output} = None
-            """.format(output=self.output)
+            if self.perform_transformation:
+                code += """
+                {OUT} = {IN}{copy_code}
+                
+                {OUT}['{predCol}'] = {model}.predict(X).tolist()
+                """.format(predCol=self.prediction, copy_code=copy_code,
+                           OUT=self.output,
+                           model=self.model,
+                           IN=self.named_inputs['train input data'])
+            else:
+                code += """
+                {output} = None
+                """.format(output=self.output)
 
-        return dedent(code)
+            return dedent(code)
 
 
 class DecisionTreeClassifierOperation(Operation):
