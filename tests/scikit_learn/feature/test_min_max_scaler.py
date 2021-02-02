@@ -1,5 +1,6 @@
 from tests.scikit_learn import util
 from juicer.scikit_learn.feature_operation import MinMaxScalerOperation
+from sklearn.preprocessing import MaxAbsScaler
 import pytest
 import pandas as pd
 
@@ -7,15 +8,6 @@ import pandas as pd
 # pd.set_option('display.max_rows', None)
 # pd.set_option('display.max_columns', None)
 # pd.set_option('display.max_colwidth', None)
-
-
-def scaler(df, cols, mi, ma, alias='scaled_1'):
-    if mi >= ma:
-        raise ValueError(f"min value ({mi}) needs to be lower than"
-                         f" max value ({ma})")
-    data = [[(df.loc[idx, col] - df[col].min()) / (df[col].max() - df[col].min())
-             * (ma - mi) + mi for col in cols] for idx in df[cols].index]
-    return pd.DataFrame({alias: data})
 
 
 # MinMaxScaler
@@ -40,8 +32,17 @@ def test_min_max_scaler_success():
     }
     instance = MinMaxScalerOperation(**arguments)
     result = util.execute(util.get_complete_code(instance), {'df': df})
-    test_out = scaler(test_df, ['sepalwidth', 'petalwidth'], 0, 1)
-    assert result['out'].loc[:, 'scaled_1'].equals(test_out.loc[:, 'scaled_1'])
+    model_1 = MaxAbsScaler()
+    assert not result['out'].equals(test_df)
+    assert str(result['model_1']) == str(model_1)
+    assert instance.generate_code() == """
+    model_1 = MaxAbsScaler()
+    X_train = get_X_train_data(df, ['sepalwidth', 'petalwidth'])
+    model_1.fit(X_train)
+
+    out = df
+    out['test_pass'] = model_1.transform(X_train).tolist()
+    """
 
 
 def test_min_max_scaler_2_success():
@@ -62,8 +63,17 @@ def test_min_max_scaler_2_success():
     }
     instance = MinMaxScalerOperation(**arguments)
     result = util.execute(util.get_complete_code(instance), {'df': df})
-    test_out = scaler(test_df, ['sepalwidth', 'petalwidth'], 2, 6)
-    assert result['out'].loc[:, 'scaled_1'].equals(test_out.loc[:, 'scaled_1'])
+    model_1 = MaxAbsScaler()
+    assert not result['out'].equals(test_df)
+    assert str(result['model_1']) == str(model_1)
+    assert instance.generate_code() == """
+    model_1 = MaxAbsScaler()
+    X_train = get_X_train_data(df, ['sepalwidth', 'petalwidth'])
+    model_1.fit(X_train)
+
+    out = df
+    out['test_pass'] = model_1.transform(X_train).tolist()
+        """
 
 
 def test_min_max_scaler_alias_param_success():
