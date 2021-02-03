@@ -241,30 +241,31 @@ class StandardScalerOperation(Operation):
         return sep.join([self.output, self.model])
 
     def generate_code(self):
-        """Generate code."""
-        op = "with_mean={value}" \
-            .format(value=self.with_mean)
-        op += ", with_std={value}" \
-            .format(value=self.with_std)
-        copy_code = ".copy()" \
-            if self.parameters['multiplicity']['input data'] > 1 else ""
+        if self.has_code:
+            """Generate code."""
+            op = "with_mean={value}" \
+                .format(value=self.with_mean)
+            op += ", with_std={value}" \
+                .format(value=self.with_std)
+            copy_code = ".copy()" \
+                if self.parameters['multiplicity']['input data'] > 1 else ""
 
-        code = """
-        {model} = StandardScaler({op})
-        X_train = get_X_train_data({input}, {att})
-        {model}.fit(X_train)
-        """.format(model=self.model,
-                   input=self.named_inputs['input data'],
-                   att=self.attribute, alias=self.alias, op=op)
-
-        if self.contains_results() or len(self.named_outputs) > 0:
-            code += """
-            {output} = {input}{copy_code}
-            {output}['{alias}'] = {model}.transform(X_train).tolist()
-            """.format(copy_code=copy_code, output=self.output,
+            code = """
+    {model} = StandardScaler({op})
+    X_train = get_X_train_data({input}, {att})
+    {model}.fit(X_train)
+            """.format(model=self.model,
                        input=self.named_inputs['input data'],
-                       model=self.model, alias=self.alias)
-        return dedent(code)
+                       att=self.attribute, alias=self.alias, op=op)
+
+            if self.contains_results() or len(self.named_outputs) > 0:
+                code += """
+    {output} = {input}{copy_code}
+    {output}['{alias}'] = {model}.transform(X_train).tolist()
+                """.format(copy_code=copy_code, output=self.output,
+                           input=self.named_inputs['input data'],
+                           model=self.model, alias=self.alias)
+            return dedent(code)
 
 
 class QuantileDiscretizerOperation(Operation):
