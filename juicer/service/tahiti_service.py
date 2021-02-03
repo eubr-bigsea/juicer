@@ -9,6 +9,8 @@ import requests
 log = logging.getLogger()
 log.setLevel(logging.DEBUG)
 
+def get_platform(base_url, token, platform_id):
+    return query_tahiti(base_url, '/platforms', token, platform_id)
 
 def query_tahiti(base_url, item_path, token, item_id, qs=None):
     headers = {'X-Auth-Token': token}
@@ -29,6 +31,6 @@ def query_tahiti(base_url, item_path, token, item_id, qs=None):
         return json.loads(r.text)
     else:
         raise RuntimeError(_(
-            "Error loading storage id {}: HTTP {} - {}  ({})").format(
+            "Error loading data from tahiti: id {}: HTTP {} - {}  ({})").format(
             item_id, r.status_code, r.text, url))
 

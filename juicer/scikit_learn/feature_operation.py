@@ -1,5 +1,7 @@
 from textwrap import dedent
 from juicer.operation import Operation
+from juicer.scikit_learn.util import get_X_train_data
+
 import json
 try:
     from itertools import zip_longest as zip_longest
@@ -7,7 +9,6 @@ except ImportError:
     from itertools import zip_longest as zip_longest
 
 
-# TODO: https://spark.apache.org/docs/2.2.0/ml-features.html#vectorassembler
 class FeatureAssemblerOperation(Operation):
 
     ATTRIBUTES_PARAM = 'attributes'
@@ -15,7 +16,8 @@ class FeatureAssemblerOperation(Operation):
 
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
-        self.has_code = len(self.named_inputs) == 1
+        self.has_code = len(self.named_inputs) == 1 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
         if self.has_code:
             if self.ATTRIBUTES_PARAM not in parameters:
                 raise ValueError(
@@ -28,18 +30,23 @@ class FeatureAssemblerOperation(Operation):
                                                          self.order))
 
     def generate_code(self):
-        copy_code = ".copy()" \
-            if self.parameters['multiplicity']['input data'] > 1 else ""
-        code = """
-        cols = {cols}
-        {input}_without_na = {input}.dropna(subset=cols)
-        {output} = {input}_without_na{copy_code}
-        {output}['{alias}'] = {input}_without_na[cols].to_numpy().tolist()
-        """.format(copy_code=copy_code, output=self.output, alias=self.alias,
-                   input=self.named_inputs['input data'],
-                   cols=self.parameters[self.ATTRIBUTES_PARAM])
-
-        return dedent(code)
+        if self.has_code:
+            copy_code = ".copy()" \
+                if self.parameters['multiplicity']['input data'] > 1 else ""
+            code = """
+            cols = {cols}
+            if {input}[cols].dtypes.all() == np.object:
+                raise ValueError("Input '{input}' must contain numeric values"
+                " only for task {cls}")
+            
+            {input}_without_na = {input}.dropna(subset=cols)
+            {output} = {input}_without_na{copy_code}
+            {output}['{alias}'] = {input}_without_na[cols].to_numpy().tolist()
+            """.format(copy_code=copy_code, output=self.output, alias=self.alias,
+                       input=self.named_inputs['input data'],
+                       cols=self.parameters[self.ATTRIBUTES_PARAM],
+                       cls=self.__class__)
+            return dedent(code)
 
 
 class MinMaxScalerOperation(Operation):
@@ -61,34 +68,26 @@ class MinMaxScalerOperation(Operation):
 
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
-
-        self.has_code = len(self.named_inputs) == 1
-        if self.has_code:
-
-            if self.ATTRIBUTE_PARAM not in parameters:
-                raise ValueError(
-                    _("Parameters '{}' must be informed for task {}")
+        self.has_code = len(self.named_inputs) == 1 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
+        if self.ATTRIBUTE_PARAM not in parameters:
+            raise ValueError(
+                _("Parameters '{}' must be informed for task {}")
                     .format(self.ATTRIBUTE_PARAM, self.__class__))
+        self.output = self.named_outputs.get(
+                'output data', 'output_data_{}'.format(self.order))
+        self.model = named_outputs.get(
+            'transformation model', 'model_{}'.format(self.order))
+        self.attribute = parameters[self.ATTRIBUTE_PARAM]
+        self.alias = parameters.get(self.ALIAS_PARAM,
+                                    'scaled_{}'.format(self.order))
+        self.min = parameters.get(self.MIN_PARAM, 0)
+        self.max = parameters.get(self.MAX_PARAM, 1)
 
-            self.output = self.named_outputs.get(
-                    'output data', 'output_data_{}'.format(self.order))
-            self.model = named_outputs.get(
-                'transformation model', 'model_{}'.format(self.order))
-
-            if self.ATTRIBUTE_PARAM not in self.parameters:
-                msg = _("Parameters '{}' must be informed for task {}")
-                raise ValueError(msg.format(
-                    self.ATTRIBUTE_PARAM, self.__class__.__name__))
-            self.attribute = parameters[self.ATTRIBUTE_PARAM]
-
-            self.alias = parameters.get(self.ALIAS_PARAM,
-                                        'scaled_{}'.format(self.order))
-
-            self.min = parameters.get(self.MIN_PARAM, 0) or 0
-            self.max = parameters.get(self.MAX_PARAM, 1) or 1
-
-            self.has_import = \
-                "from sklearn.preprocessing import MinMaxScaler\n"
+        self.transpiler_utils.add_import(
+                "from sklearn.preprocessing import MinMaxScaler")
+        self.transpiler_utils.add_custom_function(
+                'get_X_train_data', get_X_train_data)
 
     def get_data_out_names(self, sep=','):
         return self.output
@@ -97,28 +96,27 @@ class MinMaxScalerOperation(Operation):
         return sep.join([self.output, self.model])
 
     def generate_code(self):
-        """Generate code."""
-        copy_code = ".copy()" \
-            if self.parameters['multiplicity']['input data'] > 1 else ""
+        if self.has_code:
+            """Generate code."""
+            copy_code = ".copy()" \
+                if self.parameters['multiplicity']['input data'] > 1 else ""
 
-        code = """        
-        {model} = MinMaxScaler(feature_range=({min},{max}))
-        X_train = get_X_train_data({input}, {att})
-        {model}.fit(X_train)
-        """.format(output=self.output, model=self.model,
-                   input=self.named_inputs['input data'],
-                   att=self.attribute, alias=self.alias,
-                   min=self.min, max=self.max)
-
-        # TODO: corrigir essa checagem
-        if self.contains_results() or len(self.named_outputs) > 0:
-            code += """
-            {output} = {input}{copy_code}
-            {output}['{alias}'] = {model}.transform(X_train).tolist()
-            """.format(copy_code=copy_code, output=self.output,
+            code = """
+    {model} = MinMaxScaler(feature_range=({min},{max}))
+    X_train = get_X_train_data({input}, {att})
+    {model}.fit(X_train)
+            """.format(output=self.output, model=self.model,
                        input=self.named_inputs['input data'],
-                       model=self.model, alias=self.alias)
-        return dedent(code)
+                       att=self.attribute, alias=self.alias,
+                       min=self.min, max=self.max)
+
+            code += """
+    {output} = {input}{copy_code}
+    {output}['{alias}'] = {model}.transform(X_train).tolist()
+                """.format(copy_code=copy_code, output=self.output,
+                           input=self.named_inputs['input data'],
+                           model=self.model, alias=self.alias)
+            return dedent(code)
 
 
 class MaxAbsScalerOperation(Operation):
@@ -137,29 +135,25 @@ class MaxAbsScalerOperation(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-        self.has_code = len(self.named_inputs) == 1
-        if self.has_code:
+        self.has_code = len(self.named_inputs) == 1 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
+        if self.ATTRIBUTE_PARAM not in parameters:
+            raise ValueError(
+                    _("Parameters '{}' must be informed for task {}")
+                    .format(self.ATTRIBUTE_PARAM, self.__class__))
 
-            if self.ATTRIBUTE_PARAM not in parameters:
-                raise ValueError(
-                        _("Parameters '{}' must be informed for task {}")
-                        .format(self.ATTRIBUTE_PARAM, self.__class__))
-
-            self.output = self.named_outputs.get(
-                    'output data', 'output_data_{}'.format(self.order))
-            self.model = named_outputs.get(
-                'transformation model', 'model_{}'.format(self.order))
-
-            if self.ATTRIBUTE_PARAM not in self.parameters:
-                msg = _("Parameters '{}' must be informed for task {}")
-                raise ValueError(msg.format(
-                    self.ATTRIBUTE_PARAM, self.__class__.__name__))
-            self.attribute = parameters[self.ATTRIBUTE_PARAM]
-
-            self.alias = parameters.get(self.ALIAS_PARAM,
+        self.output = self.named_outputs.get(
+                'output data', 'output_data_{}'.format(self.order))
+        self.model = named_outputs.get(
+            'transformation model', 'model_{}'.format(self.order))
+        self.attribute = parameters[self.ATTRIBUTE_PARAM]
+        self.alias = parameters.get(self.ALIAS_PARAM,
                                         'scaled_{}'.format(self.order))
-            self.has_import = \
-                "from sklearn.preprocessing import MaxAbsScaler\n"
+
+        self.transpiler_utils.add_import(
+                "from sklearn.preprocessing import MaxAbsScaler")
+        self.transpiler_utils.add_custom_function(
+                'get_X_train_data', get_X_train_data)
 
     def get_data_out_names(self, sep=','):
         return self.output
@@ -169,27 +163,26 @@ class MaxAbsScalerOperation(Operation):
 
     def generate_code(self):
         """Generate code."""
-        copy_code = ".copy()" \
-            if self.parameters['multiplicity']['input data'] > 1 else ""
+        if self.has_code:
+            copy_code = ".copy()" \
+                if self.parameters['multiplicity']['input data'] > 1 else ""
 
-        code = """
-        {model} = MaxAbsScaler()
-        X_train = get_X_train_data({input}, {att})
-        {model}.fit(X_train)
-        """.format(output=self.output,
-                   model=self.model,
-                   input=self.named_inputs['input data'],
-                   att=self.attribute, alias=self.alias)
+            code = """
+    {model} = MaxAbsScaler()
+    X_train = get_X_train_data({input}, {att})
+    {model}.fit(X_train)
+            """.format(output=self.output,
+                       model=self.model,
+                       input=self.named_inputs['input data'],
+                       att=self.attribute, alias=self.alias)
 
-        # TODO: corrigir essa checagem
-        if self.contains_results() or len(self.named_outputs) > 0:
             code += """
-            {output} = {input}{copy_code}
-            {output}['{alias}'] = {model}.transform(X_train).tolist()
-            """.format(copy_code=copy_code,
-                       output=self.output, input=self.named_inputs['input data'],
-                       model=self.model, alias=self.alias)
-        return dedent(code)
+    {output} = {input}{copy_code}
+    {output}['{alias}'] = {model}.transform(X_train).tolist()
+                """.format(copy_code=copy_code,
+                           output=self.output, input=self.named_inputs['input data'],
+                           model=self.model, alias=self.alias)
+            return dedent(code)
 
 
 class StandardScalerOperation(Operation):
@@ -236,8 +229,10 @@ class StandardScalerOperation(Operation):
             self.alias = parameters.get(self.ALIAS_PARAM,
                                         'scaled_{}'.format(self.order))
 
-            self.has_import = \
-                "from sklearn.preprocessing import StandardScaler\n"
+            self.transpiler_utils.add_import(
+                    "from sklearn.preprocessing import StandardScaler")
+            self.transpiler_utils.add_custom_function(
+                    'get_X_train_data', get_X_train_data)
 
     def get_data_out_names(self, sep=','):
         return self.output
@@ -246,6 +241,7 @@ class StandardScalerOperation(Operation):
         return sep.join([self.output, self.model])
 
     def generate_code(self):
+        """Generate code."""
         op = "with_mean={value}" \
             .format(value=self.with_mean)
         op += ", with_std={value}" \
@@ -253,7 +249,6 @@ class StandardScalerOperation(Operation):
         copy_code = ".copy()" \
             if self.parameters['multiplicity']['input data'] > 1 else ""
 
-        """Generate code."""
         code = """
         {model} = StandardScaler({op})
         X_train = get_X_train_data({input}, {att})
@@ -322,6 +317,11 @@ class QuantileDiscretizerOperation(Operation):
                         _("Parameter '{}' must be x>0 for task {}").format(
                                 self.N_QUANTILES_PARAM, self.__class__))
 
+            self.transpiler_utils.add_custom_function(
+                'get_X_train_data', get_X_train_data)
+            self.transpiler_utils.add_import(
+                'from sklearn.preprocessing import KBinsDiscretizer')
+
     def generate_code(self):
         """Generate code."""
         copy_code = ".copy()" \
@@ -329,7 +329,6 @@ class QuantileDiscretizerOperation(Operation):
 
         code = """
         {output} = {input}{copy_code}
-        from sklearn.preprocessing import KBinsDiscretizer
         {model} = KBinsDiscretizer(n_bins={n_quantiles}, 
             encode='ordinal', strategy='{strategy}')
         X_train = get_X_train_data({input}, {att})
@@ -359,7 +358,8 @@ class OneHotEncoderOperation(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-        self.has_code = len(self.named_inputs) == 1
+        self.has_code = len(self.named_inputs) == 1 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
         if self.has_code:
 
             if self.ATTRIBUTE_PARAM not in parameters:
@@ -372,22 +372,26 @@ class OneHotEncoderOperation(Operation):
             self.attribute = parameters[self.ATTRIBUTE_PARAM]
             self.alias = parameters.get(self.ALIAS_PARAM,
                                         'onehotenc_{}'.format(self.order))
+            self.transpiler_utils.add_custom_function(
+                    'get_X_train_data', get_X_train_data)
+            self.transpiler_utils.add_import(
+                    'from sklearn.preprocessing import OneHotEncoder')
 
     def generate_code(self):
         """Generate code."""
-        copy_code = ".copy()" \
-            if self.parameters['multiplicity']['input data'] > 1 else ""
+        if self.has_code:
+            copy_code = ".copy()" \
+                if self.parameters['multiplicity']['input data'] > 1 else ""
 
-        code = """
-        {output} = {input}{copy_code}
-        from sklearn.preprocessing import OneHotEncoder
-        enc = OneHotEncoder()
-        X_train = get_X_train_data({input}, {att})
-        {output}['{alias}'] = enc.fit_transform(X_train).toarray().tolist()
-        """.format(copy_code=copy_code, output=self.output,
-                   input=self.named_inputs['input data'],
-                   att=self.attribute, alias=self.alias)
-        return dedent(code)
+            code = """
+            {output} = {input}{copy_code}
+            enc = OneHotEncoder()
+            X_train = get_X_train_data({input}, {att})
+            {output}['{alias}'] = enc.fit_transform(X_train).toarray().tolist()
+            """.format(copy_code=copy_code, output=self.output,
+                       input=self.named_inputs['input data'],
+                       att=self.attribute, alias=self.alias)
+            return dedent(code)
 
 
 class PCAOperation(Operation):
@@ -405,7 +409,12 @@ class PCAOperation(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-        self.has_code = len(self.named_inputs) == 1
+        self.has_code = len(self.named_inputs) == 1 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
+        self.transpiler_utils.add_import(
+                "from sklearn.decomposition import PCA")
+        self.transpiler_utils.add_custom_function(
+                'get_X_train_data', get_X_train_data)
         if self.has_code:
 
             if self.ATTRIBUTE_PARAM not in parameters:
@@ -426,20 +435,20 @@ class PCAOperation(Operation):
 
     def generate_code(self):
         """Generate code."""
-        copy_code = ".copy()" \
-            if self.parameters['multiplicity']['input data'] > 1 else ""
+        if self.has_code:
+            copy_code = ".copy()" \
+                if self.parameters['multiplicity']['input data'] > 1 else ""
 
-        code = """
-        {output} = {input}{copy_code}
-        from sklearn.decomposition import PCA
-        pca = PCA(n_components={n_comp})
-        X_train = get_X_train_data({input}, {att})
-        {output}['{alias}'] = pca.fit_transform(X_train).tolist()
-        """.format(copy_code=copy_code, output=self.output,
-                   input=self.named_inputs['input data'],
-                   att=self.attributes, alias=self.alias,
-                   n_comp=self.n_components)
-        return dedent(code)
+            code = """ 
+            {output} = {input}{copy_code}
+            pca = PCA(n_components={n_comp})
+            X_train = get_X_train_data({input}, {att})
+            {output}['{alias}'] = pca.fit_transform(X_train).tolist()
+            """.format(copy_code=copy_code, output=self.output,
+                       input=self.named_inputs['input data'],
+                       att=self.attributes, alias=self.alias,
+                       n_comp=self.n_components)
+            return dedent(code)
 
 
 class LSHOperation(Operation):
@@ -485,10 +494,10 @@ class LSHOperation(Operation):
 
         self.input_treatment()
 
-        self.has_import = \
-            """
-            from sklearn.neighbors import LSHForest
-            """
+        self.transpiler_utils.add_import(
+                "from sklearn.neighbors import LSHForest")
+        self.transpiler_utils.add_custom_function(
+                'get_X_train_data', get_X_train_data)
 
     @property
     def get_data_out_names(self, sep=','):
@@ -507,6 +516,8 @@ class LSHOperation(Operation):
         input_data = self.named_inputs['input data']
         """Generate code."""
         #TODO: LSHForest algorithm is using all columns.
+
+        #TODO: Is this working?
 
         copy_code = ".copy()" \
             if self.parameters['multiplicity']['input data'] > 1 else ""
@@ -562,10 +573,8 @@ class StringIndexerOperation(Operation):
         self.alias = [x[1] or '{}_indexed'.format(x[0]) for x in
                       zip_longest(self.attributes,
                                   self.alias[:len(self.attributes)])]
-        self.has_import = \
-            """
-            from sklearn.preprocessing import LabelEncoder
-            """
+        self.transpiler_utils.add_import(
+                "from sklearn.preprocessing import LabelEncoder")
 
     def generate_code(self):
         input_data = self.named_inputs['input data']
@@ -582,9 +591,9 @@ class StringIndexerOperation(Operation):
            {models} = dict()
            le = LabelEncoder()
            for col, new_col in zip({columns}, {alias}):
-                data = {input}[col].to_numpy().tolist()
-                {models}[new_col] = le.fit_transform(data)
-                {output}[new_col] =le.fit_transform(data)    
+               data = {input}[col].to_numpy().tolist()
+               {models}[new_col] = le.fit_transform(data)
+               {output}[new_col] =le.fit_transform(data)    
            """.format(copy_code=copy_code, input=input_data,
                       output=output,
                       models=models,

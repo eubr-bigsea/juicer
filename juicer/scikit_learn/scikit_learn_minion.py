@@ -290,6 +290,15 @@ class ScikitLearnMinion(Minion):
             self._generate_output(self.MNN006[1], 'ERROR', self.MNN006[0])
             result = False
 
+        except KeyError as ke:
+            message = self.MNN011[1].format(ke)
+            log.warn(message)
+            self._emit_event(room=job_id, namespace='/stand')(
+                name='update job', message=message,
+                status='ERROR', identifier=job_id)
+            self._generate_output(self.MNN006[1], 'ERROR', self.MNN006[0])
+            result = False
+
         except Exception as ee:
             import traceback
             tb = traceback.format_exception(*sys.exc_info())
@@ -301,7 +310,7 @@ class ScikitLearnMinion(Minion):
             self._generate_output(str(ee), 'ERROR', code=1000)
             result = False
 
-        self.message_processed('execute')
+        self.message_processed('execute', workflow['id'], job_id, workflow)
 
         return result
 
@@ -379,12 +388,15 @@ class ScikitLearnMinion(Minion):
                  ' due idleness timeout. Msg: ', termination_msg)
         self.state_control.push_start_queue(json.dumps(termination_msg))
 
-    def message_processed(self, msg_type):
+    def message_processed(self, msg_type, wid, job_id, workflow):
         msg_processed = {
-            'workflow_id': self.workflow_id,
-            'app_id': self.app_id,
+            'workflow_id': wid,
+            'app_id': wid,
+            'job_id': job_id,
+            'workflow': workflow,
             'type': ScikitLearnMinion.MSG_PROCESSED,
-            'msg_type': msg_type
+            'msg_type': msg_type,
+
         }
         self.state_control.push_app_queue(self.app_id,
                                           json.dumps(msg_processed))
@@ -399,20 +411,10 @@ class ScikitLearnMinion(Minion):
         This is a handler that reacts to a sigkill signal. The most feasible
         scenario is when the JuicerServer is demanding the termination of this
         minion. In this case, we stop and release any allocated resource
-        (spark_session) and kill the subprocess managed in here.
+        and kill the subprocess managed in here.
         """
-        # if self.spark_session:
-        #     self.spark_session.stop()
-        #     self.spark_session.sparkContext.stop()
-        #     self.spark_session = None
-
         log.info('Post terminate message in queue')
         self.terminate_proc_queue.put({'terminate': True})
-
-        # if self.execute_process:
-        #     os.kill(self.execute_process.pid, signal.SIGKILL)
-        # if self.ping_process:
-        #     os.kill(self.ping_process.pid, signal.SIGKILL)
 
         message = self.MNN008[1].format(self.app_id)
         log.info(message)
@@ -420,7 +422,10 @@ class ScikitLearnMinion(Minion):
         self.state_control.unset_minion_status(self.app_id)
 
         self.self_terminate = False
-        log.info('Minion finished')
+        log.info('Minion finished, pid = %s (%s)', 
+                os.getpid(), multiprocessing.current_process().name)
+        self.state_control.shutdown()
+        sys.exit(0)
 
     def process(self):
         log.info(_(
@@ -429,12 +434,12 @@ class ScikitLearnMinion(Minion):
         self.execute_process = multiprocessing.Process(
             name="minion", target=self.execute,
             args=(self.terminate_proc_queue,))
-        self.execute_process.daemon = False
+        self.execute_process.daemon = True
 
         self.ping_process = multiprocessing.Process(
             name="ping process", target=self.ping,
             args=(self.terminate_proc_queue,))
-        self.ping_process.daemon = False
+        self.ping_process.daemon = True
 
         self.execute_process.start()
         self.ping_process.start()

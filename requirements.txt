@@ -24,8 +24,9 @@ chardet==3.0.4
 Click==7.0
 configparser==3.8.1
 coverage==4.5.4
-cryptography==2.7
+cryptography==3.2
 cycler==0.10.0
+Cython==0.28.5
 decorator==4.4.0
 dnspython==1.16.0
 docutils==0.15.2
@@ -54,7 +55,7 @@ isort==4.3.21
 itsdangerous==1.1.0
 Jinja2==2.10.1
 jmespath==0.9.4
-joblib==0.13.2
+joblib==0.16.0
 kiwisolver==1.1.0
 kubernetes==10.0.1
 lazy-object-proxy==1.4.2
@@ -70,7 +71,7 @@ modin[dask]==0.7.3
 monotonic==1.5
 more-itertools==7.2.0
 networkx==2.3
-nltk==3.4.5
+nltk==3.5
 numpy==1.18.0
 oauthlib==3.1.0
 opt-einsum==3.0.1
@@ -83,6 +84,7 @@ pep8==1.7.1
 Pillow==7.1.2
 pluggy==0.13.1
 ply==3.11
+prefixspan==0.5.2
 protobuf==3.9.1
 py==1.8.0
 py4j==0.10.8.1
@@ -113,7 +115,7 @@ RestrictedPython==5.0
 rq==1.1.0
 rsa==4.0
 s3transfer==0.2.1
-scikit-learn==0.22.2
+scikit-learn==0.24.0
 seaborn==0.9.0
 simplejson==3.16.0
 singledispatch==3.4.0.3
@@ -132,3 +134,4 @@ Werkzeug==0.15.5
 wrapt==1.11.2
 xgboost==0.90
 zipp==0.6.0
+GitPython==3.1.2

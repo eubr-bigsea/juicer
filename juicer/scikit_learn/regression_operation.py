@@ -4,6 +4,7 @@ from textwrap import dedent
 from juicer.operation import Operation
 from itertools import zip_longest
 import re
+from juicer.scikit_learn.util import get_X_train_data, get_label_data
 
 
 # noinspection PyAbstractClass
@@ -71,6 +72,10 @@ class RegressionModelOperation(Operation):
                 'model', 'model_{}'.format(self.order))
             self.output = self.named_outputs.get(
                 'output data', 'out_task_{}'.format(self.order))
+            self.transpiler_utils.add_custom_function(
+                    'get_X_train_data', get_X_train_data)
+            self.transpiler_utils.add_custom_function(
+                    'get_label_data', get_label_data)
 
     @property
     def get_inputs_names(self):
@@ -118,7 +123,6 @@ class GradientBoostingRegressorOperation(RegressionOperation):
     MAX_LEAF_NODES_PARAM = 'max_leaf_nodes'
     MIN_IMPURITY_DECREASE_PARAM = 'min_impurity_decrease'
     RANDOM_STATE_PARAM = 'random_state'
-    VERBOSE_PARAM = 'verbose'
     PREDICTION_PARAM = 'prediction'
     LABEL_PARAM = 'label'
     FEATURES_PARAM = 'features'
@@ -135,7 +139,8 @@ class GradientBoostingRegressorOperation(RegressionOperation):
                                      named_outputs)
 
         self.name = 'regression.GradientBoostingRegressor'
-        self.has_code = any([len(self.named_inputs) == 1, self.contains_results()])
+        self.has_code = len(self.named_inputs) == 1 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
 
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
@@ -158,7 +163,6 @@ class GradientBoostingRegressorOperation(RegressionOperation):
             self.max_leaf_nodes = parameters.get(self.MAX_LEAF_NODES_PARAM, None)
             self.min_impurity_decrease = float(parameters.get(self.MIN_IMPURITY_DECREASE_PARAM, 0) or 0)
             self.random_state = parameters.get(self.RANDOM_STATE_PARAM, None)
-            self.verbose = int(parameters.get(self.VERBOSE_PARAM, 0) or 0)
             self.features = parameters['features']
             self.label = parameters.get(self.LABEL_PARAM, None)
             self.prediction = self.parameters.get(self.PREDICTION_PARAM, 'prediction')
@@ -181,9 +185,12 @@ class GradientBoostingRegressorOperation(RegressionOperation):
                     raise ValueError(
                             _("Parameter '{}' must be x>0 for task {}").format(
                                     att, self.__class__))
-            self.has_import = \
-                "from sklearn.ensemble import GradientBoostingRegressor\n"
-
+            self.transpiler_utils.add_import(
+                    "from sklearn.ensemble import GradientBoostingRegressor")
+            self.transpiler_utils.add_custom_function(
+                    'get_X_train_data', get_X_train_data)
+            self.transpiler_utils.add_custom_function(
+                    'get_label_data', get_label_data)
             self.input_treatment()
 
     @property
@@ -207,7 +214,7 @@ class GradientBoostingRegressorOperation(RegressionOperation):
             self.random_state = int(self.random_state)
             if self.random_state < 0:
                 raise ValueError(
-                    _("Parameter '{}' must be x => 0  or None for task {}").format(
+                    _("Parameter '{}' must be x >= 0 or None for task {}").format(
                         self.RANDOM_STATE_PARAM, self.__class__))
         else:
             self.random_state = None
@@ -216,31 +223,31 @@ class GradientBoostingRegressorOperation(RegressionOperation):
             self.n_iter_no_change = int(self.n_iter_no_change)
             if self.n_iter_no_change < 0:
                 raise ValueError(
-                    _("Parameter '{}' must be x => 0  or None for task {}").format(
+                    _("Parameter '{}' must be x >= 0 or None for task {}").format(
                         self.N_ITER_NO_CHANGE_PARAM, self.__class__))
         else:
             self.n_iter_no_change = None
 
         if self.cc_alpha < 0:
             raise ValueError(
-                _("Parameter '{}' must be x => 0 for task {}").format(
+                _("Parameter '{}' must be x >= 0 for task {}").format(
                     self.CC_APLHA_PARAM, self.__class__))
 
         if self.validation_fraction < 0 or self.validation_fraction > 1:
             raise ValueError(
-                _("Parameter '{}' must be 0 <= x =< 1 for task {}").format(
+                _("Parameter '{}' must be 0 <= x <= 1 for task {}").format(
                     self.VALIDATION_FRACTION_PARAM, self.__class__))
 
         if self.subsample > 1 \
             or self.subsample <= 0:
             raise ValueError(
-                _("Parameter '{}' must be 0 < x =< 1 for task {}").format(
+                _("Parameter '{}' must be 0 < x <= 1 for task {}").format(
                     self.SUBSAMPLE_PARAM, self.__class__))
 
         if self.min_weight_fraction_leaf > 0.5 \
             or self.min_weight_fraction_leaf < 0:
             raise ValueError(
-                _("Parameter '{}' must be 0 <= x =< 0.5 for task {}").format(
+                _("Parameter '{}' must be 0 <= x <= 0.5 for task {}").format(
                     self.MIN_WEIGHT_FRACTION_LEAF_PARAM, self.__class__))
 
         if self.min_impurity_decrease < 0:
@@ -249,56 +256,56 @@ class GradientBoostingRegressorOperation(RegressionOperation):
                     self.MIN_IMPURITY_DECREASE_PARAM, self.__class__))
 
     def generate_code(self):
-        copy_code = ".copy()" \
-            if self.parameters['multiplicity']['train input data'] > 1 else ""
+        if self.has_code:
+            copy_code = ".copy()" \
+                if self.parameters['multiplicity']['train input data'] > 1 else ""
 
-        code = dedent("""
-            {output_data} = {input_data}{copy_code}            
-            X_train = get_X_train_data({input_data}, {features})
-            y = get_label_data({input_data}, {label})
-
-            {model} = GradientBoostingRegressor(loss='{loss}',
-                learning_rate={learning_rate}, 
-                n_estimators={n_estimators}, subsample={subsample}, 
-                criterion='{criterion}', min_samples_split={min_samples_split}, 
-                min_samples_leaf={min_samples_leaf}, 
-                min_weight_fraction_leaf={min_weight_fraction_leaf}, 
-                max_depth={max_depth}, 
-                min_impurity_decrease={min_impurity_decrease}, 
-                random_state={random_state}, max_features={max_features}, 
-                alpha={alpha}, verbose={verbose},
-                max_leaf_nodes={max_leaf_nodes}, 
-                warm_start=False, ccp_alpha={cc_alpha}, 
-                validation_fraction={validation_fraction}, 
-                n_iter_no_change={n_iter_no_change}, tol={tol})
-            {model}.fit(X_train, y)          
-            {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
-            """.format(copy_code=copy_code, output_data=self.output,
-                       learning_rate=self.learning_rate,
-                       n_estimators=self.n_estimators,
-                       max_depth=self.max_depth,
-                       min_samples_split=self.min_samples_split,
-                       min_samples_leaf=self.min_samples_leaf,
-                       model=self.model,
-                       input_data=self.input_port,
-                       loss=self.loss,
-                       subsample=self.subsample,
-                       criterion=self.criterion,
-                       min_weight_fraction_leaf=self.min_weight_fraction_leaf,
-                       min_impurity_decrease=self.min_impurity_decrease,
-                       random_state=self.random_state,
-                       max_features=self.max_features,
-                       alpha=self.alpha,
-                       verbose=self.verbose,
-                       max_leaf_nodes=self.max_leaf_nodes,
-                       cc_alpha=self.cc_alpha,
-                       validation_fraction=self.validation_fraction,
-                       n_iter_no_change=self.n_iter_no_change,
-                       tol=self.tol,
-                       prediction=self.prediction,
-                       features=self.features,
-                       label=self.label))
-        return code
+            code = dedent("""
+                {output_data} = {input_data}{copy_code}            
+                X_train = get_X_train_data({input_data}, {features})
+                y = get_label_data({input_data}, {label})
+    
+                {model} = GradientBoostingRegressor(loss='{loss}',
+                    learning_rate={learning_rate}, 
+                    n_estimators={n_estimators}, subsample={subsample}, 
+                    criterion='{criterion}', min_samples_split={min_samples_split}, 
+                    min_samples_leaf={min_samples_leaf}, 
+                    min_weight_fraction_leaf={min_weight_fraction_leaf}, 
+                    max_depth={max_depth}, 
+                    min_impurity_decrease={min_impurity_decrease}, 
+                    random_state={random_state}, max_features={max_features}, 
+                    alpha={alpha},
+                    max_leaf_nodes={max_leaf_nodes}, 
+                    warm_start=False, ccp_alpha={cc_alpha}, 
+                    validation_fraction={validation_fraction}, 
+                    n_iter_no_change={n_iter_no_change}, tol={tol})
+                {model}.fit(X_train, y)          
+                {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
+                """.format(copy_code=copy_code, output_data=self.output,
+                           learning_rate=self.learning_rate,
+                           n_estimators=self.n_estimators,
+                           max_depth=self.max_depth,
+                           min_samples_split=self.min_samples_split,
+                           min_samples_leaf=self.min_samples_leaf,
+                           model=self.model,
+                           input_data=self.input_port,
+                           loss=self.loss,
+                           subsample=self.subsample,
+                           criterion=self.criterion,
+                           min_weight_fraction_leaf=self.min_weight_fraction_leaf,
+                           min_impurity_decrease=self.min_impurity_decrease,
+                           random_state=self.random_state,
+                           max_features=self.max_features,
+                           alpha=self.alpha,
+                           max_leaf_nodes=self.max_leaf_nodes,
+                           cc_alpha=self.cc_alpha,
+                           validation_fraction=self.validation_fraction,
+                           n_iter_no_change=self.n_iter_no_change,
+                           tol=self.tol,
+                           prediction=self.prediction,
+                           features=self.features,
+                           label=self.label))
+            return code
 
 
 class HuberRegressorOperation(RegressionOperation):
@@ -321,7 +328,8 @@ class HuberRegressorOperation(RegressionOperation):
                                      named_outputs)
         self.parameters = parameters
         self.name = 'regression.HuberRegressor'
-        self.has_code = any([len(self.named_inputs) == 1, self.contains_results()])
+        self.has_code = len(self.named_inputs) == 1 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
 
@@ -340,7 +348,8 @@ class HuberRegressorOperation(RegressionOperation):
             self.fit_intercept = int(parameters.get(self.FIT_INTERCEPT_PARAM, 1) or 1)
             self.features = parameters['features']
             self.label = parameters.get(self.LABEL_PARAM, None)
-            self.prediction = self.parameters.get(self.PREDICTION_PARAM, 'prediction')
+            self.prediction = self.parameters.get(self.PREDICTION_PARAM,
+                                                  'prediction')
 
             vals = [self.max_iter, self.alpha]
             atts = [self.MAX_ITER_PARAM, self.ALPHA_PARAM]
@@ -355,9 +364,12 @@ class HuberRegressorOperation(RegressionOperation):
                         _("Parameter '{}' must be x>1.0 for task {}").format(
                                 self.EPSILON_PARAM, self.__class__))
 
-            self.has_import = \
-                "from sklearn.linear_model import HuberRegressor\n"
-
+            self.transpiler_utils.add_import(
+                    "from sklearn.linear_model import HuberRegressor")
+            self.transpiler_utils.add_custom_function(
+                    'get_X_train_data', get_X_train_data)
+            self.transpiler_utils.add_custom_function(
+                    'get_label_data', get_label_data)
             self.input_treatment()
 
     @property
@@ -371,33 +383,34 @@ class HuberRegressorOperation(RegressionOperation):
         self.fit_intercept = True if int(self.fit_intercept) == 1 else False
 
     def generate_code(self):
-        copy_code = ".copy()" \
-            if self.parameters['multiplicity']['train input data'] > 1 else ""
+        if self.has_code:
+            copy_code = ".copy()" \
+                if self.parameters['multiplicity']['train input data'] > 1 else ""
 
-        code = dedent("""
-            {output_data} = {input_data}{copy_code}
-            X_train = get_X_train_data({input_data}, {features})
-            y = get_label_data({input_data}, {label})
+            code = dedent("""
+                {output_data} = {input_data}{copy_code}
+                X_train = get_X_train_data({input_data}, {features})
+                y = get_label_data({input_data}, {label})
+    
+                {model} = HuberRegressor(epsilon={epsilon}, max_iter={max_iter}, 
+                        alpha={alpha}, tol={tol}, fit_intercept={fit_intercept}, 
+                        warm_start=False)
+                {model}.fit(X_train, y)
+                {output_data}['{predict}'] = {model}.predict(X_train).tolist()
+                """).format(copy_code=copy_code,
+                            output_data=self.output,
+                            epsilon=self.epsilon,
+                            alpha=self.alpha,
+                            max_iter=self.max_iter,
+                            tol=self.tol,
+                            input_data=self.input_port,
+                            model=self.model,
+                            fit_intercept=self.fit_intercept,
+                            features=self.features,
+                            label=self.label,
+                            predict=self.prediction)
 
-            {model} = HuberRegressor(epsilon={epsilon}, max_iter={max_iter}, 
-                    alpha={alpha}, tol={tol}, fit_intercept={fit_intercept}, 
-                    warm_start=False)
-            {model}.fit(X_train, y)
-            {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
-            """).format(copy_code=copy_code,
-                        output_data=self.output,
-                        epsilon=self.epsilon,
-                        alpha=self.alpha,
-                        max_iter=self.max_iter,
-                        tol=self.tol,
-                        input_data=self.input_port,
-                        model=self.model,
-                        fit_intercept=self.fit_intercept,
-                        features=self.features,
-                        label=self.label,
-                        prediction=self.prediction)
-
-        return code
+            return code
 
 
 class IsotonicRegressionOperation(RegressionOperation):
@@ -417,7 +430,8 @@ class IsotonicRegressionOperation(RegressionOperation):
                                      named_outputs)
         self.parameters = parameters
         self.name = 'regression.IsotonicRegression'
-        self.has_code = any([len(self.named_inputs) == 1, self.contains_results()])
+        self.has_code = len(self.named_inputs) == 1 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
 
@@ -432,16 +446,20 @@ class IsotonicRegressionOperation(RegressionOperation):
                 self.ISOTONIC_PARAM, True) in (1, '1', 'true', True)
             self.features = parameters['features']
             self.label = parameters.get(self.LABEL_PARAM, None)
-            self.prediction = parameters.get(self.PREDICTION_PARAM, 'prediction')
+            self.prediction = parameters.get(self.PREDICTION_PARAM,
+                                             'prediction')
             self.y_min = parameters.get(self.Y_MIN_PARAM, None)
             self.y_max = parameters.get(self.Y_MAX_PARAM, None)
             self.out_of_bounds = parameters.get(self.OUT_OF_BOUNDS_PARAM, "nan")
 
             self.treatment()
 
-            self.has_import = \
-                "from sklearn.isotonic import IsotonicRegression\n"
-
+            self.transpiler_utils.add_import(
+                    "from sklearn.isotonic import IsotonicRegression")
+            self.transpiler_utils.add_custom_function(
+                    'get_X_train_data', get_X_train_data)
+            self.transpiler_utils.add_custom_function(
+                    'get_label_data', get_label_data)
             self.treatment()
 
     @property
@@ -475,37 +493,36 @@ class IsotonicRegressionOperation(RegressionOperation):
                                     self.__class__))
 
     def generate_code(self):
-        # X_train = np.array({input_data}[{columns}].to_numpy().tolist()).flatten()
-        # y = np.array({input_data}[{label}].to_numpy().tolist()).flatten()
 
-        #observar se e' possivel trocar a entrada por uma lista de elementos unicos
-        copy_code = ".copy()" \
-            if self.parameters['multiplicity']['train input data'] > 1 else ""
+        if self.has_code:
+            copy_code = ".copy()" \
+                if self.parameters['multiplicity']['train input data'] > 1 \
+                else ""
 
-        code = dedent("""
-        {model} = IsotonicRegression(y_min={min}, y_max={max}, increasing={isotonic}, 
-                                     out_of_bounds='{bounds}')
-
-        {output_data} = {input_data}{copy_code}
-        X_train = get_X_train_data({input_data}, {columns})
-        y = get_label_data({input_data}, {label})
-
-        {model}.fit(X_train, y)      
-
-        {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
-        """).format(copy_code=copy_code,
-                    output_data=self.output,
-                    isotonic=self.isotonic,
-                    output=self.output,
-                    model=self.model,
-                    input_data=self.input_port,
-                    min=self.y_min,
-                    max=self.y_max,
-                    bounds=self.out_of_bounds,
-                    columns=self.features,
-                    label=self.label,
-                    prediction=self.prediction)
-        return code
+            code = dedent("""
+            {model} = IsotonicRegression(y_min={min}, y_max={max}, 
+                increasing={isotonic}, out_of_bounds='{bounds}')
+    
+            {output_data} = {input_data}{copy_code}
+            X_train = get_X_train_data({input_data}, {columns})
+            X_train = np.ravel(X_train)
+            y = get_label_data({input_data}, {label})
+        
+            {model}.fit(X_train, y)      
+            {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
+            """).format(copy_code=copy_code,
+                        output_data=self.output,
+                        isotonic=self.isotonic,
+                        output=self.output,
+                        model=self.model,
+                        input_data=self.input_port,
+                        min=self.y_min,
+                        max=self.y_max,
+                        bounds=self.out_of_bounds,
+                        columns=self.features,
+                        label=self.label,
+                        prediction=self.prediction)
+            return code
 
 
 class LinearRegressionOperation(RegressionOperation):
@@ -527,7 +544,8 @@ class LinearRegressionOperation(RegressionOperation):
                                      named_outputs)
 
         self.name = 'regression.LinearRegression'
-        self.has_code = any([len(self.named_inputs) == 1, self.contains_results()])
+        self.has_code = len(self.named_inputs) == 1 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
 
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
@@ -547,9 +565,11 @@ class LinearRegressionOperation(RegressionOperation):
             seed_ = self.parameters.get(self.SEED_PARAM, None)
             self.features = parameters['features']
             self.label = parameters.get(self.LABEL_PARAM, None)
-            self.prediction = self.parameters.get(self.PREDICTION_PARAM, 'prediction')
+            self.prediction = self.parameters.get(self.PREDICTION_PARAM,
+                                                  'prediction')
 
-            self.fit_intercept = self.parameters.get(self.FIT_INTERCEPT_PARAM, False) == 1
+            self.fit_intercept = self.parameters.get(self.FIT_INTERCEPT_PARAM,
+                                                     False) == 1
             self.positive = self.parameters.get(self.POSITIVE_PARAM, False) == 1
 
             vals = [self.alpha, self.max_iter]
@@ -560,7 +580,7 @@ class LinearRegressionOperation(RegressionOperation):
                             _("Parameter '{}' must be x>0 for task {}").format(
                                     att, self.__class__))
 
-            if 0 > self.elastic > 1:
+            if self.elastic < 0 or self.elastic > 1:
                 raise ValueError(
                         _("Parameter '{}' must be 0<=x<=1 for task {}").format(
                                 self.ELASTIC_NET_PARAM, self.__class__))
@@ -574,8 +594,12 @@ class LinearRegressionOperation(RegressionOperation):
                         _("Parameter '{}' must be x>=0 for task {}").format(
                                 self.SEED_PARAM, self.__class__))
 
-            self.has_import = \
-                "from sklearn.linear_model import ElasticNet\n"
+            self.transpiler_utils.add_import(
+                    "from sklearn.linear_model import ElasticNet")
+            self.transpiler_utils.add_custom_function(
+                    'get_X_train_data', get_X_train_data)
+            self.transpiler_utils.add_custom_function(
+                    'get_label_data', get_label_data)
 
     @property
     def get_data_out_names(self, sep=','):
@@ -585,39 +609,39 @@ class LinearRegressionOperation(RegressionOperation):
         return sep.join([self.output, self.model])
 
     def generate_code(self):
+        if self.has_code:
+            copy_code = ".copy()" \
+                if self.parameters['multiplicity']['train input data'] > 1 else ""
 
-        copy_code = ".copy()" \
-            if self.parameters['multiplicity']['train input data'] > 1 else ""
+            code = dedent("""
+            {output_data} = {input_data}{copy_code}
+            X_train = get_X_train_data({input_data}, {columns})
+            y = get_label_data({input_data}, {label})
+    
+            {model} = ElasticNet(alpha={alpha}, l1_ratio={elastic}, tol={tol}, 
+                    max_iter={max_iter}, random_state={seed},
+                    normalize={normalize}, positive={positive}, 
+                    fit_intercept={fit_intercept})  
+            {model}.fit(X_train, y)
+            {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
+            """.format(copy_code=copy_code,
+                       output_data=self.output,
+                       max_iter=self.max_iter,
+                       alpha=self.alpha,
+                       elastic=self.elastic,
+                       seed=self.seed,
+                       tol=self.tol,
+                       normalize=self.normalize,
+                       input_data=self.input_port,
+                       prediction=self.prediction,
+                       columns=self.features,
+                       label=self.label,
+                       model=self.model,
+                       output=self.output,
+                       fit_intercept=self.fit_intercept,
+                       positive=self.positive))
 
-        code = dedent("""
-        {output_data} = {input_data}{copy_code}
-        X_train = get_X_train_data({input_data}, {columns})
-        y = get_label_data({input_data}, {label})
-
-        {model} = ElasticNet(alpha={alpha}, l1_ratio={elastic}, tol={tol}, 
-                max_iter={max_iter}, random_state={seed},
-                normalize={normalize}, positive={positive}, 
-                fit_intercept={fit_intercept})  
-        {model}.fit(X_train, y)
-        {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
-        """.format(copy_code=copy_code,
-                   output_data=self.output,
-                   max_iter=self.max_iter,
-                   alpha=self.alpha,
-                   elastic=self.elastic,
-                   seed=self.seed,
-                   tol=self.tol,
-                   normalize=self.normalize,
-                   input_data=self.input_port,
-                   prediction=self.prediction,
-                   columns=self.features,
-                   label=self.label,
-                   model=self.model,
-                   output=self.output,
-                   fit_intercept=self.fit_intercept,
-                   positive=self.positive))
-
-        return code
+            return code
 
 
 class MLPRegressorOperation(Operation):
@@ -674,7 +698,7 @@ class MLPRegressorOperation(Operation):
             self.hidden_layers = parameters.get(self.HIDDEN_LAYER_SIZES_PARAM, '(1,100,1)') or '(1,100,1)'
             self.hidden_layers = \
                 self.hidden_layers.replace("(", "").replace(")", "")
-            if not bool(re.match('(\d+,)+\d*', self.hidden_layers)):
+            if not bool(re.match(r'(\d+,)+\d*', self.hidden_layers)):
                 raise ValueError(
                         _("Parameter '{}' must be a tuple with the size "
                           "of each layer for task {}").format(
@@ -721,9 +745,12 @@ class MLPRegressorOperation(Operation):
                             _("Parameter '{}' must be x>=0 for task {}").format(
                                     att, self.__class__))
 
-            self.has_import = \
-                "from sklearn.neural_network import MLPRegressor\n"
-
+            self.transpiler_utils.add_import(
+                    "from sklearn.neural_network import MLPRegressor")
+            self.transpiler_utils.add_custom_function(
+                    'get_X_train_data', get_X_train_data)
+            self.transpiler_utils.add_custom_function(
+                    'get_label_data', get_label_data)
             self.input_treatment()
 
     @property
@@ -879,7 +906,6 @@ class RandomForestRegressorOperation(RegressionOperation):
     OOB_SCORE_PARAM = 'oob_score'
     N_JOBS_PARAM = 'n_jobs'
     RANDOM_STATE_PARAM = 'random_state'
-    VERBOSE_PARAM = 'verbose'
     PREDICTION_PARAM = 'prediction'
     LABEL_PARAM = 'label'
     FEATURES_PARAM = 'features'
@@ -889,7 +915,8 @@ class RandomForestRegressorOperation(RegressionOperation):
                                      named_outputs)
         self.parameters = parameters
         self.name = 'regression.RandomForestRegressor'
-        self.has_code = any([len(self.named_inputs) == 1, self.contains_results()])
+        self.has_code = len(self.named_inputs) == 1 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
 
@@ -913,7 +940,6 @@ class RandomForestRegressorOperation(RegressionOperation):
             self.oob_score = int(parameters.get(self.OOB_SCORE_PARAM, 1) or 1)
             self.n_jobs = int(parameters.get(self.N_JOBS_PARAM, 0) or 0)
             self.random_state = parameters.get(self.RANDOM_STATE_PARAM, None)
-            self.verbose = int(parameters.get(self.VERBOSE_PARAM, 0) or 0)
             self.features = parameters['features']
             self.label = parameters.get(self.LABEL_PARAM, None)
             self.prediction = self.parameters.get(self.PREDICTION_PARAM, 'prediction')
@@ -930,8 +956,12 @@ class RandomForestRegressorOperation(RegressionOperation):
 
             self.input_treatment()
 
-            self.has_import = \
-                "from sklearn.ensemble import RandomForestRegressor\n"
+            self.transpiler_utils.add_import(
+                    "from sklearn.ensemble import RandomForestRegressor")
+            self.transpiler_utils.add_custom_function(
+                    'get_X_train_data', get_X_train_data)
+            self.transpiler_utils.add_custom_function(
+                    'get_label_data', get_label_data)
 
     @property
     def get_data_out_names(self, sep=','):
@@ -987,58 +1017,53 @@ class RandomForestRegressorOperation(RegressionOperation):
                 _("Parameter '{}' must be x>=0 or None for task {}").format(
                     self.MIN_IMPURITY_DECREASE_PARAM, self.__class__))
 
-        if self.verbose < 0:
-            raise ValueError(
-                _("Parameter '{}' must be x>=0 or None for task {}").format(
-                    self.VERBOSE_PARAM, self.__class__))
-
     def generate_code(self):
+        if self.has_code:
 
-        copy_code = ".copy()" \
-            if self.parameters['multiplicity']['train input data'] > 1 else ""
+            copy_code = ".copy()" \
+                if self.parameters['multiplicity']['train input data'] > 1 else ""
 
-        code = dedent("""
-            {output_data} = {input_data}{copy_code}
-            X_train = get_X_train_data({input_data}, {features})
-            y = get_label_data({input_data}, {label})
+            code = dedent("""
+                {output_data} = {input_data}{copy_code}
+                X_train = get_X_train_data({input_data}, {features})
+                y = get_label_data({input_data}, {label})
+    
+                {model} = RandomForestRegressor(n_estimators={n_estimators}, 
+                        max_features='{max_features}', 
+                        max_depth={max_depth}, 
+                        min_samples_split={min_samples_split}, 
+                        min_samples_leaf={min_samples_leaf}, 
+                        random_state={random_state},
+                        n_jobs={n_jobs}, criterion='{criterion}', 
+                        min_weight_fraction_leaf={min_weight_fraction_leaf},
+                        max_leaf_nodes={max_leaf_nodes}, 
+                        min_impurity_decrease={min_impurity_decrease}, 
+                        bootstrap={bootstrap},
+                        oob_score={oob_score}, warm_start=False)
+                {model}.fit(X_train, y)          
+                {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
+                """).format(copy_code=copy_code,
+                            n_estimators=self.n_estimators,
+                            max_features=self.max_features,
+                            max_depth=self.max_depth,
+                            min_samples_split=self.min_samples_split,
+                            min_samples_leaf=self.min_samples_leaf,
+                            random_state=self.random_state,
+                            model=self.model,
+                            n_jobs=self.n_jobs,
+                            input_data=self.input_port,
+                            output_data=self.output,
+                            prediction=self.prediction,
+                            criterion=self.criterion,
+                            min_weight_fraction_leaf=self.min_weight_fraction_leaf,
+                            max_leaf_nodes=self.max_leaf_nodes,
+                            min_impurity_decrease=self.min_impurity_decrease,
+                            bootstrap=self.bootstrap,
+                            oob_score=self.oob_score,
+                            features=self.features,
+                            label=self.label)
 
-            {model} = RandomForestRegressor(n_estimators={n_estimators}, 
-                    max_features='{max_features}', 
-                    max_depth={max_depth}, 
-                    min_samples_split={min_samples_split}, 
-                    min_samples_leaf={min_samples_leaf}, 
-                    random_state={random_state},
-                    n_jobs={n_jobs}, criterion='{criterion}', 
-                    min_weight_fraction_leaf={min_weight_fraction_leaf},
-                    max_leaf_nodes={max_leaf_nodes}, 
-                    min_impurity_decrease={min_impurity_decrease}, 
-                    bootstrap={bootstrap},
-                    oob_score={oob_score}, verbose={verbose}, warm_start=False)
-            {model}.fit(X_train, y)          
-            {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
-            """).format(copy_code=copy_code,
-                        n_estimators=self.n_estimators,
-                        max_features=self.max_features,
-                        max_depth=self.max_depth,
-                        min_samples_split=self.min_samples_split,
-                        min_samples_leaf=self.min_samples_leaf,
-                        random_state=self.random_state,
-                        model=self.model,
-                        n_jobs=self.n_jobs,
-                        input_data=self.input_port,
-                        output_data=self.output,
-                        prediction=self.prediction,
-                        criterion=self.criterion,
-                        min_weight_fraction_leaf=self.min_weight_fraction_leaf,
-                        max_leaf_nodes=self.max_leaf_nodes,
-                        min_impurity_decrease=self.min_impurity_decrease,
-                        bootstrap=self.bootstrap,
-                        oob_score=self.oob_score,
-                        verbose=self.verbose,
-                        features=self.features,
-                        label=self.label)
-
-        return code
+            return code
 
 
 class SGDRegressorOperation(RegressionOperation):
@@ -1065,7 +1090,6 @@ class SGDRegressorOperation(RegressionOperation):
     PENALTY_PARAM = 'penalty'
     FIT_INTERCEPT_PARAM = 'fit_intercept'
     ETA0_PARAM = 'eta0'
-    VERBOSE_PARAM = 'verbose'
     AVERAGE_PARAM = 'average'
     LEARNING_RATE_PARAM = 'learning_rate'
     SHUFFLE_PARAM = 'shuffle'
@@ -1075,7 +1099,8 @@ class SGDRegressorOperation(RegressionOperation):
                                      named_outputs)
         self.parameters = parameters
         self.name = 'regression.SGDRegressor'
-        self.has_code = any([len(self.named_inputs) == 1, self.contains_results()])
+        self.has_code = len(self.named_inputs) == 1 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
 
@@ -1108,7 +1133,6 @@ class SGDRegressorOperation(RegressionOperation):
             self.penalty = parameters.get(self.PENALTY_PARAM, 'l2')
             self.fit_intercept = int(parameters.get(self.FIT_INTERCEPT_PARAM, 1))
             self.eta0 = float(parameters.get(self.ETA0_PARAM, 0.01))
-            self.verbose = int(parameters.get(self.VERBOSE_PARAM, 0))
             self.average = int(parameters.get(self.AVERAGE_PARAM, 1))
             self.learning_rate = parameters.get(self.LEARNING_RATE_PARAM, 'invscaling')
             self.shuffle = int(parameters.get(self.SHUFFLE_PARAM, 1))
@@ -1123,9 +1147,12 @@ class SGDRegressorOperation(RegressionOperation):
                             _("Parameter '{}' must be x>0 for task {}").format(
                                     att, self.__class__))
 
-            self.has_import = \
-                "from sklearn.linear_model import SGDRegressor\n"
-
+            self.transpiler_utils.add_import(
+                    "from sklearn.linear_model import SGDRegressor")
+            self.transpiler_utils.add_custom_function(
+                    'get_X_train_data', get_X_train_data)
+            self.transpiler_utils.add_custom_function(
+                    'get_label_data', get_label_data)
             self.input_treatment()
 
     @property
@@ -1173,8 +1200,6 @@ class SGDRegressorOperation(RegressionOperation):
         self.fit_intercept = """fit_intercept={fit_intercept}"""\
             .format(fit_intercept=self.fit_intercept)
         functions_required.append(self.fit_intercept)
-        self.verbose = """verbose={verbose}""".format(verbose=self.verbose)
-        functions_required.append(self.verbose)
         self.average = """average={average}""".format(average=self.average)
         functions_required.append(self.average)
         self.learning_rate = """learning_rate='{learning_rate}'"""\
@@ -1206,28 +1231,28 @@ class SGDRegressorOperation(RegressionOperation):
         self.add_functions_required = ',\n    '.join(functions_required)
 
     def generate_code(self):
+        if self.has_code:
 
-        copy_code = ".copy()" \
-            if self.parameters['multiplicity']['train input data'] > 1 else ""
+            copy_code = ".copy()" \
+                if self.parameters['multiplicity']['train input data'] > 1 else ""
 
-        code = dedent("""
-            {output_data} = {input_data}{copy_code}
-            X_train = get_X_train_data({input_data}, {columns})
-            y = get_label_data({input_data}, {label})
-
-            {model} = SGDRegressor({add_functions_required})
-            {model}.fit(X_train, y)          
-            {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
-            """).format(copy_code=copy_code,
-                        output_data=self.output,
-                        prediction=self.prediction,
-                        columns=self.features,
-                        model=self.model,
-                        input_data=self.input_port,
-                        label=self.label,
-                        add_functions_required=self.add_functions_required)
-
-        return code
+            code = dedent("""
+                {output_data} = {input_data}{copy_code}
+                X_train = get_X_train_data({input_data}, {columns})
+                y = get_label_data({input_data}, {label})
+    
+                {model} = SGDRegressor({add_functions_required})
+                {model}.fit(X_train, y)          
+                {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
+                """).format(copy_code=copy_code,
+                            output_data=self.output,
+                            prediction=self.prediction,
+                            columns=self.features,
+                            model=self.model,
+                            input_data=self.input_port,
+                            label=self.label,
+                            add_functions_required=self.add_functions_required)
+            return code
 
 
 class GeneralizedLinearRegressionOperation(RegressionOperation):
@@ -1244,7 +1269,8 @@ class GeneralizedLinearRegressionOperation(RegressionOperation):
         RegressionOperation.__init__(self, parameters,  named_inputs,  named_outputs)
 
         self.name = 'regression.GeneralizedLinearRegression'
-        self.has_code = any([len(self.named_inputs) == 1, self.contains_results()])
+        self.has_code = len(self.named_inputs) == 1 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
 
@@ -1269,7 +1295,12 @@ class GeneralizedLinearRegressionOperation(RegressionOperation):
 
         self.input_treatment()
 
-        self.has_import = "from sklearn.linear_model import LinearRegression\n"
+        self.transpiler_utils.add_import(
+                "from sklearn.linear_model import LinearRegression")
+        self.transpiler_utils.add_custom_function(
+                'get_X_train_data', get_X_train_data)
+        self.transpiler_utils.add_custom_function(
+                'get_label_data', get_label_data)
 
     @property
     def get_data_out_names(self, sep=','):
@@ -1293,35 +1324,36 @@ class GeneralizedLinearRegressionOperation(RegressionOperation):
         self.copy_X = True if int(self.copy_X) == 1 else False
 
     def generate_code(self):
-        """Generate code."""
-        copy_code = ".copy()" \
-            if self.parameters['multiplicity']['input data'] > 1 else ""
+        if self.has_code:
+            """Generate code."""
+            copy_code = ".copy()" \
+                if self.parameters['multiplicity']['input data'] > 1 else ""
 
-        code = """
-            {output_data} = {input_data}{copy_code}
-            X_train = get_X_train_data({input_data}, {columns})
-            y = get_label_data({input_data}, {label})
+            code = """
+                {output_data} = {input_data}{copy_code}
+                X_train = get_X_train_data({input_data}, {columns})
+                y = get_label_data({input_data}, {label})
+    
+                if {fit_intercept}:
+                    {model} = LinearRegression(
+                        fit_intercept={fit_intercept}, normalize={normalize}, 
+                        copy_X={copy_X}, n_jobs={n_jobs})
+                else:
+                    {model} = LinearRegression(
+                        fit_intercept={fit_intercept}, copy_X={copy_X}, 
+                        n_jobs={n_jobs})
+                {model}.fit(X_train, y)          
+                {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
+                """.format(copy_code=copy_code,
+                           fit_intercept=self.fit_intercept,
+                           normalize=self.normalize,
+                           copy_X=self.copy_X,
+                           n_jobs=self.n_jobs,
+                           model=self.model,
+                           input_data=self.input_port,
+                           label=self.label,
+                           output_data=self.output,
+                           prediction=self.alias,
+                           columns=self.features_atr)
 
-            if {fit_intercept} == 1:
-                {model} = LinearRegression(
-                    fit_intercept={fit_intercept}, normalize={normalize}, 
-                    copy_X={copy_X}, n_jobs={n_jobs})
-            else:
-                {model} = LinearRegression(
-                    fit_intercept={fit_intercept}, copy_X={copy_X}, 
-                    n_jobs={n_jobs})
-            {model}.fit(X_train, y)          
-            {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
-            """.format(copy_code=copy_code,
-                       fit_intercept=self.fit_intercept,
-                       normalize=self.normalize,
-                       copy_X=self.copy_X,
-                       n_jobs=self.n_jobs,
-                       model=self.model,
-                       input_data=self.input_port,
-                       label=self.label,
-                       output_data=self.output,
-                       prediction=self.alias,
-                       columns=self.features_atr)
-
-        return dedent(code)
+            return dedent(code)
