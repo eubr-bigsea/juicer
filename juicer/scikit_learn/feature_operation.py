@@ -567,6 +567,8 @@ class StringIndexerOperation(Operation):
                     self.ATTRIBUTES_PARAM, self.__class__))
         self.alias = [alias.strip() for alias in
                       parameters.get(self.ALIAS_PARAM, '').split(',')]
+        self.has_code = len(self.named_inputs) == 1 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
 
         # Adjust alias in order to have the same number of aliases as attributes
         # by filling missing alias with the attribute name suffixed by _indexed.
@@ -577,26 +579,27 @@ class StringIndexerOperation(Operation):
                 "from sklearn.preprocessing import LabelEncoder")
 
     def generate_code(self):
-        input_data = self.named_inputs['input data']
-        output = self.named_outputs.get('output data',
-                                        'out_task_{}'.format(self.order))
+        if self.has_code:
+            input_data = self.named_inputs['input data']
+            output = self.named_outputs.get('output data',
+                                            'out_task_{}'.format(self.order))
 
-        models = self.named_outputs.get('models',
-                                        'models_task_{}'.format(self.order))
-        copy_code = ".copy()" \
-            if self.parameters['multiplicity']['input data'] > 1 else ""
+            models = self.named_outputs.get('models',
+                                            'models_task_{}'.format(self.order))
+            copy_code = ".copy()" \
+                if self.parameters['multiplicity']['input data'] > 1 else ""
 
-        code = dedent("""
-           {output} = {input}{copy_code}
-           {models} = dict()
-           le = LabelEncoder()
-           for col, new_col in zip({columns}, {alias}):
-               data = {input}[col].to_numpy().tolist()
-               {models}[new_col] = le.fit_transform(data)
-               {output}[new_col] =le.fit_transform(data)    
-           """.format(copy_code=copy_code, input=input_data,
-                      output=output,
-                      models=models,
-                      columns=self.attributes,
-                      alias=self.alias))
-        return code
+            code = dedent("""
+               {output} = {input}{copy_code}
+               {models} = dict()
+               le = LabelEncoder()
+               for col, new_col in zip({columns}, {alias}):
+                   data = {input}[col].to_numpy().tolist()
+                   {models}[new_col] = le.fit_transform(data)
+                   {output}[new_col] =le.fit_transform(data)    
+               """.format(copy_code=copy_code, input=input_data,
+                          output=output,
+                          models=models,
+                          columns=self.attributes,
+                          alias=self.alias))
+            return code
