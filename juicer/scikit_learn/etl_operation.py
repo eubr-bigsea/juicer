@@ -970,15 +970,17 @@ class SortOperation(Operation):
             if v != "asc":
                 self.ascending[i] = False
 
-        self.has_code = len(named_inputs) == 1
+        self.has_code = len(self.named_inputs) == 1 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
 
     def generate_code(self):
-        code = "{out} = {input}.sort_values(by={columns}, ascending={asc})" \
-            .format(out=self.output, input=self.named_inputs['input data'],
-                    columns=self.columns, asc=self.ascending)
-        return dedent(code)
+        if self.has_code:
+            code = "{out} = {input}.sort_values(by={columns}, ascending={asc})" \
+                .format(out=self.output, input=self.named_inputs['input data'],
+                        columns=self.columns, asc=self.ascending)
+            return dedent(code)
 
 
 class SplitOperation(Operation):
