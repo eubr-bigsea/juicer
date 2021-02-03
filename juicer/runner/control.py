@@ -130,3 +130,6 @@ class StateControlRedis:
     def pop_script_queue(self, block=True):
         return self.pop_queue(self.SCRIPT_QUEUE_NAME, block)
 
+    def shutdown(self):
+        self.redis_conn.close()
+

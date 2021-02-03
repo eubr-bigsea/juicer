@@ -278,6 +278,7 @@ class Expression(object):
             'dayofmonth': self.get_function_call,
             'dayofyear': self.get_function_call,
             'exp': self.get_function_call,
+            'explode': self.get_function_call, 
             'expr': self.get_function_call,
             'floor': self.get_function_call,
             'format_number': self.get_function_call,
@@ -352,7 +353,7 @@ class Expression(object):
             'when': self.get_when_function,
             'window': self.get_time_window_function,
             'ith': self.get_ith_function,
-            'translate': self.get_translate_function,
+            # 'translate': self.get_translate_function,
         }
 
         column_functions = {

@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 
+import juicer.spark.advanced_operation as advanced_operation
 import juicer.spark.data_operation as data_operation
 import juicer.spark.data_quality_operation as data_quality_operation
 import juicer.spark.dm_operation as dm_operation
@@ -29,9 +30,22 @@ class SparkTranspiler(Transpiler):
         super(SparkTranspiler, self).__init__(
             configuration, os.path.abspath(os.path.dirname(__file__)),
             slug_to_op_id, port_id_to_port)
+        self.requires_hive = False
+        self.requires_hive_warehouse = False
+        self.hive_metadata = None
+
+    def on(self, event, params):
+        """ Manage events from Operations during code conversion """
+        if event == 'requires-hive':
+            self.requires_hive = True
+            self.hive_metadata = params
 
     # noinspection SpellCheckingInspection
     def _assign_operations(self):
+        
+        advanced_ops = {
+            'user-filter': advanced_operation.UserFilterOperation,
+        }
         etl_ops = {
             'add-columns': etl_operation.AddColumnsOperation,
             'add-rows': etl_operation.AddRowsOperation,
@@ -81,6 +95,7 @@ class SparkTranspiler(Transpiler):
             'one-vs-rest-classifier': ml_operation.OneVsRestClassifier,
             'evaluate-model': ml_operation.EvaluateModelOperation,
             'feature-assembler': ml_operation.FeatureAssemblerOperation,
+            'feature-disassembler': ml_operation.FeatureDisassemblerOperation,
             'vector-indexer': ml_operation.VectorIndexOperation,
             'feature-indexer': ml_operation.StringIndexerOperation,
             'gaussian-mixture-clustering':
@@ -122,6 +137,7 @@ class SparkTranspiler(Transpiler):
         data_ops = {
             'change-attribute': data_operation.ChangeAttributeOperation,
             'data-reader': data_operation.DataReaderOperation,
+            'data-source': data_operation.DataSourceOperation,
             'data-writer': data_operation.SaveOperation,
             'external-input': data_operation.ExternalInputOperation,
             'read-csv': data_operation.ReadCSVOperation,
@@ -156,13 +172,18 @@ class SparkTranspiler(Transpiler):
         }
         vis_ops = {
             'area-chart': vis_operation.AreaChartOperation,
-            'box-plot': vis_operation.BoxPlotOperation,
             'bar-chart': vis_operation.BarChartOperation,
+            'box-plot': vis_operation.BoxPlotOperation,
+            'bubble-chart': vis_operation.BubbleChartOperation,
             'donut-chart': vis_operation.DonutChartOperation,
+            'heatmap': vis_operation.HeatmapOperation,
             'histogram': vis_operation.HistogramOperation,
+            'iframe': vis_operation.IFrameOperation,
+            'indicator': vis_operation.IndicatorOperation,
             'line-chart': vis_operation.LineChartOperation,
             'map-chart': vis_operation.MapOperation,
             'map': vis_operation.MapOperation,
+            'markdown': vis_operation.MarkdownOperation,
             'pie-chart': vis_operation.PieChartOperation,
             'plot-chart': vis_operation.ScatterPlotOperation,
             'publish-as-visualization':
@@ -170,6 +191,7 @@ class SparkTranspiler(Transpiler):
             'scatter-plot': vis_operation.ScatterPlotOperation,
             'summary-statistics': vis_operation.SummaryStatisticsOperation,
             'table-visualization': vis_operation.TableVisualizationOperation,
+            'treemap': vis_operation.TreemapOperation,
         }
         feature_ops = {
             'bucketizer': feature_operation.BucketizerOperation,
@@ -203,6 +225,7 @@ class SparkTranspiler(Transpiler):
             'svm-classification-model': ml_operation2.SvmModelOperation,
 
             'k-means-clustering-model': ml_operation2.KMeansModelOperation,
+            'k-modes-clustering-model': ml_operation2.KModesModelOperation,
             'gaussian-mixture-clustering-model':
                 ml_operation2.GaussianMixtureModelOperation,
             'lda-clustering-model': ml_operation2.LDAModelOperation,
@@ -226,7 +249,8 @@ class SparkTranspiler(Transpiler):
         }
 
         self.operations = {}
-        for ops in [data_ops, etl_ops, geo_ops, ml_ops, other_ops, text_ops,
-                    statistics_ops, ws_ops, vis_ops, dm_ops, data_quality_ops,
-                    feature_ops, trustworthy_operations, ml_model_operations2]:
+        for ops in [advanced_ops, data_ops, etl_ops, geo_ops, ml_ops, other_ops, 
+                    text_ops, statistics_ops, ws_ops, vis_ops, dm_ops, 
+                    data_quality_ops, feature_ops, trustworthy_operations, 
+                    ml_model_operations2]:
             self.operations.update(ops)

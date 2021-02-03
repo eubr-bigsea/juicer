@@ -105,9 +105,11 @@ class DataReaderOperation(Operation):
                 url, token, self.data_source_id)
             self.parameters['workflow']['data_source_cache'][
                 self.data_source_id] = self.metadata
-        if not self.metadata.get('url'):
-            raise ValueError(
-                _('Incorrect data source configuration (empty url)'))
+
+        # URL can be empty for HIVE    
+        # if not self.metadata.get('url'):
+        #    raise ValueError(
+        #        _('Incorrect data source configuration (empty url)'))
 
         self.header = parameters.get(
             self.HEADER_PARAM, False) not in ('0', 0, 'false', False)
@@ -140,7 +142,8 @@ class DataReaderOperation(Operation):
 
         if self.has_code:
             date_format = "yyyy/MM/dd HH:mm:ss"
-            if infer_from_limonero:
+            if infer_from_limonero and self.metadata['format'] not in [
+                    'HIVE', 'HIVE_WAREHOUSE']:
                 if 'attributes' in self.metadata:
                     code.append(
                         'schema_{0} = types.StructType()'.format(self.output))
@@ -154,7 +157,7 @@ class DataReaderOperation(Operation):
                     else:
                         code.append(
                             "schema_{0}.add('value', "
-                            "types.StringType(), 1, None)".format(self.output))
+                            "types.StringType(), True, None)".format(self.output))
 
                     code.append("")
                 else:
@@ -171,6 +174,17 @@ class DataReaderOperation(Operation):
             if self.metadata['format'] in ['CSV', 'TEXT']:
                 # Multiple values not supported yet! See SPARK-17878
                 code.append("url = '{url}'".format(url=url))
+
+                if self.metadata['storage'].get('extra_params'):
+                    extra_params = json.loads(
+                            self.metadata['storage']['extra_params'])
+                    if 'user' in extra_params:
+                        code.append('jvm = spark_session._jvm')
+                        code.append(
+                            'jvm.java.lang.System.setProperty('
+                            '"HADOOP_USER_NAME", "' + extra_params.get('user') +
+                            '")')
+
                 null_values = self.null_values
                 if self.metadata.get('treat_as_missing'):
                     null_values.extend([x.strip() for x in self.metadata.get(
@@ -184,6 +198,7 @@ class DataReaderOperation(Operation):
                     # Spark does not works with encoding + multiline options
                     # See https://github.com/databricks/spark-csv/issues/448
                     # And there is no way to specify record delimiter!!!!!
+
                     code_csv = dedent("""
                         {output} = spark_session.read{null_option}.option(
                             'treatEmptyValuesAsNulls', 'true').option(
@@ -225,6 +240,33 @@ class DataReaderOperation(Operation):
             elif self.metadata['format'] == 'PARQUET':
                 self._generate_code_for_parquet(code, infer_from_data,
                                                 infer_from_limonero)
+            elif self.metadata['format'] == 'HIVE':
+                # import pdb; pdb.set_trace()
+                # parsed = urlparse(self.metadata['url'])
+                if self.metadata['storage']['type'] == 'HIVE_WAREHOUSE':
+                    code_hive = dedent("""
+                        from pyspark_llap import HiveWarehouseSession
+                        if spark_session.conf.get(
+                            'spark.sql.hive.hiveserver2.jdbc.url') is None:
+                             raise ValueError('{missing_config}')
+                        hive = HiveWarehouseSession.session(spark_session).build();
+                        {out} = hive.executeQuery('''{sql}''')
+                    """.format(sql=self.metadata.get('command'),
+                           out=self.output, 
+                           missing_config=_(
+                            'Cluster is not configured for Hive Warehouse')))
+                else:
+                    # Notifies the transpiler that Hive is required.
+                    # In order to support Hive, SparkSession must be
+                    # correctly configured.
+                    self.parameters['transpiler'].on(
+                        'requires-hive', self.metadata)
+                    code_hive = dedent("""
+                        {out} = spark_session.sql(
+                            '''{sql}''')
+                    """.format(sql=self.metadata.get('command'),
+                           out=self.output))
+                code.append(code_hive)
             elif self.metadata['format'] == 'JSON':
                 code_json = dedent("""
                     schema_{output} = types.StructType()
@@ -411,6 +453,9 @@ class DataReaderOperation(Operation):
     def is_data_source(self):
         return True
 
+class DataSourceOperation(DataReaderOperation):
+    def __init__(self, parameters, named_inputs, named_outputs):
+        DataReaderOperation.__init__(self, parameters, named_inputs, named_outputs)
 
 class SaveOperation(Operation):
     """
@@ -515,6 +560,14 @@ class SaveOperation(Operation):
         final_url = '{}/limonero/user_data/{}/{}/{}'.format(
             storage['url'], self.user['id'], self.path,
             strip_accents(self.name.replace(' ', '_')))
+
+        hdfs_user = 'hadoop'
+        if storage.get('extra_params'):
+            extra_params = json.loads(storage['extra_params'])
+            if 'user' in extra_params:
+                hdfs_user = extra_params.get('user')
+
+
         code_save = ''
         if self.format == self.FORMAT_CSV:
             code_save = dedent("""
@@ -528,6 +581,7 @@ class SaveOperation(Operation):
 
             {input} = {input}.select(*cols)
             mode = '{mode}'
+
             # Write in a temporary directory
             # Header configuration will be handled by LemonadeFileUtil class
             {input}.write.csv('{url}{uuid}',
@@ -535,6 +589,8 @@ class SaveOperation(Operation):
             # Merge files using Hadoop HDFS API
             conf = spark_session._jsc.hadoopConfiguration()
             jvm = spark_session._jvm
+            jvm.java.lang.System.setProperty("HADOOP_USER_NAME", "{hdfs_user}")
+
             fs = jvm.org.apache.hadoop.fs.FileSystem.get(
                 jvm.java.net.URI('{storage_url}'), conf)
 
@@ -569,6 +625,7 @@ class SaveOperation(Operation):
                 input=self.named_inputs['input data'],
                 url=final_url, header=self.header, mode=self.mode,
                 uuid=uuid.uuid4().hex,
+                hdfs_user=hdfs_user,
                 storage_url=storage['url'],
                 task_id=self.parameters['task_id'],
                 error_file_exists=_('File already exists'),
@@ -833,7 +890,7 @@ class StreamConsumerOperation(DataReaderOperation):
             for attr in attrs:
                 self._add_attribute_to_schema(attr, code)
             else:
-                v = "schema_{0}.add('value', types.StringType(), 1, None)"
+                v = "schema_{0}.add('value', types.StringType(), True, None)"
                 code.append(v.format(self.output))
             code.append("")
         else:

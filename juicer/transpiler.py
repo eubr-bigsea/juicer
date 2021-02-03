@@ -3,19 +3,21 @@
 
 import datetime
 import hashlib
+import inspect
+import jinja2
 import json
 import logging
+import networkx as nx
+import redis
 import sys
 import uuid
 from collections import OrderedDict
+from rq import Queue
 from urllib.parse import urlparse
+from textwrap import dedent
 
-import jinja2
-import networkx as nx
-import redis
 from juicer import auditing
 from juicer.util.jinja2_custom import AutoPep8Extension
-from rq import Queue
 from .service import stand_service
 from .util.template_util import HandleExceptionExtension
 
@@ -84,6 +86,9 @@ class Transpiler(object):
     def get_deploy_template(self):
         return "templates/deploy.tmpl"
 
+    def get_plain_template(self):
+        return "templates/plain.tmpl"
+
     def get_audit_info(self, graph, workflow, task, parameters):
         result = []
         task['ancestors'] = nx.ancestors(graph, task['id'])
@@ -126,7 +131,9 @@ class Transpiler(object):
 
     def generate_code(self, graph, job_id, out, params, ports,
                       sorted_tasks_id, state, task_hash, using_stdout,
-                      workflow, deploy=False, export_notebook=False):
+                      workflow, deploy=False, export_notebook=False,
+                      plain=False):
+
         if deploy:
             # To be able to convert, workflow must obey all these rules:
             # - 1 and exactly 1 data source;
@@ -149,6 +156,7 @@ class Transpiler(object):
             tasks_ids = sorted_tasks_id
 
         instances = OrderedDict()
+        transpiler_utils = TranspilerUtils(self)
 
         audit_events = []
         for i, task_id in enumerate(tasks_ids):
@@ -221,6 +229,9 @@ class Transpiler(object):
                 'order': i,
                 'task': task,
                 'task_id': task['id'],
+                'transpiler': self,  # Allows operation to notify transpiler
+                'transpiler_utils': transpiler_utils,
+                'plain': plain,
                 'user': workflow['user'],
                 'workflow': workflow,
                 'workflow_id': workflow['id'],
@@ -237,6 +248,7 @@ class Transpiler(object):
 
             instance = class_name(parameters, port.get('named_inputs', {}),
                                   port.get('named_outputs', {}))
+
             graph.node[task['id']]['is_data_source'] = instance.is_data_source
             parameters['audit_events'] = instance.get_audit_events()
 
@@ -280,8 +292,9 @@ class Transpiler(object):
             'instances_by_task_id': instances,
             'job_id': job_id,
             'now': datetime.datetime.now(), 'user': workflow['user'],
-            'plain': params.get('plain', False),
-            'transpiler': TranspilerUtils(self),
+            'plain': plain,
+            'export_notebook': export_notebook,
+            'transpiler': transpiler_utils,
             'workflow_name': workflow['name'],
             'workflow': workflow,
         }
@@ -300,12 +313,13 @@ class Transpiler(object):
             # env_setup['slug_to_port_id'] = self.slug_to_port_id
             env_setup['id_mapping'] = {}
             template = template_env.get_template(self.get_deploy_template())
-            gen_source_code = template.render(env_setup)
-            out.write(gen_source_code)
+            out.write(template.render(env_setup))
         elif export_notebook:
             template = template_env.get_template(self.get_notebook_template())
-            gen_source_code = template.render(env_setup)
-            out.write(gen_source_code)
+            out.write(template.render(env_setup))
+        elif plain:
+            template = template_env.get_template(self.get_plain_template())
+            out.write(template.render(env_setup))
         else:
             template = template_env.get_template(self.get_code_template())
             gen_source_code = template.render(env_setup)
@@ -325,13 +339,12 @@ class Transpiler(object):
                     log.exception(str(ex))
 
     def transpile(self, workflow, graph, params, out=None, job_id=None,
-                  state=None, deploy=False, export_notebook=False):
+                  state=None, deploy=False, export_notebook=False, plain=False):
         """ Transpile the tasks from Lemonade's workflow into code """
 
         using_stdout = out is None
         if using_stdout:
             out = sys.stdout
-
         ports = {}
         sequential_ports = {}
         counter = 0
@@ -398,7 +411,8 @@ class Transpiler(object):
         self.generate_code(graph, job_id, out, params,
                            ports, nx.topological_sort(graph), state,
                            hashlib.sha1(),
-                           using_stdout, workflow, deploy, export_notebook)
+                           using_stdout, workflow, deploy, export_notebook,
+                           plain=plain)
 
     def get_data_sources(self, workflow):
         return len(
@@ -415,6 +429,8 @@ class TranspilerUtils(object):
 
     def __init__(self, transpiler=None):
         self.transpiler = transpiler
+        self.imports = set()
+        self.custom_functions = dict()
 
     @staticmethod
     def _get_enabled_tasks_to_execute(instances):
@@ -488,7 +504,7 @@ class TranspilerUtils(object):
                         model_list.append(instance.import_code['model'])
                 if instance.import_code['preprocessing_image']:
                     if not instance.import_code[
-                        'preprocessing_image'] in preprocessing_image_list:
+                               'preprocessing_image'] in preprocessing_image_list:
                         preprocessing_image_list.append(
                             instance.import_code['preprocessing_image'])
                 if instance.import_code['others']:
@@ -544,7 +560,23 @@ class TranspilerUtils(object):
         if len(parts) == 1:
             name = name[:5]
         elif name[:3] == 'out':
-            name = name[:3]
+            name = 'var_'  # name[:3]
         else:
             name = ''.join([p[0] for p in parts])
         return '{}{}'.format(name, seq)
+
+    def add_import(self, name):
+        """ Add an import to the generated code. More than one operation may add
+        the same import. This method handles it, by removing duplicates.
+        """
+        self.imports.add(name)
+
+    def add_custom_function(self, name, f):
+        """ Add a custom function to the generated code. More than one operation
+        may add same function. This method handles it, by removing duplicates.
+        """
+        code = inspect.getsource(f)
+        self.custom_functions[name] = dedent(code)
+
+    def __unicode__(self):
+        return 'TranspilerUtils object'

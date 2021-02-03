@@ -1,7 +1,9 @@
 """
 Utilities for testing scikit-learn usage in Lemonade.
 """
+from juicer.scikit_learn.util import get_X_train_data, get_label_data
 import pandas as pd
+import numpy as np
 import os
 
 DATA_SETS = ['iris', 'titanic', 'wine']
@@ -37,8 +39,25 @@ def titanic(columns=None, size=None):
 
 def get_common_imports():
     return '\n'.join([
-        'import pandas as pd', 'import numpy as np'
+        'import pandas as pd', 'import numpy as np', 
+        'import base64', 'import json',
+        'import datetime', 'import string',
+        'import functools', 'import re',
+        'import hashlib',
+        'global np', 'global pd', 'global base64', 
+        'global json', 'global datetime', 'global string',
+        'global functools', 'global re',
+        'global hashlib',
     ])
+
+
+def get_complete_code(instance):
+    code = "\n" + \
+           "\n".join(list(instance.transpiler_utils.imports)) + \
+           "\n" + \
+           "\n".join(instance.transpiler_utils.custom_functions.values()) + \
+           "\n" + instance.generate_code()
+    return code
 
 
 def execute(code, arguments):
@@ -54,3 +73,4 @@ def execute(code, arguments):
     result = {}
     exec(final_code, arguments, result)
     return result
+

@@ -459,6 +459,70 @@ class FeatureAssemblerOperation(Operation):
         return dedent(code)
 
 
+class FeatureDisassemblerOperation(Operation):
+    """
+    The Feature Disassembler is a class for Apache Spark which takes a
+    DataFrame Vector data type column as input, and creates a new column
+    in the DataFrame for each item in the Vector.
+    """
+
+    TOP_N = 'top_n'
+    FEATURE_PARAM = 'feature'
+    PREFIX_PARAM = 'alias'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+
+        if self.FEATURE_PARAM in parameters:
+            self.feature = parameters.get(self.FEATURE_PARAM)
+        else:
+            raise ValueError(
+                    _("Parameter '{}' must be informed for task {}").format(
+                            self.FEATURE_PARAM, self.__class__))
+        self.topn = int(self.parameters.get(self.TOP_N, 1))
+        self.alias = self.parameters.get(self.PREFIX_PARAM, 'vector_')
+
+        self.has_code = any(
+                [len(self.named_inputs) > 0, self.contains_results()])
+        self.output = self.named_outputs.get('output data',
+                                             'out_{}'.format(self.order))
+
+    def generate_code(self):
+
+        input_data = self.named_inputs['input data']
+
+        # Important: asNondeterministic requires Spark 2.3 or later
+        # It can be safely removed i.e.
+        # return udf(to_array_, ArrayType(DoubleType()))(col)
+        # but at the cost of decreased performance
+
+        code = """
+    
+        from pyspark.sql.functions import udf, col
+        from pyspark.sql.types import ArrayType, DoubleType
+
+        def to_array(col):
+            def to_array_(v):
+                return v.toArray().tolist()
+            return udf(to_array_, ArrayType(DoubleType()))\
+                .asNondeterministic()(col)
+
+        columns = {input}.columns
+        {out} = {input}.withColumn("tmp_vector", to_array(col("{feature}")))
+        n_features = len({out}.select("tmp_vector").take(1)[0][0])
+        top_n = {topn}
+        if top_n > 0 and top_n < n_features:
+            n_features = top_n
+        {out} = {out}.select(columns + 
+            [col("tmp_vector")[i].alias("{alias}"+str(i+1)) 
+             for i in range(n_features)])
+        """.format(input=input_data, out=self.output,
+                   feature=self.feature[0],
+                   topn=self.topn, alias=self.alias)
+
+        return dedent(code)
+
+
 class ApplyModelOperation(Operation):
     NEW_ATTRIBUTE_PARAM = 'prediction'
 
@@ -518,6 +582,7 @@ class EvaluateModelOperation(Operation):
         'mse': ('evaluation.RegressionEvaluator', 'predictionCol'),
         'mae': ('evaluation.RegressionEvaluator', 'predictionCol'),
         'r2': ('evaluation.RegressionEvaluator', 'predictionCol'),
+        'mape': ('evaluation.RegressionEvaluator', 'predictionCol'),
     }
 
     def __init__(self, parameters, named_inputs,
@@ -629,8 +694,8 @@ class EvaluateModelOperation(Operation):
             elif self.metric in ['f1', 'weightedPrecision', 'weightedRecall',
                                  'accuracy']:
                 self._get_code_for_classification_metrics(code)
-            elif self.metric in ['rmse', 'mae', 'mse']:
-                self._get_code_for_regression_metrics(code)
+            elif self.metric in ['rmse', 'mae', 'mse', 'r2', 'var', 'mape']:
+                self._get_code_for_regression_metrics(code, self.metric)
 
             self._get_code_for_summary(code)
 
@@ -836,7 +901,7 @@ class EvaluateModelOperation(Operation):
         """))
 
     @staticmethod
-    def _get_code_for_regression_metrics(code):
+    def _get_code_for_regression_metrics(code, metric):
         """
         Code for the evaluator when metric is related to regression
         """
@@ -846,12 +911,26 @@ class EvaluateModelOperation(Operation):
                 (types.DoubleType, types.FloatType)):
                 df = {input}.withColumn(prediction_col,
                     {input}[prediction_col].cast('double'))
+                    
+            """))
 
-            evaluator = evaluation.RegressionEvaluator(
-                {prediction_arg}=prediction_col,
-                labelCol=label_col,
-                metricName=metric)
-            metric_value = evaluator.evaluate(df)
+        if metric == 'mape':
+            code.append(dedent("""
+            metric_value = df.withColumn('result', 
+                functions.abs(df[label_col] - df[prediction_col]) /
+                functions.when(functions.abs(df[label_col]) == 0.0, 0.0000001).otherwise(functions.abs(df[label_col]))
+                ).select((functions.sum("result")/functions.count("result"))).collect()[0][0]
+            """))
+        else:
+            code.append(dedent("""
+                evaluator = evaluation.RegressionEvaluator(
+                    {prediction_arg}=prediction_col,
+                    labelCol=label_col,
+                    metricName=metric)
+                metric_value = evaluator.evaluate(df)
+                """))
+
+        code.append(dedent("""
             if display_text:
                 result = '<h6>{{}}: {{}}</h6>'.format('{metric}',
                     metric_value)
@@ -1008,6 +1087,7 @@ class CrossValidationOperation(Operation):
         'rmse': ('evaluation.RegressionEvaluator', 'predictionCol'),
         'mse': ('evaluation.RegressionEvaluator', 'predictionCol'),
         'mae': ('evaluation.RegressionEvaluator', 'predictionCol'),
+        'r2': ('evaluation.RegressionEvaluator', 'predictionCol'),
     }
 
     def __init__(self, parameters, named_inputs, named_outputs):
@@ -1947,7 +2027,8 @@ class ClusteringModelOperation(Operation):
             # and this may cause concurrency problems
             params = dict([(p.name, v) for p, v in
                 alg.extractParamMap().items()])
-            algorithm_cls = globals()[alg.__class__.__name__]
+            algorithm_name = alg.__class__.__name__
+            algorithm_cls = globals()[algorithm_name]
             algorithm = algorithm_cls()
             algorithm.setParams(**params)
             features = {features}
@@ -2017,7 +2098,9 @@ class ClusteringModelOperation(Operation):
             display_text = {display_text}
             if display_text:
                 metric_rows = []
+
                 df_aux = pipeline_model.transform({input})
+                
                 evaluator = ClusteringEvaluator(
                     predictionCol='{prediction}', featuresCol=final_features)
                 metric_rows.append(['{silhouette_euclidean}', 
@@ -2028,15 +2111,15 @@ class ClusteringModelOperation(Operation):
                     featuresCol=final_features)
                 metric_rows.append(['{silhouette_cosine}', 
                     evaluator.evaluate(df_aux)])
-
+    
+                if hasattr(clustering_model, 'clusterCenters'):
+                    metric_rows.append([
+                        '{cluster_centers}', clustering_model.clusterCenters()])
 
                 if hasattr(clustering_model, 'computeCost'):
                     metric_rows.append([
                         '{compute_cost}', clustering_model.computeCost(df_aux)])
 
-                if hasattr(clustering_model, 'clusterCenters'):
-                    metric_rows.append([
-                        '{cluster_centers}', clustering_model.clusterCenters()])
                 if hasattr(clustering_model, 'gaussianDF'):
                     metric_rows.append([
                         'Gaussian distribution', 
@@ -2200,15 +2283,64 @@ class LdaClusteringOperation(ClusteringOperation):
         self.name = "clustering.LDA"
 
 
+class KModesClusteringOperation(ClusteringOperation):
+    K_PARAM = 'number_of_clusters'
+    MAX_ITERATIONS_PARAM = 'max_iterations'
+    MAX_LOCAL_ITERATIONS_PARAM = 'max_local_iterations'
+    SEED_PARAM = "seed"
+    SIMILARITY_PARAM = "similarity"
+    METAMODESSIMILARITY_PARAM = 'metamodessimilarity'
+
+    SIMILARITY_ATTR_FREQ = 'frequency'
+    SIMILARITY_ATTR_HAMMING = 'hamming'
+    SIMILARITY_ATTR_ALL_FREQ = 'all_frequency'
+
+    FRAGMENTATION_PARAM = 'fragmentation'
+
+    def __init__(self, parameters, named_inputs,
+                 named_outputs):
+        ClusteringOperation.__init__(self, parameters, named_inputs,
+                                     named_outputs)
+        self.number_of_clusters = parameters.get(self.K_PARAM, 10)
+
+        self.max_iterations = parameters.get(self.MAX_ITERATIONS_PARAM, 10)
+        self.max_local_iterations = \
+            parameters.get(self.MAX_LOCAL_ITERATIONS_PARAM, 10)
+        self.similarity = parameters.get(self.SIMILARITY_PARAM,
+                                         self.SIMILARITY_ATTR_HAMMING)
+        self.metamodessimilarity = parameters.get(
+                self.METAMODESSIMILARITY_PARAM, self.SIMILARITY_ATTR_HAMMING)
+        self.reduce_fragmentation = parameters.get(
+                self.FRAGMENTATION_PARAM, False)
+
+        self.has_code = any([len(named_outputs) > 0, self.contains_results()])
+        self.seed = self.parameters.get(self.SEED_PARAM, None)
+        self.name = "IncrementalPartitionedKMetaModes"
+        self.set_values = [
+            ['K', self.number_of_clusters],
+            ['MetamodesSimilarity', "'{}'".format(self.metamodessimilarity)],
+            ['Similarity', "'{}'".format(self.similarity)],
+            ['LocalKmodesIter', self.max_local_iterations],
+            ['MaxDistIter', self.max_iterations],
+            ['Seed', self.seed],
+            ['Fragmentation', self.reduce_fragmentation]
+        ]
+
+
 class KMeansClusteringOperation(ClusteringOperation):
     K_PARAM = 'number_of_clusters'
     MAX_ITERATIONS_PARAM = 'max_iterations'
     TYPE_PARAMETER = 'type'
     INIT_MODE_PARAMETER = 'init_mode'
     TOLERANCE_PARAMETER = 'tolerance'
+    DISTANCE_PARAMETER = 'distance'
+    SEED_PARAM = "seed"
 
     TYPE_TRADITIONAL = 'kmeans'
     TYPE_BISECTING = 'bisecting'
+
+    EUCLIDEAN_DISTANCE = 'euclidean'
+    COSINE_DISTANCE = 'cosine'
 
     INIT_MODE_KMEANS_PARALLEL = 'k-means||'
     INIT_MODE_RANDOM = 'random'
@@ -2223,12 +2355,17 @@ class KMeansClusteringOperation(ClusteringOperation):
         self.max_iterations = parameters.get(self.MAX_ITERATIONS_PARAM, 10)
         self.type = parameters.get(self.TYPE_PARAMETER)
         self.tolerance = float(parameters.get(self.TOLERANCE_PARAMETER, 0.001))
+        self.seed = self.parameters.get(self.SEED_PARAM, None)
+        self.distance = self.parameters.get(self.DISTANCE_PARAMETER,
+                                            self.EUCLIDEAN_DISTANCE)
 
         if self.type == self.TYPE_BISECTING:
             self.name = "BisectingKMeans"
             self.set_values = [
                 ['MaxIter', self.max_iterations],
                 ['K', self.number_of_clusters],
+                ['Seed', self.seed],
+                ['DistanceMeasure', "'{}'".format(self.distance)]
             ]
         elif self.type == self.TYPE_TRADITIONAL:
             if parameters.get(
@@ -2242,7 +2379,9 @@ class KMeansClusteringOperation(ClusteringOperation):
                 ['MaxIter', self.max_iterations],
                 ['K', self.number_of_clusters],
                 ['Tol', self.tolerance],
-                ['InitMode', '"{}"'.format(self.init_mode)]
+                ['InitMode', '"{}"'.format(self.init_mode)],
+                ['Seed', self.seed],
+                ['DistanceMeasure', "'{}'".format(self.distance)]
             ]
         else:
             raise ValueError(
@@ -2645,10 +2784,16 @@ class RegressionModelOperation(DeployModelMixin, Operation):
                 stages.append(feature.VectorAssembler(
                     inputCols=features, outputCol=final_features))
                 requires_pipeline = True
-
+                individual_feat = features
             else:
                 # If more than 1 vector is passed, use only the first
                 final_features = features[0]
+                vector_field = next(filter(lambda ff: ff.name == final_features, 
+                                    {input}.schema.fields))
+                individual_feat = [v['name'] for v in 
+                    vector_field.metadata['ml_attr']['attrs'].get('nominal',[])] + \
+                    [v['name'] for v in 
+                        vector_field.metadata['ml_attr']['attrs'].get('numeric', [])]
 
             algorithm.setFeaturesCol(final_features)
             stages.append(algorithm)
@@ -2666,27 +2811,32 @@ class RegressionModelOperation(DeployModelMixin, Operation):
                     pipeline_model, {input}, call_transform)
 
                 {model} = pipeline_model
-
+                from juicer.spark import spark_summary_translations as sst
                 display_text = {display_text}
                 if display_text:
                     regression_model = pipeline_model.stages[-1]
                     headers = []
                     rows = []
-                    metrics = ['coefficients', 'intercept', 'scale', ]
+                    metrics = ['coefficients', 'intercept', 'scale', 
+                        'featureImportances']
                     metric_names = ['{coefficients}', '{intercept}', '{scale}']
 
                     coef_name = 'coefficients'
+                    fi_name = 'featureImportances'
                     has_coefficients = False
+                    has_feat_importance = False
                     for i, metric in enumerate(metrics):
                         value = getattr(regression_model, metric, None)
                         if value:
                             if metric == coef_name:
                                 has_coefficients = True
+                            elif metric == fi_name:
+                                has_feat_importance = True
                             else:
                                 rows.append([metric_names[i], value])
                     
                            
-                    if rows:
+                    if rows or has_coefficients or has_feat_importance:
                         content = SimpleTableReport(
                             'table table-striped table-bordered w-auto',
                             headers, rows).generate()
@@ -2697,6 +2847,13 @@ class RegressionModelOperation(DeployModelMixin, Operation):
                                           getattr(regression_model, coef_name)),
                                           title=metric_names[0])
                             content += fi.generate()
+                            
+                        if has_feat_importance and hasattr(regression_model, fi_name):
+                            fi = SimpleTableReport('table w-auto table-bordered', 
+                                None, zip(individual_feat, 
+                                          getattr(regression_model, fi_name)), numbered=0)
+                            content += '<h6>{{}}</h6>{{}}'.format(
+                                sst(fi_name), fi.generate())
  
                         emit_event('update task', status='COMPLETED',
                             identifier='{task_id}',
@@ -2706,6 +2863,13 @@ class RegressionModelOperation(DeployModelMixin, Operation):
                             operation={{'id': {operation_id} }},
                             operation_id={operation_id})
 
+                    if hasattr(regression_model, 'toDebugString'):
+                       dt_report = DecisionTreeReport(regression_model,
+                           individual_feat)
+                       emit(status='COMPLETED',
+                            message=dt_report.generate(),
+                            type='HTML', title='{title}')
+                        
                     summary = getattr({model}, 'summary', None)
                     if summary:
                         summary_rows = []

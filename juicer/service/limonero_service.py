@@ -52,7 +52,8 @@ def query_limonero(base_url, item_path, token, item_id):
 
 
 def get_storage_info(base_url, token, storage_id):
-    return query_limonero(base_url, 'storages', token, storage_id)
+    storage = query_limonero(base_url, 'storages', token, storage_id)
+    return storage['data'][0]
 
 
 def get_data_source_info(base_url, token, data_source_id):

@@ -42,11 +42,15 @@ def default_encoder(obj):
 
 class SimpleJsonEncoder(simplejson.JSONEncoder):
     def default(self, obj):
+        if isinstance(obj, (datetime.datetime, datetime.date, datetime.time)):
+            return obj.isoformat()
         return default_encoder(obj)
 
 
 class SimpleJsonEncoderSklearn(simplejson.JSONEncoder):
     def default(self, obj):
+        if isinstance(obj, (datetime.datetime, datetime.date, datetime.time)):
+            return obj.isoformat()
         return default_encoder_sklearn(obj)
 
 
@@ -392,6 +396,11 @@ def handle_spark_exception(e):
             if found:
                 raise ValueError(
                     _('Data source does not exist. It may have been deleted.'))
+            value_expr = re.compile(r'Table or view not found: (.+?);')
+            found = value_expr.findall(e.desc.split('\n')[0])
+            if found:
+                raise ValueError(
+                        _('Table or view not found: {}').format(found[0]))
     elif isinstance(e, KeyError):
         value_expr = re.compile(r'No StructField named (.+)\'$')
         found = value_expr.findall(str(e))

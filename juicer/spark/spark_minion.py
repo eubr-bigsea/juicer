@@ -79,6 +79,11 @@ class SparkMinion(Minion):
         else:
             log.warn(_('SPARK_HOME environment variable is not defined'))
 
+        spark_dist_classpath = os.environ.get('SPARK_DIST_CLASSPATH')
+        if not spark_dist_classpath:
+            log.error(_('SPARK_DIST_CLASSPATH environment variable is not defined, '
+                'minion will not run correctly.'))
+        
         self.spark_session = None
 
         self.mgr = socketio.RedisManager(
@@ -301,12 +306,25 @@ class SparkMinion(Minion):
 
             # Add general parameters in the form param1=value1,param2=value2
             try:
-                if cluster_info.get('general_parameters'):
-                    parameters = cluster_info['general_parameters'].split(',')
-                    for parameter in parameters:
-                        key, value = parameter.split('=')
-                        if key.startswith('spark'):
+                general_parameters = cluster_info.get('general_parameters')
+                if general_parameters:
+                    if general_parameters[0] == '{': # JSON
+                        gp = json.loads(general_parameters)
+                        for (key, value) in gp.get('spark', {}).items():
                             self.cluster_options[key.strip()] = value.strip()
+                        for (key, value) in gp.get('environment', {}).items():
+                            os.environ[key] = value
+                        if gp.get('python'):
+                            self.cluster_options[
+                                    'spark.submit.pyFiles'] = ','.join(
+                                            gp.get('python'))
+                            
+                    else:
+                        parameters = general_parameters.split(',')
+                        for parameter in parameters:
+                            key, value = parameter.split('=')
+                            if key.startswith('spark'):
+                                self.cluster_options[key.strip()] = value.strip()
             except Exception as ex:
                 msg = _("Error in general cluster parameters: {}").format(ex)
                 self._emit_event(room=job_id, namespace='/stand')(
@@ -322,6 +340,9 @@ class SparkMinion(Minion):
                        'executor_cores': 'spark.executor.cores',
                        'executor_memory': 'spark.executor.memory',
                        }
+            if cluster_type == 'YARN':
+                del options['address']
+                self.cluster_options['spark.master'] = 'yarn'
 
             if cluster_type == "KUBERNETES":
                 options['executors'] = 'spark.executor.instances'
@@ -399,8 +420,7 @@ class SparkMinion(Minion):
         start = timer()
         try:
             loader = Workflow(workflow, self.config)
-            # force the spark context creation
-            self.get_or_create_spark_session(loader, app_configs, job_id)
+            loader.handle_variables({'job_id': job_id})
 
             # Mark job as running
             if self.new_session:
@@ -427,6 +447,8 @@ class SparkMinion(Minion):
                 self.transpiler.transpile(
                     loader.workflow, loader.graph, {}, out, job_id,
                     self._state)
+            # force the spark context creation
+            self.get_or_create_spark_session(loader, app_configs, job_id)
 
             # Get rid of .pyc file if it exists
             if os.path.isfile('{}c'.format(generated_code_path)):
@@ -511,7 +533,7 @@ class SparkMinion(Minion):
             self._generate_output(str(ee), 'ERROR', code=1000)
             result = False
 
-        self.message_processed('execute')
+        self.message_processed('execute', workflow['id'], job_id, workflow)
 
         stop = self.config['juicer'].get('minion', {}).get(
             'terminate_after_run', False)
@@ -547,12 +569,23 @@ class SparkMinion(Minion):
         if not self.is_spark_session_available():
 
             log.info(_("Creating a new Spark session"))
-            app_name = '{name} (workflow_id={wf},app_id={app})'.format(
+            app_name = '{name} (workflow_id={wf})'.format(
                 name=strip_accents(loader.workflow.get('name', '')),
-                wf=self.workflow_id, app=self.app_id)
+                wf=self.workflow_id)
             app_name = ''.join([i if ord(i) < 128 else ' ' for i in app_name])
             spark_builder = SparkSession.builder.appName(
                 app_name)
+            if self.transpiler.requires_hive:
+                log.info(_('Enabling HIVE Support'))
+                spark_builder = spark_builder.enableHiveSupport()
+                spark_builder = spark_builder.config('hive.metastore.uris',
+                        self.transpiler.hive_metadata['storage']['url'])
+
+            elif self.transpiler.requires_hive_warehouse:
+                log.info(_('Enabling HIVE Warehouse Support'))
+                # FIXME
+                spark_builder = spark_builder.config('hive.metastore.uris',
+                        self.transpiler.hive_metadata['storage']['url'])
 
             # Use config file default configurations to set up Spark session
             for option, value in self.config['juicer'].get('spark', {}).items():
@@ -605,7 +638,7 @@ class SparkMinion(Minion):
                 all_jars.append(app_configs['spark.driver.extraClassPath'])
 
             app_configs['spark.driver.extraClassPath'] = os.path.pathsep.join(
-                all_jars)
+                [jar for jar in all_jars if jar])
 
             log.info('JAVA CLASSPATH: %s',
                      app_configs['spark.driver.extraClassPath'])
@@ -697,7 +730,7 @@ class SparkMinion(Minion):
         self._send_to_output(status_data)
         self._send_delivery(output, status_data, data)
 
-        self.message_processed('deliver')
+        self.message_processed('deliver', workflow['id'], job_id, workflow)
 
         return success
 
@@ -771,12 +804,14 @@ class SparkMinion(Minion):
                  ' due idleness timeout. Msg: ', termination_msg)
         self.state_control.push_start_queue(json.dumps(termination_msg))
 
-    def message_processed(self, msg_type):
+    def message_processed(self, msg_type, wid, job_id, workflow):
         msg_processed = {
-            'workflow_id': self.workflow_id,
-            'app_id': self.app_id,
+            'workflow_id': wid,
+            'app_id': wid,
             'type': SparkMinion.MSG_PROCESSED,
-            'msg_type': msg_type
+            'msg_type': msg_type,
+            'job_id': job_id,
+            'workflow': workflow
         }
         self.state_control.push_app_queue(self.app_id,
                                           json.dumps(msg_processed))
@@ -794,13 +829,16 @@ class SparkMinion(Minion):
         minion. In this case, we stop and release any allocated resource
         (spark_session) and kill the subprocess managed in here.
         """
-        if self.spark_session:
-            sc = self.spark_session.sparkContext
-
-            self.spark_session.stop()
-            self.spark_session.sparkContext.stop()
-            self.spark_session = None
-            sc._gateway.shutdown_callback_server()
+        if self.spark_session and multiprocessing.current_process().name == 'main':
+            try:
+                sc = self.spark_session.sparkContext
+    
+                self.spark_session.stop()
+                self.spark_session.sparkContext.stop()
+                self.spark_session = None
+                sc._gateway.shutdown_callback_server()
+            except:
+                pass # Ignore, maybe destroyed by other process
 
         log.info('Post terminate message in queue')
         self.terminate_proc_queue.put({'terminate': True})
@@ -817,6 +855,7 @@ class SparkMinion(Minion):
 
         self.self_terminate = False
         log.info('Minion finished')
+        # sys.exit(0)
 
     def process(self):
         log.info(_(
@@ -825,17 +864,17 @@ class SparkMinion(Minion):
         self.execute_process = multiprocessing.Process(
             name="minion", target=self.execute,
             args=(self.terminate_proc_queue,))
-        self.execute_process.daemon = False
+        self.execute_process.daemon = True 
 
         self.ping_process = multiprocessing.Process(
             name="ping process", target=self.ping,
             args=(self.terminate_proc_queue,))
-        self.ping_process.daemon = False
+        self.ping_process.daemon = True
 
         self.reload_code_process = multiprocessing.Process(
             name="reload code process", target=self.reload_code,
             args=(self.terminate_proc_queue,))
-        self.reload_code_process.daemon = False
+        self.reload_code_process.daemon = True
 
         self.execute_process.start()
         self.ping_process.start()
