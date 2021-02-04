@@ -43,11 +43,11 @@ def get_common_imports():
         'import base64', 'import json',
         'import datetime', 'import string',
         'import functools', 'import re',
-        'import hashlib',
+        'import hashlib', 'import itertools',
         'global np', 'global pd', 'global base64', 
         'global json', 'global datetime', 'global string',
         'global functools', 'global re',
-        'global hashlib',
+        'global hashlib', 'global itertools'
     ])
 
 
