@@ -43,39 +43,40 @@ class FrequentItemSetOperation(Operation):
                          self.rules_output])
 
     def generate_code(self):
-        """Generate code."""
+        if self.has_code:
+            """Generate code."""
 
-        if not len(self.column) > 1:
-            self.column = "{input}.columns[0]" \
-                .format(input=self.named_inputs['input data'])
-        else:
-            self.column = "'{}'".format(self.column)
+            if not len(self.column) > 1:
+                self.column = "{input}.columns[0]" \
+                    .format(input=self.named_inputs['input data'])
+            else:
+                self.column = "'{}'".format(self.column)
 
-        code = """
-        col = {col}
-        transactions = {input}[col].to_numpy().tolist()
-        dim = len(transactions)
-        min_support = {min_support} * dim
-        
-        patterns = pyfpgrowth.find_frequent_patterns(transactions, min_support)
-        result = [[list(f), s] for f, s in patterns.items()]
+            code = """
+            col = {col}
+            transactions = {input}[col].to_numpy().tolist()
+            dim = len(transactions)
+            min_support = {min_support} * dim
+            
+            patterns = pyfpgrowth.find_frequent_patterns(transactions, min_support)
+            result = [[list(f), s] for f, s in patterns.items()]
+    
+            col_item, col_freq = 'itemsets', 'support'
+                  
+            {output} = pd.DataFrame(result, columns=[col_item, col_freq])
+            {output}[col_freq] = {output}[col_freq] / dim
+            {output} = {output}.sort_values(by=col_freq, ascending=False)
+            
+            # generating rules
+            from juicer.scikit_learn.library.rules_generator import RulesGenerator
+            rg = RulesGenerator(min_conf={min_conf}, max_len=-1)
+            {rules} = rg.get_rules({output}, col_item, col_freq)
+            """.format(output=self.output, col=self.column,
+                       input=self.named_inputs['input data'],
+                       min_support=self.min_support, min_conf=self.confidence,
+                       rules=self.rules_output)
 
-        col_item, col_freq = 'itemsets', 'support'
-              
-        {output} = pd.DataFrame(result, columns=[col_item, col_freq])
-        {output}[col_freq] = {output}[col_freq] / dim
-        {output} = {output}.sort_values(by=col_freq, ascending=False)
-        
-        # generating rules
-        from juicer.scikit_learn.library.rules_generator import RulesGenerator
-        rg = RulesGenerator(min_conf={min_conf}, max_len=-1)
-        {rules} = rg.get_rules({output}, col_item, col_freq)
-        """.format(output=self.output, col=self.column,
-                   input=self.named_inputs['input data'],
-                   min_support=self.min_support, min_conf=self.confidence,
-                   rules=self.rules_output)
-
-        return dedent(code)
+            return dedent(code)
 
 
 class SequenceMiningOperation(Operation):
