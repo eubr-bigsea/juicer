@@ -181,23 +181,24 @@ class AssociationRulesOperation(Operation):
             self.max_rules = parameters.get(self.MAX_COUNT_PARAM, -1) or -1
 
     def generate_code(self):
-        """Generate code."""
+        if self.has_code:
+            """Generate code."""
 
-        if len(self.items_col) == 0:
-            self.items_col = "{input}.columns[0]" \
-                .format(input=self.named_inputs['input data'])
-        else:
-            self.items_col = "'{}'".format(self.items_col)
+            if len(self.items_col) == 0:
+                self.items_col = "{input}.columns[0]" \
+                    .format(input=self.named_inputs['input data'])
+            else:
+                self.items_col = "{}".format(self.items_col)
 
-        code = """
-        col_item = {items}
-        col_freq = "{freq}"
-        
-        rg = RulesGenerator(min_conf={min_conf}, max_len={max_len})
-        {rules} = rg.get_rules({input}, col_item, col_freq)   
-        """.format(min_conf=self.confidence, rules=self.output,
-                   input=self.named_inputs['input data'],
-                   items=self.items_col, freq=self.support_col,
-                   max_len=self.max_rules)
+            code = """
+            col_item = {items}
+            col_freq = "{freq}"
+            
+            rg = RulesGenerator(min_conf={min_conf}, max_len={max_len})
+            {rules} = rg.get_rules({input}, col_item, col_freq)   
+            """.format(min_conf=self.confidence, rules=self.output,
+                       input=self.named_inputs['input data'],
+                       items=self.items_col, freq=self.support_col,
+                       max_len=self.max_rules)
 
-        return dedent(code)
+            return dedent(code)
