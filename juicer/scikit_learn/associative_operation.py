@@ -111,38 +111,39 @@ class SequenceMiningOperation(Operation):
                     "from prefixspan import PrefixSpan")
 
     def generate_code(self):
-        """Generate code."""
-        # Package: https://github.com/chuanconggao/PrefixSpan-py
-        # TODO: add Closed / Generator Patterns field
+        if self.has_code:
+            """Generate code."""
+            # Package: https://github.com/chuanconggao/PrefixSpan-py
+            # TODO: add Closed / Generator Patterns field
 
-        if not len(self.column) > 1:
-            self.column = "{input}.columns[0]" \
-                .format(input=self.named_inputs['input data'])
-        else:
-            self.column = "'{}'".format(self.column)
+            if not len(self.column) > 1:
+                self.column = "{input}.columns[0]" \
+                    .format(input=self.named_inputs['input data'])
+            else:
+                self.column = "'{}'".format(self.column)
 
-        # transactions = [row.tolist() for row in {input}[col].to_numpy().tolist()]
-        # transactions = np.array({input}[col].to_numpy().tolist()).tolist()
-        code = """
-        transactions = {input}[{col}].to_numpy().tolist() 
-        min_support = {min_support} * len(transactions)
-        
-        class PrefixSpan2(PrefixSpan):
-            def __init__(self, db, minlen=1, maxlen=1000):
-                self._db = db
-                self.minlen, self.maxlen = minlen, maxlen
-                self._results: Any = []
+            # transactions = [row.tolist() for row in {input}[col].to_numpy().tolist()]
+            # transactions = np.array({input}[col].to_numpy().tolist()).tolist()
+            code = """
+            transactions = {input}[{col}].to_numpy().tolist() 
+            min_support = {min_support} * len(transactions)
+            
+            class PrefixSpan2(PrefixSpan):
+                def __init__(self, db, minlen=1, maxlen=1000):
+                    self._db = db
+                    self.minlen, self.maxlen = minlen, maxlen
+                    self._results: Any = []
+    
+            span = PrefixSpan2(transactions, minlen=1, maxlen={max_length})
+            result = span.frequent(min_support, closed=False, generator=False)
+    
+            {output} = pd.DataFrame(result, columns=['support', 'itemsets'])
+            """.format(output=self.output, col=self.column,
+                       input=self.named_inputs['input data'],
+                       min_support=self.min_support,
+                       max_length=self.max_length)
 
-        span = PrefixSpan2(transactions, minlen=1, maxlen={max_length})
-        result = span.frequent(min_support, closed=False, generator=False)
-
-        {output} = pd.DataFrame(result, columns=['support', 'itemsets'])
-        """.format(output=self.output, col=self.column,
-                   input=self.named_inputs['input data'],
-                   min_support=self.min_support,
-                   max_length=self.max_length)
-
-        return dedent(code)
+            return dedent(code)
 
 
 class AssociationRulesOperation(Operation):
