@@ -359,7 +359,8 @@ class KMeansClusteringOperation(Operation):
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
 
-        self.has_code = any([len(self.named_inputs) == 1, self.contains_results()])
+        self.has_code = len(self.named_inputs) == 1 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
 
@@ -429,57 +430,58 @@ class KMeansClusteringOperation(Operation):
             self.n_jobs = None
 
     def generate_code(self):
-        """Generate code."""
-        copy_code = ".copy()" \
-            if self.parameters['multiplicity']['train input data'] > 1 else ""
+        if self.has_code:
+            """Generate code."""
+            copy_code = ".copy()" \
+                if self.parameters['multiplicity']['train input data'] > 1 else ""
 
-        if self.type.lower() == "k-means":
-            code = """
-            {output_data} = {input_data}{copy_code}
-            X_train = get_X_train_data({input_data}, {columns})
-            {model} = KMeans(n_clusters={k}, init='{init}', max_iter={max_iter},
-                             tol={tol}, random_state={seed}, n_init={n_init}, 
-                             n_jobs={n_jobs}, algorithm='{algorithm}')
-            {output_data}['{prediction}'] = {model}.fit_predict(X_train)
-            """.format(copy_code=copy_code,
-                       k=self.n_clusters,
-                       max_iter=self.max_iter,
-                       tol=self.tolerance,
-                       init=self.init_mode,
-                       output_data=self.output,
-                       seed=self.seed,
-                       model=self.model,
-                       input_data=self.input_port,
-                       prediction=self.prediction,
-                       columns=self.features,
-                       n_init=self.n_init,
-                       n_jobs=self.n_jobs,
-                       algorithm=self.algorithm)
-        else:
-            code = """
-            {output_data} = {input_data}{copy_code}
-            X_train = {input_data}[{columns}].to_numpy().tolist()
-            {model} = MiniBatchKMeans(n_clusters={k}, init='{init}', 
-                                      max_iter={max_iter}, tol={tol}, 
-                                      random_state={seed}, n_init={n_init}, 
-                                      max_no_improvement={max_no_improvement}, 
-                                      batch_size={batch_size})
-            {output_data}['{prediction}'] = {model}.fit_predict(X_train)
-            """.format(copy_code=copy_code,
-                       k=self.n_clusters,
-                       max_iter=self.max_iter,
-                       tol=self.tol,
-                       init=self.init_mode,
-                       output_data=self.output,
-                       seed=self.seed,
-                       model=self.model,
-                       input_data=self.input_port,
-                       prediction=self.prediction,
-                       columns=self.features,
-                       n_init=self.n_init_mb,
-                       max_no_improvement=self.max_no_improvement,
-                       batch_size=self.batch_size)
-        return dedent(code)
+            if self.type.lower() == "k-means":
+                code = """
+                {output_data} = {input_data}{copy_code}
+                X_train = get_X_train_data({input_data}, {columns})
+                {model} = KMeans(n_clusters={k}, init='{init}', max_iter={max_iter},
+                                 tol={tol}, random_state={seed}, n_init={n_init}, 
+                                 n_jobs={n_jobs}, algorithm='{algorithm}')
+                {output_data}['{prediction}'] = {model}.fit_predict(X_train)
+                """.format(copy_code=copy_code,
+                           k=self.n_clusters,
+                           max_iter=self.max_iter,
+                           tol=self.tolerance,
+                           init=self.init_mode,
+                           output_data=self.output,
+                           seed=self.seed,
+                           model=self.model,
+                           input_data=self.input_port,
+                           prediction=self.prediction,
+                           columns=self.features,
+                           n_init=self.n_init,
+                           n_jobs=self.n_jobs,
+                           algorithm=self.algorithm)
+            else:
+                code = """
+                {output_data} = {input_data}{copy_code}
+                X_train = {input_data}[{columns}].to_numpy().tolist()
+                {model} = MiniBatchKMeans(n_clusters={k}, init='{init}', 
+                                          max_iter={max_iter}, tol={tol}, 
+                                          random_state={seed}, n_init={n_init}, 
+                                          max_no_improvement={max_no_improvement}, 
+                                          batch_size={batch_size})
+                {output_data}['{prediction}'] = {model}.fit_predict(X_train)
+                """.format(copy_code=copy_code,
+                           k=self.n_clusters,
+                           max_iter=self.max_iter,
+                           tol=self.tol,
+                           init=self.init_mode,
+                           output_data=self.output,
+                           seed=self.seed,
+                           model=self.model,
+                           input_data=self.input_port,
+                           prediction=self.prediction,
+                           columns=self.features,
+                           n_init=self.n_init_mb,
+                           max_no_improvement=self.max_no_improvement,
+                           batch_size=self.batch_size)
+            return dedent(code)
 
 
 class LdaClusteringOperation(Operation):
