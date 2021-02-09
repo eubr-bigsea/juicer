@@ -1159,8 +1159,8 @@ class PerceptronClassifierOperation(Operation):
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
 
-        self.has_code = any([len(self.named_inputs) == 1,
-                             self.contains_results()])
+        self.has_code = len(self.named_inputs) == 1 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
 
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
@@ -1238,50 +1238,51 @@ class PerceptronClassifierOperation(Operation):
                     self.VALIDATION_FRACTION_PARAM, self.__class__))
 
     def generate_code(self):
-        """Generate code."""
-        copy_code = ".copy()" \
-            if self.parameters['multiplicity']['train input data'] > 1 else ""
+        if self.has_code:
+            """Generate code."""
+            copy_code = ".copy()" \
+                if self.parameters['multiplicity']['train input data'] > 1 else ""
 
-        code = """
-            {output_data} = {input_data}{copy_code}
-            X_train = get_X_train_data({input_data}, {features})
-            y = get_label_data({input_data}, {label})
-
-            if {early_stopping} == 1:
-                {model} = Perceptron(tol={tol}, alpha={alpha}, max_iter={max_iter}, shuffle={shuffle}, 
-                                      random_state={seed}, penalty='{penalty}', fit_intercept={fit_intercept}, 
-                                      eta0={eta0}, n_jobs={n_jobs}, early_stopping={early_stopping}, 
-                                      validation_fraction={validation_fraction}, n_iter_no_change={n_iter_no_change}, 
-                                      class_weight={class_weight}, warm_start=False)
-            else:
-                {model} = Perceptron(tol={tol}, alpha={alpha}, max_iter={max_iter}, shuffle={shuffle}, 
-                                      random_state={seed}, penalty='{penalty}', fit_intercept={fit_intercept}, 
-                                      eta0={eta0}, n_jobs={n_jobs}, early_stopping={early_stopping}, 
-                                      n_iter_no_change={n_iter_no_change}, class_weight={class_weight}, 
-                                      warm_start=False)
-            {model}.fit(X_train, y)          
-            {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
-            """.format(copy_code=copy_code,
-                       tol=self.tol,
-                       alpha=self.alpha,
-                       max_iter=self.max_iter,
-                       shuffle=self.shuffle,
-                       penalty=self.penalty,
-                       seed=self.seed,
-                       output_data=self.output,
-                       model=self.model,
-                       input_data=self.input_port,
-                       prediction=self.prediction,
-                       features=self.features,
-                       label=self.label,
-                       fit_intercept=self.fit_intercept,
-                       eta0=self.eta0,
-                       n_jobs=self.n_jobs,
-                       early_stopping=self.early_stopping,
-                       validation_fraction=self.validation_fraction,
-                       n_iter_no_change=self.n_iter_no_change,
-                       class_weight=self.class_weight)
-        return dedent(code)
+            code = """
+                {output_data} = {input_data}{copy_code}
+                X_train = get_X_train_data({input_data}, {features})
+                y = get_label_data({input_data}, {label})
+    
+                if {early_stopping} == 1:
+                    {model} = Perceptron(tol={tol}, alpha={alpha}, max_iter={max_iter}, shuffle={shuffle}, 
+                                          random_state={seed}, penalty='{penalty}', fit_intercept={fit_intercept}, 
+                                          eta0={eta0}, n_jobs={n_jobs}, early_stopping={early_stopping}, 
+                                          validation_fraction={validation_fraction}, n_iter_no_change={n_iter_no_change}, 
+                                          class_weight={class_weight}, warm_start=False)
+                else:
+                    {model} = Perceptron(tol={tol}, alpha={alpha}, max_iter={max_iter}, shuffle={shuffle}, 
+                                          random_state={seed}, penalty='{penalty}', fit_intercept={fit_intercept}, 
+                                          eta0={eta0}, n_jobs={n_jobs}, early_stopping={early_stopping}, 
+                                          n_iter_no_change={n_iter_no_change}, class_weight={class_weight}, 
+                                          warm_start=False)
+                {model}.fit(X_train, y)          
+                {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
+                """.format(copy_code=copy_code,
+                           tol=self.tol,
+                           alpha=self.alpha,
+                           max_iter=self.max_iter,
+                           shuffle=self.shuffle,
+                           penalty=self.penalty,
+                           seed=self.seed,
+                           output_data=self.output,
+                           model=self.model,
+                           input_data=self.input_port,
+                           prediction=self.prediction,
+                           features=self.features,
+                           label=self.label,
+                           fit_intercept=self.fit_intercept,
+                           eta0=self.eta0,
+                           n_jobs=self.n_jobs,
+                           early_stopping=self.early_stopping,
+                           validation_fraction=self.validation_fraction,
+                           n_iter_no_change=self.n_iter_no_change,
+                           class_weight=self.class_weight)
+            return dedent(code)
 
 
 class RandomForestClassifierOperation(Operation):
