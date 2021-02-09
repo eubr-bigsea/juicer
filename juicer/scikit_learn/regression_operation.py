@@ -683,7 +683,8 @@ class MLPRegressorOperation(Operation):
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
 
-        self.has_code = any([len(self.named_inputs) == 1, self.contains_results()])
+        self.has_code = len(self.named_inputs) == 1 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
 
@@ -695,10 +696,8 @@ class MLPRegressorOperation(Operation):
 
         if self.has_code:
             self.add_functions_required = ""
-            self.hidden_layers = parameters.get(self.HIDDEN_LAYER_SIZES_PARAM, '(1,100,1)') or '(1,100,1)'
-            self.hidden_layers = \
-                self.hidden_layers.replace("(", "").replace(")", "")
-            if not bool(re.match(r'(\d+,)+\d*', self.hidden_layers)):
+            self.hidden_layers = str(parameters.get(self.HIDDEN_LAYER_SIZES_PARAM, '(1, 100, 1)'))
+            if not re.match(r"(\(\d+, \d+, \d+\))", self.hidden_layers):
                 raise ValueError(
                         _("Parameter '{}' must be a tuple with the size "
                           "of each layer for task {}").format(
@@ -714,11 +713,11 @@ class MLPRegressorOperation(Operation):
 
             self.alpha = float(parameters.get(self.ALPHA_PARAM, 0.0001) or 0.0001)
 
-            self.max_iter = float(parameters.get(self.MAX_ITER_PARAM, 200) or 200)
+            self.max_iter = parameters.get(self.MAX_ITER_PARAM, 200)
 
             self.tol = float(parameters.get(self.TOLERANCE_PARAM, 0.0001) or 0.0001)
 
-            self.seed = parameters.get(self.SEED_PARAM, 'None') or 'None'
+            self.random_state = parameters.get(self.SEED_PARAM, None)
 
             self.batch_size = parameters.get(self.BATCH_SIZE_PARAM, 'auto')
             self.learning_rate = parameters.get(self.LEARNING_RATE_PARAM, 'constant')
@@ -761,6 +760,9 @@ class MLPRegressorOperation(Operation):
         return sep.join([self.output, self.model])
 
     def input_treatment(self):
+        backup_momentum = float(self.parameters.get(self.MOMENTUM_PARAM, 0.9))
+        backup_solver = self.parameters.get(self.SOLVER_PARAM, self.SOLVER_PARAM_ADAM)
+
         self.shuffle = True if int(self.shuffle) == 1 else False
 
         self.nesterovs_momentum = True \
@@ -768,7 +770,7 @@ class MLPRegressorOperation(Operation):
 
         self.early_stopping = True if int(self.early_stopping) == 1 else False
 
-        if self.momentum < 0 or self.momentum > 1:
+        if backup_momentum < 0 or backup_momentum > 1:
             raise ValueError(
                 _("Parameter '{}' must be x between 0 and 1 for task {}").format(
                     self.MOMENTUM_PARAM, self.__class__))
@@ -783,7 +785,7 @@ class MLPRegressorOperation(Operation):
                 _("Parameter '{}' must be in [0, 1) for task {}").format(
                     self.BETA_2_PARAM, self.__class__))
 
-        functions_required = ["""layer_sizes={hidden_layers}"""
+        functions_required = ["""hidden_layer_sizes={hidden_layers}"""
                                   .format(hidden_layers=self.hidden_layers)]
 
         self.activation = """activation='{activation}'"""\
@@ -802,10 +804,15 @@ class MLPRegressorOperation(Operation):
         self.tol = """tol={tol}""".format(tol=self.tol)
         functions_required.append(self.tol)
 
-        self.seed = """seed='{seed}'""".format(seed=self.seed)
-        functions_required.append(self.seed)
+        if self.random_state is not None:
+            self.random_state = """random_state={seed}""".format(seed=self.random_state)
+            functions_required.append(self.random_state)
 
-        self.batch_size = """batch_size='{batch_size}'""".format(batch_size=self.batch_size)
+        if type(self.batch_size) == str:
+            self.batch_size = """batch_size='{batch_size}'""".format(batch_size=self.batch_size)
+        else:
+            self.batch_size = """batch_size={batch_size}""".format(
+                batch_size=self.batch_size)
         functions_required.append(self.batch_size)
 
         if self.early_stopping == 1:
@@ -814,8 +821,8 @@ class MLPRegressorOperation(Operation):
                     validation_fraction=self.validation_fraction)
             functions_required.append(self.validation_fraction)
 
-        if self.solver == 'adam':
-            self.beta_1 = """beta1={beta1}""".format(beta1=self.beta_1)
+        if backup_solver == 'adam':
+            self.beta_1 = """beta_1={beta1}""".format(beta1=self.beta_1)
             functions_required.append(self.beta_1)
 
             self.beta_2 = """beta_2={beta2}""".format(beta2=self.beta_2)
@@ -824,25 +831,25 @@ class MLPRegressorOperation(Operation):
             self.epsilon = """epsilon={epsilon}""".format(epsilon=self.epsilon)
             functions_required.append(self.epsilon)
 
-        if self.solver == 'sgd':
+        if backup_solver == 'sgd':
             self.learning_rate = """learning_rate='{learning_rate}'"""\
                 .format(learning_rate=self.learning_rate)
             functions_required.append(self.learning_rate)
 
-            self.power_t = """power_t='{power_t}'"""\
+            self.power_t = """power_t={power_t}"""\
                 .format(power_t=self.power_t)
             functions_required.append(self.power_t)
 
-            self.momentum = """momentum='{momentum}'"""\
+            self.momentum = """momentum={momentum}"""\
                 .format(momentum=self.momentum)
             functions_required.append(self.momentum)
-            if self.momentum > 0:
+            if backup_momentum > 0:
                 self.nesterovs_momentum = \
                     """nesterovs_momentum={nesterovs_momentum}""".format(
                         nesterovs_momentum=self.nesterovs_momentum)
             functions_required.append(self.nesterovs_momentum)
 
-        if self.solver == 'sgd' or self.solver == 'adam':
+        if backup_solver == 'sgd' or backup_solver == 'adam':
             self.learning_rate_init = \
                 """learning_rate_init={learning_rate_init}""".format(
                     learning_rate_init=self.learning_rate_init)
@@ -859,30 +866,31 @@ class MLPRegressorOperation(Operation):
                 .format(early_stopping=self.early_stopping)
             functions_required.append(self.early_stopping)
 
-            self.add_functions_required = ',\n    '.join(functions_required)
+        self.add_functions_required = ', '.join(functions_required)
 
     def generate_code(self):
-        """Generate code."""
-        copy_code = ".copy()" \
-            if self.parameters['multiplicity']['train input data'] > 1 else ""
+        if self.has_code:
+            """Generate code."""
+            copy_code = ".copy()" \
+                if self.parameters['multiplicity']['train input data'] > 1 else ""
 
-        code = """
-            {output_data} = {input_data}{copy_code}
-            X_train = get_X_train_data({input_data}, {columns})
-            y = get_label_data({input_data}, {label})
-
-            {model} = MLPRegressor({add_functions_required})
-            {model}.fit(X_train, y)          
-            {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
-            """.format(copy_code=copy_code,
-                       output_data=self.output,
-                       prediction=self.prediction,
-                       columns=self.features,
-                       model=self.model,
-                       input_data=self.input_port,
-                       label=self.label,
-                       add_functions_required=self.add_functions_required)
-        return dedent(code)
+            code = """
+                {output_data} = {input_data}{copy_code}
+                X_train = get_X_train_data({input_data}, {columns})
+                y = get_label_data({input_data}, {label})
+    
+                {model} = MLPRegressor({add_functions_required})
+                {model}.fit(X_train, y)          
+                {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
+                """.format(copy_code=copy_code,
+                           output_data=self.output,
+                           prediction=self.prediction,
+                           columns=self.features,
+                           model=self.model,
+                           input_data=self.input_port,
+                           label=self.label,
+                           add_functions_required=self.add_functions_required)
+            return dedent(code)
 
 
 class RandomForestRegressorOperation(RegressionOperation):
