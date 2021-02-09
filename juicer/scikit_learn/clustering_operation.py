@@ -172,8 +172,9 @@ class DBSCANClusteringOperation(Operation):
                  named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-        self.has_code = any([len(self.named_inputs) == 1,
-                             self.contains_results()])
+        self.has_code = len(self.named_inputs) == 1 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
+        
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
 
@@ -185,7 +186,6 @@ class DBSCANClusteringOperation(Operation):
         if self.has_code:
             self.eps = float(parameters.get(self.EPS_PARAM, 0.5) or 0.5)
             self.min_samples = int(parameters.get(self.MIN_SAMPLES_PARAM, 5) or 5)
-            self.features = parameters['features']
             self.prediction = self.parameters.get(self.PREDICTION_PARAM,
                                                   'prediction')
             self.metric = parameters.get(self.METRIC_PARAM, 'euclidean')
@@ -219,24 +219,25 @@ class DBSCANClusteringOperation(Operation):
         return sep.join([self.output, self.model])
 
     def generate_code(self):
-        """Generate code."""
-        copy_code = ".copy()" \
-            if self.parameters['multiplicity']['train input data'] > 1 else ""
+        if self.has_code:
+            """Generate code."""
+            copy_code = ".copy()" \
+                if self.parameters['multiplicity']['train input data'] > 1 else ""
 
-        code = """
-        {output_data} = {input_data}{copy_code}
-        X_train = get_X_train_data({output_data}, {columns})
-        dbscan = DBSCAN(eps={eps}, min_samples={min_samples}, metric='{metric}')
-        {output_data}['{prediction}'] = dbscan.fit_predict(X_train)
-        """.format(copy_code=copy_code, eps=self.eps,
-                   min_samples=self.min_samples,
-                   output_data=self.output,
-                   input_data=self.input_port,
-                   prediction=self.prediction,
-                   columns=self.features,
-                   metric=self.metric)
+            code = """
+            {output_data} = {input_data}{copy_code}
+            X_train = get_X_train_data({output_data}, {columns})
+            dbscan = DBSCAN(eps={eps}, min_samples={min_samples}, metric='{metric}')
+            {output_data}['{prediction}'] = dbscan.fit_predict(X_train)
+            """.format(copy_code=copy_code, eps=self.eps,
+                       min_samples=self.min_samples,
+                       output_data=self.output,
+                       input_data=self.input_port,
+                       prediction=self.prediction,
+                       columns=self.features,
+                       metric=self.metric)
 
-        return dedent(code)
+            return dedent(code)
 
 
 class GaussianMixtureClusteringOperation(Operation):
