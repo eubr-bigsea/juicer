@@ -422,7 +422,8 @@ class KNNClassifierOperation(Operation):
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
 
-        self.has_code = any([len(self.named_inputs) == 1, self.contains_results()])
+        self.has_code = len(self.named_inputs) == 1 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
 
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
@@ -480,36 +481,37 @@ class KNNClassifierOperation(Operation):
                                 self.__class__))
 
     def generate_code(self):
-        """Generate code."""
-        copy_code = ".copy()" \
-            if self.parameters['multiplicity']['train input data'] > 1 else ""
+        if self.has_code:
+            """Generate code."""
+            copy_code = ".copy()" \
+                if self.parameters['multiplicity']['train input data'] > 1 else ""
 
-        code = """
-            {output_data} = {input_data}{copy_code}
-            X_train = get_X_train_data({input_data}, {features})
-            y = get_label_data({input_data}, {label})
-            {model} = KNeighborsClassifier(n_neighbors={n_neighbors}, 
-                weights='{weights}', algorithm='{algorithm}', 
-                leaf_size={leaf_size}, p={p}, metric='{metric}', 
-                metric_params={metric_params}, n_jobs={n_jobs})
-            {model}.fit(X_train, y)          
-            {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
-            """.format(copy_code=copy_code,
-                       n_neighbors=self.n_neighbors,
-                       output_data=self.output,
-                       model=self.model,
-                       input_data=self.input_port,
-                       prediction=self.prediction,
-                       features=self.features,
-                       label=self.label,
-                       weights=self.weights,
-                       algorithm=self.algorithm,
-                       leaf_size=self.leaf_size,
-                       p=self.p,
-                       metric=self.metric,
-                       metric_params=self.metric_params,
-                       n_jobs=self.n_jobs)
-        return dedent(code)
+            code = """
+                {output_data} = {input_data}{copy_code}
+                X_train = get_X_train_data({input_data}, {features})
+                y = get_label_data({input_data}, {label})
+                {model} = KNeighborsClassifier(n_neighbors={n_neighbors}, 
+                    weights='{weights}', algorithm='{algorithm}', 
+                    leaf_size={leaf_size}, p={p}, metric='{metric}', 
+                    metric_params={metric_params}, n_jobs={n_jobs})
+                {model}.fit(X_train, y)          
+                {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
+                """.format(copy_code=copy_code,
+                           n_neighbors=self.n_neighbors,
+                           output_data=self.output,
+                           model=self.model,
+                           input_data=self.input_port,
+                           prediction=self.prediction,
+                           features=self.features,
+                           label=self.label,
+                           weights=self.weights,
+                           algorithm=self.algorithm,
+                           leaf_size=self.leaf_size,
+                           p=self.p,
+                           metric=self.metric,
+                           metric_params=self.metric_params,
+                           n_jobs=self.n_jobs)
+            return dedent(code)
 
 
 class LogisticRegressionOperation(Operation):
