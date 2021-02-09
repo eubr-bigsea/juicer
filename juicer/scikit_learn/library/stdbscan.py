@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from datetime import timedelta
-
+import datetime
 
 class STDBSCAN(object):
 
@@ -32,8 +31,8 @@ class STDBSCAN(object):
         center_point = matrix[index_center, :]
 
         # filter by time
-        min_time = center_point[2] - timedelta(seconds=self.temporal_threshold)
-        max_time = center_point[2] + timedelta(seconds=self.temporal_threshold)
+        min_time = center_point[2] - datetime.timedelta(seconds=self.temporal_threshold)
+        max_time = center_point[2] + datetime.timedelta(seconds=self.temporal_threshold)
         matrix = matrix[(matrix[:, 2] >= min_time) &
                         (matrix[:, 2] <= max_time), :]
         # filter by distance
