@@ -94,8 +94,8 @@ class AgglomerativeClusteringOperation(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-        self.has_code = len(named_inputs) > 0 and any([self.contains_results(),
-                                                       len(named_outputs) > 0])
+        self.has_code = len(self.named_inputs) == 1 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
 
@@ -138,26 +138,27 @@ class AgglomerativeClusteringOperation(Operation):
         return sep.join([self.output, self.model])
 
     def generate_code(self):
-        """Generate code."""
-        copy_code = ".copy()" \
-            if self.parameters['multiplicity']['input data'] > 1 else ""
+        if self.has_code:
+            """Generate code."""
+            copy_code = ".copy()" \
+                if self.parameters['multiplicity']['input data'] > 1 else ""
 
-        code = """
-        {output_data} = {input_data}{copy_code}
-        X = get_X_train_data({output_data}, {features})
-        agg = AgglomerativeClustering(n_clusters={n_clusters}, 
-            linkage='{linkage}', affinity='{affinity}')
-        {output_data}['{alias}'] = agg.fit_predict(X)
-        """.format(copy_code=copy_code,
-                   input_data=self.input_port,
-                   output_data=self.output,
-                   features=self.features,
-                   alias=self.alias,
-                   n_clusters=self.n_clusters,
-                   affinity=self.affinity,
-                   linkage=self.linkage)
+            code = """
+            {output_data} = {input_data}{copy_code}
+            X = get_X_train_data({output_data}, {features})
+            agg = AgglomerativeClustering(n_clusters={n_clusters}, 
+                linkage='{linkage}', affinity='{affinity}')
+            {output_data}['{alias}'] = agg.fit_predict(X)
+            """.format(copy_code=copy_code,
+                       input_data=self.input_port,
+                       output_data=self.output,
+                       features=self.features,
+                       alias=self.alias,
+                       n_clusters=self.n_clusters,
+                       affinity=self.affinity,
+                       linkage=self.linkage)
 
-        return dedent(code)
+            return dedent(code)
 
 
 class DBSCANClusteringOperation(Operation):
