@@ -107,7 +107,6 @@ def test_word_to_vector_type_count_all_param_success():
     df = util.iris(['class'], size=150)
     test_df = df.copy()
 
-
     arguments = {
         'parameters': {'attributes': ['class'],
                        'multiplicity': {'input data': 0},
@@ -256,7 +255,6 @@ def test_word_to_vector_type_tfidf_all_param_success():
 
 
 def test_word_to_vector_type_word2vec_vocab_param_success():
-    # Todo
     df = util.iris(['class'], size=150)
     df['class'] = df['class'].apply(lambda row: row.split("-"))
     test_df = df.copy()
@@ -275,21 +273,79 @@ def test_word_to_vector_type_word2vec_vocab_param_success():
     instance = WordToVectorOperation(**arguments)
     result = util.execute(util.get_complete_code(instance),
                           {'df': df})
+    assert not result['vector_model_X'].equals(test_df)
+    assert len(result['vector_model_X'].iloc[0, 1]) == 3
 
 
 def test_word_to_vector_type_word2vec_minimum_df_param_success():
-    # Todo
-    pass
+    df = util.iris(['class'], size=10)
+    df['class'] = df['class'].apply(lambda row: row.split("-"))
+    test_df = df.copy()
+
+    arguments = {
+        'parameters': {'attributes': ['class'],
+                       'multiplicity': {'input data': 0}, 'type': 'word2vec',
+                       'minimum_df': 5},
+        'named_inputs': {
+            'input data': 'df',
+        },
+        'named_outputs': {
+            'output data': 'vector_model_X'
+        }
+    }
+
+    instance = WordToVectorOperation(**arguments)
+    result = util.execute(util.get_complete_code(instance),
+                          {'df': df})
+    assert not result['vector_model_X'].equals(test_df)
 
 
 def test_word_to_vector_type_word2vec_alias_param_success():
-    # Todo
-    pass
+    df = util.iris(['class'], size=10)
+    df['class'] = df['class'].apply(lambda row: row.split("-"))
+    arguments = {
+        'parameters': {'attributes': ['class'],
+                       'multiplicity': {'input data': 0}, 'type': 'word2vec',
+                       'alias': 'success'},
+        'named_inputs': {
+            'input data': 'df',
+        },
+        'named_outputs': {
+            'output data': 'vector_model_X'
+        }
+    }
+
+    instance = WordToVectorOperation(**arguments)
+    result = util.execute(util.get_complete_code(instance),
+                          {'df': df})
+    assert result['vector_model_X'].columns[1] == 'success'
 
 
 def test_word_to_vector_type_word2vec_all_param_success():
-    # Todo
-    pass
+    df = util.iris(['class'], size=10)
+    df['class'] = df['class'].apply(lambda row: row.split("-"))
+    test_df = df.copy()
+
+    arguments = {
+        'parameters': {'attributes': ['class'],
+                       'multiplicity': {'input data': 0}, 'type': 'word2vec',
+                       'vocab_size': 3,
+                       'minimum_df': 5,
+                       'alias': 'success'},
+        'named_inputs': {
+            'input data': 'df',
+        },
+        'named_outputs': {
+            'output data': 'vector_model_X'
+        }
+    }
+
+    instance = WordToVectorOperation(**arguments)
+    result = util.execute(util.get_complete_code(instance),
+                          {'df': df})
+    assert not result['vector_model_X'].equals(test_df)
+    assert result['vector_model_X'].columns[1] == 'success'
+    assert len(result['vector_model_X'].iloc[0, 1]) == 3
 
 
 def test_word_to_vector_type_hashing_tf_vocab_param_success():
@@ -488,4 +544,3 @@ def test_word_to_vector_missing_multiplicity_param_fail():
         util.execute(util.get_complete_code(instance),
                      {'df': df})
     assert "multiplicity" in str(key_err.value)
-
