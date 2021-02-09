@@ -538,7 +538,8 @@ class LogisticRegressionOperation(Operation):
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
 
-        self.has_code = len(named_outputs) > 0
+        self.has_code = len(self.named_inputs) == 1 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
         if self.has_code:
             self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
@@ -570,7 +571,7 @@ class LogisticRegressionOperation(Operation):
                                            0.0001) or 0.0001)
             if self.tol <= 0:
                 raise ValueError(
-                    _('Parameter "{}" must be x>0 for task {}').format(
+                    _("Parameter '{}' must be x>0 for task {}").format(
                         self.TOLERANCE_PARAM, self.__class__))
 
             self.regularization = float(self.parameters.get(self.REGULARIZATION_PARAM,
@@ -619,19 +620,19 @@ class LogisticRegressionOperation(Operation):
             solver_dict = {
                 'newton-cg': ['l2', 'none'],
                 'lbfgs'    : ['l2', 'none'],
-                'liblinear': ['l1'],
+                'liblinear': ['l1', 'l2'],
                 'sag'      : ['l2', 'none'],
                 'saga'     : ['l2', 'none', 'l1', 'elasticnet']
             }
-            if(self.penalty not in solver_dict[self.solver]):
+            if self.penalty not in solver_dict[self.solver]:
                 raise ValueError(
                     _("For '{}' solver, the penalty type must be in {} for task {}").format(
                         self.solver, str(solver_dict[self.solver]), self.__class__))
 
             if self.solver == 'newton-cg' and self.dual==True:
                 raise ValueError(
-                    _("For '{}' solver supports only dual={} for task {}").format(
-                        self.solver, self.dual, self.__class__))
+                    _("For '{}' solver supports only dual=False for task {}").format(
+                        self.solver, self.__class__))
 
             if self.solver == 'liblinear' and self.multi_class == 'multinomial':
                 raise ValueError(
@@ -639,7 +640,7 @@ class LogisticRegressionOperation(Operation):
                         self.SOLVER_PARAM, self.MULTI_CLASS_PARAM, self.__class__))
 
             l1_ratio_param_ = parameters.get(self.L1_RATIO_PARAM, None)
-            if(l1_ratio_param_ is not None):
+            if l1_ratio_param_ is not None:
                 self.l1_ratio = float(l1_ratio_param_)
                 if self.penalty=='elasticnet' and (self.l1_ratio < 0 or self.l1_ratio > 1):
                     raise ValueError(
@@ -667,35 +668,35 @@ class LogisticRegressionOperation(Operation):
         return sep.join([self.output, self.model])
 
     def generate_code(self):
-        """Generate code."""
-        copy_code = ".copy()" \
-            if self.parameters['multiplicity']['train input data'] > 1 else ""
-
-        code = """
-            {model} = LogisticRegression(tol={tol}, C={C}, max_iter={max_iter},
-            solver='{solver}', random_state={seed}, penalty='{penalty}', 
-            dual={dual}, fit_intercept={fit_intercept}, 
-            intercept_scaling={intercept_scaling}, multi_class='{multi_class}',
-            n_jobs={n_jobs}, l1_ratio={l1_ratio})
-
-            X_train = get_X_train_data({input}, {features})
-            y = get_label_data({input}, {label})
-            {model}.fit(X_train, y)
-
-            {output} = {input}{copy_code}
-            {output}['{prediction_column}'] = {model}.predict(X_train).tolist()
-            """.format(copy_code=copy_code, tol=self.tol, C=self.regularization,
-                       max_iter=self.max_iter, seed=self.seed,
-                       solver=self.solver, penalty=self.penalty,
-                       dual=self.dual, fit_intercept=self.fit_intercept,
-                       intercept_scaling=self.intercept_scaling,
-                       multi_class=self.multi_class,
-                       n_jobs=self.n_jobs, l1_ratio=self.l1_ratio,
-                       model=self.model, input=self.input_port,
-                       label=self.label, output=self.output,
-                       prediction_column=self.prediction_column,
-                       features=self.features)
-        return dedent(code)
+        if self.has_code:
+            """Generate code."""
+            copy_code = ".copy()" \
+                if self.parameters['multiplicity']['train input data'] > 1 else ""
+            code = """
+                {model} = LogisticRegression(tol={tol}, C={C}, max_iter={max_iter},
+                solver='{solver}', random_state={seed}, penalty='{penalty}', 
+                dual={dual}, fit_intercept={fit_intercept}, 
+                intercept_scaling={intercept_scaling}, multi_class='{multi_class}',
+                n_jobs={n_jobs}, l1_ratio={l1_ratio})
+    
+                X_train = get_X_train_data({input}, {features})
+                y = get_label_data({input}, {label})
+                {model}.fit(X_train, y)
+    
+                {output} = {input}{copy_code}
+                {output}['{prediction_column}'] = {model}.predict(X_train).tolist()
+                """.format(copy_code=copy_code, tol=self.tol, C=self.regularization,
+                           max_iter=self.max_iter, seed=self.seed,
+                           solver=self.solver, penalty=self.penalty,
+                           dual=self.dual, fit_intercept=self.fit_intercept,
+                           intercept_scaling=self.intercept_scaling,
+                           multi_class=self.multi_class,
+                           n_jobs=self.n_jobs, l1_ratio=self.l1_ratio,
+                           model=self.model, input=self.input_port,
+                           label=self.label, output=self.output,
+                           prediction_column=self.prediction_column,
+                           features=self.features)
+            return dedent(code)
 
 
 class MLPClassifierOperation(Operation):
