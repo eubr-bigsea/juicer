@@ -16,7 +16,7 @@ except ImportError:
 
 import string
 from .util import get_X_train_data
-
+from.util import get_label_data
 class SafeDict(dict):
     # noinspection PyMethodMayBeStatic
     def __missing__(self, key):
@@ -750,7 +750,8 @@ class CrossValidationOperation(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-        self.has_code = any([len(self.named_inputs) == 2])
+        self.has_code = len(self.named_inputs) == 2 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
 
         if self.EVALUATOR_PARAM not in parameters:
             raise ValueError(
@@ -797,7 +798,8 @@ class CrossValidationOperation(Operation):
             'input data', 'in_{}'.format(self.order))
         self.evaluator_port = self.named_inputs.get(
             'evaluator', 'eval_{}'.format(self.order))
-
+        self.transpiler_utils.add_custom_function('get_X_train_data', get_X_train_data)
+        self.transpiler_utils.add_custom_function('get_label_data', get_label_data)
         self.transpiler_utils.add_import(
                 "from sklearn.model_selection import cross_val_score, KFold")
 
@@ -814,62 +816,84 @@ class CrossValidationOperation(Operation):
         return sep.join([self.output])
 
     def generate_code(self):
-        code = dedent("""
-                  kf = KFold(n_splits={folds}, random_state={seed}, 
-                  shuffle=True)
-                  X_train = get_X_train_data({input_data}, {feature_attr})
-                  y = get_label_data({input_data}, {label_attr})
+        if self.has_code:
+            code = dedent("""
+                      kf = KFold(n_splits={folds}, random_state={seed}, 
+                      shuffle=True)
+                      X_train = get_X_train_data({input_data}, {feature_attr})
+                      X_train = np.array(X_train)
+                      y = get_label_data({input_data}, {label_attr})
+                      scores = cross_val_score({algorithm}, X_train, 
+                                               y, cv=kf, scoring='{metric}')
+    
+                      best_score = np.argmax(scores)
+                      """.format(algorithm=self.algorithm_port,
+                                 input_data=self.input_port,
+                                 evaluator=self.evaluator,
+                                 output=self.output,
+                                 best_model=self.best_model,
+                                 models=self.models,
+                                 prediction_arg=self.param_prediction_arg,
+                                 prediction_attr=self.prediction_attr,
+                                 label_attr=self.label_attr,
+                                 feature_attr=self.feature_attr,
+                                 folds=self.num_folds,
+                                 metric=self.metric,
+                                 seed=self.seed))
 
-                  scores = cross_val_score({algorithm}, X_train.tolist(), 
-                                           y.tolist(), cv=kf, scoring='{metric}')
+            if self.has_models:
 
-                  best_score = np.argmax(scores)
-                  """.format(algorithm=self.algorithm_port,
-                             input_data=self.input_port,
-                             evaluator=self.evaluator,
-                             output=self.output,
-                             best_model=self.best_model,
-                             models=self.models,
-                             prediction_arg=self.param_prediction_arg,
-                             prediction_attr=self.prediction_attr,
-                             label_attr=self.label_attr,
-                             feature_attr=self.feature_attr,
-                             folds=self.num_folds,
-                             metric=self.metric,
-                             seed=self.seed))
-
-        if self.has_models:
-
-            code += dedent("""
-                    models = []
-                    for train_index, test_index in kf.split(X_train):
+                code += dedent("""
+                        models = []
+                        for train_index, test_index in kf.split(X_train):
+                            Xf_train, Xf_test = X_train[train_index], X_train[test_index]
+                            yf_train, yf_test = y[train_index],  y[test_index]
+                            {algorithm}.fit(Xf_train.tolist(), yf_train.tolist())
+                            models.append({algorithm})
+                        
+                        {best_model} = models[best_score]
+                        """.format(algorithm=self.algorithm_port,
+                                   input_data=self.input_port,
+                                   evaluator=self.evaluator,
+                                   output=self.output,
+                                   best_model=self.best_model,
+                                   models=self.models,
+                                   prediction_arg=self.param_prediction_arg,
+                                   prediction_attr=self.prediction_attr,
+                                   label_attr=self.label_attr[0],
+                                   feature_attr=self.feature_attr[0],
+                                   folds=self.num_folds,
+                                   metric=self.metric,
+                                   seed=self.seed))
+            else:
+                code += dedent("""
+                        models = None
+                        train_index, test_index = list(kf.split(X_train))[best_score]
                         Xf_train, Xf_test = X_train[train_index], X_train[test_index]
                         yf_train, yf_test = y[train_index],  y[test_index]
-                        {algorithm}.fit(Xf_train.tolist(), yf_train.tolist())
-                        models.append({algorithm})
-                    
-                    {best_model} = models[best_score]
-                    """.format(algorithm=self.algorithm_port,
-                               input_data=self.input_port,
-                               evaluator=self.evaluator,
-                               output=self.output,
-                               best_model=self.best_model,
-                               models=self.models,
-                               prediction_arg=self.param_prediction_arg,
-                               prediction_attr=self.prediction_attr,
-                               label_attr=self.label_attr[0],
-                               feature_attr=self.feature_attr[0],
-                               folds=self.num_folds,
-                               metric=self.metric,
-                               seed=self.seed))
-        else:
+                        {best_model} = {algorithm}.fit(Xf_train.tolist(), yf_train.tolist())
+                        """.format(algorithm=self.algorithm_port,
+                                   input_data=self.input_port,
+                                   evaluator=self.evaluator,
+                                   output=self.output,
+                                   best_model=self.best_model,
+                                   models=self.models,
+                                   prediction_arg=self.param_prediction_arg,
+                                   prediction_attr=self.prediction_attr,
+                                   label_attr=self.label_attr[0],
+                                   feature_attr=self.feature_attr[0],
+                                   folds=self.num_folds,
+                                   metric=self.metric,
+                                   seed=self.seed))
+            copy_code = ".copy()" \
+                if self.parameters['multiplicity']['input data'] > 1 else ""
+
             code += dedent("""
-                    models = None
-                    train_index, test_index = list(kf.split(X_train))[best_score]
-                    Xf_train, Xf_test = X_train[train_index], X_train[test_index]
-                    yf_train, yf_test = y[train_index],  y[test_index]
-                    {best_model} = {algorithm}.fit(Xf_train.tolist(), yf_train.tolist())
-                    """.format(algorithm=self.algorithm_port,
+                    metric_result = scores[best_score]
+                    {output} = {input_data}{copy_code}
+                    {output}['{prediction_attr}'] = {best_model}.predict(X_train.tolist())
+                    {models} = models
+                    """.format(copy_code=copy_code, algorithm=self.algorithm_port,
                                input_data=self.input_port,
                                evaluator=self.evaluator,
                                output=self.output,
@@ -882,67 +906,46 @@ class CrossValidationOperation(Operation):
                                folds=self.num_folds,
                                metric=self.metric,
                                seed=self.seed))
-        copy_code = ".copy()" \
-            if self.parameters['multiplicity']['input data'] > 1 else ""
 
-        code += dedent("""
-                metric_result = scores[best_score]
-                {output} = {input_data}{copy_code}
-                {output}['{prediction_attr}'] = {best_model}.predict(X_train.tolist())
-                {models} = models
-                """.format(copy_code=copy_code, algorithm=self.algorithm_port,
-                           input_data=self.input_port,
-                           evaluator=self.evaluator,
-                           output=self.output,
-                           best_model=self.best_model,
-                           models=self.models,
-                           prediction_arg=self.param_prediction_arg,
-                           prediction_attr=self.prediction_attr,
-                           label_attr=self.label_attr[0],
-                           feature_attr=self.feature_attr[0],
-                           folds=self.num_folds,
-                           metric=self.metric,
-                           seed=self.seed))
+            # # If there is an output needing the evaluation result, it must be
+            # # processed here (summarization of data results)
+            # needs_evaluation = 'evaluation' in self.named_outputs and False
+            # if needs_evaluation:
+            #     eval_code = """
+            #         grouped_result = fit_data.select(
+            #                 evaluator.getLabelCol(), evaluator.getPredictionCol())\\
+            #                 .groupBy(evaluator.getLabelCol(),
+            #                          evaluator.getPredictionCol()).count().collect()
+            #         eval_{output} = {{
+            #             'metric': {{
+            #                 'name': evaluator.getMetricName(),
+            #                 'value': metric_result
+            #             }},
+            #             'estimator': {{
+            #                 'name': estimator.__class__.__name__,
+            #                 'predictionCol': evaluator.getPredictionCol(),
+            #                 'labelCol': evaluator.getLabelCol()
+            #             }},
+            #             'confusion_matrix': {{
+            #                 'data': json.dumps(grouped_result)
+            #             }},
+            #             'evaluator': evaluator
+            #         }}
+            #
+            #         emit_event('task result', status='COMPLETED',
+            #             identifier='{task_id}', message='Result generated',
+            #             type='TEXT', title='{title}',
+            #             task={{'id': '{task_id}' }},
+            #             operation={{'id': {operation_id} }},
+            #             operation_id={operation_id},
+            #             content=json.dumps(eval_{output}))
+            #
+            #         """.format(output=self.output,
+            #                    title='Evaluation result',
+            #                    task_id=self.parameters['task_id'],
+            #                    operation_id=self.parameters['operation_id'])
+            # else:
+            #     eval_code = ''
+            # code = '\n'.join([code, dedent(eval_code)])
 
-        # # If there is an output needing the evaluation result, it must be
-        # # processed here (summarization of data results)
-        # needs_evaluation = 'evaluation' in self.named_outputs and False
-        # if needs_evaluation:
-        #     eval_code = """
-        #         grouped_result = fit_data.select(
-        #                 evaluator.getLabelCol(), evaluator.getPredictionCol())\\
-        #                 .groupBy(evaluator.getLabelCol(),
-        #                          evaluator.getPredictionCol()).count().collect()
-        #         eval_{output} = {{
-        #             'metric': {{
-        #                 'name': evaluator.getMetricName(),
-        #                 'value': metric_result
-        #             }},
-        #             'estimator': {{
-        #                 'name': estimator.__class__.__name__,
-        #                 'predictionCol': evaluator.getPredictionCol(),
-        #                 'labelCol': evaluator.getLabelCol()
-        #             }},
-        #             'confusion_matrix': {{
-        #                 'data': json.dumps(grouped_result)
-        #             }},
-        #             'evaluator': evaluator
-        #         }}
-        #
-        #         emit_event('task result', status='COMPLETED',
-        #             identifier='{task_id}', message='Result generated',
-        #             type='TEXT', title='{title}',
-        #             task={{'id': '{task_id}' }},
-        #             operation={{'id': {operation_id} }},
-        #             operation_id={operation_id},
-        #             content=json.dumps(eval_{output}))
-        #
-        #         """.format(output=self.output,
-        #                    title='Evaluation result',
-        #                    task_id=self.parameters['task_id'],
-        #                    operation_id=self.parameters['operation_id'])
-        # else:
-        #     eval_code = ''
-        # code = '\n'.join([code, dedent(eval_code)])
-
-        return code
+            return code
