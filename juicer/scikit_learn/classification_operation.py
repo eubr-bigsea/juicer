@@ -85,7 +85,6 @@ class ClassificationModelOperation(Operation):
 
 
 class DecisionTreeClassifierOperation(Operation):
-
     MAX_DEPTH_PARAM = 'max_depth'
     MIN_SPLIT_PARAM = 'min_samples_split'
     MIN_LEAF_PARAM = 'min_samples_leaf'
@@ -97,7 +96,6 @@ class DecisionTreeClassifierOperation(Operation):
     MAX_LEAF_NODES_PARAM = 'max_leaf_nodes'
     MIN_IMPURITY_DECREASE_PARAM = 'min_impurity_decrease'
     CLASS_WEIGHT_PARAM = 'class_weight'
-    PRESORT_PARAM = 'presort'
     LABEL_PARAM = 'label'
     PREDICTION_PARAM = 'prediction'
     FEATURES_PARAM = 'features'
@@ -105,7 +103,8 @@ class DecisionTreeClassifierOperation(Operation):
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
 
-        self.has_code = any([len(self.named_inputs) == 1, self.contains_results()])
+        self.has_code = len(self.named_inputs) == 1 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
 
@@ -124,11 +123,10 @@ class DecisionTreeClassifierOperation(Operation):
             self.criterion = parameters.get(self.CRITERION_PARAM, 'gini') or 'gini'
             self.splitter = parameters.get(self.SPLITTER_PARAM, 'best') or 'best'
             max_features_ = parameters.get(self.MAX_FEATURES_PARAM, None)
-            self.max_features = None if max_features_ is None else "'"+max_features_+"'"
+            self.max_features = max_features_
             self.max_leaf_nodes = parameters.get(self.MAX_LEAF_NODES_PARAM, None) or None
             self.min_impurity_decrease = float(parameters.get(self.MIN_IMPURITY_DECREASE_PARAM, 0) or 0)
             self.class_weight = parameters.get(self.CLASS_WEIGHT_PARAM, None) or None
-            self.presort = int(parameters.get(self.PRESORT_PARAM, 0) or 0)
             self.features = parameters['features']
             self.label = parameters.get(self.LABEL_PARAM, None)
             self. prediction = self.parameters.get(self.PREDICTION_PARAM, 'prediction')
@@ -157,8 +155,6 @@ class DecisionTreeClassifierOperation(Operation):
         return sep.join([self.output, self.model])
 
     def input_treatment(self):
-        self.presort = True if int(self.presort) == 1 else False
-
         if self.min_weight < 0 or self.min_weight > 0.5:
             raise ValueError(
                 _("Parameter '{}' must be x>=0 or x<=0.5 for task {}").format(
@@ -190,50 +186,49 @@ class DecisionTreeClassifierOperation(Operation):
             self.seed = None
 
     def generate_code(self):
-        """Generate code."""
-        copy_code = ".copy()" \
-            if self.parameters['multiplicity']['train input data'] > 1 else ""
+        if self.has_code:
+            """Generate code."""
+            copy_code = ".copy()" \
+                if self.parameters['multiplicity']['train input data'] > 1 else ""
 
-        code = """
-            {output_data} = {input_data}{copy_code}         
-            X_train = get_X_train_data({input_data}, {columns})
-            y = get_label_data({input_data}, {label})
-            y = np.reshape(y, len(y))
-            {model} = DecisionTreeClassifier(max_depth={max_depth}, 
-                min_samples_split={min_split}, 
-                min_samples_leaf={min_leaf}, 
-                min_weight_fraction_leaf={min_weight}, 
-                random_state={seed}, criterion='{criterion}', 
-                splitter='{splitter}', max_features={max_features},
-                max_leaf_nodes={max_leaf_nodes}, 
-                min_impurity_decrease={min_impurity_decrease}, 
-                class_weight={class_weight}, presort={presort})
-            {model}.fit(X_train, y)          
-            {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
-            """.format(copy_code=copy_code,
-                       output_data=self.output,
-                       prediction=self.prediction,
-                       columns=self.features,
-                       model=self.model,
-                       input_data=self.input_port,
-                       label=self.label,
-                       min_split=self.min_split,
-                       min_leaf=self.min_leaf,
-                       min_weight=self.min_weight,
-                       seed=self.seed,
-                       max_depth=self.max_depth,
-                       criterion=self.criterion,
-                       splitter=self.splitter,
-                       max_features=self.max_features,
-                       max_leaf_nodes=self.max_leaf_nodes,
-                       min_impurity_decrease=self.min_impurity_decrease,
-                       class_weight=self.class_weight,
-                       presort=self.presort)
-        return dedent(code)
+            code = """
+                {output_data} = {input_data}{copy_code}         
+                X_train = get_X_train_data({input_data}, {columns})
+                y = get_label_data({input_data}, {label})
+                y = np.reshape(y, len(y))
+                {model} = DecisionTreeClassifier(max_depth={max_depth}, 
+                    min_samples_split={min_split}, 
+                    min_samples_leaf={min_leaf}, 
+                    min_weight_fraction_leaf={min_weight}, 
+                    random_state={seed}, criterion='{criterion}', 
+                    splitter='{splitter}', max_features={max_features},
+                    max_leaf_nodes={max_leaf_nodes}, 
+                    min_impurity_decrease={min_impurity_decrease}, 
+                    class_weight={class_weight})
+                {model}.fit(X_train, y)          
+                {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
+                """.format(copy_code=copy_code,
+                           output_data=self.output,
+                           prediction=self.prediction,
+                           columns=self.features,
+                           model=self.model,
+                           input_data=self.input_port,
+                           label=self.label,
+                           min_split=self.min_split,
+                           min_leaf=self.min_leaf,
+                           min_weight=self.min_weight,
+                           seed=self.seed,
+                           max_depth=self.max_depth,
+                           criterion=self.criterion,
+                           splitter=self.splitter,
+                           max_features=self.max_features,
+                           max_leaf_nodes=self.max_leaf_nodes,
+                           min_impurity_decrease=self.min_impurity_decrease,
+                           class_weight=self.class_weight)
+            return dedent(code)
 
 
 class GBTClassifierOperation(Operation):
-
     LEARNING_RATE_PARAM = 'learning_rate'
     N_ESTIMATORS_PARAM = 'n_estimators'
     MAX_DEPTH_PARAM = 'max_depth'
@@ -248,7 +243,6 @@ class GBTClassifierOperation(Operation):
     INIT_PARAM = 'init'
     MAX_FEATURES_PARAM = 'max_features'
     MAX_LEAF_NODES_PARAM = 'max_leaf_nodes'
-    PRESORT_PARAM = 'presort'
     VALIDATION_FRACTION_PARAM = 'validation_fraction'
     N_ITER_NO_CHANGE_PARAM = 'n_iter_no_change'
     TOL_PARAM = 'tol'
@@ -262,7 +256,8 @@ class GBTClassifierOperation(Operation):
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
 
-        self.has_code = any([len(self.named_inputs) == 1, self.contains_results()])
+        self.has_code = len(self.named_inputs) == 1 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
 
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
@@ -291,11 +286,10 @@ class GBTClassifierOperation(Operation):
             self.max_features = None if max_features_ is None else "'"+max_features_+"'"
             max_leaf_nodes_ = parameters.get(self.MAX_LEAF_NODES_PARAM, None)
             self.max_leaf_nodes = None if max_leaf_nodes_ is None else int(max_leaf_nodes_)
-            self.presort = parameters.get(self.PRESORT_PARAM, 'auto') or 'auto'
             self.validation_fraction = float(parameters.get(self.VALIDATION_FRACTION_PARAM, 0.1) or 0.1)
             n_iter_no_change_ = parameters.get(self.N_ITER_NO_CHANGE_PARAM, None)
             self.n_iter_no_change = None if n_iter_no_change_ is None else int(n_iter_no_change_)
-            self.tol = float(parameters.get(self.LEARNING_RATE_PARAM, 1e-4) or 1e-4)
+            self.tol = float(parameters.get(self.TOL_PARAM, 1e-4) or 1e-4)
             self.features = parameters['features']
             self.label = parameters.get(self.LABEL_PARAM, None)
             self. prediction = self.parameters.get(self.PREDICTION_PARAM, 'prediction')
@@ -358,55 +352,55 @@ class GBTClassifierOperation(Operation):
                     self.MIN_WEIGHT_FRACTION_LEAF_PARAM, self.__class__))
 
     def generate_code(self):
-        """Generate code."""
-        copy_code = ".copy()" \
-            if self.parameters['multiplicity']['train input data'] > 1 else ""
+        if self.has_code:
+            """Generate code."""
+            copy_code = ".copy()" \
+                if self.parameters['multiplicity']['train input data'] > 1 else ""
 
-        code = """ 
-            {output_data} = {input_data}{copy_code}
-            X_train = get_X_train_data({input_data}, {columns})
-            y = get_label_data({input_data}, {label})           
-            y = np.reshape(y, len(y))
-            {model} = GradientBoostingClassifier(loss='{loss}', 
-                learning_rate={learning_rate}, 
-                n_estimators={n_estimators}, min_samples_split={min_split},
-                max_depth={max_depth}, min_samples_leaf={min_leaf}, 
-                random_state={seed}, subsample={subsample}, 
-                criterion='{criterion}', 
-                min_weight_fraction_leaf={min_weight_fraction_leaf}, 
-                min_impurity_decrease={min_impurity_decrease}, init={init},
-                max_features={max_features},
-                max_leaf_nodes={max_leaf_nodes}, warm_start=False, 
-                presort='{presort}', validation_fraction={validation_fraction}, 
-                n_iter_no_change={n_iter_no_change}, tol={tol})
-            {model}.fit(X_train, y)          
-            {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
-            """.format(output_data=self.output,
-                       copy_code=copy_code,
-                       prediction=self.prediction,
-                       columns=self.features,
-                       model=self.model,
-                       input_data=self.input_port,
-                       label=self.label,
-                       loss=self.loss,
-                       n_estimators=self.n_estimators,
-                       min_leaf=self.min_leaf,
-                       min_split=self.min_split,
-                       learning_rate=self.learning_rate,
-                       max_depth=self.max_depth,
-                       seed=self.seed,
-                       subsample=self.subsample,
-                       criterion=self.criterion,
-                       min_weight_fraction_leaf=self.min_weight_fraction_leaf,
-                       min_impurity_decrease=self.min_impurity_decrease,
-                       init=self.init,
-                       max_features=self.max_features,
-                       max_leaf_nodes=self.max_leaf_nodes,
-                       presort=self.presort,
-                       validation_fraction=self.validation_fraction,
-                       n_iter_no_change=self.n_iter_no_change,
-                       tol=self.tol)
-        return dedent(code)
+            code = """
+                {output_data} = {input_data}{copy_code}
+                X_train = get_X_train_data({input_data}, {columns})
+                y = get_label_data({input_data}, {label})           
+                y = np.reshape(y, len(y))
+                {model} = GradientBoostingClassifier(loss='{loss}', 
+                    learning_rate={learning_rate}, 
+                    n_estimators={n_estimators}, min_samples_split={min_split},
+                    max_depth={max_depth}, min_samples_leaf={min_leaf}, 
+                    random_state={seed}, subsample={subsample}, 
+                    criterion='{criterion}', 
+                    min_weight_fraction_leaf={min_weight_fraction_leaf}, 
+                    min_impurity_decrease={min_impurity_decrease}, init={init},
+                    max_features={max_features},
+                    max_leaf_nodes={max_leaf_nodes}, warm_start=False, 
+                    validation_fraction={validation_fraction}, 
+                    n_iter_no_change={n_iter_no_change}, tol={tol})
+                {model}.fit(X_train, y)          
+                {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
+                """.format(output_data=self.output,
+                           copy_code=copy_code,
+                           prediction=self.prediction,
+                           columns=self.features,
+                           model=self.model,
+                           input_data=self.input_port,
+                           label=self.label,
+                           loss=self.loss,
+                           n_estimators=self.n_estimators,
+                           min_leaf=self.min_leaf,
+                           min_split=self.min_split,
+                           learning_rate=self.learning_rate,
+                           max_depth=self.max_depth,
+                           seed=self.seed,
+                           subsample=self.subsample,
+                           criterion=self.criterion,
+                           min_weight_fraction_leaf=self.min_weight_fraction_leaf,
+                           min_impurity_decrease=self.min_impurity_decrease,
+                           init=self.init,
+                           max_features=self.max_features,
+                           max_leaf_nodes=self.max_leaf_nodes,
+                           validation_fraction=self.validation_fraction,
+                           n_iter_no_change=self.n_iter_no_change,
+                           tol=self.tol)
+            return dedent(code)
 
 
 class KNNClassifierOperation(Operation):
@@ -426,7 +420,8 @@ class KNNClassifierOperation(Operation):
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
 
-        self.has_code = any([len(self.named_inputs) == 1, self.contains_results()])
+        self.has_code = len(self.named_inputs) == 1 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
 
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
@@ -484,36 +479,37 @@ class KNNClassifierOperation(Operation):
                                 self.__class__))
 
     def generate_code(self):
-        """Generate code."""
-        copy_code = ".copy()" \
-            if self.parameters['multiplicity']['train input data'] > 1 else ""
+        if self.has_code:
+            """Generate code."""
+            copy_code = ".copy()" \
+                if self.parameters['multiplicity']['train input data'] > 1 else ""
 
-        code = """
-            {output_data} = {input_data}{copy_code}
-            X_train = get_X_train_data({input_data}, {features})
-            y = get_label_data({input_data}, {label})
-            {model} = KNeighborsClassifier(n_neighbors={n_neighbors}, 
-                weights='{weights}', algorithm='{algorithm}', 
-                leaf_size={leaf_size}, p={p}, metric='{metric}', 
-                metric_params={metric_params}, n_jobs={n_jobs})
-            {model}.fit(X_train, y)          
-            {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
-            """.format(copy_code=copy_code,
-                       n_neighbors=self.n_neighbors,
-                       output_data=self.output,
-                       model=self.model,
-                       input_data=self.input_port,
-                       prediction=self.prediction,
-                       features=self.features,
-                       label=self.label,
-                       weights=self.weights,
-                       algorithm=self.algorithm,
-                       leaf_size=self.leaf_size,
-                       p=self.p,
-                       metric=self.metric,
-                       metric_params=self.metric_params,
-                       n_jobs=self.n_jobs)
-        return dedent(code)
+            code = """
+                {output_data} = {input_data}{copy_code}
+                X_train = get_X_train_data({input_data}, {features})
+                y = get_label_data({input_data}, {label})
+                {model} = KNeighborsClassifier(n_neighbors={n_neighbors}, 
+                    weights='{weights}', algorithm='{algorithm}', 
+                    leaf_size={leaf_size}, p={p}, metric='{metric}', 
+                    metric_params={metric_params}, n_jobs={n_jobs})
+                {model}.fit(X_train, y)          
+                {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
+                """.format(copy_code=copy_code,
+                           n_neighbors=self.n_neighbors,
+                           output_data=self.output,
+                           model=self.model,
+                           input_data=self.input_port,
+                           prediction=self.prediction,
+                           features=self.features,
+                           label=self.label,
+                           weights=self.weights,
+                           algorithm=self.algorithm,
+                           leaf_size=self.leaf_size,
+                           p=self.p,
+                           metric=self.metric,
+                           metric_params=self.metric_params,
+                           n_jobs=self.n_jobs)
+            return dedent(code)
 
 
 class LogisticRegressionOperation(Operation):
@@ -542,7 +538,8 @@ class LogisticRegressionOperation(Operation):
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
 
-        self.has_code = len(named_outputs) > 0
+        self.has_code = len(self.named_inputs) == 1 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
         if self.has_code:
             self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
@@ -574,7 +571,7 @@ class LogisticRegressionOperation(Operation):
                                            0.0001) or 0.0001)
             if self.tol <= 0:
                 raise ValueError(
-                    _('Parameter "{}" must be x>0 for task {}').format(
+                    _("Parameter '{}' must be x>0 for task {}").format(
                         self.TOLERANCE_PARAM, self.__class__))
 
             self.regularization = float(self.parameters.get(self.REGULARIZATION_PARAM,
@@ -623,19 +620,19 @@ class LogisticRegressionOperation(Operation):
             solver_dict = {
                 'newton-cg': ['l2', 'none'],
                 'lbfgs'    : ['l2', 'none'],
-                'liblinear': ['l1'],
+                'liblinear': ['l1', 'l2'],
                 'sag'      : ['l2', 'none'],
                 'saga'     : ['l2', 'none', 'l1', 'elasticnet']
             }
-            if(self.penalty not in solver_dict[self.solver]):
+            if self.penalty not in solver_dict[self.solver]:
                 raise ValueError(
                     _("For '{}' solver, the penalty type must be in {} for task {}").format(
                         self.solver, str(solver_dict[self.solver]), self.__class__))
 
             if self.solver == 'newton-cg' and self.dual==True:
                 raise ValueError(
-                    _("For '{}' solver supports only dual={} for task {}").format(
-                        self.solver, self.dual, self.__class__))
+                    _("For '{}' solver supports only dual=False for task {}").format(
+                        self.solver, self.__class__))
 
             if self.solver == 'liblinear' and self.multi_class == 'multinomial':
                 raise ValueError(
@@ -643,7 +640,7 @@ class LogisticRegressionOperation(Operation):
                         self.SOLVER_PARAM, self.MULTI_CLASS_PARAM, self.__class__))
 
             l1_ratio_param_ = parameters.get(self.L1_RATIO_PARAM, None)
-            if(l1_ratio_param_ is not None):
+            if l1_ratio_param_ is not None:
                 self.l1_ratio = float(l1_ratio_param_)
                 if self.penalty=='elasticnet' and (self.l1_ratio < 0 or self.l1_ratio > 1):
                     raise ValueError(
@@ -671,35 +668,35 @@ class LogisticRegressionOperation(Operation):
         return sep.join([self.output, self.model])
 
     def generate_code(self):
-        """Generate code."""
-        copy_code = ".copy()" \
-            if self.parameters['multiplicity']['train input data'] > 1 else ""
-
-        code = """
-            {model} = LogisticRegression(tol={tol}, C={C}, max_iter={max_iter},
-            solver='{solver}', random_state={seed}, penalty='{penalty}', 
-            dual={dual}, fit_intercept={fit_intercept}, 
-            intercept_scaling={intercept_scaling}, multi_class='{multi_class}',
-            n_jobs={n_jobs}, l1_ratio={l1_ratio})
-
-            X_train = get_X_train_data({input}, {features})
-            y = get_label_data({input}, {label})
-            {model}.fit(X_train, y)
-
-            {output} = {input}{copy_code}
-            {output}['{prediction_column}'] = {model}.predict(X_train).tolist()
-            """.format(copy_code=copy_code, tol=self.tol, C=self.regularization,
-                       max_iter=self.max_iter, seed=self.seed,
-                       solver=self.solver, penalty=self.penalty,
-                       dual=self.dual, fit_intercept=self.fit_intercept,
-                       intercept_scaling=self.intercept_scaling,
-                       multi_class=self.multi_class,
-                       n_jobs=self.n_jobs, l1_ratio=self.l1_ratio,
-                       model=self.model, input=self.input_port,
-                       label=self.label, output=self.output,
-                       prediction_column=self.prediction_column,
-                       features=self.features)
-        return dedent(code)
+        if self.has_code:
+            """Generate code."""
+            copy_code = ".copy()" \
+                if self.parameters['multiplicity']['train input data'] > 1 else ""
+            code = """
+                {model} = LogisticRegression(tol={tol}, C={C}, max_iter={max_iter},
+                solver='{solver}', random_state={seed}, penalty='{penalty}', 
+                dual={dual}, fit_intercept={fit_intercept}, 
+                intercept_scaling={intercept_scaling}, multi_class='{multi_class}',
+                n_jobs={n_jobs}, l1_ratio={l1_ratio})
+    
+                X_train = get_X_train_data({input}, {features})
+                y = get_label_data({input}, {label})
+                {model}.fit(X_train, y)
+    
+                {output} = {input}{copy_code}
+                {output}['{prediction_column}'] = {model}.predict(X_train).tolist()
+                """.format(copy_code=copy_code, tol=self.tol, C=self.regularization,
+                           max_iter=self.max_iter, seed=self.seed,
+                           solver=self.solver, penalty=self.penalty,
+                           dual=self.dual, fit_intercept=self.fit_intercept,
+                           intercept_scaling=self.intercept_scaling,
+                           multi_class=self.multi_class,
+                           n_jobs=self.n_jobs, l1_ratio=self.l1_ratio,
+                           model=self.model, input=self.input_port,
+                           label=self.label, output=self.output,
+                           prediction_column=self.prediction_column,
+                           features=self.features)
+            return dedent(code)
 
 
 class MLPClassifierOperation(Operation):
@@ -1163,8 +1160,8 @@ class PerceptronClassifierOperation(Operation):
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
 
-        self.has_code = any([len(self.named_inputs) == 1,
-                             self.contains_results()])
+        self.has_code = len(self.named_inputs) == 1 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
 
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
@@ -1242,50 +1239,51 @@ class PerceptronClassifierOperation(Operation):
                     self.VALIDATION_FRACTION_PARAM, self.__class__))
 
     def generate_code(self):
-        """Generate code."""
-        copy_code = ".copy()" \
-            if self.parameters['multiplicity']['train input data'] > 1 else ""
+        if self.has_code:
+            """Generate code."""
+            copy_code = ".copy()" \
+                if self.parameters['multiplicity']['train input data'] > 1 else ""
 
-        code = """
-            {output_data} = {input_data}{copy_code}
-            X_train = get_X_train_data({input_data}, {features})
-            y = get_label_data({input_data}, {label})
-
-            if {early_stopping} == 1:
-                {model} = Perceptron(tol={tol}, alpha={alpha}, max_iter={max_iter}, shuffle={shuffle}, 
-                                      random_state={seed}, penalty='{penalty}', fit_intercept={fit_intercept}, 
-                                      eta0={eta0}, n_jobs={n_jobs}, early_stopping={early_stopping}, 
-                                      validation_fraction={validation_fraction}, n_iter_no_change={n_iter_no_change}, 
-                                      class_weight={class_weight}, warm_start=False)
-            else:
-                {model} = Perceptron(tol={tol}, alpha={alpha}, max_iter={max_iter}, shuffle={shuffle}, 
-                                      random_state={seed}, penalty='{penalty}', fit_intercept={fit_intercept}, 
-                                      eta0={eta0}, n_jobs={n_jobs}, early_stopping={early_stopping}, 
-                                      n_iter_no_change={n_iter_no_change}, class_weight={class_weight}, 
-                                      warm_start=False)
-            {model}.fit(X_train, y)          
-            {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
-            """.format(copy_code=copy_code,
-                       tol=self.tol,
-                       alpha=self.alpha,
-                       max_iter=self.max_iter,
-                       shuffle=self.shuffle,
-                       penalty=self.penalty,
-                       seed=self.seed,
-                       output_data=self.output,
-                       model=self.model,
-                       input_data=self.input_port,
-                       prediction=self.prediction,
-                       features=self.features,
-                       label=self.label,
-                       fit_intercept=self.fit_intercept,
-                       eta0=self.eta0,
-                       n_jobs=self.n_jobs,
-                       early_stopping=self.early_stopping,
-                       validation_fraction=self.validation_fraction,
-                       n_iter_no_change=self.n_iter_no_change,
-                       class_weight=self.class_weight)
-        return dedent(code)
+            code = """
+                {output_data} = {input_data}{copy_code}
+                X_train = get_X_train_data({input_data}, {features})
+                y = get_label_data({input_data}, {label})
+    
+                if {early_stopping} == 1:
+                    {model} = Perceptron(tol={tol}, alpha={alpha}, max_iter={max_iter}, shuffle={shuffle}, 
+                                          random_state={seed}, penalty='{penalty}', fit_intercept={fit_intercept}, 
+                                          eta0={eta0}, n_jobs={n_jobs}, early_stopping={early_stopping}, 
+                                          validation_fraction={validation_fraction}, n_iter_no_change={n_iter_no_change}, 
+                                          class_weight={class_weight}, warm_start=False)
+                else:
+                    {model} = Perceptron(tol={tol}, alpha={alpha}, max_iter={max_iter}, shuffle={shuffle}, 
+                                          random_state={seed}, penalty='{penalty}', fit_intercept={fit_intercept}, 
+                                          eta0={eta0}, n_jobs={n_jobs}, early_stopping={early_stopping}, 
+                                          n_iter_no_change={n_iter_no_change}, class_weight={class_weight}, 
+                                          warm_start=False)
+                {model}.fit(X_train, y)          
+                {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
+                """.format(copy_code=copy_code,
+                           tol=self.tol,
+                           alpha=self.alpha,
+                           max_iter=self.max_iter,
+                           shuffle=self.shuffle,
+                           penalty=self.penalty,
+                           seed=self.seed,
+                           output_data=self.output,
+                           model=self.model,
+                           input_data=self.input_port,
+                           prediction=self.prediction,
+                           features=self.features,
+                           label=self.label,
+                           fit_intercept=self.fit_intercept,
+                           eta0=self.eta0,
+                           n_jobs=self.n_jobs,
+                           early_stopping=self.early_stopping,
+                           validation_fraction=self.validation_fraction,
+                           n_iter_no_change=self.n_iter_no_change,
+                           class_weight=self.class_weight)
+            return dedent(code)
 
 
 class RandomForestClassifierOperation(Operation):

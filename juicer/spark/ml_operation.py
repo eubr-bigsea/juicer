@@ -2590,8 +2590,11 @@ class AlternatingLeastSquaresOperation(Operation):
         self.name = "collaborativefiltering.ALS"
 
         # Define input and output
-        # output = self.named_outputs['output data']
+        self.output = self.named_outputs['algorithm']
         # self.input = self.named_inputs['train input data']
+
+    def get_output_names(self, sep=", "):
+        return self.output
 
     def generate_code(self):
         code = dedent("""
@@ -2603,7 +2606,7 @@ class AlternatingLeastSquaresOperation(Operation):
                         ratingCol='{ratingCol}',
                         coldStartStrategy='drop')
                 """.format(
-            algorithm=self.named_outputs['algorithm'],
+            algorithm=self.output,
             maxIter=self.maxIter,
             regParam=float(self.regParam),
             userCol='{user}'.format(user=self.userCol),
