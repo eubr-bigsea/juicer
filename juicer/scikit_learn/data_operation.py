@@ -371,6 +371,9 @@ class SaveOperation(Operation):
         'float32': "FLOAT",
         'int64': "LONG",
         'Int64': "INTEGER",
+        'int32': "INTEGER",
+        'int16': "INTEGER",
+        'int8': "INTEGER",
     }
 
     def __init__(self, parameters, named_inputs, named_outputs):
