@@ -188,7 +188,7 @@ class AssociationRulesOperation(Operation):
                 self.items_col = "{input}.columns[0]" \
                     .format(input=self.named_inputs['input data'])
             else:
-                self.items_col = "{}".format(self.items_col)
+                self.items_col = "'{}'".format(self.items_col)
 
             code = """
             col_item = {items}

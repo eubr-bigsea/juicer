@@ -16,10 +16,13 @@ import pandas as pd
 #
 # # # # # # # # # # Success # # # # # # # # # #
 def test_association_rules_success():
-    one = [f'str{i}' for i in range(10)]
-    data = {'sepallength': one,
-            'support': one}
-    df = pd.DataFrame(data)
+    df = pd.DataFrame(
+        [[[1], 0.363636], [[1, 5], 0.363636], [[1, 2], 0.363636],
+         [[1, 2, 5], 0.363636],
+         [[4], 0.363636], [[2, 4], 0.363636], [[3], 0.363636],
+         [[2, 3], 0.363636], [[5], 0.363636], [[2, 3], 0.363636],
+         [[5], 0.454545], [[2, 5], 0.454545], [[2], 0.545455]],
+        columns=['items', 'support'])
     test_df = df.copy()
     arguments = {
         'parameters': {},
@@ -36,7 +39,7 @@ def test_association_rules_success():
     assert not result['out'].equals(test_df)
 
     code = """
-    col_item = df.columns[0]
+    col_item = 'df.columns[0]'
     col_freq = "support"
 
     rg = RulesGenerator(min_conf=0.5, max_len=-1)
@@ -47,10 +50,13 @@ def test_association_rules_success():
 
 
 def test_association_rules_rules_count_param_success():
-    one = [f'str{i}' for i in range(10)]
-    data = {'sepallength': one,
-            'support': one}
-    df = pd.DataFrame(data)
+    df = pd.DataFrame(
+        [[[1], 0.363636], [[1, 5], 0.363636], [[1, 2], 0.363636],
+         [[1, 2, 5], 0.363636],
+         [[4], 0.363636], [[2, 4], 0.363636], [[3], 0.363636],
+         [[2, 3], 0.363636], [[5], 0.363636], [[2, 3], 0.363636],
+         [[5], 0.454545], [[2, 5], 0.454545], [[2], 0.545455]],
+        columns=['items', 'support'])
     test_df = df.copy()
     arguments = {
         'parameters': {'rules_count': 3},
@@ -67,7 +73,7 @@ def test_association_rules_rules_count_param_success():
     assert not result['out'].equals(test_df)
 
     code = """
-    col_item = df.columns[0]
+    col_item = 'df.columns[0]'
     col_freq = "support"
 
     rg = RulesGenerator(min_conf=0.5, max_len=3)
@@ -78,10 +84,13 @@ def test_association_rules_rules_count_param_success():
 
 
 def test_association_rules_confidence_param_success():
-    one = [f'str{i}' for i in range(10)]
-    data = {'sepallength': one,
-            'support': one}
-    df = pd.DataFrame(data)
+    df = pd.DataFrame(
+        [[[1], 0.363636], [[1, 5], 0.363636], [[1, 2], 0.363636],
+         [[1, 2, 5], 0.363636],
+         [[4], 0.363636], [[2, 4], 0.363636], [[3], 0.363636],
+         [[2, 3], 0.363636], [[5], 0.363636], [[2, 3], 0.363636],
+         [[5], 0.454545], [[2, 5], 0.454545], [[2], 0.545455]],
+        columns=['items', 'support'])
     test_df = df.copy()
     arguments = {
         'parameters': {'confidence': 0.8},
@@ -98,7 +107,7 @@ def test_association_rules_confidence_param_success():
     assert not result['out'].equals(test_df)
 
     code = """
-    col_item = df.columns[0]
+    col_item = 'df.columns[0]'
     col_freq = "support"
 
     rg = RulesGenerator(min_conf=0.8, max_len=-1)
@@ -109,13 +118,16 @@ def test_association_rules_confidence_param_success():
 
 
 def test_association_rules_attribute_param_success():
-    one = [f'str{i}' for i in range(10)]
-    data = {'sepallength': one,
-            'support': one}
-    df = pd.DataFrame(data)
+    df = pd.DataFrame(
+        [[[1], 0.363636], [[1, 5], 0.363636], [[1, 2], 0.363636],
+         [[1, 2, 5], 0.363636],
+         [[4], 0.363636], [[2, 4], 0.363636], [[3], 0.363636],
+         [[2, 3], 0.363636], [[5], 0.363636], [[2, 3], 0.363636],
+         [[5], 0.454545], [[2, 5], 0.454545], [[2], 0.545455]],
+        columns=['items', 'support'])
     test_df = df.copy()
     arguments = {
-        'parameters': {'attribute': ["'sepallength'"]},
+        'parameters': {'attribute': ["items"]},
         'named_inputs': {
             'input data': 'df',
         },
@@ -129,7 +141,7 @@ def test_association_rules_attribute_param_success():
     assert not result['out'].equals(test_df)
 
     code = """
-    col_item = 'sepallength'
+    col_item = ''items''
     col_freq = "support"
 
     rg = RulesGenerator(min_conf=0.5, max_len=-1)
@@ -140,13 +152,16 @@ def test_association_rules_attribute_param_success():
 
 
 def test_association_rules_freq_param_success():
-    one = [f'str{i}' for i in range(10)]
-    data = {'sepallength': one,
-            'support': one}
-    df = pd.DataFrame(data)
+    df = pd.DataFrame(
+        [[[1], 0.363636], [[1, 5], 0.363636], [[1, 2], 0.363636],
+         [[1, 2, 5], 0.363636],
+         [[4], 0.363636], [[2, 4], 0.363636], [[3], 0.363636],
+         [[2, 3], 0.363636], [[5], 0.363636], [[2, 3], 0.363636],
+         [[5], 0.454545], [[2, 5], 0.454545], [[2], 0.545455]],
+        columns=['items', 'support_2'])
     test_df = df.copy()
     arguments = {
-        'parameters': {'freq': ['sepallength']},
+        'parameters': {'freq': ['support_2']},
         'named_inputs': {
             'input data': 'df',
         },
@@ -160,8 +175,8 @@ def test_association_rules_freq_param_success():
     assert not result['out'].equals(test_df)
 
     code = """
-    col_item = df.columns[0]
-    col_freq = "sepallength"
+    col_item = 'df.columns[0]'
+    col_freq = "support_2"
 
     rg = RulesGenerator(min_conf=0.5, max_len=-1)
     out = rg.get_rules(df, col_item, col_freq)   
@@ -211,4 +226,3 @@ def test_association_rules_invalid_confidence_param_fail():
         AssociationRulesOperation(**arguments)
     assert 'Confidence must be greater or' \
            ' equal to 0.0001 and smaller than 1.0' in str(val_err.value)
-
