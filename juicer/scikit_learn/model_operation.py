@@ -731,20 +731,19 @@ class CrossValidationOperation(Operation):
     FEATURE_ATTRIBUTE_PARAM = 'features'
 
     METRIC_TO_EVALUATOR = {
-        'areaUnderROC': (
-            'roc_auc', 'rawPredictionCol'),
-        'areaUnderPR': (
-            'evaluation.BinaryClassificationEvaluator', 'rawPredictionCol'),
-        'f1': ('f1', 'predictionCol'),
-        'weightedPrecision': (
-            'precision_weighted', 'predictionCol'),
-        'weightedRecall': (
-            'recall_weighted', 'predictionCol'),
-        'accuracy': (
-            'accuracy', 'predictionCol'),
-        'rmse': ('r2', 'predictionCol'),
-        'mse': ('neg_mean_squared_error', 'predictionCol'),
-        'mae': ('neg_mean_absolute_error', 'predictionCol'),
+        'areaUnderROC': 'roc_auc',
+        'areaUnderPR':
+            'evaluation.BinaryClassificationEvaluator',
+        'f1': 'f1',
+        'weightedPrecision':
+            'precision_weighted',
+        'weightedRecall':
+            'recall_weighted',
+        'accuracy':
+            'accuracy',
+        'rmse': 'r2',
+        'mse': 'neg_mean_squared_error',
+        'mae': 'neg_mean_absolute_error'
     }
 
     def __init__(self, parameters, named_inputs, named_outputs):
@@ -760,10 +759,8 @@ class CrossValidationOperation(Operation):
 
         self.metric = parameters.get(self.EVALUATOR_PARAM)
 
-        if self.metric in self.METRIC_TO_EVALUATOR:
-            self.evaluator = self.METRIC_TO_EVALUATOR[self.metric][0]
-            self.param_prediction_arg = \
-                self.METRIC_TO_EVALUATOR[self.metric][1]
+        if self.metric in self.METRIC_TO_EVALUATOR.keys():
+            self.evaluator = self.METRIC_TO_EVALUATOR.get(self.metric)
         else:
             raise ValueError(
                 _('Invalid metric value {}').format(self.metric))
@@ -829,16 +826,14 @@ class CrossValidationOperation(Operation):
                       best_score = np.argmax(scores)
                       """.format(algorithm=self.algorithm_port,
                                  input_data=self.input_port,
-                                 evaluator=self.evaluator,
                                  output=self.output,
                                  best_model=self.best_model,
                                  models=self.models,
-                                 prediction_arg=self.param_prediction_arg,
                                  prediction_attr=self.prediction_attr,
                                  label_attr=self.label_attr,
                                  feature_attr=self.feature_attr,
                                  folds=self.num_folds,
-                                 metric=self.metric,
+                                 metric=self.evaluator,
                                  seed=self.seed))
 
             if self.has_models:
@@ -854,16 +849,14 @@ class CrossValidationOperation(Operation):
                         {best_model} = models[best_score]
                         """.format(algorithm=self.algorithm_port,
                                    input_data=self.input_port,
-                                   evaluator=self.evaluator,
                                    output=self.output,
                                    best_model=self.best_model,
                                    models=self.models,
-                                   prediction_arg=self.param_prediction_arg,
                                    prediction_attr=self.prediction_attr,
                                    label_attr=self.label_attr[0],
                                    feature_attr=self.feature_attr[0],
                                    folds=self.num_folds,
-                                   metric=self.metric,
+                                   metric=self.evaluator,
                                    seed=self.seed))
             else:
                 code += dedent("""
@@ -874,16 +867,14 @@ class CrossValidationOperation(Operation):
                         {best_model} = {algorithm}.fit(Xf_train.tolist(), yf_train.tolist())
                         """.format(algorithm=self.algorithm_port,
                                    input_data=self.input_port,
-                                   evaluator=self.evaluator,
                                    output=self.output,
                                    best_model=self.best_model,
                                    models=self.models,
-                                   prediction_arg=self.param_prediction_arg,
                                    prediction_attr=self.prediction_attr,
                                    label_attr=self.label_attr[0],
                                    feature_attr=self.feature_attr[0],
                                    folds=self.num_folds,
-                                   metric=self.metric,
+                                   metric=self.evaluator,
                                    seed=self.seed))
             copy_code = ".copy()" \
                 if self.parameters['multiplicity']['input data'] > 1 else ""
@@ -895,16 +886,14 @@ class CrossValidationOperation(Operation):
                     {models} = models
                     """.format(copy_code=copy_code, algorithm=self.algorithm_port,
                                input_data=self.input_port,
-                               evaluator=self.evaluator,
                                output=self.output,
                                best_model=self.best_model,
                                models=self.models,
-                               prediction_arg=self.param_prediction_arg,
                                prediction_attr=self.prediction_attr,
                                label_attr=self.label_attr[0],
                                feature_attr=self.feature_attr[0],
                                folds=self.num_folds,
-                               metric=self.metric,
+                               metric=self.evaluator,
                                seed=self.seed))
 
             # # If there is an output needing the evaluation result, it must be

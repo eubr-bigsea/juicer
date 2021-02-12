@@ -85,6 +85,53 @@ def test_cross_validation_prediction_attribute_param_success():
     assert result['scored_data_task_1'].columns[2] == 'success'
 
 
+def test_cross_validation_evaluator_param_success():
+    data = {'sepallength': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+            'sepalwidth': [10, 9, 8, 7, 6, 5, 4, 3, 2, 1]}
+    df = pd.DataFrame(data)
+    test_df = df.copy()
+    arguments = {
+        'parameters': {'evaluator': 'areaUnderROC',
+                       'features': ['sepallength', 'sepalwidth'],
+                       'multiplicity': {'input data': 0},
+                       'label_attribute': ['sepalwidth']},
+        'named_inputs': {
+            'input data': 'df',
+            'algo_1': MLPClassifier()
+        },
+        'named_outputs': {
+            'output data': 'out'
+        }
+    }
+    instance = CrossValidationOperation(**arguments)
+    result = util.execute(util.get_complete_code(instance),
+                          {'df': df,
+                           'algo_1': MLPClassifier()})
+    assert not result['scored_data_task_1'].equals(test_df)
+    assert instance.generate_code() == """
+kf = KFold(n_splits=3, random_state=None, 
+shuffle=True)
+X_train = get_X_train_data(df, ['sepallength', 'sepalwidth'])
+X_train = np.array(X_train)
+y = get_label_data(df, ['sepalwidth'])
+scores = cross_val_score(algo_1, X_train, 
+                         y, cv=kf, scoring='roc_auc')
+
+best_score = np.argmax(scores)
+
+models = None
+train_index, test_index = list(kf.split(X_train))[best_score]
+Xf_train, Xf_test = X_train[train_index], X_train[test_index]
+yf_train, yf_test = y[train_index],  y[test_index]
+best_model_1 = algo_1.fit(Xf_train.tolist(), yf_train.tolist())
+
+metric_result = scores[best_score]
+scored_data_task_1 = df
+scored_data_task_1['prediction'] = best_model_1.predict(X_train.tolist())
+models_task_1 = models
+"""
+
+
 def test_cross_validation_folds_and_seed_params_success():
     data = {'sepallength': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
             'sepalwidth': [10, 9, 8, 7, 6, 5, 4, 3, 2, 1]}
