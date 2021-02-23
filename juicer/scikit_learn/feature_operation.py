@@ -42,10 +42,53 @@ class FeatureAssemblerOperation(Operation):
             {input}_without_na = {input}.dropna(subset=cols)
             {output} = {input}_without_na{copy_code}
             {output}['{alias}'] = {input}_without_na[cols].to_numpy().tolist()
-            """.format(copy_code=copy_code, output=self.output, alias=self.alias,
+            """.format(copy_code=copy_code, output=self.output,
+                       alias=self.alias,
                        input=self.named_inputs['input data'],
                        cols=self.parameters[self.ATTRIBUTES_PARAM],
                        cls=self.__class__)
+            return dedent(code)
+
+
+class FeatureDisassemblerOperation(Operation):
+    TOP_N = 'top_n'
+    FEATURE_PARAM = 'feature'
+    PREFIX_PARAM = 'alias'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+
+        if self.FEATURE_PARAM in parameters:
+            self.feature = parameters.get(self.FEATURE_PARAM)[0]
+        else:
+            raise ValueError(
+                    _("Parameter '{}' must be informed for task {}").format(
+                     self.FEATURE_PARAM, self.__class__))
+
+        self.topn = int(self.parameters.get(self.TOP_N, 1))
+        self.alias = self.parameters.get(self.PREFIX_PARAM, 'vector_')
+
+        self.has_code = len(self.named_inputs) == 1 and any(
+                [len(self.named_outputs) >= 1, self.contains_results()])
+        self.output = self.named_outputs.get('output data',
+                                             'out_{}'.format(self.order))
+
+    def generate_code(self):
+        if self.has_code:
+
+            code = """
+            {input} = {input}.reset_index(drop=True)
+            feature = {input}['{feature}'].to_numpy()
+            tmp_vec = np.stack(feature, axis=0)
+            dim = tmp_vec.shape[1] if {topn} > tmp_vec.shape[1] else {topn}
+            columns = ["{alias}"+str(i+1) for i in range(dim)]
+            new_df = pd.DataFrame(tmp_vec[:,:dim], columns=columns)
+            {output} = {input}.merge(new_df, left_index=True, right_index=True)
+            """.format(output=self.output,
+                       alias=self.alias,
+                       topn=self.topn,
+                       input=self.named_inputs['input data'],
+                       feature=self.feature)
             return dedent(code)
 
 
