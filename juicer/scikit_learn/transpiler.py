@@ -90,6 +90,8 @@ class ScikitLearnTranspiler(Transpiler):
 
             # ------ Feature Extraction Operations  ------#
             'feature-assembler': feature_extraction.FeatureAssemblerOperation,
+            'feature-disassembler':
+                feature_extraction.FeatureDisassemblerOperation,
             'min-max-scaler': feature_extraction.MinMaxScalerOperation,
             'max-abs-scaler': feature_extraction.MaxAbsScalerOperation,
             'one-hot-encoder': feature_extraction.OneHotEncoderOperation,
