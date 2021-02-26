@@ -890,7 +890,7 @@ class ScatterPlotModel(ChartVisualization):
                 series_value = row[series_attr_idx]
                 if series_value not in series:
                     color = COLORS_PALETTE[(current_color % 6) * 5 +
-                                           ((current_color / 6) % 5)]
+                                           ((current_color // 6) % 5)]
                     series[series_value] = {
                         "id": series_value,
                         "name": series_value,
