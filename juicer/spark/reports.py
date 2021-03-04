@@ -26,6 +26,15 @@ class BaseHtmlReport(object):
     pass
 
 
+class DummyLock(object):
+
+    def __enter__(self):
+        return True
+
+    def __exit__(self):
+        return True
+
+
 class HtmlImageReport(BaseHtmlReport):
     def __init__(self, image):
         self.image = image
@@ -37,35 +46,46 @@ class HtmlImageReport(BaseHtmlReport):
 class MatplotlibChartReport(BaseHtmlReport):
     @staticmethod
     def plot(title, x_label, y_label, *args, **kwargs):
-        plt.rcParams["figure.figsize"] = (6, 6)
-        plt.title(title)
-        plt.xlabel(x_label)
-        plt.ylabel(y_label)
-        plt.style.use('seaborn-whitegrid')
-        plt.plot(*args, **kwargs)
-        fig_file = BytesIO()
-        plt.savefig(fig_file, format='png', dpi=75)
-        plt.close('all')
-        return base64.b64encode(fig_file.getvalue()).decode('utf-8')
+        if 'submission_lock' in kwargs:
+            submission_lock = kwargs.get("submission_lock")
+            del kwargs['submission_lock']
+        else:
+            submission_lock = DummyLock()
+
+        with submission_lock:
+            plt.clf()
+            plt.rcParams["figure.figsize"] = (6, 6)
+            plt.title(title)
+            plt.xlabel(x_label)
+            plt.ylabel(y_label)
+            plt.style.use('seaborn-whitegrid')
+            plt.plot(*args, **kwargs)
+            fig_file = BytesIO()
+            plt.savefig(fig_file, format='png', dpi=75)
+            plt.close('all')
+            return base64.b64encode(fig_file.getvalue()).decode('utf-8')
 
 
 class SeabornChartReport(BaseHtmlReport):
     @staticmethod
-    def jointplot(data, x, y, title, x_label, y_label):
-        plt.style.use("seaborn-whitegrid")
-        plt.title(title)
-        plt.xlabel(x_label)
-        plt.ylabel(y_label)
-        data_df = pd.DataFrame.from_records(data)
-        sns.set(rc={'figure.figsize': (1, 1)})
-        g = sns.jointplot(x=x, y=y, data=data_df)
-        g.set_axis_labels(x_label, y_label)
+    def jointplot(data, x, y, title, x_label, y_label,
+                  submission_lock=DummyLock()):
+        with submission_lock:
+            plt.clf()
+            plt.style.use("seaborn-whitegrid")
+            plt.title(title)
+            plt.xlabel(x_label)
+            plt.ylabel(y_label)
+            data_df = pd.DataFrame.from_records(data)
+            sns.set(rc={'figure.figsize': (1, 1)})
+            g = sns.jointplot(x=x, y=y, data=data_df)
+            g.set_axis_labels(x_label, y_label)
 
-        g.fig.subplots_adjust(top=.9, left=.15)
-        fig_file = BytesIO()
-        plt.savefig(fig_file, format='png', dpi=75)
-        plt.close('all')
-        return base64.b64encode(fig_file.getvalue()).decode('utf-8')
+            g.fig.subplots_adjust(top=.9, left=.15)
+            fig_file = BytesIO()
+            plt.savefig(fig_file, format='png', dpi=75)
+            plt.close('all')
+            return base64.b64encode(fig_file.getvalue()).decode('utf-8')
 
 
 class ConfusionMatrixImageReport(BaseHtmlReport):
@@ -88,46 +108,50 @@ class ConfusionMatrixImageReport(BaseHtmlReport):
         else:
             self.axis = [_('Label'), _('Predicted')]
 
-        if self.cmap is None:
-            self.cmap = plt.cm.Blues
+    def generate(self, submission_lock=DummyLock()):
 
-    def generate(self):
-        if self.normalize:
-            self.cm = self.cm.astype(
-                'float') / self.cm.sum(axis=1)[:, np.newaxis]
+        with submission_lock:
+            if self.cmap is None:
+                self.cmap = plt.cm.Blues
 
-        fig = plt.figure()
-        ax1 = fig.add_subplot(111)
+            if self.normalize:
+                self.cm = self.cm.astype(
+                    'float') / self.cm.sum(axis=1)[:, np.newaxis]
+            plt.clf()
+            plt.rcParams["figure.figsize"] = (6, 6)
+            fig = plt.figure()
+            ax1 = fig.add_subplot(111)
+            ax1.grid(False)
+            cax = ax1.imshow(self.cm, interpolation='nearest', cmap=self.cmap)
+            fig.colorbar(cax)
+            ax1.set_title(self.title)
+            tick_marks = np.arange(len(self.classes))
+            ax1.set_xticks(tick_marks)
+            ax1.set_xticklabels(self.classes, rotation=45, fontsize=9)
 
-        cax = ax1.imshow(self.cm, interpolation='nearest', cmap=self.cmap)
-        fig.colorbar(cax)
-        ax1.set_title(self.title)
-        tick_marks = np.arange(len(self.classes))
-        ax1.set_xticks(tick_marks)
-        ax1.set_xticklabels(self.classes, rotation=45, fontsize=9)
+            ax1.set_yticks(tick_marks)
+            ax1.set_yticklabels(self.classes, fontsize=9)
 
-        ax1.set_yticks(tick_marks)
-        ax1.set_yticklabels(self.classes, fontsize=9)
+            fmt = '.2f' if self.normalize else 'd'
+            thresh = self.cm.max() / 2.
+            for i, j in itertools.product(iter(list(range(self.cm.shape[0]))),
+                                          iter(list(range(self.cm.shape[1])))):
+                ax1.text(j, i, format(int(self.cm[i, j]), fmt),
+                         horizontalalignment="center",
+                         color="white" if self.cm[i, j] > thresh else "black")
 
-        fmt = '.2f' if self.normalize else 'd'
-        thresh = self.cm.max() / 2.
-        for i, j in itertools.product(iter(list(range(self.cm.shape[0]))),
-                                      iter(list(range(self.cm.shape[1])))):
-            ax1.text(j, i, format(int(self.cm[i, j]), fmt),
-                     horizontalalignment="center",
-                     color="white" if self.cm[i, j] > thresh else "black")
+            # issue: https://github.com/matplotlib/matplotlib/issues/19608
+            fig.tight_layout(rect=[0, 0.03, 1, 0.95])
 
-        fig.tight_layout(rect=[0, 0.03, 1, 0.95])
+            ax1.set_ylabel(self.axis[0])
+            ax1.set_xlabel(self.axis[1])
+            fig_file = BytesIO()
+            fig.savefig(fig_file, format='png')
 
-        ax1.set_ylabel(self.axis[0])
-        ax1.set_xlabel(self.axis[1])
-        fig_file = BytesIO()
-        fig.savefig(fig_file, format='png')
+            plt.close(fig)
+            plt.close('all')
 
-        plt.close(fig)
-        plt.close('all')
-
-        return base64.b64encode(fig_file.getvalue()).decode('utf-8')
+            return base64.b64encode(fig_file.getvalue()).decode('utf-8')
 
 
 class SimpleTableReport(BaseHtmlReport):
@@ -298,28 +322,30 @@ class AreaUnderCurveReport(BaseHtmlReport):
         self.y_val = y_val
         self.curve_type = curve_type
 
-    def generate(self):
-        plt.style.use("seaborn-whitegrid")
-        plt.figure()
-        plt.plot(self.x_val, self.y_val)
-        if self.curve_type == 'roc':
-            plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')
-            plt.xlabel(_('False positive rate'))
-            plt.ylabel(_('True positive rate'))
-        else:
-            plt.xlabel(_('Precision'))
-            plt.ylabel(_('Recall'))
+    def generate(self, submission_lock):
 
-        plt.xlim([0.0, 1.0])
-        plt.ylim([0.0, 1.05])
+        with submission_lock:
+            plt.style.use("seaborn-whitegrid")
+            plt.figure()
+            plt.plot(self.x_val, self.y_val)
+            if self.curve_type == 'roc':
+                plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')
+                plt.xlabel(_('False positive rate'))
+                plt.ylabel(_('True positive rate'))
+            else:
+                plt.xlabel(_('Precision'))
+                plt.ylabel(_('Recall'))
 
-        plt.title(self.title)
-        plt.legend(loc="lower right")
+            plt.xlim([0.0, 1.0])
+            plt.ylim([0.0, 1.05])
 
-        fig_file = BytesIO()
-        plt.savefig(fig_file, format='png', dpi=75)
-        plt.close('all')
-        return base64.b64encode(fig_file.getvalue()).decode('utf-8')
+            plt.title(self.title)
+            plt.legend(loc="lower right")
+
+            fig_file = BytesIO()
+            plt.savefig(fig_file, format='png', dpi=75)
+            plt.close('all')
+            return base64.b64encode(fig_file.getvalue()).decode('utf-8')
 
 
 class DecisionTreeReport(BaseHtmlReport):

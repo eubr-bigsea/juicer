@@ -22,6 +22,7 @@ import unicodedata
 import numpy as np
 import modin.pandas as pd
 import functools
+import threading
 
 from concurrent.futures import ThreadPoolExecutor
 from timeit import default_timer as timer
@@ -48,6 +49,7 @@ def sklearn_logging(msg):
     print(msg)
 
 executor = ThreadPoolExecutor(max_workers=3*{{instances|length}})
+submission_lock = threading.Lock()
 task_futures = {}
 
 {%- for instance in instances %}
