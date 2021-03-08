@@ -19,7 +19,8 @@ from juicer.plugin.plugin_minion import PluginMinion
 
 # Important!
 # See https://stackoverflow.com/a/29172195/1646932
-matplotlib.use('Agg', force=True, warn=True)
+matplotlib.use('Agg', force=True)
+matplotlib.set_loglevel("warning")
 
 logging.config.fileConfig('logging_config.ini')
 log = logging.getLogger(__name__)
