@@ -63,7 +63,7 @@ lifelines==0.22.3
 Markdown==3.1.1
 MarkupSafe==1.1.1
 marshmallow==3.0.1
-matplotlib==3.0.3
+matplotlib==3.3.4
 mccabe==0.6.1
 mock==3.0.5
 mockredispy==2.9.3
