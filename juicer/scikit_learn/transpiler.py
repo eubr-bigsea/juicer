@@ -123,34 +123,35 @@ class ScikitLearnTranspiler(Transpiler):
             # ------ Classification  -----#
             'classification-model': classifiers.ClassificationModelOperation,
             'decision-tree-classifier-model':
-                classifiers.DecisionTreeClassifierOperation,
-            'gbt-classifier-model': classifiers.GBTClassifierOperation,
-            'knn-classifier-model': classifiers.KNNClassifierOperation,
+                classifiers.DecisionTreeClassifierModelOperation,
+            'gbt-classifier-model': classifiers.GBTClassifierModelOperation,
+            'knn-classifier-model': classifiers.KNNClassifierModelOperation,
             'logistic-regression-model':
-                classifiers.LogisticRegressionOperation,
-            'mlp-classifier-model': classifiers.MLPClassifierOperation,
+                classifiers.LogisticRegressionModelOperation,
+            'mlp-classifier-model': classifiers.MLPClassifierModelOperation,
             'naive-bayes-classifier-model':
-                classifiers.NaiveBayesClassifierOperation,
+                classifiers.NaiveBayesClassifierModelOperation,
             'perceptron-classifier-model':
-                classifiers.PerceptronClassifierOperation,
+                classifiers.PerceptronClassifierModelOperation,
             'random-forest-classifier-model':
-                classifiers.RandomForestClassifierOperation,
-            'svm-classification-model': classifiers.SvmClassifierOperation,
+                classifiers.RandomForestClassifierModelOperation,
+            'svm-classification-model': classifiers.SvmClassifierModelOperation,
 
             # ------ Regression  -----#
             'regression-model': regression.RegressionModelOperation,
             'gbt-regressor-model':
-                regression.GradientBoostingRegressorOperation,
+                regression.GradientBoostingRegressorModelOperation,
             'generalized-linear-regression':
-                regression.GeneralizedLinearRegressionOperation,
-            'huber-regressor-model': regression.HuberRegressorOperation,
+                regression.GeneralizedLinearRegressionModelOperation,
+            'huber-regressor-model': regression.HuberRegressorModelOperation,
             'isotonic-regression-model':
-                regression.IsotonicRegressionOperation,
-            'linear-regression-model': regression.LinearRegressionOperation,
-            'mlp-regressor-model': regression.MLPRegressorOperation,
+                regression.IsotonicRegressionModelOperation,
+            'linear-regression-model':
+                regression.LinearRegressionModelOperation,
+            'mlp-regressor-model': regression.MLPRegressorModelOperation,
             'random-forest-regressor-model':
-                regression.RandomForestRegressorOperation,
-            'sgd-regressor-model': regression.SGDRegressorOperation,
+                regression.RandomForestRegressorModelOperation,
+            'sgd-regressor-model': regression.SGDRegressorModelOperation,
 
             # ------ Outlier  -----#
             'local-outlier-factor': lof.OutlierDetectionOperation,
