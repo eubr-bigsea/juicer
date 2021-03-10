@@ -3,6 +3,7 @@ from textwrap import dedent
 from juicer.operation import Operation
 from juicer.operation import ReportOperation
 from juicer.scikit_learn.util import get_X_train_data
+from juicer.scikit_learn.model_operation import AlgorithmOperation
 from gettext import gettext
 
 
@@ -114,29 +115,6 @@ class ClusteringModelOperation(Operation):
                        )
 
             return dedent(code)
-
-
-class AlgorithmOperation(Operation):
-    def __init__(self, parameters, named_inputs, named_outputs,
-                 model, algorithm):
-        super(AlgorithmOperation, self).\
-            __init__(parameters, named_inputs, named_outputs)
-        self.algorithm = algorithm
-        self.model = model
-        self.has_code = len(self.named_inputs) and any(
-            [len(self.named_outputs) > 0, self.contains_results()])
-
-    def generate_code(self):
-        algorithm_code = self.algorithm.generate_code() or ''
-        model_code = self.model.generate_code() or ''
-        return "\n".join([algorithm_code, model_code])
-
-    def get_output_names(self, sep=','):
-        output = self.named_outputs.get('output data',
-                                        'out_task_{}'.format(self.order))
-        models = self.named_outputs.get('model',
-                                        'model_task_{}'.format(self.order))
-        return sep.join([output, models])
 
 
 class ClusteringOperation(AlgorithmOperation):
