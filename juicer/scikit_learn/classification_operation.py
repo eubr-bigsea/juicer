@@ -12,22 +12,22 @@ class ClassificationModelOperation(Operation):
     FEATURES_ATTRIBUTE_PARAM = 'features'
     PREDICTION_ATTRIBUTE_PARAM = 'prediction'
 
-    def __init__(self, parameters,  named_inputs, named_outputs):
-        Operation.__init__(self, parameters,  named_inputs,  named_outputs)
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         self.has_code = len(self.named_inputs) >= 1 and any(
                 [len(self.named_outputs) >= 1, self.contains_results()])
 
         if not self.has_code and len(self.named_outputs) > 0:
             raise ValueError(
-                _('Model is being used, but at least one input is missing'))
+                    _('Model is being used, but at least one input is missing'))
 
         if any([self.FEATURES_ATTRIBUTE_PARAM not in parameters,
                 self.LABEL_ATTRIBUTE_PARAM not in parameters]):
             msg = _("Parameters '{}' and '{}' must be informed for task {}")
             raise ValueError(msg.format(
-                self.FEATURES_ATTRIBUTE_PARAM, self.LABEL_ATTRIBUTE_PARAM,
-                self.__class__.__name__))
+                    self.FEATURES_ATTRIBUTE_PARAM, self.LABEL_ATTRIBUTE_PARAM,
+                    self.__class__.__name__))
 
         self.label = parameters.get(self.LABEL_ATTRIBUTE_PARAM)
         self.features = parameters.get(self.FEATURES_ATTRIBUTE_PARAM)
@@ -65,7 +65,7 @@ class ClassificationModelOperation(Operation):
             if self.parameters['multiplicity']['train input data'] > 1 else ""
         if self.perform_cross_validation:
             fit_code = "avg_score = cross_val_score(algorithm, X, y, " \
-                       "cv={folds}, scoring='{metric}').mean()"\
+                       "cv={folds}, scoring='{metric}').mean()" \
                 .format(folds=self.kfold, seed=None,
                         metric=self.cross_validation_metric)
             score = '["Average score in cross-validation ({k}-fold)", ' \
@@ -83,11 +83,11 @@ class ClassificationModelOperation(Operation):
         prediction = classification_model.predict(X).tolist()
         {output}['{predCol}'] = prediction
         {model} = classification_model
-        
+
         display_text = {display_text}
         if display_text:
             metric_rows = [{score}{metrics_append}]
-            
+
             if metric_rows:
                 metrics_content = SimpleTableReport(
                     'table table-striped table-bordered w-auto', [],
@@ -126,9 +126,9 @@ class ClassificationOperation(AlgorithmOperation):
             'algorithm': 'algorithm'}
 
         model = ClassificationModelOperation(
-            parameters, model_in_ports, named_outputs)
+                parameters, model_in_ports, named_outputs)
         super(ClassificationOperation, self).__init__(
-            parameters, named_inputs, named_outputs, model, algorithm)
+                parameters, named_inputs, named_outputs, model, algorithm)
         model.metrics_code = algorithm.get_output_metrics_code()
 
 
@@ -220,11 +220,11 @@ class DecisionTreeClassifierOperation(Operation):
     PREDICTION_PARAM = 'prediction'
     FEATURES_PARAM = 'features'
 
-    def __init__(self, parameters,  named_inputs, named_outputs):
-        Operation.__init__(self, parameters,  named_inputs,  named_outputs)
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         self.has_code = len(self.named_inputs) == 1 and any(
-            [len(self.named_outputs) >= 1, self.contains_results()])
+                [len(self.named_outputs) >= 1, self.contains_results()])
 
         if self.has_code:
             self.min_split = int(parameters.get(self.MIN_SPLIT_PARAM, 2) or 2)
@@ -354,8 +354,8 @@ class GBTClassifierOperation(Operation):
     LOSS_PARAM_DEV = 'deviance'
     LOSS_PARAM_EXP = 'exponencial'
 
-    def __init__(self, parameters,  named_inputs, named_outputs):
-        Operation.__init__(self, parameters,  named_inputs,  named_outputs)
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         self.has_code = len(self.named_inputs) == 1 and any(
             [len(self.named_outputs) >= 1, self.contains_results()])
@@ -372,7 +372,8 @@ class GBTClassifierOperation(Operation):
                 parameters.get(self.LOSS_PARAM, self.LOSS_PARAM_DEV) or \
                 self.LOSS_PARAM_DEV
             self.seed = parameters.get(self.SEED_PARAM, None) or None
-            self.subsample = float(parameters.get(self.SUBSAMPLE_PARAM, 1.0)) or 1.0
+            self.subsample = float(
+                parameters.get(self.SUBSAMPLE_PARAM, 1.0)) or 1.0
             self.criterion = parameters.get(
                     self.CRITERION_PARAM, 'friedman_mse') or 'friedman_mse'
             self.min_weight_leaf = float(parameters.get(
@@ -385,18 +386,14 @@ class GBTClassifierOperation(Operation):
                 if max_features_ is None else "'" + max_features_ + "'"
             max_leaf_nodes_ = parameters.get(self.MAX_LEAF_NODES_PARAM, None)
             self.max_leaf_nodes = None if max_leaf_nodes_ is None else int(
-                max_leaf_nodes_)
+                    max_leaf_nodes_)
             self.validation_fraction = float(
-                parameters.get(self.VALIDATION_FRACTION_PARAM, 0.1) or 0.1)
+                    parameters.get(self.VALIDATION_FRACTION_PARAM, 0.1) or 0.1)
             n_iter_no_change_ = parameters.get(self.N_ITER_NO_CHANGE_PARAM,
                                                None)
             self.n_iter_no_change = None if n_iter_no_change_ is None else int(
-                n_iter_no_change_)
+                    n_iter_no_change_)
             self.tol = float(parameters.get(self.TOL_PARAM, 1e-4) or 1e-4)
-            self.features = parameters['features']
-            self.label = parameters.get(self.LABEL_PARAM, None)
-            self. prediction = self.parameters.get(self.PREDICTION_PARAM,
-                                                   'prediction')
 
             vals = [self.min_split, self.min_leaf, self.learning_rate,
                     self.n_estimators, self.max_depth]
@@ -508,8 +505,8 @@ class KNNClassifierOperation(Operation):
     PREDICTION_PARAM = 'prediction'
     FEATURES_PARAM = 'features'
 
-    def __init__(self, parameters,  named_inputs, named_outputs):
-        Operation.__init__(self, parameters,  named_inputs,  named_outputs)
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         self.has_code = len(self.named_inputs) == 1 and any(
             [len(self.named_outputs) >= 1, self.contains_results()])
@@ -528,10 +525,6 @@ class KNNClassifierOperation(Operation):
             self.metric_params = self.parameters.get(self.METRIC_PARAMS_PARAM,
                                                      None) or None
             self.n_jobs = self.parameters.get(self.N_JOBS_PARAM, None) or None
-            self.features = parameters['features']
-            self.label = parameters.get(self.LABEL_PARAM, None)
-            self.prediction = self.parameters.get(self.PREDICTION_PARAM,
-                                                  'prediction')
 
             if self.n_neighbors <= 0:
                 raise ValueError(
@@ -601,8 +594,8 @@ class LogisticRegressionOperation(Operation):
     SOLVER_PARAM_SAG = 'sag'
     SOLVER_PARAM_SAGa = 'saga'
 
-    def __init__(self, parameters,  named_inputs, named_outputs):
-        Operation.__init__(self, parameters,  named_inputs,  named_outputs)
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         self.has_code = len(self.named_inputs) == 1 and any(
             [len(self.named_outputs) >= 1, self.contains_results()])
@@ -666,7 +659,7 @@ class LogisticRegressionOperation(Operation):
                             _("Parameter '{}' must be x>0 for task {}").format(
                                     self.N_JOBS_PARAM, self.__class__))
             else:
-                 self.n_jobs = 'None'
+                self.n_jobs = 'None'
 
             self.multi_class = parameters.get(
                     self.MULTI_CLASS_PARAM, 'ovr') or 'ovr'
@@ -688,30 +681,39 @@ class LogisticRegressionOperation(Operation):
             }
             if self.penalty not in solver_dict[self.solver]:
                 raise ValueError(
-                    _("For '{}' solver, the penalty type must be in {} for task {}").format(
-                        self.solver, str(solver_dict[self.solver]), self.__class__))
+                        _(
+                            "For '{}' solver, the penalty type must be in {} "
+                            "for task {}").format(
+                                self.solver, str(solver_dict[self.solver]),
+                                self.__class__))
 
             if self.solver == 'newton-cg' and self.dual == True:
                 raise ValueError(
-                    _("For '{}' solver supports only dual=False for task {}").format(
-                        self.solver, self.__class__))
+                        _(
+                            "For '{}' solver supports only dual=False for "
+                            "task {}").format(
+                                self.solver, self.__class__))
 
             if self.solver == 'liblinear' and self.multi_class == 'multinomial':
                 raise ValueError(
-                    _('Parameter "{}" does not support {}="multinomial"').format(
-                        self.SOLVER_PARAM, self.MULTI_CLASS_PARAM, self.__class__))
+                        _(
+                            'Parameter "{}" does not support {'
+                            '}="multinomial"').format(
+                                self.SOLVER_PARAM, self.MULTI_CLASS_PARAM,
+                                self.__class__))
 
             l1_ratio_param_ = parameters.get(self.L1_RATIO_PARAM, None)
             if l1_ratio_param_ is not None:
                 self.l1_ratio = float(l1_ratio_param_)
-                if self.penalty=='elasticnet' and (self.l1_ratio < 0 or self.l1_ratio > 1):
+                if self.penalty == 'elasticnet' and \
+                        (self.l1_ratio < 0 or self.l1_ratio > 1):
                     raise ValueError(
-                            _("Parameter 'l1_ratio' must be 0 <= x <= 1 for task {}").format(
-                                    self.__class__))
-            elif self.penalty=='elasticnet' and l1_ratio_param_ is None:
+                    _("Parameter 'l1_ratio' must be 0 <= x <= 1 for task {}")
+                    .format(self.__class__))
+            elif self.penalty == 'elasticnet' and l1_ratio_param_ is None:
                 raise ValueError(
-                    _("Parameter 'l1_ratio' must be 0 <= x <= 1 for task {}").format(
-                        self.__class__))
+                    _("Parameter 'l1_ratio' must be 0 <= x <= 1 for task {}")
+                    .format(self.__class__))
             else:
                 self.l1_ratio = 'None'
 
@@ -741,7 +743,7 @@ class LogisticRegressionOperation(Operation):
                 intercept_scaling={intercept_scaling},
                 multi_class='{multi_class}', n_jobs={n_jobs}, 
                 l1_ratio={l1_ratio})
-            """.format(tol=self.tol,  C=self.regularization,
+            """.format(tol=self.tol, C=self.regularization,
                        max_iter=self.max_iter, seed=self.seed,
                        solver=self.solver, penalty=self.penalty,
                        dual=self.dual, fit_intercept=self.fit_intercept,
@@ -787,8 +789,8 @@ class MLPClassifierOperation(Operation):
     ACTIVATION_PARAM_TANH = 'tanh'
     ACTIVATION_PARAM_RELU = 'relu'
 
-    def __init__(self, parameters,  named_inputs, named_outputs):
-        Operation.__init__(self, parameters,  named_inputs,  named_outputs)
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         self.has_code = any([len(self.named_inputs) == 1,
                              self.contains_results()])
@@ -874,13 +876,13 @@ class MLPClassifierOperation(Operation):
         if self.batch_size != 'auto':
             self.batch_size = int(self.batch_size)
         else:
-            self.batch_size = "'"+self.batch_size+"'"
+            self.batch_size = "'" + self.batch_size + "'"
 
         if not bool(re.match('(\d+,)+\d*', self.hidden_layers)):
             raise ValueError(
-                _("Parameter '{}' must be a tuple with the size "
-                  "of each layer for task {}").format(
-                    self.HIDDEN_LAYER_SIZES_PARAM, self.__class__))
+                    _("Parameter '{}' must be a tuple with the size "
+                      "of each layer for task {}").format(
+                            self.HIDDEN_LAYER_SIZES_PARAM, self.__class__))
 
         self.hidden_layers = tuple([int(i) for i in
                                     self.hidden_layers.replace(' ', '').split(
@@ -908,15 +910,18 @@ class MLPClassifierOperation(Operation):
         functions_required.append(self.seed)
 
         if self.solver != 'lbfgs':
-            self.batch_size = """batch_size={batch_size}""".format(batch_size=self.batch_size)
+            self.batch_size = """batch_size={batch_size}""" \
+                .format(batch_size=self.batch_size)
             functions_required.append(self.batch_size)
 
         if self.solver == 'sgd':
-            self.learning_rate = """learning_rate='{learning_rate}'""".format(learning_rate=self.learning_rate)
+            self.learning_rate = """learning_rate='{learning_rate}'"""\
+                .format(learning_rate=self.learning_rate)
             functions_required.append(self.learning_rate)
 
-            self.nesterovs_momentum = """nesterovs_momentum={nesterovs_momentum}""".format(
-                nesterovs_momentum=self.nesterovs_momentum)
+            self.nesterovs_momentum = \
+                """nesterovs_momentum={nesterovs_momentum}"""\
+                .format(nesterovs_momentum=self.nesterovs_momentum)
             functions_required.append(self.nesterovs_momentum)
 
             self.power_t = """power_t={power_t}""".format(power_t=self.power_t)
@@ -924,10 +929,11 @@ class MLPClassifierOperation(Operation):
 
             if self.momentum < 0 or self.momentum > 1:
                 raise ValueError(
-                    _("Parameter '{}' must be x between 0 and 1 for task {}").format(
-                        self.MOMENTUM_PARAM, self.__class__))
+                    _("Parameter '{}' must be x between 0 and 1 for task {}")
+                    .format(self.MOMENTUM_PARAM, self.__class__))
             else:
-                self.momentum = """momentum={momentum}""".format(momentum=self.momentum)
+                self.momentum = """momentum={momentum}""".format(
+                    momentum=self.momentum)
                 functions_required.append(self.momentum)
 
         if self.solver == 'sgd' or self.solver == 'adam':
@@ -936,33 +942,39 @@ class MLPClassifierOperation(Operation):
                     _("Parameter '{}' must be x > 0 for task {}").format(
                         self.LEARNING_RATE_INIT_PRAM, self.__class__))
             else:
-                self.learning_rate_init = """learning_rate_init={learning_rate_init}""".format(
-                    learning_rate_init=self.learning_rate_init)
+                self.learning_rate_init = \
+                    """learning_rate_init={learning_rate_init}"""\
+                    .format(learning_rate_init=self.learning_rate_init)
                 functions_required.append(self.learning_rate_init)
 
             self.shuffle = """shuffle={shuffle}""".format(shuffle=self.shuffle)
             functions_required.append(self.shuffle)
 
-            self.early_stopping = """early_stopping={early_stopping}""".format(early_stopping=self.early_stopping)
+            self.early_stopping = """early_stopping={early_stopping}""".format(
+                early_stopping=self.early_stopping)
             functions_required.append(self.early_stopping)
 
             if self.n_iter_no_change <= 0:
                 raise ValueError(
-                    _("Parameter '{}' must be x > 0 for task {}").format(
-                        self.N_ITER_NO_CHANGE_PARAM, self.__class__))
+                        _("Parameter '{}' must be x > 0 for task {}").format(
+                                self.N_ITER_NO_CHANGE_PARAM, self.__class__))
             else:
-                self.n_iter_no_change = """n_iter_no_change={n_iter_no_change}""".format(
-                n_iter_no_change=self.n_iter_no_change)
+                self.n_iter_no_change = \
+                    """n_iter_no_change={n_iter_no_change}"""\
+                    .format(n_iter_no_change=self.n_iter_no_change)
                 functions_required.append(self.n_iter_no_change)
 
         if self.early_stopping == 1:
             if self.validation_fraction < 0 or self.validation_fraction > 1:
                 raise ValueError(
-                    _("Parameter '{}' must be x between 0 and 1 for task {}").format(
-                        self.VALIDATION_FRACTION_PARAM, self.__class__))
+                        _(
+                            "Parameter '{}' must be x between 0 and 1 for "
+                            "task {}").format(
+                                self.VALIDATION_FRACTION_PARAM, self.__class__))
             else:
-                self.validation_fraction = """validation_fraction={validation_fraction}""".format(
-                    validation_fraction=self.validation_fraction)
+                self.validation_fraction = \
+                    """validation_fraction={validation_fraction}"""\
+                        .format(validation_fraction=self.validation_fraction)
                 functions_required.append(self.validation_fraction)
 
         if self.solver == 'adam':
@@ -1042,8 +1054,8 @@ class NaiveBayesClassifierOperation(Operation):
     MODEL_TYPE_PARAM_G = 'GaussianNB'
     MODEL_TYPE_PARAM_M = 'Multinomial'
 
-    def __init__(self, parameters,  named_inputs, named_outputs):
-        Operation.__init__(self, parameters,  named_inputs,  named_outputs)
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         if self.has_code:
             self.class_prior = parameters.get(self.CLASS_PRIOR_PARAM, 'None') \
@@ -1171,8 +1183,8 @@ class PerceptronClassifierOperation(Operation):
     PENALTY_PARAM_L2 = 'l2'
     PENALTY_PARAM_NONE = 'None'
 
-    def __init__(self, parameters,  named_inputs, named_outputs):
-        Operation.__init__(self, parameters,  named_inputs,  named_outputs)
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         self.has_code = len(self.named_inputs) == 1 and any(
             [len(self.named_outputs) >= 1, self.contains_results()])
@@ -1293,19 +1305,18 @@ class RandomForestClassifierOperation(Operation):
     CCP_ALPHA_PARAM = 'ccp_alpha'
     MAX_SAMPLES_PARAM = 'max_samples'
 
-    def __init__(self, parameters,  named_inputs, named_outputs):
-        Operation.__init__(self, parameters,  named_inputs,  named_outputs)
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-        self.has_code = any([len(self.named_inputs) == 1,
-                             self.contains_results()])
         if self.has_code:
 
             if self.FEATURES_PARAM not in parameters:
                 msg = _("Parameters '{}' must be informed for task {}")
                 raise ValueError(msg.format(
-                    self.FEATURES_PARAM,
-                    self.__class__.__name__))
-            else: self.features = parameters.get(self.FEATURES_PARAM, None)
+                        self.FEATURES_PARAM,
+                        self.__class__.__name__))
+            else:
+                self.features = parameters.get(self.FEATURES_PARAM, None)
 
             self.seed = parameters.get(self.SEED_PARAM, 'None') or 'None'
             self.min_split = int(parameters.get(self.MIN_SPLIT_PARAM, 2) or 2)
@@ -1314,7 +1325,7 @@ class RandomForestClassifierOperation(Operation):
             self.max_depth = self.__positive_or_none_param(parameters,
                                                            self.MAX_DEPTH_PARAM)
             self.n_estimators = int(parameters.get(self.N_ESTIMATORS_PARAM,
-                                               10) or 10)
+                                                   10) or 10)
 
             self.criterion = parameters.get(self.CRITERION_PARAM, 'gini')
 
@@ -1340,6 +1351,8 @@ class RandomForestClassifierOperation(Operation):
             self.bootstrap = int(parameters.get(self.BOOTSTRAP_PARAM, 1)) == 1
             self.oob_score = int(parameters.get(self.OOB_SCORE_PARAM, 0)) == 1
 
+            self.n_jobs = parameters.get(self.N_JOBS_PARAM, None)
+
             self.ccp_alpha = float(parameters.get(self.CCP_ALPHA_PARAM, 0.0))
 
             max_samples_ = parameters.get(self.MAX_SAMPLES_PARAM, None)
@@ -1352,12 +1365,13 @@ class RandomForestClassifierOperation(Operation):
                               "task {}").format(self.MAX_SAMPLES_PARAM,
                                                 self.__class__))
                 else:
-                    self.max_samples = max_samples_/100.0
+                    self.max_samples = max_samples_ / 100.0
             else:
                 self.max_samples = 'None'
 
             if self.max_features != 'None' and \
-            (self.max_features <= 0 or self.max_features > len(self.features)):
+                    (self.max_features <= 0 or
+                     self.max_features > len(self.features)):
                 raise ValueError(
                         _("Parameter '{}' must be x>0 and "
                           "x < n_features for task {}").format(
@@ -1419,14 +1433,14 @@ class RandomForestClassifierOperation(Operation):
             criterion='{criterion}', 
             min_weight_fraction_leaf={min_weight_fraction_leaf},
             max_features={max_features}, max_leaf_nodes={max_leaf_nodes}, 
-            min_impurity_decrease={min_impurity_decrease}, 
-            bootstrap={bootstrap}, oob_score={oob_score}, ccp_alpha={ccp_alpha}, 
-            max_samples={max_samples})
+            min_impurity_decrease={min_impurity_decrease}, n_jobs={n_jobs}, 
+            bootstrap={bootstrap}, oob_score={oob_score}, 
+            ccp_alpha={ccp_alpha}, max_samples={max_samples})
         """.format(n_estimators=self.n_estimators, max_depth=self.max_depth,
                    min_split=self.min_split, min_leaf=self.min_leaf,
                    seed=self.seed, criterion=self.criterion,
                    min_weight_fraction_leaf=self.min_weight_fraction_leaf,
-                   max_features=self.max_features,
+                   max_features=self.max_features, n_jobs=self.n_jobs,
                    max_leaf_nodes=self.max_leaf_nodes,
                    min_impurity_decrease=self.min_impurity_decrease,
                    bootstrap=self.bootstrap, oob_score=self.oob_score,
@@ -1436,7 +1450,6 @@ class RandomForestClassifierOperation(Operation):
 
 
 class SvmClassifierOperation(Operation):
-
     PENALTY_PARAM = 'c'
     KERNEL_PARAM = 'kernel'
     DEGREE_PARAM = 'degree'
@@ -1458,8 +1471,8 @@ class SvmClassifierOperation(Operation):
     KERNEL_PARAM_POLY = 'poly'
     KERNEL_PARAM_SIG = 'sigmoid'
 
-    def __init__(self, parameters,  named_inputs, named_outputs):
-        Operation.__init__(self, parameters,  named_inputs,  named_outputs)
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         self.has_code = True
         if self.has_code:
