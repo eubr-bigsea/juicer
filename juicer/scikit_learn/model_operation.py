@@ -35,9 +35,10 @@ class AlgorithmOperation(Operation):
             [len(self.named_outputs) > 0, self.contains_results()])
 
     def generate_code(self):
-        algorithm_code = self.algorithm.generate_code() or ''
-        model_code = self.model.generate_code() or ''
-        return "\n".join([algorithm_code, model_code])
+        if self.has_code:
+            algorithm_code = self.algorithm.generate_code() or ''
+            model_code = self.model.generate_code() or ''
+            return "\n".join([algorithm_code, model_code])
 
     def get_output_names(self, sep=','):
         output = self.named_outputs.get('output data',

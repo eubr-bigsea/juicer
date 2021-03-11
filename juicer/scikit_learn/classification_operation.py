@@ -1045,14 +1045,11 @@ class NaiveBayesClassifierOperation(Operation):
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
 
-        self.has_code = any([len(self.named_inputs) == 1,
-                             self.contains_results()])
-
         if self.has_code:
             self.class_prior = parameters.get(self.CLASS_PRIOR_PARAM, 'None') \
                                or 'None'
             self.alpha = float(parameters.get(self.ALPHA_PARAM, 1.0) or 1.0)
-            self.fit_prior = int(parameters.get(self.FIT_PRIOR_PARAM, 1) or 1)
+            self.fit_prior = int(parameters.get(self.FIT_PRIOR_PARAM, 1))
             self.var_smoothing = float(parameters.get(self.VAR_SMOOTHING_PARAM,
                                                       1e-9) or 1e-9)
             self.priors = parameters.get(self.PRIORS_PARAM, 'None') or 'None'
