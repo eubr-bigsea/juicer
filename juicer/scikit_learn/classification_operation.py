@@ -1474,7 +1474,6 @@ class SvmClassifierOperation(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-        self.has_code = True
         if self.has_code:
 
             self.max_iter = int(parameters.get(self.MAX_ITER_PARAM, -1))
