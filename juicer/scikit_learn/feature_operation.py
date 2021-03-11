@@ -122,8 +122,8 @@ class MinMaxScalerOperation(Operation):
         self.model = named_outputs.get(
             'transformation model', 'model_{}'.format(self.order))
         self.attribute = parameters[self.ATTRIBUTE_PARAM]
-        self.alias = parameters.get(self.ALIAS_PARAM,
-                                    'scaled_{}'.format(self.order))
+        suffix = parameters.get(self.ALIAS_PARAM, '_norm')
+        self.alias = ["{}{}".format(col, suffix) for col in self.attribute]
         self.min = parameters.get(self.MIN_PARAM, 0)
         self.max = parameters.get(self.MAX_PARAM, 1)
 
@@ -141,24 +141,20 @@ class MinMaxScalerOperation(Operation):
     def generate_code(self):
         if self.has_code:
             """Generate code."""
-            copy_code = ".copy()" \
-                if self.parameters['multiplicity']['input data'] > 1 else ""
-
             code = """
-    {model} = MinMaxScaler(feature_range=({min},{max}))
-    X_train = get_X_train_data({input}, {att})
-    {model}.fit(X_train)
+            X_train = get_X_train_data({input}, {att})
+
+            {model} = MinMaxScaler(feature_range=({min},{max}))
+            values = {model}.fit_transform(X_train)
+
+            {output} = pd.concat([{input}, 
+                pd.DataFrame(values, columns={alias})],
+                ignore_index=False, axis=1)
             """.format(output=self.output, model=self.model,
                        input=self.named_inputs['input data'],
                        att=self.attribute, alias=self.alias,
                        min=self.min, max=self.max)
 
-            code += """
-    {output} = {input}{copy_code}
-    {output}['{alias}'] = {model}.transform(X_train).tolist()
-                """.format(copy_code=copy_code, output=self.output,
-                           input=self.named_inputs['input data'],
-                           model=self.model, alias=self.alias)
             return dedent(code)
 
 
@@ -190,8 +186,8 @@ class MaxAbsScalerOperation(Operation):
         self.model = named_outputs.get(
             'transformation model', 'model_{}'.format(self.order))
         self.attribute = parameters[self.ATTRIBUTE_PARAM]
-        self.alias = parameters.get(self.ALIAS_PARAM,
-                                        'scaled_{}'.format(self.order))
+        suffix = parameters.get(self.ALIAS_PARAM, '_norm')
+        self.alias = ["{}{}".format(col, suffix) for col in self.attribute]
 
         self.transpiler_utils.add_import(
                 "from sklearn.preprocessing import MaxAbsScaler")
@@ -207,24 +203,19 @@ class MaxAbsScalerOperation(Operation):
     def generate_code(self):
         """Generate code."""
         if self.has_code:
-            copy_code = ".copy()" \
-                if self.parameters['multiplicity']['input data'] > 1 else ""
-
             code = """
-    {model} = MaxAbsScaler()
-    X_train = get_X_train_data({input}, {att})
-    {model}.fit(X_train)
-            """.format(output=self.output,
-                       model=self.model,
+            X_train = get_X_train_data({input}, {att})
+
+            {model} = MaxAbsScaler()
+            values = {model}.fit_transform(X_train)
+
+            {output} = pd.concat([{input}, 
+                pd.DataFrame(values, columns={alias})],
+                ignore_index=False, axis=1)
+            """.format(output=self.output, model=self.model,
                        input=self.named_inputs['input data'],
                        att=self.attribute, alias=self.alias)
 
-            code += """
-    {output} = {input}{copy_code}
-    {output}['{alias}'] = {model}.transform(X_train).tolist()
-                """.format(copy_code=copy_code,
-                           output=self.output, input=self.named_inputs['input data'],
-                           model=self.model, alias=self.alias)
             return dedent(code)
 
 
@@ -269,8 +260,8 @@ class StandardScalerOperation(Operation):
                     self.ATTRIBUTE_PARAM, self.__class__.__name__))
             self.attribute = parameters[self.ATTRIBUTE_PARAM]
 
-            self.alias = parameters.get(self.ALIAS_PARAM,
-                                        'scaled_{}'.format(self.order))
+            suffix = parameters.get(self.ALIAS_PARAM, '_norm')
+            self.alias = ["{}{}".format(col, suffix) for col in self.attribute]
 
             self.transpiler_utils.add_import(
                     "from sklearn.preprocessing import StandardScaler")
@@ -290,24 +281,20 @@ class StandardScalerOperation(Operation):
                 .format(value=self.with_mean)
             op += ", with_std={value}" \
                 .format(value=self.with_std)
-            copy_code = ".copy()" \
-                if self.parameters['multiplicity']['input data'] > 1 else ""
 
             code = """
-    {model} = StandardScaler({op})
-    X_train = get_X_train_data({input}, {att})
-    {model}.fit(X_train)
-            """.format(model=self.model,
+            X_train = get_X_train_data({input}, {att})
+
+            {model} = StandardScaler({op})
+            values = {model}.fit_transform(X_train)
+
+            {output} = pd.concat([{input}, 
+                pd.DataFrame(values, columns={alias})],
+                ignore_index=False, axis=1)
+            """.format(model=self.model, output=self.output,
                        input=self.named_inputs['input data'],
                        att=self.attribute, alias=self.alias, op=op)
 
-            if self.contains_results() or len(self.named_outputs) > 0:
-                code += """
-    {output} = {input}{copy_code}
-    {output}['{alias}'] = {model}.transform(X_train).tolist()
-                """.format(copy_code=copy_code, output=self.output,
-                           input=self.named_inputs['input data'],
-                           model=self.model, alias=self.alias)
             return dedent(code)
 
 
