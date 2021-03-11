@@ -5,6 +5,7 @@ from juicer.scikit_learn.util import get_X_train_data, get_label_data
 import pandas as pd
 import numpy as np
 import os
+from juicer.transpiler import TranspilerUtils
 
 DATA_SETS = ['iris', 'titanic', 'wine']
 DATA_DIRECTORY = 'data'
@@ -51,12 +52,22 @@ def get_common_imports():
     ])
 
 
+def add_minimum_ml_args(args):
+    args['parameters'].update({
+        'task_id': 1,
+        'operation_id': 1,
+        'task': {'forms': {'display_text': {'value': 0}}},
+        'transpiler_utils': TranspilerUtils()
+    })
+    return args
+
+
 def get_complete_code(instance):
     code = "\n" + \
            "\n".join(list(instance.transpiler_utils.imports)) + \
            "\n" + \
            "\n".join(instance.transpiler_utils.custom_functions.values()) + \
-           "\n" + instance.generate_code()
+           "\n" + instance.generate_code().lstrip()
     return code
 
 
