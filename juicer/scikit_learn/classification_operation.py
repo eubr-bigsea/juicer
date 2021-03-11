@@ -792,9 +792,6 @@ class MLPClassifierOperation(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-        self.has_code = any([len(self.named_inputs) == 1,
-                             self.contains_results()])
-
         if self.has_code:
             self.add_functions_required = ""
             self.hidden_layers = parameters.get(self.HIDDEN_LAYER_SIZES_PARAM,
@@ -807,28 +804,27 @@ class MLPClassifierOperation(Operation):
             self.solver = parameters.get(
                     self.SOLVER_PARAM,
                     self.SOLVER_PARAM_ADAM) or self.SOLVER_PARAM_ADAM
-            self.alpha = float(parameters.get(
-                    self.ALPHA_PARAM, 0.0001)) or 0.0001
-            self.max_iter = int(parameters.get(
-                    self.MAX_ITER_PARAM, 200)) or 200
-            self.tol = float(parameters.get(
-                    self.TOLERANCE_PARAM, 0.0001)) or 0.0001
+            self.alpha = float(parameters.get(self.ALPHA_PARAM,
+                                              0.0001)) or 0.0001
+            self.max_iter = int(parameters.get(self.MAX_ITER_PARAM, 200)) or 200
+            self.tol = float(parameters.get(self.TOLERANCE_PARAM,
+                                            0.0001)) or 0.0001
             self.seed = parameters.get(self.SEED_PARAM, None) or None
 
             self.batch_size = parameters.get(self.BATCH_SIZE_PARAM, 'auto') \
-                              or 'auto'
+                or 'auto'
             self.learning_rate = parameters.get(self.LEARNING_RATE_PRAM,
                                                 'constant') or 'constant'
             self.learning_rate_init = float(parameters.get(
                     self.LEARNING_RATE_INIT_PRAM, 0.001) or 0.001)
             self.power_t = float(parameters.get(self.POWER_T_PARAM, 0.5) or 0.5)
-            self.shuffle = int(parameters.get(self.SHUFFLE_PARAM, 1) or 1)
+            self.shuffle = int(parameters.get(self.SHUFFLE_PARAM, 1)) == 1
             self.momentum = float(parameters.get(
                     self.MOMENTUM_PARAM, 0.9) or 0.9)
             self.nesterovs_momentum = int(parameters.get(
-                    self.NESTEROVS_MOMENTUM_PARAM, 1) or 1)
+                    self.NESTEROVS_MOMENTUM_PARAM, 1)) == 1
             self.early_stopping = int(parameters.get(
-                    self.EARLY_STOPPING_PARAM, 0) or 0)
+                    self.EARLY_STOPPING_PARAM, 0)) == 1
             self.validation_fraction = float(parameters.get(
                     self.VALIDATION_FRACTION_PARAM, 0.1) or 0.1)
             self.beta1 = float(parameters.get(self.BETA_1_PARAM, 0.9) or 0.9)
@@ -850,11 +846,6 @@ class MLPClassifierOperation(Operation):
             self.input_treatment()
 
     def input_treatment(self):
-        self.shuffle = True if int(self.shuffle) == 1 else False
-        self.nesterovs_momentum = True \
-            if int(self.nesterovs_momentum) == 1 else False
-        self.early_stopping = True if int(self.early_stopping) == 1 else False
-
         if self.tol <= 0:
             raise ValueError(
                 _("Parameter '{}' must be x > 0 for task {}").format(
@@ -964,7 +955,7 @@ class MLPClassifierOperation(Operation):
                     .format(n_iter_no_change=self.n_iter_no_change)
                 functions_required.append(self.n_iter_no_change)
 
-        if self.early_stopping == 1:
+        if self.early_stopping:
             if self.validation_fraction < 0 or self.validation_fraction > 1:
                 raise ValueError(
                         _(
