@@ -1,6 +1,7 @@
 from tests.scikit_learn import util
 from juicer.scikit_learn.feature_operation import MaxAbsScalerOperation
 from juicer.scikit_learn.util import get_X_train_data
+from textwrap import dedent
 import pytest
 from sklearn.preprocessing import MaxAbsScaler
 import pandas as pd
@@ -41,16 +42,16 @@ def test_max_abs_scaler_infer_alias_success():
     assert result['out'][['sepalwidth_norm', 'petalwidth_norm']]\
         .equals(res_maxabs)
     assert str(result['model_1']) == str(model_1)
-    assert """
-X_train = get_X_train_data(df, ['sepalwidth', 'petalwidth'])
+    assert dedent("""
+    X_train = get_X_train_data(df, ['sepalwidth', 'petalwidth'])
 
-model_1 = MaxAbsScaler()
-values = model_1.fit_transform(X_train)
+    model_1 = MaxAbsScaler()
+    values = model_1.fit_transform(X_train)
 
-out = pd.concat([df, 
-    pd.DataFrame(values, columns=['sepalwidth_norm', 'petalwidth_norm'])],
-    ignore_index=False, axis=1)
-""" == instance.generate_code()
+    out = pd.concat([df, 
+        pd.DataFrame(values, columns=['sepalwidth_norm', 'petalwidth_norm'])],
+        ignore_index=False, axis=1)
+    """) == instance.generate_code()
 
 
 def test_max_abs_scaler_one_alias_param_success():
@@ -139,5 +140,5 @@ def test_max_abs_scaler_missing_attributes_param_fail():
     }
     with pytest.raises(ValueError) as val_err:
         MaxAbsScalerOperation(**arguments)
-    assert "Parameters 'attributes' must be informed for task" in str(
-        val_err.value)
+    assert f"Parameters 'attributes' must be informed for task" \
+           f" {MaxAbsScalerOperation}" in str(val_err.value)

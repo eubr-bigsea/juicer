@@ -2,6 +2,7 @@ from tests.scikit_learn import util
 from juicer.scikit_learn.feature_operation import PCAOperation
 import pytest
 import pandas as pd
+from textwrap import dedent
 from tests.scikit_learn.util import get_X_train_data
 from sklearn.decomposition import PCA
 
@@ -38,8 +39,13 @@ def test_pca_success():
     pca = PCA(n_components=1)
     x_train = get_X_train_data(test_df, ['sepallength', 'petalwidth'])
     test_out['pca_feature'] = pca.fit_transform(x_train).tolist()
-
     assert result['out'].equals(test_out)
+    assert dedent("""
+    out = df
+    pca = PCA(n_components=1)
+    X_train = get_X_train_data(df, ['sepallength', 'petalwidth'])
+    out['pca_feature'] = pca.fit_transform(X_train).tolist()
+    """) == instance.generate_code()
 
 
 def test_pca_two_n_components_success():
@@ -65,15 +71,19 @@ def test_pca_two_n_components_success():
     pca = PCA(n_components=2)
     x_train = get_X_train_data(test_df, ['sepallength', 'petalwidth'])
     test_out['pca_feature'] = pca.fit_transform(x_train).tolist()
-
     assert result['out'].equals(test_out)
+    assert dedent("""
+    out = df
+    pca = PCA(n_components=2)
+    X_train = get_X_train_data(df, ['sepallength', 'petalwidth'])
+    out['pca_feature'] = pca.fit_transform(X_train).tolist()
+    """) == instance.generate_code()
 
 
 def test_pca_alias_param_success():
     df = util.iris(['sepallength',
                     'petalwidth'], size=10)
     test_df = df.copy()
-
     arguments = {
         'parameters': {'attribute': ['sepallength', 'petalwidth'],
                        'k': 1,
@@ -93,8 +103,13 @@ def test_pca_alias_param_success():
     pca = PCA(n_components=1)
     x_train = get_X_train_data(test_df, ['sepallength', 'petalwidth'])
     test_out['success'] = pca.fit_transform(x_train).tolist()
-
     assert result['out'].equals(test_out)
+    assert dedent("""
+    out = df
+    pca = PCA(n_components=1)
+    X_train = get_X_train_data(df, ['sepallength', 'petalwidth'])
+    out['success'] = pca.fit_transform(X_train).tolist()
+    """) == instance.generate_code()
 
 
 def test_pca_no_output_implies_no_code_success():
@@ -141,29 +156,8 @@ def test_pca_missing_attributes_param_fail():
     }
     with pytest.raises(ValueError) as val_err:
         PCAOperation(**arguments)
-    assert "Parameters 'attribute' must be informed for task" in str(
-        val_err.value)
-
-
-def test_pca_missing_multiplicity_param_fail():
-    df = util.iris(['sepallength',
-                    'petalwidth'], size=10)
-
-    arguments = {
-        'parameters': {'attribute': ['sepallength', 'petalwidth'],
-                       'k': 1},
-        'named_inputs': {
-            'input data': 'df',
-        },
-        'named_outputs': {
-            'output data': 'out'
-        }
-    }
-    instance = PCAOperation(**arguments)
-    with pytest.raises(KeyError) as key_err:
-        util.execute(instance.generate_code(),
-                     {'df': df})
-    assert "'multiplicity'" in str(key_err.value)
+    assert f"Parameters 'attribute' must be informed for task" \
+           f" {PCAOperation}" in str(val_err.value)
 
 
 def test_pca_zero_n_parameters_fail():
@@ -180,4 +174,5 @@ def test_pca_zero_n_parameters_fail():
     }
     with pytest.raises(ValueError) as val_err:
         PCAOperation(**arguments)
-    assert "Parameter 'k' must be x>0 for task" in str(val_err.value)
+    assert f"Parameter 'k' must be x>0 for task" \
+           f" {PCAOperation}" in str(val_err.value)
