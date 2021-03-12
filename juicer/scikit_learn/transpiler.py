@@ -96,8 +96,8 @@ class ScikitLearnTranspiler(Transpiler):
             'max-abs-scaler': feature_extraction.MaxAbsScalerOperation,
             'one-hot-encoder': feature_extraction.OneHotEncoderOperation,
             'pca': feature_extraction.PCAOperation,
-            'quantile-discretizer':
-                feature_extraction.QuantileDiscretizerOperation,
+            'kbins-discretizer':
+                feature_extraction.KBinsDiscretizerOperation,
             'standard-scaler': feature_extraction.StandardScalerOperation,
             'feature-indexer': feature_extraction.StringIndexerOperation,
             'string-indexer': feature_extraction.StringIndexerOperation,
