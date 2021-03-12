@@ -105,7 +105,7 @@ class MinMaxScalerOperation(Operation):
     """
 
     ALIAS_PARAM = 'alias'
-    ATTRIBUTE_PARAM = 'attribute'
+    ATTRIBUTE_PARAM = 'attributes'
     MIN_PARAM = 'min'
     MAX_PARAM = 'max'
 
@@ -121,9 +121,13 @@ class MinMaxScalerOperation(Operation):
                 'output data', 'output_data_{}'.format(self.order))
         self.model = named_outputs.get(
             'transformation model', 'model_{}'.format(self.order))
-        self.attribute = parameters[self.ATTRIBUTE_PARAM]
-        self.alias = parameters.get(self.ALIAS_PARAM,
-                                    'scaled_{}'.format(self.order))
+        self.attributes = parameters[self.ATTRIBUTE_PARAM]
+        self.alias = parameters.get(self.ALIAS_PARAM)
+        if self.alias is None:
+            self.alias = [col + "_norm" for col in self.attributes]
+        else:
+            self.alias = self.alias.replace(" ", "").split(",")
+
         self.min = parameters.get(self.MIN_PARAM, 0)
         self.max = parameters.get(self.MAX_PARAM, 1)
 
@@ -141,24 +145,20 @@ class MinMaxScalerOperation(Operation):
     def generate_code(self):
         if self.has_code:
             """Generate code."""
-            copy_code = ".copy()" \
-                if self.parameters['multiplicity']['input data'] > 1 else ""
-
             code = """
-    {model} = MinMaxScaler(feature_range=({min},{max}))
-    X_train = get_X_train_data({input}, {att})
-    {model}.fit(X_train)
+            X_train = get_X_train_data({input}, {att})
+
+            {model} = MinMaxScaler(feature_range=({min},{max}))
+            values = {model}.fit_transform(X_train)
+
+            {output} = pd.concat([{input}, 
+                pd.DataFrame(values, columns={alias})],
+                ignore_index=False, axis=1)
             """.format(output=self.output, model=self.model,
                        input=self.named_inputs['input data'],
-                       att=self.attribute, alias=self.alias,
+                       att=self.attributes, alias=self.alias,
                        min=self.min, max=self.max)
 
-            code += """
-    {output} = {input}{copy_code}
-    {output}['{alias}'] = {model}.transform(X_train).tolist()
-                """.format(copy_code=copy_code, output=self.output,
-                           input=self.named_inputs['input data'],
-                           model=self.model, alias=self.alias)
             return dedent(code)
 
 
@@ -173,7 +173,7 @@ class MaxAbsScalerOperation(Operation):
     """
 
     ALIAS_PARAM = 'alias'
-    ATTRIBUTE_PARAM = 'attribute'
+    ATTRIBUTE_PARAM = 'attributes'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
@@ -189,9 +189,12 @@ class MaxAbsScalerOperation(Operation):
                 'output data', 'output_data_{}'.format(self.order))
         self.model = named_outputs.get(
             'transformation model', 'model_{}'.format(self.order))
-        self.attribute = parameters[self.ATTRIBUTE_PARAM]
-        self.alias = parameters.get(self.ALIAS_PARAM,
-                                        'scaled_{}'.format(self.order))
+        self.attributes = parameters[self.ATTRIBUTE_PARAM]
+        self.alias = parameters.get(self.ALIAS_PARAM)
+        if self.alias is None:
+            self.alias = [col + "_norm" for col in self.attributes]
+        else:
+            self.alias = self.alias.replace(" ", "").split(",")
 
         self.transpiler_utils.add_import(
                 "from sklearn.preprocessing import MaxAbsScaler")
@@ -207,24 +210,19 @@ class MaxAbsScalerOperation(Operation):
     def generate_code(self):
         """Generate code."""
         if self.has_code:
-            copy_code = ".copy()" \
-                if self.parameters['multiplicity']['input data'] > 1 else ""
-
             code = """
-    {model} = MaxAbsScaler()
-    X_train = get_X_train_data({input}, {att})
-    {model}.fit(X_train)
-            """.format(output=self.output,
-                       model=self.model,
-                       input=self.named_inputs['input data'],
-                       att=self.attribute, alias=self.alias)
+            X_train = get_X_train_data({input}, {att})
 
-            code += """
-    {output} = {input}{copy_code}
-    {output}['{alias}'] = {model}.transform(X_train).tolist()
-                """.format(copy_code=copy_code,
-                           output=self.output, input=self.named_inputs['input data'],
-                           model=self.model, alias=self.alias)
+            {model} = MaxAbsScaler()
+            values = {model}.fit_transform(X_train)
+
+            {output} = pd.concat([{input}, 
+                pd.DataFrame(values, columns={alias})],
+                ignore_index=False, axis=1)
+            """.format(output=self.output, model=self.model,
+                       input=self.named_inputs['input data'],
+                       att=self.attributes, alias=self.alias)
+
             return dedent(code)
 
 
@@ -243,7 +241,7 @@ class StandardScalerOperation(Operation):
     """
 
     ALIAS_PARAM = 'alias'
-    ATTRIBUTE_PARAM = 'attribute'
+    ATTRIBUTE_PARAM = 'attributes'
     WITH_MEAN_PARAM = 'with_mean'
     WITH_STD_PARAM = 'with_std'
     VALUE_PARAMETER = 'value'
@@ -267,10 +265,12 @@ class StandardScalerOperation(Operation):
                 msg = _("Parameters '{}' must be informed for task {}")
                 raise ValueError(msg.format(
                     self.ATTRIBUTE_PARAM, self.__class__.__name__))
-            self.attribute = parameters[self.ATTRIBUTE_PARAM]
-
-            self.alias = parameters.get(self.ALIAS_PARAM,
-                                        'scaled_{}'.format(self.order))
+            self.attributes = parameters[self.ATTRIBUTE_PARAM]
+            self.alias = parameters.get(self.ALIAS_PARAM)
+            if self.alias is None:
+                self.alias = [col + "_norm" for col in self.attributes]
+            else:
+                self.alias = self.alias.replace(" ", "").split(",")
 
             self.transpiler_utils.add_import(
                     "from sklearn.preprocessing import StandardScaler")
@@ -290,38 +290,31 @@ class StandardScalerOperation(Operation):
                 .format(value=self.with_mean)
             op += ", with_std={value}" \
                 .format(value=self.with_std)
-            copy_code = ".copy()" \
-                if self.parameters['multiplicity']['input data'] > 1 else ""
 
             code = """
-    {model} = StandardScaler({op})
-    X_train = get_X_train_data({input}, {att})
-    {model}.fit(X_train)
-            """.format(model=self.model,
-                       input=self.named_inputs['input data'],
-                       att=self.attribute, alias=self.alias, op=op)
+            X_train = get_X_train_data({input}, {att})
 
-            if self.contains_results() or len(self.named_outputs) > 0:
-                code += """
-    {output} = {input}{copy_code}
-    {output}['{alias}'] = {model}.transform(X_train).tolist()
-                """.format(copy_code=copy_code, output=self.output,
-                           input=self.named_inputs['input data'],
-                           model=self.model, alias=self.alias)
+            {model} = StandardScaler({op})
+            values = {model}.fit_transform(X_train)
+
+            {output} = pd.concat([{input}, 
+                pd.DataFrame(values, columns={alias})],
+                ignore_index=False, axis=1)
+            """.format(model=self.model, output=self.output,
+                       input=self.named_inputs['input data'],
+                       att=self.attributes, alias=self.alias, op=op)
+
             return dedent(code)
 
 
-class QuantileDiscretizerOperation(Operation):
+class KBinsDiscretizerOperation(Operation):
     """
-    Transform features using quantiles information.
+    Transform features using Kbins discretizer.
 
     This method transforms the features to follow a uniform or a
     normal distribution. Therefore, for a given feature, this transformation
     tends to spread out the most frequent values.
     """
-
-    # TODO: in tahiti, change the translation "quantil number" to
-    # 'The number of bins to produce'
 
     ALIAS_PARAM = 'alias'
     ATTRIBUTE_PARAM = 'attribute'
@@ -349,8 +342,11 @@ class QuantileDiscretizerOperation(Operation):
             self.model = self.named_outputs.get(
                     'model', 'model_{}'.format(self.order))
             self.attribute = parameters[self.ATTRIBUTE_PARAM]
-            self.alias = parameters.get(self.ALIAS_PARAM,
-                                        'quantiledisc_{}'.format(self.order))
+            self.alias = parameters.get(self.ALIAS_PARAM)
+            if self.alias is None:
+                self.alias = [col + "_disc" for col in self.attribute]
+            else:
+                self.alias = self.alias.replace(" ", "").split(",")
             self.n_quantiles = parameters.get(
                     self.N_QUANTILES_PARAM, 1000) or 1000
             self.output_distribution = parameters.get(
@@ -379,7 +375,11 @@ class QuantileDiscretizerOperation(Operation):
                 encode='ordinal', strategy='{strategy}')
             X_train = get_X_train_data({input}, {att})
             
-            {output}['{alias}'] = {model}.fit_transform(X_train).flatten().tolist()
+            values = {model}.fit_transform(X_train)
+
+            {output} = pd.concat([{input}, 
+                pd.DataFrame(values, columns={alias})],
+                ignore_index=False, axis=1)
             """.format(copy_code=copy_code, output=self.output,
                        model=self.model,
                        input=self.named_inputs['input data'],
