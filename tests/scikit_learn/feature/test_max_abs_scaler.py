@@ -1,5 +1,6 @@
 from tests.scikit_learn import util
 from juicer.scikit_learn.feature_operation import MaxAbsScalerOperation
+from juicer.scikit_learn.util import get_X_train_data
 import pytest
 from sklearn.preprocessing import MaxAbsScaler
 import pandas as pd
@@ -14,13 +15,13 @@ import pandas as pd
 #
 # # # # # # # # # # Success # # # # # # # # # #
 
-def test_max_abs_scaler_success():
+def test_max_abs_scaler_infer_alias_success():
     df = util.iris(['sepalwidth',
                     'petalwidth'], size=10)
     test_df = df.copy()
 
     arguments = {
-        'parameters': {'attribute': ['sepalwidth', 'petalwidth'],
+        'parameters': {'attributes': ['sepalwidth', 'petalwidth'],
                        'multiplicity': {'input data': 0}},
         'named_inputs': {
             'input data': 'df',
@@ -31,28 +32,32 @@ def test_max_abs_scaler_success():
     }
     instance = MaxAbsScalerOperation(**arguments)
     result = util.execute(util.get_complete_code(instance), {'df': df})
+    X_train = get_X_train_data(test_df, ['sepalwidth', 'petalwidth'])
     model_1 = MaxAbsScaler()
+    values = model_1.fit_transform(X_train)
+    res_maxabs = pd.DataFrame(values, columns=['sepalwidth_norm',
+                                               'petalwidth_norm'])
 
-    assert test_df.max()['sepalwidth'] == 3.9
-    assert test_df.max()['petalwidth'] == 0.4
-    assert not result['out'].equals(test_df)
+    assert result['out'][['sepalwidth_norm', 'petalwidth_norm']]\
+        .equals(res_maxabs)
     assert str(result['model_1']) == str(model_1)
     assert """
-model_1 = MaxAbsScaler()
 X_train = get_X_train_data(df, ['sepalwidth', 'petalwidth'])
-model_1.fit(X_train)
 
-out = df
-out['scaled_1'] = model_1.transform(X_train).tolist()
-""" == \
-           instance.generate_code()
+model_1 = MaxAbsScaler()
+values = model_1.fit_transform(X_train)
+
+out = pd.concat([df, 
+    pd.DataFrame(values, columns=['sepalwidth_norm', 'petalwidth_norm'])],
+    ignore_index=False, axis=1)
+""" == instance.generate_code()
 
 
-def test_max_abs_scaler_alias_param_success():
+def test_max_abs_scaler_one_alias_param_success():
     df = util.iris(['sepalwidth',
                     'petalwidth'], size=10)
     arguments = {
-        'parameters': {'attribute': ['sepalwidth', 'petalwidth'],
+        'parameters': {'attributes': ['sepalwidth'],
                        'multiplicity': {'input data': 0},
                        'alias': 'test_pass'},
         'named_inputs': {
@@ -67,9 +72,35 @@ def test_max_abs_scaler_alias_param_success():
     assert result['out'].iloc[:, 2].name == 'test_pass'
 
 
+def test_max_abs_scaler_multiple_alias_param_success():
+    df = util.iris(['sepalwidth',
+                    'petalwidth'], size=10)
+    test_df = df.copy()
+    arguments = {
+        'parameters': {'attributes': ['sepalwidth', 'petalwidth'],
+                       'multiplicity': {'input data': 0},
+                       'alias': 'test_pass1, test_pass2'},
+        'named_inputs': {
+            'input data': 'df',
+        },
+        'named_outputs': {
+            'output data': 'out'
+        }
+    }
+    instance = MaxAbsScalerOperation(**arguments)
+    result = util.execute(util.get_complete_code(instance), {'df': df})
+    X_train = get_X_train_data(test_df, ['sepalwidth', 'petalwidth'])
+    model_1 = MaxAbsScaler()
+    values = model_1.fit_transform(X_train)
+    res_maxabs = pd.DataFrame(values, columns=['test_pass1',
+                                               'test_pass2'])
+
+    assert result['out'][['test_pass1', 'test_pass2']].equals(res_maxabs)
+
+
 def test_max_abs_scaler_no_output_implies_no_code_success():
     arguments = {
-        'parameters': {'attribute': ['sepalwidth', 'petalwidth'],
+        'parameters': {'attributes': ['sepalwidth', 'petalwidth'],
                        'multiplicity': {'input data': 0}},
         'named_inputs': {
             'input data': 'df',
@@ -83,7 +114,7 @@ def test_max_abs_scaler_no_output_implies_no_code_success():
 
 def test_max_abs_scaler_missing_input_implies_no_code_success():
     arguments = {
-        'parameters': {'attribute': ['sepalwidth', 'petalwidth'],
+        'parameters': {'attributes': ['sepalwidth', 'petalwidth'],
                        'multiplicity': {'input data': 0}},
         'named_inputs': {
         },
@@ -108,5 +139,5 @@ def test_max_abs_scaler_missing_attributes_param_fail():
     }
     with pytest.raises(ValueError) as val_err:
         MaxAbsScalerOperation(**arguments)
-    assert "Parameters 'attribute' must be informed for task" in str(
+    assert "Parameters 'attributes' must be informed for task" in str(
         val_err.value)
