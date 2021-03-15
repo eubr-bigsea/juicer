@@ -43,39 +43,40 @@ class FrequentItemSetOperation(Operation):
                          self.rules_output])
 
     def generate_code(self):
-        """Generate code."""
+        if self.has_code:
+            """Generate code."""
 
-        if not len(self.column) > 1:
-            self.column = "{input}.columns[0]" \
-                .format(input=self.named_inputs['input data'])
-        else:
-            self.column = "'{}'".format(self.column)
+            if not len(self.column) > 1:
+                self.column = "{input}.columns[0]" \
+                    .format(input=self.named_inputs['input data'])
+            else:
+                self.column = "'{}'".format(self.column)
 
-        code = """
-        col = {col}
-        transactions = {input}[col].to_numpy().tolist()
-        dim = len(transactions)
-        min_support = {min_support} * dim
-        
-        patterns = pyfpgrowth.find_frequent_patterns(transactions, min_support)
-        result = [[list(f), s] for f, s in patterns.items()]
+            code = """
+            col = {col}
+            transactions = {input}[col].to_numpy().tolist()
+            dim = len(transactions)
+            min_support = {min_support} * dim
+            
+            patterns = pyfpgrowth.find_frequent_patterns(transactions, min_support)
+            result = [[list(f), s] for f, s in patterns.items()]
+    
+            col_item, col_freq = 'itemsets', 'support'
+                  
+            {output} = pd.DataFrame(result, columns=[col_item, col_freq])
+            {output}[col_freq] = {output}[col_freq] / dim
+            {output} = {output}.sort_values(by=col_freq, ascending=False)
+            
+            # generating rules
+            from juicer.scikit_learn.library.rules_generator import RulesGenerator
+            rg = RulesGenerator(min_conf={min_conf}, max_len=-1)
+            {rules} = rg.get_rules({output}, col_item, col_freq)
+            """.format(output=self.output, col=self.column,
+                       input=self.named_inputs['input data'],
+                       min_support=self.min_support, min_conf=self.confidence,
+                       rules=self.rules_output)
 
-        col_item, col_freq = 'itemsets', 'support'
-              
-        {output} = pd.DataFrame(result, columns=[col_item, col_freq])
-        {output}[col_freq] = {output}[col_freq] / dim
-        {output} = {output}.sort_values(by=col_freq, ascending=False)
-        
-        # generating rules
-        from juicer.scikit_learn.library.rules_generator import RulesGenerator
-        rg = RulesGenerator(min_conf={min_conf}, max_len=-1)
-        {rules} = rg.get_rules({output}, col_item, col_freq)
-        """.format(output=self.output, col=self.column,
-                   input=self.named_inputs['input data'],
-                   min_support=self.min_support, min_conf=self.confidence,
-                   rules=self.rules_output)
-
-        return dedent(code)
+            return dedent(code)
 
 
 class SequenceMiningOperation(Operation):
@@ -111,38 +112,39 @@ class SequenceMiningOperation(Operation):
                     "from prefixspan import PrefixSpan")
 
     def generate_code(self):
-        """Generate code."""
-        # Package: https://github.com/chuanconggao/PrefixSpan-py
-        # TODO: add Closed / Generator Patterns field
+        if self.has_code:
+            """Generate code."""
+            # Package: https://github.com/chuanconggao/PrefixSpan-py
+            # TODO: add Closed / Generator Patterns field
 
-        if not len(self.column) > 1:
-            self.column = "{input}.columns[0]" \
-                .format(input=self.named_inputs['input data'])
-        else:
-            self.column = "'{}'".format(self.column)
+            if not len(self.column) > 1:
+                self.column = "{input}.columns[0]" \
+                    .format(input=self.named_inputs['input data'])
+            else:
+                self.column = "'{}'".format(self.column)
 
-        # transactions = [row.tolist() for row in {input}[col].to_numpy().tolist()]
-        # transactions = np.array({input}[col].to_numpy().tolist()).tolist()
-        code = """
-        transactions = {input}[{col}].to_numpy().tolist() 
-        min_support = {min_support} * len(transactions)
-        
-        class PrefixSpan2(PrefixSpan):
-            def __init__(self, db, minlen=1, maxlen=1000):
-                self._db = db
-                self.minlen, self.maxlen = minlen, maxlen
-                self._results: Any = []
+            # transactions = [row.tolist() for row in {input}[col].to_numpy().tolist()]
+            # transactions = np.array({input}[col].to_numpy().tolist()).tolist()
+            code = """
+            transactions = {input}[{col}].to_numpy().tolist() 
+            min_support = {min_support} * len(transactions)
+            
+            class PrefixSpan2(PrefixSpan):
+                def __init__(self, db, minlen=1, maxlen=1000):
+                    self._db = db
+                    self.minlen, self.maxlen = minlen, maxlen
+                    self._results: Any = []
+    
+            span = PrefixSpan2(transactions, minlen=1, maxlen={max_length})
+            result = span.frequent(min_support, closed=False, generator=False)
+    
+            {output} = pd.DataFrame(result, columns=['support', 'itemsets'])
+            """.format(output=self.output, col=self.column,
+                       input=self.named_inputs['input data'],
+                       min_support=self.min_support,
+                       max_length=self.max_length)
 
-        span = PrefixSpan2(transactions, minlen=1, maxlen={max_length})
-        result = span.frequent(min_support, closed=False, generator=False)
-
-        {output} = pd.DataFrame(result, columns=['support', 'itemsets'])
-        """.format(output=self.output, col=self.column,
-                   input=self.named_inputs['input data'],
-                   min_support=self.min_support,
-                   max_length=self.max_length)
-
-        return dedent(code)
+            return dedent(code)
 
 
 class AssociationRulesOperation(Operation):
@@ -181,23 +183,24 @@ class AssociationRulesOperation(Operation):
             self.max_rules = parameters.get(self.MAX_COUNT_PARAM, -1) or -1
 
     def generate_code(self):
-        """Generate code."""
+        if self.has_code:
+            """Generate code."""
 
-        if len(self.items_col) == 0:
-            self.items_col = "{input}.columns[0]" \
-                .format(input=self.named_inputs['input data'])
-        else:
-            self.items_col = "'{}'".format(self.items_col)
+            if len(self.items_col) == 0:
+                self.items_col = "{input}.columns[0]" \
+                    .format(input=self.named_inputs['input data'])
+            else:
+                self.items_col = "'{}'".format(self.items_col)
 
-        code = """
-        col_item = {items}
-        col_freq = "{freq}"
-        
-        rg = RulesGenerator(min_conf={min_conf}, max_len={max_len})
-        {rules} = rg.get_rules({input}, col_item, col_freq)   
-        """.format(min_conf=self.confidence, rules=self.output,
-                   input=self.named_inputs['input data'],
-                   items=self.items_col, freq=self.support_col,
-                   max_len=self.max_rules)
+            code = """
+            col_item = {items}
+            col_freq = "{freq}"
+            
+            rg = RulesGenerator(min_conf={min_conf}, max_len={max_len})
+            {rules} = rg.get_rules({input}, col_item, col_freq)   
+            """.format(min_conf=self.confidence, rules=self.output,
+                       input=self.named_inputs['input data'],
+                       items=self.items_col, freq=self.support_col,
+                       max_len=self.max_rules)
 
-        return dedent(code)
+            return dedent(code)
