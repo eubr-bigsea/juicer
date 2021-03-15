@@ -122,14 +122,17 @@ class JuicerServer:
                 for pending in pending_list:
                     pending = json.loads(pending)
                     if pending.get('type') != 'terminate' and pending:
-                        msg = json.loads(pending[0])
-                        log.warn(_('Starting pending app_id {}').format(app_id))
-                        # FIXME: cluster
-                        platform = msg['workflow']['platform']['slug']
-                        job_id = msg['job_id']
+                        try:
+                            msg = json.loads(pending[0])
+                            log.warn(_('Starting pending app_id {}').format(app_id))
+                            # FIXME: cluster
+                            platform = msg['workflow']['platform']['slug']
+                            job_id = msg['job_id']
         
-                        self._start_minion(app_id, app_id, job_id, self.state_control,
+                            self._start_minion(app_id, app_id, job_id, self.state_control,
                                            platform)
+                        except Exception as e:
+                            print(msg, e)
             else:
                 log.warn(_("Pending queue is empty"))
 
