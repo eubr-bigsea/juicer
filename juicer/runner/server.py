@@ -132,7 +132,7 @@ class JuicerServer:
                             self._start_minion(app_id, app_id, job_id, self.state_control,
                                            platform)
                         except Exception as e:
-                            print(msg, e)
+                            print(pending, e)
             else:
                 log.warn(_("Pending queue is empty"))
 
