@@ -778,7 +778,7 @@ class EvaluateModelOperation(Operation):
                 emit_event(
                     'update task', status='COMPLETED',
                     identifier='{task_id}',
-                    message=content.generate(),
+                    message=content.generate(submission_lock),
                     type='IMAGE', title='{title}',
                     task={{'id': '{task_id}'}},
                     operation={{'id': {operation_id}}},
@@ -857,7 +857,7 @@ class EvaluateModelOperation(Operation):
                 emit_event(
                     'update task', status='COMPLETED',
                     identifier='{task_id}',
-                    message=content.generate(),
+                    message=content.generate(submission_lock),
                     type='IMAGE', title='{title}',
                     task={{'id': '{task_id}'}},
                     operation={{'id': {operation_id}}},
@@ -893,7 +893,7 @@ class EvaluateModelOperation(Operation):
                 emit_event(
                     'update task', status='COMPLETED',
                     identifier='{task_id}',
-                    message=content.generate(),
+                    message=content.generate(submission_lock),
                     type='IMAGE', title=method.upper(), # FIXME add title
                     task={{'id': '{task_id}'}},
                     operation={{'id': {operation_id}}},
@@ -995,7 +995,8 @@ class EvaluateModelOperation(Operation):
                         identifier='{task_id}',
                         message=report.jointplot(pandas_df, 'prediction',
                             'residual', '{join_plot_title}',
-                            '{join_plot_x_title}', '{join_plot_y_title}'),
+                            '{join_plot_x_title}', '{join_plot_y_title}',
+                            submission_lock),
                         type='IMAGE', title='{join_plot_title}',
                         task=dict(id='{task_id}'),
                         operation=dict(id={operation_id}),
@@ -1018,7 +1019,8 @@ class EvaluateModelOperation(Operation):
                             '{plot_x_title}',
                             '{plot_y_title}',
                             identity, identity, 'r-',
-                            actual, predicted,'b.', linewidth=1),
+                            actual, predicted,'b.', linewidth=1,
+                            submission_lock=submission_lock),
                         type='IMAGE', title='{join_plot_title}',
                         task=dict(id='{task_id}'),
                         operation=dict(id={operation_id}),
@@ -2590,8 +2592,11 @@ class AlternatingLeastSquaresOperation(Operation):
         self.name = "collaborativefiltering.ALS"
 
         # Define input and output
-        # output = self.named_outputs['output data']
+        self.output = self.named_outputs['algorithm']
         # self.input = self.named_inputs['train input data']
+
+    def get_output_names(self, sep=", "):
+        return self.output
 
     def generate_code(self):
         code = dedent("""
@@ -2603,7 +2608,7 @@ class AlternatingLeastSquaresOperation(Operation):
                         ratingCol='{ratingCol}',
                         coldStartStrategy='drop')
                 """.format(
-            algorithm=self.named_outputs['algorithm'],
+            algorithm=self.output,
             maxIter=self.maxIter,
             regParam=float(self.regParam),
             userCol='{user}'.format(user=self.userCol),

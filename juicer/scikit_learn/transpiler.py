@@ -90,12 +90,14 @@ class ScikitLearnTranspiler(Transpiler):
 
             # ------ Feature Extraction Operations  ------#
             'feature-assembler': feature_extraction.FeatureAssemblerOperation,
+            'feature-disassembler':
+                feature_extraction.FeatureDisassemblerOperation,
             'min-max-scaler': feature_extraction.MinMaxScalerOperation,
             'max-abs-scaler': feature_extraction.MaxAbsScalerOperation,
             'one-hot-encoder': feature_extraction.OneHotEncoderOperation,
             'pca': feature_extraction.PCAOperation,
-            'quantile-discretizer':
-                feature_extraction.QuantileDiscretizerOperation,
+            'kbins-discretizer':
+                feature_extraction.KBinsDiscretizerOperation,
             'standard-scaler': feature_extraction.StandardScalerOperation,
             'feature-indexer': feature_extraction.StringIndexerOperation,
             'string-indexer': feature_extraction.StringIndexerOperation,
@@ -110,45 +112,46 @@ class ScikitLearnTranspiler(Transpiler):
             # ------ Clustering      -----#
             'clustering-model': clustering.ClusteringModelOperation,
             'agglomerative-clustering':
-                clustering.AgglomerativeClusteringOperation,
-            'dbscan-clustering': clustering.DBSCANClusteringOperation,
+                clustering.AgglomerativeModelOperation,
+            'dbscan-clustering': clustering.DBSCANClusteringModelOperation,
             'gaussian-mixture':
-                clustering.GaussianMixtureClusteringOperation,
-            'k-means-clustering-model': clustering.KMeansClusteringOperation,
-            'lda-clustering-model': clustering.LdaClusteringOperation,
+                clustering.GaussianMixtureClusteringModelOperation,
+            'k-means-clustering-model': clustering.KMeansModelOperation,
+            'lda-clustering-model': clustering.LdaClusteringModelOperation,
             'topic-report': clustering.TopicReportOperation,
 
             # ------ Classification  -----#
             'classification-model': classifiers.ClassificationModelOperation,
             'decision-tree-classifier-model':
-                classifiers.DecisionTreeClassifierOperation,
-            'gbt-classifier-model': classifiers.GBTClassifierOperation,
-            'knn-classifier-model': classifiers.KNNClassifierOperation,
+                classifiers.DecisionTreeClassifierModelOperation,
+            'gbt-classifier-model': classifiers.GBTClassifierModelOperation,
+            'knn-classifier-model': classifiers.KNNClassifierModelOperation,
             'logistic-regression-model':
-                classifiers.LogisticRegressionOperation,
-            'mlp-classifier-model': classifiers.MLPClassifierOperation,
+                classifiers.LogisticRegressionModelOperation,
+            'mlp-classifier-model': classifiers.MLPClassifierModelOperation,
             'naive-bayes-classifier-model':
-                classifiers.NaiveBayesClassifierOperation,
+                classifiers.NaiveBayesClassifierModelOperation,
             'perceptron-classifier-model':
-                classifiers.PerceptronClassifierOperation,
+                classifiers.PerceptronClassifierModelOperation,
             'random-forest-classifier-model':
-                classifiers.RandomForestClassifierOperation,
-            'svm-classification-model': classifiers.SvmClassifierOperation,
+                classifiers.RandomForestClassifierModelOperation,
+            'svm-classification-model': classifiers.SvmClassifierModelOperation,
 
             # ------ Regression  -----#
             'regression-model': regression.RegressionModelOperation,
             'gbt-regressor-model':
-                regression.GradientBoostingRegressorOperation,
+                regression.GradientBoostingRegressorModelOperation,
             'generalized-linear-regression':
-                regression.GeneralizedLinearRegressionOperation,
-            'huber-regressor-model': regression.HuberRegressorOperation,
+                regression.GeneralizedLinearRegressionModelOperation,
+            'huber-regressor-model': regression.HuberRegressorModelOperation,
             'isotonic-regression-model':
-                regression.IsotonicRegressionOperation,
-            'linear-regression-model': regression.LinearRegressionOperation,
-            'mlp-regressor-model': regression.MLPRegressorOperation,
+                regression.IsotonicRegressionModelOperation,
+            'linear-regression-model':
+                regression.LinearRegressionModelOperation,
+            'mlp-regressor-model': regression.MLPRegressorModelOperation,
             'random-forest-regressor-model':
-                regression.RandomForestRegressorOperation,
-            'sgd-regressor-model': regression.SGDRegressorOperation,
+                regression.RandomForestRegressorModelOperation,
+            'sgd-regressor-model': regression.SGDRegressorModelOperation,
 
             # ------ Outlier  -----#
             'local-outlier-factor': lof.OutlierDetectionOperation,

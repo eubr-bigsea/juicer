@@ -42,10 +42,53 @@ class FeatureAssemblerOperation(Operation):
             {input}_without_na = {input}.dropna(subset=cols)
             {output} = {input}_without_na{copy_code}
             {output}['{alias}'] = {input}_without_na[cols].to_numpy().tolist()
-            """.format(copy_code=copy_code, output=self.output, alias=self.alias,
+            """.format(copy_code=copy_code, output=self.output,
+                       alias=self.alias,
                        input=self.named_inputs['input data'],
                        cols=self.parameters[self.ATTRIBUTES_PARAM],
                        cls=self.__class__)
+            return dedent(code)
+
+
+class FeatureDisassemblerOperation(Operation):
+    TOP_N = 'top_n'
+    FEATURE_PARAM = 'feature'
+    PREFIX_PARAM = 'alias'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+
+        if self.FEATURE_PARAM in parameters:
+            self.feature = parameters.get(self.FEATURE_PARAM)[0]
+        else:
+            raise ValueError(
+                    _("Parameter '{}' must be informed for task {}").format(
+                     self.FEATURE_PARAM, self.__class__))
+
+        self.topn = int(self.parameters.get(self.TOP_N, 1))
+        self.alias = self.parameters.get(self.PREFIX_PARAM, 'vector_')
+
+        self.has_code = len(self.named_inputs) == 1 and any(
+                [len(self.named_outputs) >= 1, self.contains_results()])
+        self.output = self.named_outputs.get('output data',
+                                             'out_{}'.format(self.order))
+
+    def generate_code(self):
+        if self.has_code:
+
+            code = """
+            {input} = {input}.reset_index(drop=True)
+            feature = {input}['{feature}'].to_numpy()
+            tmp_vec = np.stack(feature, axis=0)
+            dim = tmp_vec.shape[1] if {topn} > tmp_vec.shape[1] else {topn}
+            columns = ["{alias}"+str(i+1) for i in range(dim)]
+            new_df = pd.DataFrame(tmp_vec[:,:dim], columns=columns)
+            {output} = {input}.merge(new_df, left_index=True, right_index=True)
+            """.format(output=self.output,
+                       alias=self.alias,
+                       topn=self.topn,
+                       input=self.named_inputs['input data'],
+                       feature=self.feature)
             return dedent(code)
 
 
@@ -62,7 +105,7 @@ class MinMaxScalerOperation(Operation):
     """
 
     ALIAS_PARAM = 'alias'
-    ATTRIBUTE_PARAM = 'attribute'
+    ATTRIBUTE_PARAM = 'attributes'
     MIN_PARAM = 'min'
     MAX_PARAM = 'max'
 
@@ -78,9 +121,13 @@ class MinMaxScalerOperation(Operation):
                 'output data', 'output_data_{}'.format(self.order))
         self.model = named_outputs.get(
             'transformation model', 'model_{}'.format(self.order))
-        self.attribute = parameters[self.ATTRIBUTE_PARAM]
-        self.alias = parameters.get(self.ALIAS_PARAM,
-                                    'scaled_{}'.format(self.order))
+        self.attributes = parameters[self.ATTRIBUTE_PARAM]
+        self.alias = parameters.get(self.ALIAS_PARAM)
+        if self.alias is None:
+            self.alias = [col + "_norm" for col in self.attributes]
+        else:
+            self.alias = self.alias.replace(" ", "").split(",")
+
         self.min = parameters.get(self.MIN_PARAM, 0)
         self.max = parameters.get(self.MAX_PARAM, 1)
 
@@ -98,24 +145,20 @@ class MinMaxScalerOperation(Operation):
     def generate_code(self):
         if self.has_code:
             """Generate code."""
-            copy_code = ".copy()" \
-                if self.parameters['multiplicity']['input data'] > 1 else ""
-
             code = """
-    {model} = MinMaxScaler(feature_range=({min},{max}))
-    X_train = get_X_train_data({input}, {att})
-    {model}.fit(X_train)
+            X_train = get_X_train_data({input}, {att})
+
+            {model} = MinMaxScaler(feature_range=({min},{max}))
+            values = {model}.fit_transform(X_train)
+
+            {output} = pd.concat([{input}, 
+                pd.DataFrame(values, columns={alias})],
+                ignore_index=False, axis=1)
             """.format(output=self.output, model=self.model,
                        input=self.named_inputs['input data'],
-                       att=self.attribute, alias=self.alias,
+                       att=self.attributes, alias=self.alias,
                        min=self.min, max=self.max)
 
-            code += """
-    {output} = {input}{copy_code}
-    {output}['{alias}'] = {model}.transform(X_train).tolist()
-                """.format(copy_code=copy_code, output=self.output,
-                           input=self.named_inputs['input data'],
-                           model=self.model, alias=self.alias)
             return dedent(code)
 
 
@@ -130,7 +173,7 @@ class MaxAbsScalerOperation(Operation):
     """
 
     ALIAS_PARAM = 'alias'
-    ATTRIBUTE_PARAM = 'attribute'
+    ATTRIBUTE_PARAM = 'attributes'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
@@ -146,9 +189,12 @@ class MaxAbsScalerOperation(Operation):
                 'output data', 'output_data_{}'.format(self.order))
         self.model = named_outputs.get(
             'transformation model', 'model_{}'.format(self.order))
-        self.attribute = parameters[self.ATTRIBUTE_PARAM]
-        self.alias = parameters.get(self.ALIAS_PARAM,
-                                        'scaled_{}'.format(self.order))
+        self.attributes = parameters[self.ATTRIBUTE_PARAM]
+        self.alias = parameters.get(self.ALIAS_PARAM)
+        if self.alias is None:
+            self.alias = [col + "_norm" for col in self.attributes]
+        else:
+            self.alias = self.alias.replace(" ", "").split(",")
 
         self.transpiler_utils.add_import(
                 "from sklearn.preprocessing import MaxAbsScaler")
@@ -164,24 +210,19 @@ class MaxAbsScalerOperation(Operation):
     def generate_code(self):
         """Generate code."""
         if self.has_code:
-            copy_code = ".copy()" \
-                if self.parameters['multiplicity']['input data'] > 1 else ""
-
             code = """
-    {model} = MaxAbsScaler()
-    X_train = get_X_train_data({input}, {att})
-    {model}.fit(X_train)
-            """.format(output=self.output,
-                       model=self.model,
-                       input=self.named_inputs['input data'],
-                       att=self.attribute, alias=self.alias)
+            X_train = get_X_train_data({input}, {att})
 
-            code += """
-    {output} = {input}{copy_code}
-    {output}['{alias}'] = {model}.transform(X_train).tolist()
-                """.format(copy_code=copy_code,
-                           output=self.output, input=self.named_inputs['input data'],
-                           model=self.model, alias=self.alias)
+            {model} = MaxAbsScaler()
+            values = {model}.fit_transform(X_train)
+
+            {output} = pd.concat([{input}, 
+                pd.DataFrame(values, columns={alias})],
+                ignore_index=False, axis=1)
+            """.format(output=self.output, model=self.model,
+                       input=self.named_inputs['input data'],
+                       att=self.attributes, alias=self.alias)
+
             return dedent(code)
 
 
@@ -200,7 +241,7 @@ class StandardScalerOperation(Operation):
     """
 
     ALIAS_PARAM = 'alias'
-    ATTRIBUTE_PARAM = 'attribute'
+    ATTRIBUTE_PARAM = 'attributes'
     WITH_MEAN_PARAM = 'with_mean'
     WITH_STD_PARAM = 'with_std'
     VALUE_PARAMETER = 'value'
@@ -224,10 +265,12 @@ class StandardScalerOperation(Operation):
                 msg = _("Parameters '{}' must be informed for task {}")
                 raise ValueError(msg.format(
                     self.ATTRIBUTE_PARAM, self.__class__.__name__))
-            self.attribute = parameters[self.ATTRIBUTE_PARAM]
-
-            self.alias = parameters.get(self.ALIAS_PARAM,
-                                        'scaled_{}'.format(self.order))
+            self.attributes = parameters[self.ATTRIBUTE_PARAM]
+            self.alias = parameters.get(self.ALIAS_PARAM)
+            if self.alias is None:
+                self.alias = [col + "_norm" for col in self.attributes]
+            else:
+                self.alias = self.alias.replace(" ", "").split(",")
 
             self.transpiler_utils.add_import(
                     "from sklearn.preprocessing import StandardScaler")
@@ -241,43 +284,37 @@ class StandardScalerOperation(Operation):
         return sep.join([self.output, self.model])
 
     def generate_code(self):
-        """Generate code."""
-        op = "with_mean={value}" \
-            .format(value=self.with_mean)
-        op += ", with_std={value}" \
-            .format(value=self.with_std)
-        copy_code = ".copy()" \
-            if self.parameters['multiplicity']['input data'] > 1 else ""
+        if self.has_code:
+            """Generate code."""
+            op = "with_mean={value}" \
+                .format(value=self.with_mean)
+            op += ", with_std={value}" \
+                .format(value=self.with_std)
 
-        code = """
-        {model} = StandardScaler({op})
-        X_train = get_X_train_data({input}, {att})
-        {model}.fit(X_train)
-        """.format(model=self.model,
-                   input=self.named_inputs['input data'],
-                   att=self.attribute, alias=self.alias, op=op)
+            code = """
+            X_train = get_X_train_data({input}, {att})
 
-        if self.contains_results() or len(self.named_outputs) > 0:
-            code += """
-            {output} = {input}{copy_code}
-            {output}['{alias}'] = {model}.transform(X_train).tolist()
-            """.format(copy_code=copy_code, output=self.output,
+            {model} = StandardScaler({op})
+            values = {model}.fit_transform(X_train)
+
+            {output} = pd.concat([{input}, 
+                pd.DataFrame(values, columns={alias})],
+                ignore_index=False, axis=1)
+            """.format(model=self.model, output=self.output,
                        input=self.named_inputs['input data'],
-                       model=self.model, alias=self.alias)
-        return dedent(code)
+                       att=self.attributes, alias=self.alias, op=op)
+
+            return dedent(code)
 
 
-class QuantileDiscretizerOperation(Operation):
+class KBinsDiscretizerOperation(Operation):
     """
-    Transform features using quantiles information.
+    Transform features using Kbins discretizer.
 
     This method transforms the features to follow a uniform or a
     normal distribution. Therefore, for a given feature, this transformation
     tends to spread out the most frequent values.
     """
-
-    # TODO: in tahiti, change the translation "quantil number" to
-    # 'The number of bins to produce'
 
     ALIAS_PARAM = 'alias'
     ATTRIBUTE_PARAM = 'attribute'
@@ -291,7 +328,8 @@ class QuantileDiscretizerOperation(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-        self.has_code = len(self.named_inputs) == 1
+        self.has_code = len(named_inputs) >= 1 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
         if self.has_code:
 
             if self.ATTRIBUTE_PARAM not in parameters:
@@ -304,8 +342,11 @@ class QuantileDiscretizerOperation(Operation):
             self.model = self.named_outputs.get(
                     'model', 'model_{}'.format(self.order))
             self.attribute = parameters[self.ATTRIBUTE_PARAM]
-            self.alias = parameters.get(self.ALIAS_PARAM,
-                                        'quantiledisc_{}'.format(self.order))
+            self.alias = parameters.get(self.ALIAS_PARAM)
+            if self.alias is None:
+                self.alias = [col + "_disc" for col in self.attribute]
+            else:
+                self.alias = self.alias.replace(" ", "").split(",")
             self.n_quantiles = parameters.get(
                     self.N_QUANTILES_PARAM, 1000) or 1000
             self.output_distribution = parameters.get(
@@ -323,24 +364,29 @@ class QuantileDiscretizerOperation(Operation):
                 'from sklearn.preprocessing import KBinsDiscretizer')
 
     def generate_code(self):
-        """Generate code."""
-        copy_code = ".copy()" \
-            if self.parameters['multiplicity']['input data'] > 1 else ""
+        if self.has_code:
+            """Generate code."""
+            copy_code = ".copy()" \
+                if self.parameters['multiplicity']['input data'] > 1 else ""
 
-        code = """
-        {output} = {input}{copy_code}
-        {model} = KBinsDiscretizer(n_bins={n_quantiles}, 
-            encode='ordinal', strategy='{strategy}')
-        X_train = get_X_train_data({input}, {att})
-        
-        {output}['{alias}'] = {model}.fit_transform(X_train).flatten().tolist()
-        """.format(copy_code=copy_code, output=self.output,
-                   model=self.model,
-                   input=self.named_inputs['input data'],
-                   strategy=self.output_distribution,
-                   att=self.attribute, alias=self.alias,
-                   n_quantiles=self.n_quantiles,)
-        return dedent(code)
+            code = """
+            {output} = {input}{copy_code}
+            {model} = KBinsDiscretizer(n_bins={n_quantiles}, 
+                encode='ordinal', strategy='{strategy}')
+            X_train = get_X_train_data({input}, {att})
+            
+            values = {model}.fit_transform(X_train)
+
+            {output} = pd.concat([{input}, 
+                pd.DataFrame(values, columns={alias})],
+                ignore_index=False, axis=1)
+            """.format(copy_code=copy_code, output=self.output,
+                       model=self.model,
+                       input=self.named_inputs['input data'],
+                       strategy=self.output_distribution,
+                       att=self.attribute, alias=self.alias,
+                       n_quantiles=self.n_quantiles,)
+            return dedent(code)
 
 
 class OneHotEncoderOperation(Operation):
@@ -567,6 +613,8 @@ class StringIndexerOperation(Operation):
                     self.ATTRIBUTES_PARAM, self.__class__))
         self.alias = [alias.strip() for alias in
                       parameters.get(self.ALIAS_PARAM, '').split(',')]
+        self.has_code = len(self.named_inputs) == 1 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
 
         # Adjust alias in order to have the same number of aliases as attributes
         # by filling missing alias with the attribute name suffixed by _indexed.
@@ -577,26 +625,27 @@ class StringIndexerOperation(Operation):
                 "from sklearn.preprocessing import LabelEncoder")
 
     def generate_code(self):
-        input_data = self.named_inputs['input data']
-        output = self.named_outputs.get('output data',
-                                        'out_task_{}'.format(self.order))
+        if self.has_code:
+            input_data = self.named_inputs['input data']
+            output = self.named_outputs.get('output data',
+                                            'out_task_{}'.format(self.order))
 
-        models = self.named_outputs.get('models',
-                                        'models_task_{}'.format(self.order))
-        copy_code = ".copy()" \
-            if self.parameters['multiplicity']['input data'] > 1 else ""
+            models = self.named_outputs.get('models',
+                                            'models_task_{}'.format(self.order))
+            copy_code = ".copy()" \
+                if self.parameters['multiplicity']['input data'] > 1 else ""
 
-        code = dedent("""
-           {output} = {input}{copy_code}
-           {models} = dict()
-           le = LabelEncoder()
-           for col, new_col in zip({columns}, {alias}):
-               data = {input}[col].to_numpy().tolist()
-               {models}[new_col] = le.fit_transform(data)
-               {output}[new_col] =le.fit_transform(data)    
-           """.format(copy_code=copy_code, input=input_data,
-                      output=output,
-                      models=models,
-                      columns=self.attributes,
-                      alias=self.alias))
-        return code
+            code = dedent("""
+               {output} = {input}{copy_code}
+               {models} = dict()
+               le = LabelEncoder()
+               for col, new_col in zip({columns}, {alias}):
+                   data = {input}[col].to_numpy().tolist()
+                   {models}[new_col] = le.fit_transform(data)
+                   {output}[new_col] =le.fit_transform(data)    
+               """.format(copy_code=copy_code, input=input_data,
+                          output=output,
+                          models=models,
+                          columns=self.attributes,
+                          alias=self.alias))
+            return code
