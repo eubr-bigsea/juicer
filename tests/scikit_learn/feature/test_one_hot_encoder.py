@@ -1,6 +1,8 @@
 from tests.scikit_learn import util
 from juicer.scikit_learn.feature_operation import OneHotEncoderOperation
 from sklearn.preprocessing import OneHotEncoder
+from tests.scikit_learn.util import get_X_train_data
+from textwrap import dedent
 import pytest
 import pandas as pd
 import numpy as np
@@ -15,8 +17,7 @@ import numpy as np
 #
 # # # # # # # # # # Success # # # # # # # # # #
 def test_one_hot_encoder_success():
-    df = util.iris(['sepalwidth',
-                    'petalwidth'], size=10)
+    df = util.iris(['sepalwidth', 'petalwidth'], size=10)
     test_df = df.copy()
 
     arguments = {
@@ -31,15 +32,18 @@ def test_one_hot_encoder_success():
     }
     instance = OneHotEncoderOperation(**arguments)
     result = util.execute(util.get_complete_code(instance), {'df': df})
+
+    X_train = get_X_train_data(test_df, ['sepalwidth', 'petalwidth'])
     enc = OneHotEncoder()
-    assert not result['out'].equals(test_df)
+    test_df['onehotenc_1'] = enc.fit_transform(X_train).toarray().tolist()
+    assert result['out'].equals(test_df)
     assert str(enc) == str(result['enc'])
-    assert """
-out = df
-enc = OneHotEncoder()
-X_train = get_X_train_data(df, ['sepalwidth', 'petalwidth'])
-out['onehotenc_1'] = enc.fit_transform(X_train).toarray().tolist()
-""" == instance.generate_code()
+    assert dedent("""
+    out = df
+    enc = OneHotEncoder()
+    X_train = get_X_train_data(df, ['sepalwidth', 'petalwidth'])
+    out['onehotenc_1'] = enc.fit_transform(X_train).toarray().tolist()
+    """) == instance.generate_code()
 
 
 def test_one_hot_encoder_big_size_dataframe_success():
@@ -63,15 +67,20 @@ def test_one_hot_encoder_big_size_dataframe_success():
     }
     instance = OneHotEncoderOperation(**arguments)
     result = util.execute(util.get_complete_code(instance), {'df': df})
+
+    X_train = get_X_train_data(test_df,
+                               ['sepalwidth', 'petalwidth', 'sepallength',
+                                'petallength', 'class'])
     enc = OneHotEncoder()
-    assert not result['out'].equals(test_df)
+    test_df['onehotenc_1'] = enc.fit_transform(X_train).toarray().tolist()
+    assert result['out'].equals(test_df)
     assert str(enc) == str(result['enc'])
-    assert """
-out = df
-enc = OneHotEncoder()
-X_train = get_X_train_data(df, ['sepalwidth', 'petalwidth', 'sepallength', 'petallength', 'class'])
-out['onehotenc_1'] = enc.fit_transform(X_train).toarray().tolist()
-""" == instance.generate_code()
+    assert dedent("""
+    out = df
+    enc = OneHotEncoder()
+    X_train = get_X_train_data(df, ['sepalwidth', 'petalwidth', 'sepallength', 'petallength', 'class'])
+    out['onehotenc_1'] = enc.fit_transform(X_train).toarray().tolist()
+    """) == instance.generate_code()
 
 
 def test_one_hot_encoder_strings_success():
@@ -100,15 +109,17 @@ def test_one_hot_encoder_strings_success():
     }
     instance = OneHotEncoderOperation(**arguments)
     result = util.execute(util.get_complete_code(instance), {'df': df})
+    X_train = get_X_train_data(test_df, ['sepalwidth', 'petalwidth'])
     enc = OneHotEncoder()
-    assert not result['out'].equals(test_df)
+    test_df['onehotenc_1'] = enc.fit_transform(X_train).toarray().tolist()
+    assert result['out'].equals(test_df)
     assert str(enc) == str(result['enc'])
-    assert """
-out = df
-enc = OneHotEncoder()
-X_train = get_X_train_data(df, ['sepalwidth', 'petalwidth'])
-out['onehotenc_1'] = enc.fit_transform(X_train).toarray().tolist()
-""" == instance.generate_code()
+    assert dedent("""
+    out = df
+    enc = OneHotEncoder()
+    X_train = get_X_train_data(df, ['sepalwidth', 'petalwidth'])
+    out['onehotenc_1'] = enc.fit_transform(X_train).toarray().tolist()
+    """) == instance.generate_code()
 
 
 def test_one_hot_encoder_bools_success():
@@ -131,15 +142,17 @@ def test_one_hot_encoder_bools_success():
     }
     instance = OneHotEncoderOperation(**arguments)
     result = util.execute(util.get_complete_code(instance), {'df': df})
+    X_train = get_X_train_data(test_df, ['sepalwidth', 'petalwidth'])
     enc = OneHotEncoder()
-    assert not result['out'].equals(test_df)
+    test_df['onehotenc_1'] = enc.fit_transform(X_train).toarray().tolist()
+    assert result['out'].equals(test_df)
     assert str(enc) == str(result['enc'])
-    assert """
-out = df
-enc = OneHotEncoder()
-X_train = get_X_train_data(df, ['sepalwidth', 'petalwidth'])
-out['onehotenc_1'] = enc.fit_transform(X_train).toarray().tolist()
-""" == instance.generate_code()
+    assert dedent("""
+    out = df
+    enc = OneHotEncoder()
+    X_train = get_X_train_data(df, ['sepalwidth', 'petalwidth'])
+    out['onehotenc_1'] = enc.fit_transform(X_train).toarray().tolist()
+    """) == instance.generate_code()
 
 
 def test_one_hot_encoder_alias_success():
@@ -160,16 +173,17 @@ def test_one_hot_encoder_alias_success():
     }
     instance = OneHotEncoderOperation(**arguments)
     result = util.execute(util.get_complete_code(instance), {'df': df})
-    assert not result['out'].equals(test_df)
+    X_train = get_X_train_data(test_df, ['sepalwidth', 'petalwidth'])
     enc = OneHotEncoder()
-    assert not result['out'].equals(test_df)
+    test_df['test_result'] = enc.fit_transform(X_train).toarray().tolist()
+    assert result['out'].equals(test_df)
     assert str(enc) == str(result['enc'])
-    assert """
-out = df
-enc = OneHotEncoder()
-X_train = get_X_train_data(df, ['sepalwidth', 'petalwidth'])
-out['test_result'] = enc.fit_transform(X_train).toarray().tolist()
-""" == instance.generate_code()
+    assert dedent("""
+    out = df
+    enc = OneHotEncoder()
+    X_train = get_X_train_data(df, ['sepalwidth', 'petalwidth'])
+    out['test_result'] = enc.fit_transform(X_train).toarray().tolist()
+    """) == instance.generate_code()
 
 
 def test_one_hot_encoder_no_output_implies_no_code_success():
@@ -213,25 +227,5 @@ def test_one_hot_encoder_missing_attributes_param_fail():
     }
     with pytest.raises(ValueError) as val_err:
         OneHotEncoderOperation(**arguments)
-    assert "Parameters 'attributes' must be informed for task" in \
-           str(val_err.value)
-
-
-def test_one_hot_encoder_missing_multiplicity_param_fail():
-    df = util.iris(['sepalwidth',
-                    'petalwidth'], size=10)
-    arguments = {
-        'parameters': {'attributes': ['sepalwidth', 'petalwidth']},
-        'named_inputs': {
-            'input data': 'df',
-        },
-        'named_outputs': {
-            'output data': 'out'
-        }
-    }
-
-    with pytest.raises(KeyError) as key_err:
-        instance = OneHotEncoderOperation(**arguments)
-        util.execute(instance.generate_code(),
-                     {'df': df})
-    assert "'multiplicity'" in str(key_err.value)
+    assert f"Parameters 'attributes' must be informed for task" \
+           f" {OneHotEncoderOperation}" in str(val_err.value)
