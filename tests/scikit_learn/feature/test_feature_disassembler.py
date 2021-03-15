@@ -18,9 +18,16 @@ import numpy as np
 def test_feature_disassembler_success():
     df = util.iris(['sepallength', 'sepalwidth',
                     'petalwidth', 'petallength'], size=10)
-    test_df = df.copy()
+
+    df['vector'] = df[['sepallength', 'sepalwidth']].to_numpy().tolist()
+    test_df = df[['vector', 'sepallength', 'sepalwidth', ]].copy()
+    test_df.columns = ['vector', 'vector_1', 'vector_2']
+    df = df[['vector']]
     arguments = {
-        'parameters': {},
+        'parameters': {
+            'feature': ['vector'],
+            'top_n': 2,
+        },
         'named_inputs': {
             'input data': 'df',
         },
@@ -28,8 +35,9 @@ def test_feature_disassembler_success():
             'output data': 'out'
         }
     }
+
     instance = FeatureDisassemblerOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(instance.generate_code(), {'df': df})
+    assert result['out'].equals(test_df)
 
 # # # # # # # # # # Fail # # # # # # # # # #

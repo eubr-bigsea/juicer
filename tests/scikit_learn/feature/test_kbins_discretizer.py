@@ -76,7 +76,7 @@ def test_kbins_discretizer_uniform_output_distribution_param_success():
     instance = KBinsDiscretizerOperation(**arguments)
     result = util.execute(util.get_complete_code(instance), {'df': df})
 
-    model_1 = KBinsDiscretizer(n_bins=1000,
+    model_1 = KBinsDiscretizer(n_bins=5,
                                encode='ordinal', strategy='uniform')
     X_train = get_X_train_data(test_df, ['sepallength'])
     test_df['sepallength_disc'] = model_1.fit_transform(
@@ -85,7 +85,7 @@ def test_kbins_discretizer_uniform_output_distribution_param_success():
     assert result['out'].equals(test_df)
     assert dedent("""
     out = df
-    model_1 = KBinsDiscretizer(n_bins=1000, 
+    model_1 = KBinsDiscretizer(n_bins=5, 
         encode='ordinal', strategy='uniform')
     X_train = get_X_train_data(df, ['sepallength'])
 
@@ -159,7 +159,7 @@ def test_kbins_discretizer_quantile_output_distribution_param_success():
     instance = KBinsDiscretizerOperation(**arguments)
     result = util.execute(util.get_complete_code(instance), {'df': df})
 
-    model_1 = KBinsDiscretizer(n_bins=1000,
+    model_1 = KBinsDiscretizer(n_bins=5,
                                encode='ordinal', strategy='quantile')
     X_train = get_X_train_data(test_df, ['sepallength'])
     test_df['sepallength_disc'] = model_1.fit_transform(
@@ -168,7 +168,7 @@ def test_kbins_discretizer_quantile_output_distribution_param_success():
     assert result['out'].equals(test_df)
     assert dedent("""
     out = df
-    model_1 = KBinsDiscretizer(n_bins=1000, 
+    model_1 = KBinsDiscretizer(n_bins=5, 
         encode='ordinal', strategy='quantile')
     X_train = get_X_train_data(df, ['sepallength'])
 
