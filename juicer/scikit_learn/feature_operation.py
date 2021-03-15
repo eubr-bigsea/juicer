@@ -31,19 +31,15 @@ class FeatureAssemblerOperation(Operation):
 
     def generate_code(self):
         if self.has_code:
-            copy_code = ".copy()" \
-                if self.parameters['multiplicity']['input data'] > 1 else ""
             code = """
             cols = {cols}
             if {input}[cols].dtypes.all() == np.object:
                 raise ValueError("Input '{input}' must contain numeric values"
                 " only for task {cls}")
             
-            {input}_without_na = {input}.dropna(subset=cols)
-            {output} = {input}_without_na{copy_code}
-            {output}['{alias}'] = {input}_without_na[cols].to_numpy().tolist()
-            """.format(copy_code=copy_code, output=self.output,
-                       alias=self.alias,
+            {output} = {input}.dropna(subset=cols)
+            {output}['{alias}'] = {output}[cols].to_numpy().tolist()
+            """.format(output=self.output, alias=self.alias,
                        input=self.named_inputs['input data'],
                        cols=self.parameters[self.ATTRIBUTES_PARAM],
                        cls=self.__class__)
@@ -347,8 +343,7 @@ class KBinsDiscretizerOperation(Operation):
                 self.alias = [col + "_disc" for col in self.attribute]
             else:
                 self.alias = self.alias.replace(" ", "").split(",")
-            self.n_quantiles = parameters.get(
-                    self.N_QUANTILES_PARAM, 1000) or 1000
+            self.n_quantiles = parameters.get(self.N_QUANTILES_PARAM, 5) or 5
             self.output_distribution = parameters.get(
                     self.DISTRIBUITION_PARAM, self.DISTRIBUITION_PARAM_QUANTIS)\
                 or self.DISTRIBUITION_PARAM_QUANTIS

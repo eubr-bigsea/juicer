@@ -1,6 +1,8 @@
 from tests.scikit_learn import util
 from juicer.scikit_learn.feature_operation import MinMaxScalerOperation
-from sklearn.preprocessing import MaxAbsScaler
+from juicer.scikit_learn.util import get_X_train_data
+from textwrap import dedent
+from sklearn.preprocessing import MinMaxScaler
 import pytest
 import pandas as pd
 
@@ -19,7 +21,7 @@ def test_min_max_scaler_success():
                     'petalwidth'], size=10)
     test_df = df.copy()
     arguments = {
-        'parameters': {'attribute': ['sepalwidth', 'petalwidth'],
+        'parameters': {'attributes': ['sepalwidth', 'petalwidth'],
                        'multiplicity': {'input data': 0},
                        'min': 0,
                        'max': 1},
@@ -32,17 +34,28 @@ def test_min_max_scaler_success():
     }
     instance = MinMaxScalerOperation(**arguments)
     result = util.execute(util.get_complete_code(instance), {'df': df})
-    model_1 = MaxAbsScaler()
-    assert not result['out'].equals(test_df)
-    assert str(result['model_1']) == str(model_1)
-    assert instance.generate_code() == """
-    model_1 = MaxAbsScaler()
-    X_train = get_X_train_data(df, ['sepalwidth', 'petalwidth'])
-    model_1.fit(X_train)
 
-    out = df
-    out['test_pass'] = model_1.transform(X_train).tolist()
-    """
+    cols = ['sepalwidth', 'petalwidth']
+    X_train = get_X_train_data(test_df, cols)
+    model_1 = MinMaxScaler(feature_range=(0, 1))
+    values = model_1.fit_transform(X_train)
+    test_out = pd.concat(
+        [test_df, pd.DataFrame(
+            values, columns=['sepalwidth_norm',
+                             'petalwidth_norm'])], ignore_index=False, axis=1)
+    assert result['out'].equals(test_out)
+    assert str(result['model_1']) == str(model_1)
+    assert instance.generate_code() == dedent(
+        """
+    X_train = get_X_train_data(df, ['sepalwidth', 'petalwidth'])
+    
+    model_1 = MinMaxScaler(feature_range=(0,1))
+    values = model_1.fit_transform(X_train)
+    
+    out = pd.concat([df, 
+        pd.DataFrame(values, columns=['sepalwidth_norm', 'petalwidth_norm'])],
+        ignore_index=False, axis=1)
+        """)
 
 
 def test_min_max_scaler_2_success():
@@ -50,7 +63,7 @@ def test_min_max_scaler_2_success():
                     'petalwidth'], size=10)
     test_df = df.copy()
     arguments = {
-        'parameters': {'attribute': ['sepalwidth', 'petalwidth'],
+        'parameters': {'attributes': ['sepalwidth', 'petalwidth'],
                        'multiplicity': {'input data': 0},
                        'min': 2,
                        'max': 6},
@@ -63,28 +76,40 @@ def test_min_max_scaler_2_success():
     }
     instance = MinMaxScalerOperation(**arguments)
     result = util.execute(util.get_complete_code(instance), {'df': df})
-    model_1 = MaxAbsScaler()
-    assert not result['out'].equals(test_df)
-    assert str(result['model_1']) == str(model_1)
-    assert instance.generate_code() == """
-    model_1 = MaxAbsScaler()
-    X_train = get_X_train_data(df, ['sepalwidth', 'petalwidth'])
-    model_1.fit(X_train)
 
-    out = df
-    out['test_pass'] = model_1.transform(X_train).tolist()
+    cols = ['sepalwidth', 'petalwidth']
+    X_train = get_X_train_data(test_df, cols)
+    model_1 = MinMaxScaler(feature_range=(2, 6))
+    values = model_1.fit_transform(X_train)
+    test_out = pd.concat(
+        [test_df, pd.DataFrame(
+            values, columns=['sepalwidth_norm',
+                             'petalwidth_norm'])], ignore_index=False, axis=1)
+    assert result['out'].equals(test_out)
+    assert str(result['model_1']) == str(model_1)
+    assert instance.generate_code() == dedent(
         """
+    X_train = get_X_train_data(df, ['sepalwidth', 'petalwidth'])
+
+    model_1 = MinMaxScaler(feature_range=(2,6))
+    values = model_1.fit_transform(X_train)
+
+    out = pd.concat([df, 
+        pd.DataFrame(values, columns=['sepalwidth_norm', 'petalwidth_norm'])],
+        ignore_index=False, axis=1)
+        """)
 
 
 def test_min_max_scaler_alias_param_success():
     df = util.iris(['sepalwidth',
                     'petalwidth'], size=10)
+    test_df = df.copy()
     arguments = {
-        'parameters': {'attribute': ['sepalwidth', 'petalwidth'],
+        'parameters': {'attributes': ['sepalwidth', 'petalwidth'],
                        'multiplicity': {'input data': 0},
                        'min': 0,
                        'max': 1,
-                       'alias': 'success'},
+                       'alias': 'success1, success2'},
         'named_inputs': {
             'input data': 'df',
         },
@@ -94,12 +119,19 @@ def test_min_max_scaler_alias_param_success():
     }
     instance = MinMaxScalerOperation(**arguments)
     result = util.execute(util.get_complete_code(instance), {'df': df})
-    assert result['out'].iloc[:, 2].name == "success"
+    cols = ['sepalwidth', 'petalwidth']
+    X_train = get_X_train_data(test_df, cols)
+    model_1 = MinMaxScaler(feature_range=(0, 1))
+    values = model_1.fit_transform(X_train)
+    test_out = pd.concat(
+        [test_df, pd.DataFrame(
+            values, columns=['success1',
+                             'success2'])], ignore_index=False, axis=1)
 
 
 def test_min_max_scaler_no_output_implies_no_code_success():
     arguments = {
-        'parameters': {'attribute': ['sepalwidth', 'petalwidth'],
+        'parameters': {'attributes': ['sepalwidth', 'petalwidth'],
                        'multiplicity': {'input data': 0},
                        'min': 0,
                        'max': 1},
@@ -115,7 +147,7 @@ def test_min_max_scaler_no_output_implies_no_code_success():
 
 def test_min_max_scaler_missing_input_implies_no_code_success():
     arguments = {
-        'parameters': {'attribute': ['sepalwidth', 'petalwidth'],
+        'parameters': {'attributes': ['sepalwidth', 'petalwidth'],
                        'multiplicity': {'input data': 0},
                        'min': 0,
                        'max': 1},
@@ -144,50 +176,5 @@ def test_min_max_scaler_missing_attribute_param_fail():
     }
     with pytest.raises(ValueError) as val_err:
         MinMaxScalerOperation(**arguments)
-    assert "Parameters 'attribute' must be informed for task" in str(
-        val_err.value)
-
-
-def test_min_max_scaler_invalid_attribute_param_fail():
-    df = util.iris(['sepalwidth',
-                    'petalwidth',
-                    'class'], size=10)
-    arguments = {
-        'parameters': {'attribute': ['sepalwidth', 'petalwidth', 'class'],
-                       'multiplicity': {'input data': 0},
-                       'min': 0,
-                       'max': 1},
-        'named_inputs': {
-            'input data': 'df',
-        },
-        'named_outputs': {
-            'output data': 'out'
-        }
-    }
-    instance = MinMaxScalerOperation(**arguments)
-    with pytest.raises(ValueError) as val_err:
-        util.execute(util.get_complete_code(instance), {'df': df})
-    assert "could not convert string to float: 'Iris-setosa'" in str(
-        val_err.value)
-
-
-def test_min_max_scaler_invalid_min_max_param_fail():
-    df = util.iris(['sepalwidth',
-                    'petalwidth'], size=10)
-    arguments = {
-        'parameters': {'attribute': ['sepalwidth', 'petalwidth'],
-                       'multiplicity': {'input data': 0},
-                       'min': 1,
-                       'max': 1},
-        'named_inputs': {
-            'input data': 'df',
-        },
-        'named_outputs': {
-            'output data': 'out'
-        }
-    }
-    instance = MinMaxScalerOperation(**arguments)
-    with pytest.raises(ValueError) as val_err:
-        util.execute(util.get_complete_code(instance), {'df': df})
-    assert "Minimum of desired feature range must be smaller than maximum." \
-           " Got (1, 1)." in str(val_err.value)
+    assert f"Parameters 'attributes' must be informed for task" \
+           f" {MinMaxScalerOperation}" in str(val_err.value)
