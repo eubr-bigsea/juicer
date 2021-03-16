@@ -1,5 +1,7 @@
 from tests.scikit_learn import util
+from textwrap import dedent
 from juicer.scikit_learn.associative_operation import SequenceMiningOperation
+from prefixspan import PrefixSpan
 import pytest
 import pandas as pd
 
@@ -30,22 +32,30 @@ def test_sequence_mining_success():
     instance = SequenceMiningOperation(**arguments)
     result = util.execute(util.get_complete_code(instance),
                           {'df': df})
-    assert not result['out'].equals(test_df)
-    assert instance.generate_code() == """
-transactions = df['df.columns[0]'].to_numpy().tolist() 
-min_support = 1.0 * len(transactions)
 
-class PrefixSpan2(PrefixSpan):
-    def __init__(self, db, minlen=1, maxlen=1000):
-        self._db = db
-        self.minlen, self.maxlen = minlen, maxlen
-        self._results: Any = []
+    transactions = test_df[test_df.columns[0]].to_numpy().tolist()
+    min_support = 1.0 * len(transactions)
+    span = PrefixSpan(transactions)
+    span.minlen, span.maxlen = 1, 10
+    test_result = span.frequent(min_support)
+    test_df = pd.DataFrame(test_result, columns=['support', 'itemsets'])
 
-span = PrefixSpan2(transactions, minlen=1, maxlen=10)
-result = span.frequent(min_support, closed=False, generator=False)
-
-out = pd.DataFrame(result, columns=['support', 'itemsets'])
-"""
+    assert result['out'].equals(test_df)
+    assert dedent("""
+    transactions = df['df.columns[0]'].to_numpy().tolist() 
+    min_support = 1.0 * len(transactions)
+    
+    class PrefixSpan2(PrefixSpan):
+        def __init__(self, db, minlen=1, maxlen=1000):
+            self._db = db
+            self.minlen, self.maxlen = minlen, maxlen
+            self._results: Any = []
+    
+    span = PrefixSpan2(transactions, minlen=1, maxlen=10)
+    result = span.frequent(min_support, closed=False, generator=False)
+    
+    out = pd.DataFrame(result, columns=['support', 'itemsets'])
+    """) == instance.generate_code()
 
 
 def test_sequence_mining_attribute_param_success():
@@ -67,32 +77,40 @@ def test_sequence_mining_attribute_param_success():
     instance = SequenceMiningOperation(**arguments)
     result = util.execute(util.get_complete_code(instance),
                           {'df': df})
-    assert not result['out'].equals(test_df)
-    assert instance.generate_code() == """
-transactions = df[''sepallength''].to_numpy().tolist() 
-min_support = 1.0 * len(transactions)
 
-class PrefixSpan2(PrefixSpan):
-    def __init__(self, db, minlen=1, maxlen=1000):
-        self._db = db
-        self.minlen, self.maxlen = minlen, maxlen
-        self._results: Any = []
+    transactions = test_df['sepallength'].to_numpy().tolist()
+    min_support = 1.0 * len(transactions)
+    span = PrefixSpan(transactions)
+    span.minlen, span.maxlen = 1, 10
+    test_result = span.frequent(min_support)
+    test_df = pd.DataFrame(test_result, columns=['support', 'itemsets'])
 
-span = PrefixSpan2(transactions, minlen=1, maxlen=10)
-result = span.frequent(min_support, closed=False, generator=False)
+    assert result['out'].equals(test_df)
+    assert dedent("""
+    transactions = df[''sepallength''].to_numpy().tolist() 
+    min_support = 1.0 * len(transactions)
+    
+    class PrefixSpan2(PrefixSpan):
+        def __init__(self, db, minlen=1, maxlen=1000):
+            self._db = db
+            self.minlen, self.maxlen = minlen, maxlen
+            self._results: Any = []
+    
+    span = PrefixSpan2(transactions, minlen=1, maxlen=10)
+    result = span.frequent(min_support, closed=False, generator=False)
+    
+    out = pd.DataFrame(result, columns=['support', 'itemsets'])
+    """) == instance.generate_code()
 
-out = pd.DataFrame(result, columns=['support', 'itemsets'])
-"""
 
-
-def test_sequence_mining_max_pattern_length_success():
+def test_sequence_mining_max_pattern_and_min_support_params_success():
     one = [f'str{i}' for i in range(10)]
     data = {'sepallength': one,
             'support': one}
     df = pd.DataFrame(data)
     test_df = df.copy()
     arguments = {
-        'parameters': {'min_support': 1,
+        'parameters': {'min_support': 0.9,
                        'max_pattern_length': 15},
         'named_inputs': {
             'input data': 'df',
@@ -104,22 +122,30 @@ def test_sequence_mining_max_pattern_length_success():
     instance = SequenceMiningOperation(**arguments)
     result = util.execute(util.get_complete_code(instance),
                           {'df': df})
-    assert not result['out'].equals(test_df)
-    assert instance.generate_code() == """
-transactions = df['df.columns[0]'].to_numpy().tolist() 
-min_support = 1.0 * len(transactions)
 
-class PrefixSpan2(PrefixSpan):
-    def __init__(self, db, minlen=1, maxlen=1000):
-        self._db = db
-        self.minlen, self.maxlen = minlen, maxlen
-        self._results: Any = []
+    transactions = test_df[test_df.columns[0]].to_numpy().tolist()
+    min_support = 0.9 * len(transactions)
+    span = PrefixSpan(transactions)
+    span.minlen, span.maxlen = 1, 15
+    test_result = span.frequent(min_support)
+    test_df = pd.DataFrame(test_result, columns=['support', 'itemsets'])
+    assert result['out'].equals(test_df)
 
-span = PrefixSpan2(transactions, minlen=1, maxlen=15)
-result = span.frequent(min_support, closed=False, generator=False)
-
-out = pd.DataFrame(result, columns=['support', 'itemsets'])
-"""
+    assert dedent("""
+    transactions = df['df.columns[0]'].to_numpy().tolist() 
+    min_support = 0.9 * len(transactions)
+    
+    class PrefixSpan2(PrefixSpan):
+        def __init__(self, db, minlen=1, maxlen=1000):
+            self._db = db
+            self.minlen, self.maxlen = minlen, maxlen
+            self._results: Any = []
+    
+    span = PrefixSpan2(transactions, minlen=1, maxlen=15)
+    result = span.frequent(min_support, closed=False, generator=False)
+    
+    out = pd.DataFrame(result, columns=['support', 'itemsets'])
+    """) == instance.generate_code()
 
 
 def test_sequence_mining_no_output_implies_no_code_success():
@@ -161,8 +187,8 @@ def test_sequence_mining_missing_min_support_param_fail():
     }
     with pytest.raises(ValueError) as val_err:
         SequenceMiningOperation(**arguments)
-    assert "Parameter 'min_support' must be informed for task" in str(
-        val_err.value)
+    assert f"Parameter 'min_support' must be informed for task" \
+           f" {SequenceMiningOperation}" in str(val_err.value)
 
 
 def test_sequence_mining_invalid_min_support_param_fail():

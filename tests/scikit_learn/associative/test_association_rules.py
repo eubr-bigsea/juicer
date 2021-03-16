@@ -36,7 +36,13 @@ def test_association_rules_success():
     instance = AssociationRulesOperation(**arguments)
     result = util.execute(util.get_complete_code(instance),
                           {'df': df})
-    assert not result['out'].equals(test_df)
+
+    col_item = test_df.columns[0]
+    col_freq = "support"
+
+    rg = RulesGenerator(min_conf=0.5, max_len=-1)
+    out = rg.get_rules(test_df, col_item, col_freq)
+    assert result['out'].equals(out)
 
     code = """
     col_item = 'df.columns[0]'
@@ -70,7 +76,12 @@ def test_association_rules_rules_count_param_success():
     instance = AssociationRulesOperation(**arguments)
     result = util.execute(util.get_complete_code(instance),
                           {'df': df})
-    assert not result['out'].equals(test_df)
+    col_item = test_df.columns[0]
+    col_freq = "support"
+
+    rg = RulesGenerator(min_conf=0.5, max_len=3)
+    out = rg.get_rules(test_df, col_item, col_freq)
+    assert result['out'].equals(out)
 
     code = """
     col_item = 'df.columns[0]'
@@ -104,8 +115,12 @@ def test_association_rules_confidence_param_success():
     instance = AssociationRulesOperation(**arguments)
     result = util.execute(util.get_complete_code(instance),
                           {'df': df})
-    assert not result['out'].equals(test_df)
+    col_item = test_df.columns[0]
+    col_freq = "support"
 
+    rg = RulesGenerator(min_conf=0.8, max_len=-1)
+    out = rg.get_rules(test_df, col_item, col_freq)
+    assert result['out'].equals(out)
     code = """
     col_item = 'df.columns[0]'
     col_freq = "support"
@@ -138,7 +153,12 @@ def test_association_rules_attribute_param_success():
     instance = AssociationRulesOperation(**arguments)
     result = util.execute(util.get_complete_code(instance),
                           {'df': df})
-    assert not result['out'].equals(test_df)
+    col_item = test_df.columns[0]
+    col_freq = "support"
+
+    rg = RulesGenerator(min_conf=0.5, max_len=-1)
+    out = rg.get_rules(test_df, col_item, col_freq)
+    assert result['out'].equals(out)
 
     code = """
     col_item = ''items''
@@ -172,8 +192,12 @@ def test_association_rules_freq_param_success():
     instance = AssociationRulesOperation(**arguments)
     result = util.execute(util.get_complete_code(instance),
                           {'df': df})
-    assert not result['out'].equals(test_df)
+    col_item = test_df.columns[0]
+    col_freq = "support_2"
 
+    rg = RulesGenerator(min_conf=0.5, max_len=-1)
+    out = rg.get_rules(test_df, col_item, col_freq)
+    assert result['out'].equals(out)
     code = """
     col_item = 'df.columns[0]'
     col_freq = "support_2"
