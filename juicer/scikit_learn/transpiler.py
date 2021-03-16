@@ -110,7 +110,6 @@ class ScikitLearnTranspiler(Transpiler):
             'save-model': model.SaveModel,
 
             # ------ Clustering      -----#
-            'clustering-model': clustering.ClusteringModelOperation,
             'agglomerative-clustering':
                 clustering.AgglomerativeModelOperation,
             'dbscan-clustering': clustering.DBSCANClusteringModelOperation,
@@ -121,7 +120,6 @@ class ScikitLearnTranspiler(Transpiler):
             'topic-report': clustering.TopicReportOperation,
 
             # ------ Classification  -----#
-            'classification-model': classifiers.ClassificationModelOperation,
             'decision-tree-classifier-model':
                 classifiers.DecisionTreeClassifierModelOperation,
             'gbt-classifier-model': classifiers.GBTClassifierModelOperation,
@@ -138,7 +136,6 @@ class ScikitLearnTranspiler(Transpiler):
             'svm-classification-model': classifiers.SvmClassifierModelOperation,
 
             # ------ Regression  -----#
-            'regression-model': regression.RegressionModelOperation,
             'gbt-regressor-model':
                 regression.GradientBoostingRegressorModelOperation,
             'generalized-linear-regression':
