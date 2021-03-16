@@ -103,7 +103,6 @@ class ClassificationModelOperation(Operation):
             """.format(model=self.model, label=self.label, copy_code=copy_code,
                        input=self.named_inputs['train input data'],
                        score=score,
-                       algorithm=self.named_inputs['algorithm'],
                        features=self.features, output=self.output,
                        fit_code=fit_code,
                        predCol=self.prediction,
