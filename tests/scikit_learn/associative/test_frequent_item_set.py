@@ -7,6 +7,7 @@ import pandas as pd
 import pyfpgrowth
 
 
+# TODO: tests using/comparing with a well-known result
 # pd.set_option('display.max_rows', None)
 # pd.set_option('display.max_columns', None)
 # pd.set_option('display.max_colwidth', None)
@@ -16,13 +17,20 @@ import pyfpgrowth
 #
 # # # # # # # # # # Success # # # # # # # # # #
 def test_frequent_item_set_success():
-    one = [f'str{i}' for i in range(10)]
-    data = {'sepallength': one,
-            'support': one}
-    df = pd.DataFrame(data)
+    transactions = [[[1, 2, 5], 1],
+                    [[2, 4], 2],
+                    [[2, 3], 3],
+                    [[1, 2, 4], 4],
+                    [[1, 3], 5],
+                    [[2, 3], 6],
+                    [[1, 3], 7],
+                    [[1, 2, 3, 5], 8],
+                    [[1, 2, 3], 9]]
+
+    df = pd.DataFrame(transactions, columns=['transactions', 'id'])
     test_df = df.copy()
     arguments = {
-        'parameters': {'min_support': 1},
+        'parameters': {'min_support': 0.222},
         'named_inputs': {
             'input data': 'df',
         },
@@ -34,9 +42,10 @@ def test_frequent_item_set_success():
     result = util.execute(util.get_complete_code(instance),
                           {'df': df})
 
-    transactions = test_df[test_df.columns[0]].to_numpy().tolist()
+    transactions = test_df['transactions'].to_numpy().tolist()
     dim = float(len(transactions))
-    patterns = pyfpgrowth.find_frequent_patterns(transactions, dim)
+    min_support = 0.222 * dim
+    patterns = pyfpgrowth.find_frequent_patterns(transactions, min_support)
     oper_result = [[list(f), s] for f, s in patterns.items()]
     col_item, col_freq = 'itemsets', 'support'
     out = pd.DataFrame(oper_result, columns=[col_item, col_freq])
@@ -52,7 +61,7 @@ def test_frequent_item_set_success():
     col = 'df.columns[0]'
     transactions = df[col].to_numpy().tolist()
     dim = len(transactions)
-    min_support = 1.0 * dim
+    min_support = 0.222 * dim
     
     patterns = pyfpgrowth.find_frequent_patterns(transactions, min_support)
     result = [[list(f), s] for f, s in patterns.items()]
@@ -71,16 +80,21 @@ def test_frequent_item_set_success():
 
 
 def test_frequent_item_set_attribute_and_min_support_params_success():
-    one = [f'str{i}' for i in range(10)]
-    two = [f'str{i}' for i in range(0, 20, 2)]
-    data = {'sepallength': one,
-            'support': one,
-            'teste': two}
-    df = pd.DataFrame(data)
+    transactions = [[[1, 2, 5], 1],
+                    [[2, 4], 2],
+                    [[2, 3], 3],
+                    [[1, 2, 4], 4],
+                    [[1, 3], 5],
+                    [[2, 3], 6],
+                    [[1, 3], 7],
+                    [[1, 2, 3, 5], 8],
+                    [[1, 2, 3], 9]]
+
+    df = pd.DataFrame(transactions, columns=['transactions', 'id'])
     test_df = df.copy()
     arguments = {
-        'parameters': {'min_support': 0.9,
-                       'attribute': ['teste']},
+        'parameters': {'min_support': 0.5,
+                       'attribute': ['transactions']},
         'named_inputs': {
             'input data': 'df',
         },
@@ -92,9 +106,9 @@ def test_frequent_item_set_attribute_and_min_support_params_success():
     result = util.execute(util.get_complete_code(instance),
                           {'df': df})
 
-    transactions = test_df['teste'].to_numpy().tolist()
+    transactions = test_df['transactions'].to_numpy().tolist()
     dim = float(len(transactions))
-    patterns = pyfpgrowth.find_frequent_patterns(transactions, (dim * 0.9))
+    patterns = pyfpgrowth.find_frequent_patterns(transactions, (dim * 0.5))
     oper_result = [[list(f), s] for f, s in patterns.items()]
     col_item, col_freq = 'itemsets', 'support'
     out = pd.DataFrame(oper_result, columns=[col_item, col_freq])
@@ -107,10 +121,10 @@ def test_frequent_item_set_attribute_and_min_support_params_success():
     assert result['out'].equals(out)
 
     assert dedent("""
-    col = ''teste''
+    col = ''transactions''
     transactions = df[col].to_numpy().tolist()
     dim = len(transactions)
-    min_support = 0.9 * dim
+    min_support = 0.5 * dim
                
     patterns = pyfpgrowth.find_frequent_patterns(transactions, min_support)
     result = [[list(f), s] for f, s in patterns.items()]
@@ -129,14 +143,21 @@ def test_frequent_item_set_attribute_and_min_support_params_success():
 
 
 def test_frequent_item_set_min_confidence_param_success():
-    one = [f'str{i}' for i in range(10)]
-    data = {'sepallength': one,
-            'support': one}
-    df = pd.DataFrame(data)
+    transactions = [[[1, 2, 5], 1],
+                    [[2, 4], 2],
+                    [[2, 3], 3],
+                    [[1, 2, 4], 4],
+                    [[1, 3], 5],
+                    [[2, 3], 6],
+                    [[1, 3], 7],
+                    [[1, 2, 3, 5], 8],
+                    [[1, 2, 3], 9]]
+
+    df = pd.DataFrame(transactions, columns=['transactions', 'id'])
     test_df = df.copy()
     arguments = {
-        'parameters': {'min_support': 1,
-                       'min_confidence': 0.6},
+        'parameters': {'min_support': 0.222,
+                       'min_confidence': 0.5},
         'named_inputs': {
             'input data': 'df',
         },
@@ -145,18 +166,17 @@ def test_frequent_item_set_min_confidence_param_success():
         }
     }
     instance = FrequentItemSetOperation(**arguments)
-    result = util.execute(util.get_complete_code(instance),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     transactions = test_df[test_df.columns[0]].to_numpy().tolist()
     dim = float(len(transactions))
-    patterns = pyfpgrowth.find_frequent_patterns(transactions, dim)
+    patterns = pyfpgrowth.find_frequent_patterns(transactions, dim * 0.222)
     oper_result = [[list(f), s] for f, s in patterns.items()]
     col_item, col_freq = 'itemsets', 'support'
     out = pd.DataFrame(oper_result, columns=[col_item, col_freq])
     out[col_freq] = out[col_freq] / dim
     out.sort_values(by=col_freq, ascending=False, inplace=True)
-    rg = RulesGenerator(min_conf=0.9, max_len=-1)
+    rg = RulesGenerator(min_conf=0.5, max_len=-1)
     rules_1 = rg.get_rules(out, col_item, col_freq)
 
     assert result['rules_1'].equals(rules_1)
@@ -166,7 +186,7 @@ def test_frequent_item_set_min_confidence_param_success():
     col = 'df.columns[0]'
     transactions = df[col].to_numpy().tolist()
     dim = len(transactions)
-    min_support = 1.0 * dim
+    min_support = 0.222 * dim
            
     patterns = pyfpgrowth.find_frequent_patterns(transactions, min_support)
     result = [[list(f), s] for f, s in patterns.items()]
@@ -179,7 +199,7 @@ def test_frequent_item_set_min_confidence_param_success():
     
     # generating rules
     from juicer.scikit_learn.library.rules_generator import RulesGenerator
-    rg = RulesGenerator(min_conf=0.6, max_len=-1)
+    rg = RulesGenerator(min_conf=0.5, max_len=-1)
     rules_1 = rg.get_rules(out, col_item, col_freq)
     """) == instance.generate_code()
 

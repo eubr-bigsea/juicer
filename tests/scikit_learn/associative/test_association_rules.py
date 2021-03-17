@@ -6,6 +6,8 @@ import pytest
 from textwrap import dedent
 import pandas as pd
 
+# TODO: tests using/comparing with a well-known result
+
 
 # pd.set_option('display.max_rows', None)
 # pd.set_option('display.max_columns', None)
@@ -22,7 +24,7 @@ def test_association_rules_success():
          [[4], 0.363636], [[2, 4], 0.363636], [[3], 0.363636],
          [[2, 3], 0.363636], [[5], 0.363636], [[2, 3], 0.363636],
          [[5], 0.454545], [[2, 5], 0.454545], [[2], 0.545455]],
-        columns=['items', 'support'])
+        columns=['itemsets', 'support'])
     test_df = df.copy()
     arguments = {
         'parameters': {},
@@ -37,7 +39,7 @@ def test_association_rules_success():
     result = util.execute(util.get_complete_code(instance),
                           {'df': df})
 
-    col_item = test_df.columns[0]
+    col_item = "itemsets"
     col_freq = "support"
 
     rg = RulesGenerator(min_conf=0.5, max_len=-1)
@@ -45,7 +47,7 @@ def test_association_rules_success():
     assert result['out'].equals(out)
 
     code = """
-    col_item = 'df.columns[0]'
+    col_item = "itemsets"
     col_freq = "support"
 
     rg = RulesGenerator(min_conf=0.5, max_len=-1)
@@ -62,7 +64,7 @@ def test_association_rules_rules_count_param_success():
          [[4], 0.363636], [[2, 4], 0.363636], [[3], 0.363636],
          [[2, 3], 0.363636], [[5], 0.363636], [[2, 3], 0.363636],
          [[5], 0.454545], [[2, 5], 0.454545], [[2], 0.545455]],
-        columns=['items', 'support'])
+        columns=['itemsets', 'support'])
     test_df = df.copy()
     arguments = {
         'parameters': {'rules_count': 3},
@@ -76,15 +78,16 @@ def test_association_rules_rules_count_param_success():
     instance = AssociationRulesOperation(**arguments)
     result = util.execute(util.get_complete_code(instance),
                           {'df': df})
-    col_item = test_df.columns[0]
+    col_item = "itemsets"
     col_freq = "support"
 
     rg = RulesGenerator(min_conf=0.5, max_len=3)
     out = rg.get_rules(test_df, col_item, col_freq)
     assert result['out'].equals(out)
+    assert len(result['out']) == 3
 
     code = """
-    col_item = 'df.columns[0]'
+    col_item = "itemsets"
     col_freq = "support"
 
     rg = RulesGenerator(min_conf=0.5, max_len=3)
@@ -101,10 +104,10 @@ def test_association_rules_confidence_param_success():
          [[4], 0.363636], [[2, 4], 0.363636], [[3], 0.363636],
          [[2, 3], 0.363636], [[5], 0.363636], [[2, 3], 0.363636],
          [[5], 0.454545], [[2, 5], 0.454545], [[2], 0.545455]],
-        columns=['items', 'support'])
+        columns=['itemsets', 'support'])
     test_df = df.copy()
     arguments = {
-        'parameters': {'confidence': 0.8},
+        'parameters': {'confidence': 0.2},
         'named_inputs': {
             'input data': 'df',
         },
@@ -113,19 +116,18 @@ def test_association_rules_confidence_param_success():
         }
     }
     instance = AssociationRulesOperation(**arguments)
-    result = util.execute(util.get_complete_code(instance),
-                          {'df': df})
-    col_item = test_df.columns[0]
+    result = util.execute(util.get_complete_code(instance), {'df': df})
+    col_item = "itemsets"
     col_freq = "support"
 
-    rg = RulesGenerator(min_conf=0.8, max_len=-1)
+    rg = RulesGenerator(min_conf=0.2, max_len=-1)
     out = rg.get_rules(test_df, col_item, col_freq)
     assert result['out'].equals(out)
     code = """
-    col_item = 'df.columns[0]'
+    col_item = "itemsets"
     col_freq = "support"
 
-    rg = RulesGenerator(min_conf=0.8, max_len=-1)
+    rg = RulesGenerator(min_conf=0.2, max_len=-1)
     out = rg.get_rules(df, col_item, col_freq)   
     """
 
@@ -153,7 +155,7 @@ def test_association_rules_attribute_param_success():
     instance = AssociationRulesOperation(**arguments)
     result = util.execute(util.get_complete_code(instance),
                           {'df': df})
-    col_item = test_df.columns[0]
+    col_item = "items"
     col_freq = "support"
 
     rg = RulesGenerator(min_conf=0.5, max_len=-1)
@@ -161,7 +163,7 @@ def test_association_rules_attribute_param_success():
     assert result['out'].equals(out)
 
     code = """
-    col_item = ''items''
+    col_item = "items"
     col_freq = "support"
 
     rg = RulesGenerator(min_conf=0.5, max_len=-1)
@@ -178,7 +180,7 @@ def test_association_rules_freq_param_success():
          [[4], 0.363636], [[2, 4], 0.363636], [[3], 0.363636],
          [[2, 3], 0.363636], [[5], 0.363636], [[2, 3], 0.363636],
          [[5], 0.454545], [[2, 5], 0.454545], [[2], 0.545455]],
-        columns=['items', 'support_2'])
+        columns=['itemsets', 'support_2'])
     test_df = df.copy()
     arguments = {
         'parameters': {'freq': ['support_2']},
@@ -190,16 +192,15 @@ def test_association_rules_freq_param_success():
         }
     }
     instance = AssociationRulesOperation(**arguments)
-    result = util.execute(util.get_complete_code(instance),
-                          {'df': df})
-    col_item = test_df.columns[0]
+    result = util.execute(util.get_complete_code(instance), {'df': df})
+    col_item = "itemsets"
     col_freq = "support_2"
 
     rg = RulesGenerator(min_conf=0.5, max_len=-1)
     out = rg.get_rules(test_df, col_item, col_freq)
     assert result['out'].equals(out)
     code = """
-    col_item = 'df.columns[0]'
+    col_item = "itemsets"
     col_freq = "support_2"
 
     rg = RulesGenerator(min_conf=0.5, max_len=-1)
