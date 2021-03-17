@@ -72,13 +72,12 @@ class ApplyModelOperation(Operation):
                 raise ValueError(msg.format(
                     self.FEATURES_PARAM, self.__class__.__name__))
             self.features = self.parameters.get(self.FEATURES_PARAM)
-
-        if not self.has_code and len(self.named_outputs) > 0:
-            raise ValueError(
-                _('Model is being used, but at least one input is missing'))
-        if self.has_code:
             self.transpiler_utils.add_custom_function(
-                'get_X_train_data', f=get_X_train_data)
+                    'get_X_train_data', f=get_X_train_data)
+        else:
+            if len(self.named_outputs) > 0:
+                raise ValueError(
+                    _('Model is being used, but at least one input is missing'))
 
     def get_data_out_names(self, sep=','):
         return self.output
@@ -87,22 +86,24 @@ class ApplyModelOperation(Operation):
         return sep.join([self.output, self.model])
 
     def generate_code(self):
-        copy_code = ".copy()" \
-            if self.parameters['multiplicity']['input data'] > 1 else ""
+        if self.has_code:
+            copy_code = ".copy()" \
+                if self.parameters['multiplicity']['input data'] > 1 else ""
 
-        code = dedent("""
-            {out} = {in1}{copy_code}
-            X_train = get_X_train_data({in1}, {features})
-            if hasattr({in2}, 'predict'):
-                {out}['{new_attr}'] = {in2}.predict(X_train).tolist()
-            else:
-                # to handle scaler operations
-                {out}['{new_attr}'] = {in2}.transform(X_train).tolist()
-            """.format(copy_code=copy_code, out=self.output, in1=self.named_inputs['input data'],
-                       in2=self.model, new_attr=self.prediction,
-                       features=self.features))
+            code = dedent("""
+                {out} = {in1}{copy_code}
+                X_train = get_X_train_data({in1}, {features})
+                if hasattr({in2}, 'predict'):
+                    {out}['{new_attr}'] = {in2}.predict(X_train).tolist()
+                else:
+                    # to handle scaler operations
+                    {out}['{new_attr}'] = {in2}.transform(X_train).tolist()
+                """.format(copy_code=copy_code, out=self.output,
+                           in1=self.named_inputs['input data'],
+                           in2=self.model, new_attr=self.prediction,
+                           features=self.features))
 
-        return dedent(code)
+            return dedent(code)
 
 
 class LoadModel(Operation):
