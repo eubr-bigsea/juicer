@@ -6,6 +6,7 @@ import pytest
 import pandas as pd
 
 
+# TODO: tests using/comparing with a well-known result
 # pd.set_option('display.max_rows', None)
 # pd.set_option('display.max_columns', None)
 # pd.set_option('display.max_colwidth', None)
@@ -15,13 +16,16 @@ import pandas as pd
 #
 # # # # # # # # # # Success # # # # # # # # # #
 def test_sequence_mining_success():
-    one = [f'str{i}' for i in range(10)]
-    data = {'sepallength': one,
-            'support': one}
-    df = pd.DataFrame(data)
+    db = [
+        [[0, 1, 2, 3, 4]],
+        [[1, 1, 1, 3, 4]],
+        [[2, 1, 2, 2, 0]],
+        [[1, 1, 1, 2, 2]],
+    ]
+    df = pd.DataFrame(db, columns=['transactions'])
     test_df = df.copy()
     arguments = {
-        'parameters': {'min_support': 1},
+        'parameters': {'min_support': 0.1},
         'named_inputs': {
             'input data': 'df',
         },
@@ -30,11 +34,10 @@ def test_sequence_mining_success():
         }
     }
     instance = SequenceMiningOperation(**arguments)
-    result = util.execute(util.get_complete_code(instance),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
 
     transactions = test_df[test_df.columns[0]].to_numpy().tolist()
-    min_support = 1.0 * len(transactions)
+    min_support = 0.1 * len(transactions)
     span = PrefixSpan(transactions)
     span.minlen, span.maxlen = 1, 10
     test_result = span.frequent(min_support)
@@ -43,7 +46,7 @@ def test_sequence_mining_success():
     assert result['out'].equals(test_df)
     assert dedent("""
     transactions = df['df.columns[0]'].to_numpy().tolist() 
-    min_support = 1.0 * len(transactions)
+    min_support = 0.1 * len(transactions)
     
     class PrefixSpan2(PrefixSpan):
         def __init__(self, db, minlen=1, maxlen=1000):
@@ -59,14 +62,17 @@ def test_sequence_mining_success():
 
 
 def test_sequence_mining_attribute_param_success():
-    one = [f'str{i}' for i in range(10)]
-    data = {'sepallength': one,
-            'support': one}
-    df = pd.DataFrame(data)
+    db = [
+        [[0, 1, 2, 3, 4]],
+        [[1, 1, 1, 3, 4]],
+        [[2, 1, 2, 2, 0]],
+        [[1, 1, 1, 2, 2]],
+    ]
+    df = pd.DataFrame(db, columns=['transactions'])
     test_df = df.copy()
     arguments = {
-        'parameters': {'min_support': 1,
-                       'attribute': ['sepallength']},
+        'parameters': {'min_support': 0.2,
+                       'attribute': ['transactions']},
         'named_inputs': {
             'input data': 'df',
         },
@@ -78,8 +84,8 @@ def test_sequence_mining_attribute_param_success():
     result = util.execute(util.get_complete_code(instance),
                           {'df': df})
 
-    transactions = test_df['sepallength'].to_numpy().tolist()
-    min_support = 1.0 * len(transactions)
+    transactions = test_df['transactions'].to_numpy().tolist()
+    min_support = 0.2 * len(transactions)
     span = PrefixSpan(transactions)
     span.minlen, span.maxlen = 1, 10
     test_result = span.frequent(min_support)
@@ -87,8 +93,8 @@ def test_sequence_mining_attribute_param_success():
 
     assert result['out'].equals(test_df)
     assert dedent("""
-    transactions = df[''sepallength''].to_numpy().tolist() 
-    min_support = 1.0 * len(transactions)
+    transactions = df[''transactions''].to_numpy().tolist() 
+    min_support = 0.2 * len(transactions)
     
     class PrefixSpan2(PrefixSpan):
         def __init__(self, db, minlen=1, maxlen=1000):
@@ -104,14 +110,17 @@ def test_sequence_mining_attribute_param_success():
 
 
 def test_sequence_mining_max_pattern_and_min_support_params_success():
-    one = [f'str{i}' for i in range(10)]
-    data = {'sepallength': one,
-            'support': one}
-    df = pd.DataFrame(data)
+    db = [
+        [[0, 1, 2, 3, 4]],
+        [[1, 1, 1, 3, 4]],
+        [[2, 1, 2, 2, 0]],
+        [[1, 1, 1, 2, 2]],
+    ]
+    df = pd.DataFrame(db, columns=['transactions'])
     test_df = df.copy()
     arguments = {
-        'parameters': {'min_support': 0.9,
-                       'max_pattern_length': 15},
+        'parameters': {'min_support': 0.5,
+                       'max_pattern_length': 3},
         'named_inputs': {
             'input data': 'df',
         },
@@ -124,16 +133,16 @@ def test_sequence_mining_max_pattern_and_min_support_params_success():
                           {'df': df})
 
     transactions = test_df[test_df.columns[0]].to_numpy().tolist()
-    min_support = 0.9 * len(transactions)
+    min_support = 0.5 * len(transactions)
     span = PrefixSpan(transactions)
-    span.minlen, span.maxlen = 1, 15
+    span.minlen, span.maxlen = 1, 3
     test_result = span.frequent(min_support)
     test_df = pd.DataFrame(test_result, columns=['support', 'itemsets'])
     assert result['out'].equals(test_df)
 
     assert dedent("""
     transactions = df['df.columns[0]'].to_numpy().tolist() 
-    min_support = 0.9 * len(transactions)
+    min_support = 0.5 * len(transactions)
     
     class PrefixSpan2(PrefixSpan):
         def __init__(self, db, minlen=1, maxlen=1000):
@@ -141,7 +150,7 @@ def test_sequence_mining_max_pattern_and_min_support_params_success():
             self.minlen, self.maxlen = minlen, maxlen
             self._results: Any = []
     
-    span = PrefixSpan2(transactions, minlen=1, maxlen=15)
+    span = PrefixSpan2(transactions, minlen=1, maxlen=3)
     result = span.frequent(min_support, closed=False, generator=False)
     
     out = pd.DataFrame(result, columns=['support', 'itemsets'])
