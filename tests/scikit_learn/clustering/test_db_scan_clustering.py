@@ -1,5 +1,6 @@
 from tests.scikit_learn import util
-from juicer.scikit_learn.clustering_operation import DBSCANClusteringOperation
+from juicer.scikit_learn.clustering_operation import \
+    DBSCANClusteringModelOperation, DBSCANClusteringOperation
 from tests.scikit_learn.util import get_X_train_data
 from sklearn.cluster import DBSCAN
 import pytest
@@ -29,15 +30,13 @@ def test_db_scan_clustering_success():
             'output data': 'out'
         }
     }
-    instance = DBSCANClusteringOperation(**arguments)
+    arguments = util.add_minimum_ml_args(arguments)
+    instance = DBSCANClusteringModelOperation(**arguments)
     result = util.execute(util.get_complete_code(instance), {'df': df})
-
-    test_out = test_df
-    X_train = get_X_train_data(test_out, ['sepallength', 'sepalwidth'])
+    X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
     dbscan = DBSCAN(eps=0.5, min_samples=5, metric='euclidean')
-    test_out['cluster'] = dbscan.fit_predict(X_train)
-
-    assert result['out'].equals(test_out)
+    test_df['prediction'] = dbscan.fit_predict(X_train)
+    assert result['out'].equals(test_df)
 
 
 def test_db_scan_clustering_eps_param_success():
@@ -55,7 +54,8 @@ def test_db_scan_clustering_eps_param_success():
             'output data': 'out'
         }
     }
-    instance = DBSCANClusteringOperation(**arguments)
+    arguments = util.add_minimum_ml_args(arguments)
+    instance = DBSCANClusteringModelOperation(**arguments)
     result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
@@ -81,7 +81,8 @@ def test_db_scan_clustering_min_samples_param_success():
             'output data': 'out'
         }
     }
-    instance = DBSCANClusteringOperation(**arguments)
+    arguments = util.add_minimum_ml_args(arguments)
+    instance = DBSCANClusteringModelOperation(**arguments)
     result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
@@ -105,7 +106,8 @@ def test_db_scan_clustering_prediction_param_success():
             'output data': 'out'
         }
     }
-    instance = DBSCANClusteringOperation(**arguments)
+    arguments = util.add_minimum_ml_args(arguments)
+    instance = DBSCANClusteringModelOperation(**arguments)
     result = util.execute(util.get_complete_code(instance), {'df': df})
     assert result['out'].columns[2] == 'success'
 
@@ -125,7 +127,8 @@ def test_db_scan_clustering_metric_param_success():
             'output data': 'out'
         }
     }
-    instance = DBSCANClusteringOperation(**arguments)
+    arguments = util.add_minimum_ml_args(arguments)
+    instance = DBSCANClusteringModelOperation(**arguments)
     result = util.execute(util.get_complete_code(instance), {'df': df})
 
     test_out = test_df
@@ -146,7 +149,7 @@ def test_db_scan_clustering_no_output_implies_no_code_success():
         'named_outputs': {
         }
     }
-    instance = DBSCANClusteringOperation(**arguments)
+    instance = DBSCANClusteringModelOperation(**arguments)
     assert instance.generate_code() is None
 
 
@@ -160,7 +163,7 @@ def test_db_scan_clustering_missing_input_implies_no_code_success():
             'output data': 'out'
         }
     }
-    instance = DBSCANClusteringOperation(**arguments)
+    instance = DBSCANClusteringModelOperation(**arguments)
     assert instance.generate_code() is None
 
 
@@ -176,8 +179,9 @@ def test_db_scan_clustering_missing_features_param_fail():
         }
     }
     with pytest.raises(ValueError) as val_err:
-        DBSCANClusteringOperation(**arguments)
-    assert "Parameter 'features' must be informed for task" in str(val_err.value)
+        DBSCANClusteringModelOperation(**arguments)
+    assert f"Parameter 'features' must be informed for task" \
+           f" {DBSCANClusteringOperation}" in str(val_err.value)
 
 
 def test_db_scan_clustering_invalid_eps_and_min_samples_params_fail():
@@ -198,5 +202,6 @@ def test_db_scan_clustering_invalid_eps_and_min_samples_params_fail():
             }
         }
         with pytest.raises(ValueError) as val_err:
-            DBSCANClusteringOperation(**arguments)
-        assert f"Parameter '{val}' must be x>0 for task" in str(val_err.value)
+            DBSCANClusteringModelOperation(**arguments)
+        assert f"Parameter '{val}' must be x>0 for task" \
+               f" {DBSCANClusteringOperation}" in str(val_err.value)
