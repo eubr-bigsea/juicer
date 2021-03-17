@@ -123,8 +123,6 @@ class SequenceMiningOperation(Operation):
             else:
                 self.column = "'{}'".format(self.column)
 
-            # transactions = [row.tolist() for row in {input}[col].to_numpy().tolist()]
-            # transactions = np.array({input}[col].to_numpy().tolist()).tolist()
             code = """
             transactions = {input}[{col}].to_numpy().tolist() 
             min_support = {min_support} * len(transactions)
@@ -155,6 +153,7 @@ class AssociationRulesOperation(Operation):
     CONFIDENCE_PARAM = 'confidence'
 
     ITEMSET_ATTR_PARAM = 'attribute'
+    ITEMSET_ATTR_PARAM_VALUE = 'itemsets'
     SUPPORT_ATTR_PARAM = 'freq'
     SUPPORT_ATTR_PARAM_VALUE = 'support'
 
@@ -179,21 +178,16 @@ class AssociationRulesOperation(Operation):
             self.support_col = \
                 parameters.get(self.SUPPORT_ATTR_PARAM,
                                [self.SUPPORT_ATTR_PARAM_VALUE])[0]
-            self.items_col = parameters.get(self.ITEMSET_ATTR_PARAM, [''])[0]
+            self.items_col = parameters.get(self.ITEMSET_ATTR_PARAM,
+                                            [self.ITEMSET_ATTR_PARAM_VALUE])[0]
             self.max_rules = parameters.get(self.MAX_COUNT_PARAM, -1) or -1
 
     def generate_code(self):
         if self.has_code:
             """Generate code."""
 
-            if len(self.items_col) == 0:
-                self.items_col = "{input}.columns[0]" \
-                    .format(input=self.named_inputs['input data'])
-            else:
-                self.items_col = "'{}'".format(self.items_col)
-
             code = """
-            col_item = {items}
+            col_item = "{items}"
             col_freq = "{freq}"
             
             rg = RulesGenerator(min_conf={min_conf}, max_len={max_len})
