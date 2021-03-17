@@ -74,8 +74,7 @@ class ClusteringModelOperation(Operation):
         {model} = clustering_model
         display_text = {display_text}
         if display_text:
-            metric_rows = []
-            {metrics_append}
+            metric_rows = [{metrics_append}]
 
             if metric_rows:
                 metrics_content = SimpleTableReport(
@@ -231,16 +230,14 @@ class AgglomerativeClusteringOperation(Operation):
     @staticmethod
     def get_output_metrics_code():
         code = """
-            metric_rows.append(['{silhouette_euclidean}', 
-                silhouette_score(X, y, metric='euclidean')])
-            metric_rows.append(['{silhouette_cosine}', 
-                silhouette_score(X, y, metric='cosine')])
-            metric_rows.append(['{n_clusters}', 
-                clustering_model.n_clusters_])
-            metric_rows.append(['{n_leaves}', 
-                clustering_model.n_leaves_])
-            metric_rows.append(['{n_connected_components}', 
-                clustering_model.n_connected_components_])
+            ['{silhouette_euclidean}', 
+                silhouette_score(X, y, metric='euclidean')],
+            ['{silhouette_cosine}', 
+                silhouette_score(X, y, metric='cosine')],
+            ['{n_clusters}', clustering_model.n_clusters_],
+            ['{n_leaves}', clustering_model.n_leaves_],
+            ['{n_connected_components}', 
+                clustering_model.n_connected_components_]
             """.format(silhouette_euclidean=
                        gettext('Silhouette (Euclidean distance)'),
                        silhouette_cosine=
@@ -301,10 +298,8 @@ class DBSCANClusteringOperation(Operation):
     @staticmethod
     def get_output_metrics_code():
         code = """
-        metric_rows.append(['{silhouette_euclidean}', 
-            silhouette_score(X, y, metric='euclidean')])
-        metric_rows.append(['{silhouette_cosine}', 
-            silhouette_score(X, y, metric='cosine')])
+        ['{silhouette_euclidean}', silhouette_score(X, y, metric='euclidean')],
+        ['{silhouette_cosine}', silhouette_score(X, y, metric='cosine')]
         """.format(silhouette_euclidean=
                    gettext('Silhouette (Euclidean distance)'),
                    silhouette_cosine=
@@ -379,13 +374,11 @@ class GaussianMixtureClusteringOperation(Operation):
     @staticmethod
     def get_output_metrics_code():
         code = """
-        metric_rows.append(['{silhouette_euclidean}',
-                            silhouette_score(X, y, metric='euclidean')])
-        metric_rows.append(['{silhouette_cosine}',
-                            silhouette_score(X, y, metric='cosine')])
-        metric_rows.append(['{weights}', clustering_model.weights_])
-        metric_rows.append(['{means}', clustering_model.means_])
-        metric_rows.append(['{converged}', clustering_model.converged_])
+        ['{silhouette_euclidean}', silhouette_score(X, y, metric='euclidean')],
+        ['{silhouette_cosine}', silhouette_score(X, y, metric='cosine')],
+        ['{weights}', clustering_model.weights_],
+        ['{means}', clustering_model.means_],
+        ['{converged}', clustering_model.converged_]
         """.format(weights=gettext('Weights'),
                    means=gettext('Mean of each mixture component'),
                    converged=gettext('Convergence'),
@@ -495,14 +488,10 @@ class KMeansClusteringOperation(Operation):
     @staticmethod
     def get_output_metrics_code():
         code = """
-        metric_rows.append(['{silhouette_euclidean}',
-                            silhouette_score(X, y, metric='euclidean')])
-        metric_rows.append(['{silhouette_cosine}',
-                            silhouette_score(X, y, metric='cosine')])
-        metric_rows.append(['{cluster_centers}', 
-            clustering_model.cluster_centers_])
-        metric_rows.append(['{inertia}', 
-            clustering_model.inertia_])
+        ['{silhouette_euclidean}', silhouette_score(X, y, metric='euclidean')],
+        ['{silhouette_cosine}', silhouette_score(X, y, metric='cosine')],
+        ['{cluster_centers}', clustering_model.cluster_centers_],
+        ['{inertia}', clustering_model.inertia_]
         """.format(inertia=gettext('Inertia'),
                    cluster_centers=gettext('Cluster centers'),
                    silhouette_euclidean=
@@ -616,12 +605,9 @@ class LdaClusteringOperation(Operation):
     @staticmethod
     def get_output_metrics_code():
         code = """
-            metric_rows.append(['{bound}', 
-                clustering_model.bound_])
-            metric_rows.append(['{topic_word_prior}', 
-                clustering_model.topic_word_prior_])
-            metric_rows.append(['{doc_topic_prior}', 
-                clustering_model.doc_topic_prior_])
+            ['{bound}', clustering_model.bound_],
+            ['{topic_word_prior}', clustering_model.topic_word_prior_],
+            ['{doc_topic_prior}', clustering_model.doc_topic_prior_]
             """.format(bound=gettext('Final perplexity score on training set'),
                        doc_topic_prior=
                        gettext('Prior of document topic distribution'),
