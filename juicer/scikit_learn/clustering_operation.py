@@ -249,15 +249,13 @@ class AgglomerativeClusteringOperation(Operation):
         return code
 
     def generate_code(self):
-        if self.has_code:
-            code = """
-            algorithm = AgglomerativeClustering(n_clusters={n_clusters}, 
-                linkage='{linkage}', affinity='{affinity}')
-            """.format(n_clusters=self.n_clusters,
-                       affinity=self.affinity,
-                       linkage=self.linkage)
-
-            return dedent(code)
+        code = """
+        algorithm = AgglomerativeClustering(n_clusters={n_clusters}, 
+            linkage='{linkage}', affinity='{affinity}')
+        """.format(n_clusters=self.n_clusters,
+                   affinity=self.affinity,
+                   linkage=self.linkage)
+        return dedent(code)
 
 
 class DBSCANClusteringOperation(Operation):
@@ -307,15 +305,13 @@ class DBSCANClusteringOperation(Operation):
         return code
 
     def generate_code(self):
-        if self.has_code:
-            """Generate code."""
-            code = """
-            algorithm = DBSCAN(eps={eps}, min_samples={min_samples}, 
-            metric='{metric}')
-            """.format(eps=self.eps, min_samples=self.min_samples,
-                       metric=self.metric)
-
-            return dedent(code)
+        """Generate code."""
+        code = """
+        algorithm = DBSCAN(eps={eps}, min_samples={min_samples}, 
+        metric='{metric}')
+        """.format(eps=self.eps, min_samples=self.min_samples,
+                   metric=self.metric)
+        return dedent(code)
 
 
 class GaussianMixtureClusteringOperation(Operation):
@@ -389,18 +385,17 @@ class GaussianMixtureClusteringOperation(Operation):
         return code
 
     def generate_code(self):
-        if self.has_code:
-            """Generate code."""
-            code = """
-            algorithm = GaussianMixture(n_components={k}, max_iter={iter}, 
-                tol={tol}, covariance_type='{covariance_type}', 
-                reg_covar={reg_covar}, n_init={n_init}, 
-                random_state={random_state})
-            """.format(k=self.n_components, iter=self.max_iter,
-                       tol=self.tol, covariance_type=self.covariance_type,
-                       reg_covar=self.reg_covar, n_init=self.n_init,
-                       random_state=self.random_state)
-            return dedent(code)
+        """Generate code."""
+        code = """
+        algorithm = GaussianMixture(n_components={k}, max_iter={iter}, 
+            tol={tol}, covariance_type='{covariance_type}', 
+            reg_covar={reg_covar}, n_init={n_init}, 
+            random_state={random_state})
+        """.format(k=self.n_components, iter=self.max_iter,
+                   tol=self.tol, covariance_type=self.covariance_type,
+                   reg_covar=self.reg_covar, n_init=self.n_init,
+                   random_state=self.random_state)
+        return dedent(code)
 
 
 class KMeansClusteringOperation(Operation):
@@ -501,31 +496,30 @@ class KMeansClusteringOperation(Operation):
         return code
 
     def generate_code(self):
-        if self.has_code:
-            """Generate code."""
-            if self.type.lower() == "k-means":
-                code = """
-                algorithm = KMeans(n_clusters={k}, init='{init}', 
+        """Generate code."""
+        if self.type.lower() == "k-means":
+            code = """
+            algorithm = KMeans(n_clusters={k}, init='{init}', 
+                               max_iter={max_iter}, tol={tol}, 
+                               random_state={seed}, n_init={n_init}, 
+                               n_jobs={n_jobs}, algorithm='{algorithm}')
+            """.format(k=self.n_clusters, max_iter=self.max_iter,
+                       tol=self.tolerance, init=self.init_mode,
+                       seed=self.seed, n_init=self.n_init,
+                       n_jobs=self.n_jobs, algorithm=self.algorithm)
+        else:
+            code = """
+            algorithm = MiniBatchKMeans(n_clusters={k}, init='{init}', 
                                 max_iter={max_iter}, tol={tol}, 
                                 random_state={seed}, n_init={n_init}, 
-                                n_jobs={n_jobs}, algorithm='{algorithm}')
-                """.format(k=self.n_clusters, max_iter=self.max_iter,
-                           tol=self.tolerance, init=self.init_mode,
-                           seed=self.seed, n_init=self.n_init,
-                           n_jobs=self.n_jobs, algorithm=self.algorithm)
-            else:
-                code = """
-                algorithm = MiniBatchKMeans(n_clusters={k}, init='{init}', 
-                                    max_iter={max_iter}, tol={tol}, 
-                                    random_state={seed}, n_init={n_init}, 
-                                    max_no_improvement={max_no_improvement}, 
-                                    batch_size={batch_size})
-                """.format(k=self.n_clusters, max_iter=self.max_iter,
-                           tol=self.tol, init=self.init_mode,
-                           seed=self.seed, n_init=self.n_init_mb,
-                           max_no_improvement=self.max_no_improvement,
-                           batch_size=self.batch_size)
-            return dedent(code)
+                                max_no_improvement={max_no_improvement}, 
+                                batch_size={batch_size})
+            """.format(k=self.n_clusters, max_iter=self.max_iter,
+                       tol=self.tol, init=self.init_mode,
+                       seed=self.seed, n_init=self.n_init_mb,
+                       max_no_improvement=self.max_no_improvement,
+                       batch_size=self.batch_size)
+        return dedent(code)
 
 
 class LdaClusteringOperation(Operation):
@@ -616,20 +610,19 @@ class LdaClusteringOperation(Operation):
         return code
 
     def generate_code(self):
-        if self.has_code:
-            """Generate code."""
-            code = """
-            algorithm = LatentDirichletAllocation(n_components={n_components}, 
-                doc_topic_prior={doc_topic_prior}, 
-                topic_word_prior={topic_word_prior}, 
-                learning_method='{learning_method}', 
-                max_iter={max_iter}, random_state={seed})
-            """.format(n_components=self.n_clusters, max_iter=self.max_iter,
-                       doc_topic_prior=self.doc_topic_pior,
-                       topic_word_prior=self.topic_word_prior,
-                       learning_method=self.learning_method,
-                       seed=self.seed)
-            return dedent(code)
+        """Generate code."""
+        code = """
+        algorithm = LatentDirichletAllocation(n_components={n_components}, 
+            doc_topic_prior={doc_topic_prior}, 
+            topic_word_prior={topic_word_prior}, 
+            learning_method='{learning_method}', 
+            max_iter={max_iter}, random_state={seed})
+        """.format(n_components=self.n_clusters, max_iter=self.max_iter,
+                   doc_topic_prior=self.doc_topic_pior,
+                   topic_word_prior=self.topic_word_prior,
+                   learning_method=self.learning_method,
+                   seed=self.seed)
+        return dedent(code)
 
 
 class TopicReportOperation(ReportOperation):
