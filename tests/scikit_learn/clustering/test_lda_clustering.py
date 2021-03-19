@@ -1,6 +1,7 @@
 from tests.scikit_learn import util
-from juicer.scikit_learn.clustering_operation import LdaClusteringOperation
-from juicer.scikit_learn.util import get_X_train_data, get_label_data
+from juicer.scikit_learn.clustering_operation import LdaClusteringOperation, \
+    LdaClusteringModelOperation, ClusteringModelOperation
+from juicer.scikit_learn.util import get_X_train_data
 from sklearn.decomposition import LatentDirichletAllocation
 import pytest
 import pandas as pd
@@ -21,7 +22,8 @@ def test_lda_clustering_success():
 
     arguments = {
         'parameters': {'features': ['sepallength', 'sepalwidth'],
-                       'multiplicity': {'train input data': 0}},
+                       'multiplicity': {'train input data': 0},
+                       'seed': 1},
         'named_inputs': {
             'train input data': 'df',
         },
@@ -29,25 +31,23 @@ def test_lda_clustering_success():
             'output data': 'out'
         }
     }
-    instance = LdaClusteringOperation(**arguments)
+    arguments = util.add_minimum_ml_args(arguments)
+    instance = LdaClusteringModelOperation(**arguments)
     result = util.execute(util.get_complete_code(instance),
-                          {'df': df})
+                          {'df': df,
+                           'LatentDirichletAllocation': LatentDirichletAllocation})
 
     model_1 = LatentDirichletAllocation(n_components=10,
                                         doc_topic_prior=None,
                                         topic_word_prior=None,
                                         learning_method='online', max_iter=10,
-                                        random_state=None)
+                                        random_state=1)
 
     X_train = get_X_train_data(df, ['sepallength', 'sepalwidth'])
     model_1.fit(X_train)
 
-    test_out = test_df
-    test_out['prediction'] = model_1.transform(X_train).tolist()
-    for idx in result['out'].index:
-        for col in result['out'].columns:
-            assert result['out'].loc[idx, col] == pytest.approx(
-                test_out.loc[idx, col], 1.0e-03, 1.0e+03)
+    test_df['prediction'] = model_1.transform(X_train).tolist()
+    assert result['out'].equals(test_df)
 
 
 def test_lda_clustering_number_of_topics_param_success():
@@ -57,7 +57,8 @@ def test_lda_clustering_number_of_topics_param_success():
     arguments = {
         'parameters': {'features': ['sepallength', 'sepalwidth'],
                        'multiplicity': {'train input data': 0},
-                       'number_of_topics': 2},
+                       'number_of_topics': 2,
+                       'seed': 1},
         'named_inputs': {
             'train input data': 'df',
         },
@@ -65,7 +66,8 @@ def test_lda_clustering_number_of_topics_param_success():
             'output data': 'out'
         }
     }
-    instance = LdaClusteringOperation(**arguments)
+    arguments = util.add_minimum_ml_args(arguments)
+    instance = LdaClusteringModelOperation(**arguments)
     result = util.execute(util.get_complete_code(instance),
                           {'df': df})
 
@@ -73,17 +75,13 @@ def test_lda_clustering_number_of_topics_param_success():
                                         doc_topic_prior=None,
                                         topic_word_prior=None,
                                         learning_method='online', max_iter=10,
-                                        random_state=None)
+                                        random_state=1)
 
     X_train = get_X_train_data(df, ['sepallength', 'sepalwidth'])
     model_1.fit(X_train)
 
-    test_out = test_df
-    test_out['prediction'] = model_1.transform(X_train).tolist()
-    for idx in result['out'].index:
-        for col in result['out'].columns:
-            assert result['out'].loc[idx, col] == pytest.approx(
-                test_out.loc[idx, col], 1.0e-03, 1.0e+03)
+    test_df['prediction'] = model_1.transform(X_train).tolist()
+    assert result['out'].equals(test_df)
 
 
 def test_lda_clustering_doc_topic_pior_param_success():
@@ -93,7 +91,8 @@ def test_lda_clustering_doc_topic_pior_param_success():
     arguments = {
         'parameters': {'features': ['sepallength', 'sepalwidth'],
                        'multiplicity': {'train input data': 0},
-                       'doc_topic_pior': 0.2},
+                       'doc_topic_pior': 0.2,
+                       'seed': 1},
         'named_inputs': {
             'train input data': 'df',
         },
@@ -101,7 +100,8 @@ def test_lda_clustering_doc_topic_pior_param_success():
             'output data': 'out'
         }
     }
-    instance = LdaClusteringOperation(**arguments)
+    arguments = util.add_minimum_ml_args(arguments)
+    instance = LdaClusteringModelOperation(**arguments)
     result = util.execute(util.get_complete_code(instance),
                           {'df': df})
 
@@ -109,17 +109,13 @@ def test_lda_clustering_doc_topic_pior_param_success():
                                         doc_topic_prior=0.2,
                                         topic_word_prior=None,
                                         learning_method='online', max_iter=10,
-                                        random_state=None)
+                                        random_state=1)
 
     X_train = get_X_train_data(df, ['sepallength', 'sepalwidth'])
     model_1.fit(X_train)
 
-    test_out = test_df
-    test_out['prediction'] = model_1.transform(X_train).tolist()
-    for idx in result['out'].index:
-        for col in result['out'].columns:
-            assert result['out'].loc[idx, col] == pytest.approx(
-                test_out.loc[idx, col], 1.0e-03, 1.0e+03)
+    test_df['prediction'] = model_1.transform(X_train).tolist()
+    assert result['out'].equals(test_df)
 
 
 def test_lda_clustering_topic_word_prior_success():
@@ -129,7 +125,8 @@ def test_lda_clustering_topic_word_prior_success():
     arguments = {
         'parameters': {'features': ['sepallength', 'sepalwidth'],
                        'multiplicity': {'train input data': 0},
-                       'topic_word_prior': 0.5},
+                       'topic_word_prior': 0.5,
+                       'seed': 1},
         'named_inputs': {
             'train input data': 'df',
         },
@@ -137,7 +134,8 @@ def test_lda_clustering_topic_word_prior_success():
             'output data': 'out'
         }
     }
-    instance = LdaClusteringOperation(**arguments)
+    arguments = util.add_minimum_ml_args(arguments)
+    instance = LdaClusteringModelOperation(**arguments)
     result = util.execute(util.get_complete_code(instance),
                           {'df': df})
 
@@ -145,17 +143,13 @@ def test_lda_clustering_topic_word_prior_success():
                                         doc_topic_prior=None,
                                         topic_word_prior=0.5,
                                         learning_method='online', max_iter=10,
-                                        random_state=None)
+                                        random_state=1)
 
     X_train = get_X_train_data(df, ['sepallength', 'sepalwidth'])
     model_1.fit(X_train)
 
-    test_out = test_df
-    test_out['prediction'] = model_1.transform(X_train).tolist()
-    for idx in result['out'].index:
-        for col in result['out'].columns:
-            assert result['out'].loc[idx, col] == pytest.approx(
-                test_out.loc[idx, col], 1.0e-03, 1.0e+03)
+    test_df['prediction'] = model_1.transform(X_train).tolist()
+    assert result['out'].equals(test_df)
 
 
 def test_lda_clustering_learning_method_param_success():
@@ -165,7 +159,8 @@ def test_lda_clustering_learning_method_param_success():
     arguments = {
         'parameters': {'features': ['sepallength', 'sepalwidth'],
                        'multiplicity': {'train input data': 0},
-                       'learning_method': 'batch'},
+                       'learning_method': 'batch',
+                       'seed': 1},
         'named_inputs': {
             'train input data': 'df',
         },
@@ -173,7 +168,8 @@ def test_lda_clustering_learning_method_param_success():
             'output data': 'out'
         }
     }
-    instance = LdaClusteringOperation(**arguments)
+    arguments = util.add_minimum_ml_args(arguments)
+    instance = LdaClusteringModelOperation(**arguments)
     result = util.execute(util.get_complete_code(instance),
                           {'df': df})
 
@@ -181,17 +177,13 @@ def test_lda_clustering_learning_method_param_success():
                                         doc_topic_prior=None,
                                         topic_word_prior=None,
                                         learning_method='batch', max_iter=10,
-                                        random_state=None)
+                                        random_state=1)
 
     X_train = get_X_train_data(df, ['sepallength', 'sepalwidth'])
     model_1.fit(X_train)
 
-    test_out = test_df
-    test_out['prediction'] = model_1.transform(X_train).tolist()
-    for idx in result['out'].index:
-        for col in result['out'].columns:
-            assert result['out'].loc[idx, col] == pytest.approx(
-                test_out.loc[idx, col], 1.0e-03, 1.0e+03)
+    test_df['prediction'] = model_1.transform(X_train).tolist()
+    assert result['out'].equals(test_df)
 
 
 def test_lda_clustering_max_iter_param_success():
@@ -201,7 +193,8 @@ def test_lda_clustering_max_iter_param_success():
     arguments = {
         'parameters': {'features': ['sepallength', 'sepalwidth'],
                        'multiplicity': {'train input data': 0},
-                       'max_iter': 2},
+                       'max_iter': 2,
+                       'seed': 1},
         'named_inputs': {
             'train input data': 'df',
         },
@@ -209,7 +202,8 @@ def test_lda_clustering_max_iter_param_success():
             'output data': 'out'
         }
     }
-    instance = LdaClusteringOperation(**arguments)
+    arguments = util.add_minimum_ml_args(arguments)
+    instance = LdaClusteringModelOperation(**arguments)
     result = util.execute(util.get_complete_code(instance),
                           {'df': df})
 
@@ -217,17 +211,13 @@ def test_lda_clustering_max_iter_param_success():
                                         doc_topic_prior=None,
                                         topic_word_prior=None,
                                         learning_method='online', max_iter=2,
-                                        random_state=None)
+                                        random_state=1)
 
     X_train = get_X_train_data(df, ['sepallength', 'sepalwidth'])
     model_1.fit(X_train)
 
-    test_out = test_df
-    test_out['prediction'] = model_1.transform(X_train).tolist()
-    for idx in result['out'].index:
-        for col in result['out'].columns:
-            assert result['out'].loc[idx, col] == pytest.approx(
-                test_out.loc[idx, col], 1.0e-03, 1.0e+03)
+    test_df['prediction'] = model_1.transform(X_train).tolist()
+    assert result['out'].equals(test_df)
 
 
 def test_lda_clustering_seed_param_success():
@@ -245,7 +235,8 @@ def test_lda_clustering_seed_param_success():
             'output data': 'out'
         }
     }
-    instance = LdaClusteringOperation(**arguments)
+    arguments = util.add_minimum_ml_args(arguments)
+    instance = LdaClusteringModelOperation(**arguments)
     result = util.execute(util.get_complete_code(instance),
                           {'df': df})
 
@@ -258,9 +249,8 @@ def test_lda_clustering_seed_param_success():
     X_train = get_X_train_data(df, ['sepallength', 'sepalwidth'])
     model_1.fit(X_train)
 
-    test_out = test_df
-    test_out['prediction'] = model_1.transform(X_train).tolist()
-    assert result['out'].equals(test_out)
+    test_df['prediction'] = model_1.transform(X_train).tolist()
+    assert result['out'].equals(test_df)
 
 
 def test_lda_clustering_prediction_param_success():
@@ -276,7 +266,8 @@ def test_lda_clustering_prediction_param_success():
             'output data': 'out'
         }
     }
-    instance = LdaClusteringOperation(**arguments)
+    arguments = util.add_minimum_ml_args(arguments)
+    instance = LdaClusteringModelOperation(**arguments)
     result = util.execute(util.get_complete_code(instance),
                           {'df': df})
     assert result['out'].columns[2] == 'success'
@@ -292,7 +283,7 @@ def test_lda_clustering_no_output_implies_no_code_success():
         'named_outputs': {
         }
     }
-    instance = LdaClusteringOperation(**arguments)
+    instance = LdaClusteringModelOperation(**arguments)
     assert instance.generate_code() is None
 
 
@@ -306,7 +297,7 @@ def test_lda_clustering_missing_input_implies_no_code_success():
             'output data': 'out'
         }
     }
-    instance = LdaClusteringOperation(**arguments)
+    instance = LdaClusteringModelOperation(**arguments)
     assert instance.generate_code() is None
 
 
@@ -324,8 +315,9 @@ def test_lda_clustering_invalid_learning_method_param_fail():
         }
     }
     with pytest.raises(ValueError) as val_err:
-        LdaClusteringOperation(**arguments)
-    assert "Invalid optimizer value 'invalid' for class" in str(val_err.value)
+        LdaClusteringModelOperation(**arguments)
+    assert f"Invalid optimizer value 'invalid' for class" \
+           f" {LdaClusteringOperation}" in str(val_err.value)
 
 
 def test_lda_clustering_invalid_n_clusters_max_iter_params_fail():
@@ -344,8 +336,9 @@ def test_lda_clustering_invalid_n_clusters_max_iter_params_fail():
             }
         }
         with pytest.raises(ValueError) as val_err:
-            LdaClusteringOperation(**arguments)
-        assert f"Parameter '{val}' must be x>0 for task" in str(val_err.value)
+            LdaClusteringModelOperation(**arguments)
+        assert f"Parameter '{val}' must be x>0 for task" \
+               f" {LdaClusteringOperation}" in str(val_err.value)
 
 
 def test_lda_clustering_missing_features_param_fail():
@@ -359,6 +352,6 @@ def test_lda_clustering_missing_features_param_fail():
         }
     }
     with pytest.raises(ValueError) as val_err:
-        LdaClusteringOperation(**arguments)
-    assert "Parameters 'features' must be informed for task" in str(
-        val_err.value)
+        LdaClusteringModelOperation(**arguments)
+    assert f"Parameters 'features' must be informed for task" \
+           f" LdaClusteringOperation" in str(val_err.value)

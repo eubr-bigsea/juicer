@@ -74,8 +74,7 @@ class ClusteringModelOperation(Operation):
         {model} = clustering_model
         display_text = {display_text}
         if display_text:
-            metric_rows = []
-            {metrics_append}
+            metric_rows = [{metrics_append}]
 
             if metric_rows:
                 metrics_content = SimpleTableReport(
@@ -231,16 +230,14 @@ class AgglomerativeClusteringOperation(Operation):
     @staticmethod
     def get_output_metrics_code():
         code = """
-            metric_rows.append(['{silhouette_euclidean}', 
-                silhouette_score(X, y, metric='euclidean')])
-            metric_rows.append(['{silhouette_cosine}', 
-                silhouette_score(X, y, metric='cosine')])
-            metric_rows.append(['{n_clusters}', 
-                clustering_model.n_clusters_])
-            metric_rows.append(['{n_leaves}', 
-                clustering_model.n_leaves_])
-            metric_rows.append(['{n_connected_components}', 
-                clustering_model.n_connected_components_])
+            ['{silhouette_euclidean}', 
+                silhouette_score(X, y, metric='euclidean')],
+            ['{silhouette_cosine}', 
+                silhouette_score(X, y, metric='cosine')],
+            ['{n_clusters}', clustering_model.n_clusters_],
+            ['{n_leaves}', clustering_model.n_leaves_],
+            ['{n_connected_components}', 
+                clustering_model.n_connected_components_]
             """.format(silhouette_euclidean=
                        gettext('Silhouette (Euclidean distance)'),
                        silhouette_cosine=
@@ -252,15 +249,13 @@ class AgglomerativeClusteringOperation(Operation):
         return code
 
     def generate_code(self):
-        if self.has_code:
-            code = """
-            algorithm = AgglomerativeClustering(n_clusters={n_clusters}, 
-                linkage='{linkage}', affinity='{affinity}')
-            """.format(n_clusters=self.n_clusters,
-                       affinity=self.affinity,
-                       linkage=self.linkage)
-
-            return dedent(code)
+        code = """
+        algorithm = AgglomerativeClustering(n_clusters={n_clusters}, 
+            linkage='{linkage}', affinity='{affinity}')
+        """.format(n_clusters=self.n_clusters,
+                   affinity=self.affinity,
+                   linkage=self.linkage)
+        return dedent(code)
 
 
 class DBSCANClusteringOperation(Operation):
@@ -301,10 +296,8 @@ class DBSCANClusteringOperation(Operation):
     @staticmethod
     def get_output_metrics_code():
         code = """
-        metric_rows.append(['{silhouette_euclidean}', 
-            silhouette_score(X, y, metric='euclidean')])
-        metric_rows.append(['{silhouette_cosine}', 
-            silhouette_score(X, y, metric='cosine')])
+        ['{silhouette_euclidean}', silhouette_score(X, y, metric='euclidean')],
+        ['{silhouette_cosine}', silhouette_score(X, y, metric='cosine')]
         """.format(silhouette_euclidean=
                    gettext('Silhouette (Euclidean distance)'),
                    silhouette_cosine=
@@ -312,15 +305,13 @@ class DBSCANClusteringOperation(Operation):
         return code
 
     def generate_code(self):
-        if self.has_code:
-            """Generate code."""
-            code = """
-            algorithm = DBSCAN(eps={eps}, min_samples={min_samples}, 
-            metric='{metric}')
-            """.format(eps=self.eps, min_samples=self.min_samples,
-                       metric=self.metric)
-
-            return dedent(code)
+        """Generate code."""
+        code = """
+        algorithm = DBSCAN(eps={eps}, min_samples={min_samples}, 
+        metric='{metric}')
+        """.format(eps=self.eps, min_samples=self.min_samples,
+                   metric=self.metric)
+        return dedent(code)
 
 
 class GaussianMixtureClusteringOperation(Operation):
@@ -379,13 +370,11 @@ class GaussianMixtureClusteringOperation(Operation):
     @staticmethod
     def get_output_metrics_code():
         code = """
-        metric_rows.append(['{silhouette_euclidean}',
-                            silhouette_score(X, y, metric='euclidean')])
-        metric_rows.append(['{silhouette_cosine}',
-                            silhouette_score(X, y, metric='cosine')])
-        metric_rows.append(['{weights}', clustering_model.weights_])
-        metric_rows.append(['{means}', clustering_model.means_])
-        metric_rows.append(['{converged}', clustering_model.converged_])
+        ['{silhouette_euclidean}', silhouette_score(X, y, metric='euclidean')],
+        ['{silhouette_cosine}', silhouette_score(X, y, metric='cosine')],
+        ['{weights}', clustering_model.weights_],
+        ['{means}', clustering_model.means_],
+        ['{converged}', clustering_model.converged_]
         """.format(weights=gettext('Weights'),
                    means=gettext('Mean of each mixture component'),
                    converged=gettext('Convergence'),
@@ -396,18 +385,17 @@ class GaussianMixtureClusteringOperation(Operation):
         return code
 
     def generate_code(self):
-        if self.has_code:
-            """Generate code."""
-            code = """
-            algorithm = GaussianMixture(n_components={k}, max_iter={iter}, 
-                tol={tol}, covariance_type='{covariance_type}', 
-                reg_covar={reg_covar}, n_init={n_init}, 
-                random_state={random_state})
-            """.format(k=self.n_components, iter=self.max_iter,
-                       tol=self.tol, covariance_type=self.covariance_type,
-                       reg_covar=self.reg_covar, n_init=self.n_init,
-                       random_state=self.random_state)
-            return dedent(code)
+        """Generate code."""
+        code = """
+        algorithm = GaussianMixture(n_components={k}, max_iter={iter}, 
+            tol={tol}, covariance_type='{covariance_type}', 
+            reg_covar={reg_covar}, n_init={n_init}, 
+            random_state={random_state})
+        """.format(k=self.n_components, iter=self.max_iter,
+                   tol=self.tol, covariance_type=self.covariance_type,
+                   reg_covar=self.reg_covar, n_init=self.n_init,
+                   random_state=self.random_state)
+        return dedent(code)
 
 
 class KMeansClusteringOperation(Operation):
@@ -495,14 +483,10 @@ class KMeansClusteringOperation(Operation):
     @staticmethod
     def get_output_metrics_code():
         code = """
-        metric_rows.append(['{silhouette_euclidean}',
-                            silhouette_score(X, y, metric='euclidean')])
-        metric_rows.append(['{silhouette_cosine}',
-                            silhouette_score(X, y, metric='cosine')])
-        metric_rows.append(['{cluster_centers}', 
-            clustering_model.cluster_centers_])
-        metric_rows.append(['{inertia}', 
-            clustering_model.inertia_])
+        ['{silhouette_euclidean}', silhouette_score(X, y, metric='euclidean')],
+        ['{silhouette_cosine}', silhouette_score(X, y, metric='cosine')],
+        ['{cluster_centers}', clustering_model.cluster_centers_],
+        ['{inertia}', clustering_model.inertia_]
         """.format(inertia=gettext('Inertia'),
                    cluster_centers=gettext('Cluster centers'),
                    silhouette_euclidean=
@@ -512,31 +496,30 @@ class KMeansClusteringOperation(Operation):
         return code
 
     def generate_code(self):
-        if self.has_code:
-            """Generate code."""
-            if self.type.lower() == "k-means":
-                code = """
-                algorithm = KMeans(n_clusters={k}, init='{init}', 
+        """Generate code."""
+        if self.type.lower() == "k-means":
+            code = """
+            algorithm = KMeans(n_clusters={k}, init='{init}', 
+                               max_iter={max_iter}, tol={tol}, 
+                               random_state={seed}, n_init={n_init}, 
+                               n_jobs={n_jobs}, algorithm='{algorithm}')
+            """.format(k=self.n_clusters, max_iter=self.max_iter,
+                       tol=self.tolerance, init=self.init_mode,
+                       seed=self.seed, n_init=self.n_init,
+                       n_jobs=self.n_jobs, algorithm=self.algorithm)
+        else:
+            code = """
+            algorithm = MiniBatchKMeans(n_clusters={k}, init='{init}', 
                                 max_iter={max_iter}, tol={tol}, 
                                 random_state={seed}, n_init={n_init}, 
-                                n_jobs={n_jobs}, algorithm='{algorithm}')
-                """.format(k=self.n_clusters, max_iter=self.max_iter,
-                           tol=self.tolerance, init=self.init_mode,
-                           seed=self.seed, n_init=self.n_init,
-                           n_jobs=self.n_jobs, algorithm=self.algorithm)
-            else:
-                code = """
-                algorithm = MiniBatchKMeans(n_clusters={k}, init='{init}', 
-                                    max_iter={max_iter}, tol={tol}, 
-                                    random_state={seed}, n_init={n_init}, 
-                                    max_no_improvement={max_no_improvement}, 
-                                    batch_size={batch_size})
-                """.format(k=self.n_clusters, max_iter=self.max_iter,
-                           tol=self.tol, init=self.init_mode,
-                           seed=self.seed, n_init=self.n_init_mb,
-                           max_no_improvement=self.max_no_improvement,
-                           batch_size=self.batch_size)
-            return dedent(code)
+                                max_no_improvement={max_no_improvement}, 
+                                batch_size={batch_size})
+            """.format(k=self.n_clusters, max_iter=self.max_iter,
+                       tol=self.tol, init=self.init_mode,
+                       seed=self.seed, n_init=self.n_init_mb,
+                       max_no_improvement=self.max_no_improvement,
+                       batch_size=self.batch_size)
+        return dedent(code)
 
 
 class LdaClusteringOperation(Operation):
@@ -616,12 +599,9 @@ class LdaClusteringOperation(Operation):
     @staticmethod
     def get_output_metrics_code():
         code = """
-            metric_rows.append(['{bound}', 
-                clustering_model.bound_])
-            metric_rows.append(['{topic_word_prior}', 
-                clustering_model.topic_word_prior_])
-            metric_rows.append(['{doc_topic_prior}', 
-                clustering_model.doc_topic_prior_])
+            ['{bound}', clustering_model.bound_],
+            ['{topic_word_prior}', clustering_model.topic_word_prior_],
+            ['{doc_topic_prior}', clustering_model.doc_topic_prior_]
             """.format(bound=gettext('Final perplexity score on training set'),
                        doc_topic_prior=
                        gettext('Prior of document topic distribution'),
@@ -630,20 +610,19 @@ class LdaClusteringOperation(Operation):
         return code
 
     def generate_code(self):
-        if self.has_code:
-            """Generate code."""
-            code = """
-            algorithm = LatentDirichletAllocation(n_components={n_components}, 
-                doc_topic_prior={doc_topic_prior}, 
-                topic_word_prior={topic_word_prior}, 
-                learning_method='{learning_method}', 
-                max_iter={max_iter}, random_state={seed})
-            """.format(n_components=self.n_clusters, max_iter=self.max_iter,
-                       doc_topic_prior=self.doc_topic_pior,
-                       topic_word_prior=self.topic_word_prior,
-                       learning_method=self.learning_method,
-                       seed=self.seed)
-            return dedent(code)
+        """Generate code."""
+        code = """
+        algorithm = LatentDirichletAllocation(n_components={n_components}, 
+            doc_topic_prior={doc_topic_prior}, 
+            topic_word_prior={topic_word_prior}, 
+            learning_method='{learning_method}', 
+            max_iter={max_iter}, random_state={seed})
+        """.format(n_components=self.n_clusters, max_iter=self.max_iter,
+                   doc_topic_prior=self.doc_topic_pior,
+                   topic_word_prior=self.topic_word_prior,
+                   learning_method=self.learning_method,
+                   seed=self.seed)
+        return dedent(code)
 
 
 class TopicReportOperation(ReportOperation):
