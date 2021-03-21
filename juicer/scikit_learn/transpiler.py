@@ -12,6 +12,7 @@ import juicer.scikit_learn.regression_operation as regression
 import juicer.scikit_learn.text_operation as text_operations
 import juicer.scikit_learn.vis_operation as vis_operation
 import juicer.scikit_learn.outlier_detection as lof
+import juicer.scikit_learn.entity_resolution_operation as entity_resolution
 import os
 from juicer import operation
 from juicer.transpiler import Transpiler
@@ -181,6 +182,13 @@ class ScikitLearnTranspiler(Transpiler):
             'scatter-plot': vis_operation.ScatterPlotOperation,
             'map-chart': vis_operation.MapOperation,
             'map': vis_operation.MapOperation
+        }
+
+        er_ops = {
+            'indexing':entity_resolution.IndexingOperation,
+            'comparing':entity_resolution.ComparingOperation,
+            'classification':entity_resolution.ClassificationOperation,
+            'evaluation':entity_resolution.EvaluationOperation,
         }
 
         self.operations = {}
