@@ -15,7 +15,7 @@ except ImportError:
     from urllib.request import urlopen
 
 import string
-from .util import get_X_train_data
+from .util import get_X_train_data, get_label_data
 
 
 class SafeDict(dict):
@@ -436,6 +436,10 @@ class EvaluateModelOperation(Operation):
 
         self.supports_cache = False
         self.transpiler_utils.add_import("from sklearn.metrics import *")
+        self.transpiler_utils.add_custom_function(
+                'get_X_train_data', f=get_X_train_data)
+        self.transpiler_utils.add_custom_function(
+                'get_label_data', f=get_label_data)
         if self.has_code:
             self.transpiler_utils.add_import(
                 'from pandas.api.types import is_numeric_dtype')
@@ -460,48 +464,48 @@ class EvaluateModelOperation(Operation):
                 'display_image', {'value': 1}).get('value', 1) in (1, '1')
 
             if self.METRICS_LIST[self.metric][1] == 2:  # regression
-                code_input = \
-                    dedent("""
-                final_y_true = {input}['{second_attr}'].to_numpy().tolist()
-                final_y_pred = {input}['{prediction_attr}'].to_numpy().tolist()
-                """)
+                code_input = """
+            display_text = {display_text}
+            display_image = {display_image}
+            final_y_true = {input}['{second_attr}'].to_numpy()
+            final_y_pred = {input}['{prediction_attr}'].to_numpy()
+            """
             elif self.METRICS_LIST[self.metric][0] == 0:  # supervised metric
-                code_input = \
-                    dedent("""
-                y_true = {input}['{second_attr}'].to_numpy().tolist()
-                y_pred = {input}['{prediction_attr}'].to_numpy().tolist()
-                
-                # When Label attribute is categorical/string
-                if not is_numeric_dtype(y_true):
-                    le = LabelEncoder()
-                    le.fit(y_true)
-                    classes = le.classes_.tolist()
-                    final_y_true = le.transform(y_true)
-                    final_y_pred = le.transform(y_pred)
-                else:
-                    final_y_true = y_true
-                    final_y_pred = y_pred
-                """)
+                code_input = """
+            display_text = {display_text}
+            display_image = {display_image}
+            y_true = get_label_data({input}, ['{second_attr}'])
+            y_pred = get_label_data({input}, ['{prediction_attr}'])
+            
+            # When Label attribute is categorical/string
+            if not is_numeric_dtype(y_true):
+                le = LabelEncoder()
+                le.fit(y_true)
+                classes = le.classes_.tolist()
+                final_y_true = le.transform(y_true)
+                final_y_pred = le.transform(y_pred)
+            else:
+                classes = list(set(y_true))
+                final_y_true = y_true
+                final_y_pred = y_pred
+            """
             else:   # unsupervised metric
-                code_input = \
-                    dedent("""
-                X = get_X_train_data({input}, {second_attr})
-                y_pred = {input}['{prediction_attr}'].to_numpy().tolist()
-    
-                # When Prediction attribute is categorical/string
-                if not is_numeric_dtype(y_pred):
-                    le = LabelEncoder()
-                    le.fit(y_pred)
-                    final_y_pred = le.transform(y_pred)
-                else:
-                    final_y_pred = y_pred
-                """)
+                code_input = """
+            display_text = {display_text}
+            display_image = {display_image}
+            X = get_X_train_data({input}, {second_attr})
+            y_pred = {input}['{prediction_attr}'].to_numpy().tolist()
 
-            code = [dedent("""
-                display_text = {display_text}
-                display_image = {display_image}
-                """),
-                    code_input]
+            # When Prediction attribute is categorical/string
+            if not is_numeric_dtype(y_pred):
+                le = LabelEncoder()
+                le.fit(y_pred)
+                final_y_pred = le.transform(y_pred)
+            else:
+                final_y_pred = y_pred
+            """
+
+            code = [code_input]
 
             if self.type_model == 'classification':
                 self._get_code_for_classification_metrics(code)
@@ -512,7 +516,7 @@ class EvaluateModelOperation(Operation):
 
             self._get_code_for_summary(code)
 
-            code = "\n".join(code).format(
+            code = """\n""".join(code).format(
                 display_text=display_text,
                 display_image=display_image,
                 evaluator_out=self.evaluator_out,
@@ -520,6 +524,7 @@ class EvaluateModelOperation(Operation):
                 join_plot_y_title=_('Residual'),
                 join_plot_x_title=_('Prediction'),
                 input=self.named_inputs['input data'],
+                metric=self.metric,
                 prediction_attr=self.prediction_attribute,
                 second_attr=self.second_attribute,
                 model=self.model,
@@ -543,10 +548,9 @@ class EvaluateModelOperation(Operation):
         Generate code for other classification metrics besides those related to
         area.
         """
-        code.append(dedent("""
+        code.append("""
             # classification metrics
             if display_image:
-
                 content = ConfusionMatrixImageReport(
                     cm=confusion_matrix(final_y_true, final_y_pred), 
                     classes=classes,).generate(submission_lock)
@@ -603,14 +607,14 @@ class EvaluateModelOperation(Operation):
                     task={{'id': '{task_id}'}},
                     operation={{'id': {operation_id}}},
                     operation_id={operation_id})
-        """))
+        """)
 
     def _get_code_for_clustering_metrics(self, code):
         """
         Code for the evaluator when metric is related to clustering
         """
         if self.METRICS_LIST[self.metric][0] == 0:
-            code.append(dedent("""
+            code.append("""
                 # clustering metrics
                 if display_text:
                     headers = {table_headers}
@@ -635,9 +639,9 @@ class EvaluateModelOperation(Operation):
                        task={{'id': '{task_id}'}},
                        operation={{'id': {operation_id}}},
                        operation_id={operation_id})
-                    """))
+                    """)
         else:
-            code.append(dedent("""
+            code.append("""
                 # clustering metrics
                 if display_text:
                     headers = {table_headers}
@@ -662,7 +666,7 @@ class EvaluateModelOperation(Operation):
                        task={{'id': '{task_id}'}},
                        operation={{'id': {operation_id}}},
                        operation_id={operation_id})
-            """))
+            """)
 
     @staticmethod
     def _get_code_for_regression_metrics(code):
@@ -670,7 +674,7 @@ class EvaluateModelOperation(Operation):
         Code for the evaluator when metric is related to regression
         """
 
-        code.append(dedent("""
+        code.append("""
             # regression metrics
             if display_text:
                 headers = {table_headers}
@@ -682,8 +686,6 @@ class EvaluateModelOperation(Operation):
                         mean_squared_error(final_y_true, final_y_pred)],
                     ['Root mean squared error', 
                      np.sqrt(mean_squared_error(final_y_true, final_y_pred))],
-                    ['Mean squared log error', 
-                     mean_squared_log_error(final_y_true, final_y_pred)],
                     ['Mean absolute error', 
                      mean_absolute_error(final_y_true, final_y_pred)],
                     ['Median absolute error', 
@@ -691,6 +693,16 @@ class EvaluateModelOperation(Operation):
                     ['R^2 (coefficient of determination)', 
                     r2_score(final_y_true, final_y_pred)],
                 ]
+
+                
+                if (final_y_true < 0).any() or (final_y_pred < 0).any():
+                    if '{metric}' == 'mean_squared_log_error':
+                        raise ValueError('Mean Squared Logarithmic Error cannot' 
+                            ' be used when targets contain negative values.')
+                else:
+                    rows.append(['Mean squared log error', 
+                     mean_squared_log_error(final_y_true, final_y_pred)])
+                
 
                 content = SimpleTableReport(
                         'table table-striped table-bordered table-sm',
@@ -728,7 +740,7 @@ class EvaluateModelOperation(Operation):
                     operation=dict(id={operation_id}),
                     operation_id={operation_id})
 
-        """))
+        """)
 
     def _get_code_for_summary(self, code):
         """
@@ -736,7 +748,7 @@ class EvaluateModelOperation(Operation):
         """
 
         if self.METRICS_LIST[self.metric][0] == 0:
-            code.append(dedent("""                               
+            code.append("""                               
             # model's summary       
             if len(final_y_true) < 2000 and display_image:
 
@@ -757,9 +769,9 @@ class EvaluateModelOperation(Operation):
                     task=dict(id='{task_id}'),
                     operation=dict(id={operation_id}),
                     operation_id={operation_id})
-                    """))
+            """)
 
-            code.append(dedent(""" 
+            code.append(""" 
             if display_text:
                 rows = []
                 headers = {params_table_headers}
@@ -780,7 +792,7 @@ class EvaluateModelOperation(Operation):
                     task={{'id': '{task_id}'}},
                     operation={{'id': {operation_id}}},
                     operation_id={operation_id})
-        """))
+        """)
 
 
 class ModelsEvaluationResultList:
