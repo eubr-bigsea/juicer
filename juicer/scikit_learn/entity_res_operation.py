@@ -54,7 +54,7 @@ class IndexingOperation(Operation):
 
     def generate_code(self):
         if self.has_code:
-            code_columns = ["indexer.add(Block('{col}'))\n".format(col=col) for col in self.attributes]
+            code_columns = code_columns = "\n".join(["indexer.add('{col}')".format(col=col) for col in self.attributes])
             code = """
             indexer = rl.Index()
             {columns_code}
