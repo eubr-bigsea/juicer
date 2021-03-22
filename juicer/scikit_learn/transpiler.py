@@ -12,7 +12,7 @@ import juicer.scikit_learn.regression_operation as regression
 import juicer.scikit_learn.text_operation as text_operations
 import juicer.scikit_learn.vis_operation as vis_operation
 import juicer.scikit_learn.outlier_detection as lof
-import juicer.scikit_learn.entity_resolution_operation as entity_resolution
+import juicer.scikit_learn.entity_res_operation as entity_resolution
 import os
 from juicer import operation
 from juicer.transpiler import Transpiler
@@ -186,12 +186,12 @@ class ScikitLearnTranspiler(Transpiler):
 
         er_ops = {
             'indexing':entity_resolution.IndexingOperation,
-            'comparing':entity_resolution.ComparingOperation,
-            'classification':entity_resolution.ClassificationOperation,
-            'evaluation':entity_resolution.EvaluationOperation,
+            #'comparing':entity_resolution.ComparingOperation,
+            #'classification':entity_resolution.ClassificationOperation,
+            #'evaluation':entity_resolution.EvaluationOperation,
         }
 
         self.operations = {}
         for ops in [data_ops, etl_ops, geo_ops, ml_ops,
-                    other_ops, text_ops, ws_ops, vis_ops]:
+                    other_ops, text_ops, ws_ops, vis_ops, er_ops]:
             self.operations.update(ops)
