@@ -3,6 +3,7 @@
 from textwrap import dedent
 from juicer.operation import Operation
 from gettext import gettext
+import pandas as pd
 
 
 class IndexingOperation(Operation):
@@ -17,6 +18,7 @@ class IndexingOperation(Operation):
 
     ATTRIBUTES_PARAM = 'attributes'
     ALGORITHM_PARAM = 'alg'
+    WINDOW_PARAM = 'window'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
@@ -28,12 +30,19 @@ class IndexingOperation(Operation):
         if self.has_code:
             self.attributes = parameters['attributes']
             self.alg = parameters.get(self.ALGORITHM_PARAM, "Block")
+            self.window = int(parameters.get(self.WINDOW_PARAM, 3))
 
             self.input = ""
 
             self.transpiler_utils.add_import("import recordlinkage as rl")
             if self.alg == "Block":
                 self.transpiler_utils.add_import("from recordlinkage.index import Block")
+            elif self.alg == "Full":
+                self.transpiler_utils.add_import("from recordlinkage.index import Full")
+            elif self.alg == "Random":
+                self.transpiler_utils.add_import("from recordlinkage.index import Random")
+            elif self.alg == "Sorted Neighbourhood":
+                self.transpiler_utils.add_import("from recordlinkage.index import SortedNeighbourhood")
 
             self.treatment()
 
@@ -54,13 +63,88 @@ class IndexingOperation(Operation):
 
     def generate_code(self):
         if self.has_code:
-            code_columns = code_columns = "\n".join(["indexer.block('{col}')".format(col=col) for col in self.attributes])
+            if self.alg == "Sorted Neighbourhood":
+                code_columns = "\n".join(["indexer.sortedneighbourhood('{col}', window={window})"
+                                         .format(col=col,window=self.window) for col in self.attributes])
+            elif self.alg == "Block":
+                code_columns = "\n".join(["indexer.block('{col}')".format(col=col) for col in self.attributes])
+            elif self.alg == "Random":
+                code_columns = "\n".join(["indexer.random('{col}')".format(col=col) for col in self.attributes])
+            elif self.alg == "Full":
+                code_columns = "\n".join(["indexer.full('{col}')".format(col=col) for col in self.attributes])
+
             code = """
             indexer = rl.Index()
             {columns_code}
             candidate_links = indexer.index({input})
             {out} = candidate_links.to_frame().reset_index(drop=True)
-            {out} = {out}.rename({{0:"DF_1", 1:"DF_2"}}, axis=1)
+            {out} = {out}.rename({{0:"Record_1", 1:"Record_2"}}, axis=1)
+        """.format(out=self.output,
+                   input=self.input,
+                   columns_code=code_columns)
+            return dedent(code)
+
+class ComparingOperation(Operation):
+    """
+    A set of informative, discriminating and independent features
+     is important for a good classification of record pairs into
+     matching and distinct pairs.
+    The recordlinkage.Compare class and its methods can be used to
+     compare records pairs. Several comparison methods are included
+     such as string similarity measures, numerical measures and distance measures.
+    Parameters:
+    - attributes: list of the attributes that will be used to do de comparing.
+    """
+
+    ATTRIBUTES_PARAM = 'attributes'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+
+        self.name = 'entity_resolution.ComparingOperation'
+
+        self.has_code = len(self.named_inputs) > 0 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
+        if self.has_code:
+            self.attributes = parameters['attributes']
+
+            self.input = ""
+
+            self.transpiler_utils.add_import("import recordlinkage as rl")
+            self.transpiler_utils.add_import("from recordlinkage.compare import Exact")
+
+            self.treatment()
+
+            self.output = self.named_outputs.get(
+                'output data', 'output_data_{}'.format(self.order))
+
+    def treatment(self):
+        if len(self.attributes) <= 1:
+            raise ValueError(
+                _("Parameter '{}' must be x>=2 for task {}").format(
+                    self.ATTRIBUTES_PARAM, self.__class__))
+        if self.named_inputs.get('indexing data') is not None:
+            #print(type(self.named_inputs.get('indexing data')))
+            indexing = pd.MultiIndex.from_frame(self.named_inputs.get('indexing data'), names=('Record_1', 'Record_2'))
+            self.input += indexing
+        if self.named_inputs.get('input data 2') is not None:
+            if len(self.input) > 0:
+                self.input += ","
+            self.input += self.named_inputs.get('input data 2')
+        if self.named_inputs.get('input data 3') is not None:
+            if len(self.input) > 0:
+                self.input += ","
+            self.input += self.named_inputs.get('input data 3')
+
+    def generate_code(self):
+        if self.has_code:
+            code_columns = "\n".join(["compare.exact('{col}', '{col}', label='{col}')"
+                                                    .format(col=col) for col in self.attributes])
+            code = """
+            compare = rl.Compare()
+            {columns_code}
+            features = compare.compute({input})
+            {out} = features
         """.format(out=self.output,
                    input=self.input,
                    columns_code=code_columns)
