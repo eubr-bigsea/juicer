@@ -54,12 +54,13 @@ class IndexingOperation(Operation):
 
     def generate_code(self):
         if self.has_code:
-            code_columns = code_columns = "\n".join(["indexer.add('{col}')".format(col=col) for col in self.attributes])
+            code_columns = code_columns = "\n".join(["indexer.block('{col}')".format(col=col) for col in self.attributes])
             code = """
             indexer = rl.Index()
             {columns_code}
             candidate_links = indexer.index({input})
             {out} = candidate_links.to_frame().reset_index(drop=True)
+            {out} = {out}.rename({{0:"DF_1", 1:"DF_2"}}, axis=1)
         """.format(out=self.output,
                    input=self.input,
                    columns_code=code_columns)
