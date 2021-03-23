@@ -64,14 +64,14 @@ class IndexingOperation(Operation):
     def generate_code(self):
         if self.has_code:
             if self.alg == "Sorted Neighbourhood":
-                code_columns = "\n".join(["indexer.sortedneighbourhood('{col}', window={window})"
+                code_columns = "".join(["indexer.sortedneighbourhood('{col}', window={window})\n"
                                          .format(col=col,window=self.window) for col in self.attributes])
             elif self.alg == "Block":
-                code_columns = "\n".join(["indexer.block('{col}')".format(col=col) for col in self.attributes])
+                code_columns = "".join(["indexer.block('{col}')\n".format(col=col) for col in self.attributes])
             elif self.alg == "Random":
-                code_columns = "\n".join(["indexer.random('{col}')".format(col=col) for col in self.attributes])
+                code_columns = "".join(["indexer.random('{col}')\n".format(col=col) for col in self.attributes])
             elif self.alg == "Full":
-                code_columns = "\n".join(["indexer.full('{col}')".format(col=col) for col in self.attributes])
+                code_columns = "".join(["indexer.full('{col}')\n".format(col=col) for col in self.attributes])
 
             code = """
             indexer = rl.Index()
@@ -124,28 +124,25 @@ class ComparingOperation(Operation):
                 _("Parameter '{}' must be x>=2 for task {}").format(
                     self.ATTRIBUTES_PARAM, self.__class__))
         if self.named_inputs.get('indexing data') is not None:
-            #print(type(self.named_inputs.get('indexing data')))
-            indexing = pd.MultiIndex.from_frame(self.named_inputs.get('indexing data'), names=('Record_1', 'Record_2'))
-            self.input += indexing
-        if self.named_inputs.get('input data 2') is not None:
-            if len(self.input) > 0:
-                self.input += ","
-            self.input += self.named_inputs.get('input data 2')
-        if self.named_inputs.get('input data 3') is not None:
-            if len(self.input) > 0:
-                self.input += ","
-            self.input += self.named_inputs.get('input data 3')
+            self.input = self.named_inputs.get('indexing data')
 
     def generate_code(self):
         if self.has_code:
-            code_columns = "\n".join(["compare.exact('{col}', '{col}', label='{col}')"
-                                                    .format(col=col) for col in self.attributes])
+            code_columns = "".join(["compare.exact('{col}', '{col}', label='{col}')\n".format(col=col) for col in self.attributes])
             code = """
             compare = rl.Compare()
             {columns_code}
-            features = compare.compute({input})
+            {input} = pd.MultiIndex.from_frame({input}, names=('Record_1', 'Record_2'))
+            if input2 is not None and input3 is not None:
+                features = compare.compute({input},input2,input3)
+            elif input2 is not None:
+                features = compare.compute({input},input2)
+            elif input3 is not None:
+                features = compare.compute({input},input3)
             {out} = features
         """.format(out=self.output,
                    input=self.input,
-                   columns_code=code_columns)
+                   columns_code=code_columns,
+                   input2=self.named_inputs.get('input data 2'),
+                   input3=self.named_inputs.get('input data 3'))
             return dedent(code)
