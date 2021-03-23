@@ -1,9 +1,12 @@
 from tests.scikit_learn import util
+from tests.scikit_learn.util import get_label_data, get_X_train_data
 from juicer.scikit_learn.classification_operation import \
-    RandomForestClassifierModelOperation
+    RandomForestClassifierModelOperation, RandomForestClassifierOperation, \
+    ClassificationModelOperation
 from sklearn.ensemble import RandomForestClassifier
 import pytest
 import pandas as pd
+import numpy as np
 
 
 # pd.set_option('display.max_rows', None)
@@ -15,15 +18,18 @@ import pandas as pd
 #
 # # # # # # # # # # Success # # # # # # # # # #
 def test_random_forest_classifier_success():
-    df = util.iris(['sepallength', 'sepalwidth'], size=10)
-    for idx in df.index:
-        for col in df.columns:
-            df.loc[idx, col] = int(df.loc[idx, col])
+    df = pd.DataFrame(
+        [[0, 1], [1, 2],
+         [2, 3], [3, 4],
+         [4, 5], [5, 6],
+         [6, 7], [7, 8],
+         [8, 9], [9, 10]], columns=['sepallength', 'sepalwidth'])
     test_df = df.copy()
     arguments = {
         'parameters': {'label': ['sepalwidth'],
                        'features': ['sepallength', 'sepalwidth'],
-                       'multiplicity': {'train input data': 0}},
+                       'multiplicity': {'train input data': 0},
+                       'seed': 1},
         'named_inputs': {
             'train input data': 'df',
         },
@@ -35,24 +41,31 @@ def test_random_forest_classifier_success():
     instance = RandomForestClassifierModelOperation(**arguments)
     result = util.execute(util.get_complete_code(instance),
                           {'df': df})
+    x_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
+    y = get_label_data(test_df, ['sepalwidth'])
+    y = np.reshape(y, len(y))
     model_1 = RandomForestClassifier(n_estimators=10,
                                      max_depth=None, min_samples_split=2,
-                                     min_samples_leaf=1, random_state=None,
+                                     min_samples_leaf=1, random_state=1,
                                      criterion='gini',
                                      min_weight_fraction_leaf=0.0,
                                      max_features=None, max_leaf_nodes=None,
                                      min_impurity_decrease=0.0, bootstrap=True,
                                      oob_score=False, n_jobs=None,
                                      ccp_alpha=0.0, max_samples=None)
-    assert not result['out'].equals(test_df)
+    model_1.fit(x_train, y)
+    test_df['prediction'] = model_1.predict(x_train).tolist()
+    assert result['out'].equals(test_df)
     assert str(result['model_task_1']) == str(model_1)
 
 
 def test_random_forest_classifier_prediction_param_success():
-    df = util.iris(['sepallength', 'sepalwidth'], size=10)
-    for idx in df.index:
-        for col in df.columns:
-            df.loc[idx, col] = int(df.loc[idx, col])
+    df = pd.DataFrame(
+        [[0, 1], [1, 2],
+         [2, 3], [3, 4],
+         [4, 5], [5, 6],
+         [6, 7], [7, 8],
+         [8, 9], [9, 10]], columns=['sepallength', 'sepalwidth'])
     arguments = {
         'parameters': {'label': ['sepalwidth'],
                        'features': ['sepallength', 'sepalwidth'],
@@ -73,16 +86,19 @@ def test_random_forest_classifier_prediction_param_success():
 
 
 def test_random_forest_classifier_n_estimators_param_success():
-    df = util.iris(['sepallength', 'sepalwidth'], size=10)
-    for idx in df.index:
-        for col in df.columns:
-            df.loc[idx, col] = int(df.loc[idx, col])
+    df = pd.DataFrame(
+        [[0, 1], [1, 2],
+         [2, 3], [3, 4],
+         [4, 5], [5, 6],
+         [6, 7], [7, 8],
+         [8, 9], [9, 10]], columns=['sepallength', 'sepalwidth'])
     test_df = df.copy()
     arguments = {
         'parameters': {'label': ['sepalwidth'],
                        'features': ['sepallength', 'sepalwidth'],
                        'multiplicity': {'train input data': 0},
-                       'n_estimators': 5},
+                       'n_estimators': 5,
+                       'seed': 1},
         'named_inputs': {
             'train input data': 'df',
         },
@@ -94,30 +110,38 @@ def test_random_forest_classifier_n_estimators_param_success():
     instance = RandomForestClassifierModelOperation(**arguments)
     result = util.execute(util.get_complete_code(instance),
                           {'df': df})
+    x_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
+    y = get_label_data(test_df, ['sepalwidth'])
+    y = np.reshape(y, len(y))
     model_1 = RandomForestClassifier(n_estimators=5,
                                      max_depth=None, min_samples_split=2,
-                                     min_samples_leaf=1, random_state=None,
+                                     min_samples_leaf=1, random_state=1,
                                      criterion='gini',
                                      min_weight_fraction_leaf=0.0,
                                      max_features=None, max_leaf_nodes=None,
                                      min_impurity_decrease=0.0, bootstrap=True,
                                      oob_score=False, n_jobs=None,
                                      ccp_alpha=0.0, max_samples=None)
-    assert not result['out'].equals(test_df)
+    model_1.fit(x_train, y)
+    test_df['prediction'] = model_1.predict(x_train).tolist()
+    assert result['out'].equals(test_df)
     assert str(result['model_task_1']) == str(model_1)
 
 
 def test_random_forest_classifier_max_depth_param_success():
-    df = util.iris(['sepallength', 'sepalwidth'], size=10)
-    for idx in df.index:
-        for col in df.columns:
-            df.loc[idx, col] = int(df.loc[idx, col])
+    df = pd.DataFrame(
+        [[0, 1], [1, 2],
+         [2, 3], [3, 4],
+         [4, 5], [5, 6],
+         [6, 7], [7, 8],
+         [8, 9], [9, 10]], columns=['sepallength', 'sepalwidth'])
     test_df = df.copy()
     arguments = {
         'parameters': {'label': ['sepalwidth'],
                        'features': ['sepallength', 'sepalwidth'],
                        'multiplicity': {'train input data': 0},
-                       'max_depth': 2},
+                       'max_depth': 2,
+                       'seed': 1},
         'named_inputs': {
             'train input data': 'df',
         },
@@ -129,30 +153,38 @@ def test_random_forest_classifier_max_depth_param_success():
     instance = RandomForestClassifierModelOperation(**arguments)
     result = util.execute(util.get_complete_code(instance),
                           {'df': df})
+    x_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
+    y = get_label_data(test_df, ['sepalwidth'])
+    y = np.reshape(y, len(y))
     model_1 = RandomForestClassifier(n_estimators=10,
                                      max_depth=2, min_samples_split=2,
-                                     min_samples_leaf=1, random_state=None,
+                                     min_samples_leaf=1, random_state=1,
                                      criterion='gini',
                                      min_weight_fraction_leaf=0.0,
                                      max_features=None, max_leaf_nodes=None,
                                      min_impurity_decrease=0.0, bootstrap=True,
                                      oob_score=False, n_jobs=None,
                                      ccp_alpha=0.0, max_samples=None)
-    assert not result['out'].equals(test_df)
+    model_1.fit(x_train, y)
+    test_df['prediction'] = model_1.predict(x_train).tolist()
+    assert result['out'].equals(test_df)
     assert str(result['model_task_1']) == str(model_1)
 
 
 def test_random_forest_classifier_min_samples_split_param_success():
-    df = util.iris(['sepallength', 'sepalwidth'], size=10)
-    for idx in df.index:
-        for col in df.columns:
-            df.loc[idx, col] = int(df.loc[idx, col])
+    df = pd.DataFrame(
+        [[0, 1], [1, 2],
+         [2, 3], [3, 4],
+         [4, 5], [5, 6],
+         [6, 7], [7, 8],
+         [8, 9], [9, 10]], columns=['sepallength', 'sepalwidth'])
     test_df = df.copy()
     arguments = {
         'parameters': {'label': ['sepalwidth'],
                        'features': ['sepallength', 'sepalwidth'],
                        'multiplicity': {'train input data': 0},
-                       'min_samples_split': 4},
+                       'min_samples_split': 4,
+                       'seed': 1},
         'named_inputs': {
             'train input data': 'df',
         },
@@ -164,30 +196,38 @@ def test_random_forest_classifier_min_samples_split_param_success():
     instance = RandomForestClassifierModelOperation(**arguments)
     result = util.execute(util.get_complete_code(instance),
                           {'df': df})
+    x_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
+    y = get_label_data(test_df, ['sepalwidth'])
+    y = np.reshape(y, len(y))
     model_1 = RandomForestClassifier(n_estimators=10,
                                      max_depth=None, min_samples_split=4,
-                                     min_samples_leaf=1, random_state=None,
+                                     min_samples_leaf=1, random_state=1,
                                      criterion='gini',
                                      min_weight_fraction_leaf=0.0,
                                      max_features=None, max_leaf_nodes=None,
                                      min_impurity_decrease=0.0, bootstrap=True,
                                      oob_score=False, n_jobs=None,
                                      ccp_alpha=0.0, max_samples=None)
-    assert not result['out'].equals(test_df)
+    model_1.fit(x_train, y)
+    test_df['prediction'] = model_1.predict(x_train).tolist()
+    assert result['out'].equals(test_df)
     assert str(result['model_task_1']) == str(model_1)
 
 
 def test_random_forest_classifier_min_samples_leaf_param_success():
-    df = util.iris(['sepallength', 'sepalwidth'], size=10)
-    for idx in df.index:
-        for col in df.columns:
-            df.loc[idx, col] = int(df.loc[idx, col])
+    df = pd.DataFrame(
+        [[0, 1], [1, 2],
+         [2, 3], [3, 4],
+         [4, 5], [5, 6],
+         [6, 7], [7, 8],
+         [8, 9], [9, 10]], columns=['sepallength', 'sepalwidth'])
     test_df = df.copy()
     arguments = {
         'parameters': {'label': ['sepalwidth'],
                        'features': ['sepallength', 'sepalwidth'],
                        'multiplicity': {'train input data': 0},
-                       'min_samples_leaf': 2},
+                       'min_samples_leaf': 2,
+                       'seed': 1},
         'named_inputs': {
             'train input data': 'df',
         },
@@ -199,24 +239,31 @@ def test_random_forest_classifier_min_samples_leaf_param_success():
     instance = RandomForestClassifierModelOperation(**arguments)
     result = util.execute(util.get_complete_code(instance),
                           {'df': df})
+    x_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
+    y = get_label_data(test_df, ['sepalwidth'])
+    y = np.reshape(y, len(y))
     model_1 = RandomForestClassifier(n_estimators=10,
                                      max_depth=None, min_samples_split=2,
-                                     min_samples_leaf=2, random_state=None,
+                                     min_samples_leaf=2, random_state=1,
                                      criterion='gini',
                                      min_weight_fraction_leaf=0.0,
                                      max_features=None, max_leaf_nodes=None,
                                      min_impurity_decrease=0.0, bootstrap=True,
                                      oob_score=False, n_jobs=None,
                                      ccp_alpha=0.0, max_samples=None)
-    assert not result['out'].equals(test_df)
+    model_1.fit(x_train, y)
+    test_df['prediction'] = model_1.predict(x_train).tolist()
+    assert result['out'].equals(test_df)
     assert str(result['model_task_1']) == str(model_1)
 
 
 def test_random_forest_classifier_seed_param_success():
-    df = util.iris(['sepallength', 'sepalwidth'], size=10)
-    for idx in df.index:
-        for col in df.columns:
-            df.loc[idx, col] = int(df.loc[idx, col])
+    df = pd.DataFrame(
+        [[0, 1], [1, 2],
+         [2, 3], [3, 4],
+         [4, 5], [5, 6],
+         [6, 7], [7, 8],
+         [8, 9], [9, 10]], columns=['sepallength', 'sepalwidth'])
     test_df = df.copy()
     arguments = {
         'parameters': {'label': ['sepalwidth'],
@@ -234,6 +281,9 @@ def test_random_forest_classifier_seed_param_success():
     instance = RandomForestClassifierModelOperation(**arguments)
     result = util.execute(util.get_complete_code(instance),
                           {'df': df})
+    x_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
+    y = get_label_data(test_df, ['sepalwidth'])
+    y = np.reshape(y, len(y))
     model_1 = RandomForestClassifier(n_estimators=10,
                                      max_depth=None, min_samples_split=2,
                                      min_samples_leaf=1, random_state=2002,
@@ -243,21 +293,26 @@ def test_random_forest_classifier_seed_param_success():
                                      min_impurity_decrease=0.0, bootstrap=True,
                                      oob_score=False, n_jobs=None,
                                      ccp_alpha=0.0, max_samples=None)
-    assert not result['out'].equals(test_df)
+    model_1.fit(x_train, y)
+    test_df['prediction'] = model_1.predict(x_train).tolist()
+    assert result['out'].equals(test_df)
     assert str(result['model_task_1']) == str(model_1)
 
 
 def test_random_forest_classifier_criterion_param_success():
-    df = util.iris(['sepallength', 'sepalwidth'], size=10)
-    for idx in df.index:
-        for col in df.columns:
-            df.loc[idx, col] = int(df.loc[idx, col])
+    df = pd.DataFrame(
+        [[0, 1], [1, 2],
+         [2, 3], [3, 4],
+         [4, 5], [5, 6],
+         [6, 7], [7, 8],
+         [8, 9], [9, 10]], columns=['sepallength', 'sepalwidth'])
     test_df = df.copy()
     arguments = {
         'parameters': {'label': ['sepalwidth'],
                        'features': ['sepallength', 'sepalwidth'],
                        'multiplicity': {'train input data': 0},
-                       'criterion': 'entropy'},
+                       'criterion': 'entropy',
+                       'seed': 1},
         'named_inputs': {
             'train input data': 'df',
         },
@@ -269,30 +324,38 @@ def test_random_forest_classifier_criterion_param_success():
     instance = RandomForestClassifierModelOperation(**arguments)
     result = util.execute(util.get_complete_code(instance),
                           {'df': df})
+    x_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
+    y = get_label_data(test_df, ['sepalwidth'])
+    y = np.reshape(y, len(y))
     model_1 = RandomForestClassifier(n_estimators=10,
                                      max_depth=None, min_samples_split=2,
-                                     min_samples_leaf=1, random_state=None,
+                                     min_samples_leaf=1, random_state=1,
                                      criterion='entropy',
                                      min_weight_fraction_leaf=0.0,
                                      max_features=None, max_leaf_nodes=None,
                                      min_impurity_decrease=0.0, bootstrap=True,
                                      oob_score=False, n_jobs=None,
                                      ccp_alpha=0.0, max_samples=None)
-    assert not result['out'].equals(test_df)
+    model_1.fit(x_train, y)
+    test_df['prediction'] = model_1.predict(x_train).tolist()
+    assert result['out'].equals(test_df)
     assert str(result['model_task_1']) == str(model_1)
 
 
 def test_random_forest_classifier_min_weight_fraction_leaf_param_success():
-    df = util.iris(['sepallength', 'sepalwidth'], size=10)
-    for idx in df.index:
-        for col in df.columns:
-            df.loc[idx, col] = int(df.loc[idx, col])
+    df = pd.DataFrame(
+        [[0, 1], [1, 2],
+         [2, 3], [3, 4],
+         [4, 5], [5, 6],
+         [6, 7], [7, 8],
+         [8, 9], [9, 10]], columns=['sepallength', 'sepalwidth'])
     test_df = df.copy()
     arguments = {
         'parameters': {'label': ['sepalwidth'],
                        'features': ['sepallength', 'sepalwidth'],
                        'multiplicity': {'train input data': 0},
-                       'min_weight_fraction_leaf': 0.3},
+                       'min_weight_fraction_leaf': 0.3,
+                       'seed': 1},
         'named_inputs': {
             'train input data': 'df',
         },
@@ -304,30 +367,38 @@ def test_random_forest_classifier_min_weight_fraction_leaf_param_success():
     instance = RandomForestClassifierModelOperation(**arguments)
     result = util.execute(util.get_complete_code(instance),
                           {'df': df})
+    x_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
+    y = get_label_data(test_df, ['sepalwidth'])
+    y = np.reshape(y, len(y))
     model_1 = RandomForestClassifier(n_estimators=10,
                                      max_depth=None, min_samples_split=2,
-                                     min_samples_leaf=1, random_state=None,
+                                     min_samples_leaf=1, random_state=1,
                                      criterion='gini',
                                      min_weight_fraction_leaf=0.3,
                                      max_features=None, max_leaf_nodes=None,
                                      min_impurity_decrease=0.0, bootstrap=True,
                                      oob_score=False, n_jobs=None,
                                      ccp_alpha=0.0, max_samples=None)
-    assert not result['out'].equals(test_df)
+    model_1.fit(x_train, y)
+    test_df['prediction'] = model_1.predict(x_train).tolist()
+    assert result['out'].equals(test_df)
     assert str(result['model_task_1']) == str(model_1)
 
 
 def test_random_forest_classifier_max_features_param_success():
-    df = util.iris(['sepallength', 'sepalwidth'], size=10)
-    for idx in df.index:
-        for col in df.columns:
-            df.loc[idx, col] = int(df.loc[idx, col])
+    df = pd.DataFrame(
+        [[0, 1], [1, 2],
+         [2, 3], [3, 4],
+         [4, 5], [5, 6],
+         [6, 7], [7, 8],
+         [8, 9], [9, 10]], columns=['sepallength', 'sepalwidth'])
     test_df = df.copy()
     arguments = {
         'parameters': {'label': ['sepalwidth'],
                        'features': ['sepallength', 'sepalwidth'],
                        'multiplicity': {'train input data': 0},
-                       'max_features': 1},
+                       'max_features': 1,
+                       'seed': 1},
         'named_inputs': {
             'train input data': 'df',
         },
@@ -339,30 +410,38 @@ def test_random_forest_classifier_max_features_param_success():
     instance = RandomForestClassifierModelOperation(**arguments)
     result = util.execute(util.get_complete_code(instance),
                           {'df': df})
+    x_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
+    y = get_label_data(test_df, ['sepalwidth'])
+    y = np.reshape(y, len(y))
     model_1 = RandomForestClassifier(n_estimators=10,
                                      max_depth=None, min_samples_split=2,
-                                     min_samples_leaf=1, random_state=None,
+                                     min_samples_leaf=1, random_state=1,
                                      criterion='gini',
                                      min_weight_fraction_leaf=0.0,
                                      max_features=1, max_leaf_nodes=None,
                                      min_impurity_decrease=0.0, bootstrap=True,
                                      oob_score=False, n_jobs=None,
                                      ccp_alpha=0.0, max_samples=None)
-    assert not result['out'].equals(test_df)
+    model_1.fit(x_train, y)
+    test_df['prediction'] = model_1.predict(x_train).tolist()
+    assert result['out'].equals(test_df)
     assert str(result['model_task_1']) == str(model_1)
 
 
 def test_random_forest_classifier_max_leaf_nodes_param_success():
-    df = util.iris(['sepallength', 'sepalwidth'], size=10)
-    for idx in df.index:
-        for col in df.columns:
-            df.loc[idx, col] = int(df.loc[idx, col])
+    df = pd.DataFrame(
+        [[0, 1], [1, 2],
+         [2, 3], [3, 4],
+         [4, 5], [5, 6],
+         [6, 7], [7, 8],
+         [8, 9], [9, 10]], columns=['sepallength', 'sepalwidth'])
     test_df = df.copy()
     arguments = {
         'parameters': {'label': ['sepalwidth'],
                        'features': ['sepallength', 'sepalwidth'],
                        'multiplicity': {'train input data': 0},
-                       'max_leaf_nodes': 2},
+                       'max_leaf_nodes': 2,
+                       'seed': 1},
         'named_inputs': {
             'train input data': 'df',
         },
@@ -374,30 +453,38 @@ def test_random_forest_classifier_max_leaf_nodes_param_success():
     instance = RandomForestClassifierModelOperation(**arguments)
     result = util.execute(util.get_complete_code(instance),
                           {'df': df})
+    x_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
+    y = get_label_data(test_df, ['sepalwidth'])
+    y = np.reshape(y, len(y))
     model_1 = RandomForestClassifier(n_estimators=10,
                                      max_depth=None, min_samples_split=2,
-                                     min_samples_leaf=1, random_state=None,
+                                     min_samples_leaf=1, random_state=1,
                                      criterion='gini',
                                      min_weight_fraction_leaf=0.0,
                                      max_features=None, max_leaf_nodes=2,
                                      min_impurity_decrease=0.0, bootstrap=True,
                                      oob_score=False, n_jobs=None,
                                      ccp_alpha=0.0, max_samples=None)
-    assert not result['out'].equals(test_df)
+    model_1.fit(x_train, y)
+    test_df['prediction'] = model_1.predict(x_train).tolist()
+    assert result['out'].equals(test_df)
     assert str(result['model_task_1']) == str(model_1)
 
 
 def test_random_forest_classifier_min_impurity_decrease_param_success():
-    df = util.iris(['sepallength', 'sepalwidth'], size=10)
-    for idx in df.index:
-        for col in df.columns:
-            df.loc[idx, col] = int(df.loc[idx, col])
+    df = pd.DataFrame(
+        [[0, 1], [1, 2],
+         [2, 3], [3, 4],
+         [4, 5], [5, 6],
+         [6, 7], [7, 8],
+         [8, 9], [9, 10]], columns=['sepallength', 'sepalwidth'])
     test_df = df.copy()
     arguments = {
         'parameters': {'label': ['sepalwidth'],
                        'features': ['sepallength', 'sepalwidth'],
                        'multiplicity': {'train input data': 0},
-                       'min_impurity_decrease': 0.5},
+                       'min_impurity_decrease': 0.5,
+                       'seed': 1},
         'named_inputs': {
             'train input data': 'df',
         },
@@ -409,30 +496,38 @@ def test_random_forest_classifier_min_impurity_decrease_param_success():
     instance = RandomForestClassifierModelOperation(**arguments)
     result = util.execute(util.get_complete_code(instance),
                           {'df': df})
+    x_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
+    y = get_label_data(test_df, ['sepalwidth'])
+    y = np.reshape(y, len(y))
     model_1 = RandomForestClassifier(n_estimators=10,
                                      max_depth=None, min_samples_split=2,
-                                     min_samples_leaf=1, random_state=None,
+                                     min_samples_leaf=1, random_state=1,
                                      criterion='gini',
                                      min_weight_fraction_leaf=0.0,
                                      max_features=None, max_leaf_nodes=None,
                                      min_impurity_decrease=0.5, bootstrap=True,
                                      oob_score=False, n_jobs=None,
                                      ccp_alpha=0.0, max_samples=None)
-    assert not result['out'].equals(test_df)
+    model_1.fit(x_train, y)
+    test_df['prediction'] = model_1.predict(x_train).tolist()
+    assert result['out'].equals(test_df)
     assert str(result['model_task_1']) == str(model_1)
 
 
 def test_random_forest_classifier_bootstrap_param_success():
-    df = util.iris(['sepallength', 'sepalwidth'], size=10)
-    for idx in df.index:
-        for col in df.columns:
-            df.loc[idx, col] = int(df.loc[idx, col])
+    df = pd.DataFrame(
+        [[0, 1], [1, 2],
+         [2, 3], [3, 4],
+         [4, 5], [5, 6],
+         [6, 7], [7, 8],
+         [8, 9], [9, 10]], columns=['sepallength', 'sepalwidth'])
     test_df = df.copy()
     arguments = {
         'parameters': {'label': ['sepalwidth'],
                        'features': ['sepallength', 'sepalwidth'],
                        'multiplicity': {'train input data': 0},
-                       'bootstrap': 0},
+                       'bootstrap': 0,
+                       'seed': 1},
         'named_inputs': {
             'train input data': 'df',
         },
@@ -444,30 +539,38 @@ def test_random_forest_classifier_bootstrap_param_success():
     instance = RandomForestClassifierModelOperation(**arguments)
     result = util.execute(util.get_complete_code(instance),
                           {'df': df})
+    x_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
+    y = get_label_data(test_df, ['sepalwidth'])
+    y = np.reshape(y, len(y))
     model_1 = RandomForestClassifier(n_estimators=10,
                                      max_depth=None, min_samples_split=2,
-                                     min_samples_leaf=1, random_state=None,
+                                     min_samples_leaf=1, random_state=1,
                                      criterion='gini',
                                      min_weight_fraction_leaf=0.0,
                                      max_features=None, max_leaf_nodes=None,
                                      min_impurity_decrease=0.0, bootstrap=False,
                                      oob_score=False, n_jobs=None,
                                      ccp_alpha=0.0, max_samples=None)
-    assert not result['out'].equals(test_df)
+    model_1.fit(x_train, y)
+    test_df['prediction'] = model_1.predict(x_train).tolist()
+    assert result['out'].equals(test_df)
     assert str(result['model_task_1']) == str(model_1)
 
 
 def test_random_forest_classifier_oob_score_param_success():
-    df = util.iris(['sepallength', 'sepalwidth'], size=10)
-    for idx in df.index:
-        for col in df.columns:
-            df.loc[idx, col] = int(df.loc[idx, col])
+    df = pd.DataFrame(
+        [[0, 1], [1, 2],
+         [2, 3], [3, 4],
+         [4, 5], [5, 6],
+         [6, 7], [7, 8],
+         [8, 9], [9, 10]], columns=['sepallength', 'sepalwidth'])
     test_df = df.copy()
     arguments = {
         'parameters': {'label': ['sepalwidth'],
                        'features': ['sepallength', 'sepalwidth'],
                        'multiplicity': {'train input data': 0},
-                       'oob_score': 1},
+                       'oob_score': 1,
+                       'seed': 1},
         'named_inputs': {
             'train input data': 'df',
         },
@@ -479,30 +582,38 @@ def test_random_forest_classifier_oob_score_param_success():
     instance = RandomForestClassifierModelOperation(**arguments)
     result = util.execute(util.get_complete_code(instance),
                           {'df': df})
+    x_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
+    y = get_label_data(test_df, ['sepalwidth'])
+    y = np.reshape(y, len(y))
     model_1 = RandomForestClassifier(n_estimators=10,
                                      max_depth=None, min_samples_split=2,
-                                     min_samples_leaf=1, random_state=None,
+                                     min_samples_leaf=1, random_state=1,
                                      criterion='gini',
                                      min_weight_fraction_leaf=0.0,
                                      max_features=None, max_leaf_nodes=None,
                                      min_impurity_decrease=0.0, bootstrap=True,
                                      oob_score=True, n_jobs=None, ccp_alpha=0.0,
                                      max_samples=None)
-    assert not result['out'].equals(test_df)
+    model_1.fit(x_train, y)
+    test_df['prediction'] = model_1.predict(x_train).tolist()
+    assert result['out'].equals(test_df)
     assert str(result['model_task_1']) == str(model_1)
 
 
 def test_random_forest_classifier_n_jobs_param_success():
-    df = util.iris(['sepallength', 'sepalwidth'], size=10)
-    for idx in df.index:
-        for col in df.columns:
-            df.loc[idx, col] = int(df.loc[idx, col])
+    df = pd.DataFrame(
+        [[0, 1], [1, 2],
+         [2, 3], [3, 4],
+         [4, 5], [5, 6],
+         [6, 7], [7, 8],
+         [8, 9], [9, 10]], columns=['sepallength', 'sepalwidth'])
     test_df = df.copy()
     arguments = {
         'parameters': {'label': ['sepalwidth'],
                        'features': ['sepallength', 'sepalwidth'],
                        'multiplicity': {'train input data': 0},
-                       'n_jobs': 2},
+                       'n_jobs': 2,
+                       'seed': 1},
         'named_inputs': {
             'train input data': 'df',
         },
@@ -514,30 +625,38 @@ def test_random_forest_classifier_n_jobs_param_success():
     instance = RandomForestClassifierModelOperation(**arguments)
     result = util.execute(util.get_complete_code(instance),
                           {'df': df})
+    x_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
+    y = get_label_data(test_df, ['sepalwidth'])
+    y = np.reshape(y, len(y))
     model_1 = RandomForestClassifier(n_estimators=10,
                                      max_depth=None, min_samples_split=2,
-                                     min_samples_leaf=1, random_state=None,
+                                     min_samples_leaf=1, random_state=1,
                                      criterion='gini',
                                      min_weight_fraction_leaf=0.0,
                                      max_features=None, max_leaf_nodes=None,
                                      min_impurity_decrease=0.0, bootstrap=True,
                                      oob_score=False, n_jobs=2, ccp_alpha=0.0,
                                      max_samples=None)
-    assert not result['out'].equals(test_df)
+    model_1.fit(x_train, y)
+    test_df['prediction'] = model_1.predict(x_train).tolist()
+    assert result['out'].equals(test_df)
     assert str(result['model_task_1']) == str(model_1)
 
 
 def test_random_forest_classifier_ccp_alpha_param_success():
-    df = util.iris(['sepallength', 'sepalwidth'], size=10)
-    for idx in df.index:
-        for col in df.columns:
-            df.loc[idx, col] = int(df.loc[idx, col])
+    df = pd.DataFrame(
+        [[0, 1], [1, 2],
+         [2, 3], [3, 4],
+         [4, 5], [5, 6],
+         [6, 7], [7, 8],
+         [8, 9], [9, 10]], columns=['sepallength', 'sepalwidth'])
     test_df = df.copy()
     arguments = {
         'parameters': {'label': ['sepalwidth'],
                        'features': ['sepallength', 'sepalwidth'],
                        'multiplicity': {'train input data': 0},
-                       'ccp_alpha': 0.5},
+                       'ccp_alpha': 0.5,
+                       'seed': 1},
         'named_inputs': {
             'train input data': 'df',
         },
@@ -549,30 +668,38 @@ def test_random_forest_classifier_ccp_alpha_param_success():
     instance = RandomForestClassifierModelOperation(**arguments)
     result = util.execute(util.get_complete_code(instance),
                           {'df': df})
+    x_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
+    y = get_label_data(test_df, ['sepalwidth'])
+    y = np.reshape(y, len(y))
     model_1 = RandomForestClassifier(n_estimators=10,
                                      max_depth=None, min_samples_split=2,
-                                     min_samples_leaf=1, random_state=None,
+                                     min_samples_leaf=1, random_state=1,
                                      criterion='gini',
                                      min_weight_fraction_leaf=0.0,
                                      max_features=None, max_leaf_nodes=None,
                                      min_impurity_decrease=0.0, bootstrap=True,
                                      oob_score=False, n_jobs=None,
                                      ccp_alpha=0.5, max_samples=None)
-    assert not result['out'].equals(test_df)
+    model_1.fit(x_train, y)
+    test_df['prediction'] = model_1.predict(x_train).tolist()
+    assert result['out'].equals(test_df)
     assert str(result['model_task_1']) == str(model_1)
 
 
 def test_random_forest_classifier_max_samples_param_success():
-    df = util.iris(['sepallength', 'sepalwidth'], size=10)
-    for idx in df.index:
-        for col in df.columns:
-            df.loc[idx, col] = int(df.loc[idx, col])
+    df = pd.DataFrame(
+        [[0, 1], [1, 2],
+         [2, 3], [3, 4],
+         [4, 5], [5, 6],
+         [6, 7], [7, 8],
+         [8, 9], [9, 10]], columns=['sepallength', 'sepalwidth'])
     test_df = df.copy()
     arguments = {
         'parameters': {'label': ['sepalwidth'],
                        'features': ['sepallength', 'sepalwidth'],
                        'multiplicity': {'train input data': 0},
-                       'max_samples': 1},
+                       'max_samples': 1,
+                       'seed': 1},
         'named_inputs': {
             'train input data': 'df',
         },
@@ -584,16 +711,21 @@ def test_random_forest_classifier_max_samples_param_success():
     instance = RandomForestClassifierModelOperation(**arguments)
     result = util.execute(util.get_complete_code(instance),
                           {'df': df})
+    x_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
+    y = get_label_data(test_df, ['sepalwidth'])
+    y = np.reshape(y, len(y))
     model_1 = RandomForestClassifier(n_estimators=10,
                                      max_depth=None, min_samples_split=2,
-                                     min_samples_leaf=1, random_state=None,
+                                     min_samples_leaf=1, random_state=1,
                                      criterion='gini',
                                      min_weight_fraction_leaf=0.0,
                                      max_features=None, max_leaf_nodes=None,
                                      min_impurity_decrease=0.0, bootstrap=True,
                                      oob_score=False, n_jobs=None,
                                      ccp_alpha=0.0, max_samples=1 / 100.0)
-    assert not result['out'].equals(test_df)
+    model_1.fit(x_train, y)
+    test_df['prediction'] = model_1.predict(x_train).tolist()
+    assert result['out'].equals(test_df)
     assert str(result['model_task_1']) == str(model_1)
 
 
@@ -644,8 +776,8 @@ def test_random_forest_classifier_missing_label_param_fail():
     arguments = util.add_minimum_ml_args(arguments)
     with pytest.raises(ValueError) as val_err:
         RandomForestClassifierModelOperation(**arguments)
-    assert "Parameters 'features' and 'label' must be informed for task" in \
-           str(val_err.value)
+    assert "Parameters 'features' and 'label' must be informed for task" \
+           " ClassificationModelOperation" in str(val_err.value)
 
 
 def test_random_forest_classifier_missing_features_param_fail():
@@ -662,8 +794,8 @@ def test_random_forest_classifier_missing_features_param_fail():
     arguments = util.add_minimum_ml_args(arguments)
     with pytest.raises(ValueError) as val_err:
         RandomForestClassifierModelOperation(**arguments)
-    assert "Parameters 'features' must be informed for task" in str(
-        val_err.value)
+    assert "Parameters 'features' must be informed for task" \
+           " RandomForestClassifierOperation" in str(val_err.value)
 
 
 def test_random_forest_classifier_invalid_min_weight_fraction_leaf_param_fail():
@@ -682,8 +814,8 @@ def test_random_forest_classifier_invalid_min_weight_fraction_leaf_param_fail():
     arguments = util.add_minimum_ml_args(arguments)
     with pytest.raises(ValueError) as val_err:
         RandomForestClassifierModelOperation(**arguments)
-    assert "Parameter 'min_weight_fraction_leaf' must be x>=0.0 and" \
-           " x<=0.5 for task" in str(val_err.value)
+    assert f"Parameter 'min_weight_fraction_leaf' must be x>=0.0 and x<=0.5 for" \
+           f" task {RandomForestClassifierOperation}" in str(val_err.value)
 
 
 def test_random_forest_classifier_invalid_max_samples_param_fail():
@@ -703,7 +835,8 @@ def test_random_forest_classifier_invalid_max_samples_param_fail():
     with pytest.raises(ValueError) as val_err:
         RandomForestClassifierModelOperation(**arguments)
     assert "Parameter 'max_samples' must be x>0 and x<100, or empty, " \
-           "case you want to use a fully sample for task" in str(val_err.value)
+           f"case you want to use a fully sample for task" \
+           f" {RandomForestClassifierOperation}" in str(val_err.value)
 
 
 def test_random_forest_classifier_invalid_max_features_param_fail():
@@ -722,8 +855,8 @@ def test_random_forest_classifier_invalid_max_features_param_fail():
     arguments = util.add_minimum_ml_args(arguments)
     with pytest.raises(ValueError) as val_err:
         RandomForestClassifierModelOperation(**arguments)
-    assert "Parameter 'max_features' must be x>=0  for task" in str(
-        val_err.value)
+    assert f"Parameter 'max_features' must be x>=0  for task" \
+           f" {RandomForestClassifierOperation}" in str(val_err.value)
 
 
 def test_random_forest_classifier_invalid_ccp_min_impurity_params_fail():
@@ -747,7 +880,8 @@ def test_random_forest_classifier_invalid_ccp_min_impurity_params_fail():
         arguments = util.add_minimum_ml_args(arguments)
         with pytest.raises(ValueError) as val_err:
             RandomForestClassifierModelOperation(**arguments)
-        assert f"Parameter '{par}' must be x>=0 for task" in str(val_err.value)
+        assert f"Parameter '{par}' must be x>=0 for task" \
+               f" {RandomForestClassifierOperation}" in str(val_err.value)
 
 
 def test_random_forest_classifier_invalid_min_leaf_n_estimators_params_fail():
@@ -772,4 +906,5 @@ def test_random_forest_classifier_invalid_min_leaf_n_estimators_params_fail():
         arguments = util.add_minimum_ml_args(arguments)
         with pytest.raises(ValueError) as val_err:
             RandomForestClassifierModelOperation(**arguments)
-        assert f"Parameter '{par}' must be x>0 for task" in str(val_err.value)
+        assert f"Parameter '{par}' must be x>0 for task" \
+               f" {RandomForestClassifierOperation}" in str(val_err.value)
