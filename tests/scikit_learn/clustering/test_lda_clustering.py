@@ -45,9 +45,9 @@ def test_lda_clustering_success():
 
     X_train = get_X_train_data(df, ['sepallength', 'sepalwidth'])
     model_1.fit(X_train)
-
     test_df['prediction'] = model_1.transform(X_train).tolist()
     assert result['out'].equals(test_df)
+    assert str(result['model_task_1']) == str(model_1)
 
 
 def test_lda_clustering_number_of_topics_param_success():
@@ -79,9 +79,9 @@ def test_lda_clustering_number_of_topics_param_success():
 
     X_train = get_X_train_data(df, ['sepallength', 'sepalwidth'])
     model_1.fit(X_train)
-
     test_df['prediction'] = model_1.transform(X_train).tolist()
     assert result['out'].equals(test_df)
+    assert str(result['model_task_1']) == str(model_1)
 
 
 def test_lda_clustering_doc_topic_pior_param_success():
@@ -113,9 +113,9 @@ def test_lda_clustering_doc_topic_pior_param_success():
 
     X_train = get_X_train_data(df, ['sepallength', 'sepalwidth'])
     model_1.fit(X_train)
-
     test_df['prediction'] = model_1.transform(X_train).tolist()
     assert result['out'].equals(test_df)
+    assert str(result['model_task_1']) == str(model_1)
 
 
 def test_lda_clustering_topic_word_prior_success():
@@ -147,9 +147,9 @@ def test_lda_clustering_topic_word_prior_success():
 
     X_train = get_X_train_data(df, ['sepallength', 'sepalwidth'])
     model_1.fit(X_train)
-
     test_df['prediction'] = model_1.transform(X_train).tolist()
     assert result['out'].equals(test_df)
+    assert str(result['model_task_1']) == str(model_1)
 
 
 def test_lda_clustering_learning_method_param_success():
@@ -181,9 +181,9 @@ def test_lda_clustering_learning_method_param_success():
 
     X_train = get_X_train_data(df, ['sepallength', 'sepalwidth'])
     model_1.fit(X_train)
-
     test_df['prediction'] = model_1.transform(X_train).tolist()
     assert result['out'].equals(test_df)
+    assert str(result['model_task_1']) == str(model_1)
 
 
 def test_lda_clustering_max_iter_param_success():
@@ -215,9 +215,9 @@ def test_lda_clustering_max_iter_param_success():
 
     X_train = get_X_train_data(df, ['sepallength', 'sepalwidth'])
     model_1.fit(X_train)
-
     test_df['prediction'] = model_1.transform(X_train).tolist()
     assert result['out'].equals(test_df)
+    assert str(result['model_task_1']) == str(model_1)
 
 
 def test_lda_clustering_seed_param_success():
@@ -248,9 +248,9 @@ def test_lda_clustering_seed_param_success():
 
     X_train = get_X_train_data(df, ['sepallength', 'sepalwidth'])
     model_1.fit(X_train)
-
     test_df['prediction'] = model_1.transform(X_train).tolist()
     assert result['out'].equals(test_df)
+    assert str(result['model_task_1']) == str(model_1)
 
 
 def test_lda_clustering_prediction_param_success():

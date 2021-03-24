@@ -38,6 +38,7 @@ def test_db_scan_clustering_success():
     dbscan = DBSCAN(eps=0.5, min_samples=5, metric='euclidean')
     test_df['prediction'] = dbscan.fit_predict(X_train)
     assert result['out'].equals(test_df)
+    assert str(result['model_task_1']) == str(dbscan)
 
 
 def test_db_scan_clustering_eps_param_success():
@@ -62,6 +63,7 @@ def test_db_scan_clustering_eps_param_success():
     dbscan = DBSCAN(eps=0.2, min_samples=5, metric='euclidean')
     test_df['prediction'] = dbscan.fit_predict(X_train)
     assert result['out'].equals(test_df)
+    assert str(result['model_task_1']) == str(dbscan)
 
 
 def test_db_scan_clustering_min_samples_param_success():
@@ -86,6 +88,7 @@ def test_db_scan_clustering_min_samples_param_success():
     dbscan = DBSCAN(eps=0.5, min_samples=10, metric='euclidean')
     test_df['prediction'] = dbscan.fit_predict(X_train)
     assert result['out'].equals(test_df)
+    assert str(result['model_task_1']) == str(dbscan)
 
 
 def test_db_scan_clustering_prediction_param_success():
@@ -129,6 +132,7 @@ def test_db_scan_clustering_metric_param_success():
     dbscan = DBSCAN(eps=0.5, min_samples=5, metric='manhattan')
     test_df['prediction'] = dbscan.fit_predict(X_train)
     assert result['out'].equals(test_df)
+    assert str(result['model_task_1']) == str(dbscan)
 
 
 def test_db_scan_clustering_no_output_implies_no_code_success():

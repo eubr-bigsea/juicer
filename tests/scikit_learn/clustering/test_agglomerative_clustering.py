@@ -38,6 +38,7 @@ def test_agglomerative_clustering_success():
                                   linkage='ward', affinity='euclidean')
     test_df['prediction'] = agg.fit_predict(X)
     assert result['out'].equals(test_df)
+    assert str(result['model_task_1']) == str(agg)
 
 
 def test_agglomerative_clustering_alias_param_success():
@@ -83,6 +84,7 @@ def test_agglomerative_clustering_number_of_clusters_param_success():
                                   linkage='ward', affinity='euclidean')
     test_df['prediction'] = agg.fit_predict(X)
     assert result['out'].equals(test_df)
+    assert str(result['model_task_1']) == str(agg)
 
 
 def test_agglomerative_clustering_affinity_and_linkage_params_success():
@@ -108,8 +110,8 @@ def test_agglomerative_clustering_affinity_and_linkage_params_success():
     agg = AgglomerativeClustering(n_clusters=2,
                                   linkage='single', affinity='l1')
     test_df['prediction'] = agg.fit_predict(X)
-
     assert result['out'].equals(test_df)
+    assert str(result['model_task_1']) == str(agg)
 
 
 def test_agglomerative_clustering_no_output_implies_no_code_success():
