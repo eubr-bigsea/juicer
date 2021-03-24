@@ -48,7 +48,7 @@ class RulesGenerator:
 
                         # leverage
                         leverage = upper_support - consequent_support * \
-                                   antecedent_support
+                            antecedent_support
 
                         # jaccard
                         try:
@@ -62,14 +62,14 @@ class RulesGenerator:
                                 [list(antecedent), list(consequent), confidence,
                                  lift, conviction, leverage, jaccard])
 
-        columns = ['Pre-Rule', 'Post-Rule', 'Confidence', 'Lift', 'Conviction',
-                   "Leverage", 'Jaccard']
+        columns = ['antecedent', 'consequent', 'confidence', 'lift',
+                   'conviction', 'leverage', 'jaccard']
         rules = pd.DataFrame(rules, columns=columns)
 
         if self.min_conf > 0.0:
-            rules = rules[rules['Confidence'] > self.min_conf]
+            rules = rules[rules['confidence'] > self.min_conf]
 
-        rules.sort_values(by='Confidence', inplace=True, ascending=False)
+        rules.sort_values(by='confidence', inplace=True, ascending=False)
         if 0.0 < self.max_len < len(rules):
             rules = rules.head(self.max_len)
 
