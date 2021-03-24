@@ -41,6 +41,7 @@ def test_k_means_clustering_success():
                      n_jobs=None, algorithm='auto')
     test_df['prediction'] = model_1.fit_predict(X_train)
     assert result['out'].equals(test_df)
+    assert str(result['model_task_1']) == str(model_1)
 
 
 def test_k_means_clustering_n_clusters_param_success():
@@ -68,6 +69,7 @@ def test_k_means_clustering_n_clusters_param_success():
                      n_jobs=None, algorithm='auto')
     test_df['prediction'] = model_1.fit_predict(X_train)
     assert result['out'].equals(test_df)
+    assert str(result['model_task_1']) == str(model_1)
 
 
 def test_k_means_clustering_init_param_success():
@@ -95,6 +97,7 @@ def test_k_means_clustering_init_param_success():
                      n_jobs=None, algorithm='auto')
     test_df['prediction'] = model_1.fit_predict(X_train)
     assert result['out'].equals(test_df)
+    assert str(result['model_task_1']) == str(model_1)
 
 
 def test_k_means_clustering_max_iter_param_success():
@@ -121,8 +124,8 @@ def test_k_means_clustering_max_iter_param_success():
                      tol=0.0001, random_state=1, n_init=10,
                      n_jobs=None, algorithm='auto')
     test_df['prediction'] = model_1.fit_predict(X_train)
-
     assert result['out'].equals(test_df)
+    assert str(result['model_task_1']) == str(model_1)
 
 
 def test_k_means_clustering_tolerance_param_success():
@@ -150,8 +153,8 @@ def test_k_means_clustering_tolerance_param_success():
                      tol=0.1, random_state=1, n_init=10,
                      n_jobs=None, algorithm='auto')
     test_out['prediction'] = model_1.fit_predict(X_train)
-
     assert result['out'].equals(test_out)
+    assert str(result['model_task_1']) == str(model_1)
 
 
 def test_k_means_clustering_mini_batch_k_mean_type_param_success():
@@ -180,8 +183,8 @@ def test_k_means_clustering_mini_batch_k_mean_type_param_success():
                               max_no_improvement=10,
                               batch_size=100)
     test_df['prediction'] = model_1.fit_predict(X_train)
-
     assert result['out'].equals(test_df)
+    assert str(result['model_task_1']) == str(model_1)
 
 
 def test_k_means_clustering_random_state_param_success():
@@ -208,8 +211,8 @@ def test_k_means_clustering_random_state_param_success():
                      tol=0.0001, random_state=2002, n_init=10,
                      n_jobs=None, algorithm='auto')
     test_out['prediction'] = model_1.fit_predict(X_train)
-
     assert result['out'].equals(test_out)
+    assert str(result['model_task_1']) == str(model_1)
 
 
 def test_k_means_clustering_n_init_param_success():
@@ -236,8 +239,8 @@ def test_k_means_clustering_n_init_param_success():
                      tol=0.0001, random_state=1, n_init=5,
                      n_jobs=None, algorithm='auto')
     test_df['prediction'] = model_1.fit_predict(X_train)
-
     assert result['out'].equals(test_df)
+    assert str(result['model_task_1']) == str(model_1)
 
 
 def test_k_means_clustering_n_init_mb_param_success():
@@ -268,6 +271,7 @@ def test_k_means_clustering_n_init_mb_param_success():
                               batch_size=100)
     test_df['prediction'] = model_1.fit_predict(X_train)
     assert result['out'].equals(test_df)
+    assert str(result['model_task_1']) == str(model_1)
 
 
 def test_k_means_clustering_n_jobs_param_success():
@@ -295,6 +299,7 @@ def test_k_means_clustering_n_jobs_param_success():
                      n_jobs=2, algorithm='auto')
     test_df['prediction'] = model_1.fit_predict(X_train)
     assert result['out'].equals(test_df)
+    assert str(result['model_task_1']) == str(model_1)
 
 
 def test_k_means_clustering_algorithm_param_success():
@@ -322,8 +327,8 @@ def test_k_means_clustering_algorithm_param_success():
                      tol=0.0001, random_state=1, n_init=10,
                      n_jobs=None, algorithm='full')
     test_out['prediction'] = model_1.fit_predict(X_train)
-
     assert result['out'].equals(test_out)
+    assert str(result['model_task_1']) == str(model_1)
 
 
 def test_k_means_clustering_batch_size_param_success():
@@ -353,8 +358,8 @@ def test_k_means_clustering_batch_size_param_success():
                               max_no_improvement=10,
                               batch_size=25)
     test_df['prediction'] = model_1.fit_predict(X_train)
-
     assert result['out'].equals(test_df)
+    assert str(result['model_task_1']) == str(model_1)
 
 
 def test_k_means_clustering_tol_param_success():
@@ -384,8 +389,8 @@ def test_k_means_clustering_tol_param_success():
                               max_no_improvement=10,
                               batch_size=100)
     test_df['prediction'] = model_1.fit_predict(X_train)
-
     assert result['out'].equals(test_df)
+    assert str(result['model_task_1']) == str(model_1)
 
 
 def test_k_means_clustering_max_no_improvement_param_success():
@@ -415,8 +420,8 @@ def test_k_means_clustering_max_no_improvement_param_success():
                               max_no_improvement=2,
                               batch_size=100)
     test_df['prediction'] = model_1.fit_predict(X_train)
-
     assert result['out'].equals(test_df)
+    assert str(result['model_task_1']) == str(model_1)
 
 
 def test_k_means_clustering_prediction_param_success():

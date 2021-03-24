@@ -40,6 +40,7 @@ def test_gaussian_mixture_clustering_success():
                               n_init=1, random_state=None)
     test_df['prediction'] = model_1.fit_predict(X_train)
     assert result['out'].equals(test_df)
+    assert str(result['model_task_1']) == str(model_1)
 
 
 def test_gaussian_mixture_clustering_max_iter_param_success():
@@ -67,6 +68,7 @@ def test_gaussian_mixture_clustering_max_iter_param_success():
                               n_init=1, random_state=None)
     test_df['prediction'] = model_1.fit_predict(X_train)
     assert result['out'].equals(test_df)
+    assert str(result['model_task_1']) == str(model_1)
 
 
 def test_gaussian_mixture_clustering_tol_param_success():
@@ -94,6 +96,7 @@ def test_gaussian_mixture_clustering_tol_param_success():
                               n_init=1, random_state=None)
     test_df['prediction'] = model_1.fit_predict(X_train)
     assert result['out'].equals(test_df)
+    assert str(result['model_task_1']) == str(model_1)
 
 
 def test_gaussian_mixture_clustering_prediction_param_success():
@@ -142,6 +145,7 @@ def test_gaussian_mixture_clustering_n_components_param_success():
                               n_init=1, random_state=1)
     test_df['prediction'] = model_1.fit_predict(X_train)
     assert result['out'].equals(test_df)
+    assert str(result['model_task_1']) == str(model_1)
 
 
 def test_gaussian_mixture_clustering_covariance_type_param_success():
@@ -169,6 +173,7 @@ def test_gaussian_mixture_clustering_covariance_type_param_success():
                               n_init=1, random_state=None)
     test_df['prediction'] = model_1.fit_predict(X_train)
     assert result['out'].equals(test_df)
+    assert str(result['model_task_1']) == str(model_1)
 
 
 def test_gaussian_mixture_clustering_reg_covar_param_success():
@@ -196,6 +201,7 @@ def test_gaussian_mixture_clustering_reg_covar_param_success():
                               n_init=1, random_state=None)
     test_df['prediction'] = model_1.fit_predict(X_train)
     assert result['out'].equals(test_df)
+    assert str(result['model_task_1']) == str(model_1)
 
 
 def test_gaussian_mixture_clustering_n_init_param_success():
@@ -222,8 +228,8 @@ def test_gaussian_mixture_clustering_n_init_param_success():
                               covariance_type='full', reg_covar=1e-06,
                               n_init=2, random_state=None)
     test_df['prediction'] = model_1.fit_predict(X_train)
-
     assert result['out'].equals(test_df)
+    assert str(result['model_task_1']) == str(model_1)
 
 
 def test_gaussian_mixture_clustering_random_state_param_success():
@@ -251,6 +257,7 @@ def test_gaussian_mixture_clustering_random_state_param_success():
                               n_init=1, random_state=2002)
     test_df['prediction'] = model_1.fit_predict(X_train)
     assert result['out'].equals(test_df)
+    assert str(result['model_task_1']) == str(model_1)
 
 
 def test_gaussian_mixture_clustering_no_output_implies_no_code_success():
