@@ -50,28 +50,29 @@ class IndexingOperation(Operation):
                 'output data', 'output_data_{}'.format(self.order))
 
     def treatment(self):
-            if len(self.attributes) == 0:
-                raise ValueError(
-                    _("Parameter '{}' must be x>0 for task {}").format(
-                        self.ATTRIBUTES_PARAM, self.__class__))
-            if self.named_inputs.get('input data 1') is not None:
-                self.input += self.named_inputs.get('input data 1')
-            if self.named_inputs.get('input data 2') is not None:
-                if len(self.input) > 0:
-                    self.input += ","
-                self.input += self.named_inputs.get('input data 2')
+        if len(self.attributes) == 0:
+            raise ValueError(
+                _("Parameter '{}' must be x>0 for task {}").format(
+                    self.ATTRIBUTES_PARAM, self.__class__))
+        if self.named_inputs.get('input data 1') is not None:
+            self.input += self.named_inputs.get('input data 1')
+        if self.named_inputs.get('input data 2') is not None:
+            if len(self.input) > 0:
+                self.input += ","
+            self.input += self.named_inputs.get('input data 2')
 
     def generate_code(self):
         if self.has_code:
+            code_columns = None
             if self.alg == "Sorted Neighbourhood":
-                code_columns = "".join(["indexer.sortedneighbourhood('{col}', window={window})\n"
+                code_columns = "\n".join(["indexer.sortedneighbourhood('{col}', window={window})"
                                          .format(col=col,window=self.window) for col in self.attributes])
             elif self.alg == "Block":
-                code_columns = "".join(["indexer.block('{col}')\n".format(col=col) for col in self.attributes])
+                code_columns = "\n".join(["indexer.block('{col}')".format(col=col) for col in self.attributes])
             elif self.alg == "Random":
-                code_columns = "".join(["indexer.random('{col}')\n".format(col=col) for col in self.attributes])
+                code_columns = "\n".join(["indexer.random('{col}')".format(col=col) for col in self.attributes])
             elif self.alg == "Full":
-                code_columns = "".join(["indexer.full('{col}')\n".format(col=col) for col in self.attributes])
+                code_columns = "\n".join(["indexer.full('{col}')".format(col=col) for col in self.attributes])
 
             code = """
             indexer = rl.Index()
@@ -128,7 +129,8 @@ class ComparingOperation(Operation):
 
     def generate_code(self):
         if self.has_code:
-            code_columns = "".join(["compare.exact('{col}', '{col}', label='{col}')\n".format(col=col) for col in self.attributes])
+            code_columns = None
+            code_columns = "\n".join(["compare.exact('{col}', '{col}', label='{col}')".format(col=col) for col in self.attributes])
             code = """
             compare = rl.Compare()
             {columns_code}
