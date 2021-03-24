@@ -74,17 +74,15 @@ class IndexingOperation(Operation):
             elif self.alg == "Full":
                 code_columns = "\n".join(["indexer.full('{col}')".format(col=col) for col in self.attributes])
 
-            code = """
-            indexer = rl.Index()
-            {columns_code}
-            candidate_links = indexer.index({input})
-            {out} = candidate_links.to_frame().reset_index(drop=True)
-            {out} = {out}.rename({{0:"Record_1", 1:"Record_2"}}, axis=1)
-        """.format(out=self.output,
-                   input=self.input,
-                   attributes=self.attributes,
-                   columns_code=code_columns)
-            return dedent(code)
+            code = [
+                "indexer = rl.Index()",
+                code_columns,
+                "{out} = indexer.index({input}).to_frame().reset_index(drop=True)"\
+                ".rename({{0:'Record_1', 1:'Record_2'}}, axis=1)"
+                .format(out=self.output, input=self.input)
+            ]
+            code = dedent("\n".join(code))
+            return code
 
 class ComparingOperation(Operation):
     """
@@ -130,26 +128,25 @@ class ComparingOperation(Operation):
 
     def generate_code(self):
         if self.has_code:
-            code_columns = None
-            code_columns = "\n".join(["compare.exact('{col}', '{col}', label='{col}')".format(col=col) for col in self.attributes])
-            code = """
-            compare = rl.Compare()
-            {columns_code}
-            {input} = pd.MultiIndex.from_frame({input}, names=('Record_1', 'Record_2'))
-            if {input2} is not None and {input3} is not None:
-                features = compare.compute({input},{input2},{input3})
-            elif {input2} is not None:
-                features = compare.compute({input},{input2})
-            elif {input3} is not None:
-                features = compare.compute({input},{input3})
-            {out} = features
-        """.format(out=self.output,
-                   input=self.input,
-                   input2=self.named_inputs.get('input data 2'),
-                   input3=self.named_inputs.get('input data 3'),
-                   attributes=self.attributes,
-                   columns_code=code_columns)
-            return dedent(code)
+            code_columns = "\n".join(["compare.exact('{col}','{col}', label='{col}')".format(col=col) for col in self.attributes])
+            code_compute = "{out} = compare.compute({input}".format(out=self.output, input=self.input)
+            second_input = self.named_inputs.get('input data 2')
+            third_input = self.named_inputs.get('input data 3')
+
+            if second_input is not None:
+                code_compute += "," + second_input
+            if third_input is not None:
+                code_compute += ","+ third_input
+            code_compute +=")"
+
+            code = [
+                "compare = rl.Compare()",
+                code_columns,
+                "{input} = pd.MultiIndex.from_frame({input}, names=('Record_1', 'Record_2'))".format(input=self.input),
+                code_compute
+            ]
+            code = dedent("\n".join(code))
+            return code
 
 class ClassificationOperation(Operation):
     """
@@ -190,14 +187,15 @@ class ClassificationOperation(Operation):
 
     def generate_code(self):
         if self.has_code:
+            coeff_list = []
+            #criar uma lista ou numpy com os valores passados em coefficients
             code = """
-            print ({intercept})
-            print ({coefficients})
-            logreg = rl.LogisticRegressionClassifier(coefficients={coefficients}, intercept={intercept})
+            logreg = rl.LogisticRegressionClassifier(coefficients=list, intercept={intercept})
             links = logreg.predict({input})
             {out} = links
-        """.format(out=self.output,
-                   input=self.input,
-                   intercept=self.intercept,
-                   coefficients=self.coefficients)
+            """.format(out=self.output,
+                       input=self.input,
+                       intercept=self.intercept,
+                       coefficients=self.coefficients,
+                       list=coeff_list)
             return dedent(code)
