@@ -82,6 +82,7 @@ class IndexingOperation(Operation):
             {out} = {out}.rename({{0:"Record_1", 1:"Record_2"}}, axis=1)
         """.format(out=self.output,
                    input=self.input,
+                   attributes=self.attributes,
                    columns_code=code_columns)
             return dedent(code)
 
@@ -135,16 +136,68 @@ class ComparingOperation(Operation):
             compare = rl.Compare()
             {columns_code}
             {input} = pd.MultiIndex.from_frame({input}, names=('Record_1', 'Record_2'))
-            if input2 is not None and input3 is not None:
-                features = compare.compute({input},input2,input3)
-            elif input2 is not None:
-                features = compare.compute({input},input2)
-            elif input3 is not None:
-                features = compare.compute({input},input3)
+            if {input2} is not None and {input3} is not None:
+                features = compare.compute({input},{input2},{input3})
+            elif {input2} is not None:
+                features = compare.compute({input},{input2})
+            elif {input3} is not None:
+                features = compare.compute({input},{input3})
             {out} = features
         """.format(out=self.output,
                    input=self.input,
-                   columns_code=code_columns,
                    input2=self.named_inputs.get('input data 2'),
-                   input3=self.named_inputs.get('input data 3'))
+                   input3=self.named_inputs.get('input data 3'),
+                   attributes=self.attributes,
+                   columns_code=code_columns)
+            return dedent(code)
+
+class ClassificationOperation(Operation):
+    """
+    Classification is the step in the record linkage process
+     were record pairs are classified into matches, non-matches
+     and possible matches. Classification algorithms can be
+     supervised or unsupervised (with or without training data).
+    Parameters:
+    - intercept: the interception value.
+    - coefficients: the coefficients of the logistic regression.
+    """
+
+    INTERCEPT_PARAM = 'intercept'
+    COEFFICIENTS_PARAM = 'coefficients'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+
+        self.name = 'entity_resolution.ClassificationOperation'
+
+        self.has_code = len(self.named_inputs) > 0 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
+        if self.has_code:
+            self.input = ""
+            self.intercept = float(parameters.get(self.INTERCEPT_PARAM, None))
+            self.coefficients = parameters.get(self.COEFFICIENTS_PARAM, None)
+
+            self.transpiler_utils.add_import("import recordlinkage as rl")
+
+            self.treatment()
+
+            self.output = self.named_outputs.get(
+                'output data', 'output_data_{}'.format(self.order))
+
+    def treatment(self):
+        if self.named_inputs.get('input data') is not None:
+            self.input = self.named_inputs.get('input data')
+
+    def generate_code(self):
+        if self.has_code:
+            code = """
+            print ({intercept})
+            print ({coefficients})
+            logreg = rl.LogisticRegressionClassifier(coefficients={coefficients}, intercept={intercept})
+            links = logreg.predict({input})
+            {out} = links
+        """.format(out=self.output,
+                   input=self.input,
+                   intercept=self.intercept,
+                   coefficients=self.coefficients)
             return dedent(code)
