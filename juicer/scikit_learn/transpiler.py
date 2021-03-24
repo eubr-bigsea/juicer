@@ -188,7 +188,7 @@ class ScikitLearnTranspiler(Transpiler):
             'indexing':entity_resolution.IndexingOperation,
             'comparing':entity_resolution.ComparingOperation,
             'classification':entity_resolution.ClassificationOperation,
-            #'evaluation':entity_resolution.EvaluationOperation,
+            'evaluation':entity_resolution.EvaluationOperation,
         }
 
         self.operations = {}

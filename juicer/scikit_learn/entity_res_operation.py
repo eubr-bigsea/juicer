@@ -187,15 +187,50 @@ class ClassificationOperation(Operation):
 
     def generate_code(self):
         if self.has_code:
-            coeff_list = []
-            #criar uma lista ou numpy com os valores passados em coefficients
             code = """
-            logreg = rl.LogisticRegressionClassifier(coefficients=list, intercept={intercept})
+            logreg = rl.LogisticRegressionClassifier(coefficients=[{coefficients}], intercept={intercept})
             links = logreg.predict({input})
-            {out} = links
+            {out} = links.to_frame().reset_index(drop=True)
             """.format(out=self.output,
                        input=self.input,
                        intercept=self.intercept,
-                       coefficients=self.coefficients,
-                       list=coeff_list)
+                       coefficients=self.coefficients)
+            return dedent(code)
+
+class EvaluationOperation(Operation):
+    """
+    Evaluation of classifications plays an important role in record linkage.
+    Express your classification quality in terms accuracy, recall and F-score
+     based on true positives, false positives, true negatives and false negatives.
+    Parameters:
+    -
+    """
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+
+        self.name = 'entity_resolution.EvaluationOperation'
+
+        self.has_code = len(self.named_inputs) > 0 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
+        if self.has_code:
+            self.input = ""
+
+            self.transpiler_utils.add_import("import recordlinkage as rl")
+
+            self.treatment()
+
+            self.output = self.named_outputs.get(
+                'output data', 'output_data_{}'.format(self.order))
+
+    def treatment(self):
+        if self.named_inputs.get('input data') is not None:
+            self.input = self.named_inputs.get('input data')
+
+    def generate_code(self):
+        if self.has_code:
+            code = """
+            
+            """.format(out=self.output,
+                       input=self.input)
             return dedent(code)
