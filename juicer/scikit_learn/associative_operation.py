@@ -37,6 +37,10 @@ class FrequentItemSetOperation(Operation):
                                                            self.order))
 
             self.transpiler_utils.add_import("import pyfpgrowth")
+            from juicer.scikit_learn.library.rules_generator import \
+                RulesGenerator
+            self.transpiler_utils\
+                .add_custom_function("RulesGenerator", RulesGenerator)
 
     def get_output_names(self, sep=', '):
         return sep.join([self.output,
@@ -61,14 +65,13 @@ class FrequentItemSetOperation(Operation):
             patterns = pyfpgrowth.find_frequent_patterns(transactions, min_support)
             result = [[list(f), s] for f, s in patterns.items()]
     
-            col_item, col_freq = 'itemsets', 'support'
+            col_item, col_freq = 'items', 'freq'
                   
             {output} = pd.DataFrame(result, columns=[col_item, col_freq])
             {output}[col_freq] = {output}[col_freq] / dim
             {output} = {output}.sort_values(by=col_freq, ascending=False)
             
             # generating rules
-            from juicer.scikit_learn.library.rules_generator import RulesGenerator
             rg = RulesGenerator(min_conf={min_conf}, max_len=-1)
             {rules} = rg.get_rules({output}, col_item, col_freq)
             """.format(output=self.output, col=self.column,
@@ -136,7 +139,7 @@ class SequenceMiningOperation(Operation):
             span = PrefixSpan2(transactions, minlen=1, maxlen={max_length})
             result = span.frequent(min_support, closed=False, generator=False)
     
-            {output} = pd.DataFrame(result, columns=['support', 'itemsets'])
+            {output} = pd.DataFrame(result, columns=['freq', 'sequence'])
             """.format(output=self.output, col=self.column,
                        input=self.named_inputs['input data'],
                        min_support=self.min_support,
@@ -153,9 +156,9 @@ class AssociationRulesOperation(Operation):
     CONFIDENCE_PARAM = 'confidence'
 
     ITEMSET_ATTR_PARAM = 'attribute'
-    ITEMSET_ATTR_PARAM_VALUE = 'itemsets'
+    ITEMSET_ATTR_PARAM_VALUE = 'items'
     SUPPORT_ATTR_PARAM = 'freq'
-    SUPPORT_ATTR_PARAM_VALUE = 'support'
+    SUPPORT_ATTR_PARAM_VALUE = 'freq'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
