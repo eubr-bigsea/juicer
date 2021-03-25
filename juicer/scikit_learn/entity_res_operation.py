@@ -203,8 +203,16 @@ class EvaluationOperation(Operation):
     Express your classification quality in terms accuracy, recall and F-score
      based on true positives, false positives, true negatives and false negatives.
     Parameters:
-    -
+    - confusion_matrix
+    - f_score
+    - recall
+    - precision
     """
+
+    MATRIX_PARAM = 'confusion_matrix'
+    F_SCORE_PARAM = 'f_score'
+    RECALL_PARAM = 'recall'
+    PRECISION_PARAM = 'precision'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
@@ -215,13 +223,14 @@ class EvaluationOperation(Operation):
             [len(self.named_outputs) >= 1, self.contains_results()])
         if self.has_code:
             self.input = ""
+            self.confusion_matrix = int(parameters.get(self.MATRIX_PARAM, 1))
+            self.f_score = int(parameters.get(self.F_SCORE_PARAM, 1))
+            self.recall = int(parameters.get(self.RECALL_PARAM, 1))
+            self.precision = int(parameters.get(self.PRECISION_PARAM, 1))
 
             self.transpiler_utils.add_import("import recordlinkage as rl")
 
             self.treatment()
-
-            self.output = self.named_outputs.get(
-                'output data', 'output_data_{}'.format(self.order))
 
     def treatment(self):
         if self.named_inputs.get('input data') is not None:
