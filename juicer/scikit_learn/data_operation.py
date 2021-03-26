@@ -2,20 +2,15 @@
 import json
 import os
 import uuid
-from textwrap import dedent
+from textwrap import dedent, indent
 
 import datetime
 
-from jinja2 import Environment, BaseLoader
 from juicer.operation import Operation
 from juicer.service import limonero_service
 
-try:
-    from urllib.request import urlopen
-    from urllib.parse import urlparse, parse_qs
-except ImportError:
-    from urllib.parse import urlparse, parse_qs
-    from urllib.request import urlopen
+from urllib.request import urlopen
+from urllib.parse import urlparse, parse_qs
 
 
 class DataReaderOperation(Operation):
@@ -41,15 +36,16 @@ class DataReaderOperation(Operation):
     SUPPORTED_DRIVERS = {
         'mysql': dedent("""
             import pymysql
-            query = '{table}'
+            query = '{query}'
             connection = pymysql.connect(
                 host='{host}',
-                port={port},
+                port={port} or 3306,
                 user='{user}',
                 password='{password}',
                 db='{db}',
                 charset='utf8')
             {out} = pd.read_sql(query, con=connection)
+            connection.close()
         """)
     }
     LIMONERO_TO_PANDAS_DATA_TYPES = {
@@ -135,208 +131,188 @@ class DataReaderOperation(Operation):
                                            self.INFER_FROM_LIMONERO)
         self.mode = parameters.get(self.MODE_PARAM, 'FAILFAST')
 
+    def analyse_attributes(self, attrs):
+        attributes = None
+        converters = None
+        parse_dates = None
+        names = None
+
+        if attrs:
+            attributes = []
+            converters = {}  # Not supported
+            parse_dates = []
+            names = []
+            for attr in attrs:
+                names.append(attr['name'])
+                if attr['type'] == 'DATETIME':
+                    parse_dates.append(attr['name'])
+                # elif attr['type'] == 'DECIMAL':
+                    #    converters[attr['name']] = 'decimal.Decimal'
+        
+                data_type = self.LIMONERO_TO_PANDAS_DATA_TYPES[attr['type']]
+                attributes.append([attr['name'], data_type])
+
+                # Metadata is not supported in scikit-learn
+                # metadata = {'sources': [
+                #     '{}/{}'.format(self.data_source_id, attr['name'])
+                # ]}
+
+        return attributes, converters, parse_dates, names
+
     def generate_code(self):
-        code = []
+        """
+        """
+        if not self.has_code:
+            return ''
+
         infer_from_data = self.infer_schema == self.INFER_FROM_DATA
         infer_from_limonero = self.infer_schema == self.INFER_FROM_LIMONERO
         do_not_infer = self.infer_schema == self.DO_NOT_INFER
         mode_failfast = self.mode == self.OPT_MODE_FAILFAST
-        new_columns = None
-        if self.has_code:
-            if infer_from_limonero:
-                self.header = self.metadata.get('is_first_line_header')
-                if 'attributes' in self.metadata:
-                    code.append('columns = {}')
-                    parse_dates = []
-                    converters = {}
-                    attrs = self.metadata.get('attributes', [])
-                    new_columns = []
-                    if attrs:
-                        for attr in attrs:
-                            new_columns.append(attr['name'])
-                            if attr['type'] == 'DATETIME':
-                                parse_dates.append(attr['name'])
-                            # elif attr['type'] == 'DECIMAL':
-                            #    converters[attr['name']] = 'decimal.Decimal'
-                            self._add_attribute_to_schema(attr, code)
-                    else:
-                        code.append("columns['value'] = object")
-                    code.append('parse_dates = {}'.format(repr(parse_dates)))
+        
+        protect = (self.parameters.get('export_notebook', False) or
+                   self.parameters.get('plain', False)) or self.plain
+        data_format = self.metadata.get('format')
 
-                    def custom_repr(elems):
-                        result = '{{{d}}}'.format(d=','.join(
-                            ['"{}": {}'.format(k, v) for k, v in
-                             list(elems.items())]))
-                        return result
+        parsed = urlparse(self.metadata['url'])
 
-                    code.append('converters = {}'.format(custom_repr(
-                        converters)))
-                    code.append("")
-                else:
-                    raise ValueError(
-                        _("Metadata do not include attributes information"))
-            elif infer_from_data:
-                code.append('columns = None')
-                code.append('parse_dates = None')
-                code.append('converters = None')
-                code.append("header = 'infer'")
-                self.header = 'infer'
-            elif do_not_infer:
-                code.append('columns = "str"')
-                code.append('parse_dates = None')
-                code.append('converters = None')
-                code.append("header = 'infer'")
-                self.header = 'infer'
-            
-            protect = (self.parameters.get('export_notebook', False) or 
-                 self.parameters.get('plain', False)) or self.plain
-
-            if not protect:
-                code.append("url = '{url}'".format(url=self.metadata['url']))
-            null_values = self.null_values
-            if self.metadata.get('treat_as_missing'):
-                null_values.extend([x.strip() for x in self.metadata.get(
-                    'treat_as_missing').split(',') if x.strip()])
-            null_option = ''.join(
-                [".option('nullValue', '{}')".format(n) for n in
-                 set(null_values)]) if null_values else ""
-
-            parsed = urlparse(self.metadata['url'])
-            extra_params = {}
-            if 'extra_params' in self.metadata['storage']:
-                if self.metadata['storage']['extra_params']:
-                    extra_params = json.loads(self.metadata['storage'][
-                        'extra_params'])
-
-            if parsed.scheme in ('hdfs', 'file'):
-                if parsed.scheme == 'hdfs':
-                    if protect: # Hide information about path
-                        name = parsed.path.split('/')[-1]
-                        open_code = dedent("""
-                            # TODO: Change the path of input data!
-                            f = open('{path}', 'rb')""".format(path=name))
-                    else:
-                        open_code = dedent("""
-                                    fs = pa.hdfs.connect(host='{hdfs_server}', 
-                                                         port={hdfs_port},
-                                                         user='{hdfs_user}')
-                                    f = fs.open('{path}', 'rb')""".format(
-                            path=parsed.path,
-                            hdfs_server=parsed.hostname,
-                            hdfs_port=parsed.port,
-                            hdfs_user=extra_params.get(
-                                'user', parsed.username) or 'hadoop'
-                    ))
-                else:
-                    open_code = "f = open('{path}', 'rb')".format(
-                        path=parsed.path)
-                code.append(open_code)
-            else:
-                raise ValueError(_('Not supported'))
-
-            if self.metadata['format'] in ['CSV', 'TEXT']:
-                encoding = self.metadata.get('encoding', 'utf-8') or 'utf-8'
-                if self.metadata['format'] == 'CSV':
-                    code_csv = dedent("""
-                        header = {header}
-                        {output} = pd.read_csv(f, sep='{sep}',
-                                               encoding='{encoding}',
-                                               header=header,
-                                               names={new_columns},
-                                               na_values={na_values},
-                                               dtype=columns,
-                                               parse_dates=parse_dates,
-                                               converters=converters,
-                                               error_bad_lines={mode})
-                        f.close()
-                           
-                        if header == 'infer':
-                            {output}.columns = ['attr{{i}}'.format(i=i) 
-                            for i, _ in enumerate({output}.columns)]
-                    """).format(output=self.output,
-                                input=parsed.path,
-                                sep=self.sep,
-                                encoding=encoding,
-                                new_columns=new_columns,
-                                mode=mode_failfast,
-                                header=0 if self.header else 'None',
-                                na_values=self.null_values if len(
-                                    self.null_values) else 'None')
-                    code.append(code_csv)
-                else:
-                    code_csv = dedent("""
-                        {output} = pd.read_csv(f, sep='{sep}',
-                                               encoding='{encoding}',
-                                               names = ['value'],
-                                               error_bad_lines={mode})
-                        f.close()
-                    """).format(output=self.output,
-                                sep=self.sep,
-                                encoding=encoding,
-                                mode=mode_failfast)
-                    code.append(code_csv)
-            elif self.metadata['format'] == 'PARQUET':
-                code_parquet = dedent("""
-                    {output} = pd.read_parquet(f, engine='pyarrow')
-                    f.close()
-                    """).format(output=self.output)
-                code.append(code_parquet)
-            elif self.metadata['format'] == 'JSON':
-                code_json = dedent("""
-                    {output} = pd.read_json(f, orient='records')
-                    f.close()
-                    """).format(output=self.output)
-                code.append(code_json)
-            elif self.metadata['format'] == 'LIB_SVM':
-                self._generate_code_for_lib_svm(code, infer_from_data)
-            elif self.metadata['format'] == 'JDBC':
-                self._generate_code_for_jdbc(code)
-
-            if infer_from_data:
-                code.append("{output} = {output}.infer_objects()".format(
-                    output=self.output
-                ))
+        extra_params = {}
+        if 'extra_params' in self.metadata['storage']:
+            if self.metadata['storage']['extra_params']:
+                extra_params = json.loads(self.metadata['storage'][
+                    'extra_params'])
 
         if self.metadata.get('privacy_aware', False):
             raise ValueError(_('Not supported'))
 
-        return '\n'.join(code)
+        if parsed.scheme not in ('hdfs', 'file', 'mysql'):
+            raise ValueError(_('Not supported'))
 
-    def _generate_code_for_jdbc(self, code):
+        if data_format not in ('CSV', 'TEXT', 'PARQUET', 'JDBC', 'JSON'):
+            raise ValueError(_('Not supported'))
 
-        parsed = urlparse(self.metadata['url'])
-        qs_parsed = parse_qs(parsed.query)
-        if parsed.scheme not in self.SUPPORTED_DRIVERS:
-            raise ValueError(
-                _('Database {} not supported').format(parsed.scheme))
-        if not self.metadata.get('command'):
-            raise ValueError(
-                _('No command nor table specified for data source.'))
+        if data_format == 'JDBC':
+            qs_parsed = parse_qs(parsed.query)
+            if parsed.scheme not in self.SUPPORTED_DRIVERS:
+                raise ValueError(
+                    _('Database {} not supported').format(parsed.scheme))
+            if not self.metadata.get('command'):
+                raise ValueError(
+                    _('No command nor table specified for data source.'))
 
-        code_jdbc = self.SUPPORTED_DRIVERS[parsed.scheme].format(
-            scheme=parsed.scheme, host=parsed.hostname,
-            db=parsed.path[1:],
-            port=parsed.port or 3306,
-            user=qs_parsed.get('user', [''])[0],
-            password=qs_parsed.get('password', [''])[0],
-            table=self.metadata.get('command'),
-            out=self.output)
-        code.append(code_jdbc)
+            jdbc_code = indent(dedent(self.SUPPORTED_DRIVERS[parsed.scheme].format(
+                scheme=parsed.scheme, host=parsed.hostname,
+                db=parsed.path[1:],
+                port=parsed.port,
+                query=self.metadata.get('command'),
+                user=qs_parsed.get('user', [''])[0],
+                password=qs_parsed.get('password', [''])[0],
+                out=self.output)), '    ')
+        else:
+            jdbc_code = None
 
-    # noinspection PyMethodMayBeStatic
-    def _generate_code_for_lib_svm(self, code, infer_from_data):
-        raise ValueError(_('Not supported'))
+        self.header = self.metadata.get('is_first_line_header')
 
-    def _add_attribute_to_schema(self, attr, code):
-        data_type = self.LIMONERO_TO_PANDAS_DATA_TYPES[attr['type']]
+        attributes, converters, parse_dates, names = self.analyse_attributes(
+             self.metadata.get('attributes'))
 
-        # Metadata is not supported
-        # metadata = {'sources': [
-        #     '{}/{}'.format(self.data_source_id, attr['name'])
-        # ]}
-        code.append("columns['{name}'] = {dtype}".format(
-            name=attr['name'],
-            dtype=data_type))
+        self.template = """
+        {%- if infer_from_limonero %}
+        {%-   if attributes and format in ('TEXT', 'CSV') %}
+        columns = {
+        {%-     for attr in attributes %}
+            '{{attr[0]}}': {{attr[1]}},
+        {%-     endfor %}
+        }
+        {%-   elif format in ('TEXT', 'CSV') %}
+        columns = {'value': object}
+        {%-   endif %}
+        {%- elif infer_from_data and format in ('TEXT', 'CSV') %}
+        columns = None
+        header = 'infer'
+        {%- elif do_not_infer and format in ('TEXT', 'CSV') %}
+        header = 'infer'
+        {%- endif %}
+
+        # Open data source
+        {%- if protect %}
+        f = open('{{parsed.path.split('/')[-1]}}', 'rb')
+        {%- elif parsed.scheme == 'hdfs'  %}
+        fs = pa.hdfs.connect(host='{{parsed.hostname}}', 
+            port={{parsed.port}},
+            user='{{extra_params.get('user', parsed.username) or 'hadoop'}}')
+        f = fs.open('{{parsed.path}}', 'rb')
+        {%- elif parsed.scheme == 'file' %}
+        f = open('{{parsed.path}}', 'rb')
+        {%- endif %}
+
+        {%- if format == 'CSV' %}
+        {{output}} = pd.read_csv(f, sep='{{sep}}',
+                                 encoding='{{encoding}}',
+                                 header={{header}},
+                                 {%- if infer_from_limonero %}
+                                 names={{names}},
+                                 dtype=columns,
+                                 parse_dates={{parse_dates}},
+                                 converters={{converters}},
+                                 {%- elif do_not_infer %}
+                                 parse_dates = None,
+                                 converters = None,
+                                 dtype='str',
+                                 {%-   endif %}
+                                 na_values={{na_values}},
+                                 error_bad_lines={{mode_failfast}})
+        f.close()
+        {%-   if header == 'infer' %}
+        {{output}}.columns = ['attr{{i}}'.format(i=i) 
+                        for i, _ in enumerate({output}.columns)]
+        {%-   endif %}
+        {%- elif format == 'TEXT' %}
+        {{output}} = pd.read_csv(f, sep='{{sep}}',
+                                 encoding='{{encoding}}',
+                                 names = ['value'],
+                                 error_bad_lines={{mode_failfast}})
+        f.close()
+        {%- elif format == 'PARQUET' %}
+        {{output}} = pd.read_parquet(f, engine='pyarrow')
+        f.close()
+        {%- elif format == 'JSON' %}
+        {{output}} = pd.read_json(f, orient='records')
+        f.close()
+        {%- elif format == 'JDBC' %}
+        {{jdbc_code}}
+        {%- endif %}
+
+        {%- if infer_from_data %}
+        {{output}} = {{output}}.infer_objects()
+        {%- endif %}
+
+        """
+        ctx = {
+            'attributes': attributes,
+            'parse_dates': parse_dates,
+            'names': names,
+            'converters': converters,
+
+            'infer_from_limonero': infer_from_limonero,
+            'infer_from_data': infer_from_data,
+            'do_not_infer': do_not_infer,
+            'is_first_line_header': self.header,
+
+            'protect': protect,  # Hide information about path
+            'parsed': parsed,
+            'extra_params': extra_params,
+            'format': data_format,
+            'encoding': self.metadata.get('encoding', 'utf-8') or 'utf-8',
+            'header': 0 if self.header else 'None',
+            'sep': self.sep,
+            'na_values': self.null_values if len(self.null_values) else 'None',
+            'output': self.output,
+            'mode_failfast': mode_failfast,
+
+            'jdbc_code': jdbc_code,
+        }
+        return self.render_template(ctx)
 
 
 class SaveOperation(Operation):
@@ -444,12 +420,12 @@ class SaveOperation(Operation):
         parsed = urlparse(final_url)
 
         df_input = self.named_inputs['input data']
-        extra_params = {}
-        if 'extra_params' in storage:
-            extra_params = json.loads(storage['extra_params'])
+        extra_params = storage.get('extra_params') \
+            if storage.get('extra_params') is not None else "{}"
+        extra_params = json.loads(extra_params)
 
         hdfs_user = extra_params.get('user', parsed.username) or 'hadoop'
-        code_template = """
+        self.template = """
             path = '{{path}}'
             {%- if scheme == 'hdfs' and not protect %}
             fs = pa.hdfs.connect(host='{{hdfs_server}}', 
@@ -505,9 +481,9 @@ class SaveOperation(Operation):
             
             {%- elif format == FORMAT_PARQUET %}
             {%- if scheme == 'hdfs' and not protect %}
-            from io import ByteIO
+            from io import BytesIO
             with fs.open(path, 'wb') as f:
-                s = ByteIO()
+                s = BytesIO()
                 {{input}}.to_parquet(s, engine='pyarrow')
                 f.write(s.getvalue())               
             {%- elif scheme == 'file' or protect %}
@@ -567,8 +543,6 @@ class SaveOperation(Operation):
             register_datasource('{{url}}', parameters, '{{token}}', 'overwrite')
             {%- endif %}
         """
-        template = Environment(loader=BaseLoader).from_string(
-            code_template)
         path = parsed.path
 
         ctx = dict(protect=protect,
@@ -606,4 +580,4 @@ class SaveOperation(Operation):
                    task_id=self.parameters['task_id'],
                    )
 
-        return dedent(template.render(ctx))
+        return dedent(self.render_template(ctx))

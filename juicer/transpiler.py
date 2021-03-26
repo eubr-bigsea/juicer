@@ -580,3 +580,10 @@ class TranspilerUtils(object):
 
     def __unicode__(self):
         return 'TranspilerUtils object'
+
+    def render_template(self, template: str, context: dict):
+        """
+        Render a Jinja2 template using the information provided by context.
+        """
+        tm = jinja2.Template(template)
+        return tm.render(**context)
