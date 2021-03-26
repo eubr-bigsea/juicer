@@ -30,8 +30,10 @@ def test_balanced_split_k_fold_success():
     test_df = df.copy()
 
     arguments = {
-        'parameters': {'n_splits': 3, 'shuffle': 0, 'attribute': 'groups',
-                       'stratified': 0, 'random_state': 0},
+        'parameters': {'n_splits': 3, 'shuffle': 0, 'alias': 'groups',
+                       'stratified': 0, 'random_state': 0,
+                       'multiplicity': {'input data': 0}},
+
         'named_inputs': {
             'input data': 'df',
         },
@@ -66,8 +68,9 @@ def test_balanced_split_k_fold_shuffle_success():
     test_df = df.copy()
 
     arguments = {
-        'parameters': {'n_splits': 3, 'shuffle': 1, 'attribute': 'groups',
-                       'stratified': 0, 'random_state': 18},
+        'parameters': {'n_splits': 3, 'shuffle': 1, 'alias': 'groups',
+                       'stratified': 0, 'random_state': 18,
+                       'multiplicity': {'input data': 0}},
         'named_inputs': {
             'input data': 'df',
         },
@@ -110,9 +113,10 @@ def test_balanced_split_k_fold_stratified_success():
     test_df = df.copy()
 
     arguments = {
-        'parameters': {'n_splits': 3, 'shuffle': 0, 'attribute': 'groups',
+        'parameters': {'n_splits': 3, 'shuffle': 0, 'alias': 'groups',
                        'stratified': 1, 'random_state': 0,
-                       'column': ['class']},
+                       'column': ['class'],
+                       'multiplicity': {'input data': 0}},
         'named_inputs': {
             'input data': 'df',
         },
@@ -159,9 +163,10 @@ def test_balanced_split_k_fold_shuffle_stratified_success():
     test_df = df.copy()
 
     arguments = {
-        'parameters': {'n_splits': 3, 'shuffle': 1, 'attribute': 'groups',
+        'parameters': {'n_splits': 3, 'shuffle': 1, 'alias': 'groups',
                        'stratified': 1, 'random_state': 0,
-                       'column': ['class']},
+                       'column': ['class'],
+                       'multiplicity': {'input data': 0}},
         'named_inputs': {
             'input data': 'df',
         },
@@ -206,8 +211,9 @@ def test_unbalanced_split_k_fold_success():
     df.loc[27:29, 'class'] = 'Iris-virginica'
     test_df = df.copy()
     arguments = {
-        'parameters': {'n_splits': 3, 'shuffle': 0, 'attribute': 'groups',
-                       'stratified': 0, 'random_state': 0},
+        'parameters': {'n_splits': 3, 'shuffle': 0, 'alias': 'groups',
+                       'stratified': 0, 'random_state': 0,
+                       'multiplicity': {'input data': 0}},
         'named_inputs': {
             'input data': 'df',
         },
@@ -247,8 +253,9 @@ def test_unbalanced_split_k_fold_shuffle_success():
     df.loc[27:29, 'class'] = 'Iris-virginica'
     test_df = df.copy()
     arguments = {
-        'parameters': {'n_splits': 3, 'shuffle': 1, 'attribute': 'groups',
-                       'stratified': 0, 'random_state': 0},
+        'parameters': {'n_splits': 3, 'shuffle': 1, 'alias': 'groups',
+                       'stratified': 0, 'random_state': 0,
+                       'multiplicity': {'input data': 0}},
         'named_inputs': {
             'input data': 'df',
         },
@@ -292,8 +299,9 @@ def test_unbalanced_split_k_fold_stratified_success():
     test_df = df.copy()
 
     arguments = {
-        'parameters': {'n_splits': 3, 'shuffle': 0, 'attribute': 'groups',
-                       'stratified': 1, 'column': ['class'], 'random_state': 0},
+        'parameters': {'n_splits': 3, 'shuffle': 0, 'alias': 'groups',
+                       'stratified': 1, 'column': ['class'], 'random_state': 0,
+                       'multiplicity': {'input data': 0},},
         'named_inputs': {
             'input data': 'df',
         },
@@ -337,8 +345,9 @@ def test_unbalanced_split_k_fold_shuffle_stratified_success():
     df.loc[27:29, 'class'] = 'Iris-virginica'
     test_df = df.copy()
     arguments = {
-        'parameters': {'n_splits': 3, 'shuffle': 0, 'attribute': 'groups',
-                       'stratified': 1, 'column': ['class'], 'random_state': 0},
+        'parameters': {'n_splits': 3, 'shuffle': 0, 'alias': 'groups',
+                       'stratified': 1, 'column': ['class'], 'random_state': 0,
+                       'multiplicity': {'input data': 0}},
         'named_inputs': {
             'input data': 'df',
         },
@@ -384,8 +393,9 @@ def test_uneven_split_k_fold_success():
     test_df = df.copy()
 
     arguments = {
-        'parameters': {'n_splits': 4, 'shuffle': 0, 'attribute': 'groups',
-                       'stratified': 0, 'random_state': 0},
+        'parameters': {'n_splits': 4, 'shuffle': 0, 'alias': 'groups',
+                       'stratified': 0, 'random_state': 0,
+                       'multiplicity': {'input data': 0}},
         'named_inputs': {
             'input data': 'df',
         },
@@ -430,8 +440,9 @@ def test_uneven_split_k_fold_shuffle_success():
     test_df = df.copy()
 
     arguments = {
-        'parameters': {'n_splits': 4, 'shuffle': 1, 'attribute': 'groups',
-                       'stratified': 0, 'random_state': 0},
+        'parameters': {'n_splits': 4, 'shuffle': 1, 'alias': 'groups',
+                       'stratified': 0, 'random_state': 0,
+                       'multiplicity': {'input data': 0}},
         'named_inputs': {
             'input data': 'df',
         },
@@ -483,8 +494,9 @@ def test_uneven_split_k_fold_stratified_success():
     test_df = df.copy()
 
     arguments = {
-        'parameters': {'n_splits': 4, 'shuffle': 0, 'attribute': 'groups',
-                       'stratified': 1, 'column': ['class'], 'random_state': 0},
+        'parameters': {'n_splits': 4, 'shuffle': 0, 'alias': 'groups',
+                       'stratified': 1, 'column': ['class'], 'random_state': 0,
+                       'multiplicity': {'input data': 0}},
         'named_inputs': {
             'input data': 'df',
         },
@@ -536,8 +548,9 @@ def test_uneven_split_k_fold_shuffle_stratified_success():
     test_df = df.copy()
 
     arguments = {
-        'parameters': {'n_splits': 4, 'shuffle': 1, 'attribute': 'groups',
-                       'stratified': 1, 'column': ['class'], 'random_state': 0},
+        'parameters': {'n_splits': 4, 'shuffle': 1, 'alias': 'groups',
+                       'stratified': 1, 'column': ['class'], 'random_state': 0,
+                       'multiplicity': {'input data': 0}},
         'named_inputs': {
             'input data': 'df',
         },
@@ -581,8 +594,9 @@ def test_uneven_split_k_fold_shuffle_stratified_success():
 
 def test_split_k_fold_no_output_implies_no_code_success():
     arguments = {
-        'parameters': {'n_splits': 3, 'shuffle': 0, 'attribute': 'groups',
-                       'stratified': 0, 'random_state': 0},
+        'parameters': {'n_splits': 3, 'shuffle': 0, 'alias': 'groups',
+                       'stratified': 0, 'random_state': 0,
+                       'multiplicity': {'train input data': 0},},
         'named_inputs': {
         },
         'named_outputs': {
@@ -595,8 +609,9 @@ def test_split_k_fold_no_output_implies_no_code_success():
 
 def test_split_k_fold_missing_input_implies_no_code_success():
     arguments = {
-        'parameters': {'n_splits': 3, 'shuffle': 0, 'attribute': 'groups',
-                       'stratified': 0, 'random_state': 0},
+        'parameters': {'n_splits': 3, 'shuffle': 0, 'alias': 'groups',
+                       'stratified': 0, 'random_state': 0,
+                       'multiplicity': {'input data': 0}},
         'named_inputs': {
             'input data': 'df',
         },
@@ -610,8 +625,9 @@ def test_split_k_fold_missing_input_implies_no_code_success():
 # # # # # # # # # # Fail # # # # # # # # # #
 def test_split_k_fold_invalid_n_split_param_fail():
     arguments = {
-        'parameters': {'n_splits': 1, 'shuffle': 0, 'attribute': 'groups',
-                       'stratified': 0, 'random_state': 0},
+        'parameters': {'n_splits': 1, 'shuffle': 0, 'alias': 'groups',
+                       'stratified': 0, 'random_state': 0,
+                       'multiplicity': {'input data': 0}},
         'named_inputs': {
             'input data': 'df',
         },
@@ -627,8 +643,9 @@ def test_split_k_fold_invalid_n_split_param_fail():
 def test_split_k_fold_invalid_shuffle_param_fail():
     arguments = {
         'parameters': {'n_splits': 3, 'shuffle': 'invalid',
-                       'attribute': 'groups',
-                       'stratified': 0, 'random_state': 0},
+                       'alias': 'groups',
+                       'stratified': 0, 'random_state': 0,
+                       'multiplicity': {'input data': 0}},
         'named_inputs': {
             'input data': 'df',
         },
@@ -645,8 +662,9 @@ def test_split_k_fold_invalid_shuffle_param_fail():
 
 def test_split_k_fold_invalid_stratified_param_fail():
     arguments = {
-        'parameters': {'n_splits': 3, 'shuffle': 0, 'attribute': 'groups',
-                       'stratified': 'invalid', 'random_state': 0},
+        'parameters': {'n_splits': 3, 'shuffle': 0, 'alias': 'groups',
+                       'stratified': 'invalid', 'random_state': 0,
+                       'multiplicity': {'input data': 0}},
         'named_inputs': {
             'input data': 'df',
         },
