@@ -222,9 +222,6 @@ class DecisionTreeClassifierOperation(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-        self.has_code = len(self.named_inputs) == 1 and any(
-                [len(self.named_outputs) >= 1, self.contains_results()])
-
         if self.has_code:
             self.min_split = int(parameters.get(self.MIN_SPLIT_PARAM, 2) or 2)
             self.min_leaf = int(parameters.get(self.MIN_LEAF_PARAM, 1) or 1)
@@ -301,31 +298,29 @@ class DecisionTreeClassifierOperation(Operation):
         return code
 
     def generate_code(self):
-        if self.has_code:
-            """Generate code."""
-
-            code = """
-            algorithm = DecisionTreeClassifier(max_depth={max_depth}, 
-                min_samples_split={min_split}, 
-                min_samples_leaf={min_leaf}, 
-                min_weight_fraction_leaf={min_weight}, 
-                random_state={seed}, criterion='{criterion}', 
-                splitter='{splitter}', max_features={max_features},
-                max_leaf_nodes={max_leaf_nodes}, 
-                min_impurity_decrease={min_impurity_decrease}, 
-                class_weight={class_weight})
-            """.format(min_split=self.min_split,
-                       min_leaf=self.min_leaf,
-                       min_weight=self.min_weight,
-                       seed=self.seed,
-                       max_depth=self.max_depth,
-                       criterion=self.criterion,
-                       splitter=self.splitter,
-                       max_features=self.max_features,
-                       max_leaf_nodes=self.max_leaf_nodes,
-                       min_impurity_decrease=self.min_impurity_decrease,
-                       class_weight=self.class_weight)
-            return code
+        """Generate code."""
+        code = """
+        algorithm = DecisionTreeClassifier(max_depth={max_depth}, 
+            min_samples_split={min_split}, 
+            min_samples_leaf={min_leaf}, 
+            min_weight_fraction_leaf={min_weight}, 
+            random_state={seed}, criterion='{criterion}', 
+            splitter='{splitter}', max_features={max_features},
+            max_leaf_nodes={max_leaf_nodes}, 
+            min_impurity_decrease={min_impurity_decrease}, 
+            class_weight={class_weight})
+        """.format(min_split=self.min_split,
+                   min_leaf=self.min_leaf,
+                   min_weight=self.min_weight,
+                   seed=self.seed,
+                   max_depth=self.max_depth,
+                   criterion=self.criterion,
+                   splitter=self.splitter,
+                   max_features=self.max_features,
+                   max_leaf_nodes=self.max_leaf_nodes,
+                   min_impurity_decrease=self.min_impurity_decrease,
+                   class_weight=self.class_weight)
+        return code
 
 
 class GBTClassifierOperation(Operation):
@@ -355,9 +350,6 @@ class GBTClassifierOperation(Operation):
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
-
-        self.has_code = len(self.named_inputs) == 1 and any(
-            [len(self.named_outputs) >= 1, self.contains_results()])
 
         if self.has_code:
             self.max_depth = int(parameters.get(self.MAX_DEPTH_PARAM, 3) or 3)
@@ -454,40 +446,38 @@ class GBTClassifierOperation(Operation):
         return code
 
     def generate_code(self):
-        if self.has_code:
-            """Generate code."""
-
-            code = """
-            algorithm = GradientBoostingClassifier(loss='{loss}', 
-                learning_rate={learning_rate}, 
-                n_estimators={n_estimators}, min_samples_split={min_split},
-                max_depth={max_depth}, min_samples_leaf={min_leaf}, 
-                random_state={seed}, subsample={subsample}, 
-                criterion='{criterion}', 
-                min_weight_fraction_leaf={min_weight_fraction_leaf}, 
-                min_impurity_decrease={min_impurity_decrease}, init={init},
-                max_features={max_features},
-                max_leaf_nodes={max_leaf_nodes}, warm_start=False, 
-                validation_fraction={validation_fraction}, 
-                n_iter_no_change={n_iter_no_change}, tol={tol})
-            """.format(loss=self.loss,
-                       n_estimators=self.n_estimators,
-                       min_leaf=self.min_leaf,
-                       min_split=self.min_split,
-                       learning_rate=self.learning_rate,
-                       max_depth=self.max_depth,
-                       seed=self.seed,
-                       subsample=self.subsample,
-                       criterion=self.criterion,
-                       min_weight_fraction_leaf=self.min_weight_leaf,
-                       min_impurity_decrease=self.min_impurity_decrease,
-                       init=self.init,
-                       max_features=self.max_features,
-                       max_leaf_nodes=self.max_leaf_nodes,
-                       validation_fraction=self.validation_fraction,
-                       n_iter_no_change=self.n_iter_no_change,
-                       tol=self.tol)
-            return code
+        """Generate code."""
+        code = """
+        algorithm = GradientBoostingClassifier(loss='{loss}', 
+            learning_rate={learning_rate}, 
+            n_estimators={n_estimators}, min_samples_split={min_split},
+            max_depth={max_depth}, min_samples_leaf={min_leaf}, 
+            random_state={seed}, subsample={subsample}, 
+            criterion='{criterion}', 
+            min_weight_fraction_leaf={min_weight_fraction_leaf}, 
+            min_impurity_decrease={min_impurity_decrease}, init={init},
+            max_features={max_features},
+            max_leaf_nodes={max_leaf_nodes}, warm_start=False, 
+            validation_fraction={validation_fraction}, 
+            n_iter_no_change={n_iter_no_change}, tol={tol})
+        """.format(loss=self.loss,
+                   n_estimators=self.n_estimators,
+                   min_leaf=self.min_leaf,
+                   min_split=self.min_split,
+                   learning_rate=self.learning_rate,
+                   max_depth=self.max_depth,
+                   seed=self.seed,
+                   subsample=self.subsample,
+                   criterion=self.criterion,
+                   min_weight_fraction_leaf=self.min_weight_leaf,
+                   min_impurity_decrease=self.min_impurity_decrease,
+                   init=self.init,
+                   max_features=self.max_features,
+                   max_leaf_nodes=self.max_leaf_nodes,
+                   validation_fraction=self.validation_fraction,
+                   n_iter_no_change=self.n_iter_no_change,
+                   tol=self.tol)
+        return code
 
 
 class KNNClassifierOperation(Operation):
@@ -506,9 +496,6 @@ class KNNClassifierOperation(Operation):
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
-
-        self.has_code = len(self.named_inputs) == 1 and any(
-            [len(self.named_outputs) >= 1, self.contains_results()])
 
         if self.has_code:
             self.n_neighbors = int(self.parameters.get(self.K_PARAM, 5)) or 5
@@ -555,19 +542,17 @@ class KNNClassifierOperation(Operation):
         return code
 
     def generate_code(self):
-        if self.has_code:
-            """Generate code."""
-
-            code = """
-            algorithm = KNeighborsClassifier(n_neighbors={n_neighbors}, 
-                weights='{weights}', algorithm='{algorithm}', 
-                leaf_size={leaf_size}, p={p}, metric='{metric}', 
-                metric_params={metric_params}, n_jobs={n_jobs})
-            """.format(n_neighbors=self.n_neighbors, weights=self.weights,
-                       algorithm=self.algorithm, leaf_size=self.leaf_size,
-                       p=self.p, metric=self.metric,
-                       metric_params=self.metric_params, n_jobs=self.n_jobs)
-            return code
+        """Generate code."""
+        code = """
+        algorithm = KNeighborsClassifier(n_neighbors={n_neighbors}, 
+            weights='{weights}', algorithm='{algorithm}', 
+            leaf_size={leaf_size}, p={p}, metric='{metric}', 
+            metric_params={metric_params}, n_jobs={n_jobs})
+        """.format(n_neighbors=self.n_neighbors, weights=self.weights,
+                   algorithm=self.algorithm, leaf_size=self.leaf_size,
+                   p=self.p, metric=self.metric,
+                   metric_params=self.metric_params, n_jobs=self.n_jobs)
+        return code
 
 
 class LogisticRegressionOperation(Operation):
@@ -595,9 +580,6 @@ class LogisticRegressionOperation(Operation):
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
-
-        self.has_code = len(self.named_inputs) == 1 and any(
-            [len(self.named_outputs) >= 1, self.contains_results()])
         if self.has_code:
             if self.LABEL_PARAM not in parameters:
                 msg = _("Parameters '{}' must be informed for task {}")
@@ -731,25 +713,23 @@ class LogisticRegressionOperation(Operation):
         return code
 
     def generate_code(self):
-        if self.has_code:
-            """Generate code."""
-
-            code = """
-            algorithm = LogisticRegression(tol={tol}, C={C}, 
-                max_iter={max_iter}, solver='{solver}', random_state={seed}, 
-                penalty='{penalty}',  dual={dual}, 
-                fit_intercept={fit_intercept}, 
-                intercept_scaling={intercept_scaling},
-                multi_class='{multi_class}', n_jobs={n_jobs}, 
-                l1_ratio={l1_ratio})
-            """.format(tol=self.tol, C=self.regularization,
-                       max_iter=self.max_iter, seed=self.seed,
-                       solver=self.solver, penalty=self.penalty,
-                       dual=self.dual, fit_intercept=self.fit_intercept,
-                       intercept_scaling=self.intercept_scaling,
-                       multi_class=self.multi_class,
-                       n_jobs=self.n_jobs, l1_ratio=self.l1_ratio)
-            return code
+        """Generate code."""
+        code = """
+        algorithm = LogisticRegression(tol={tol}, C={C}, 
+            max_iter={max_iter}, solver='{solver}', random_state={seed}, 
+            penalty='{penalty}',  dual={dual}, 
+            fit_intercept={fit_intercept}, 
+            intercept_scaling={intercept_scaling},
+            multi_class='{multi_class}', n_jobs={n_jobs}, 
+            l1_ratio={l1_ratio})
+        """.format(tol=self.tol, C=self.regularization,
+                   max_iter=self.max_iter, seed=self.seed,
+                   solver=self.solver, penalty=self.penalty,
+                   dual=self.dual, fit_intercept=self.fit_intercept,
+                   intercept_scaling=self.intercept_scaling,
+                   multi_class=self.multi_class,
+                   n_jobs=self.n_jobs, l1_ratio=self.l1_ratio)
+        return code
 
 
 class MLPClassifierOperation(Operation):
@@ -1176,9 +1156,6 @@ class PerceptronClassifierOperation(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-        self.has_code = len(self.named_inputs) == 1 and any(
-            [len(self.named_outputs) >= 1, self.contains_results()])
-
         if self.has_code:
             self.max_iter = int(parameters.get(
                     self.MAX_ITER_PARAM, 1000) or 1000)
@@ -1249,30 +1226,29 @@ class PerceptronClassifierOperation(Operation):
         return code
 
     def generate_code(self):
-        if self.has_code:
-            """Generate code."""
-            code = """
-            algorithm = Perceptron(tol={tol}, alpha={alpha}, 
-                max_iter={max_iter}, shuffle={shuffle}, random_state={seed}, 
-                penalty='{penalty}', fit_intercept={fit_intercept}, 
-                eta0={eta0}, n_jobs={n_jobs}, early_stopping={early_stopping}, 
-                validation_fraction={validation_fraction}, 
-                n_iter_no_change={n_iter_no_change}, 
-                class_weight={class_weight}, warm_start=False)
-            """.format(tol=self.tol,
-                       alpha=self.alpha,
-                       max_iter=self.max_iter,
-                       shuffle=self.shuffle,
-                       penalty=self.penalty,
-                       seed=self.seed,
-                       fit_intercept=self.fit_intercept,
-                       eta0=self.eta0,
-                       n_jobs=self.n_jobs,
-                       early_stopping=self.early_stopping,
-                       validation_fraction=self.validation_fraction,
-                       n_iter_no_change=self.n_iter_no_change,
-                       class_weight=self.class_weight)
-            return code
+        """Generate code."""
+        code = """
+        algorithm = Perceptron(tol={tol}, alpha={alpha}, 
+            max_iter={max_iter}, shuffle={shuffle}, random_state={seed}, 
+            penalty='{penalty}', fit_intercept={fit_intercept}, 
+            eta0={eta0}, n_jobs={n_jobs}, early_stopping={early_stopping}, 
+            validation_fraction={validation_fraction}, 
+            n_iter_no_change={n_iter_no_change}, 
+            class_weight={class_weight}, warm_start=False)
+        """.format(tol=self.tol,
+                   alpha=self.alpha,
+                   max_iter=self.max_iter,
+                   shuffle=self.shuffle,
+                   penalty=self.penalty,
+                   seed=self.seed,
+                   fit_intercept=self.fit_intercept,
+                   eta0=self.eta0,
+                   n_jobs=self.n_jobs,
+                   early_stopping=self.early_stopping,
+                   validation_fraction=self.validation_fraction,
+                   n_iter_no_change=self.n_iter_no_change,
+                   class_weight=self.class_weight)
+        return code
 
 
 class RandomForestClassifierOperation(Operation):
