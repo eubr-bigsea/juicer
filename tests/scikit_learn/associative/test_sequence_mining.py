@@ -41,7 +41,7 @@ def test_sequence_mining_success():
     span = PrefixSpan(transactions)
     span.minlen, span.maxlen = 1, 10
     test_result = span.frequent(min_support)
-    test_df = pd.DataFrame(test_result, columns=['support', 'itemsets'])
+    test_df = pd.DataFrame(test_result, columns=['freq', 'sequence'])
 
     assert result['out'].equals(test_df)
     assert dedent("""
@@ -57,7 +57,7 @@ def test_sequence_mining_success():
     span = PrefixSpan2(transactions, minlen=1, maxlen=10)
     result = span.frequent(min_support, closed=False, generator=False)
     
-    out = pd.DataFrame(result, columns=['support', 'itemsets'])
+    out = pd.DataFrame(result, columns=['freq', 'sequence'])
     """) == instance.generate_code()
 
 
@@ -89,7 +89,7 @@ def test_sequence_mining_attribute_param_success():
     span = PrefixSpan(transactions)
     span.minlen, span.maxlen = 1, 10
     test_result = span.frequent(min_support)
-    test_df = pd.DataFrame(test_result, columns=['support', 'itemsets'])
+    test_df = pd.DataFrame(test_result, columns=['freq', 'sequence'])
 
     assert result['out'].equals(test_df)
     assert dedent("""
@@ -105,7 +105,7 @@ def test_sequence_mining_attribute_param_success():
     span = PrefixSpan2(transactions, minlen=1, maxlen=10)
     result = span.frequent(min_support, closed=False, generator=False)
     
-    out = pd.DataFrame(result, columns=['support', 'itemsets'])
+    out = pd.DataFrame(result, columns=['freq', 'sequence'])
     """) == instance.generate_code()
 
 
@@ -137,7 +137,7 @@ def test_sequence_mining_max_pattern_and_min_support_params_success():
     span = PrefixSpan(transactions)
     span.minlen, span.maxlen = 1, 3
     test_result = span.frequent(min_support)
-    test_df = pd.DataFrame(test_result, columns=['support', 'itemsets'])
+    test_df = pd.DataFrame(test_result, columns=['freq', 'sequence'])
     assert result['out'].equals(test_df)
 
     assert dedent("""
@@ -153,7 +153,7 @@ def test_sequence_mining_max_pattern_and_min_support_params_success():
     span = PrefixSpan2(transactions, minlen=1, maxlen=3)
     result = span.frequent(min_support, closed=False, generator=False)
     
-    out = pd.DataFrame(result, columns=['support', 'itemsets'])
+    out = pd.DataFrame(result, columns=['freq', 'sequence'])
     """) == instance.generate_code()
 
 

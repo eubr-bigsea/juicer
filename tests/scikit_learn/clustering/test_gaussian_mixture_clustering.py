@@ -22,6 +22,7 @@ def test_gaussian_mixture_clustering_success():
 
     arguments = {
         'parameters': {'features': ['sepallength', 'sepalwidth'],
+                       'random_state': 1,
                        'multiplicity': {'train input data': 0}},
         'named_inputs': {
             'train input data': 'df',
@@ -35,9 +36,9 @@ def test_gaussian_mixture_clustering_success():
     result = util.execute(util.get_complete_code(instance),
                           {'df': df})
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
-    model_1 = GaussianMixture(n_components=1, max_iter=100, tol=0.001,
+    model_1 = GaussianMixture(n_components=3, max_iter=100, tol=0.001,
                               covariance_type='full', reg_covar=1e-06,
-                              n_init=1, random_state=None)
+                              n_init=1, random_state=1)
     test_df['prediction'] = model_1.fit_predict(X_train)
     assert result['out'].equals(test_df)
 
@@ -49,7 +50,7 @@ def test_gaussian_mixture_clustering_max_iter_param_success():
     arguments = {
         'parameters': {'features': ['sepallength', 'sepalwidth'],
                        'multiplicity': {'train input data': 0},
-                       'max_iter': 50},
+                       'max_iter': 50, 'random_state': 1},
         'named_inputs': {
             'train input data': 'df',
         },
@@ -62,9 +63,9 @@ def test_gaussian_mixture_clustering_max_iter_param_success():
     result = util.execute(util.get_complete_code(instance),
                           {'df': df})
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
-    model_1 = GaussianMixture(n_components=1, max_iter=50, tol=0.001,
+    model_1 = GaussianMixture(n_components=3, max_iter=50, tol=0.001,
                               covariance_type='full', reg_covar=1e-06,
-                              n_init=1, random_state=None)
+                              n_init=1, random_state=1)
     test_df['prediction'] = model_1.fit_predict(X_train)
     assert result['out'].equals(test_df)
 
@@ -76,7 +77,7 @@ def test_gaussian_mixture_clustering_tol_param_success():
     arguments = {
         'parameters': {'features': ['sepallength', 'sepalwidth'],
                        'multiplicity': {'train input data': 0},
-                       'tol': 0.1},
+                       'tol': 0.1, 'random_state': 1},
         'named_inputs': {
             'train input data': 'df',
         },
@@ -89,9 +90,9 @@ def test_gaussian_mixture_clustering_tol_param_success():
     result = util.execute(util.get_complete_code(instance),
                           {'df': df})
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
-    model_1 = GaussianMixture(n_components=1, max_iter=100, tol=0.1,
+    model_1 = GaussianMixture(n_components=3, max_iter=100, tol=0.1,
                               covariance_type='full', reg_covar=1e-06,
-                              n_init=1, random_state=None)
+                              n_init=1, random_state=1)
     test_df['prediction'] = model_1.fit_predict(X_train)
     assert result['out'].equals(test_df)
 
@@ -151,7 +152,7 @@ def test_gaussian_mixture_clustering_covariance_type_param_success():
     arguments = {
         'parameters': {'features': ['sepallength', 'sepalwidth'],
                        'multiplicity': {'train input data': 0},
-                       'covariance_type': 'tied'},
+                       'covariance_type': 'tied', 'random_state': 1},
         'named_inputs': {
             'train input data': 'df',
         },
@@ -164,9 +165,9 @@ def test_gaussian_mixture_clustering_covariance_type_param_success():
     result = util.execute(util.get_complete_code(instance),
                           {'df': df})
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
-    model_1 = GaussianMixture(n_components=1, max_iter=100, tol=0.001,
+    model_1 = GaussianMixture(n_components=3, max_iter=100, tol=0.001,
                               covariance_type='tied', reg_covar=1e-06,
-                              n_init=1, random_state=None)
+                              n_init=1, random_state=1)
     test_df['prediction'] = model_1.fit_predict(X_train)
     assert result['out'].equals(test_df)
 
@@ -178,7 +179,7 @@ def test_gaussian_mixture_clustering_reg_covar_param_success():
     arguments = {
         'parameters': {'features': ['sepallength', 'sepalwidth'],
                        'multiplicity': {'train input data': 0},
-                       'reg_covar': 0.1},
+                       'reg_covar': 0.1,  'random_state': 1},
         'named_inputs': {
             'train input data': 'df',
         },
@@ -191,9 +192,9 @@ def test_gaussian_mixture_clustering_reg_covar_param_success():
     result = util.execute(util.get_complete_code(instance),
                           {'df': df})
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
-    model_1 = GaussianMixture(n_components=1, max_iter=100, tol=0.001,
+    model_1 = GaussianMixture(n_components=3, max_iter=100, tol=0.001,
                               covariance_type='full', reg_covar=0.1,
-                              n_init=1, random_state=None)
+                              n_init=1, random_state=1)
     test_df['prediction'] = model_1.fit_predict(X_train)
     assert result['out'].equals(test_df)
 
@@ -205,7 +206,7 @@ def test_gaussian_mixture_clustering_n_init_param_success():
     arguments = {
         'parameters': {'features': ['sepallength', 'sepalwidth'],
                        'multiplicity': {'train input data': 0},
-                       'n_init': 2},
+                       'n_init': 2, 'random_state': 1},
         'named_inputs': {
             'train input data': 'df',
         },
@@ -218,9 +219,9 @@ def test_gaussian_mixture_clustering_n_init_param_success():
     result = util.execute(util.get_complete_code(instance),
                           {'df': df})
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
-    model_1 = GaussianMixture(n_components=1, max_iter=100, tol=0.001,
+    model_1 = GaussianMixture(n_components=3, max_iter=100, tol=0.001,
                               covariance_type='full', reg_covar=1e-06,
-                              n_init=2, random_state=None)
+                              n_init=2, random_state=1)
     test_df['prediction'] = model_1.fit_predict(X_train)
 
     assert result['out'].equals(test_df)
@@ -246,7 +247,7 @@ def test_gaussian_mixture_clustering_random_state_param_success():
     result = util.execute(util.get_complete_code(instance),
                           {'df': df})
     X_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
-    model_1 = GaussianMixture(n_components=1, max_iter=100, tol=0.001,
+    model_1 = GaussianMixture(n_components=3, max_iter=100, tol=0.001,
                               covariance_type='full', reg_covar=1e-06,
                               n_init=1, random_state=2002)
     test_df['prediction'] = model_1.fit_predict(X_train)
