@@ -12,6 +12,7 @@ from juicer.service import limonero_service
 from urllib.request import urlopen
 from urllib.parse import urlparse, parse_qs
 
+
 class DataReaderOperation(Operation):
     HEADER_PARAM = 'header'
     SEPARATOR_PARAM = 'separator'
@@ -138,7 +139,7 @@ class DataReaderOperation(Operation):
 
         if attrs:
             attributes = []
-            converters = {} # Not supported 
+            converters = {}  # Not supported
             parse_dates = []
             names = []
             for attr in attrs:
@@ -169,8 +170,8 @@ class DataReaderOperation(Operation):
         do_not_infer = self.infer_schema == self.DO_NOT_INFER
         mode_failfast = self.mode == self.OPT_MODE_FAILFAST
         
-        protect = (self.parameters.get('export_notebook', False) or 
-            self.parameters.get('plain', False)) or self.plain
+        protect = (self.parameters.get('export_notebook', False) or
+                   self.parameters.get('plain', False)) or self.plain
         data_format = self.metadata.get('format')
 
         parsed = urlparse(self.metadata['url'])
@@ -210,8 +211,6 @@ class DataReaderOperation(Operation):
         else:
             jdbc_code = None
 
-
-
         self.header = self.metadata.get('is_first_line_header')
 
         attributes, converters, parse_dates, names = self.analyse_attributes(
@@ -228,11 +227,10 @@ class DataReaderOperation(Operation):
         {%-   elif format in ('TEXT', 'CSV') %}
         columns = {'value': object}
         {%-   endif %}
-        {%- elif infer_from_data %}
+        {%- elif infer_from_data and format in ('TEXT', 'CSV') %}
         columns = None
         header = 'infer'
-        {%- elif do_not_infer %}
-        columns = 'str'
+        {%- elif do_not_infer and format in ('TEXT', 'CSV') %}
         header = 'infer'
         {%- endif %}
 
@@ -257,7 +255,11 @@ class DataReaderOperation(Operation):
                                  dtype=columns,
                                  parse_dates={{parse_dates}},
                                  converters={{converters}},
-                                 {%- endif %}
+                                 {%- elif do_not_infer %}
+                                 parse_dates = None,
+                                 converters = None,
+                                 dtype='str',
+                                 {%-   endif %}
                                  na_values={{na_values}},
                                  error_bad_lines={{mode_failfast}})
         f.close()
@@ -297,7 +299,7 @@ class DataReaderOperation(Operation):
             'do_not_infer': do_not_infer,
             'is_first_line_header': self.header,
 
-            'protect': protect, # Hide information about path
+            'protect': protect,  # Hide information about path
             'parsed': parsed,
             'extra_params': extra_params,
             'format': data_format,
@@ -418,9 +420,9 @@ class SaveOperation(Operation):
         parsed = urlparse(final_url)
 
         df_input = self.named_inputs['input data']
-        extra_params = {}
-        if 'extra_params' in storage:
-            extra_params = json.loads(storage['extra_params'])
+        extra_params = storage.get('extra_params') \
+            if storage.get('extra_params') is not None else "{}"
+        extra_params = json.loads(extra_params)
 
         hdfs_user = extra_params.get('user', parsed.username) or 'hadoop'
         self.template = """
@@ -479,9 +481,9 @@ class SaveOperation(Operation):
             
             {%- elif format == FORMAT_PARQUET %}
             {%- if scheme == 'hdfs' and not protect %}
-            from io import ByteIO
+            from io import BytesIO
             with fs.open(path, 'wb') as f:
-                s = ByteIO()
+                s = BytesIO()
                 {{input}}.to_parquet(s, engine='pyarrow')
                 f.write(s.getvalue())               
             {%- elif scheme == 'file' or protect %}
