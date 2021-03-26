@@ -190,7 +190,7 @@ class ClassificationOperation(Operation):
             code = """
             logreg = rl.LogisticRegressionClassifier(coefficients=[{coefficients}], intercept={intercept})
             links = logreg.predict({input})
-            {out} = links.to_frame().reset_index(drop=True)
+            {out} = links.to_frame().reset_index(drop=True).rename({{0:'Record_1', 1:'Record_2'}}, axis=1)
             """.format(out=self.output,
                        input=self.input,
                        intercept=self.intercept,
@@ -219,8 +219,12 @@ class EvaluationOperation(Operation):
 
         self.name = 'entity_resolution.EvaluationOperation'
 
-        self.has_code = len(self.named_inputs) > 0 and any(
-            [len(self.named_outputs) >= 1, self.contains_results()])
+        self.display_text = self.parameters['task']['forms'].get(
+            'display_text', {'value': 1}).get('value', 1) in (1, '1')
+        self.display_image = self.parameters['task']['forms'].get(
+            'display_image', {'value': 1}).get('value', 1) in (1, '1')
+
+        self.has_code = len(self.named_inputs) == 3 and any([self.display_image,self.display_image])
         if self.has_code:
             self.input = self.named_inputs.get('input data')
             self.indexing = self.named_inputs.get('indexing data')
@@ -236,25 +240,67 @@ class EvaluationOperation(Operation):
             self.treatment()
 
     def treatment(self):
-        if self.input is None or self.indexing is None or self.classification is None:
-            #ERRO
+        if any([self.input is None, self.indexing is None, self.classification is None]):
+            msg = _("Parameters '{}', '{}' and '{}' must be informed for task {}")
+            raise ValueError(msg.format(
+                'input data', 'indexing data', 'classification data', self.__class__.__name__))
 
     def generate_code(self):
         if self.has_code:
             code = """
+            metrics = []
+            display_text = {display_text}
+            display_image = {display_image}
+            
+            {true_links} = pd.MultiIndex.from_frame({true_links})#.reset_index(drop=True), names=('Record_1', 'Record_2'))
+            {links} = pd.MultiIndex.from_frame({links}, names=('Record_1', 'Record_2'))
+            
             if {confusion_matrix} == 1:
                 conf_logreg = rl.confusion_matrix({true_links}, {links}, len({candidate_links}))
             if {f_score} == 1:
                 fscore = rl.fscore(conf_logreg)
+                metrics.append(['F-Score',fscore])
             if {recall} == 1:
                 recall = rl.recall({true_links}, {links})
+                metrics.append(['Recall',recall])
             if {precision} == 1:
                 precision = rl.precision({true_links}, {links})
+                metrics.append(['Precision',precision])
+            if display_text:
+                content = SimpleTableReport(
+                        'table table-striped table-bordered table-sm',
+                        headers, metrics, title='{title}').generate()
+                emit_event(
+                    'update task', status='COMPLETED',
+                    identifier='{task_id}',
+                    message=content,
+                    type='HTML', title='{title}',
+                    task={{'id': '{task_id}'}},
+                    operation={{'id': {operation_id}}},
+                    operation_id={operation_id})
+            if display_image:
+                content = ConfusionMatrixImageReport(
+                    cm=conf_logreg,).generate(submission_lock)
+
+                emit_event(
+                    'update task', status='COMPLETED',
+                    identifier='{task_id}',
+                    message=content,
+                    type='IMAGE', title='{title}',
+                    task={{'id': '{task_id}'}},
+                    operation={{'id': {operation_id}}},
+                    operation_id={operation_id})
             """.format(true_links=self.input,
                        candidate_links=self.indexing,
                        links=self.classification,
                        confusion_matrix=self.confusion_matrix,
                        f_score=self.f_score,
                        recall=self.recall,
-                       precision=self.precision)
+                       precision=self.precision,
+                       display_text=self.display_text,
+                       display_image=self.display_image,
+                       title=_('Evaluation result'),
+                       table_headers=[_('Metric'), _('Value')],
+                       task_id=self.parameters['task_id'],
+                       operation_id=self.parameters['operation_id'],)
             return dedent(code)
