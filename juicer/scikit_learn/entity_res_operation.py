@@ -222,7 +222,10 @@ class EvaluationOperation(Operation):
         self.has_code = len(self.named_inputs) > 0 and any(
             [len(self.named_outputs) >= 1, self.contains_results()])
         if self.has_code:
-            self.input = ""
+            self.input = self.named_inputs.get('input data')
+            self.indexing = self.named_inputs.get('indexing data')
+            self.classification = self.named_inputs.get('classification data')
+
             self.confusion_matrix = int(parameters.get(self.MATRIX_PARAM, 1))
             self.f_score = int(parameters.get(self.F_SCORE_PARAM, 1))
             self.recall = int(parameters.get(self.RECALL_PARAM, 1))
@@ -233,13 +236,25 @@ class EvaluationOperation(Operation):
             self.treatment()
 
     def treatment(self):
-        if self.named_inputs.get('input data') is not None:
-            self.input = self.named_inputs.get('input data')
+        if self.input is None or self.indexing is None or self.classification is None:
+            #ERRO
 
     def generate_code(self):
         if self.has_code:
             code = """
-            
-            """.format(out=self.output,
-                       input=self.input)
+            if {confusion_matrix} == 1:
+                conf_logreg = rl.confusion_matrix({true_links}, {links}, len({candidate_links}))
+            if {f_score} == 1:
+                fscore = rl.fscore(conf_logreg)
+            if {recall} == 1:
+                recall = rl.recall({true_links}, {links})
+            if {precision} == 1:
+                precision = rl.precision({true_links}, {links})
+            """.format(true_links=self.input,
+                       candidate_links=self.indexing,
+                       links=self.classification,
+                       confusion_matrix=self.confusion_matrix,
+                       f_score=self.f_score,
+                       recall=self.recall,
+                       precision=self.precision)
             return dedent(code)
