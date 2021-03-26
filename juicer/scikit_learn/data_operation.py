@@ -6,17 +6,11 @@ from textwrap import dedent, indent
 
 import datetime
 
-from jinja2 import Environment, BaseLoader
 from juicer.operation import Operation
 from juicer.service import limonero_service
 
-try:
-    from urllib.request import urlopen
-    from urllib.parse import urlparse, parse_qs
-except ImportError:
-    from urllib.parse import urlparse, parse_qs
-    from urllib.request import urlopen
-
+from urllib.request import urlopen
+from urllib.parse import urlparse, parse_qs
 
 class DataReaderOperation(Operation):
     HEADER_PARAM = 'header'
@@ -313,6 +307,7 @@ class DataReaderOperation(Operation):
             'na_values': self.null_values if len(self.null_values) else 'None',
             'output': self.output,
             'mode_failfast': mode_failfast,
+
             'jdbc_code': jdbc_code,
         }
         return self.render_template(ctx)
@@ -428,7 +423,7 @@ class SaveOperation(Operation):
             extra_params = json.loads(storage['extra_params'])
 
         hdfs_user = extra_params.get('user', parsed.username) or 'hadoop'
-        code_template = """
+        self.template = """
             path = '{{path}}'
             {%- if scheme == 'hdfs' and not protect %}
             fs = pa.hdfs.connect(host='{{hdfs_server}}', 
@@ -546,8 +541,6 @@ class SaveOperation(Operation):
             register_datasource('{{url}}', parameters, '{{token}}', 'overwrite')
             {%- endif %}
         """
-        template = Environment(loader=BaseLoader).from_string(
-            code_template)
         path = parsed.path
 
         ctx = dict(protect=protect,
@@ -585,4 +578,4 @@ class SaveOperation(Operation):
                    task_id=self.parameters['task_id'],
                    )
 
-        return dedent(template.render(ctx))
+        return dedent(self.render_template(ctx))
