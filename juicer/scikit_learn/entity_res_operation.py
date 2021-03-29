@@ -252,11 +252,10 @@ class EvaluationOperation(Operation):
             display_text = {display_text}
             display_image = {display_image}
             
-            {true_links} = pd.MultiIndex.from_frame({true_links})#.reset_index(drop=True), names=('Record_1', 'Record_2'))
-            {links} = pd.MultiIndex.from_frame({links}, names=('Record_1', 'Record_2'))
+            {true_links} = pd.MultiIndex.from_frame({true_links})
+            {links} = pd.MultiIndex.from_frame({links})
             
-            if {confusion_matrix} == 1:
-                conf_logreg = rl.confusion_matrix({true_links}, {links}, len({candidate_links}))
+            conf_logreg = rl.confusion_matrix({true_links}, {links}, len({candidate_links}))
             if {f_score} == 1:
                 fscore = rl.fscore(conf_logreg)
                 metrics.append(['F-Score',fscore])
@@ -269,7 +268,7 @@ class EvaluationOperation(Operation):
             if display_text:
                 content = SimpleTableReport(
                         'table table-striped table-bordered table-sm',
-                        headers, metrics, title='{title}').generate()
+                        {table_headers}, metrics, title='{title}').generate()
                 emit_event(
                     'update task', status='COMPLETED',
                     identifier='{task_id}',
@@ -278,9 +277,9 @@ class EvaluationOperation(Operation):
                     task={{'id': '{task_id}'}},
                     operation={{'id': {operation_id}}},
                     operation_id={operation_id})
-            if display_image:
+            if display_image and {confusion_matrix}:
                 content = ConfusionMatrixImageReport(
-                    cm=conf_logreg,).generate(submission_lock)
+                    cm=conf_logreg,classes=[0,1]).generate(submission_lock)
 
                 emit_event(
                     'update task', status='COMPLETED',
