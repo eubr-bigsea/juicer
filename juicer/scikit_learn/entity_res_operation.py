@@ -54,12 +54,12 @@ class IndexingOperation(Operation):
             raise ValueError(
                 _("Parameter '{}' must be x>0 for task {}").format(
                     self.ATTRIBUTES_PARAM, self.__class__))
-        if self.named_inputs.get('input data 1') is not None:
-            self.input += self.named_inputs.get('input data 1')
         if self.named_inputs.get('input data 2') is not None:
+            self.input += self.named_inputs.get('input data 2')
+        if self.named_inputs.get('input data 1') is not None:
             if len(self.input) > 0:
                 self.input += ","
-            self.input += self.named_inputs.get('input data 2')
+            self.input += self.named_inputs.get('input data 1')
 
     def generate_code(self):
         if self.has_code:
@@ -130,8 +130,8 @@ class ComparingOperation(Operation):
         if self.has_code:
             code_columns = "\n".join(["compare.exact('{col}','{col}', label='{col}')".format(col=col) for col in self.attributes])
             code_compute = "{out} = compare.compute({input}".format(out=self.output, input=self.input)
-            second_input = self.named_inputs.get('input data 2')
-            third_input = self.named_inputs.get('input data 3')
+            second_input = self.named_inputs.get('input data 3')
+            third_input = self.named_inputs.get('input data 2')
 
             if second_input is not None:
                 code_compute += "," + second_input
