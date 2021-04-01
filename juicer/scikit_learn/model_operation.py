@@ -469,10 +469,10 @@ class EvaluateModelOperation(Operation):
         is_supervised_metric = self.METRICS_LIST[self.metric][0] == 0
 
         self.template = """
-        {%- if is_regression -%}
+        {%- if is_regression %}
         final_y_true = {{input}}['{{second_attr}}'].to_numpy()
         final_y_pred = {{input}}['{{prediction_attr}}'].to_numpy()
-        {%- elif is_supervised_metric -%}
+        {%- elif is_supervised_metric %}
         y_true = get_label_data({{input}}, ['{{second_attr}}'])
         y_pred = get_label_data({{input}}, ['{{prediction_attr}}'])
 
@@ -487,7 +487,7 @@ class EvaluateModelOperation(Operation):
             classes = list(set(y_true))
             final_y_true = y_true
             final_y_pred = y_pred
-        {%- else -%}
+        {%- else %}
         X = get_X_train_data({{input}}, {{second_attr}})
         y_pred = {{input}}['{{prediction_attr}}'].to_numpy().tolist()
 
@@ -580,9 +580,9 @@ class EvaluateModelOperation(Operation):
             identifier='{{task_id}}',
             message=content,
             type='HTML', title='{{title}}',
-            task=dict('id': '{{task_id}}'),
-            operation=dict('id': {{operation_id}}),
-            operation_id={{operation_id}})
+            task=dict([('id', '{{task_id}}')]),
+            operation=dict([('id', {{operation_id}})]),
+            operation_id={{operation_id}}) 
             
         headers = {{params_table_headers}}
         params = {{model}}.get_params()
@@ -599,34 +599,34 @@ class EvaluateModelOperation(Operation):
             identifier='{{task_id}}',
             message=content,
             type='HTML', title='{{title}}',
-            task=dict('id': '{{task_id}}'),
-            operation=dict('id': {{operation_id}}),
-            operation_id={{operation_id}})
-        {%- endif %}
+            task=dict([('id', '{{task_id}}')]),
+            operation=dict([('id', {{operation_id}})]),
+            operation_id={{operation_id}}) 
+        {% endif %}
        
-        {%- if display_image %}
-        {% if is_supervised_metric%} 
+        {% if display_image %}
+        {% if is_supervised_metric %} 
         if len(final_y_true) < 2000:
-            identity = range(int(max(final_y_true[-1], final_y_pred[-1])))
+            identity = range(int(max(max(final_y_true), max(final_y_pred))))
             report2 = MatplotlibChartReport().plot(
                     '{{plot_title}}',
                     '{{plot_x_title}}',
                     '{{plot_y_title}}',
-                    identity, identity, 'r.',
-                    final_y_true, final_y_pred,'b.', 
+                    identity, identity, 'r-',
+                    final_y_true, final_y_pred,'b.', linewidth=1, 
                     submission_lock=submission_lock)
 
             emit_event(
                 'update task', status='COMPLETED',
                 identifier='{{task_id}}',
                 message=report2,
-                type='IMAGE', title='{{join_plot_title}}',
-                task=dict('id': '{{task_id}}'),
-                operation=dict('id': {{operation_id}}),
-                operation_id={{operation_id}})
+                type='IMAGE', title='{{plot_title}}',
+                task=dict([('id', '{{task_id}}')]),
+                operation=dict([('id', {{operation_id}})]),
+                operation_id={{operation_id}}) 
         {%- endif %}
 
-        {%- if is_classification %}
+        {% if is_classification %}
         content = ConfusionMatrixImageReport(
             cm=confusion_matrix(final_y_true, final_y_pred), 
             classes=classes,).generate(submission_lock)
@@ -635,13 +635,13 @@ class EvaluateModelOperation(Operation):
                 'update task', status='COMPLETED',
                 identifier='{{task_id}}',
                 message=content,
-                type='IMAGE', title='{{join_plot_title}}',
-                task=dict('id': '{{task_id}}'),
-                operation=dict('id': {{operation_id}}),
+                type='IMAGE', title='{{title}}',
+                task=dict([('id', '{{task_id}}')]),
+                operation=dict([('id', {{operation_id}})]),
                 operation_id={{operation_id}}) 
      
-        {%- elif is_regression %}
-        if len(final_y_true) < 2000 and display_image:
+        {% elif is_regression %}
+        if len(final_y_true) < 2000:
             residuals = final_y_true - final_y_pred
             pandas_df = pd.DataFrame.from_records(
                 [
@@ -649,6 +649,9 @@ class EvaluateModelOperation(Operation):
                         for x in zip(final_y_true, residuals)
                 ]
             )
+            pandas_df.rename(index=str, columns=dict(
+                        prediction='{join_plot_x_title}',
+                        residuals='{join_plot_y_title}'))
 
             content = SeabornChartReport().jointplot(pandas_df, 
                 'prediction', 'residual', '{{join_plot_title}}',
@@ -660,9 +663,9 @@ class EvaluateModelOperation(Operation):
                 identifier='{{task_id}}',
                 message=content,
                 type='IMAGE', title='{{join_plot_title}}',
-                task=dict('id': '{{task_id}}'),
-                operation=dict('id': {{operation_id}}),
-                operation_id={{operation_id}})
+                task=dict([('id', '{{task_id}}')]),
+                operation=dict([('id', {{operation_id}})]),
+                operation_id={{operation_id}}) 
         {%- endif %}
         {%- endif %}
         """
@@ -693,7 +696,7 @@ class EvaluateModelOperation(Operation):
                    title=_('Evaluation result')
                    )
 
-        return self.render_template(ctx)
+        return dedent(self.render_template(ctx))
 
 
 class ModelsEvaluationResultList:
