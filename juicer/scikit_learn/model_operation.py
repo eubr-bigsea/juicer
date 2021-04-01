@@ -472,7 +472,7 @@ class EvaluateModelOperation(Operation):
         {%- if is_regression -%}
         final_y_true = {{input}}['{{second_attr}}'].to_numpy()
         final_y_pred = {{input}}['{{prediction_attr}}'].to_numpy()
-        {% elif is_supervised_metric -%}
+        {%- elif is_supervised_metric -%}
         y_true = get_label_data({{input}}, ['{{second_attr}}'])
         y_pred = get_label_data({{input}}, ['{{prediction_attr}}'])
 
@@ -487,7 +487,7 @@ class EvaluateModelOperation(Operation):
             classes = list(set(y_true))
             final_y_true = y_true
             final_y_pred = y_pred
-        {% else -%}
+        {%- else -%}
         X = get_X_train_data({{input}}, {{second_attr}})
         y_pred = {{input}}['{{prediction_attr}}'].to_numpy().tolist()
 
@@ -605,6 +605,27 @@ class EvaluateModelOperation(Operation):
         {%- endif %}
        
         {%- if display_image %}
+        {% if is_supervised_metric%} 
+        if len(final_y_true) < 2000:
+            identity = range(int(max(final_y_true[-1], final_y_pred[-1])))
+            report2 = MatplotlibChartReport().plot(
+                    '{{plot_title}}',
+                    '{{plot_x_title}}',
+                    '{{plot_y_title}}',
+                    identity, identity, 'r.',
+                    final_y_true, final_y_pred,'b.', 
+                    submission_lock=submission_lock)
+
+            emit_event(
+                'update task', status='COMPLETED',
+                identifier='{{task_id}}',
+                message=report2,
+                type='IMAGE', title='{{join_plot_title}}',
+                task=dict('id': '{{task_id}}'),
+                operation=dict('id': {{operation_id}}),
+                operation_id={{operation_id}})
+        {%- endif %}
+
         {%- if is_classification %}
         content = ConfusionMatrixImageReport(
             cm=confusion_matrix(final_y_true, final_y_pred), 
@@ -638,28 +659,6 @@ class EvaluateModelOperation(Operation):
                 'update task', status='COMPLETED',
                 identifier='{{task_id}}',
                 message=content,
-                type='IMAGE', title='{{join_plot_title}}',
-                task=dict('id': '{{task_id}}'),
-                operation=dict('id': {{operation_id}}),
-                operation_id={{operation_id}})
-        {%- endif %}
-
-        {% if is_supervised_metric and display_image %}
-        # model's summary       
-        if len(final_y_true) < 2000:
-            identity = range(int(max(final_y_true[-1], final_y_pred[-1])))
-            report2 = MatplotlibChartReport().plot(
-                    '{{plot_title}}',
-                    '{{plot_x_title}}',
-                    '{{plot_y_title}}',
-                    identity, identity, 'r.',
-                    final_y_true, final_y_pred,'b.', 
-                    submission_lock=submission_lock)
-
-            emit_event(
-                'update task', status='COMPLETED',
-                identifier='{{task_id}}',
-                message=report2,
                 type='IMAGE', title='{{join_plot_title}}',
                 task=dict('id': '{{task_id}}'),
                 operation=dict('id': {{operation_id}}),
