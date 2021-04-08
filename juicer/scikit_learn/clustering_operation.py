@@ -199,9 +199,6 @@ class AgglomerativeClusteringOperation(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-        self.has_code = len(self.named_inputs) == 1 and any(
-            [len(self.named_outputs) >= 1, self.contains_results()])
-
         if self.FEATURES_PARAM not in parameters:
             raise ValueError(
                      _("Parameter '{}' must be informed for task {}").format(
@@ -269,9 +266,6 @@ class DBSCANClusteringOperation(Operation):
                  named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-        self.has_code = len(self.named_inputs) == 1 and any(
-            [len(self.named_outputs) >= 1, self.contains_results()])
-
         if self.has_code:
             self.eps = float(parameters.get(self.EPS_PARAM, 0.5) or 0.5)
             self.min_samples = int(parameters.get(self.MIN_SAMPLES_PARAM, 5)
@@ -328,9 +322,6 @@ class GaussianMixtureClusteringOperation(Operation):
     def __init__(self, parameters, named_inputs,
                  named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
-
-        self.has_code = len(self.named_inputs) == 1 and any(
-            [len(self.named_outputs) >= 1, self.contains_results()])
 
         if self.has_code:
             self.n_components = int(parameters.get(self.N_COMPONENTS_PARAM, 1)
@@ -423,9 +414,6 @@ class KMeansClusteringOperation(Operation):
 
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
-
-        self.has_code = len(self.named_inputs) == 1 and any(
-            [len(self.named_outputs) >= 1, self.contains_results()])
 
         if self.has_code:
             self.n_init = int(parameters.get(self.N_INIT_PARAM, 10) or 10)
@@ -538,9 +526,6 @@ class LdaClusteringOperation(Operation):
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
-
-        self.has_code = len(self.named_inputs) >= 1 and any(
-            [len(self.named_outputs) >= 1, self.contains_results()])
         if self.has_code:
             self.output = named_outputs.get(
                     'output data', 'sampled_data_{}'.format(self.order))
