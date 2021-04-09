@@ -5,7 +5,8 @@ from gettext import gettext
 from textwrap import dedent
 
 from juicer.operation import Operation
-from juicer.scikit_learn.expression import Expression
+from juicer.scikit_learn.expression import Expression, \
+        JAVA_2_PYTHON_DATE_FORMAT
 
 
 class AddColumnsOperation(Operation):
@@ -1035,10 +1036,10 @@ class SortOperation(Operation):
                     self.ATTRIBUTES_PARAM, self.__class__))
 
         self.columns = [att['attribute'] for att in attributes]
-        self.ascending = [True for _ in range(len(self.columns))]
-        for i, v in enumerate([att['f'] for att in attributes]):
-            if v != "asc":
-                self.ascending[i] = False
+        self.ascending = []
+
+        for v in [att['f'] for att in attributes]:
+            self.ascending.append(v != "desc")
 
         self.has_code = len(self.named_inputs) == 1 and any(
             [len(self.named_outputs) >= 1, self.contains_results()])
@@ -1311,17 +1312,19 @@ class CastOperation(Operation):
         {{op.output}}['{{attr.attribute}}'] = 
         {%- if attr.type == 'Integer' -%}
             pd.to_numeric(
-            {{op.output}}['{{attr.attribute}}'], errors='{{op.errors}}').astype(
-                pd.Int64Dtype())
+            {{op.output}}['{{attr.attribute}}'], errors='{{op.errors}}'
+                ).astype(int)
         {%- elif attr.type == 'Decimal' -%}
             pd.to_numeric({{op.output}}['{{attr.attribute}}'], 
                           errors='{{op.errors}}')
         {%- elif attr.type == 'Boolean' -%}
             {{op.output}}.astype('bool')
-        {%- elif attr.type == 'DateTime' -%}
+        {%- elif attr.type in ('Date', 'DateTime', 'Datetime', 'Time') -%}
             pd.to_datetime({{op.output}}['{{attr.attribute}}'], 
                            errors='{{op.errors}}',
-                           format='{{op.format}}')
+                               format='{{attr.formats}}')
+        {%- elif attr.type == 'Text' -%}
+            {{op.output}}['{{attr.attribute}}'].astype(str)
         {%-endif %}
         {%- endfor %}
     """
@@ -1342,6 +1345,9 @@ class CastOperation(Operation):
         if self.has_code:
             if self.ATTRIBUTES_PARAM in parameters:
                 self.attributes = parameters[self.ATTRIBUTES_PARAM]
+                for attr in self.attributes:
+                    if 'formats' in attr:
+                        attr['formats'] = self.parse_date_format(attr['formats'])
             else:
                 raise ValueError(
                     _("Parameter '{}' must be informed for task {}").format
@@ -1350,6 +1356,12 @@ class CastOperation(Operation):
     @property
     def get_data_out_names(self, sep=','):
         return self.output
+
+    def parse_date_format(self, fmt):
+        parts = re.split('([^\w\d"\'])', fmt)
+        py_fmt = ''.join([JAVA_2_PYTHON_DATE_FORMAT.get(x, x)
+            for x in parts])
+        return py_fmt
 
     def generate_code(self):
         if self.has_code:
