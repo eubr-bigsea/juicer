@@ -180,7 +180,7 @@ class ClassificationOperation(Operation):
             self.intercept = float(parameters.get(self.INTERCEPT_PARAM, None))
             self.coefficients = parameters.get(self.COEFFICIENTS_PARAM, None)
             self.algorithm = parameters.get(self.ALGORITHM_PARAM, None)
-            self.binarize = float(parameters.get(self.BINARIZE_PARAM, None))
+            self.binarize = parameters.get(self.BINARIZE_PARAM, None)
             self.alpha = float(parameters.get(self.ALPHA_PARAM, 0.0001))
             self.use_col_names = int(parameters.get(self.USE_COL_NAMES_PARAM, 1))
 
@@ -196,16 +196,18 @@ class ClassificationOperation(Operation):
             self.input = self.named_inputs.get('input data')
         if self.named_inputs.get('comparing data') is not None:
             self.comparing = self.named_inputs.get('comparing data')
+        if self.binarize is not None:
+            self.binarize = float(self.binarize)
 
     def generate_code(self):
         if self.has_code:
             code = """
-            if {algorithm} == "Logistic Regression":
+            if "{algorithm}" == "logistic-regression":
                 class = rl.LogisticRegressionClassifier(coefficients=[{coefficients}], intercept={intercept})
-            if {algorithm} == "SVM":
+            elif "{algorithm}" == "svm":
                 class = rl.SVMClassifier()
                 class.fit({input}, {true_links})
-            if {algorithm} == "Naive Bayes":
+            else:
                 class = rl.NaiveBayesClassifier(binarize={binarize}, alpha={alpha}, use_col_names={use_col_names})
                 class.fit({input}, {true_links})
             links = class.predict({input})
