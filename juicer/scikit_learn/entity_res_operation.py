@@ -161,6 +161,11 @@ class ClassificationOperation(Operation):
 
     INTERCEPT_PARAM = 'intercept'
     COEFFICIENTS_PARAM = 'coefficients'
+    ALGORITHM_PARAM = 'algorithm'
+    BINARIZE_PARAM = 'binarize'
+    ALPHA_PARAM = 'alpha'
+    USE_COL_NAMES_PARAM = 'use_col_names'
+
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
@@ -171,8 +176,13 @@ class ClassificationOperation(Operation):
             [len(self.named_outputs) >= 1, self.contains_results()])
         if self.has_code:
             self.input = ""
+            self.comparing = ""
             self.intercept = float(parameters.get(self.INTERCEPT_PARAM, None))
             self.coefficients = parameters.get(self.COEFFICIENTS_PARAM, None)
+            self.algorithm = parameters.get(self.ALGORITHM_PARAM, None)
+            self.binarize = float(parameters.get(self.BINARIZE_PARAM, None))
+            self.alpha = float(parameters.get(self.ALPHA_PARAM, 0.0001))
+            self.use_col_names = int(parameters.get(self.USE_COL_NAMES_PARAM, 1))
 
             self.transpiler_utils.add_import("import recordlinkage as rl")
 
@@ -184,17 +194,31 @@ class ClassificationOperation(Operation):
     def treatment(self):
         if self.named_inputs.get('input data') is not None:
             self.input = self.named_inputs.get('input data')
+        if self.named_inputs.get('comparing data') is not None:
+            self.comparing = self.named_inputs.get('comparing data')
 
     def generate_code(self):
         if self.has_code:
             code = """
-            logreg = rl.LogisticRegressionClassifier(coefficients=[{coefficients}], intercept={intercept})
-            links = logreg.predict({input})
+            if {algorithm} == "Logistic Regression":
+                class = rl.LogisticRegressionClassifier(coefficients=[{coefficients}], intercept={intercept})
+            if {algorithm} == "SVM":
+                class = rl.SVMClassifier()
+                class.fit({input}, {true_links})
+            if {algorithm} == "Naive Bayes":
+                class = rl.NaiveBayesClassifier(binarize={binarize}, alpha={alpha}, use_col_names={use_col_names})
+                class.fit({input}, {true_links})
+            links = class.predict({input})
             {out} = links.to_frame().reset_index(drop=True).rename({{0:'Record_1', 1:'Record_2'}}, axis=1)
             """.format(out=self.output,
-                       input=self.input,
+                       input=self.comparing,
                        intercept=self.intercept,
-                       coefficients=self.coefficients)
+                       coefficients=self.coefficients,
+                       algorithm=self.algorithm,
+                       binarize=self.binarize,
+                       alpha=self.alpha,
+                       use_col_names=self.use_col_names,
+                       true_links=self.input)
             return dedent(code)
 
 class EvaluationOperation(Operation):
@@ -207,12 +231,16 @@ class EvaluationOperation(Operation):
     - f_score
     - recall
     - precision
+    - accuracy
+    - specificity
     """
 
     MATRIX_PARAM = 'confusion_matrix'
     F_SCORE_PARAM = 'f_score'
     RECALL_PARAM = 'recall'
     PRECISION_PARAM = 'precision'
+    ACCURACY_PARAM = 'accuracy'
+    SPECIFICITY_PARAM = 'specificity'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
@@ -234,6 +262,8 @@ class EvaluationOperation(Operation):
             self.f_score = int(parameters.get(self.F_SCORE_PARAM, 1))
             self.recall = int(parameters.get(self.RECALL_PARAM, 1))
             self.precision = int(parameters.get(self.PRECISION_PARAM, 1))
+            self.accuracy = int(parameters.get(self.ACCURACY_PARAM, 1))
+            self.specificity = int(parameters.get(self.SPECIFICITY_PARAM, 1))
 
             self.transpiler_utils.add_import("import recordlinkage as rl")
 
@@ -265,6 +295,12 @@ class EvaluationOperation(Operation):
             if {precision} == 1:
                 precision = rl.precision({true_links}, {links})
                 metrics.append(['Precision',precision])
+            if {accuracy} == 1:
+                accuracy = rl.accuracy({true_links}, {links}, len({candidate_links}))
+                metrics.append(['Accuracy',accuracy])
+            if {specificity} == 1:
+                specificity = rl.specificity({true_links}, {links}, len({candidate_links}))
+                metrics.append(['Specificity',specificity])
             if display_text:
                 content = SimpleTableReport(
                         'table table-striped table-bordered table-sm',
@@ -301,5 +337,7 @@ class EvaluationOperation(Operation):
                        title=_('Evaluation result'),
                        table_headers=[_('Metric'), _('Value')],
                        task_id=self.parameters['task_id'],
-                       operation_id=self.parameters['operation_id'],)
+                       operation_id=self.parameters['operation_id'],
+                       specificity=self.specificity,
+                       accuracy=self.accuracy)
             return dedent(code)
