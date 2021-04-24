@@ -46,29 +46,29 @@ def get_arguments(get_columns):
 @pytest.mark.parametrize(("operation_par", "algorithm_par"), [
     ({"random_state": 1}, {"random_state": 1}),
 
-    ({'learning_rate': 0.3, "random_state": 1},
-     {'learning_rate': 0.3, "random_state": 1}),
+    ({'learning_rate': 0.2, "random_state": 1},
+     {'learning_rate': 0.2, "random_state": 1}),
 
-    ({'n_estimators': 50, "random_state": 1},
-     {'n_estimators': 50, "random_state": 1}),
+    ({'n_estimators': 102, "random_state": 1},
+     {'n_estimators': 102, "random_state": 1}),
 
-    ({"max_depth": 50, "random_state": 1},
-     {"max_depth": 50, "random_state": 1}),
+    ({"max_depth": 4, "random_state": 1},
+     {"max_depth": 4, "random_state": 1}),
 
-    ({'min_samples_split': 5, "random_state": 1},
-     {'min_samples_split': 5, "random_state": 1}),
+    ({'min_samples_split': 3, "random_state": 1},
+     {'min_samples_split': 3, "random_state": 1}),
 
-    ({'min_samples_leaf': 3, "random_state": 1},
-     {'min_samples_leaf': 3, "random_state": 1}),
+    ({'min_samples_leaf': 2, "random_state": 1},
+     {'min_samples_leaf': 2, "random_state": 1}),
 
-    ({'subsample': 0.5, "random_state": 1},
-     {'subsample': 0.5, "random_state": 1}),
+    ({'subsample': 0.9, "random_state": 1},
+     {'subsample': 0.9, "random_state": 1}),
 
     ({'criterion': 'mae', "random_state": 1},
      {'criterion': 'mae', "random_state": 1}),
 
-    ({'min_weight_fraction_leaf': 0.5, "random_state": 1},
-     {'min_weight_fraction_leaf': 0.5, "random_state": 1}),
+    ({'min_weight_fraction_leaf': 0.1, "random_state": 1},
+     {'min_weight_fraction_leaf': 0.1, "random_state": 1}),
 
     ({'init': '"zero"', "random_state": 1},
      {'init': 'zero', "randFm_state": 1}),
@@ -85,7 +85,7 @@ def get_arguments(get_columns):
     ({'n_iter_no_change': 4, 'random_state': 1},
      {'n_iter_no_change': 4, 'random_state': 1}),
 
-    ({'tol': 0.1, 'random_state': 1}, {'tol': 0.1, 'random_state': 1})
+    ({'tol': 1e-5, 'random_state': 1}, {'tol': 1e-5, 'random_state': 1})
 
 ], ids=["default_params", "learning_rate_param", "n_estimators_param",
         "max_depth_param", "min_samples_split_param", "min_samples_leaf_param",

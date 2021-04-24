@@ -46,35 +46,35 @@ def get_arguments(get_columns):
 @pytest.mark.parametrize(("operation_par", "algorithm_par"), [
     ({"seed": 1}, {"random_state": 1}),
 
-    ({"seed": 1, 'hidden_layer_sizes': '(1, 100)'},
-     {"random_state": 1, 'hidden_layer_sizes': (1, 100)}),
+    ({"seed": 1, 'hidden_layer_sizes': '(1, 101)'},
+     {"random_state": 1, 'hidden_layer_sizes': (1, 101)}),
 
     ({"seed": 1, 'activation': 'tanh'},
      {"random_state": 1, 'activation': 'tanh'}),
 
     ({"seed": 1, 'solver': 'lbfgs'}, {"random_state": 1, 'solver': 'lbfgs'}),
 
-    ({"seed": 1, 'alpha': 0.1}, {"random_state": 1, 'alpha': 0.1}),
+    ({"seed": 1, 'alpha': 0.0002}, {"random_state": 1, 'alpha': 0.0002}),
 
-    ({"seed": 1, 'max_iter': 100}, {"random_state": 1, 'max_iter': 100}),
+    ({"seed": 1, 'max_iter': 201}, {"random_state": 1, 'max_iter': 201}),
 
-    ({"seed": 1, 'tol': 0.1}, {"random_state": 1, 'tol': 0.1}),
+    ({"seed": 1, 'tol': 1e-5}, {"random_state": 1, 'tol': 1e-5}),
 
-    ({"seed": 1, 'batch_size': 2}, {"random_state": 1, 'batch_size': 2}),
+    ({"seed": 1, 'batch_size': 201}, {"random_state": 1, 'batch_size': 201}),
 
     ({"seed": 1, 'solver': 'sgd', 'learning_rate': 'adaptive'},
      {"random_state": 1, 'solver': 'sgd', 'learning_rate': 'adaptive'}),
 
-    ({"seed": 1, 'learning_rate_init': 0.1},
-     {"random_state": 1, 'learning_rate_init': 0.1}),
+    ({"seed": 1, 'learning_rate_init': 0.002},
+     {"random_state": 1, 'learning_rate_init': 0.002}),
 
-    ({"seed": 1, 'solver': 'sgd', 'power_t': 0.8},
-     {"random_state": 1, 'solver': 'sgd', 'power_t': 0.8}),
+    ({"seed": 1, 'solver': 'sgd', 'power_t': 0.6},
+     {"random_state": 1, 'solver': 'sgd', 'power_t': 0.6}),
 
     ({"seed": 1, 'shuffle': 0}, {"random_state": 1, 'shuffle': False}),
 
-    ({"seed": 1, 'solver': 'sgd', 'momentum': 0.5},
-     {"random_state": 1, 'solver': 'sgd', 'momentum': 0.5}),
+    ({"seed": 1, 'solver': 'sgd', 'momentum': 0.8},
+     {"random_state": 1, 'solver': 'sgd', 'momentum': 0.8}),
 
     ({"seed": 1, 'solver': 'sgd', 'nesterovs_momentum': 0},
      {"random_state": 1, 'solver': 'sgd', 'nesterovs_momentum': False}),
@@ -83,20 +83,20 @@ def get_arguments(get_columns):
      {"random_state": 1, 'early_stopping': True}),
 
     ({"seed": 1, 'solver': 'sgd', 'early_stopping': 1,
-      'validation_fraction': 0.3},
+      'validation_fraction': 0.2},
      {"random_state": 1, 'solver': 'sgd', 'early_stopping': True,
-      'validation_fraction': 0.3}),
+      'validation_fraction': 0.2}),
 
-    ({"seed": 1, 'beta1': 0.5, 'beta2': 0.4},
-     {"random_state": 1, 'beta_1': 0.5, 'beta_2': 0.4}),
+    ({"seed": 1, 'beta1': 0.8, 'beta2': 0.988},
+     {"random_state": 1, 'beta_1': 0.8, 'beta_2': 0.988}),
 
-    ({"seed": 1, 'epsilon': 1e-05}, {"random_state": 1, 'epsilon': 1e-05}),
+    ({"seed": 1, 'epsilon': 1e-7}, {"random_state": 1, 'epsilon': 1e-7}),
 
-    ({"seed": 1, 'n_iter_no_change': 20},
-     {"random_state": 1, 'n_iter_no_change': 20}),
+    ({"seed": 1, 'n_iter_no_change': 11},
+     {"random_state": 1, 'n_iter_no_change': 11}),
 
-    ({"seed": 1, 'solver': 'lbfgs', 'max_fun': 10000},
-     {"random_state": 1, 'solver': 'lbfgs', 'max_fun': 10000})
+    ({"seed": 1, 'solver': 'lbfgs', 'max_fun': 15050},
+     {"random_state": 1, 'solver': 'lbfgs', 'max_fun': 15050})
 
 ], ids=["default_params", "hidden_layer_sizes_param", "activation_param",
         "solver_param", "alpha_param", "max_iter_param", "tol_param",

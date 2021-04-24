@@ -43,7 +43,7 @@ def get_arguments(get_columns):
 # # # # # # # # # # Success # # # # # # # # # #
 @pytest.mark.parametrize(("operation_par", "algorithm_par"), [
     ({}, {}),
-    ({"alpha": 2.0}, {"alpha": 2.0}),
+    ({"alpha": 1.1}, {"alpha": 1.1}),
     ({"fit_prior": 0}, {"fit_prior": False}),
 ], ids=["default_params", "alpha_param", "fit_prior_param"])
 def test_naive_bayes_classifier_multinomialnb_params_success(get_columns,
@@ -112,7 +112,7 @@ def test_naive_bayes_classifier_type_gaussiannb_var_smoothing_param_success(
     test_df = get_df.astype(np.int64())
     arguments = get_arguments
 
-    arguments['parameters'].update({"type": "GuassianNB", "var_smoothing": 2.0})
+    arguments['parameters'].update({"type": "GuassianNB", "var_smoothing": 1e-8})
 
     arguments = util.add_minimum_ml_args(arguments)
     instance = NaiveBayesClassifierModelOperation(**arguments)
@@ -121,7 +121,7 @@ def test_naive_bayes_classifier_type_gaussiannb_var_smoothing_param_success(
     x_train = get_X_train_data(test_df, get_columns)
     y = get_label_data(test_df, [get_columns[0]])
     y = np.reshape(y, len(y))
-    model_1 = GaussianNB(priors=None, var_smoothing=2.0)
+    model_1 = GaussianNB(priors=None, var_smoothing=1e-8)
 
     model_1.fit(x_train, y)
     test_df['prediction'] = model_1.predict(x_train).tolist()

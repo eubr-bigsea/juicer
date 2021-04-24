@@ -46,11 +46,11 @@ def get_arguments(get_columns):
 
     ({'max_depth': 2}, {'max_depth': 2}),
 
-    ({'min_samples_split': 5}, {'min_samples_split': 5}),
+    ({'min_samples_split': 3}, {'min_samples_split': 3}),
 
-    ({'min_samples_leaf': 3}, {'min_samples_leaf': 3}),
+    ({'min_samples_leaf': 2}, {'min_samples_leaf': 2}),
 
-    ({'min_weight': 0.5}, {'min_weight_fraction_leaf': 0.5}),
+    ({'min_weight': 0.1}, {'min_weight_fraction_leaf': 0.1}),
 
     ({'random_state': 2002}, {'random_state': 2002}),
 
@@ -60,9 +60,9 @@ def get_arguments(get_columns):
 
     ({'max_features': 2}, {'max_features': 2}),
 
-    ({'max_leaf_nodes': 2}, {'max_leaf_nodes': 2}),
+    ({'max_leaf_nodes': 5}, {'max_leaf_nodes': 5}),
 
-    ({'min_impurity_decrease': 2.0}, {'min_impurity_decrease': 2.0}),
+    ({'min_impurity_decrease': 0.5}, {'min_impurity_decrease': 0.5}),
 
     ({'class_weight': '"balanced"'}, {'class_weight': "balanced"})
 

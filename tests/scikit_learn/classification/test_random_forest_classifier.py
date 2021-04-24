@@ -46,15 +46,15 @@ def get_arguments(get_columns):
 @pytest.mark.parametrize(("operation_par", "algorithm_par"), [
     ({"seed": 1}, {"random_state": 1}),
 
-    ({"seed": 1, 'n_estimators': 5}, {"random_state": 1, 'n_estimators': 5}),
+    ({"seed": 1, 'n_estimators': 101}, {"random_state": 1, 'n_estimators': 101}),
 
     ({"seed": 1, 'max_depth': 2}, {"random_state": 1, 'max_depth': 2}),
 
-    ({"seed": 1, 'min_samples_split': 4},
-     {"random_state": 1, 'min_samples_split': 4}),
+    ({"seed": 1, 'min_samples_split': 3},
+     {"random_state": 1, 'min_samples_split': 3}),
 
-    ({"seed": 1, "min_samples_leaf": 4},
-     {"random_state": 1, "min_samples_leaf": 4}),
+    ({"seed": 1, "min_samples_leaf": 2},
+     {"random_state": 1, "min_samples_leaf": 2}),
 
     ({"seed": 1, 'criterion': 'entropy'},
      {"random_state": 1, 'criterion': 'entropy'}),
@@ -62,7 +62,7 @@ def get_arguments(get_columns):
     ({"seed": 1, 'min_weight_fraction_leaf': 0.3},
      {"random_state": 1, 'min_weight_fraction_leaf': 0.3}),
 
-    ({"seed": 1, 'max_features': 1}, {"random_state": 1, 'max_features': 1}),
+    ({"seed": 1, 'max_features': 2}, {"random_state": 1, 'max_features': 2}),
 
     ({"seed": 1, 'max_leaf_nodes': 2}, {"random_state": 1, 'max_leaf_nodes': 2}),
 
@@ -73,7 +73,7 @@ def get_arguments(get_columns):
 
     ({"seed": 1, 'oob_score': 1}, {"random_state": 1, 'oob_score': True}),
 
-    ({"seed": 1, 'n_jobs': 2}, {"random_state": 1, 'n_jobs': 2}),
+    ({"seed": 1, 'n_jobs': -1}, {"random_state": 1, 'n_jobs': -1}),
 
     ({"seed": 1, 'ccp_alpha': 0.5}, {"random_state": 1, 'ccp_alpha': 0.5}),
 

@@ -50,16 +50,16 @@ def get_arguments(get_columns):
     ({"random_state": 1, 'solver': 'newton-cg'},
      {"random_state": 1, 'solver': 'newton-cg'}),
 
-    ({"random_state": 1, "tol": 0.1}, {"random_state": 1, "tol": 0.1}),
+    ({"random_state": 1, "tol": 1e-5}, {"random_state": 1, "tol": 1e-5}),
 
     ({"random_state": 1, 'solver': 'lbfgs'},
      {"random_state": 1, 'solver': 'lbfgs'}),
 
-    ({"random_state": 1, 'regularization': 2.0}, {"random_state": 1, 'C': 2.0}),
+    ({"random_state": 1, 'regularization': 0.9}, {"random_state": 1, 'C': 0.9}),
 
     ({"random_state": 1, 'solver': 'sag'}, {"random_state": 1, 'solver': 'sag'}),
 
-    ({"random_state": 1, 'max_iter': 20}, {"random_state": 1, 'max_iter': 20}),
+    ({"random_state": 1, 'max_iter': 102}, {"random_state": 1, 'max_iter': 102}),
 
     ({"random_state": 1, 'solver': 'saga'},
      {"random_state": 1, 'solver': 'saga'}),
@@ -69,13 +69,13 @@ def get_arguments(get_columns):
     ({"random_state": 1, 'fit_intercept': False},
      {"random_state": 1, 'fit_intercept': False}),
 
-    ({"random_state": 1, 'intercept_scaling': 2.0},
-     {"random_state": 1, 'intercept_scaling': 2.0}),
+    ({"random_state": 1, 'intercept_scaling': 1.1},
+     {"random_state": 1, 'intercept_scaling': 1.1}),
 
     ({"random_state": 1, 'multi_class': 'auto'},
      {"random_state": 1, 'multi_class': 'auto'}),
 
-    ({"random_state": 1, 'n_jobs': 2}, {"random_state": 1, 'n_jobs': 2}),
+    ({"random_state": 1, 'n_jobs': 10}, {"random_state": 1, 'n_jobs': 10}),
 
     ({"random_state": 1, 'l1_ratio': 0.5}, {"random_state": 1, 'l1_ratio': 0.5})
 

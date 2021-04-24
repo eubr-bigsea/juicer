@@ -43,14 +43,14 @@ def get_arguments(get_columns):
 # # # # # # # # # # Success # # # # # # # # # #
 @pytest.mark.parametrize(("operation_par", "algorithm_par"), [
     ({}, {}),
-    ({"c": 2.0}, {"C": 2.0}),
+    ({"c": 1.1}, {"C": 1.1}),
     ({"kernel": "linear"}, {"kernel": "linear"}),
-    ({"degree": 2}, {"degree": 2}),
-    ({"tol": 0.1}, {"tol": 0.1}),
+    ({"degree": 4}, {"degree": 4}),
+    ({"tol": 1e-4}, {"tol": 1e-4}),
     ({'max_iter': 2}, {'max_iter': 2}),
     ({'seed': 2002}, {"random_state": 2002}),
     ({'gamma': 'auto'}, {'gamma': 'auto'}),
-    ({'coef0': 1.0}, {'coef0': 1.0}),
+    ({'coef0': 0.5}, {'coef0': 0.5}),
     ({'shrinking': 0}, {'shrinking': False}),
     ({'probability': 1}, {'probability': True}),
     ({'decision_function_shape': 'ovo'}, {'decision_function_shape': 'ovo'})
