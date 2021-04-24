@@ -44,13 +44,13 @@ def get_arguments(get_columns):
 # # # # # # # # # # Success # # # # # # # # # #
 @pytest.mark.parametrize(("operation_par", "algorithm_par"), [
     ({}, {}),
-    ({'n_neighbors': 10}, {'n_neighbors': 10}),
+    ({'n_neighbors': 6}, {'n_neighbors': 6}),
     ({'weights': 'distance'}, {'weights': 'distance'}),
     ({'algorithm': 'brute'}, {'algorithm': 'brute'}),
-    ({'leaf_size': 2}, {'leaf_size': 2}),
-    ({"p": 4}, {"p": 4}),
+    ({'leaf_size': 31}, {'leaf_size': 31}),
+    ({"p": 3}, {"p": 3}),
     ({"metric": "braycurtis"}, {"metric": "braycurtis"}),
-    ({'n_jobs': 2}, {'n_jobs': 2})
+    ({'n_jobs': -1}, {'n_jobs': -1})
 
 ], ids=["default_params", "n_neighbors_param", "classifier_weights_param",
         "classifier_algorithm_param", "leaf_size_param", "p_param",
