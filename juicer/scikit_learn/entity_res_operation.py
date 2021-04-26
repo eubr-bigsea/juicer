@@ -198,6 +198,10 @@ class ClassificationOperation(Operation):
             self.comparing = self.named_inputs.get('comparing data')
         if self.binarize is not None:
             self.binarize = float(self.binarize)
+        if self.use_col_names == 1:
+            self.use_col_names = True
+        else:
+            self.use_col_names = False
 
     def generate_code(self):
         if self.has_code:
