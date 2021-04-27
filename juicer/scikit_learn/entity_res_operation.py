@@ -206,18 +206,21 @@ class ClassificationOperation(Operation):
     def generate_code(self):
         if self.has_code:
             code = """
+            if {true_links} is not None:
+                {true_links} = pd.MultiIndex.from_frame({true_links}, names=('Record_1', 'Record_2'))
             if "{algorithm}" == "logistic-regression":
-                class = rl.LogisticRegressionClassifier(coefficients=[{coefficients}], intercept={intercept})
+                classification = rl.LogisticRegressionClassifier(coefficients=[{coefficients}], intercept={intercept})
+                #classification.fit({comparing_data}, None)
             elif "{algorithm}" == "svm":
-                class = rl.SVMClassifier()
-                class.fit({input}, {true_links})
+                classification = rl.SVMClassifier()
+                classification.fit({comparing_data}, {true_links})
             else:
-                class = rl.NaiveBayesClassifier(binarize={binarize}, alpha={alpha}, use_col_names={use_col_names})
-                class.fit({input}, {true_links})
-            links = class.predict({input})
+                classification = rl.NaiveBayesClassifier(binarize={binarize}, alpha={alpha}, use_col_names={use_col_names})
+                classification.fit({comparing_data}, {true_links})
+            links = classification.predict({comparing_data})
             {out} = links.to_frame().reset_index(drop=True).rename({{0:'Record_1', 1:'Record_2'}}, axis=1)
             """.format(out=self.output,
-                       input=self.comparing,
+                       comparing_data=self.comparing,
                        intercept=self.intercept,
                        coefficients=self.coefficients,
                        algorithm=self.algorithm,
