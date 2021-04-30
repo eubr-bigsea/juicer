@@ -57,7 +57,8 @@ def get_arguments(get_columns):
         "metric_param", "n_jobs_param"])
 def test_knn_classifier_params_success(get_columns, get_df, get_arguments,
                                        operation_par, algorithm_par):
-    test_df = get_df.astype(np.int64())
+    df = get_df.copy().astype(np.int64())
+    test_df = get_df.copy().astype(np.int64())
     arguments = get_arguments
 
     arguments['parameters'].update(operation_par)
@@ -68,7 +69,7 @@ def test_knn_classifier_params_success(get_columns, get_df, get_arguments,
     y = get_label_data(test_df, [get_columns[0]])
     y = np.reshape(y, len(y))
     result = util.execute(util.get_complete_code(instance),
-                          {'df': get_df.astype(np.int64())})
+                          {'df': df})
     model_1 = KNeighborsClassifier(n_neighbors=5,
                                    weights='uniform', algorithm='auto',
                                    leaf_size=30, p=2, metric='minkowski',
@@ -90,7 +91,7 @@ def test_knn_classifier_metric_params_param_success(get_df, get_columns,
          [2, 3], [3, 4],
          [4, 5], [5, 6],
          [6, 7], [7, 8],
-         [8, 9], [9, 10]], columns=['sepallength', 'sepalwidth'])
+         [8, 9], [9, 10]], columns=['sepallength', 'sepalwidth']).copy()
     test_df = df.copy()
     arguments = {
         'parameters': {'features': ['sepallength', 'sepalwidth'],

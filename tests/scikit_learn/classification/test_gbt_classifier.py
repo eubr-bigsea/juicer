@@ -94,7 +94,8 @@ def get_arguments(get_columns):
         "validation_fraction_param", "n_iter_no_change_param", "tol_param", ])
 def test_gbt_classifier_params_success(get_arguments, get_df, get_columns,
                                        operation_par, algorithm_par):
-    test_df = get_df.astype(np.int64())
+    df = get_df.copy().astype(np.int64())
+    test_df = get_df.copy().astype(np.int64())
     arguments = get_arguments
 
     arguments['parameters'].update(operation_par)
@@ -102,7 +103,7 @@ def test_gbt_classifier_params_success(get_arguments, get_df, get_columns,
     util.add_minimum_ml_args(arguments)
     instance = GBTClassifierModelOperation(**arguments)
     result = util.execute(util.get_complete_code(instance),
-                          {'df': get_df.astype(np.int64())})
+                          {'df': df})
     x_train = get_X_train_data(test_df, get_columns)
     y = get_label_data(test_df, [get_columns[0]])
     y = np.reshape(y, len(y))
@@ -127,25 +128,25 @@ def test_gbt_classifier_params_success(get_arguments, get_df, get_columns,
     assert str(result['model_task_1']) == str(model_1)
 
 
-def test_gbt_classifier_loss_param_success(get_arguments):
+def test_gbt_classifier_loss_param_success(get_arguments, get_columns):
     df = pd.DataFrame(
         [[5, 3], [4, 3],
          [4, 3], [4, 3],
          [5, 3], [5, 3],
          [4, 3], [5, 3],
-         [4, 2], [4, 3]], columns=['sepallength', 'sepalwidth'])
+         [4, 2], [4, 3]], columns=get_columns[0:2]).copy()
     test_df = df.copy()
 
     arguments = get_arguments
-    arguments['parameters'].update({'features': ['sepallength', 'sepalwidth'],
-                                    'label': ['sepallength'],
+    arguments['parameters'].update({'features': get_columns[0:2],
+                                    'label': [get_columns[0]],
                                     'loss': 'exponential',
                                     'random_state': 1})
     util.add_minimum_ml_args(arguments)
     instance = GBTClassifierModelOperation(**arguments)
     result = util.execute(util.get_complete_code(instance), {'df': df})
-    x_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
-    y = get_label_data(test_df, ['sepallength'])
+    x_train = get_X_train_data(test_df, get_columns[0:2])
+    y = get_label_data(test_df, [get_columns[0]])
     y = np.reshape(y, len(y))
     model_1 = GradientBoostingClassifier(loss='exponential',
                                          learning_rate=0.1,
@@ -167,9 +168,8 @@ def test_gbt_classifier_loss_param_success(get_arguments):
 
 def test_gbt_classifier_min_impurity_decrease_param_success(get_columns,
                                                             get_arguments):
-    df = util.iris(get_columns[0:2])
-    df = df.astype(np.int64())
-    test_df = df.copy()
+    df = util.iris(get_columns[0:2]).astype(np.int64())
+    test_df = util.iris(get_columns[0:2]).astype(np.int64())
     arguments = get_arguments
 
     arguments['parameters'].update({"features": get_columns[0:2],
@@ -179,8 +179,8 @@ def test_gbt_classifier_min_impurity_decrease_param_success(get_columns,
     util.add_minimum_ml_args(arguments)
     instance = GBTClassifierModelOperation(**arguments)
     result = util.execute(util.get_complete_code(instance), {'df': df})
-    x_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
-    y = get_label_data(test_df, ['sepallength'])
+    x_train = get_X_train_data(test_df, get_columns[0:2])
+    y = get_label_data(test_df, [get_columns[0]])
     y = np.reshape(y, len(y))
     model_1 = GradientBoostingClassifier(loss='deviance',
                                          learning_rate=0.1,

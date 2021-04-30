@@ -107,14 +107,15 @@ def get_arguments(get_columns):
         "n_iter_no_change_param", "max_fun_param"])
 def test_mlp_classifier_params_success(get_arguments, get_df, get_columns,
                                        operation_par, algorithm_par):
-    test_df = get_df.astype(np.int64())
+    df = get_df.copy().astype(np.int64())
+    test_df = get_df.copy().astype(np.int64())
     arguments = get_arguments
     arguments['parameters'].update(operation_par)
 
     arguments = util.add_minimum_ml_args(arguments)
     instance = MLPClassifierModelOperation(**arguments)
     result = util.execute(util.get_complete_code(instance),
-                          {'df': get_df.astype(np.int64())})
+                          {'df': df})
     x_train = get_X_train_data(test_df, get_columns)
     y = get_label_data(test_df, [get_columns[0]])
     y = np.reshape(y, len(y))

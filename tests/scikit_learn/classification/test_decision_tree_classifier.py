@@ -74,7 +74,8 @@ def get_arguments(get_columns):
 def test_decision_tree_classifier_params_success(get_arguments, get_df,
                                                  get_columns,
                                                  operation_par, algorithm_par):
-    test_df = get_df.astype(np.int64())
+    df = get_df.copy().astype(np.int64())
+    test_df = get_df.copy().astype(np.int64())
     arguments = get_arguments
 
     arguments['parameters'].update(operation_par)
@@ -82,7 +83,7 @@ def test_decision_tree_classifier_params_success(get_arguments, get_df,
     util.add_minimum_ml_args(arguments)
     instance = DecisionTreeClassifierModelOperation(**arguments)
     result = util.execute(util.get_complete_code(instance),
-                          {'df': get_df.astype(np.int64())})
+                          {'df': df})
     x_train = get_X_train_data(test_df, get_columns)
     y = get_label_data(test_df, [get_columns[0]])
     y = np.reshape(y, len(y))
@@ -135,19 +136,9 @@ def test_decision_tree_classifier_no_code_success(get_arguments, selector, drop)
                                  "max_depth"])
 # # # # # # # # # # Fail # # # # # # # # # #
 def test_decision_tree_classifier_invalid_params_fail(
-        par):
-    arguments = {
-        'parameters': {'features': ['sepallength', 'sepalwidth'],
-                       'multiplicity': {'train input data': 0},
-                       'label': ['sepallength'],
-                       par: -1},
-        'named_inputs': {
-            'train input data': 'df',
-        },
-        'named_outputs': {
-            'output data': 'out'
-        }
-    }
+        par, get_arguments):
+    arguments = get_arguments
+    arguments['parameters'].update({par: -1})
     util.add_minimum_ml_args(arguments)
     with pytest.raises(ValueError) as val_err:
         DecisionTreeClassifierModelOperation(**arguments)
@@ -155,19 +146,9 @@ def test_decision_tree_classifier_invalid_params_fail(
            f" {DecisionTreeClassifierOperation}" in str(val_err)
 
 
-def test_decision_tree_classifier_invalid_min_weight_param_fail():
-    arguments = {
-        'parameters': {'features': ['sepallength', 'sepalwidth'],
-                       'multiplicity': {'train input data': 0},
-                       'label': ['sepallength'],
-                       'min_weight': -1},
-        'named_inputs': {
-            'train input data': 'df',
-        },
-        'named_outputs': {
-            'output data': 'out'
-        }
-    }
+def test_decision_tree_classifier_invalid_min_weight_param_fail(get_arguments):
+    arguments = get_arguments
+    arguments['parameters'].update({'min_weight': -1})
     util.add_minimum_ml_args(arguments)
     with pytest.raises(ValueError) as val_err:
         DecisionTreeClassifierModelOperation(**arguments)
@@ -175,19 +156,10 @@ def test_decision_tree_classifier_invalid_min_weight_param_fail():
            f" {DecisionTreeClassifierOperation}" in str(val_err)
 
 
-def test_decision_tree_classifier_min_impurity_decrease_param_fail():
-    arguments = {
-        'parameters': {'features': ['sepallength', 'sepalwidth'],
-                       'multiplicity': {'train input data': 0},
-                       'label': ['sepallength'],
-                       'min_impurity_decrease': -1},
-        'named_inputs': {
-            'train input data': 'df',
-        },
-        'named_outputs': {
-            'output data': 'out'
-        }
-    }
+def test_decision_tree_classifier_min_impurity_decrease_param_fail(
+        get_arguments):
+    arguments = get_arguments
+    arguments['parameters'].update({'min_impurity_decrease': -1})
     util.add_minimum_ml_args(arguments)
     with pytest.raises(ValueError) as val_err:
         DecisionTreeClassifierModelOperation(**arguments)
