@@ -3,7 +3,7 @@ import pytest
 from sklearn.isotonic import IsotonicRegression
 
 from juicer.scikit_learn.regression_operation import \
-    IsotonicRegressionModelOperation
+    IsotonicRegressionModelOperation, IsotonicRegressionOperation
 from tests.scikit_learn import util
 
 
@@ -111,7 +111,8 @@ def test_isotonic_regression_invalid_size_features_param_fail(get_arguments):
                                     'isotonic': False})
     with pytest.raises(ValueError) as val_err:
         IsotonicRegressionModelOperation(**arguments)
-    assert "Parameter 'features' must be x<2 for task" in \
+    assert f"Parameter 'features' must be x<2 for task" \
+           f" {IsotonicRegressionOperation}" in \
            str(val_err.value)
 
 
@@ -122,4 +123,5 @@ def test_isotonic_regression_invalid_y_min_y_max_params_values_fail(
     with pytest.raises(ValueError) as val_err:
         IsotonicRegressionModelOperation(**arguments)
     assert "Parameter 'y_min' must be less than or equal" \
-           " to 'y_max' for task" in str(val_err.value)
+           f" to 'y_max' for " \
+           f"task {IsotonicRegressionOperation}" in str(val_err.value)

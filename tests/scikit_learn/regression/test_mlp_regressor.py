@@ -1,7 +1,8 @@
 import pytest
 from sklearn.neural_network import MLPRegressor
 
-from juicer.scikit_learn.regression_operation import MLPRegressorModelOperation
+from juicer.scikit_learn.regression_operation import MLPRegressorModelOperation, \
+    MLPRegressorOperation
 from tests.scikit_learn import util
 from tests.scikit_learn.util import get_X_train_data, get_label_data
 
@@ -175,7 +176,7 @@ def test_mlp_regressor_invalid_layer_sizes_param_fail(get_arguments):
         MLPRegressorModelOperation(**arguments)
 
     assert "Parameter 'layer_sizes' must be a tuple with the size of each" \
-           " layer for task" in str(val_err)
+           f" layer for task {MLPRegressorOperation}" in str(val_err)
 
 
 @pytest.mark.parametrize('par', ['alpha', 'max_iter', 'tol'])
@@ -184,7 +185,8 @@ def test_mlp_regressor_multiple_invalid_params_fail(get_arguments, par):
     arguments['parameters'].update({par: -1})
     with pytest.raises(ValueError) as val_err:
         MLPRegressorModelOperation(**arguments)
-    assert f"Parameter '{par}' must be x>=0 for task" in str(val_err.value)
+    assert f"Parameter '{par}' must be x>=0 for task" \
+           f" {MLPRegressorOperation}" in str(val_err.value)
 
 
 def test_mlp_regressor_invalid_momentum_param_fail(get_arguments):
@@ -193,7 +195,7 @@ def test_mlp_regressor_invalid_momentum_param_fail(get_arguments):
     with pytest.raises(ValueError) as val_err:
         MLPRegressorModelOperation(**arguments)
     assert "Parameter 'momentum' must be x between" \
-           " 0 and 1 for task" in str(val_err.value)
+           f" 0 and 1 for task {MLPRegressorOperation}" in str(val_err.value)
 
 
 @pytest.mark.parametrize('par', ['beta_1', 'beta_2'])
@@ -202,4 +204,5 @@ def test_mlp_regressor_invalid_beta_1_param_fail(get_arguments, par):
     arguments['parameters'].update({par: -1})
     with pytest.raises(ValueError) as val_err:
         MLPRegressorModelOperation(**arguments)
-    assert f"Parameter '{par}' must be in [0, 1) for task" in str(val_err.value)
+    assert f"Parameter '{par}' must be in [0, 1) for task" \
+           f" {MLPRegressorOperation}" in str(val_err.value)

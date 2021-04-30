@@ -2,7 +2,8 @@ import numpy as np
 import pytest
 from sklearn.linear_model import SGDRegressor
 
-from juicer.scikit_learn.regression_operation import SGDRegressorModelOperation
+from juicer.scikit_learn.regression_operation import SGDRegressorModelOperation, \
+    SGDRegressorOperation
 from tests.scikit_learn import util
 from tests.scikit_learn.util import get_X_train_data, get_label_data
 
@@ -138,7 +139,8 @@ def test_sgd_regressor_multiple_invalid_params_fail(get_arguments, par):
     arguments['parameters'].update({par: -1})
     with pytest.raises(ValueError) as val_err:
         SGDRegressorModelOperation(**arguments)
-    assert f"Parameter '{par}' must be x>0 for task" in str(val_err.value)
+    assert f"Parameter '{par}' must be x>0 for task" \
+           f" {SGDRegressorOperation}" in str(val_err.value)
 
 
 @pytest.mark.parametrize('par', ['l1_ratio', 'validation_fraction'])
@@ -147,8 +149,8 @@ def test_sgd_regressor_multiple_invalid_params_2_fail(get_arguments, par):
     arguments['parameters'].update({par: -1})
     with pytest.raises(ValueError) as val_err:
         SGDRegressorModelOperation(**arguments)
-    assert f"Parameter '{par}' must be 0 <= x =< 1 for task" in str(
-        val_err.value)
+    assert f"Parameter '{par}' must be 0 <= x =< 1 for task" \
+           f" {SGDRegressorOperation}" in str(val_err.value)
 
 
 def test_sgd_regressor_invalid_random_state_param_fail(get_arguments):
@@ -156,5 +158,5 @@ def test_sgd_regressor_invalid_random_state_param_fail(get_arguments):
     arguments['parameters'].update({'random_state': -1})
     with pytest.raises(ValueError) as val_err:
         SGDRegressorModelOperation(**arguments)
-    assert "Parameter 'random_state' must be x >= 0 for task" in str(
-        val_err.value)
+    assert f"Parameter 'random_state' must be x >= 0 for task" \
+           f" {SGDRegressorOperation}" in str(val_err.value)

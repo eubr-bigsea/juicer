@@ -1,7 +1,9 @@
 import pytest
 from sklearn.linear_model import HuberRegressor
 
-from juicer.scikit_learn.regression_operation import HuberRegressorModelOperation
+from juicer.scikit_learn.regression_operation import \
+    HuberRegressorModelOperation, \
+    HuberRegressorOperation
 from tests.scikit_learn import util
 
 
@@ -109,7 +111,8 @@ def test_huber_regressor_invalid_max_iter_param_fail(par, get_arguments):
     arguments['parameters'].update({par: -1})
     with pytest.raises(ValueError) as val_err:
         HuberRegressorModelOperation(**arguments)
-    assert f"Parameter '{par}' must be x>0 for task" in str(val_err.value)
+    assert f"Parameter '{par}' must be x>0 for task" \
+           f" {HuberRegressorOperation}" in str(val_err.value)
 
 
 def test_huber_regressor_invalid_epsilon_param_fail(get_arguments):
@@ -117,4 +120,5 @@ def test_huber_regressor_invalid_epsilon_param_fail(get_arguments):
     arguments['parameters'].update({'epsilon': 0.5})
     with pytest.raises(ValueError) as val_err:
         HuberRegressorModelOperation(**arguments)
-    assert "Parameter 'epsilon' must be x>1.0 for task" in str(val_err.value)
+    assert f"Parameter 'epsilon' must be x>1.0 for task" \
+           f" {HuberRegressorOperation}" in str(val_err.value)
