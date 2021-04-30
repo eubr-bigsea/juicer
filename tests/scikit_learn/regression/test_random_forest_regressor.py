@@ -3,7 +3,7 @@ import pytest
 from sklearn.ensemble import RandomForestRegressor
 
 from juicer.scikit_learn.regression_operation import \
-    RandomForestRegressorModelOperation
+    RandomForestRegressorModelOperation, RandomForestRegressorOperation
 from tests.scikit_learn import util
 from tests.scikit_learn.util import get_X_train_data, get_label_data
 
@@ -135,7 +135,8 @@ def test_random_forest_regressor_multiple_params_fail(par, get_arguments):
     arguments['parameters'].update({par: -1})
     with pytest.raises(ValueError) as val_err:
         RandomForestRegressorModelOperation(**arguments)
-    assert f"Parameter '{par}' must be x>0 for task" in str(val_err.value)
+    assert f"Parameter '{par}' must be x>0 for task" \
+           f" {RandomForestRegressorOperation}" in str(val_err.value)
 
 
 def test_random_forest_regressor_invalid_n_jobs_param_fail(get_arguments):
@@ -143,7 +144,8 @@ def test_random_forest_regressor_invalid_n_jobs_param_fail(get_arguments):
     arguments['parameters'].update({'n_jobs': -3})
     with pytest.raises(ValueError) as val_err:
         RandomForestRegressorModelOperation(**arguments)
-    assert "Parameter 'n_jobs' must be x >= -1 for task" in str(val_err.value)
+    assert f"Parameter 'n_jobs' must be x >= -1 for task" \
+           f" {RandomForestRegressorOperation}" in str(val_err.value)
 
 
 def test_random_forest_regressor_invalid_max_depth_param_fail(get_arguments):
@@ -151,8 +153,8 @@ def test_random_forest_regressor_invalid_max_depth_param_fail(get_arguments):
     arguments['parameters'].update({'max_depth': -5})
     with pytest.raises(ValueError) as val_err:
         RandomForestRegressorModelOperation(**arguments)
-    assert "Parameter 'max_depth' must be x>0 or None for task" in str(
-        val_err.value)
+    assert f"Parameter 'max_depth' must be x>0 or None for task" \
+           f" {RandomForestRegressorOperation}" in str(val_err.value)
 
 
 def test_random_forest_regressor_invalid_random_state_param_fail(get_arguments):
@@ -160,8 +162,8 @@ def test_random_forest_regressor_invalid_random_state_param_fail(get_arguments):
     arguments['parameters'].update({'random_state': -1})
     with pytest.raises(ValueError) as val_err:
         RandomForestRegressorModelOperation(**arguments)
-    assert "Parameter 'random_state' must be x>=0 or None for task" in str(
-        val_err.value)
+    assert f"Parameter 'random_state' must be x>=0 or None for task" \
+           f" {RandomForestRegressorOperation}" in str(val_err.value)
 
 
 def test_random_forest_regressor_invalid_min_weight_fraction_leaf_param_fail(
@@ -171,7 +173,8 @@ def test_random_forest_regressor_invalid_min_weight_fraction_leaf_param_fail(
     with pytest.raises(ValueError) as val_err:
         RandomForestRegressorModelOperation(**arguments)
     assert "Parameter 'min_weight_fraction_leaf' must be x >= 0 and x" \
-           " <= 0.5 for task" in str(val_err.value)
+           f" <= 0.5 for task {RandomForestRegressorOperation}" in str(
+        val_err.value)
 
 
 def test_random_forest_regressor_invalid_min_impurity_decrease_param_fail(
@@ -181,4 +184,4 @@ def test_random_forest_regressor_invalid_min_impurity_decrease_param_fail(
     with pytest.raises(ValueError) as val_err:
         RandomForestRegressorModelOperation(**arguments)
     assert "Parameter 'min_impurity_decrease' must be x>=0 or None for task" \
-           in str(val_err.value)
+           f" {RandomForestRegressorOperation}" in str(val_err.value)

@@ -3,7 +3,7 @@ import pytest
 from sklearn.linear_model import ElasticNet
 
 from juicer.scikit_learn.regression_operation import \
-    LinearRegressionModelOperation
+    LinearRegressionModelOperation, LinearRegressionOperation
 from tests.scikit_learn import util
 from tests.scikit_learn.util import get_X_train_data, get_label_data
 
@@ -124,7 +124,8 @@ def test_linear_regression_invalid_params_fail(get_arguments, par):
     arguments['parameters'].update({par: -1})
     with pytest.raises(ValueError) as val_err:
         LinearRegressionModelOperation(**arguments)
-    assert f"Parameter '{par}' must be x>0 for task" in str(val_err.value)
+    assert f"Parameter '{par}' must be x>0 for task" \
+           f" {LinearRegressionOperation}" in str(val_err.value)
 
 
 def test_linear_regression_invalid_l1_ratio_param_fail(get_arguments):
@@ -132,7 +133,8 @@ def test_linear_regression_invalid_l1_ratio_param_fail(get_arguments):
     arguments['parameters'].update({'l1_ratio': -1})
     with pytest.raises(ValueError) as val_err:
         LinearRegressionModelOperation(**arguments)
-    assert "Parameter 'l1_ratio' must be 0<=x<=1 for task" in str(val_err.value)
+    assert f"Parameter 'l1_ratio' must be 0<=x<=1 for task" \
+           f" {LinearRegressionOperation}" in str(val_err.value)
 
 
 def test_linear_regression_invalid_random_state_param_fail(get_arguments):
@@ -140,15 +142,8 @@ def test_linear_regression_invalid_random_state_param_fail(get_arguments):
     arguments['parameters'].update({'random_state': -1})
     with pytest.raises(ValueError) as val_err:
         LinearRegressionModelOperation(**arguments)
-    assert "Parameter 'random_state' must be x>=0 for task" in str(val_err.value)
-
-
-def test_linear_regression_missing_features_param_fail(get_arguments):
-    arguments = get_arguments
-    arguments['parameters'].pop('features')
-    with pytest.raises(KeyError) as key_err:
-        LinearRegressionModelOperation(**arguments)
-    assert "features" in str(key_err.value)
+    assert f"Parameter 'random_state' must be x>=0 for task" \
+           f" {LinearRegressionOperation}" in str(val_err.value)
 
 
 def test_linear_regression_missing_label_param_fail(get_arguments):
@@ -156,5 +151,6 @@ def test_linear_regression_missing_label_param_fail(get_arguments):
     arguments['parameters'].pop('label')
     with pytest.raises(ValueError) as val_err:
         LinearRegressionModelOperation(**arguments)
-    assert "Parameters 'features' and 'label' must be informed for task" in str(
+    assert "Parameters 'features' and 'label' must be informed for task" \
+           " RegressionModelOperation" in str(
         val_err.value)

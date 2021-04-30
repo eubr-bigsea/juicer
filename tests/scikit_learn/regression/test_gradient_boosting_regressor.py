@@ -3,7 +3,7 @@ import pytest
 from sklearn.ensemble import GradientBoostingRegressor
 
 from juicer.scikit_learn.regression_operation import \
-    GradientBoostingRegressorModelOperation
+    GradientBoostingRegressorModelOperation, GradientBoostingRegressorOperation
 from tests.scikit_learn import util
 from tests.scikit_learn.util import get_X_train_data, get_label_data
 
@@ -151,7 +151,8 @@ def test_gradient_boosting_regressor_invalid_params_1_fail(par, get_arguments):
     arguments['parameters'].update({par: -1})
     with pytest.raises(ValueError) as val_err:
         GradientBoostingRegressorModelOperation(**arguments)
-    assert f"Parameter '{par}' must be x>0 for task" in str(val_err.value)
+    assert f"Parameter '{par}' must be x>0 for task" \
+           f" {GradientBoostingRegressorOperation}" in str(val_err.value)
 
 
 @pytest.mark.parametrize('par', ['random_state', 'n_iter_no_change'])
@@ -161,8 +162,8 @@ def test_gradient_boosting_regressor_invalid_params_2_fail(
     arguments['parameters'].update({par: -1})
     with pytest.raises(ValueError) as val_err:
         GradientBoostingRegressorModelOperation(**arguments)
-    assert f"Parameter '{par}' must be x >= 0 or None for task" in str(
-        val_err.value)
+    assert f"Parameter '{par}' must be x >= 0 or None for task" \
+           f" {GradientBoostingRegressorOperation}" in str(val_err.value)
 
 
 @pytest.mark.parametrize('par', ['cc_alpha', 'min_impurity_decrease'])
@@ -172,7 +173,8 @@ def test_gradient_boosting_regressor_cc_alpha_min_impurity_params_fail(
     arguments['parameters'].update({par: -1})
     with pytest.raises(ValueError) as val_err:
         GradientBoostingRegressorModelOperation(**arguments)
-    assert f"Parameter '{par}' must be x >= 0 for task" in str(val_err.value)
+    assert f"Parameter '{par}' must be x >= 0 for task" \
+           f" {GradientBoostingRegressorOperation}" in str(val_err.value)
 
 
 def test_gradient_boosting_regressor_invalid_validation_fraction_param_fail(
@@ -181,8 +183,8 @@ def test_gradient_boosting_regressor_invalid_validation_fraction_param_fail(
     arguments['parameters'].update({'validation_fraction': -1})
     with pytest.raises(ValueError) as val_err:
         GradientBoostingRegressorModelOperation(**arguments)
-    assert "Parameter 'validation_fraction' must be 0 <= x <= 1 for task" in str(
-        val_err.value)
+    assert f"Parameter 'validation_fraction' must be 0 <= x <= 1 for task" \
+           f" {GradientBoostingRegressorOperation}" in str(val_err.value)
 
 
 def test_gradient_boosting_regressor_invalid_subsample_param_fail(get_arguments):
@@ -190,8 +192,8 @@ def test_gradient_boosting_regressor_invalid_subsample_param_fail(get_arguments)
     arguments['parameters'].update({'subsample': -1})
     with pytest.raises(ValueError) as val_err:
         GradientBoostingRegressorModelOperation(**arguments)
-    assert "Parameter 'subsample' must be 0 < x <= 1 for task" in str(
-        val_err.value)
+    assert f"Parameter 'subsample' must be 0 < x <= 1 for task" \
+           f" {GradientBoostingRegressorOperation}" in str(val_err.value)
 
 
 def test_gradient_boosting_regressor_invalid_min_wight_fraction_leaf_param_fail(

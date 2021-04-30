@@ -114,14 +114,14 @@ def test_generalized_linear_regression_no_code_success(selector, drop,
 
 
 # # # # # # # # # # Fail # # # # # # # # # #
-def test_generalized_linear_regression_missing_labels_param_fail(get_arguments):
+def test_generalized_linear_regression_missing_label_param_fail(get_arguments):
     arguments = get_arguments
     arguments['parameters'].pop('label')
     with pytest.raises(ValueError) as val_err:
         GeneralizedLinearRegressionModelOperation(**arguments)
     print(val_err)
-    assert "Parameters 'features' and 'label' must be informed for task" in str(
-        val_err.value)
+    assert "Parameters 'features' and 'label' must be informed for task" \
+           " RegressionModelOperation" in str(val_err.value)
 
 
 def test_generalized_linear_regression_invalid_n_jobs_param_fail(get_arguments):
