@@ -51,7 +51,8 @@ def test_naive_bayes_classifier_multinomialnb_params_success(get_columns,
                                                              get_df,
                                                              operation_par,
                                                              algorithm_par):
-    test_df = get_df.astype(np.int64())
+    df = get_df.copy().astype(np.int64())
+    test_df = get_df.copy().astype(np.int64())
     arguments = get_arguments
 
     arguments['parameters'].update(operation_par)
@@ -59,7 +60,7 @@ def test_naive_bayes_classifier_multinomialnb_params_success(get_columns,
     arguments = util.add_minimum_ml_args(arguments)
     instance = NaiveBayesClassifierModelOperation(**arguments)
     result = util.execute(util.get_complete_code(instance),
-                          {'df': get_df.astype(np.int64())})
+                          {'df': df})
     x_train = get_X_train_data(test_df, get_columns)
     y = get_label_data(test_df, [get_columns[0]])
     y = np.reshape(y, len(y))
@@ -76,26 +77,26 @@ def test_naive_bayes_classifier_multinomialnb_params_success(get_columns,
 
 
 def test_naive_bayes_classifier_multinomialnb_class_prior_param_success(
-        get_arguments):
+        get_arguments, get_columns):
     df = pd.DataFrame(
         [[0, 1], [1, 2],
          [2, 3], [3, 4],
          [4, 5], [5, 6],
          [6, 7], [7, 8],
-         [8, 9], [9, 10]], columns=['sepallength', 'sepalwidth'])
+         [8, 9], [9, 10]], columns=get_columns[0:2]).copy()
+    test_df = df.copy()
 
     arguments = get_arguments
-    arguments['parameters'].update({'features': ['sepallength', 'sepalwidth'],
-                                    'label': ['sepalwidth'],
+    arguments['parameters'].update({'features': get_columns[0:2],
+                                    'label': [get_columns[0]],
                                     'class_prior': "0.1, 0.1, 0.1, 0.1, 0.1,"
                                                    " 0.1, 0.1, 0.1, 0.1, 0.1"})
-    test_df = df.copy()
     arguments = util.add_minimum_ml_args(arguments)
     instance = NaiveBayesClassifierModelOperation(**arguments)
     result = util.execute(util.get_complete_code(instance),
                           {'df': df})
-    x_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
-    y = get_label_data(test_df, ['sepalwidth'])
+    x_train = get_X_train_data(test_df, get_columns[0:2])
+    y = get_label_data(test_df, [get_columns[0]])
     y = np.reshape(y, len(y))
     model_1 = MultinomialNB(alpha=1.0,
                             class_prior=[0.1, 0.1, 0.1, 0.1, 0.1,
@@ -109,7 +110,8 @@ def test_naive_bayes_classifier_multinomialnb_class_prior_param_success(
 
 def test_naive_bayes_classifier_type_gaussiannb_var_smoothing_param_success(
         get_arguments, get_df, get_columns):
-    test_df = get_df.astype(np.int64())
+    df = get_df.copy().astype(np.int64())
+    test_df = get_df.copy().astype(np.int64())
     arguments = get_arguments
 
     arguments['parameters'].update({"type": "GuassianNB", "var_smoothing": 1e-8})
@@ -117,7 +119,7 @@ def test_naive_bayes_classifier_type_gaussiannb_var_smoothing_param_success(
     arguments = util.add_minimum_ml_args(arguments)
     instance = NaiveBayesClassifierModelOperation(**arguments)
     result = util.execute(util.get_complete_code(instance),
-                          {'df': get_df.astype(np.int64())})
+                          {'df': df})
     x_train = get_X_train_data(test_df, get_columns)
     y = get_label_data(test_df, [get_columns[0]])
     y = np.reshape(y, len(y))
@@ -130,21 +132,20 @@ def test_naive_bayes_classifier_type_gaussiannb_var_smoothing_param_success(
 
 
 def test_naive_bayes_classifier_type_gaussiannb_priors_param_success(
-        get_arguments):
-    df = util.iris(['sepallength', 'sepalwidth'], size=10)
-    df = df.astype(np.int64())
+        get_arguments, get_columns):
+    df = util.iris(get_columns[0:2], size=10).astype(np.int64())
     test_df = df.copy()
 
     arguments = get_arguments
     arguments['parameters'].update({'type': 'GaussianNB', 'priors': "0.5, 0.5",
-                                    'features': ['sepallength', 'sepalwidth'],
-                                    'label': ['sepalwidth']})
+                                    'features': get_columns[0:2],
+                                    'label': [get_columns[0]]})
     arguments = util.add_minimum_ml_args(arguments)
     instance = NaiveBayesClassifierModelOperation(**arguments)
     result = util.execute(util.get_complete_code(instance),
                           {'df': df})
-    x_train = get_X_train_data(test_df, ['sepallength', 'sepalwidth'])
-    y = get_label_data(test_df, ['sepalwidth'])
+    x_train = get_X_train_data(test_df, get_columns[0:2])
+    y = get_label_data(test_df, [get_columns[0]])
     y = np.reshape(y, len(y))
     model_1 = GaussianNB(priors=[0.5, 0.5],
                          var_smoothing=1e-09)
@@ -154,14 +155,11 @@ def test_naive_bayes_classifier_type_gaussiannb_priors_param_success(
     assert str(result['model_task_1']) == str(model_1)
 
 
-def test_naive_bayes_classifier_type_bernoulli_binarize_param_success(
-
-        get_df,
-        get_arguments,
-        get_columns
-
-):
-    test_df = get_df.astype(np.int64())
+def test_naive_bayes_classifier_type_bernoulli_binarize_param_success(get_df,
+                                                                      get_arguments,
+                                                                      get_columns):
+    df = get_df.copy().astype(np.int64())
+    test_df = get_df.copy().astype(np.int64())
 
     arguments = get_arguments
     arguments['parameters'].update({'type': 'Bernoulli', 'binarize': 10})
@@ -169,7 +167,7 @@ def test_naive_bayes_classifier_type_bernoulli_binarize_param_success(
     arguments = util.add_minimum_ml_args(arguments)
     instance = NaiveBayesClassifierModelOperation(**arguments)
     result = util.execute(util.get_complete_code(instance),
-                          {'df': get_df.astype(np.int64())})
+                          {'df': df})
     x_train = get_X_train_data(test_df, get_columns)
     y = get_label_data(test_df, [get_columns[0]])
     y = np.reshape(y, len(y))

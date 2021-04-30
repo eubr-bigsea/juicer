@@ -86,16 +86,18 @@ def get_arguments(get_columns):
         'max_leaf_nodes_param', 'min_impurity_decrease_param',
         "bootstrap_param", 'oob_score_param', 'n_jobs_param', 'ccp_alpha_param',
         "max_samples_param"])
-def test_random_forest_classifier_params_success(get_arguments, get_df, get_columns,
-                                          operation_par, algorithm_par):
-    test_df = get_df.astype(np.int64())
+def test_random_forest_classifier_params_success(get_arguments, get_df,
+                                                 get_columns,
+                                                 operation_par, algorithm_par):
+    df = get_df.copy().astype(np.int64())
+    test_df = get_df.copy().astype(np.int64())
     arguments = get_arguments
     arguments['parameters'].update(operation_par)
 
     arguments = util.add_minimum_ml_args(arguments)
     instance = RandomForestClassifierModelOperation(**arguments)
     result = util.execute(util.get_complete_code(instance),
-                          {'df': get_df.astype(np.int64())})
+                          {'df': df})
     x_train = get_X_train_data(test_df, get_columns)
     y = get_label_data(test_df, [get_columns[0]])
     y = np.reshape(y, len(y))
@@ -125,7 +127,7 @@ def test_random_forest_classifier_prediction_param_success(get_df, get_columns,
     arguments = util.add_minimum_ml_args(arguments)
     instance = RandomForestClassifierModelOperation(**arguments)
     result = util.execute(util.get_complete_code(instance),
-                          {'df': get_df.astype(np.int64())})
+                          {'df': get_df.copy().astype(np.int64())})
     assert result['out'].columns[4] == 'success'
 
 
