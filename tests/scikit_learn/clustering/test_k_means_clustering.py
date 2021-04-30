@@ -43,14 +43,16 @@ def get_arguments(get_columns):
 @pytest.mark.parametrize(("operation_par", "algorithm_par"), [
     ({"random_state": 1}, {"random_state": 1}),
 
-    ({"n_clusters": 10, "random_state": 1}, {"n_clusters": 10, "random_state": 1}),
+    ({"n_clusters": 10, "random_state": 1},
+     {"n_clusters": 10, "random_state": 1}),
 
     ({'init': 'random', 'random_state': 1},
      {'init': 'random', 'random_state': 1}),
 
     ({'max_iter': 120, 'random_state': 1}, {'max_iter': 120, 'random_state': 1}),
 
-    ({'tolerance': 0.0005, 'random_state': 1}, {'tol': 0.0005, 'random_state': 1}),
+    ({'tolerance': 0.0005, 'random_state': 1},
+     {'tol': 0.0005, 'random_state': 1}),
 
     ({'n_init': 12, 'random_state': 1}, {'n_init': 12, 'random_state': 1}),
 
@@ -63,14 +65,15 @@ def get_arguments(get_columns):
         "tol_param", "n_init_param", "n_jobs_param", "algorithm_param"])
 def test_k_means_clustering_params_success(get_df, get_arguments, get_columns,
                                            operation_par, algorithm_par):
-    test_df = get_df
+    df = get_df.copy()
+    test_df = get_df.copy()
     arguments = get_arguments
 
     arguments['parameters'].update(operation_par)
 
     arguments = util.add_minimum_ml_args(arguments)
     instance = KMeansModelOperation(**arguments)
-    result = util.execute(util.get_complete_code(instance), {'df': get_df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     x_train = get_X_train_data(test_df, get_columns)
 
     model_1 = KMeans(n_clusters=8, init='k-means++', max_iter=100,

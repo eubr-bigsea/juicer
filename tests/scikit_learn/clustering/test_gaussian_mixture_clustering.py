@@ -64,7 +64,8 @@ def get_arguments(get_columns):
 def test_gaussian_mixture_clustering_params_success(get_df, get_arguments,
                                                     get_columns, operation_par,
                                                     algorithm_par):
-    test_df = get_df
+    df = get_df.copy()
+    test_df = get_df.copy()
     arguments = get_arguments
 
     arguments['parameters'].update(operation_par)
@@ -72,7 +73,7 @@ def test_gaussian_mixture_clustering_params_success(get_df, get_arguments,
     arguments = util.add_minimum_ml_args(arguments)
     instance = GaussianMixtureClusteringModelOperation(**arguments)
     result = util.execute(util.get_complete_code(instance),
-                          {'df': get_df})
+                          {'df': df})
     x_train = get_X_train_data(test_df, get_columns)
     model_1 = GaussianMixture(n_components=1, max_iter=100, tol=0.001,
                               covariance_type='full', reg_covar=1e-06,
