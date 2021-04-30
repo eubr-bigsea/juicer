@@ -53,14 +53,15 @@ def get_arguments(get_columns):
 def test_agglomerative_clustering_params_success(get_columns, get_arguments,
                                                  get_df, operation_par,
                                                  algorithm_par):
-    test_df = get_df
+    df = get_df.copy()
+    test_df = get_df.copy()
     arguments = get_arguments
 
     arguments['parameters'].update(operation_par)
 
     arguments = util.add_minimum_ml_args(arguments)
     instance = AgglomerativeModelOperation(**arguments)
-    result = util.execute(util.get_complete_code(instance), {'df': get_df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     x_train = get_X_train_data(test_df, get_columns)
     agg = AGC(n_clusters=2, linkage='ward', affinity='euclidean')
 

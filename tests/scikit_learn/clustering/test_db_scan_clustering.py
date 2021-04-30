@@ -54,14 +54,15 @@ def test_db_scan_clustering_params_success(get_df,
                                            get_columns,
                                            operation_par,
                                            algorithm_par):
-    test_df = get_df
+    df = get_df.copy()
+    test_df = get_df.copy()
     arguments = get_arguments
 
     arguments['parameters'].update(operation_par)
 
     arguments = util.add_minimum_ml_args(arguments)
     instance = DBSCANClusteringModelOperation(**arguments)
-    result = util.execute(util.get_complete_code(instance), {'df': get_df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     x_train = get_X_train_data(test_df,
                                get_columns)
     dbscan = DBSCAN(eps=0.5, min_samples=5, metric='euclidean')

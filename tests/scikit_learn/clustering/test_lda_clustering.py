@@ -61,7 +61,8 @@ def get_arguments(get_columns):
         "topic_word_prior_param", "learning_method_param", "max_iter_param"])
 def test_lda_clustering_params_success(get_columns, get_df, get_arguments,
                                        operation_par, algorithm_par):
-    test_df = get_df
+    df = get_df.copy()
+    test_df = get_df.copy()
     arguments = get_arguments
 
     arguments['parameters'].update(operation_par)
@@ -69,7 +70,7 @@ def test_lda_clustering_params_success(get_columns, get_df, get_arguments,
     arguments = util.add_minimum_ml_args(arguments)
     instance = LdaClusteringModelOperation(**arguments)
     result = util.execute(util.get_complete_code(instance),
-                          {'df': get_df})
+                          {'df': df})
 
     model_1 = LatentDirichletAllocation(n_components=10,
                                         doc_topic_prior=None,
