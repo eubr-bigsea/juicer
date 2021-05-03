@@ -96,7 +96,7 @@ class ComparingOperation(Operation):
     - attributes: list of the attributes that will be used to do de comparing.
     """
 
-    ATTRIBUTES_PARAM = 'attributes'
+    EXPRESSION_PARAM = 'expression'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
@@ -106,12 +106,17 @@ class ComparingOperation(Operation):
         self.has_code = len(self.named_inputs) > 0 and any(
             [len(self.named_outputs) >= 1, self.contains_results()])
         if self.has_code:
-            self.attributes = parameters['attributes']
+            from juicer.scikit_learn.expression_er import ExpressionER
+            self.expression = ''
+            for json_code in self.parameters[self.EXPRESSION_PARAM]:
+                print(json_code)
+                expression = ExpressionER(json_code["tree"])
+                self.expression += "\n" + expression.parsed_expression
 
             self.input = ""
 
             self.transpiler_utils.add_import("import recordlinkage as rl")
-            self.transpiler_utils.add_import("from recordlinkage.compare import Exact")
+            self.transpiler_utils.add_import("from recordlinkage.compare import *")
 
             self.treatment()
 
@@ -119,16 +124,15 @@ class ComparingOperation(Operation):
                 'output data', 'output_data_{}'.format(self.order))
 
     def treatment(self):
-        if len(self.attributes) <= 1:
+        if len(self.expression) <= 1:
             raise ValueError(
                 _("Parameter '{}' must be x>=2 for task {}").format(
-                    self.ATTRIBUTES_PARAM, self.__class__))
+                        self.EXPRESSION_PARAM, self.__class__))
         if self.named_inputs.get('indexing data') is not None:
             self.input = self.named_inputs.get('indexing data')
 
     def generate_code(self):
         if self.has_code:
-            code_columns = "\n".join(["compare.exact('{col}','{col}', label='{col}')".format(col=col) for col in self.attributes])
             code_compute = "{out} = compare.compute({input}".format(out=self.output, input=self.input)
             second_input = self.named_inputs.get('input data 3')
             third_input = self.named_inputs.get('input data 2')
@@ -141,7 +145,7 @@ class ComparingOperation(Operation):
 
             code = [
                 "compare = rl.Compare()",
-                code_columns,
+                self.expression,
                 "{input} = pd.MultiIndex.from_frame({input}, names=('Record_1', 'Record_2'))".format(input=self.input),
                 code_compute
             ]
