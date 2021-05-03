@@ -109,8 +109,7 @@ class ComparingOperation(Operation):
             from juicer.scikit_learn.expression_er import ExpressionER
             self.expression = ''
             for json_code in self.parameters[self.EXPRESSION_PARAM]:
-                print(json_code)
-                expression = ExpressionER(json_code["tree"])
+                expression = ExpressionER(json_code)
                 self.expression += "\n" + expression.parsed_expression
 
             self.input = ""

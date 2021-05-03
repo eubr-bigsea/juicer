@@ -12,11 +12,10 @@ class ExpressionER:
         self.imports_functions = {}
         self.translate_functions = {}
         self.build_functions_dict()
-
-        self.parsed_expression = self.parse(json_code)
+        self.raw = json_code['expression']
+        self.parsed_expression = self.parse(json_code['tree'])
 
     def parse(self, tree):
-        print(tree)
         # Expression parsing
         if tree['type'] == 'CallExpression':
             if tree['callee']['name'] not in self.functions:
@@ -37,19 +36,7 @@ class ExpressionER:
 
         """
 
-        # {'alias': '', 'expression': "exact('date_of_birth')", 'error': None, 'tree': {'type': 'CallExpression', 'arguments': [{'type': 'Literal', 'value': 'date_of_birth', 'raw': "'date_of_birth'"}], 'callee': {'
-        #                                                                               type': 'Identifier', 'name': 'exact'}}}
-        #                                                                               {'type': 'CallExpression', 'arguments': [{'type': 'Literal', 'value': 'date_of_birth', 'raw': "'date_of_birth'"}], 'callee': {'type': 'Identifier', 'name': 'exact'}}
-        #                                                                                   {'type': 'Literal', 'value': 'date_of_birth', 'raw': "'date_of_birth'"}
-        #
-        #
-        #                                                                               function = spec['callee']['name']
-
-        function = spec['callee']['name']
-        # Evaluates if column name is wrapped in a col() function call
-        arguments = spec['arguments'][0]['raw']
-        # function_name = spec['callee']['name']
-        result = " compare.{}({})".format(function, arguments)
+        result = " compare.{}".format(self.raw)
         return result
 
     def build_functions_dict(self):
