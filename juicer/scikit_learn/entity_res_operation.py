@@ -180,7 +180,7 @@ class ClassificationOperation(Operation):
         if self.has_code:
             self.input = ""
             self.comparing = ""
-            self.intercept = float(parameters.get(self.INTERCEPT_PARAM, None))
+            self.intercept = parameters.get(self.INTERCEPT_PARAM, None)
             self.coefficients = parameters.get(self.COEFFICIENTS_PARAM, None)
             self.algorithm = parameters.get(self.ALGORITHM_PARAM, None)
             self.binarize = parameters.get(self.BINARIZE_PARAM, None)
@@ -201,6 +201,8 @@ class ClassificationOperation(Operation):
             self.comparing = self.named_inputs.get('comparing data')
         if self.binarize is not None:
             self.binarize = float(self.binarize)
+        if self.intercept is not None:
+            self.intercept = float(self.intercept)
         if self.use_col_names == 1:
             self.use_col_names = True
         else:
