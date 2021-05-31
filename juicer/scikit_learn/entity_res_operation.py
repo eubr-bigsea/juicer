@@ -17,8 +17,9 @@ class IndexingOperation(Operation):
     """
 
     ATTRIBUTES_PARAM = 'attributes'
-    ALGORITHM_PARAM = 'alg'
+    ALGORITHM_PARAM = 'algorithm'
     WINDOW_PARAM = 'window'
+    N_PARAM = 'n'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
@@ -29,19 +30,20 @@ class IndexingOperation(Operation):
             [len(self.named_outputs) >= 1, self.contains_results()])
         if self.has_code:
             self.attributes = parameters['attributes']
-            self.alg = parameters.get(self.ALGORITHM_PARAM, "Block")
+            self.algorithm = parameters.get(self.ALGORITHM_PARAM, "block")
             self.window = int(parameters.get(self.WINDOW_PARAM, 3))
+            self.n = int(parameters.get(self.N_PARAM, 1))
 
             self.input = ""
 
             self.transpiler_utils.add_import("import recordlinkage as rl")
-            if self.alg == "Block":
+            if self.algorithm == "block":
                 self.transpiler_utils.add_import("from recordlinkage.index import Block")
-            elif self.alg == "Full":
+            elif self.algorithm == "full":
                 self.transpiler_utils.add_import("from recordlinkage.index import Full")
-            elif self.alg == "Random":
+            elif self.algorithm == "random":
                 self.transpiler_utils.add_import("from recordlinkage.index import Random")
-            elif self.alg == "Sorted Neighbourhood":
+            elif self.algorithm == "sorted-neighbourhood":
                 self.transpiler_utils.add_import("from recordlinkage.index import SortedNeighbourhood")
 
             self.treatment()
@@ -64,15 +66,15 @@ class IndexingOperation(Operation):
     def generate_code(self):
         if self.has_code:
             code_columns = None
-            if self.alg == "Sorted Neighbourhood":
+            if self.algorithm == "sorted-neighbourhood":
                 code_columns = "\n".join(["indexer.sortedneighbourhood('{col}', window={window})"
                                          .format(col=col,window=self.window) for col in self.attributes])
-            elif self.alg == "Block":
+            elif self.algorithm == "block":
                 code_columns = "\n".join(["indexer.block('{col}')".format(col=col) for col in self.attributes])
-            elif self.alg == "Random":
-                code_columns = "\n".join(["indexer.random('{col}')".format(col=col) for col in self.attributes])
-            elif self.alg == "Full":
-                code_columns = "\n".join(["indexer.full('{col}')".format(col=col) for col in self.attributes])
+            elif self.algorithm == "random":
+                code_columns = "\n".join(["indexer.random(n={n},replace=True, random_state=None)".format(n=self.n)])
+            elif self.algorithm == "full":
+                code_columns = "\n".join(["indexer.full()"])
 
             code = [
                 "indexer = rl.Index()",
