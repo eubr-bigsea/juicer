@@ -813,8 +813,10 @@ class SparkMinion(Minion):
             'job_id': job_id,
             'workflow': workflow
         }
-        self.state_control.push_app_queue(self.app_id,
-                                          json.dumps(msg_processed))
+        self.state_control.push_app_queue(
+                self.app_id,
+                json.dumps(msg_processed, 
+                    cls=dataframe_util.CustomEncoder))
         log.info('Sending message processed message: %s' % msg_processed)
 
     # noinspection PyUnusedLocal
