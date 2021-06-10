@@ -164,6 +164,9 @@ class Operation(object):
         """
         return []
 
+    def render_template(self, context: dict):
+        return self.transpiler_utils.render_template(self.template, context)
+
     def to_deploy_format(self, id_mapping):
         params = self.parameters['task']['forms']
         result = Deployment()
