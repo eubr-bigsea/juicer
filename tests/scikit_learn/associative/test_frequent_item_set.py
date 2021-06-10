@@ -47,7 +47,7 @@ def test_frequent_item_set_success():
     min_support = 0.222 * dim
     patterns = pyfpgrowth.find_frequent_patterns(transactions, min_support)
     oper_result = [[list(f), s] for f, s in patterns.items()]
-    col_item, col_freq = 'itemsets', 'support'
+    col_item, col_freq = 'items', 'freq'
     out = pd.DataFrame(oper_result, columns=[col_item, col_freq])
     out[col_freq] = out[col_freq] / dim
     out.sort_values(by=col_freq, ascending=False, inplace=True)
@@ -66,14 +66,13 @@ def test_frequent_item_set_success():
     patterns = pyfpgrowth.find_frequent_patterns(transactions, min_support)
     result = [[list(f), s] for f, s in patterns.items()]
     
-    col_item, col_freq = 'itemsets', 'support'
+    col_item, col_freq = 'items', 'freq'
     
     out = pd.DataFrame(result, columns=[col_item, col_freq])
     out[col_freq] = out[col_freq] / dim
     out = out.sort_values(by=col_freq, ascending=False)
     
     # generating rules
-    from juicer.scikit_learn.library.rules_generator import RulesGenerator
     rg = RulesGenerator(min_conf=0.9, max_len=-1)
     rules_1 = rg.get_rules(out, col_item, col_freq)
     """) == instance.generate_code()
@@ -110,7 +109,7 @@ def test_frequent_item_set_attribute_and_min_support_params_success():
     dim = float(len(transactions))
     patterns = pyfpgrowth.find_frequent_patterns(transactions, (dim * 0.5))
     oper_result = [[list(f), s] for f, s in patterns.items()]
-    col_item, col_freq = 'itemsets', 'support'
+    col_item, col_freq = 'items', 'freq'
     out = pd.DataFrame(oper_result, columns=[col_item, col_freq])
     out[col_freq] = out[col_freq] / dim
     out.sort_values(by=col_freq, ascending=False, inplace=True)
@@ -129,14 +128,13 @@ def test_frequent_item_set_attribute_and_min_support_params_success():
     patterns = pyfpgrowth.find_frequent_patterns(transactions, min_support)
     result = [[list(f), s] for f, s in patterns.items()]
                
-    col_item, col_freq = 'itemsets', 'support'
+    col_item, col_freq = 'items', 'freq'
                
     out = pd.DataFrame(result, columns=[col_item, col_freq])
     out[col_freq] = out[col_freq] / dim
     out = out.sort_values(by=col_freq, ascending=False)
                
     # generating rules
-    from juicer.scikit_learn.library.rules_generator import RulesGenerator
     rg = RulesGenerator(min_conf=0.9, max_len=-1)
     rules_1 = rg.get_rules(out, col_item, col_freq)
     """) == instance.generate_code()
@@ -172,7 +170,7 @@ def test_frequent_item_set_min_confidence_param_success():
     dim = float(len(transactions))
     patterns = pyfpgrowth.find_frequent_patterns(transactions, dim * 0.222)
     oper_result = [[list(f), s] for f, s in patterns.items()]
-    col_item, col_freq = 'itemsets', 'support'
+    col_item, col_freq = 'items', 'freq'
     out = pd.DataFrame(oper_result, columns=[col_item, col_freq])
     out[col_freq] = out[col_freq] / dim
     out.sort_values(by=col_freq, ascending=False, inplace=True)
@@ -191,14 +189,13 @@ def test_frequent_item_set_min_confidence_param_success():
     patterns = pyfpgrowth.find_frequent_patterns(transactions, min_support)
     result = [[list(f), s] for f, s in patterns.items()]
            
-    col_item, col_freq = 'itemsets', 'support'
+    col_item, col_freq = 'items', 'freq'
            
     out = pd.DataFrame(result, columns=[col_item, col_freq])
     out[col_freq] = out[col_freq] / dim
     out = out.sort_values(by=col_freq, ascending=False)
     
     # generating rules
-    from juicer.scikit_learn.library.rules_generator import RulesGenerator
     rg = RulesGenerator(min_conf=0.5, max_len=-1)
     rules_1 = rg.get_rules(out, col_item, col_freq)
     """) == instance.generate_code()
