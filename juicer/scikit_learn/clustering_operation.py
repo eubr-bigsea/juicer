@@ -324,8 +324,8 @@ class GaussianMixtureClusteringOperation(Operation):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         if self.has_code:
-            self.n_components = int(parameters.get(self.N_COMPONENTS_PARAM, 1)
-                                    or 1)
+            self.n_components = int(parameters.get(self.N_COMPONENTS_PARAM, 3)
+                                    or 3)
             self.covariance_type = parameters.get(self.COVARIANCE_TYPE_PARAM,
                                                   'full')
             self.tol = float(parameters.get(self.TOL_PARAM, 0.001) or 0.001)
