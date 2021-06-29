@@ -20,6 +20,12 @@ class IndexingOperation(Operation):
     ALGORITHM_PARAM = 'algorithm'
     WINDOW_PARAM = 'window'
     N_PARAM = 'n'
+    REPLACE_PARAM = 'replace'
+    RANDOM_STATE_PARAM = 'random_state'
+    SORTING_KEY_VALUES_PARAM = 'sorting_key_values'
+    BLOCK_ON_PARAM = 'block_on'
+    BLOCK_RIGHT_ON_PARAM = 'block_right_on'
+    BLOCK_LEFT_NO_PARAM = 'block_left_on'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
@@ -33,6 +39,13 @@ class IndexingOperation(Operation):
             self.algorithm = parameters.get(self.ALGORITHM_PARAM, "block")
             self.window = int(parameters.get(self.WINDOW_PARAM, 3))
             self.n = int(parameters.get(self.N_PARAM, 1))
+
+            self.replace = int(parameters.get(self.REPLACE_PARAM, 1))
+            self.random_state = parameters.get(self.RANDOM_STATE_PARAM, None)
+            self.sorting_key_values = parameters.get(self.SORTING_KEY_VALUES_PARAM, None) #ARRAY
+            self.block_on = parameters['block_on']
+            self.block_left_on = parameters['block_left_on']
+            self.block_right_on = parameters['block_right_on']
 
             self.input = ""
 
@@ -62,17 +75,39 @@ class IndexingOperation(Operation):
             if len(self.input) > 0:
                 self.input += ","
             self.input += self.named_inputs.get('input data 1')
+        if self.replace == 1:
+            self.replace = True
+        else:
+            self.replace = False
+        if self.random_state is not None:
+            self.random_state = int(self.random_state)
 
     def generate_code(self):
         if self.has_code:
             code_columns = None
             if self.algorithm == "sorted-neighbourhood":
-                code_columns = "\n".join(["indexer.sortedneighbourhood('{col}', window={window})"
-                                         .format(col=col,window=self.window) for col in self.attributes])
+                block_on = []
+                block_left_on = []
+                block_right_on = []
+                ############ARRUMAR#############
+                for att in self.block_on:
+                    block_on.append(att)
+                for att in self.block_left_on:
+                    block_left_on.append(att)
+                for att in self.block_right_on:
+                    block_right_on.append(att)
+                ################################
+                code_columns = "\n".join(["indexer.sortedneighbourhood('{col}', window={window}, "
+                                          "sorting_key_values={sorting_key_values}, block_on=block_on, "
+                                          "block_left_on=block_left_on, block_right_on=block_right_on)"
+                                         .format(col=col,window=self.window,sorting_key_values=self.sorting_key_values,
+                                                 block_on=block_on,block_right_on=block_right_on,
+                                                 block_left_on=block_left_on) for col in self.attributes])
             elif self.algorithm == "block":
                 code_columns = "\n".join(["indexer.block('{col}')".format(col=col) for col in self.attributes])
             elif self.algorithm == "random":
-                code_columns = "\n".join(["indexer.random(n={n},replace=True, random_state=None)".format(n=self.n)])
+                code_columns = "\n".join(["indexer.random(n={n},replace={replace}, random_state={random_state})"
+                                         .format(n=self.n,replace=self.replace,random_state=self.random_state)])
             elif self.algorithm == "full":
                 code_columns = "\n".join(["indexer.full()"])
 
