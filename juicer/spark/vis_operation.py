@@ -130,7 +130,6 @@ class PublishVisualizationOperation(Operation):
                 'title': {vis_model}.title ,
                 'type': {{
                     'id': {vis_model}.type_id,
-                    'name': {vis_model}.type_name
                 }},
                 'data': simplejson.dumps(
                     {vis_model}.get_data(), cls=enc, ignore_nan=True),
@@ -244,7 +243,6 @@ class VisualizationMethodOperation(Operation):
                 'title': {out}.title ,
                 'type': {{
                     'id': {out}.type_id,
-                    'name': {out}.type_name
                 }},
                 'model': {out},
                 'data': json.dumps({out}.get_data(), cls=enc, ignore_nan=True),
@@ -1440,7 +1438,7 @@ class IndicatorModel(ChartVisualization):
 
         if self.params.get('display_value', False) in TRUE_VALS:
             displays.append('number')
-        if self.params.get('display_delta', False) in TRUE_VAL:
+        if self.params.get('display_delta', False) in TRUE_VALS:
             displays.append('delta')
             delta = True
         if self.params.get('display_gauge', False) in TRUE_VALS:
