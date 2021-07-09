@@ -56,6 +56,12 @@ class SimpleJsonEncoderSklearn(simplejson.JSONEncoder):
 
 class CustomEncoder(json.JSONEncoder):
     def default(self, obj):
+        if isinstance(obj, decimal.Decimal):
+            return str(obj)
+        elif isinstance(obj, datetime.datetime):
+            return obj.isoformat()
+        elif isinstance(obj, set):
+            return default_encoder(list(obj))
         return default_encoder(obj)
 
 
