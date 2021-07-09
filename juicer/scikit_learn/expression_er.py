@@ -39,6 +39,18 @@ class ExpressionER:
         result = " compare.{}".format(self.raw)
         return result
 
+    def get_indexing_function_call(self, spec):
+        """
+        Wrap column name with row() function call, if such call is not present.
+        Convert the function to np.function.
+
+        Example: sin(value) will be converted to np.sin(value)
+
+        """
+
+        result = " indexer.{}".format(self.raw)
+        return result
+
     def build_functions_dict(self):
 
         compare_functions = ['exact', 'string', 'numeric', 'date', 'geo']
@@ -47,3 +59,10 @@ class ExpressionER:
                                  for k in compare_functions}
 
         self.functions.update(compare_functions)
+
+        indexing_functions = ['block', 'sortedneighbourhood', 'full', 'random']
+
+        indexing_functions = {k: self.get_indexing_function_call
+                             for k in indexing_functions}
+
+        self.functions.update(indexing_functions)

@@ -12,20 +12,10 @@ class IndexingOperation(Operation):
     These pairs are called candidate links or candidate matches.
     There are several indexing algorithms available such as blocking and sorted neighborhood indexing.
     Parameters:
-    - attributes: list of the attributes that will be used to do de indexing.
-    - alg: the algorithm that will ne used for the indexing.
+    - expression
     """
 
-    ATTRIBUTES_PARAM = 'attributes'
-    ALGORITHM_PARAM = 'algorithm'
-    WINDOW_PARAM = 'window'
-    N_PARAM = 'n'
-    REPLACE_PARAM = 'replace'
-    RANDOM_STATE_PARAM = 'random_state'
-    SORTING_KEY_VALUES_PARAM = 'sorting_key_values'
-    BLOCK_ON_PARAM = 'block_on'
-    BLOCK_RIGHT_ON_PARAM = 'block_right_on'
-    BLOCK_LEFT_NO_PARAM = 'block_left_on'
+    EXPRESSION_PARAM = 'expression'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
@@ -35,29 +25,16 @@ class IndexingOperation(Operation):
         self.has_code = len(self.named_inputs) > 0 and any(
             [len(self.named_outputs) >= 1, self.contains_results()])
         if self.has_code:
-            self.attributes = parameters['attributes']
-            self.algorithm = parameters.get(self.ALGORITHM_PARAM, "block")
-            self.window = int(parameters.get(self.WINDOW_PARAM, 3))
-            self.n = int(parameters.get(self.N_PARAM, 1))
-
-            self.replace = int(parameters.get(self.REPLACE_PARAM, 1))
-            self.random_state = parameters.get(self.RANDOM_STATE_PARAM, None)
-            self.sorting_key_values = parameters.get(self.SORTING_KEY_VALUES_PARAM, None) #ARRAY
-            self.block_on = parameters['block_on']
-            self.block_left_on = parameters['block_left_on']
-            self.block_right_on = parameters['block_right_on']
+            from juicer.scikit_learn.expression_er import ExpressionER
+            self.expression = ''
+            for json_code in self.parameters[self.EXPRESSION_PARAM]:
+                expression = ExpressionER(json_code)
+                self.expression += "\n" + expression.parsed_expression
 
             self.input = ""
 
             self.transpiler_utils.add_import("import recordlinkage as rl")
-            if self.algorithm == "block":
-                self.transpiler_utils.add_import("from recordlinkage.index import Block")
-            elif self.algorithm == "full":
-                self.transpiler_utils.add_import("from recordlinkage.index import Full")
-            elif self.algorithm == "random":
-                self.transpiler_utils.add_import("from recordlinkage.index import Random")
-            elif self.algorithm == "sorted-neighbourhood":
-                self.transpiler_utils.add_import("from recordlinkage.index import SortedNeighbourhood")
+            self.transpiler_utils.add_import("from recordlinkage.index import *")
 
             self.treatment()
 
@@ -65,51 +42,16 @@ class IndexingOperation(Operation):
                 'output data', 'output_data_{}'.format(self.order))
 
     def treatment(self):
-        if len(self.attributes) == 0:
+        if len(self.expression) <= 1:
             raise ValueError(
-                _("Parameter '{}' must be x>0 for task {}").format(
-                    self.ATTRIBUTES_PARAM, self.__class__))
-        if self.named_inputs.get('input data 2') is not None:
-            self.input += self.named_inputs.get('input data 2')
-        if self.named_inputs.get('input data 1') is not None:
-            if len(self.input) > 0:
-                self.input += ","
-            self.input += self.named_inputs.get('input data 1')
-        if self.replace == 1:
-            self.replace = True
-        else:
-            self.replace = False
-        if self.random_state is not None:
-            self.random_state = int(self.random_state)
+                _("Parameter '{}' must be x>=2 for task {}").format(
+                    self.EXPRESSION_PARAM, self.__class__))
+        if self.named_inputs.get('indexing data') is not None:
+            self.input = self.named_inputs.get('indexing data')
 
     def generate_code(self):
         if self.has_code:
-            code_columns = None
-            if self.algorithm == "sorted-neighbourhood":
-                block_on = []
-                block_left_on = []
-                block_right_on = []
-                ############ARRUMAR#############
-                for att in self.block_on:
-                    block_on.append(att)
-                for att in self.block_left_on:
-                    block_left_on.append(att)
-                for att in self.block_right_on:
-                    block_right_on.append(att)
-                ################################
-                code_columns = "\n".join(["indexer.sortedneighbourhood('{col}', window={window}, "
-                                          "sorting_key_values={sorting_key_values}, block_on=block_on, "
-                                          "block_left_on=block_left_on, block_right_on=block_right_on)"
-                                         .format(col=col,window=self.window,sorting_key_values=self.sorting_key_values,
-                                                 block_on=block_on,block_right_on=block_right_on,
-                                                 block_left_on=block_left_on) for col in self.attributes])
-            elif self.algorithm == "block":
-                code_columns = "\n".join(["indexer.block('{col}')".format(col=col) for col in self.attributes])
-            elif self.algorithm == "random":
-                code_columns = "\n".join(["indexer.random(n={n},replace={replace}, random_state={random_state})"
-                                         .format(n=self.n,replace=self.replace,random_state=self.random_state)])
-            elif self.algorithm == "full":
-                code_columns = "\n".join(["indexer.full()"])
+
 
             code = [
                 "indexer = rl.Index()",
@@ -130,7 +72,7 @@ class ComparingOperation(Operation):
      compare records pairs. Several comparison methods are included
      such as string similarity measures, numerical measures and distance measures.
     Parameters:
-    - attributes: list of the attributes that will be used to do de comparing.
+    - expression
     """
 
     EXPRESSION_PARAM = 'expression'
