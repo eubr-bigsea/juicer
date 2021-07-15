@@ -46,19 +46,23 @@ class IndexingOperation(Operation):
             raise ValueError(
                 _("Parameter '{}' must be x>=2 for task {}").format(
                     self.EXPRESSION_PARAM, self.__class__))
-        if self.named_inputs.get('indexing data') is not None:
-            self.input = self.named_inputs.get('indexing data')
+
+        if self.named_inputs.get('input data 2') is not None:
+            self.input += self.named_inputs.get('input data 2')
+        if self.named_inputs.get('input data 1') is not None:
+            if len(self.input) > 0:
+                self.input += ","
+            self.input += self.named_inputs.get('input data 1')
 
     def generate_code(self):
         if self.has_code:
-
+            code_compute = "{out} = indexer.index({input}).to_frame().reset_index(drop=True)" \
+            ".rename({{0:'Record_1', 1:'Record_2'}}, axis=1)".format(out=self.output, input=self.input)
 
             code = [
                 "indexer = rl.Index()",
-                code_columns,
-                "{out} = indexer.index({input}).to_frame().reset_index(drop=True)"\
-                ".rename({{0:'Record_1', 1:'Record_2'}}, axis=1)"
-                .format(out=self.output, input=self.input)
+                self.expression,
+                code_compute
             ]
             code = dedent("\n".join(code))
             return code
