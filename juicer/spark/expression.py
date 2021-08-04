@@ -19,6 +19,11 @@ class Expression(object):
 
     def parse(self, tree, params):
         if tree['type'] == 'BinaryExpression':
+            op = tree['operator']
+            if op == '===':
+                op = '=='
+            elif op == '!==':
+                op = '!='
             result = "({} {} {})".format(
                 self.parse(tree['left'], params), tree['operator'],
                 self.parse(tree['right'], params))
@@ -54,7 +59,7 @@ class Expression(object):
             operators = {
                 "&&": "&",
                 "||": "|",
-                "!": "~"
+                "!": "~",
             }
             operator = operators[tree['operator']]
             result = "({}) {} ({})".format(self.parse(tree['left'], params),

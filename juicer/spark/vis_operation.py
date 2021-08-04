@@ -656,7 +656,7 @@ class BarChartModel(ChartVisualization):
 
 class PieChartModel(ChartVisualization):
     """
-    In PieChartModel, x_attr contains the label and y_attrs[0] contém os valores
+    In PieChartModel, x_attr contains the label and y_attrs[0] contains values 
     """
 
     def __init__(self, data, task_id, type_id, type_name, title, column_names,
@@ -704,6 +704,7 @@ class PieChartModel(ChartVisualization):
         result = self._get_title_legend_tooltip()
         result['legend']['isVisible'] = self.params.get('legend') in TRUE_VALS
 
+        result['layout'] = {'margin': {'l': 40, 'r': 40, 't': 40, 'b': 40}}
         x_format = self.params.get("x_format", {})
         if not isinstance(x_format, dict):
             x_format = {'key': x_format}
