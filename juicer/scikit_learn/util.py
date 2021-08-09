@@ -1,5 +1,5 @@
 import numpy as np
-
+from gettext import gettext
 
 def get_X_train_data(df, features):
     """
@@ -43,11 +43,11 @@ def get_label_data(df, label):
 
     # Validating multiple columns on label
     if len(label) > 1:
-        raise ValueError(_('Label must be a single column of dataset'))
+        raise ValueError(gettex('Label must be a single column of dataset'))
 
     # Validating OneHotEncode data existence
     if isinstance(df[label[0]].iloc[0], list):
-        raise ValueError(_('Label must be primitive type data'))
+        raise ValueError(gettext('Label must be primitive type data'))
 
     y = df[label].to_numpy().tolist()
     return np.reshape(y, len(y))

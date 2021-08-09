@@ -453,7 +453,21 @@ class ExecutePythonOperation(Operation):
         in2 = self.named_inputs.get('input data 2', 'None')
 
         if self.plain:
-            return dedent(self.code)
+            if self.parameters.get('export_notebook'):
+                code = dedent("""
+                    # Input data
+                    in1 = {in1}
+                    in2 = {in2}
+                    # Output data, initialized as None
+                    out1 = None
+                    out2 = None
+                    DataFrame = pd.DataFrame
+                    createDataFrame = pd.DataFrame
+                    """.format(in1=in1, in2=in2)) 
+                code = code + '\n' + self.code
+                return code
+            else:
+                return dedent(self.code)
 
         code = dedent("""
 

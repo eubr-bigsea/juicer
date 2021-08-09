@@ -175,6 +175,9 @@ class LdaClusteringModelOperation(ClusteringOperation):
         super(LdaClusteringModelOperation, self).__init__(
                 parameters, named_inputs, named_outputs, algorithm)
 
+    def get_data_out_names(self, sep=','):
+        return self.output
+
 
 class AgglomerativeClusteringOperation(Operation):
     FEATURES_PARAM = 'attributes'
