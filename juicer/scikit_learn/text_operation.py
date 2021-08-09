@@ -154,8 +154,8 @@ class RemoveStopWordsOperation(Operation):
                     self.STOP_WORD_ATTRIBUTE_PARAM, [''])[0]
             self.lang = self.parameters.get(self.LANG_PARAM, '') or ''
 
-            self.transpiler_utils.add_import(
-                    "import nltk\nnltk.download('stopwords')")
+            self.transpiler_utils.add_import("import nltk")
+            # self.transpiler_utils.add_import("nltk.download('stopwords')")
             self.transpiler_utils.add_import(
                     "from nltk.corpus import stopwords")
 
@@ -166,6 +166,7 @@ class RemoveStopWordsOperation(Operation):
                 if self.parameters['multiplicity']['input data'] > 1 else ""
 
             code = """
+            nltk.download('stopwords')
             stop_words = []
             {OUT} = {IN}{copy_code}
             """.format(copy_code=copy_code, OUT=self.output,

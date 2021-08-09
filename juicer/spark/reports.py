@@ -9,6 +9,7 @@ import json
 import os
 from io import BytesIO
 from collections.abc import Iterable
+from gettext import gettext
 
 import jinja2
 import matplotlib.pyplot as plt
@@ -31,7 +32,7 @@ class DummyLock(object):
     def __enter__(self):
         return True
 
-    def __exit__(self):
+    def __exit__(self, _type, value, traceback):
         return True
 
 
@@ -97,7 +98,7 @@ class ConfusionMatrixImageReport(BaseHtmlReport):
        Normalization can be applied by setting `normalize=True`.
        """
         if title is None:
-            title = _('Confusion matrix')
+            title = gettext('Confusion matrix')
         self.cm = cm
         self.classes = classes
         self.normalize = normalize
@@ -106,7 +107,7 @@ class ConfusionMatrixImageReport(BaseHtmlReport):
         if axis is not None:
             self.axis = axis
         else:
-            self.axis = [_('Label'), _('Predicted')]
+            self.axis = [gettext('Label'), gettext('Predicted')]
 
     def generate(self, submission_lock=DummyLock()):
 
@@ -316,7 +317,7 @@ class AreaUnderCurveReport(BaseHtmlReport):
        Normalization can be applied by setting `normalize=True`.
        """
         if title is None:
-            title = _('Area under curve')
+            title = gettext('Area under curve')
         self.title = title
         self.x_val = x_val
         self.y_val = y_val

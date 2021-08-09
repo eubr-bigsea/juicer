@@ -1,6 +1,7 @@
 # coding=utf-8
 
 
+import autopep8
 import datetime
 import hashlib
 import inspect
@@ -284,6 +285,7 @@ class Transpiler(object):
                                             if f['source_port'] == source_port])
 
         env_setup = {
+            'autopep8': autopep8,
             'dependency_controller': DependencyController(
                 params.get('requires_info', False)),
             'disabled_tasks': workflow['disabled_tasks'],

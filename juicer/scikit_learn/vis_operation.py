@@ -210,7 +210,10 @@ class VisualizationMethodOperation(Operation):
 
     def generate_code(self):
         if self.plain:
-            return self._generate_plain_code()
+            if self.parameters.get('export_notebook'):
+                return self._generate_notebook_code()
+            else:
+                return self._generate_plain_code()
         code_lines = [dedent(
             """
             from juicer.scikit_learn.vis_operation import {model}
@@ -282,6 +285,8 @@ class VisualizationMethodOperation(Operation):
         #                params=json.dumps(self.get_model_parameters() or {})
 
         return "# TODO: Visualization code generation not implemented!"
+    def _generate_notebook_code(self):
+        return "# TODO: Visualization code generation not implemented for notebooks!"
 
 
 class BarChartOperation(VisualizationMethodOperation):
@@ -336,6 +341,9 @@ class TableVisualizationOperation(VisualizationMethodOperation):
 
     def get_model_name(self):
         return TableVisualizationModel.__name__
+
+    def _generate_notebook_code(self):
+        return f"display({self.named_inputs['input data']})"
 
 
 class ScatterPlotOperation(VisualizationMethodOperation):

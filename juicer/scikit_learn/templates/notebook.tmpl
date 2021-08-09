@@ -75,7 +75,11 @@
             "import numpy as np\n",
             "import pandas as pd\n",
             "from IPython.display import display, HTML\n",
-            "import traceback\n"
+            "import traceback\n",
+            "from gettext import gettext\n",
+            "\n",
+            "# Lemonade's dependencies\n",
+            "from juicer.spark.reports import *"
         ],
         "outputs": []
     },
@@ -101,7 +105,8 @@
             "{{imps}}\n",
             {%- endfor %}
             {% endif %}
-
+            "# Variables used by visualizations and results\n",
+            "submission_lock = DummyLock()\n",
             "# General functions\n",
             "def emit(df, n=20):\n",
             "    \"\"\"\n",
@@ -115,6 +120,18 @@
             "    \"\"\"\n",
             "    df.info(verbose=True)\n",
             "\n",
+            "def emit_event(*args, **kwargs):\n",
+                "    \"\"\" Display results \"\"\"\n",
+                "    if kwargs.get('type') == 'IMAGE':\n",
+                "        v = HTML('<img src=\"data:image/png;base64,{}\"/>'.format(kwargs.get('message')))\n",
+                "    elif 'message' in kwargs:\n",
+                "        v = HTML(kwargs['message'])\n",
+                "    else:\n",
+                "        v = HTML(kwargs)\n",
+                "    display(v)\n",
+                "    return v\n",
+            "\n",
+
             {%- if transpiler.custom_functions %}
             {%- for code in transpiler.custom_functions.values() %}
             {%- for line in code.split('\n') %}
@@ -155,11 +172,12 @@
         {%- endif %}
         "# {{task.operation.name}}\n",
         "# task_id = '{{task_id}}'\n",
-        {%- for line in instance.generate_code().strip().split('\n') %}
+		{%- set code = autopep8.fix_code(instance.generate_code()) %}
+        {%- for line in code.strip().split('\n') %}
         {{(line + "\n") | tojson}},
         {%- endfor %}
         {%- if instance.contains_results() %}
-            {%- for out in instance.get_output_names(',').split(',') %}
+            {%- for out in instance.get_data_out_names(',').split(',') %}
             {%- if instance.has_code and instance.enabled %}
             {%- if instance.contains_sample %}
             "emit({{out}})\n",
