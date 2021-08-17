@@ -569,7 +569,30 @@ class SaveOperation(Operation):
 
 
         code_save = ''
-        if self.format == self.FORMAT_CSV:
+        if storage['type'] == 'HIVE_WAREHOUSE':
+            parts = self.path.split('.')
+            if len(parts) > 1:
+                database_name = parts[0]
+                table_name = parts[1]
+            else:
+                database_name = '' # Uses current database
+                table_name = parts[0]
+                
+            code_save = dedent("""
+            from pyspark_llap import HiveWarehouseSession
+            if spark_session.conf.get(
+                'spark.sql.hive.hiveserver2.jdbc.url') is None:
+                 raise ValueError('{missing_config}')
+            hive = HiveWarehouseSession.session(spark_session).build();
+            database_name = '{database_name}'
+            if database_name:
+                hive.setDatabase(database_name);
+            df.write.format(HiveWarehouseSession.HIVE_WAREHOUSE_CONNECTOR).option(
+                'table', '{table_name}').save();
+            """).format(database_name=database_name, table_name=table_name, 
+                        missing_config=_(
+                            'Cluster is not configured for Hive Warehouse'))
+        elif self.format == self.FORMAT_CSV:
             code_save = dedent("""
             cols = []
             for attr in {input}.schema:
@@ -649,7 +672,7 @@ class SaveOperation(Operation):
 
         code = dedent(code_save)
 
-        code_api = """
+        code_api = dedent("""
             # Code to update Limonero metadata information
             from juicer.service.limonero_service import register_datasource
             types_names = {data_types}
@@ -696,7 +719,7 @@ class SaveOperation(Operation):
                 'attributes': attributes
             }}
             register_datasource('{url}', parameters, '{token}', 'overwrite')
-            """.format(
+            """).format(
             input=self.named_inputs['input data'],
             name=self.name,
             format=self.format,
@@ -712,11 +735,12 @@ class SaveOperation(Operation):
             url=url,
             tags=', '.join(self.tags or []),
             mode=self.mode,
-            data_types=json.dumps(self.SPARK_TO_LIMONERO_DATA_TYPES))
+            data_types=json.dumps(self.SPARK_TO_LIMONERO_DATA_TYPES, indent=2))
         code += dedent(code_api)
         # No return
         code += '{} = None'.format(self.output)
 
+        # return dedent(self.render_template(ctx))
         return code
 
 
