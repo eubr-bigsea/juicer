@@ -471,6 +471,7 @@ class SaveOperation(Operation):
     SPARK_TO_LIMONERO_DATA_TYPES = {
         'types.StringType': "CHARACTER",
         'types.TimestampType': "DATETIME",
+        'types.DateType': "DATETIME",
         'types.DoubleType': "DOUBLE",
         'types.DecimalType': "DECIMAL",
         'types.FloatType': "FLOAT",
@@ -480,6 +481,7 @@ class SaveOperation(Operation):
 
         'StringType': "CHARACTER",
         'TimestampType': "DATETIME",
+        'DateType': "DATETIME",
         'DoubleType': "DOUBLE",
         'DecimalType': "DECIMAL",
         'FloatType': "FLOAT",
