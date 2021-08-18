@@ -579,9 +579,11 @@ class SaveOperation(Operation):
             else:
                 database_name = '' # Uses current database
                 table_name = parts[0]
-                
+            final_url = ''
+            self.format = 'HIVE'
             code_save = dedent("""
             from pyspark_llap import HiveWarehouseSession
+            write_header = False
             if spark_session.conf.get(
                 'spark.sql.hive.hiveserver2.jdbc.url') is None:
                  raise ValueError('{missing_config}')
@@ -589,10 +591,12 @@ class SaveOperation(Operation):
             database_name = '{database_name}'
             if database_name:
                 hive.setDatabase(database_name);
-            {input}.write.format(HiveWarehouseSession.HIVE_WAREHOUSE_CONNECTOR).option(
-                'table', '{table_name}').save();
+            {input}.write.mode('{mode}').format(
+                HiveWarehouseSession.HIVE_WAREHOUSE_CONNECTOR).option(
+                    'table', '{table_name}').save();
             """).format(database_name=database_name, table_name=table_name, 
                         input=self.named_inputs['input data'],
+                        mode=self.mode,
                         missing_config=_(
                             'Cluster is not configured for Hive Warehouse'))
         elif self.format == self.FORMAT_CSV:
