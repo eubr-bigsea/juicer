@@ -581,6 +581,7 @@ class SaveOperation(Operation):
                 table_name = parts[0]
             final_url = ''
             self.format = 'HIVE'
+
             code_save = dedent("""
             from pyspark_llap import HiveWarehouseSession
             write_header = False
