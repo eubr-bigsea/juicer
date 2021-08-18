@@ -589,9 +589,10 @@ class SaveOperation(Operation):
             database_name = '{database_name}'
             if database_name:
                 hive.setDatabase(database_name);
-            df.write.format(HiveWarehouseSession.HIVE_WAREHOUSE_CONNECTOR).option(
+            {input}.write.format(HiveWarehouseSession.HIVE_WAREHOUSE_CONNECTOR).option(
                 'table', '{table_name}').save();
             """).format(database_name=database_name, table_name=table_name, 
+                        input=self.named_inputs['input data'],
                         missing_config=_(
                             'Cluster is not configured for Hive Warehouse'))
         elif self.format == self.FORMAT_CSV:
