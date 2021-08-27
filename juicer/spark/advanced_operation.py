@@ -76,17 +76,20 @@ class UserFilterOperation(Operation):
 
             # Simplify by using only value
             if (f.get('value', '') or '') == '':
-                f['value'] = f.get('default_value') 
-            valid, converted = UserFilterOperation._is_value_valid(f)
-            if not valid:
-                raise ValueError(_(
-                    'Invalid value for "{}": "{}". Data type: {} (op: {}).').format(
-                        f.get('label'), f.get('value'), f.get('type'), 
-                        f.get('operator')))
-
-            f['converted'] = converted
-            op = UserFilterOperation._translate_filter(f)
-            parsed.append(op)
+                f['value'] = f.get('default_value')
+            if f['value'] == 'None': # FIXME
+                f['value'] = None
+            if f['value'] is not None:
+                valid, converted = UserFilterOperation._is_value_valid(f)
+                if not valid:
+                    raise ValueError(_(
+                        'Invalid value for "{}": "{}". Data type: {} (op: {}).').format(
+                            f.get('label'), f.get('value'), f.get('type'), 
+                            f.get('operator')))
+    
+                f['converted'] = converted
+                op = UserFilterOperation._translate_filter(f)
+                parsed.append(op)
         return parsed
 
     @staticmethod
@@ -99,6 +102,9 @@ class UserFilterOperation(Operation):
     @staticmethod
     def _is_value_list_valid(f):
         v = f.get('value')
+
+        if v is None:
+            return True, None
 
         if f.get('type') == 'CHARACTER' or f.get('type') is None:
             return True, ', '.join(map(lambda x: '"' + x.strip() + '"', v.split(',')))
@@ -129,9 +135,14 @@ class UserFilterOperation(Operation):
     @staticmethod
     def _is_value_valid(f):
         v = f.get('value')
+        if v is None or v == 'None': #FIXME remove this check using string
+            return True, None
+        print('=' * 20)
+        print( v, v is None)
+        print('=' * 20)
+
         if f.get('operator') in ('in', 'ni'):
             return UserFilterOperation._is_value_list_valid(f)
-        v = f.get('value')
         if f.get('type') == 'CHARACTER' or f.get('type') is None:
             return True, '"' + v + '"'
         elif f.get('type') == 'INTEGER':
