@@ -483,6 +483,31 @@ class Workflow(object):
         #                 )
         #     if self.query_operations:
         #         return self.query_operations()
+    def _replace_variable(self, all_vars, v, found, task):
+        var_name = found[2:-1]
+        if var_name in all_vars:
+            new_value = str(all_vars[var_name])
+            return v.replace(found, new_value)
+        else:
+            raise ValueError(
+                 _('Variable "{}" is used in task "{}", but it is undefined.'.format(
+                 var_name, task['name'])))
+
+    def _replace(self, data, all_vars, var_re, task):
+        if isinstance(data, dict):
+            return {k: self._replace(v, all_vars, var_re, task) for k, v in data.items()}
+        elif isinstance(data, list):
+            return [self._replace(i, all_vars, var_re, task) for i in data]
+        else:
+            if isinstance(data, (str,)):
+                for found in var_re.findall(data):
+                    #print('<=', data)
+                    data = self._replace_variable(all_vars, data, found, task)
+                    #print('=>', data)
+            elif data is None:
+                ...
+            return data
+    
     def handle_variables(self, custom_vars=None):
         """
         Handles variable substitution
@@ -507,37 +532,67 @@ class Workflow(object):
             all_vars.update(custom_vars)
 
         for variable in self.workflow.get('variables'):
-            all_vars[variable['name']] = variable.get('value', variable.get('default_value'))
+            var_value = variable.get('value', variable.get('default_value'))
+            if var_value is not None and var_value != '':
+                all_vars[variable['name']] = var_value
 
         variable_re = re.compile(r'\$\{[_A-Za-z][_A-Za-z0-9]*\}')
         for task in self.workflow['tasks']:
             if 'forms' in task and task['enabled']:
-                for k, v in list(task.get('forms').items()):
-                    value = v.get('value')
-                    if task['operation']['slug'] == 'user-filter' and \
-                            k == 'filters': # FIXME: Needs to be dynamic
-                        for filter_value in value:
-                            value1 = str(filter_value.get('value', filter_value.get('default_value', '')))
-                            filter_value['value'] = value1
-                            for found in variable_re.findall(value1):
-                                var_name = found[2:-1]
-                                if var_name in all_vars:
-                                    new_value = str(all_vars[var_name])
-                                    filter_value['value'] = filter_value.get(
-                                            'value').replace(found, new_value)
-                                else:
-                                    raise ValueError(
-                                         _('Variable "{}" is used in task "{}", but it is undefined.'.format(
-                                          var_name, task['name'])))
-
-                    if isinstance(value, (str,)):
-                        for found in variable_re.findall(value):
-                            var_name = found[2:-1]
-                            if var_name in all_vars:
-                                new_value = str(all_vars[var_name])
-                                v['value'] = v.get('value').replace(found, new_value)
+                task['forms'] = self._replace(task['forms'], all_vars, variable_re, task)
+                
+                # Handle properties associated to variables
+                for prop, value in task['forms'].items():
+                    if value.get('publishing_enabled') and value.get('variable'):
+                        v = all_vars[value.get('variable')]
+                        # print(f'>>> Setting {prop} to {v} (was {value["value"]}) {type(value["value"])}')
+                        if isinstance(value['value'], list):
+                            value['value'] = [f"{v}"]
+                        elif isinstance(value['value'], (str,)):
+                            if v[0] == '[' and v[-1] == ']':
+                                value['value'] = f"['{v}']"
                             else:
-                                raise ValueError(
-                                     _('Variable "{}" is used in task "{}", but it is undefined.'.format(
-                                     var_name, task['name'])))
+                                value['value'] = f"{v}"
+                        else:
+                            value['value'] = f'{v}'
+                        # print(f'>>> Set {prop} to {value["value"]} {type(value["value"])}')
+
+                # for k, v in list(task.get('forms').items()):
+                #     value = v.get('value')
+                #     if task['operation']['slug'] == 'user-filter' and \
+                #             k == 'filters': # FIXME: Needs to be dynamic
+                #         for filter_value in value:
+                #             value1 = str(filter_value.get('value', filter_value.get('default_value', '')))
+                #             filter_value['value'] = value1
+                #             for found in variable_re.findall(value1):
+                #                 v['value'] = self._replace_variable(all_vars, value, found)
+                #     else:
+
+                    # if isinstance(value, (str,)):
+                    #     for found in variable_re.findall(value):
+                    #         v['value'] = self._replace_variable(all_vars, value, found)
+                    # elif value is None:
+                    #     pass
+                    # elif isinstance(value, list):
+                    #     for index, value_in_list in enumerate(value):
+                    #         if isinstance(value_in_list, str):
+                    #             for found in variable_re.findall(value_in_list):
+                    #                 value_in_list[index] = self._replace_variable(
+                    #                     all_vars, value_in_list, found)
+                    #         elif isinstance(value_in_list, dict):
+                    #             for k1, value_in_dict in value_in_list.items():
+                    #                 if isinstance(value_in_dict, (str, )):
+                    #                     for found in variable_re.findall(value_in_dict):
+                    #                         value_in_list[k1] = self._replace_variable(all_vars, value_in_dict, found)
+                    #                 else:
+                    #                     print(type(value), value)
+
+
+                    # elif isinstance(value, dict):
+                    #     for k1, value_in_dict in value.items():
+                    #         for found in variable_re.findall(value_in_dict):
+                    #             value[k] = self._replace_variable(all_vars, value_in_dict, found)
+
+                    # else:
+                    #     print(value, type(value))
             

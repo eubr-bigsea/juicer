@@ -251,7 +251,7 @@ class DataReaderOperation(Operation):
                              raise ValueError('{missing_config}')
                         hive = HiveWarehouseSession.session(spark_session).build();
                         {out} = hive.executeQuery('''{sql}''')
-                    """.format(sql=self.metadata.get('command'),
+                    """.format(sql=self.metadata.get('command').replace('\n', ' '),
                            out=self.output, 
                            missing_config=_(
                             'Cluster is not configured for Hive Warehouse')))
