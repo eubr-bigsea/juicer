@@ -25,9 +25,9 @@ def save_job_source_code(base_url, token, job_id, source):
     if r.status_code == 200:
         return json.loads(r.text)
     else:
-        raise RuntimeError(
-            "Error loading data from stand: HTTP {} - {}  ({})".format(
-                r.status_code, r.text, url))
+        log.warn("Error saving source code in stand: HTTP %s %s  (%s)",
+                r.status_code, r.text, url)
+        return {}
 
 
 def get_cluster_info(base_url, token, cluster_id):

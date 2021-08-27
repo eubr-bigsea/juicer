@@ -192,6 +192,7 @@ class ScikitLearnMinion(Minion):
         start = timer()
         try:
             loader = Workflow(workflow, self.config)
+            loader.handle_variables({'job_id': job_id})
 
             # force the scikit-learn context creation
             self.get_or_create_scikit_learn_session(loader, app_configs, job_id)
