@@ -504,9 +504,13 @@ def handle_spark_exception(e):
                 else:
                     raise ValueError(cause_msg)
         elif e.java_exception.getMessage():
+            cause_msg = e.java_exception.getMessage()
+            if 'already exists' in cause_msg:
+                raise ValueError(
+                    _('File already exists. Try to use options to overwrite it.'))
             value_expr = re.compile(r'CSV data source does not support '
                                     r'(.+?) data type')
-            value = value_expr.findall(e.java_exception.getMessage())
+            value = value_expr.findall(cause_msg)
             if value:
                 raise ValueError(
                     _('CSV format does not support the data type {}. '
