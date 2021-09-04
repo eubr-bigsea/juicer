@@ -569,7 +569,7 @@ class SaveOperation(Operation):
             if 'user' in extra_params:
                 hdfs_user = extra_params.get('user')
 
-        register_in_limoreno = True
+        register_in_limonero = True
         code_save = ''
         if storage['type'] == 'HIVE_WAREHOUSE':
             parts = self.path.split('.')
@@ -599,6 +599,8 @@ class SaveOperation(Operation):
                         mode=self.mode,
                         missing_config=_(
                             'Cluster is not configured for Hive Warehouse'))
+            register_in_limonero = False
+
         elif storage['type'] == 'KAFKA':
             topic = self.path
             self.format = 'KAFKA'
@@ -614,7 +616,7 @@ class SaveOperation(Operation):
                         kafka_server=f'{parsed.hostname}:{parsed.port}', 
                         input=self.named_inputs['input data'])
             # A data source will not be registered in Limonero
-            register_in_limoreno = False
+            register_in_limonero = False
 
         elif self.format == self.FORMAT_CSV:
             code_save = dedent("""
@@ -695,7 +697,7 @@ class SaveOperation(Operation):
                 final_url, self.mode))
 
         code = dedent(code_save)
-        if register_in_limoreno:
+        if register_in_limonero:
             code_api = dedent("""
             # Code to update Limonero metadata information
             from juicer.service.limonero_service import register_datasource
@@ -762,6 +764,18 @@ class SaveOperation(Operation):
                 data_types=json.dumps(self.SPARK_TO_LIMONERO_DATA_TYPES, indent=2))
     
             code += dedent(code_api)
+        else:
+            task_id=self.parameters['task_id'],
+            warn_ignored=_('Data was written, but was '
+                'not registered as a data source in Lemonade (unsupported).')
+            code += dedent(f"""
+                emit_event(name='update task',
+                        message='{warn_ignored}',
+                        status='COMPLETED',
+                        identifier='{task_id}')""")
+
+
+            
         # No return
         code += '{} = None'.format(self.output)
 
