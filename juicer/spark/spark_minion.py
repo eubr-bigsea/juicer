@@ -55,6 +55,8 @@ class SparkMinion(Minion):
                  jars=None):
         Minion.__init__(self, redis_conn, workflow_id, app_id, config)
 
+        if not os.path.exists('/tmp/spark-events'):
+            os.makedirs('/tmp/spark-events')
         self.jars = jars
         self.terminate_proc_queue = multiprocessing.Queue()
         self.execute_process = None
