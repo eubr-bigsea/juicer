@@ -413,10 +413,9 @@ class Workflow(object):
         }
 
         # Querying tahiti operations to get number of inputs and outputs
-        return tahiti_service.query_tahiti(params['base_url'],
-                                           params['item_path'],
-                                           params['token'],
-                                           params['item_id'])
+        return tahiti_service.query_tahiti(
+            params['base_url'], params['item_path'], params['token'], 
+            params['item_id']).get('data')
 
     def get_ports_from_operation_tasks(self, id_operation):
         tahiti_conf = self.config['juicer']['services']['tahiti']
