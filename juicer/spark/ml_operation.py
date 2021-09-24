@@ -428,6 +428,7 @@ class FeatureAssemblerOperation(Operation):
     """
     ATTRIBUTES_PARAM = 'attributes'
     ALIAS_PARAM = 'alias'
+    HANDLE_INVALID_PARAM = 'handle_invalid'
 
     def __init__(self, parameters, named_inputs,
                  named_outputs):
@@ -440,6 +441,7 @@ class FeatureAssemblerOperation(Operation):
                 _("Parameter '{}' must be informed for task {}").format(
                     self.ATTRIBUTES_PARAM, self.__class__))
         self.alias = parameters.get(self.ALIAS_PARAM, 'features')
+        self.handle_invalid = parameters.get(self.HANDLE_INVALID_PARAM, 'keep')
 
         self.has_code = any(
             [len(self.named_inputs) > 0, self.contains_results()])
@@ -450,11 +452,11 @@ class FeatureAssemblerOperation(Operation):
                                         'out_task_{}'.format(self.order))
 
         code = """
-            assembler = feature.VectorAssembler(inputCols={0}, outputCol="{1}")
-            {3}_without_null = {3}.na.drop(subset={0})
-            {2} = assembler.transform({3}_without_null)
+            assembler = feature.VectorAssembler(inputCols={0}, outputCol="{1}",
+                handleInvalid={4})
+            {2} = assembler.transform({3})
         """.format(json.dumps(self.attributes), self.alias, output,
-                   input_data)
+                   input_data, self.handle_invalid)
 
         return dedent(code)
 
