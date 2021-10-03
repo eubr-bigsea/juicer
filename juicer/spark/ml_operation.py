@@ -453,7 +453,7 @@ class FeatureAssemblerOperation(Operation):
 
         code = """
             assembler = feature.VectorAssembler(inputCols={0}, outputCol="{1}",
-                handleInvalid={4})
+                handleInvalid='{4}')
             {2} = assembler.transform({3})
         """.format(json.dumps(self.attributes), self.alias, output,
                    input_data, self.handle_invalid)
