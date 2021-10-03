@@ -67,7 +67,8 @@ ENV CLASSPATH /usr/local/juicer/jars/*
 
 COPY requirements.txt $JUICER_HOME
 
-RUN pip3 install -r $JUICER_HOME/requirements.txt --no-cache-dir
+RUN pip3 install -U pip wheel
+RUN python -m pip install -r $JUICER_HOME/requirements.txt --no-cache-dir
 
 ENV LC_ALL en_US.UTF-8
 ENV LANG en_US.UTF-8
