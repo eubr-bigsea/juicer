@@ -3,7 +3,6 @@
 
 import base64
 import datetime
-import gettext
 import itertools
 import json
 import os
@@ -303,7 +302,7 @@ class FairnessBiasReport(BaseHtmlReport):
         template = template_env.get_template("templates/bias-report.html")
 
         ctx = {'date': datetime.datetime.now().isoformat(),
-               '_': gettext.gettext,
+               '_': gettext,
                'data': data, 'tau': .8, 'reference': self.baseline_value,
                'summary': summary, 'explanations': self.explanations,
                'attributes': ', '.join([self.sensitive])}
@@ -393,5 +392,5 @@ class DecisionTreeReport(BaseHtmlReport):
         #return '<code><pre>{tree}</pre></code>'.format(
         #    tree=json.dumps(self._tree_json(), indent=2))
         return "<h6>{}</h6>{}".format(
-                gettext.gettext('Tree'),
+                gettext('Tree'),
                 get_graph_from_model(self.model, self.features).decode('utf-8'))
