@@ -162,7 +162,7 @@ class Workflow(object):
                     'environment', 'DESIGN') == 'DESIGN':
                 operation = operations_tahiti.get(task['operation']['id'])
                 form_fields = {}
-                for form in operation['forms']:
+                for form in operation.get('forms', []):
                     for field in form['fields']:
                         form_fields[field['name']] = form['category']
 
