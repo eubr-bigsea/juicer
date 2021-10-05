@@ -213,6 +213,10 @@ def get_cached_state(task_id, cached_state, emit_event, spark_session,
             emit_event(name='update task',
                 message=_('Task running (cached data)'), status='RUNNING',
                 identifier=task_id)
+            emit_cache = cached_state.get('emit_cache')
+            if emit_cache and task_id in emit_cache:
+                args, kwargs = emit_cache[task_id]
+                emit_event(*args, **kwargs)
             juicer_ext.spark_logging(spark_session).info(
                 'Cache hit for operation {}'.format(task_id))
             results = cached
@@ -221,6 +225,17 @@ def get_cached_state(task_id, cached_state, emit_event, spark_session,
 def main(spark_session, cached_state, emit_event):
     """ Run generated code """
 
+    emit_cache = {}
+    def cached_emit_event(*args, **kwargs):
+        if 'type' in kwargs:
+            msg_type = kwargs['type']
+            if msg_type in ['HTML', 'IMAGE', 'JSON']: # can be cached
+                task_id = kwargs.get('task').get('id')
+                emit_cache[task_id] = (args, kwargs)
+
+        emit_event(*args, **kwargs)
+            
+        
     try:
         {%- for instance in instances %}
         {%- if instance.has_code and instance.enabled and instance.multiple_inputs %}
@@ -231,7 +246,7 @@ def main(spark_session, cached_state, emit_event):
         {%- set ids_and_methods = transpiler.get_ids_and_methods(instances) %}
         {%- for task_id, method in ids_and_methods.items() %}
         task_futures['{{task_id}}'] = executor.submit(
-            lambda: {{method}}(spark_session, cached_state, emit_event))
+            lambda: {{method}}(spark_session, cached_state, cached_emit_event))
         {%- endfor %}
 
         {%- for task_id in ids_and_methods.keys() %}
@@ -254,6 +269,7 @@ def main(spark_session, cached_state, emit_event):
         return {
             'status': 'OK',
             'message': 'Execution defined',
+            'emit_cache': emit_cache,
             {%- for instance in transpiler._get_enabled_tasks(instances) %}
             '{{instance.parameters.task.id}}':
                 [get_results(task_futures,
