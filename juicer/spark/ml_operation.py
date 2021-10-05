@@ -599,6 +599,7 @@ class EvaluateModelOperation(Operation):
         ), self.contains_results()])
         # @FIXME: validate if metric is compatible with Model using workflow
 
+        self.prob_attr = 'probability'
         if self.has_code:
             self.prediction_attribute = (parameters.get(
                 self.PREDICTION_ATTRIBUTE_PARAM) or [''])[0]
@@ -619,6 +620,7 @@ class EvaluateModelOperation(Operation):
                 self.evaluator = self.METRIC_TO_EVALUATOR[self.metric][0]
                 self.param_prediction_arg = \
                     self.METRIC_TO_EVALUATOR[self.metric][1]
+                self.param_prediction_attr = 'probability'
             else:
                 raise ValueError(
                     _('Invalid metric value {}').format(self.metric))
@@ -721,7 +723,7 @@ class EvaluateModelOperation(Operation):
                 display_text=display_text,
                 display_image=display_image,
                 prediction_attr=self.prediction_attribute,
-                prob_attr='probability',  # FIXME use a property
+                prob_attr=self.prob_attr, 
                 label_attr=self.label_attribute,
                 headers=[_('Metric'), _('Value')],
                 evaluator=self.evaluator,
@@ -817,7 +819,7 @@ class EvaluateModelOperation(Operation):
         """
         code.append(dedent("""
             evaluator = evaluation.BinaryClassificationEvaluator(
-                {prediction_arg}=prediction_col,
+                {prediction_arg}='{prob_attr}', 
                 labelCol=label_col,
                 metricName=metric)
             metric_value = evaluator.evaluate({input})
@@ -873,18 +875,14 @@ class EvaluateModelOperation(Operation):
                 else:
                     method = 'roc'
 
-                if '{prediction_attr}_tmp' in {input}.columns:
-                    prediction_attr = '{prediction_attr}_tmp'
-                else:
-                    prediction_attr = '{prediction_attr}'
                 predictions = {input}.select(
-                    prediction_attr,'{prob_attr}').rdd.map(
+                    label_col,'{prob_attr}').rdd.map(
                         lambda row: (
                             float(row['{prob_attr}'][1]),
-                            float(row[prediction_attr])))
-                points = CurveMetrics(predictions).get_curve(method)
-                x_val = [x[0] for x in points]
-                y_val = [x[1] for x in points]
+                            float(row[label_col])))
+                cm = CurveMetrics(predictions)
+                points = cm.get_curve(method)
+                x_val, y_val = zip(*points)
 
                 # FIXME translate title
                 curve_title = 'Area under {{}} curve (AUC = {{:1.4f}})'.format(
@@ -1105,6 +1103,7 @@ class CrossValidationOperation(Operation):
                     self.EVALUATOR_PARAM, self.__class__))
 
         self.metric = parameters.get(self.EVALUATOR_PARAM)
+        self.prob_attr = 'probability'
 
         if self.metric in self.METRIC_TO_EVALUATOR:
             self.evaluator = self.METRIC_TO_EVALUATOR[self.metric][0]
@@ -1192,6 +1191,7 @@ class CrossValidationOperation(Operation):
                            features=self.features[0],
                            prediction_arg=self.param_prediction_arg,
                            prediction_attr=self.prediction_attr,
+                           prob_attr=self.prob_attr,
                            label_attr=self.label_attr[0],
                            folds=self.num_folds,
                            metric=self.metric))
