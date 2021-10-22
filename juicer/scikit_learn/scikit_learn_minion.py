@@ -3,6 +3,7 @@ import gc
 import gettext
 import imp
 import importlib
+import itertools
 import json
 import logging.config
 import multiprocessing
@@ -24,6 +25,7 @@ from concurrent.futures import ThreadPoolExecutor
 from juicer.runner import configuration
 from juicer.runner import protocol as juicer_protocol
 
+from juicer.util.dataframe_util import CustomEncoder
 from juicer.runner.minion_base import Minion
 from juicer.scikit_learn.transpiler import ScikitLearnTranspiler
 from juicer.util import dataframe_util
@@ -185,10 +187,53 @@ class ScikitLearnMinion(Minion):
             self._generate_output(_('Unknown message type %s') % msg_type)
 
     def _execute_future(self, job_id, workflow, app_configs):
-        return self.executor.submit(self._perform_execute,
+        return self.executor.submit(self.perform_execute,
                                     job_id, workflow, app_configs)
 
-    def _perform_execute(self, job_id, workflow, app_configs):
+    def _auto_plug(self, loader):
+        workflow = loader.workflow
+        flows = workflow.get('flows', [])
+        tasks = workflow['tasks']
+        current_task = tasks[-1]
+        task_counter = len(tasks) - 2 # penultimate
+        results = []
+        while task_counter >= 0:
+            other = tasks[task_counter]
+            left_used = set()
+            right_used = set()
+            for r in itertools.product(
+                    current_task['operation']['ports'].values(),
+                    other['operation']['ports'].values()):
+                compatible = set(r[0]['interfaces']) & set(r[1]['interfaces'])
+                compatible = compatible and (
+                    r[0]['type'] == 'INPUT' and r[1]['type'] == 'OUTPUT')
+
+                if r[0]['id'] not in left_used and r[1]['id'] not in right_used:
+                    if compatible:
+                        left_used.add(r[0]['id'])
+                        right_used.add(r[1]['id'])
+                        results.append([[current_task['id'], other['id']], r])
+
+            task_counter -= 1
+        for result in results:
+            ids = result[0]
+            ports = result[1]
+            flow = {
+                "source_port": ports[1]['id'],
+                "target_port": ports[0]['id'],
+                "source_port_name": ports[1]['slug'],
+                "target_port_name": ports[0]['slug'],
+                "environment": "DESIGN",
+                "source_id": ids[1],
+                "target_id": ids[0]
+              }
+            flows.append(flow)
+            loader.graph.add_edge(ids[1], ids[0], attr_dict=flow)
+            loader.graph.nodes[ids[0]]['parents'].append(ids[1])
+        import pdb; pdb.set_trace()
+        workflow['flows'] = flows
+
+    def perform_execute(self, job_id, workflow, app_configs):
 
         # Sleeps 1s in order to wait for client join notification room
         # time.sleep(1)
@@ -197,6 +242,10 @@ class ScikitLearnMinion(Minion):
         start = timer()
         try:
             loader = Workflow(workflow, self.config)
+            if app_configs.get('auto_plug'):
+                log.info('Auto-plugging ports')
+                self._auto_plug(loader)
+                    
             loader.handle_variables({'job_id': job_id})
 
             # force the scikit-learn context creation
@@ -298,6 +347,8 @@ class ScikitLearnMinion(Minion):
             result = False
 
         except KeyError as ke:
+            import traceback
+            traceback.print_exc()
             message = self.MNN011[1].format(ke)
             log.warn(message)
             self._emit_event(room=job_id, namespace='/stand')(
@@ -329,7 +380,7 @@ class ScikitLearnMinion(Minion):
 
     def _send_to_output(self, data):
         self.state_control.push_app_output_queue(
-            self.app_id, json.dumps(data))
+            self.app_id, json.dumps(data, cls=CustomEncoder))
 
     def _read_dataframe_data(self, task_id, output, port):
         success = True
@@ -405,8 +456,9 @@ class ScikitLearnMinion(Minion):
             'msg_type': msg_type,
 
         }
-        self.state_control.push_app_queue(self.app_id,
-                                          json.dumps(msg_processed))
+        self.state_control.push_app_queue(
+            self.app_id, json.dumps(msg_processed, cls=CustomEncoder))
+        log.info('Sending message processed message. Workflow: %s', workflow['id'])
 
     # noinspection PyUnusedLocal
     def _terminate(self, _signal, _frame):

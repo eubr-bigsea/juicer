@@ -228,11 +228,12 @@ class Transpiler(object):
                 # Some temporary variables need to be identified by a sequential
                 # number, so it will be stored in this field
                 'order': i,
+                'plain': plain,
+                # 'sorted_tasks_ids': sorted_tasks_ids,
                 'task': task,
                 'task_id': task['id'],
                 'transpiler': self,  # Allows operation to notify transpiler
                 'transpiler_utils': transpiler_utils,
-                'plain': plain,
                 'user': workflow['user'],
                 'workflow': workflow,
                 'workflow_id': workflow['id'],
@@ -246,7 +247,6 @@ class Transpiler(object):
             parameters['my_ports'] = port.get('my_ports', [])
 
             # print task['name'], parameters['parents'] # port.get('parents', [])
-
             instance = class_name(parameters, port.get('named_inputs', {}),
                                   port.get('named_outputs', {}))
 
@@ -351,6 +351,10 @@ class Transpiler(object):
         ports = {}
         sequential_ports = {}
         counter = 0
+
+        # if there is not edge, do not sort the graph
+        topological_sort = len(graph.edges.keys()) > 0
+
         for edge_key in list(graph.edges.keys()):
             source_id, target_id, index = edge_key
             source_name = graph.node[source_id]['name']
@@ -411,8 +415,10 @@ class Transpiler(object):
                     target_port['named_inputs'][flow_name] = sequence
                 target_port['inputs'].append(sequence)
 
+        sorted_tasks_ids = nx.topological_sort(graph) if topological_sort \
+            else [t['id'] for t in sorted(workflow['tasks'], key=lambda x: x['display_order'])]
         self.generate_code(graph, job_id, out, params,
-                           ports, nx.topological_sort(graph), state,
+                           ports, sorted_tasks_ids, state,
                            hashlib.sha1(),
                            using_stdout, workflow, deploy, export_notebook,
                            plain=plain,

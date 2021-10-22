@@ -181,6 +181,16 @@ def emit_schema(task_id, df, emit_event, name, notebook=False):
 
 
 def emit_schema_sklearn(task_id, df, emit_event, name, notebook=False):
+    rows = [{'name': c, 'type': d.name} for c, d in zip(df.columns, df.dtypes)]
+
+    emit_event('update task', status='COMPLETED',
+               identifier=task_id,
+               message=json.dumps(rows),
+               type='OBJECT', title=_('Schema for {}').format(name),
+               meaning='schema',
+               task={'id': task_id})
+
+def old_emit_schema_sklearn(task_id, df, emit_event, name, notebook=False):
     from juicer.spark.reports import SimpleTableReport
     headers = [_('Attribute'), _('Type')]
     rows = [[i, str(f)] for i, f in zip(df.columns, df.dtypes)]
@@ -195,7 +205,6 @@ def emit_schema_sklearn(task_id, df, emit_event, name, notebook=False):
                message=content.generate(),
                type='HTML', title=_('Schema for {}').format(name),
                task={'id': task_id})
-
 
 def emit_sample(task_id, df, emit_event, name, size=50, notebook=False,
                 title=None):
@@ -369,13 +378,9 @@ def emit_sample_sklearn(task_id, df, emit_event, name, size=50, notebook=False,
         result['invalid'] = invalid
         result['truncated'] = list(truncated)
 
-    print('*' * 20)
-    print(dtypes)
-    print('*' * 20)
-
     emit_event('update task', status='COMPLETED',
                identifier=task_id,
-               message=result,
+               message=result, meaning='sample',
                type='OBJECT', title=_('Sample data for {}').format(name),
                task={'id': task_id})
 

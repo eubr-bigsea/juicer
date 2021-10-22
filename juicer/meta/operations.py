@@ -23,8 +23,8 @@ class MetaPlatformOperation(Operation):
         return ''
     def _get_task_obj(self):
         return {
-            "environment": "DESIGN",
             "id": self.task['id'],
+            "environment": "DESIGN",
             "forms": {
               "display_schema": {"value": "1"},
               "display_sample": {"value": f"{self.last}"},
@@ -48,79 +48,38 @@ class ReadDataOperation(MetaPlatformOperation):
           "mode": {"value": "PERMISSIVE"},
           "data_source": {"value": self.data_source_id},
         })
+        task_obj['operation'] = {"id": 18}
         return json.dumps(task_obj)
-    def xgenerate_code(self):
-        return f'''
-        {{
-        "environment": "DESIGN",
-        "id": "{self.task['id']}",
-        "forms": {{
-          "infer_schema": {{"value": "FROM_LIMONERO"}},
-          "mode": {{"value": "PERMISSIVE"}},
-          "display_schema": {{"value": "1"}},
-          "display_sample": {{"value": "{self.last}"}},
-          "data_source": {{"value": {self.data_source_id}}},
-          "display_text": {{"value": "1"}}
-        }},
-        "name": "Read Data",
-        "enabled": True,
-        "operation": {{"id": 18}}
-        }}'''
 
 class TransformOperation(MetaPlatformOperation):
     SLUG_TO_EXPR = {
-            'to-upper': 'upper'
+            'to-upper': 'upper',
+            'to-lower': 'lower',
+            'capitalize': 'initcap'
         }
     def __init__(self, parameters,  named_inputs, named_outputs):
-        Operation.__init__(self, parameters,  named_inputs,  named_outputs)
+        MetaPlatformOperation.__init__(self, parameters,  named_inputs,  named_outputs)
         self.has_code = True
         self.target_platform = 'scikit-learn'
-        slug = parameters.get('task').get('operation').get('slug')
+        self.slug = parameters.get('task').get('operation').get('slug')
         self.attributes = ['Species'] # self.get_required_parameter(parameters, 'attributes')
-        x = {
-  "value": [
-    {
-      "alias": "xx",
-      "expression": "upper(valor)",
-      "error": None,
-      "tree": {
-        "type": "CallExpression",
-        "arguments": [
-          {
-            "type": "Identifier",
-            "name": "valor"
-          }
-        ],
-        "callee": {
-          "type": "Identifier",
-          "name": "upper"
-        }
-      }
-    },
-    {
-      "alias": "yyy",
-      "expression": "upper(outro)",
-      "error": None,
-      "tree": {
-        "type": "CallExpression",
-        "arguments": [
-          {
-            "type": "Identifier",
-            "name": "outro"
-          }
-        ],
-        "callee": {
-          "type": "Identifier",
-          "name": "upper"
-        }
-      }
-    }
-  ],
-  "label": "Expressão"
-} 
 
     def generate_code(self):
-        return 'Transform Data'
+        task_obj = self._get_task_obj()
+        task_obj['forms'].update({
+          "expression": {"value": [
+              {
+                "alias": f"xxx_{self.task['display_order']}", 
+                "tree": {
+                    "type": "CallExpression", 
+                    "arguments": [{"type": "Identifier", "name": "Species"}],
+                    "callee": {"type": "Identifier", "name": self.SLUG_TO_EXPR[self.slug]},
+                }
+              },
+           ]},
+        })
+        task_obj['operation'] = {"id": 7}
+        return json.dumps(task_obj)
 
 class SortOperation(MetaPlatformOperation):
     def __init__(self, parameters,  named_inputs, named_outputs):
@@ -130,19 +89,24 @@ class SortOperation(MetaPlatformOperation):
         self.attributes = "" # self.get_required_parameter(parameters, 'attributes')
 
     def generate_code(self):
-        return f'''
-        {{
-        "environment": "DESIGN",
-        "id": "{self.task['id']}",
-        "forms": {{
-          "attributes": {{"value": [{{"attribute": "Sepal_length", "f": "asc"}}] }},
-          "display_schema": {{"value": "1"}},
-          "display_sample": {{"value": "{self.last}"}},
-          "display_text": {{"value": "1"}}
-        }},
-        "name": "Sort Data",
-        "enabled": True,
-        "operation": {{"id": 32}}
-        }}'''
+        task_obj = self._get_task_obj()
+        task_obj['forms'].update({
+          "attributes": {"value": [{"attribute": "Sepal_length", "f": "asc"}] },
+        })
+        task_obj['operation'] = {"id": 32}
+        return json.dumps(task_obj)
 
+class FindReplaceOperation(MetaPlatformOperation):
+    def __init__(self, parameters,  named_inputs, named_outputs):
+        MetaPlatformOperation.__init__(self, parameters,  named_inputs,  named_outputs)
+        self.has_code = True
+        self.target_platform = 'scikit-learn'
+        self.attributes = "" # self.get_required_parameter(parameters, 'attributes')
 
+    def generate_code(self):
+        task_obj = self._get_task_obj()
+        task_obj['forms'].update({
+          "attributes": {"value": [{"attribute": "Sepal_length", "f": "asc"}] },
+        })
+        task_obj['operation'] = {"id": 32}
+        return json.dumps(task_obj)       
