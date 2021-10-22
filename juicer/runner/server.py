@@ -376,45 +376,6 @@ class JuicerServer:
         #     time.sleep(10)
         pass
 
-    #
-    # def read_minion_support_queue(self, redis_conn):
-    #     try:
-    #         state_control = StateControlRedis(redis_conn)
-    #         ticket = json.loads(state_control.pop_master_queue())
-    #         workflow_id = ticket.get('workflow_id')
-    #         app_id = ticket.get('app_id', ticket.get('workflow_id'))
-    #         reason = ticket.get('reason')
-    #         log.info(_("Master received a ticket for app %s"), app_id)
-    #         if reason == self.HELP_UNHANDLED_EXCEPTION:
-    #             # Let's kill the minion and start another
-    #             minion_info = json.loads(
-    #                 state_control.get_minion_status(app_id))
-    #             while True:
-    #                 try:
-    #                     os.kill(minion_info['pid'], signal.SIGKILL)
-    #                 except OSError as err:
-    #                     if err.errno == errno.ESRCH:
-    #                         break
-    #                 time.sleep(.5)
-    #
-    #             # Review with cluster
-    #             # FIXME: platform
-    #             platform = 'spark'
-    #             self._start_minion(workflow_id, app_id, state_control,
-    #                                platform)
-    #
-    #         elif reason == self.HELP_STATE_LOST:
-    #             pass
-    #         else:
-    #             log.warn(_("Unknown help reason %s"), reason)
-    #     except KeyboardInterrupt:
-    #         pass
-    #     except ConnectionError as cx:
-    #         log.exception(cx)
-    #         time.sleep(1)
-    #
-    #     except Exception as ex:
-    #         log.exception(ex)
 
     def _get_next_available_port(self):
         return self.port_range[0]

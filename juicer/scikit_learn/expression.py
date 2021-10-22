@@ -510,7 +510,9 @@ class Expression:
             'now': self.get_date_function_call,
             'utcnow': self.get_date_function_call,
             'fromtimestamp': self.get_date_function_call,
+            'from_unixtime': self.get_date_function_call,
             'utcfromtimestamp': self.get_date_function_call,
+            'from_utc_timestamp': self.get_date_function_call,
             'fromordinal': self.get_date_function_call,
             'combine': self.get_date_function_call,
 
