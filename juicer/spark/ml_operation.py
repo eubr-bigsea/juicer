@@ -2102,32 +2102,41 @@ class ClusteringModelOperation(Operation):
             display_text = {display_text}
             if display_text:
                 metric_rows = []
-
-                df_aux = pipeline_model.transform({input})
                 
-                evaluator = ClusteringEvaluator(
-                    predictionCol='{prediction}', featuresCol=final_features)
-                metric_rows.append(['{silhouette_euclidean}', 
-                    evaluator.evaluate(df_aux)])
+                lda = algorithm.__class__.__name__ == 'LDA'
+                if not lda:
+                    df_aux = pipeline_model.transform({input})
+                    
+                    evaluator = ClusteringEvaluator(
+                        predictionCol='{prediction}', featuresCol=final_features)
+                    metric_rows.append(['{silhouette_euclidean}', 
+                        evaluator.evaluate(df_aux)])
 
-                evaluator = ClusteringEvaluator(
-                    distanceMeasure='cosine', predictionCol='{prediction}', 
-                    featuresCol=final_features)
-                metric_rows.append(['{silhouette_cosine}', 
-                    evaluator.evaluate(df_aux)])
+                    evaluator = ClusteringEvaluator(
+                        distanceMeasure='cosine', predictionCol='{prediction}', 
+                        featuresCol=final_features)
+                    metric_rows.append(['{silhouette_cosine}', 
+                        evaluator.evaluate(df_aux)])
     
-                if hasattr(clustering_model, 'clusterCenters'):
-                    metric_rows.append([
-                        '{cluster_centers}', clustering_model.clusterCenters()])
+                    if hasattr(clustering_model, 'clusterCenters'):
+                        metric_rows.append([
+                            '{cluster_centers}', clustering_model.clusterCenters()])
 
-                if hasattr(clustering_model, 'computeCost'):
-                    metric_rows.append([
-                        '{compute_cost}', clustering_model.computeCost(df_aux)])
+                    if hasattr(clustering_model, 'computeCost'):
+                        metric_rows.append([
+                            '{compute_cost}', clustering_model.computeCost(df_aux)])
 
-                if hasattr(clustering_model, 'gaussianDF'):
+                    if hasattr(clustering_model, 'gaussianDF'):
+                        metric_rows.append([
+                            'Gaussian distribution', 
+                            clustering_model.gaussianDF.collect()])
+                else:
                     metric_rows.append([
-                        'Gaussian distribution', 
-                        clustering_model.gaussianDF.collect()])
+                        'Log Likelihood', 
+                        clustering_model.logLikelihood({input})])
+                    metric_rows.append([
+                        'Log Perplexity', 
+                        clustering_model.logPerplexity({input})])
 
                 if hasattr(clustering_model, 'weights'):
                     metric_rows.append([
