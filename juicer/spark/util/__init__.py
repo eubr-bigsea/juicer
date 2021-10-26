@@ -1,4 +1,6 @@
 # coding=utf-8
+import json
+from pyspark.sql.column import Column
 from pyspark.ml import Pipeline
 from pyspark.ml.feature import SQLTransformer, VectorAssembler, StringIndexer, \
     IndexToString
@@ -121,3 +123,9 @@ def assemble_features_pipeline_model(df, features, label, algorithm,
             model = algorithm.fit(df)
 
     return model
+
+def add_meta(sc, col, metadata):
+    """ Add metadata to a column """
+    meta = sc._jvm.org.apache.spark.sql.types\
+        .Metadata.fromJson(json.dumps(metadata))
+    return Column(getattr(col._jc, "as")('', meta))

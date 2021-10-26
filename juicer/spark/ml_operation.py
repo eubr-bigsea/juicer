@@ -256,12 +256,13 @@ class StringIndexerOperation(Operation):
             {models} = dict([(c, indexers[i].fit({input})) for i, c in
                              enumerate(col_alias.values())])
 
-            # Spark ML 2.0.1 do not deal with null in indexer.
-            # See SPARK-11569
-            # {input}_without_null = {input}.na.fill(
-            #    'NA', subset=col_alias.keys())
-
             {out} = pipeline.fit({input}).transform({input})
+            for original, new_attr in col_alias.items():
+                # Save the original attribute name
+                meta = {out}.schema[new_attr].metadata
+                meta['ml_attr']['original'] = original
+                {out} = {out}.withColumn(
+                    new_attr, functions.col(new_attr).alias('', metadata=meta))
         """.format(input=input_data, out=output, models=models,
                    alias=json.dumps(list(zip(self.attributes, self.alias)),
                                     indent=None)))
@@ -1302,6 +1303,8 @@ class ClassificationModelOperation(DeployModelMixin, Operation):
             task = self.parameters.get('task', {})
             display_text = task.get('forms', {}).get(
                 'display_text', {'value': 1}).get('value', 1) in (1, '1')
+            display_image = task.get('forms', {}).get(
+                'display_image', {'value': 1}).get('value', 1) in (1, '1')
 
             code = """
             from juicer.spark import spark_summary_translations as sst
@@ -1314,6 +1317,7 @@ class ClassificationModelOperation(DeployModelMixin, Operation):
                 title='{title}')
 
             display_text = {display_text}
+            display_image = {display_image}
 
             alg, param_grid, metrics = {algorithm}
 
@@ -1458,8 +1462,8 @@ class ClassificationModelOperation(DeployModelMixin, Operation):
             {output} = dataframe_util.LazySparkTransformationDataframe(
                 {model}, {train}, call_transform)
 
+            ml_model = {model}
             if display_text:
-                ml_model = {model}
                 if isinstance(ml_model, PipelineModel):
                     ml_model = ml_model.stages[0]
                 if requires_pipeline:
@@ -1494,12 +1498,13 @@ class ClassificationModelOperation(DeployModelMixin, Operation):
                     emit(status='COMPLETED',
                          message=result,
                          type='HTML', title='{title}')
+            if display_image:
                 if hasattr(ml_model, 'toDebugString'):
-                   dt_report = DecisionTreeReport(ml_model,
-                       individual_feat)
-                   emit(status='COMPLETED',
-                        message=dt_report.generate(),
-                        type='HTML', title='{title}')
+                    dt_report = DecisionTreeReport(ml_model, 
+                        {train}.schema, final_features, individual_feat)
+                    emit(status='COMPLETED',
+                         message=dt_report.generate(),
+                         type='HTML', title='{title}')
 
             """.format(
                 model=self.model,
@@ -1516,6 +1521,7 @@ class ClassificationModelOperation(DeployModelMixin, Operation):
                        'implicitly indexed as string.'),
                 msg2=_('Metric ({}) average for {} folds: {}'),
                 display_text=display_text,
+                display_image=display_image,
                 title=_('Generated classification model parameters'),
                 headers=[_('Parameter'), _('Value'), ],
                 headers2=[_('Fold'), _('Results'), _('Average')],
