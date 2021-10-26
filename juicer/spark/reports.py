@@ -354,8 +354,10 @@ class DecisionTreeReport(BaseHtmlReport):
     Based on: https://github.com/tristaneljed/Decision-Tree-Visualization-Spark/
     """
 
-    def __init__(self, model, features):
+    def __init__(self, model, spark_schema, features_col, features):
         self.model = model
+        self.spark_schema = spark_schema
+        self.features_col = features_col
         self.tree = model.toDebugString
         self.features = features
         for (i, f) in enumerate(features):
@@ -389,8 +391,8 @@ class DecisionTreeReport(BaseHtmlReport):
 
     def generate(self):
         from juicer.spark.util.tree_visualization import get_graph_from_model 
-        #return '<code><pre>{tree}</pre></code>'.format(
-        #    tree=json.dumps(self._tree_json(), indent=2))
         return "<h6>{}</h6>{}".format(
                 gettext('Tree'),
-                get_graph_from_model(self.model, self.features).decode('utf-8'))
+                get_graph_from_model(self.model, 
+                                     self.spark_schema, 
+                                     self.features).decode('utf-8'))
