@@ -10,6 +10,14 @@ from itertools import accumulate as _accumulate, repeat as _repeat
 from bisect import bisect as _bisect
 import random
 
+green = '#3D9970'
+red = '#FF4136'
+yellow = '#FFDC00'
+blue = '#0074D9'
+navy = '#001f3f'
+orange = '#FF851B'
+purple = '#B10DC9'
+
 def choices(population, weights=None, *, cum_weights=None, k=1):
     """Return a k sized list of population elements chosen with replacement.
     If the relative weights or cumulative weights are not specified,
@@ -101,13 +109,6 @@ class Node(object):
         return result.format(*data)
 
     def get_nodes_edges(self, graph):
-        green = '#3D9970'
-        red = '#FF4136'
-        yellow = '#FFDC00'
-        blue = '#0074D9'
-        navy = '#001f3f'
-        orange = '#FF851B'
-        purple = '#B10DC9'
         graph.node(self.id, self.get_label())
         if self.left is not None:
             if not isinstance(self.left, LeafNode):
@@ -184,10 +185,13 @@ class LeafNode:
     def __init__(self, prediction, impurity):
         self.prediction = prediction
         self.impurity = impurity
+        self.id = 0
 
     def __str__(self):
         return 'Prediction: {}\nImpurity: {}'.format(self.prediction,
                                                      self.impurity)
+    def get_nodes_edges(self, graph):
+        graph.node('Leaf', 'Predict: {0}'.format(self.prediction))
 
 
 InternalNode = namedtuple(
@@ -199,7 +203,7 @@ CategoricalSplit = namedtuple("CategoricalSplit",
 ContinuousSplit = namedtuple("ContinuousSplit", ("feature_index", "threshold"))
 
 
-def jtree_to_python(jtree, features={}):
+def jtree_to_python(jtree, spark_schema, features={}):
     def jsplit_to_python(jsplit):
         if jsplit.getClass().toString().endswith(".ContinuousSplit"):
             return ContinuousSplit(jsplit.featureIndex(), jsplit.threshold())
@@ -228,7 +232,7 @@ def jtree_to_python(jtree, features={}):
                 print(dir(jnode.split()))
                 th = None
                 cat = [x for x in jnode.split().leftCategories()]
-
+            
             return Node(left, right, prediction, stats, impurity, gain, split,
                         feature, level, th, cat, features)
             # return InternalNode(left, right, prediction, stats,
@@ -239,9 +243,8 @@ def jtree_to_python(jtree, features={}):
 
     return jnode_to_python(_get_root_node(jtree), 1)
 
-def get_graph_from_model(m, feat):
-    #import pdb;pdb.set_trace()
-    tt = jtree_to_python(m, dict([(i, f) for i, f in enumerate(feat)]))
+def get_graph_from_model(m, spark_schema, feat):
+    tt = jtree_to_python(m, spark_schema, dict([(i, f) for i, f in enumerate(feat)]))
     blue = '#0074D9'
     dot = Digraph()
     dot.attr(splines='polyline')  # , rankdir="LR")
@@ -252,7 +255,9 @@ def get_graph_from_model(m, feat):
     dot.attr('node', fontcolor='#888888')
     dot.attr('edge', splines='polyline', arrowhead='none',
              color=color, fontname='helvetica', fontsize='8', style='dashed')
-    tt.get_nodes_edges(dot)
+    # import pdb; pdb.set_trace()
+    if hasattr(tt, 'get_nodes_edges'):
+        tt.get_nodes_edges(dot)
 
     return Source(dot).pipe(format='svg')
 
