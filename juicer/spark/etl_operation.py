@@ -417,7 +417,7 @@ class JoinOperation(Operation):
                 """.format(in1=input_data1, attrs=',\n                    '.join(attrs))))
         elif selection_type1 == 1:
             code.append(self._code_for_select_all_prefixed(input_data1, 
-                self.join_parameters.get('firstPrefix') or 'ds1_'))
+                self.join_parameters.get('firstPrefix', '')))
 
         if selection_type2 == 3:
              code.append("\n{in2}_attrs = []".format(in2=input_data2))
@@ -433,12 +433,12 @@ class JoinOperation(Operation):
                 ]
                 """.format(in2=input_data2, attrs=',\n                    '.join(attrs))))
         elif selection_type2 == 1:
-            if self.keep_right_keys in ["False", "false", False]:
+            if self.keep_right_keys in ["False", "false", False, "0", 0]:
                 remove = [clause[1] for clause in on_clause]
             else:
                 remove = None
             code.append(self._code_for_select_all_prefixed(input_data2, 
-                self.join_parameters.get('secondPrefix') or 'ds2_', remove))
+                self.join_parameters.get('secondPrefix', ''), remove))
 
         code.append(dedent("""
             selected_attrs = {in1}_attrs + {in2}_attrs
