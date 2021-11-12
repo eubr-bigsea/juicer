@@ -353,18 +353,14 @@ class JoinOperation(Operation):
             return self._legacy_generate_code()
     
     def _get_operator(self, value):
-        if value == 'ne':
-            return '!='
-        elif value == 'gt':
-            return '>'
-        elif value == 'lt':
-            return '<'
-        elif value == 'ge':
-            return '>='
-        elif value == 'le':
-            return '<='
-        else:
-            return '=='
+        operators = {
+            'ne': '!=',
+            'gt': '>',
+            'lt': '<',
+            'ge': '>=',
+            'le': '<='
+        }
+        return operators.get(value, '==')
 
     def _new_generate_code(self):
 
@@ -374,25 +370,36 @@ class JoinOperation(Operation):
         on_clause = [(f['first'], f['second'], self._get_operator(f.get('op', '='))) 
                 for f in self.join_parameters.get('conditions')]
 
+        first_alias = (self.join_parameters.get(
+            'firstPrefix', 'first') or 'first').strip()
+        second_alias = (self.join_parameters.get(
+            'secondPrefix', 'second') or 'second').strip()
+
+        # Notice: here it is using aliases to avoid problems with self-join
+        # See https://sparkbyexamples.com/pyspark/pyspark-sql-self-join-with-example/
         if self.match_case:
             join_condition = ',\n                '.join(
-                [("functions.lower({in0}['{p0}']) {op} "
-                  "functions.lower({in1}['{p1}'])").format(
-                    in0=input_data1, p0=clause[0], in1=input_data2, p1=clause[1],
-                    op=clause[2]) for clause in on_clause])
+                [("functions.lower(functions.col('{first_alias}.{p0}')) {op} "
+                  "functions.lower(functions.col('{second_alias}.{p1}'))").format(
+                    p0=clause[0], p1=clause[1], first_alias=first_alias,
+                    second_alias=second_alias, op=clause[2]) for clause in on_clause])
         else:
             join_condition = ', '.join(
-                ["{in0}['{p0}'] == {in1}['{p1}']".format(
-                    in0=input_data1, p0=pair[0], in1=input_data2, p1=pair[1])
+                ["functions.col('{first_alias}.{p0}') == functions.col('{second_alias}.{p1}')".format(
+                    p0=pair[0], p1=pair[1], 
+                    first_alias=first_alias, second_alias=second_alias)
                     for pair in on_clause])
 
-        code = [dedent("""
+        # When both inputs are from the same source
+        same_df = (input_data1 == input_data2)
+           
+        code = [dedent(f"""
             conditions = [
-                {cond}
+                {join_condition}
             ]
-            result_df = {in0}.join({in1}, on=conditions, how='{how}')""".format(
-            cond=join_condition, in0=input_data1,
-            in1=input_data2, how=self.join_type))]
+            result_df = {input_data1}.alias('{first_alias}').join(
+                {input_data2}.alias('{second_alias}'), 
+                on=conditions, how='{self.join_type}')""")]
 
         selection_type1 = self.join_parameters.get('firstSelectionType')
         selection_type2 = self.join_parameters.get('secondSelectionType')
@@ -402,7 +409,7 @@ class JoinOperation(Operation):
             if selection_type2 == 3:
                 raise ValueError(_('No attribute was selected'))
             else:
-                code.append("\n{in1}_attrs = []".format(in1=input_data1))
+                code.append("\nfirst_attrs = []".format(in1=input_data1))
 
         elif selection_type1 == 2:
             attrs = ["{in1}['{name}'].alias('{alias}')".format(name=attr.get('attribute'), 
@@ -411,16 +418,16 @@ class JoinOperation(Operation):
                     for attr in self.join_parameters.get('firstSelect', [])
                     if attr.get('select')]
             code.append(dedent("""
-                {in1}_attrs = [
+                first_attrs = [
                     {attrs}
                 ]
                 """.format(in1=input_data1, attrs=',\n                    '.join(attrs))))
         elif selection_type1 == 1:
-            code.append(self._code_for_select_all_prefixed(input_data1, 
-                self.join_parameters.get('firstPrefix') or 'ds1_'))
+            code.append(self._code_for_select_all_prefixed('first', input_data1, 
+                self.join_parameters.get('firstPrefix', '')))
 
         if selection_type2 == 3:
-             code.append("\n{in2}_attrs = []".format(in2=input_data2))
+             code.append("\nsecond_attrs = []".format(in2=input_data2))
         if selection_type2 == 2:
             attrs = ["{in2}['{name}'].alias('{alias}')".format(name=attr.get('attribute'), 
                             alias=attr.get('alias'), 
@@ -428,33 +435,32 @@ class JoinOperation(Operation):
                     for attr in self.join_parameters.get('secondSelect', [])
                     if attr.get('select')]
             code.append(dedent("""
-                {in2}_attrs = [
+                second_attrs = [
                     {attrs}
                 ]
                 """.format(in2=input_data2, attrs=',\n                    '.join(attrs))))
         elif selection_type2 == 1:
-            if self.keep_right_keys in ["False", "false", False]:
+            if not same_df and selfself.keep_right_keys in ["False", "false", False, "0", 0]:
                 remove = [clause[1] for clause in on_clause]
             else:
                 remove = None
-            code.append(self._code_for_select_all_prefixed(input_data2, 
-                self.join_parameters.get('secondPrefix') or 'ds2_', remove))
+            code.append(self._code_for_select_all_prefixed('second', input_data2,
+                self.join_parameters.get('secondPrefix', ''), remove))
 
-        code.append(dedent("""
-            selected_attrs = {in1}_attrs + {in2}_attrs
-            {out} = result_df.select(*selected_attrs)    
-        """).format(out=self.output, in1=input_data1, in2=input_data2))
+        code.append(dedent(f"""
+            selected_attrs = first_attrs + second_attrs
+            {self.output} = result_df.select(*selected_attrs)"""))
 
         return dedent('\n'.join(code))
 
-    def _code_for_select_all_prefixed(self, df, prefix, ignore=None):
+    def _code_for_select_all_prefixed(self, var_name, df, prefix, ignore=None):
         if ignore is None:
             ignore = []
         return dedent("""
-            {df}_ignore = {ignore}
-            {df}_attrs = [{df}[name].alias('{prefix}' + name) 
-                for name in {df}.schema.names if name not in {df}_ignore]
-        """.format(df=df, prefix=prefix, ignore=repr(ignore)))
+            {var_name}_ignore = {ignore}
+            {var_name}_attrs = [{df}[name].alias('{prefix}' + name) 
+                for name in {df}.schema.names if name not in {var_name}_ignore]
+        """.format(var_name=var_name, df=df, prefix=prefix, ignore=repr(ignore)))
 
     def _legacy_generate_code(self):
 
