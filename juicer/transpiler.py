@@ -134,7 +134,6 @@ class Transpiler(object):
                       sorted_tasks_id, state, task_hash, using_stdout,
                       workflow, deploy=False, export_notebook=False,
                       plain=False):
-
         if deploy:
             # To be able to convert, workflow must obey all these rules:
             # - 1 and exactly 1 data source;
@@ -386,13 +385,13 @@ class Transpiler(object):
             sequence = sequential_ports[flow_id]
 
             source_port = ports[source_id]
-            if sequence not in source_port['outputs']:
+            if True or sequence not in source_port['outputs']:
                 source_port['named_outputs'][
                     flow['source_port_name']] = sequence
                 source_port['outputs'].append(sequence)
 
             target_port = ports[target_id]
-            if sequence not in target_port['inputs']:
+            if True or sequence not in target_port['inputs']:
                 flow_name = flow['target_port_name']
                 # Test if multiple inputs connects to a port
                 # because it may have multiplicity MANY
@@ -562,7 +561,7 @@ class TranspilerUtils(object):
         if len(parts) == 1:
             name = name[:5]
         elif name[:3] == 'out':
-            name = 'var_'  # name[:3]
+            name = 'df_'  # name[:3]
         else:
             name = ''.join([p[0] for p in parts])
         return '{}{}'.format(name, seq)
