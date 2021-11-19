@@ -12,6 +12,7 @@ import juicer.scikit_learn.regression_operation as regression
 import juicer.scikit_learn.text_operation as text_operations
 import juicer.scikit_learn.vis_operation as vis_operation
 import juicer.scikit_learn.outlier_detection as lof
+import juicer.scikit_learn.stat_operation as stat_operation
 import os
 from juicer import operation
 from juicer.transpiler import Transpiler
@@ -163,6 +164,7 @@ class ScikitLearnTranspiler(Transpiler):
 
         other_ops = {
             'comment': operation.NoOp,
+            'pdf': stat_operation.PdfOperation,
         }
 
         ws_ops = {}
