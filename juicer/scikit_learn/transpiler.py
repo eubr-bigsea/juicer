@@ -165,6 +165,7 @@ class ScikitLearnTranspiler(Transpiler):
         other_ops = {
             'comment': operation.NoOp,
             'pdf': stat_operation.PdfOperation,
+            'cdf': stat_operation.CdfOperation,
         }
 
         ws_ops = {}
