@@ -60,7 +60,7 @@ def generate(workflow_id, template_name, lang='pt'):
     return result
 
 
-def _generate(workflow_id, execute_main, params, config, out=sys.stdout,
+def _generate(workflow_id, job_id, execute_main, params, config, out=sys.stdout,
               deploy=False, export_notebook=False, plain=False,
               custom_vars=None):
     log.debug(gettext(
@@ -112,7 +112,7 @@ def _generate(workflow_id, execute_main, params, config, out=sys.stdout,
         transpiler.execute_main = execute_main
         transpiler.transpile(
             loader.workflow, loader.graph, params=params, deploy=deploy,
-            export_notebook=export_notebook, plain=plain, job_id=0, out=out)
+            export_notebook=export_notebook, plain=plain, job_id=job_id, out=out)
 
     except ValueError as ve:
         log.exception(gettext("At least one parameter is missing"), exc_info=ve)
@@ -128,6 +128,9 @@ if __name__ == "__main__":
 
     parser.add_argument("-w", "--workflow", type=int, required=True,
                         help="Workflow identification number")
+    
+    parser.add_argument("-j", "--job_id", type=int, required=False,
+                        help="Job identification number", default=0)
 
     parser.add_argument("-e", "--execute-main", action="store_true",
                         help="Write code to run the program (it calls main()")
@@ -162,7 +165,7 @@ if __name__ == "__main__":
             custom_vars = yaml.load(vars_file.read(),
                                     Loader=yaml.FullLoader)
 
-    _generate(args.workflow, args.execute_main, {"plain": args.plain},
+    _generate(args.workflow, args.job_id, args.execute_main, {"plain": args.plain},
               config=juicer_config, deploy=args.deploy,
               export_notebook=args.notebook, plain=args.plain,
               custom_vars=custom_vars)
