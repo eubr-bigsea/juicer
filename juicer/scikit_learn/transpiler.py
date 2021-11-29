@@ -67,6 +67,7 @@ class ScikitLearnTranspiler(Transpiler):
             'split': etl.SplitOperation,
             'transformation': etl.TransformationOperation,
             # TODO in 'transformation': test others functions
+            'rename-attr': etl.RenameAttrOperation,
         }
 
         data_ops = {
