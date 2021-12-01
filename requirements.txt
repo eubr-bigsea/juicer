@@ -12,7 +12,6 @@ autopep8==1.4.4
 Babel==2.7.0
 backports.functools-lru-cache==1.5
 backports.weakref==1.0.post1
-Bottleneck==1.2.1
 bz2file==0.98
 cachetools==3.1.1
 certifi==2019.6.16
