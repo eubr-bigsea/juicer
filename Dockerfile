@@ -1,4 +1,4 @@
-FROM ubuntu:20.04 as base
+FROM ubuntu:18.04 as base
 
 LABEL maintainer="Vinicius Dias <viniciusvdias@dcc.ufmg.br>, Guilherme Maluf <guimaluf@dcc.ufmg.br>, Walter Santos <walter@dcc.ufmg.br>"
 
@@ -65,7 +65,6 @@ RUN curl -sL https://archive.apache.org/dist/hadoop/core/hadoop-${HADOOP_VERSION
     rm -r /tmp/hadoop-${HADOOP_VERSION_BASE}
 
 ENV CLASSPATH /usr/local/juicer/jars/*
-
 COPY requirements.txt $JUICER_HOME
 
 RUN pip3 install -U pip wheel
