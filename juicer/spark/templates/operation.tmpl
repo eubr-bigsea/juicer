@@ -47,6 +47,9 @@ from juicer.spark.reports import *
 from juicer.spark.util import assemble_features_pipeline_model
 from juicer.spark.ml_operation import ModelsEvaluationResultList
 from juicer.spark.custom_library import *
+{%- for imps in transpiler.imports %}
+{{imps}}
+{%- endfor %}
 
 executor = ThreadPoolExecutor(max_workers={{instances|length}})
 submission_lock = threading.Lock()
@@ -120,7 +123,7 @@ def {{task.operation.slug.replace('-', '_')}}_{{instance.order}}(spark_session, 
     {%- endif %}
     if results is None:
         # --- Begin operation code ---- #
-        {{instance.generate_code().strip() | indent(width=8, indentfirst=False)}}
+        {{instance.generate_code().strip() | indent(width=8, first=False)}}
         # --- End operation code ---- #
         {%- if not plain %}
         {%- for gen_result in instance.get_generated_results() %}

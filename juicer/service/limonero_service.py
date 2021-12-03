@@ -68,7 +68,7 @@ def get_model_info(base_url, token, model_id):
     except ValueError:
         raise ValueError(gettext('Model not found'))
 
-def register_model(base_url, payload, token):
+def register_model(base_url, payload, token, overwrite=False):
     url = "{}/models".format(remove_initial_final_path_separator(base_url))
 
     headers = {
@@ -76,6 +76,7 @@ def register_model(base_url, payload, token):
         'content-type': "application/json",
         'cache-control': "no-cache"
     }
+    payload['overwrite'] = overwrite
     r = requests.request("POST", url, data=json.dumps(payload), headers=headers)
 
     if r.status_code == 200:
