@@ -3381,6 +3381,8 @@ class SaveModelOperation(Operation):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         self.parameters = parameters
+        # Always try to write model
+        self.supports_cache = False
 
         self.name = parameters.get(self.NAME_PARAM)
         self.storage_id = parameters.get(self.STORAGE_PARAM)
@@ -3430,7 +3432,8 @@ class SaveModelOperation(Operation):
         if not isinstance(models, list):
             models = [models]
 
-        if self.write_mode == self.WRITE_MODE_OVERWRITE:
+        overwrite = self.write_mode == self.WRITE_MODE_OVERWRITE
+        if overwrite:
             write_mode = 'overwrite().'
         else:
             write_mode = ''
@@ -3461,7 +3464,7 @@ class SaveModelOperation(Operation):
 
             def _save_model(model_to_save, model_path, model_name):
                 final_model_path = '{final_url}/{{}}'.format(model_path)
-                model_to_save.write().{overwrite}save(final_model_path)
+                model_to_save.write().{write_mode}save(final_model_path)
                 # Save model information in Limonero
                 model_type = '{{}}.{{}}'.format(model_to_save.__module__,
                     model_to_save.__class__.__name__)
@@ -3481,7 +3484,7 @@ class SaveModelOperation(Operation):
                     "workflow_name": '{workflow_name}'
                 }}
                 # Save model information in Limonero
-                register_model('{url}', model_payload, '{token}')
+                register_model('{url}', model_payload, '{token}', overwrite={overwrite})
 
             for i, model in enumerate(models_to_save):
                 if isinstance(model, dict): # For instance, it's a Indexer
@@ -3493,7 +3496,8 @@ class SaveModelOperation(Operation):
                     name = '{name}'
                     path = '{path}/{name}.{{0:04d}}'.format(i)
                     _save_model(model, path, name)
-        """.format(models=', '.join(models), overwrite=write_mode,
+        """.format(models=', '.join(models), overwrite=overwrite, 
+                   write_mode=write_mode,
                    path=self.path,
                    final_url=storage['url'],
                    url=url,

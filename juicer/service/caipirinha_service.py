@@ -10,7 +10,7 @@ log.setLevel(logging.DEBUG)
 
 
 def _update_caipirinha(base_url, item_path, token, item_id, data):
-    headers = {'X-Auth-Token': token, 'Content-Type': 'application/json'}
+    headers = {'X-Auth-Token': str(token), 'Content-Type': 'application/json'}
 
     if item_id == '':
         url = '{}/{}'.format(base_url, item_path)
@@ -41,15 +41,22 @@ def _emit_saving_visualization(emit_event_fn, task_id):  # pragma: no cover
 def _emit_saved_visualization(_type, emit_event_fn,
                               visualization):  # pragma: no cover
     if emit_event_fn is not None:
+        if 'model' in visualization:
+            type_id = visualization['model'].type_id
+            title = visualization['model'].title
+        else:
+            type_id = visualization['type']['id']
+            title = visualization['title']
+
         emit_event_fn(
             'task result', status='COMPLETED',
             identifier=visualization['task_id'],
             task={'id': visualization['task_id']},
             message=_('Result generated'),
             type=_type,
-            title=visualization['model'].title,
-            operation={'id': visualization['model'].type_id},
-            operation_id=visualization['model'].type_id)
+            title=title,
+            operation={'id': type_id},
+            operation_id=type_id)
 
 
 def _emit_completed(emit_event_fn, task_id):  # pragma: no cover
@@ -86,12 +93,17 @@ def new_dashboard(config, title, user, workflow_id, workflow_name, job_id,
 def new_visualization(config, user, workflow_id, job_id,
                       task_id, visualization, emit_event_fn=None,
                       _type='VISUALIZATION'):
-    caipirinha_config = config['juicer']['services']['caipirinha']
+
+    if 'juicer' in config:
+        caipirinha_config = config['juicer']['services']['caipirinha']
+    else:
+        caipirinha_config = config
 
     _emit_saving_visualization(emit_event_fn, task_id)
     _emit_saved_visualization(_type, emit_event_fn, visualization)
 
-    del visualization['model']
+    if 'model' in visualization:
+        del visualization['model']
     r = _update_caipirinha(
         caipirinha_config['url'], 'visualizations',
         caipirinha_config['auth_token'], '', json.dumps(visualization))

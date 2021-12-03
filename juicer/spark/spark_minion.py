@@ -126,7 +126,7 @@ class SparkMinion(Minion):
 
         self.cluster_options = {}
         self.last_cluster_id = None
-        self.DIST_ZIP_FILE = '/tmp/lemonade-lib-pythoni_{}.zip'.format(
+        self.DIST_ZIP_FILE = '/tmp/lemonade-lib-python_{}.zip'.format(
             self.app_id)
 
     def _cleanup(self, pid, flag):
@@ -437,18 +437,28 @@ class SparkMinion(Minion):
                     name='update job', message=_('Running job'),
                     status='RUNNING', identifier=job_id)
 
-            module_name = 'juicer_app_{}_{}_{}'.format(
-                self.workflow_id,
-                self.app_id,
-                job_id)
+            freeze = self.config['juicer'].get('freeze')
+            if freeze:
+                # Always use same name. Useful to debug and avoid
+                # stoping the minion every time you change the 
+                # code generation. Can be used in conjunction
+                # with code_gen.py tool
+                log.warn(_('Minion is using the module name {}'.format(freeze)))
+                module_name = freeze
+            else:
+                module_name = 'juicer_app_{}_{}_{}'.format(
+                    self.workflow_id,
+                    self.app_id,
+                    job_id)
 
             generated_code_path = os.path.join(
-                self.tmp_dir, module_name + '.py')
+                    self.tmp_dir, module_name + '.py')
 
-            with codecs.open(generated_code_path, 'w', 'utf8') as out:
-                self.transpiler.transpile(
-                    loader.workflow, loader.graph, {}, out, job_id,
-                    self._state)
+            if not freeze:
+                with codecs.open(generated_code_path, 'w', 'utf8') as out:
+                    self.transpiler.transpile(
+                        loader.workflow, loader.graph, {}, out, job_id,
+                        self._state)
             # force the spark context creation
             self.get_or_create_spark_session(loader, app_configs, job_id)
 

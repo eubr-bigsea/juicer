@@ -43,6 +43,8 @@ if __name__ == '__main__':
     parser.add_argument("--jars", help="Add Java JAR files to class path.",
                         required=False)
 
+    parser.add_argument("--freeze", help="Always execute the generated code from infomed file", 
+        required=False)
     args = parser.parse_args()
     t = gettext.translation('messages', locales_path, [args.lang],
                             fallback=True)
@@ -60,6 +62,8 @@ if __name__ == '__main__':
         redis_conn = redis.StrictRedis(host=parsed_url.hostname,
                                        port=parsed_url.port,
                                        decode_responses=True)
+        if args.freeze != '':
+            juicer_config['juicer']['freeze'] = args.freeze
         if args.type == 'spark':
             # log.info('Starting Juicer Spark Minion')
             minion = SparkMinion(redis_conn,

@@ -15,6 +15,7 @@ import juicer.spark.text_operation as text_operation
 import juicer.spark.trustworthy_operation as trustworthy_operation
 import juicer.spark.vis_operation as vis_operation
 import juicer.spark.ws_operation as ws_operation
+import juicer.spark.validation_operation as validation
 import os
 from juicer import operation
 from juicer.transpiler import Transpiler
@@ -248,9 +249,13 @@ class SparkTranspiler(Transpiler):
 
         }
 
+        validation_ops = {
+            'validation': validation.ValidationOperation,
+            'validation-report': validation.ValidationReportOperation,
+        }
         self.operations = {}
         for ops in [advanced_ops, data_ops, etl_ops, geo_ops, ml_ops, other_ops, 
                     text_ops, statistics_ops, ws_ops, vis_ops, dm_ops, 
                     data_quality_ops, feature_ops, trustworthy_operations, 
-                    ml_model_operations2]:
+                    ml_model_operations2, validation_ops]:
             self.operations.update(ops)
