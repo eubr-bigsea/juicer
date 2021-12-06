@@ -765,14 +765,14 @@ class SaveOperation(Operation):
     
             code += dedent(code_api)
         else:
-            task_id=self.parameters['task_id'],
+            task_id=self.parameters['task_id']
             warn_ignored=_('Data was written, but was '
                 'not registered as a data source in Lemonade (unsupported).')
             code += dedent(f"""
                 emit_event(name='update task',
                         message='{warn_ignored}',
                         status='COMPLETED',
-                        identifier='{task_id}')""")
+                        identifier='{task_id}')\n""")
 
 
             
