@@ -540,6 +540,7 @@ class SaveOperation(Operation):
         self.user = parameters.get(self.USER_PARAM)
         self.workflow_id = parameters.get(self.WORKFLOW_ID_PARAM)
         self.has_code = len(self.named_inputs) == 1
+        self.supports_cache = False
 
     def get_data_out_names(self, sep=','):
         return ''
