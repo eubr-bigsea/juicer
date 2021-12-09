@@ -165,8 +165,12 @@ class ScikitLearnTranspiler(Transpiler):
 
         other_ops = {
             'comment': operation.NoOp,
+        }
+
+        statistical_ops = {
             'pdf': stat_operation.PdfOperation,
             'cdf': stat_operation.CdfOperation,
+            'ccdf': stat_operation.CcdfOperation,
         }
 
         ws_ops = {}
@@ -189,5 +193,5 @@ class ScikitLearnTranspiler(Transpiler):
 
         self.operations = {}
         for ops in [data_ops, etl_ops, geo_ops, ml_ops,
-                    other_ops, text_ops, ws_ops, vis_ops]:
+                    other_ops, text_ops, ws_ops, statistical_ops, vis_ops]:
             self.operations.update(ops)
