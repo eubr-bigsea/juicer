@@ -1044,7 +1044,8 @@ class SummaryStatisticsModel(TableVisualizationModel):
             ('std. dev.', _('std. dev.')), ('sum', _('sum')),
             ('25%', _('25%')), ('50%', _('50%')), ('75%', _('75%')),
             ('mode', _('mode')), ('iqr', _('iqr')),
-            ('skewness', _('skewness')), ('kurtosis', _('kurtosis'))
+            ('skewness', _('skewness')), ('kurtosis', _('kurtosis')),
+            ('cv', _('cv')),
         ])
 
         complete = self.params[
@@ -1126,6 +1127,7 @@ class SummaryStatisticsModel(TableVisualizationModel):
         iqr = (summary['75%'] - summary['25%']).to_frame('iqr')
         unique = data.nunique(dropna=True).to_frame('unique')
         count = data.count().to_frame('count')
+        cv = (data.std() / data.mean()).to_frame('cv')
         top, mode = gen_top_freq(data, count, n=10)
 
         summary = summary \
@@ -1136,7 +1138,8 @@ class SummaryStatisticsModel(TableVisualizationModel):
             .merge(iqr, left_index=True, right_index=True, how='left') \
             .merge(sum_metric, left_index=True, right_index=True, how='left') \
             .merge(unique, left_index=True, right_index=True, how='left') \
-            .merge(mode, left_index=True, right_index=True, how='left')
+            .merge(mode, left_index=True, right_index=True, how='left') \
+            .merge(cv, left_index=True, right_index=True, how='left') \
 
         correlation = self.params[SummaryStatisticsOperation.CORRELATION_PARAM]
         complete = self.params[
