@@ -115,7 +115,7 @@ class CcdfOperation(Operation):
 
         # Adjust alias in order to have the same number of aliases as attributes 
         # by filling missing alias with the attribute name suffixed by _pdf.
-        self.alias = [x[1] or '{}_cdf'.format(x[0]) for x 
+        self.alias = [x[1] or '{}_ccdf'.format(x[0]) for x 
                 in zip_longest(self.attributes, self.alias[:len(self.attributes)])] 
 
         self.output = self.named_outputs.get(
@@ -135,8 +135,8 @@ class CcdfOperation(Operation):
         for i, attr in enumerate({self.attributes}):
 	    tmp_sum = {self.input}[attr].sum()
             df[alias[i]] = {self.input}.apply(lambda x: x[[attr]]/tmp_sum, axis=1)
-            for j in reversed(range(1, len(df[alias[i]]))):
-		df.loc[j, alias[i]] += df.loc[j+1, alias[i]]
+            for j in range(len(df[alias[i]])-1, 0, -1):
+		df.loc[j-1, alias[i]] += df.loc[j, alias[i]]
 	    {self.output} = df
         """
         return dedent(code)
