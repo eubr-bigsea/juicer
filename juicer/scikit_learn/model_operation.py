@@ -516,6 +516,9 @@ class EvaluateModelOperation(Operation):
 
             self._get_code_for_summary(code)
 
+            # Fix indentation
+            code = [dedent(c) for c in code]
+
             code = """\n""".join(code).format(
                 display_text=display_text,
                 display_image=display_image,
