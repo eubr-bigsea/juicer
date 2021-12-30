@@ -404,7 +404,7 @@ class OneHotEncoderOperation(Operation):
                         inputCol=col, outputCol=alias,dropLast=True))
                 keep_at_end.append(alias)
 
-            if delete_tmp:
+            if delete_tmp and False:
                 sql = 'SELECT {{}} FROM __THIS__'.format(', '.join(keep_at_end))
                 stages.append(SQLTransformer(statement=sql))
 
@@ -1362,8 +1362,9 @@ class ClassificationModelOperation(DeployModelMixin, Operation):
                 # Remove rows with null (VectorAssembler doesn't support it)
                 cond = ' AND '.join(['{{}} IS NOT NULL '.format(c)
                     for c in to_assemble])
-                stages.append(SQLTransformer(
-                    statement='SELECT * FROM __THIS__ WHERE {{}}'.format(cond)))
+                if False:
+                    stages.append(SQLTransformer(
+                        statement='SELECT * FROM __THIS__ WHERE {{}}'.format(cond)))
 
                 final_features = 'features_tmp'
                 stages.append(feature.VectorAssembler(
@@ -2055,8 +2056,9 @@ class ClusteringModelOperation(Operation):
                 # Remove rows with null (VectorAssembler doesn't support it)
                 cond = ' AND '.join(['{{}} IS NOT NULL '.format(c)
                     for c in features])
-                stages.append(SQLTransformer(
-                    statement='SELECT * FROM __THIS__ WHERE {{}}'.format(cond)))
+                if False:
+                    stages.append(SQLTransformer(
+                        statement='SELECT * FROM __THIS__ WHERE {{}}'.format(cond)))
                 final_features = 'features_tmp'
                 stages.append(feature.VectorAssembler(
                     inputCols=features, outputCol=final_features))
@@ -2800,8 +2802,9 @@ class RegressionModelOperation(DeployModelMixin, Operation):
                 # Remove rows with null (VectorAssembler doesn't support it)
                 cond = ' AND '.join(['{{}} IS NOT NULL '.format(c)
                     for c in features])
-                stages.append(SQLTransformer(
-                    statement='SELECT * FROM __THIS__ WHERE {{}}'.format(cond)))
+                if False:
+                    stages.append(SQLTransformer(
+                        statement='SELECT * FROM __THIS__ WHERE {{}}'.format(cond)))
                 final_features = 'features_tmp'
                 stages.append(feature.VectorAssembler(
                     inputCols=features, outputCol=final_features))
@@ -3364,6 +3367,10 @@ class SaveModelOperation(Operation):
     STORAGE_PARAM = 'storage'
     SAVE_CRITERIA_PARAM = 'save_criteria'
     WRITE_MODE_PARAM = 'write_mode'
+    FORMAT_PARAM = 'format'
+
+    FORMAT_DEFAULT = 'DEFAULT'
+    FORMAT_MLEAP = 'MLEAP'
 
     CRITERIA_BEST = 'BEST'
     CRITERIA_ALL = 'ALL'
@@ -3416,6 +3423,8 @@ class SaveModelOperation(Operation):
         self.job_id = parameters.get(self.JOB_ID_PARAM)
 
         self.has_code = any([len(named_inputs) > 0, self.contains_results()])
+        self.format = parameters.get(self.FORMAT_PARAM, self.FORMAT_DEFAULT)
+        self.supports_cache = False
 
     def get_audit_events(self):
         return [auditing.SAVE_MODEL]
@@ -3429,6 +3438,8 @@ class SaveModelOperation(Operation):
         storage = limonero_service.get_storage_info(url, token, self.storage_id)
 
         models = self.named_inputs['models']
+        df = self.named_inputs.get('input data', 'None')
+
         if not isinstance(models, list):
             models = [models]
 
@@ -3462,9 +3473,34 @@ class SaveModelOperation(Operation):
 
                 models_to_save = [m.best for m in all_models]
 
-            def _save_model(model_to_save, model_path, model_name):
+
+            def _save_model(model_to_save, model_path, model_name, format, df):
                 final_model_path = '{final_url}/{{}}'.format(model_path)
-                model_to_save.write().{write_mode}save(final_model_path)
+                if format == 'MLEAP':
+                    import pyarrow as pa
+                    import mleap.pyspark
+                    from urllib.parse import urlparse
+                    from mleap.pyspark.spark_support import SimpleSparkSerializer
+                    parsed = urlparse(final_model_path)
+
+                    tmp_file = '/tmp/model_{job_id}.zip'
+                    model_to_save.serializeToBundle(
+                        'jar:file:' + tmp_file, df)
+                    # Copy model to HDFS
+                    fs = pa.hdfs.connect(
+                        host=parsed.hostname, 
+                        port=parsed.port,
+                        user=parsed.username)
+                    overwrite = '{write_mode}' != ''
+                    if fs.exists(final_model_path):
+                        if not overwrite:
+                            raise ValueError('{exists}')
+                    with open(tmp_file, 'rb') as f:
+                        fs.upload(final_model_path, f)
+                    os.remove(tmp_file)
+
+                else:
+                    model_to_save.write().{write_mode}save(final_model_path)
                 # Save model information in Limonero
                 model_type = '{{}}.{{}}'.format(model_to_save.__module__,
                     model_to_save.__class__.__name__)
@@ -3477,7 +3513,7 @@ class SaveModelOperation(Operation):
                     "class_name": model_type,
                     "storage_id": {storage_id},
                     "path":  model_path,
-                    "type": "UNSPECIFIED",
+                    "type": "MLEAP" if format == 'MLEAP' else "UNSPECIFIED" ,
                     "task_id": '{task_id}',
                     "job_id": {job_id},
                     "workflow_id": {workflow_id},
@@ -3486,21 +3522,25 @@ class SaveModelOperation(Operation):
                 # Save model information in Limonero
                 register_model('{url}', model_payload, '{token}', overwrite={overwrite})
 
+            format = '{format}'
             for i, model in enumerate(models_to_save):
                 if isinstance(model, dict): # For instance, it's a Indexer
                     for k, v in model.items():
                         name = '{name} - {{}}'.format(k)
                         path = '{path}/{name}.{{0}}.{{1:04d}}'.format(k, i)
-                        _save_model(v, path, name)
+                        _save_model(v, path, name, format, {input})
                 else:
                     name = '{name}'
                     path = '{path}/{name}.{{0:04d}}'.format(i)
-                    _save_model(model, path, name)
+                    _save_model(model, path, name, format, {input})
         """.format(models=', '.join(models), overwrite=overwrite, 
                    write_mode=write_mode,
                    path=self.path,
                    final_url=storage['url'],
                    url=url,
+                   exists=_('File already exists. Try '
+                            'to use options to overwrite it.'),
+                   format=self.format,
                    token=token,
                    storage_id=self.storage_id,
                    name=self.name.replace(' ', '_'),
@@ -3516,6 +3556,7 @@ class SaveModelOperation(Operation):
                    workflow_name=self.workflow_name,
                    user_id=user.get('id'),
                    user_name=user.get('name'),
+                   input=df,
                    user_login=user.get('login')))
         return code
 
@@ -3775,8 +3816,9 @@ class OutlierDetectionOperation(Operation):
             # Remove rows with null (VectorAssembler doesn't support it)
             cond = ' AND '.join(['{{}} IS NOT NULL '.format(c)
                 for c in to_assemble])
-            stages.append(SQLTransformer(
-                statement='SELECT * FROM __THIS__ WHERE {{}}'.format(cond)))
+            if False:
+                stages.append(SQLTransformer(
+                    statement='SELECT * FROM __THIS__ WHERE {{}}'.format(cond)))
 
             final_features = 'features_tmp'
             stages.append(feature.VectorAssembler(
