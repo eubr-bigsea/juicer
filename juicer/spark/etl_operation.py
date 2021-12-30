@@ -440,7 +440,7 @@ class JoinOperation(Operation):
                 ]
                 """.format(in2=input_data2, attrs=',\n                    '.join(attrs))))
         elif selection_type2 == 1:
-            if not same_df and selfself.keep_right_keys in ["False", "false", False, "0", 0]:
+            if not same_df and self.keep_right_keys in ["False", "false", False, "0", 0]:
                 remove = [clause[1] for clause in on_clause]
             else:
                 remove = None
