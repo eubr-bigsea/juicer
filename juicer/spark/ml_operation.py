@@ -2887,7 +2887,7 @@ class RegressionModelOperation(DeployModelMixin, Operation):
 
                     if hasattr(regression_model, 'toDebugString'):
                        dt_report = DecisionTreeReport(regression_model,
-                           individual_feat)
+                           {input}.schema, final_features, individual_feat)
                        emit(status='COMPLETED',
                             message=dt_report.generate(),
                             type='HTML', title='{title}')

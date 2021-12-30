@@ -6,6 +6,7 @@ import datetime
 import itertools
 import json
 import os
+import re
 from io import BytesIO
 from collections.abc import Iterable
 from gettext import gettext
@@ -360,8 +361,6 @@ class DecisionTreeReport(BaseHtmlReport):
         self.features_col = features_col
         self.tree = model.toDebugString
         self.features = features
-        for (i, f) in enumerate(features):
-            self.tree = self.tree.replace('feature {}'.format(i), f)
 
     def _tree_json(self):
         data = []
@@ -373,6 +372,7 @@ class DecisionTreeReport(BaseHtmlReport):
 
     def _parse(self, lines):
         block = []
+        import pdb; pdb.set_trace()
         while lines:
             if lines[0].startswith('If'):
                 bl = ' '.join(lines.pop(0).split()[1:]) \
@@ -391,8 +391,12 @@ class DecisionTreeReport(BaseHtmlReport):
 
     def generate(self):
         from juicer.spark.util.tree_visualization import get_graph_from_model 
-        return "<h6>{}</h6>{}".format(
+        result = "<h6>{}</h6>{}".format(
                 gettext('Tree'),
                 get_graph_from_model(self.model, 
                                      self.spark_schema, 
                                      self.features).decode('utf-8'))
+        mapping = dict([(f'feature {x}', v) for (x, v) in enumerate(self.features)])
+        pattern = re.compile("|".join(mapping.keys()), re.IGNORECASE)
+        return pattern.sub(lambda m: mapping[m.group(0).lower()], result)
+    
