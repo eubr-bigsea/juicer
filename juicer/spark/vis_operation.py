@@ -574,18 +574,23 @@ class BarChartModel(ChartVisualization):
     def get_data(self):
         x_attr, x_type, y_attrs = self._get_axis_info()
 
+        colors_palette = self.params.get('color_palette') or []
+
         rows = self.data.collect()
 
         colors = {}
         color_counter = 0
-        for i, attr in enumerate(y_attrs):
-            color = COLORS_PALETTE[(i % 6) * 5 + ((i // 6) % 5)]
-            colors[attr.name] = {
-                'fill': color,
-                'gradient': color,
-                'stroke': color,
-            }
-            color_counter = i
+        limit = len(colors_palette)
+        # for i, attr in enumerate(y_attrs):
+        #     #color = colors_palette[(i % limit) * (limit - 1) 
+        #     #    + ((i // limit) % (limit -1))]
+        #     color = colors_palette[i % limit]
+        #     colors[attr.name] = {
+        #         'fill': color,
+        #         'gradient': color,
+        #         'stroke': color,
+        #     }
+        #     color_counter = i
 
         result = {}
         result.update(self._get_title_legend_tooltip())
@@ -619,24 +624,37 @@ class BarChartModel(ChartVisualization):
 
         for inx_row, row in enumerate(rows):
             x_value = row[x_attr.name]
-            if x_value not in colors:
-                inx_row += 1
-                color = COLORS_PALETTE[(color_counter % 6) * 5 +
-                                       ((color_counter // 6) % 5)]
-                colors[x_value] = {
-                    'fill': color,
-                    'gradient': color,
-                    'stroke': color,
-                }
+            # if x_value not in colors:
+            #     inx_row += 1
+            #     #color = colors_palette[(color_counter % limit) * (limit - 1) +
+            #     #                       ((color_counter // limit) % (limit - 1))]
+            #     color = colors_palette[color_counter % limit]
+            #     colors[x_value] = {
+            #         'fill': color,
+            #         'gradient': color,
+            #         'stroke': color,
+            #     }
+
+            orientation = {'vertical': 'v', 'horizontal': 'h',
+                'stacked-verical': 'v', 'stacked-horizontal': 'h'}.get(
+                self.params.get('display_mode'), 'v')
 
             data = {
                 'x': LineChartModel._format(x_value),
                 'name': row[x_attr.name],
                 'key': row[x_attr.name],
-                'color': COLORS_PALETTE[
-                    (inx_row % 6) * 5 + ((inx_row // 6) % 5)],
-                'values': []
+                'values': [],
+                'orientation': orientation 
             }
+            if limit:
+                data['color']  = colors_palette[inx_row % limit]
+            else:
+                data['color'] = COLORS_PALETTE[
+                    (inx_row % 6) * 5 + ((inx_row // 6) % 5)]
+
+            result['barmode'] = ('stack' if 'stacked' 
+                in self.params.get('display_mode', '') else 'group')
+
             result['data'].append(data)
             for i, attr in enumerate(y_attrs):
                 data['values'].append(
@@ -650,7 +668,7 @@ class BarChartModel(ChartVisualization):
                     raise ValueError(
                         _('The maximum number of values for x-axis is 100.'))
 
-        result['colors'] = colors
+        # result['colors'] = colors
         return result
 
 
