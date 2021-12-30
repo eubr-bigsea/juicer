@@ -153,10 +153,11 @@ class Workflow(object):
         all_task_names = []
 
         for task in self.workflow['tasks']:
-            if not task.get('name') in all_task_names:
-                all_task_names.append(task.get('name'))
-            else:
-                raise ValueError(gettext('Task names must be unique.'))
+            # Removed. See eubr-bigsea/citrus#248
+            # if not task.get('name') in all_task_names:
+            #    all_task_names.append(task.get('name'))
+            #else:
+            #    raise ValueError(gettext('Task names must be unique.'))
 
             if task.get('enabled', True) and task.get(
                     'environment', 'DESIGN') == 'DESIGN':
