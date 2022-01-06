@@ -70,6 +70,9 @@ class JuicerServer:
 
         signal.signal(signal.SIGTERM, self._terminate)
 
+        # Ignore signal in order to avoid defunct processes
+        signal.signal(signal.SIGCHLD, signal.SIG_IGN)
+
         self.port_range = list(range(*(config['juicer'].get('minion', {}).get(
             'libprocess_port_range', [36000, 36500]))))
         self.advertise_ip = config['juicer'].get('minion', {}).get(

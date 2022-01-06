@@ -540,6 +540,7 @@ class SaveOperation(Operation):
         self.user = parameters.get(self.USER_PARAM)
         self.workflow_id = parameters.get(self.WORKFLOW_ID_PARAM)
         self.has_code = len(self.named_inputs) == 1
+        self.supports_cache = False
 
     def get_data_out_names(self, sep=','):
         return ''
@@ -765,14 +766,14 @@ class SaveOperation(Operation):
     
             code += dedent(code_api)
         else:
-            task_id=self.parameters['task_id'],
+            task_id=self.parameters['task_id']
             warn_ignored=_('Data was written, but was '
                 'not registered as a data source in Lemonade (unsupported).')
             code += dedent(f"""
                 emit_event(name='update task',
                         message='{warn_ignored}',
                         status='COMPLETED',
-                        identifier='{task_id}')""")
+                        identifier='{task_id}')\n""")
 
 
             
