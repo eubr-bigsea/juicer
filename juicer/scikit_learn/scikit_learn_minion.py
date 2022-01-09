@@ -1,7 +1,6 @@
 # coding=utf-8
 import gc
 import gettext
-import imp
 import importlib
 import itertools
 import json
@@ -230,7 +229,6 @@ class ScikitLearnMinion(Minion):
             flows.append(flow)
             loader.graph.add_edge(ids[1], ids[0], attr_dict=flow)
             loader.graph.nodes[ids[0]]['parents'].append(ids[1])
-        import pdb; pdb.set_trace()
         workflow['flows'] = flows
 
     def perform_execute(self, job_id, workflow, app_configs):
@@ -242,9 +240,10 @@ class ScikitLearnMinion(Minion):
         start = timer()
         try:
             loader = Workflow(workflow, self.config)
-            if app_configs.get('auto_plug'):
-                log.info('Auto-plugging ports')
-                self._auto_plug(loader)
+            # Not working very well
+            # if app_configs.get('auto_plug'):
+            #    log.info('Auto-plugging ports')
+            #    self._auto_plug(loader)
                     
             loader.handle_variables({'job_id': job_id})
 
@@ -275,7 +274,7 @@ class ScikitLearnMinion(Minion):
 
             # Launch the scikit_learn
             self.module = importlib.import_module(module_name)
-            self.module = imp.reload(self.module)
+            self.module = importlib.reload(self.module)
             if log.isEnabledFor(logging.DEBUG):
                 log.debug('Objects in memory after loading module: %s',
                           len(gc.get_objects()))
