@@ -1144,8 +1144,12 @@ class TransformationOperation(Operation):
             self.imports.update(expression.imports)
             # row.append(expression.imports) #TODO: by operation itself
 
-        copy_code = ".copy()" \
-            if self.parameters['multiplicity']['input data'] > 1 else ""
+        #copy_code = ".copy()" \
+        #    if self.parameters['multiplicity']['input data'] > 1 else ""
+        # Always copy. If the target name (alias) exists in df, 
+        # the original df is changed and may impact the workflow 
+        # processing.
+        copy_code = '.copy()'
 
         import_clause = '\n'.join([(8 * ' ' + imp) for imp in 
             expression.imports.split('\n')])
