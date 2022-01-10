@@ -644,8 +644,12 @@ class BarChartModel(ChartVisualization):
                 'name': row[x_attr.name],
                 'key': row[x_attr.name],
                 'values': [],
-                'orientation': orientation 
+                'orientation': orientation, 
             }
+
+            data['log_x'] =  self.params.get('x_log_scale', False)
+            data['log_x'] =  self.params.get('x_log_scale', False)
+
             if limit:
                 data['color']  = colors_palette[inx_row % limit]
             else:
