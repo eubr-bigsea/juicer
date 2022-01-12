@@ -332,7 +332,7 @@ def emit_sample_sklearn(task_id, df, emit_event, name, size=50, notebook=False,
             elif types.is_string_dtype(col_py_type):
                 # truncate column if size is bigger than 200 chars.
                 value = row[col]
-                if len(value) > 60:
+                if value and len(value) > 60:
                     value = value[:60] + ' (trunc.)'
                     truncated.add(col)
             else:
@@ -377,10 +377,9 @@ def emit_sample_sklearn(task_id, df, emit_event, name, size=50, notebook=False,
         result['missing'] = missing 
         result['invalid'] = invalid
         result['truncated'] = list(truncated)
-
     emit_event('update task', status='COMPLETED',
                identifier=task_id,
-               message=result, meaning='sample',
+               message=json.dumps(result), meaning='sample',
                type='OBJECT', title=_('Sample data for {}').format(name),
                task={'id': task_id})
 
