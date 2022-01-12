@@ -161,6 +161,8 @@ class Transpiler(object):
 
         audit_events = []
         for i, task_id in enumerate(tasks_ids):
+            if task_id not in graph.node:
+                continue
             task = graph.node[task_id]['attr_dict']
             task['parents'] = graph.node[task_id]['parents']
             self.current_task_id = task_id
@@ -391,13 +393,13 @@ class Transpiler(object):
             sequence = sequential_ports[flow_id]
 
             source_port = ports[source_id]
-            if True or sequence not in source_port['outputs']:
+            if sequence not in source_port['outputs']:
                 source_port['named_outputs'][
                     flow['source_port_name']] = sequence
                 source_port['outputs'].append(sequence)
 
             target_port = ports[target_id]
-            if True or sequence not in target_port['inputs']:
+            if sequence not in target_port['inputs']:
                 flow_name = flow['target_port_name']
                 # Test if multiple inputs connects to a port
                 # because it may have multiplicity MANY
@@ -417,6 +419,7 @@ class Transpiler(object):
 
         sorted_tasks_ids = nx.topological_sort(graph) if topological_sort \
             else [t['id'] for t in sorted(workflow['tasks'], key=lambda x: x['display_order'])]
+
         self.generate_code(graph, job_id, out, params,
                            ports, sorted_tasks_ids, state,
                            hashlib.sha1(),
@@ -454,6 +457,10 @@ class TranspilerUtils(object):
             if instance.must_be_executed(is_satisfied):
                 result.append(instance)
         return result
+
+    @staticmethod
+    def enabled_only(tasks):
+        return TranspilerUtils._get_enabled_tasks(tasks)
 
     @staticmethod
     def _get_enabled_tasks(instances):
@@ -575,7 +582,7 @@ class TranspilerUtils(object):
             name = 'df_'  # name[:3]
         else:
             name = ''.join([p[0] for p in parts])
-        return '{}{}'.format(name, seq)
+        return f'{name}{seq}'
 
     def add_import(self, name):
         """ Add an import to the generated code. More than one operation may add
