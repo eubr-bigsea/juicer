@@ -256,25 +256,37 @@ class Workflow(object):
                     flow['target_id'] not in self.disabled_tasks]):
                 # Updates the source_port_name and target_port_name. They are
                 # used in the transpiler part instead of the id of the port.
-                source_port = list([p for p in
-                                    task_map[flow['source_id']]['operation'][
-                                        'ports'] if
-                                    int(p['id']) == int(flow['source_port'])])
+                source_ports = task_map[flow['source_id']]['operation']['ports']
+                target_ports = task_map[flow['target_id']]['operation']['ports']
 
-                target_port = list([p for p in
-                                    task_map[flow['target_id']]['operation'][
-                                        'ports'] if
-                                    int(p['id']) == int(flow['target_port'])])
+                source_port = next((p for p in source_ports 
+                    if p['id'] == flow['source_port'] or p['slug'] == flow['source_port_name']),
+                    None)
+                target_port = next((p for p in target_ports 
+                    if p['id'] == flow['target_port'] or p['slug'] == flow['target_port_name']),
+                    None)
+                # source_port = list([p for p in
+                #                     task_map[flow['source_id']]['operation'][
+                #                         'ports'] if
+                #                     int(p['id']) == int(flow['source_port'])])
 
-                if all([source_port, target_port]):
+                # target_port = list([p for p in
+                #                     task_map[flow['target_id']]['operation'][
+                #                         'ports'] if
+                #                     int(p['id']) == int(flow['target_port'])])
+
+                if not (source_port is None or target_port is None):
                     # Compatibility assertion, may be removed in future
                     # assert 'target_port_name' not in flow or \
                     #        flow['target_port_name'] == target_port[0]['slug']
                     # assert 'source_port_name' not in flow \
                     #      or flow['source_port_name'] == source_port[0]['slug']
 
-                    flow['target_port_name'] = target_port[0]['slug']
-                    flow['source_port_name'] = source_port[0]['slug']
+                    # Sync id and slug. Some code use slug, other, the id
+                    flow['target_port_name'] = target_port['slug']
+                    flow['source_port_name'] = source_port['slug']
+                    flow['target_port'] = target_port['id']
+                    flow['source_port'] = source_port['id']
 
                     self.graph.add_edge(flow['source_id'], flow['target_id'],
                                         attr_dict=flow)
@@ -285,7 +297,7 @@ class Workflow(object):
                         _("Incorrect configuration for ports: %s, %s"),
                         source_port, target_port)
                     raise ValueError(_(
-                        "Invalid or non-existing port: '{op}' {s} {t}").format(
+                        "Invalid or non-existing port: Operation: {op} ({s} {t})").format(
                         op=task_map[flow['source_id']]['operation']['name'],
                         s=flow['source_port'], t=flow['target_port']))
 
