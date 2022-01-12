@@ -7,9 +7,11 @@ from six import text_type
 from gettext import gettext
 
 JAVA_2_PYTHON_DATE_FORMAT = {
-    'yy': '%Y', 'y': '%y',
-    'yyyy': '%Y',
+    'yyyy': '%Y', 'y': '%Y', 'yy': '%y',
+    'YYYY': '%Y', 'Y': '%Y', 'YY': '%y',
+
     'MM': '%m', 'MMM': '%b', 'MMMM': '%B', 'M': '%-m',
+
     'd': '%-d',
     'dd': '%d',
     'D': '%j',
@@ -116,7 +118,7 @@ class Expression:
         """
         arguments = [self.parse(x, params) for x in spec['arguments']]
         # print >> sys.stderr, group(arguments[:-1], 2)
-        code = "np.select([{}], [{}], default={})".format(
+        code = "np.select([{}], [{}], default=[{}])[0]".format(
             ', '.join(arguments[:-1:2]),
             ', '.join(arguments[1::2]), 
             arguments[-1])
@@ -510,7 +512,6 @@ class Expression:
             'now': self.get_date_function_call,
             'utcnow': self.get_date_function_call,
             'fromtimestamp': self.get_date_function_call,
-            'from_unixtime': self.get_date_function_call,
             'utcfromtimestamp': self.get_date_function_call,
             'from_utc_timestamp': self.get_date_function_call,
             'fromordinal': self.get_date_function_call,
@@ -595,6 +596,7 @@ class Expression:
             "sha1": "import hashlib",
             "sha2": "import hashlib",
             "md5": "import hashlib",
+            "urlsplit": "import urllib",
 
         }
 
@@ -630,11 +632,14 @@ class Expression:
             'dayofweek': lambda s, p: self.get_date_instance_attribute_call(s, p, 'weekday()'),
             'dayofyear': self.get_date_instance_attribute_call,
             'degrees': self.get_numpy_function_call,
+            'from_unixtime': lambda s, p: f"pd.to_datetime({self.parse(s['arguments'][0], p)}, unit='s')",
             'instr': lambda s, p: self.get_function_call(s, p, 'str.find'),
             'hex': self.get_function_call,
             'hour': self.get_date_instance_attribute_call,
             'initcap': lambda s, p: self.get_function_call(s, p, 'str.title'),
             'isnan': lambda s, p: self.get_numpy_function_call(s, p, 'isnan'),
+            'isnull': lambda s, p: self.get_function_call(s, p, 'pd.isnull'),
+            'isnotnull': lambda s, p: self.get_function_call(s, p, 'pd.notnull'),
             'least': lambda s, p: self.get_numpy_function_call(s, p, 'min'),
             'length': lambda s, p: self.get_function_call(s, p, 'len'),
             # 'levenshtein':
@@ -658,14 +663,13 @@ class Expression:
             'randn': lambda s, p: self.get_numpy_function_call(
                 s, p, 'random.randn'),
             'regexp_extract': lambda s, p:
-                ("functools.partial(lambda t, inx, expr: expr.findall(t)[inx], "
+                ("functools.partial(lambda t, expr: expr.findall(t), "
                  "expr=re.compile({expr}))"
-                 "({val}, {inx})").format(
+                 "({val})").format(
                     val=self.parse(s['arguments'][0], p),
                     expr=(self.parse(s['arguments'][1], p)
                           if s['arguments'][1]['type'] != 'Literal' else
-                          "r'{}'".format(s['arguments'][1]['value'])),
-                    inx=self.parse(s['arguments'][2], p)),
+                          "r'{}'".format(s['arguments'][1]['value']))),
             'regexp_replace': lambda s, p:
                 ("functools.partial(lambda t, rep, expr: expr.sub(rep, t), "
                  "expr=re.compile({expr}))"
@@ -759,9 +763,9 @@ class Expression:
                     s, 1, {'type': 'Literal', 'value': 16, 'raw': 16}),
                 p, 'int'),
             'unix_timestamp':
-                lambda s, p: self.get_function_call(s, p, 'pd.to_datetime'),
+                lambda s, p: f"int({self.parse(s['arguments'][0], p)}.timestamp())",
             'upper': lambda s, p: self.get_function_call(s, p, 'str.upper'),
-
+            'urlsplit': lambda s, p: self.get_function_call(s, p, 'urllib.parse.urlsplit'),
             'weekofyear': lambda s, p: self.get_date_instance_attribute_call(s, p, 
                     'isocalendar()[1]'),
             'when': self.get_when_function,
