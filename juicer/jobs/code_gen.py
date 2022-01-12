@@ -121,7 +121,6 @@ def _generate(workflow_id, job_id, execute_main, params, config, out=sys.stdout,
         params['execute_main'] = execute_main
         transpiler.execute_main = execute_main
         if loader.platform['slug'] == 'meta' and from_meta:
-            from juicer.scikit_learn.transpiler import ScikitLearnTranspiler
             out1 = StringIO()
             transpiler.transpile(
                 loader.workflow, loader.graph, params=params, deploy=deploy,
