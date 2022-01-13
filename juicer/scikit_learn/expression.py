@@ -70,7 +70,7 @@ class Expression:
         # Unary Expression parsing
         elif tree['type'] == 'UnaryExpression':
             if tree['operator'] == '!':
-                tree['operator'] = '~'
+                tree['operator'] = 'not'
             result = "({} {})".format(tree['operator'],
                                       self.parse(tree['argument'], params))
 
