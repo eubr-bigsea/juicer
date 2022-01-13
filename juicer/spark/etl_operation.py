@@ -300,12 +300,12 @@ class JoinOperation(Operation):
     JOIN_PARAMS = 'join_parameters'
 
     __aslots__ = ('join_parameters', 'join_type', 'new_parameters_format',
-            'left_attributes', 'right_attributes', 'aliases', 'output', 
+            'left_attributes', 'right_attributes', 'aliases', 'output',
             'match_case', 'keep_right_keys')
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
-        
+
         self.keep_right_keys = parameters.get(self.KEEP_RIGHT_KEYS_PARAM, False)
         self.match_case = parameters.get(self.MATCH_CASE_PARAM, False) in [
             'true', 'True', True, '1', 1]
@@ -335,11 +335,11 @@ class JoinOperation(Operation):
             else:
                 self.left_attributes = parameters.get(self.LEFT_ATTRIBUTES_PARAM)
                 self.right_attributes = parameters.get(self.RIGHT_ATTRIBUTES_PARAM)
-    
+
             self.aliases = [
                 alias.strip() for alias in
                 parameters.get(self.ALIASES_PARAM, 'ds0_, ds1_').split(',')]
-    
+
             if len(self.aliases) != 2:
                 raise ValueError(_('You must inform 2 values for alias'))
 
@@ -347,11 +347,11 @@ class JoinOperation(Operation):
             'output data', 'out_data_{}'.format(self.order))
 
     def generate_code(self):
-        if self.new_parameters_format: 
+        if self.new_parameters_format:
             return self._new_generate_code()
         else:
             return self._legacy_generate_code()
-    
+
     def _get_operator(self, value):
         operators = {
             'ne': '!=',
@@ -367,7 +367,7 @@ class JoinOperation(Operation):
         input_data1 = self.named_inputs['input data 1']
         input_data2 = self.named_inputs['input data 2']
 
-        on_clause = [(f['first'], f['second'], self._get_operator(f.get('op', '='))) 
+        on_clause = [(f['first'], f['second'], self._get_operator(f.get('op', '=')))
                 for f in self.join_parameters.get('conditions')]
 
         first_alias = (self.join_parameters.get(
@@ -386,35 +386,35 @@ class JoinOperation(Operation):
         else:
             join_condition = ', '.join(
                 ["functions.col('{first_alias}.{p0}') == functions.col('{second_alias}.{p1}')".format(
-                    p0=pair[0], p1=pair[1], 
+                    p0=pair[0], p1=pair[1],
                     first_alias=first_alias, second_alias=second_alias)
                     for pair in on_clause])
 
         # When both inputs are from the same source
         same_df = (input_data1 == input_data2)
-           
+
         code = [dedent(f"""
             conditions = [
                 {join_condition}
             ]
             result_df = {input_data1}.alias('{first_alias}').join(
-                {input_data2}.alias('{second_alias}'), 
+                {input_data2}.alias('{second_alias}'),
                 on=conditions, how='{self.join_type}')""")]
 
         selection_type1 = self.join_parameters.get('firstSelectionType')
         selection_type2 = self.join_parameters.get('secondSelectionType')
 
         select_code = ''
-        if selection_type1 == 3: 
+        if selection_type1 == 3:
             if selection_type2 == 3:
                 raise ValueError(_('No attribute was selected'))
             else:
                 code.append("\nfirst_attrs = []".format(in1=input_data1))
 
         elif selection_type1 == 2:
-            attrs = ["{in1}['{name}'].alias('{alias}')".format(name=attr.get('attribute'), 
-                            alias=attr.get('alias'), 
-                            in1=input_data1) 
+            attrs = ["{in1}['{name}'].alias('{alias}')".format(name=attr.get('attribute'),
+                            alias=attr.get('alias'),
+                            in1=input_data1)
                     for attr in self.join_parameters.get('firstSelect', [])
                     if attr.get('select')]
             code.append(dedent("""
@@ -423,15 +423,15 @@ class JoinOperation(Operation):
                 ]
                 """.format(in1=input_data1, attrs=',\n                    '.join(attrs))))
         elif selection_type1 == 1:
-            code.append(self._code_for_select_all_prefixed('first', input_data1, 
+            code.append(self._code_for_select_all_prefixed('first', input_data1,
                 self.join_parameters.get('firstPrefix', '')))
 
         if selection_type2 == 3:
              code.append("\nsecond_attrs = []".format(in2=input_data2))
         if selection_type2 == 2:
-            attrs = ["{in2}['{name}'].alias('{alias}')".format(name=attr.get('attribute'), 
-                            alias=attr.get('alias'), 
-                            in2=input_data2) 
+            attrs = ["{in2}['{name}'].alias('{alias}')".format(name=attr.get('attribute'),
+                            alias=attr.get('alias'),
+                            in2=input_data2)
                     for attr in self.join_parameters.get('secondSelect', [])
                     if attr.get('select')]
             code.append(dedent("""
@@ -458,7 +458,7 @@ class JoinOperation(Operation):
             ignore = []
         return dedent("""
             {var_name}_ignore = {ignore}
-            {var_name}_attrs = [{df}[name].alias('{prefix}' + name) 
+            {var_name}_attrs = [{df}[name].alias('{prefix}' + name)
                 for name in {df}.schema.names if name not in {var_name}_ignore]
         """.format(var_name=var_name, df=df, prefix=prefix, ignore=repr(ignore)))
 
@@ -880,7 +880,7 @@ class SlidingWindowOperation(Operation):
         self.alias = parameters.get(self.ALIAS_PARAM) or 'attr_'
         self.offset = int(parameters.get(self.OFFSET_PARAM, '0'))
         self.gap = int(parameters.get(self.HORIZONTAL_PARAM, '0'))
-        self.size = int(parameters.get(self.SIZE_PARAM, '0')) 
+        self.size = int(parameters.get(self.SIZE_PARAM, '0'))
 
         self.has_code = any(
             [len(self.named_inputs) == 1, self.contains_results()])
@@ -900,18 +900,18 @@ class SlidingWindowOperation(Operation):
                 0, size + gap+ -1)
             win_spec3 = Window.orderBy(functions.lit(1)).rowsBetween(
                 size+gap, size+gap)
-            
-            {out} = {in1}.select(functions.row_number().over(win_spec1).alias('row'), 
-                      functions.collect_list('{attr}').over(win_spec2).alias('group'), 
+
+            {out} = {in1}.select(functions.row_number().over(win_spec1).alias('row'),
+                      functions.collect_list('{attr}').over(win_spec2).alias('group'),
                       functions.max('{attr}').over(win_spec3).alias('_tmp_1'))
             if {offset} == 1:
                 {out} = {out}.filter(functions.size('group') == size+gap)
             else:
-                {out} = {out}.filter(((functions.col('row')) % {offset} == 1) & 
+                {out} = {out}.filter(((functions.col('row')) % {offset} == 1) &
                     (functions.size('group') == size+gap))
             attr_ids = [i for i in range(0, size-1)] + [gap+size-2]
             {out} = {out}.select(
-                [(functions.col('group')[id]).alias('{alias}{{}}'.format(id + 1)) 
+                [(functions.col('group')[id]).alias('{alias}{{}}'.format(id + 1))
                     for id in attr_ids])
             """.format(attr=self.attribute, offset=self.offset,
                        alias=self.alias, out=self.output, in1=input_data,
@@ -1750,3 +1750,101 @@ class SplitKFoldOperation(Operation):
                        title=_('Summary for K-fold')))
 
         return dedent(code)
+
+ class CastOperation(Operation):
+    """ Change attribute type.
+    There are some incompatibilities between platforms caused by
+    how libraries/frameworks handle invalid data.
+    """
+
+    template = """
+        # Changing type implies changes in dataframe,
+        # better do a copy of original one
+        try:
+        {%- for attr in op.attributes %}
+            {{op.output}} =
+            {%- if attr.type in ('Integer', 'Decimal', 'Boolean') -%}
+                {{op.input}}.withColumn('{{attr.attribute}}',
+                                        functions.col('{{attr.attribute}').cast('{{attr.type.lower()}}'))
+            {%- elif attr.type in ('Date', 'DateTime', 'Datetime', 'Time') -%}
+                {{op.input}}.withColumn('{{attr.attribute}}',
+                                        functions.col('{{attr.attribute}').cast('date'))
+            {%- elif attr.type == 'Text' -%}
+                {{op.input}}.withColumn('{{attr.attribute}}',
+                                        functions.col('{{attr.attribute}').cast('text'))
+            {%- elif attr.type == 'Array' -%}
+                {{op.input}}.withColumn('{{attr.attribute}}',
+                                        functions.col('{{attr.attribute}').cast(
+                                            types.ArrayType()))
+            {%- elif attr.type == 'JSON' -%}
+                {{op.input}}.withColumn('{{attr.attribute}}',
+                                        functions.to_json('{{attr.attribute}')
+            {%-endif %}
+            {%- if op.errors == 'move' %}
+                # Copy invalid data to a new attribute
+                # Invalid output rows have NaN in cells, but not in input.
+                s = ({{op.input}}['{{attr.attribute}}'].notnull() != {{op.output}}['{{attr.attribute}}'].notnull())
+                {{op.output}}.loc[s, '{{attr.attribute}}{{op.invalid_values}}'] = {{op.input}}['{{attr.attribute}}']
+            {%- elif op.errors == 'raise' %}
+                # Raise
+            {%- elif op.errors == 'coerce' %}
+                # Coerce
+            {%- endif %}
+        {%- endfor %}
+        except ValueError as ve:
+            msg = str(ve)
+            if 'Unable to parse string' in msg:
+                expr = re.compile(r'.+string "(.+)" at position (\d+)')
+                parts = expr.findall(msg)[0]
+                raise ValueError('{{errors.unable_to_parse}}'.format(*parts))
+            else:
+                raise
+    """
+    ATTRIBUTES_PARAM = 'cast_attributes'
+    ERROR_PARAM = 'errors'
+    INVALID_VALUES_PARAM = 'invalid_values'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+
+        self.has_code = len(self.named_inputs) == 1 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
+
+        self.output = self.named_outputs.get(
+            'output data', 'output_data_{}'.format(self.order))
+        self.input = self.named_inputs.get('input data')
+
+        self.errors = parameters.get(self.ERROR_PARAM, 'coerce') or 'coerce'
+        self.panda_errors = 'coerce' if self.errors == 'move' else self.errors
+        self.invalid_values = parameters.get(
+            self.INVALID_VALUES_PARAM, '_invalid') or '_invalid'
+
+        if self.has_code:
+            if self.ATTRIBUTES_PARAM in parameters:
+                self.attributes = parameters[self.ATTRIBUTES_PARAM]
+                for attr in self.attributes:
+                    if 'formats' in attr:
+                        attr['formats'] = self.parse_date_format(attr['formats'])
+            else:
+                raise ValueError(
+                    _("Parameter '{}' must be informed for task {}").format
+                    ('attributes', self.__class__))
+
+    @property
+    def get_data_out_names(self, sep=','):
+        return self.output
+
+    def parse_date_format(self, fmt):
+        parts = re.split('([^\w\d"\'])', fmt)
+        py_fmt = ''.join([JAVA_2_PYTHON_DATE_FORMAT.get(x, x)
+            for x in parts])
+        return py_fmt
+
+    def generate_code(self):
+        errors = {
+            'unable_to_parse': gettext('Unable to convert value {} at record {} (starts from 0).')
+        }
+        if self.has_code:
+            return dedent(self.render_template({'op': self, 'errors': errors}))
+
+
