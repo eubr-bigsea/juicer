@@ -90,6 +90,8 @@ class TransformOperation(MetaPlatformOperation):
 
             'date-to-ts': {'f': 'unix_timestamp'},
             'format-date': {'f': 'date_format', 'args': ['{format}'], 'transform': [str]},
+
+            'invert-boolean': {'f': None, 'op': '!'},
         }
     def __init__(self, parameters,  named_inputs, named_outputs):
         MetaPlatformOperation.__init__(self, parameters,  named_inputs,  named_outputs)
@@ -100,43 +102,59 @@ class TransformOperation(MetaPlatformOperation):
 
     def generate_code(self):
         task_obj = self._get_task_obj()
-        function_info = self.SLUG_TO_EXPR[self.slug]
-        function_name = function_info['f']
 
-        self.form_parameters = {}
-        for arg in function_info.get('args', []):
-            if arg[0] == '{' and arg[-1] == '}':
-                self.form_parameters[arg[1:-1]] = self.parameters.get(arg[1:-1])
-        # import sys
-        #print(self.form_parameters, file=sys.stderr)
-
-        # Convert the parameters
-        function_args = [arg.format(**self.form_parameters) for arg in
-            function_info.get('args', [])]
-
-        final_args_str = ''
-        final_args = []
-
-        if function_args:
-            final_args_str = ', ' + ', '.join(function_args)
-            transform = function_info['transform']
-            for i, arg in enumerate(function_args):
-                v = transform[i](arg)
-                final_args.append({'type': 'Literal', 'value': v, 'raw': f'{v}'})
-        # Uses the same attribute name as alias, so it will be overwritten
+        info = self.SLUG_TO_EXPR[self.slug]
+        function_name = info.get('f')
         expressions = []
-        for attr in self.attributes:
-            expressions.append(
-              {
-                'alias': attr,
-                'expression': f'{function_name}({attr}{final_args_str})',
-                'tree': {
-                    'type': 'CallExpression',
-                    'arguments': [{'type': 'Identifier', 'name': attr}] + final_args,
-                    'callee': {'type': 'Identifier', 'name': function_name},
-                }
-              }
-              )
+        if function_name:
+
+            self.form_parameters = {}
+            for arg in info.get('args', []):
+                if arg[0] == '{' and arg[-1] == '}':
+                    self.form_parameters[arg[1:-1]] = self.parameters.get(
+                        arg[1:-1])
+            # import sys
+            #print(self.form_parameters, file=sys.stderr)
+
+            # Convert the parameters
+            function_args = [arg.format(**self.form_parameters) for arg in
+                info.get('args', [])]
+
+            final_args_str = ''
+            final_args = []
+
+            if function_args:
+                final_args_str = ', ' + ', '.join(function_args)
+                transform = info['transform']
+                for i, arg in enumerate(function_args):
+                    v = transform[i](arg)
+                    final_args.append(
+                    {'type': 'Literal', 'value': v, 'raw': f'{v}'})
+            # Uses the same attribute name as alias, so it will be overwritten
+            for attr in self.attributes:
+                expressions.append(
+                  {
+                    'alias': attr,
+                    'expression': f'{function_name}({attr}{final_args_str})',
+                    'tree': {
+                        'type': 'CallExpression',
+                        'arguments': [{'type': 'Identifier', 'name': attr}] + final_args,
+                        'callee': {'type': 'Identifier', 'name': function_name},
+                    }
+                  })
+        elif self.slug == 'invert-boolean':
+            for attr in self.attributes:
+                expressions.append(
+                  {
+                    'alias': attr,
+                    'expression': f'!{attr}',
+                    'tree': {
+                       'type': 'UnaryExpression', 'operator': '!',
+                        'argument': {'type': 'Identifier',  'name': attr},
+                        'prefix': True
+                    }
+                  })
+            
         task_obj['forms']['expression'] = {'value': expressions}
         task_obj['operation'] = {'id': 7}
         return json.dumps(task_obj)
@@ -157,6 +175,21 @@ class CleanMissingOperation(MetaPlatformOperation):
             value = getattr(self, prop)
             task_obj['forms'][prop] = {'value': value}
         task_obj['operation'] = {"id": 21}
+        return json.dumps(task_obj)
+
+class CastOperation(MetaPlatformOperation):
+    def __init__(self, parameters,  named_inputs, named_outputs):
+        MetaPlatformOperation.__init__(self, parameters,  named_inputs,  named_outputs)
+        self.cast_attributes = self.get_required_parameter(parameters, 'cast_attributes')
+        self.errors = self.get_required_parameter(parameters, 'errors')
+        self.invalid_values = parameters.get('invalid_values')
+
+    def generate_code(self):
+        task_obj = self._get_task_obj()
+        for prop in ['cast_attributes', 'errors', 'invalid_values']:
+            value = getattr(self, prop)
+            task_obj['forms'][prop] = {'value': value}
+        task_obj['operation'] = {"id": 140}
         return json.dumps(task_obj)
 
 
