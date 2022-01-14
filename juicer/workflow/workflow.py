@@ -145,7 +145,7 @@ class Workflow(object):
     def _build_initial_workflow_graph(self):
         """ Builds a graph with the tasks """
 
-        operations_tahiti = {op['id']: op for op 
+        operations_tahiti = {op['id']: op for op
                 in self._get_operations(self.workflow['id'])}
         # Querying all operations from tahiti one time
         task_map = {}
@@ -415,7 +415,7 @@ class Workflow(object):
 
         # Querying tahiti operations to get number of inputs and outputs
         return tahiti_service.query_tahiti(
-            params['base_url'], params['item_path'], params['token'], 
+            params['base_url'], params['item_path'], params['token'],
             params['item_id']).get('data')
 
     def get_ports_from_operation_tasks(self, id_operation):
@@ -490,8 +490,8 @@ class Workflow(object):
             return v.replace(found, new_value)
         else:
             raise ValueError(
-                 _('Variable "{}" is used in task "{}", but it is undefined.'.format(
-                 var_name, task['name'])))
+                 _('Undefined variable "{}" used in task "{}"').format(
+                 var_name, task['name']))
 
     def _replace(self, data, all_vars, var_re, task):
         if isinstance(data, dict):
@@ -507,7 +507,7 @@ class Workflow(object):
             elif data is None:
                 ...
             return data
-    
+
     def handle_variables(self, custom_vars=None):
         """
         Handles variable substitution
@@ -540,21 +540,28 @@ class Workflow(object):
         for task in self.workflow['tasks']:
             if 'forms' in task and task['enabled']:
                 task['forms'] = self._replace(task['forms'], all_vars, variable_re, task)
-                
+
                 # Handle properties associated to variables
                 for prop, value in task['forms'].items():
                     if value.get('publishing_enabled') and value.get('variable'):
-                        v = all_vars[value.get('variable')]
-                        # print(f'>>> Setting {prop} to {v} (was {value["value"]}) {type(value["value"])}')
-                        if isinstance(value['value'], list):
-                            value['value'] = [f"{v}"]
-                        elif isinstance(value['value'], (str,)):
-                            if v[0] == '[' and v[-1] == ']':
-                                value['value'] = f"['{v}']"
+                        var_name = value.get('variable')
+                        if var_name in all_vars:
+                            v = all_vars[var_name]
+                            # print(f'>>> Setting {prop} to {v} (was {value["value"]}) {type(value["value"])}')
+                            if isinstance(value['value'], list):
+                                value['value'] = [f"{v}"]
+                            elif isinstance(value['value'], (str,)):
+                                if v[0] == '[' and v[-1] == ']':
+                                    value['value'] = f"['{v}']"
+                                else:
+                                    value['value'] = f"{v}"
                             else:
-                                value['value'] = f"{v}"
+                                value['value'] = f'{v}'
                         else:
-                            value['value'] = f'{v}'
+                            raise ValueError(
+                                 _('Undefined variable "{}" used in task "{}"').format(
+                                    var_name, task['name']))
+
                         # print(f'>>> Set {prop} to {value["value"]} {type(value["value"])}')
 
                 # for k, v in list(task.get('forms').items()):
@@ -595,4 +602,4 @@ class Workflow(object):
 
                     # else:
                     #     print(value, type(value))
-            
+
