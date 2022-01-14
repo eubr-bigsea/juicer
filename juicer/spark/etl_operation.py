@@ -1751,7 +1751,7 @@ class SplitKFoldOperation(Operation):
 
         return dedent(code)
 
- class CastOperation(Operation):
+class CastOperation(Operation):
     """ Change attribute type.
     There are some incompatibilities between platforms caused by
     how libraries/frameworks handle invalid data.
