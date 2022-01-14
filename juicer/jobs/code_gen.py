@@ -142,7 +142,8 @@ if __name__ == "__main__":
 
     parser.add_argument("--lang", help="Minion messages language (i18n)",
                         required=False, default="en_US")
-    parser.add_argument("--vars", help="Add variables", required=False)
+    parser.add_argument("--vars", help="Path to a YAML file with the extra variables", 
+        required=False)
     parser.add_argument(
         "-p", "--plain", required=False, action="store_true",
         help="Indicates if workflow should be plain Python, "
