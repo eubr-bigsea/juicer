@@ -100,7 +100,7 @@ def {{task.operation.slug.replace('-', '_')}}_{{instance.order}}(sklearn_session
     sklearn_logging("{{msg}}")
     {%- endif %}
 
-    {%- if not plain %}
+    {%- if not plain and transpiler.transpiler.verbosity >= 10 %}
     emit_task_running(task_id, sklearn_session, emit_event)
     {%- endif %}
 
@@ -109,7 +109,7 @@ def {{task.operation.slug.replace('-', '_')}}_{{instance.order}}(sklearn_session
     results = {% if instance.supports_cache -%}
     get_cached_state(
         task_id, cached_state, emit_event, sklearn_session,
-        '{{instance.parameters.hash}}')
+        '{{instance.parameters.hash}}', {{transpiler.transpiler.verbosity}})
     {% else %} None
     {%- endif %}
     if results is None:
@@ -148,7 +148,7 @@ def {{task.operation.slug.replace('-', '_')}}_{{instance.order}}(sklearn_session
     {%- endif %}
 
 
-    {%- if not plain %}
+    {%- if not plain and transpiler.transpiler.verbosity >= 10 %}
     emit_task_completed(task_id, sklearn_session, emit_event)
     {%- endif %}
 
@@ -172,11 +172,11 @@ def get_results(_task_futures, task_id):
     return _task_futures[task_id].result() if task_id in _task_futures else None
 
 def get_cached_state(task_id, cached_state, emit_event, spark_session,
-                     task_hash):
+                     task_hash, verbosity=10):
     results = None
     if task_id in cached_state:
         cached, _hash = cached_state.get(task_id)
-        if _hash == task_hash:
+        if _hash == task_hash and verbosity >= 10:
             emit_event(name='update task',
                 message=_('Task running (cached data)'), status='RUNNING',
                 identifier=task_id)
