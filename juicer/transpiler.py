@@ -52,7 +52,7 @@ class Transpiler(object):
     DATA_SOURCE_OPS = ['data-reader']
     __slots__ = (
         'configuration', 'current_task_id', 'operations', 'port_id_to_port',
-        'slug_to_op_id', 'template_dir', 'sample_size'
+        'slug_to_op_id', 'template_dir', 'sample_size', 'verbosity'
     )
 
     def __init__(self, configuration, template_dir, slug_to_op_id=None,
@@ -72,6 +72,7 @@ class Transpiler(object):
         self.template_dir = template_dir
         self.current_task_id = None
         self.sample_size = 50
+        self.verbosity = 10
 
     def _assign_operations(self):
         raise NotImplementedError()

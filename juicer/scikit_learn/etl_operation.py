@@ -934,9 +934,32 @@ class SelectOperation(Operation):
     - The list of columns selected.
     """
     ATTRIBUTES_PARAM = 'attributes'
-    ALIASES_PARAM = 'aliases'
-    EXCLUDE_PARAM = 'exclude'
-    RENAME_PARAM = 'rename'
+    MODE_PARAM = 'mode'
+    template = """
+        {%- if op.mode == 'exclude' %}
+        
+        exclude = {{op.attributes}}
+        selection = [c for c in {{op.input}}.columns.tolist() if c not in exclude]
+        {{op.output}} = {{op.input}}.copy()[selection]
+
+        {% elif op.mode == 'include' %}
+        selection = {{op.attributes}}
+        {{op.output}} = {{op.input}}.copy()[selection]
+          {%- if op.aliases %}
+        {{op.output}}.columns = {{op.aliases}}
+          {%- endif %}
+
+        {%- elif op.mode == 'rename' %}
+        {{op.output}} = {{op.input}}.copy()..rename(
+            columns={{op.alias_dict}}, inplace=False)
+
+        {%- elif op.mode == 'duplicate' %}
+        {{op.output}} = {{op.input}}.copy()
+        {%- for k, v in op.alias_dict.items() %}
+        {{op.output}}['{{v}}'] = {{op.output}}['{{k}}']
+        {%- endfor %}
+        {%- endif %}
+    """
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
@@ -951,67 +974,30 @@ class SelectOperation(Operation):
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
             self.cols = ','.join(['"{}"'.format(x)
                                   for x in self.attributes])
-        elif (self.EXCLUDE_PARAM not in parameters and
-                self.RENAME_PARAM not in parameters):
-            raise ValueError(
-                _("Parameter '{}' must be informed for task {}").format
-                (self.ATTRIBUTES_PARAM, self.__class__))
-
-        self.aliases = None
-        if self.ALIASES_PARAM in parameters:
-            self.aliases = parameters.get(self.ALIASES_PARAM, [])
-            if len(self.aliases) > 0 and len(self.aliases) != len(
-                    self.attributes):
-                raise ValueError(
-                    _("Aliases must be empty or have the same size as attributes"))
-            else:
-                self.new_aliases = ','.join(['"{}": "{}"'.format(
-                                self.attributes[i], x)
-                                  for i, x in enumerate(self.aliases)
-                                  if self.attributes[i] != x])
+        self.mode = parameters.get(self.MODE_PARAM)
 
         self.output = self.named_outputs.get(
             'output projected data', 'projection_data_{}'.format(self.order))
 
-        self.exclude = None
-        self.rename = None
-        if self.EXCLUDE_PARAM in parameters:
-            self.exclude = parameters.get(self.EXCLUDE_PARAM)
-
-        if self.RENAME_PARAM in parameters:
-            self.rename = parameters.get(self.RENAME_PARAM)
-
     def generate_code(self):
-        if self.has_code:
-            if self.aliases:
-                code = """
-                names = {{{names}}}
-                {output} = {input}[[{column}]].rename(columns=names)""" \
-                    .format(output=self.output, column=self.cols,
-                            input=self.named_inputs['input data'],
-                            names=self.new_aliases)
-            elif self.exclude:
-                code = """
-                exclude = {exclude}
-                keep = [c for c in {input}.columns.tolist() if c not in exclude]
-                {output} = {input}[keep]
-                """.format(output=self.output,
-                           exclude=repr(self.exclude),
-                           input=self.named_inputs['input data'])
-            elif self.rename:
-                code = """
-                to_rename = {to_rename}
-                {output} = {input}.rename(columns=dict(to_rename))
-                """.format(output=self.output,
-                           to_rename=repr(
-                                list(zip(self.attributes, self.rename))),
-                           input=self.named_inputs['input data'])
+        attributes = []
+        aliases = []
+        alias_dict = {}
+        for attr in self.attributes:
+            if self.mode is None: # legacy format, without alias
+                self.attributes.append(attr)
             else:
-                code = "{output} = {input}[[{column}]]" \
-                    .format(output=self.output, column=self.cols,
-                            input=self.named_inputs['input data'])
-            return dedent(code)
+                attribute_name = attr.get('attribute')
+                attributes.append(attribute_name)
 
+                alias = attr.get('alias')
+                aliases.append(alias or attribute_name)
+                alias_dict[attribute_name] = alias or attribute_name
+        if self.has_code:
+            return dedent(self.render_template(
+                {'op': {'attributes': attributes, 'aliases': aliases, 'mode': self.mode,
+                    'input': self.named_inputs['input data'], 'output': self.output, 
+                    'alias_dict': alias_dict} }))
 
 class SortOperation(Operation):
     """

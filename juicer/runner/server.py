@@ -174,7 +174,9 @@ class JuicerServer:
                 self._forward_to_minion(msg_type, workflow_id, app_id, job_id,
                                         msg, platform, cluster)
                 self._terminate_minion(workflow_id, cluster)
-
+            elif msg_type == juicer_protocol.MORE_DATA:
+                self._forward_to_minion(msg_type, workflow_id, app_id, job_id,
+                                        msg, None, None)
             else:
                 log.warn(_('Unknown message type %s'), msg_type)
 

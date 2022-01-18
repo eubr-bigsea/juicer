@@ -632,6 +632,11 @@ class Expression:
             'dayofweek': lambda s, p: self.get_date_instance_attribute_call(s, p, 'weekday()'),
             'dayofyear': self.get_date_instance_attribute_call,
             'degrees': self.get_numpy_function_call,
+            'element_at': lambda s, p: '{val}[{inx}] if len({val}) >= {check} else None'.format(
+                val=self.parse(s['arguments'][0], p),
+                inx=self.parse(s['arguments'][1], p),
+                check=abs(int(self.parse(s['arguments'][1], p))) + 
+                    (1 if int(self.parse(s['arguments'][1], p)) > 0 else 0)),
             'from_unixtime': lambda s, p: f"pd.to_datetime({self.parse(s['arguments'][0], p)}, unit='s')",
             'instr': lambda s, p: self.get_function_call(s, p, 'str.find'),
             'hex': self.get_function_call,

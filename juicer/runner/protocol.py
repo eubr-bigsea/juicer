@@ -33,3 +33,5 @@ SCRIPT = 'script'
 #   'type': 'terminate'
 # }
 TERMINATE = 'terminate'
+
+MORE_DATA = 'more data'
