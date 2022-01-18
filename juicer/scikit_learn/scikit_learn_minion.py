@@ -160,6 +160,8 @@ class ScikitLearnMinion(Minion):
             # Sample size can be informed in API, limited to 1000 rows.
             self.transpiler.sample_size = min(1000, int(app_configs.get(
                 'sample_size', 50)))
+            self.transpiler.verbosity = min(10, int(app_configs.get(
+                'verbosity', 10)))
 
             if self.job_future:
                 self.job_future.result()
@@ -240,6 +242,7 @@ class ScikitLearnMinion(Minion):
         start = timer()
         try:
             loader = Workflow(workflow, self.config)
+
             # Not working very well
             # if app_configs.get('auto_plug'):
             #    log.info('Auto-plugging ports')
@@ -249,6 +252,9 @@ class ScikitLearnMinion(Minion):
 
             # force the scikit-learn context creation
             self.get_or_create_scikit_learn_session(loader, app_configs, job_id)
+
+            self.transpiler.verbosity = int(app_configs.get('verbosity', 10))
+            self.transpiler.sample_size = min(int(app_configs.get('sample_size', 100)), 200)
 
             # Mark job as running
             self._emit_event(room=job_id, namespace='/stand')(
@@ -285,9 +291,8 @@ class ScikitLearnMinion(Minion):
             # to avoid re-computing the same tasks over and over again, in case
             # of several partial workflow executions.
             new_state = self.module.main(
-                self.get_or_create_scikit_learn_session(loader,
-                                                        app_configs,
-                                                        job_id),
+                self.get_or_create_scikit_learn_session(
+                    loader, app_configs, job_id),
                 self._state,
                 self._emit_event(room=job_id, namespace='/stand'))
 

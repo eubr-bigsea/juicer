@@ -253,9 +253,8 @@ def is_float_or_null(v):
         return False
 
 def emit_sample_sklearn(task_id, df, emit_event, name, size=50, notebook=False, 
-        describe=False, infer=False, use_types=None):
+        describe=False, infer=False, use_types=None, page=1):
 
-    import io
     import pandas as pd
     from collections import defaultdict
     from pandas.api import types 
@@ -302,7 +301,8 @@ def emit_sample_sklearn(task_id, df, emit_event, name, size=50, notebook=False,
     invalid = defaultdict(list)
 
     dtypes = df2.dtypes[:]
-    for y, (label, row) in enumerate(df.head(size).iterrows()):
+    it = df.iloc[size * (page - 1) : size * page].iterrows()
+    for y, (label, row) in enumerate(it):
         new_row = []
         for x, col in enumerate(df.columns):
 
@@ -340,12 +340,15 @@ def emit_sample_sklearn(task_id, df, emit_event, name, size=50, notebook=False,
 
             new_row.append(value)
         rows.append(new_row)
-    
+   
     result['attributes'] = [{'label': i, 'key': i, 
         'type': type_mappings.get(str(f), str(f))} 
             for i, f in zip(df2.columns, dtypes)]
 
     result['rows'] = rows
+    result['page'] = page
+    result['size'] = size
+    result['total'] = len(df)
     if describe:
         missing_counters = df2.isna().sum().to_dict()    
         result['total'] = len(df)

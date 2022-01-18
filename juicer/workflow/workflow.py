@@ -147,7 +147,8 @@ class Workflow(object):
         """ Builds a graph with the tasks """
 
         operations_tahiti = {op['id']: op for op
-                in self._get_operations(self.workflow['id'])}
+                in self._get_operations(self.workflow)}
+
         # Querying all operations from tahiti one time
         task_map = {}
 
@@ -439,7 +440,7 @@ class Workflow(object):
         # Querying tahiti operations to get number of inputs and outputs
         return tahiti_service.query_tahiti(
             params['base_url'], params['item_path'], params['token'],
-            params['item_id']).get('data')
+            params['item_id'], qs=params['qs']).get('data')
 
     def get_ports_from_operation_tasks(self, id_operation):
         tahiti_conf = self.config['juicer']['services']['tahiti']

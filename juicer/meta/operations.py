@@ -1,4 +1,5 @@
 import json
+import re
 from textwrap import dedent, indent
 from juicer.operation import Operation
 from itertools import zip_longest as zip_longest
@@ -46,6 +47,8 @@ class MetaPlatformOperation(Operation):
             "forms": {
               "display_schema": {"value": "1"},
               "display_sample": {"value": f"{self.last}"},
+              "sample_size": {"value": self.parameters[
+                'transpiler'].sample_size},
               "display_text": {"value": "1"}
             },
             "name": self.task['name'],
@@ -72,6 +75,7 @@ class ReadDataOperation(MetaPlatformOperation):
 
 class TransformOperation(MetaPlatformOperation):
     number_re = r'[\d]+[.,\d]+|[\d]*[.][\d]+|[\d]+'
+    array_index_re = re.compile(r'(?:\D*?)(-?\d+)(?:\D?)')
     SLUG_TO_EXPR = {
             'extract-numbers': {'f': 'regexp_extract', 'args': [number_re], 'transform': [str]},
             'to-upper': {'f': 'upper'},
@@ -92,6 +96,7 @@ class TransformOperation(MetaPlatformOperation):
             'format-date': {'f': 'date_format', 'args': ['{format}'], 'transform': [str]},
 
             'invert-boolean': {'f': None, 'op': '!'},
+            'extract-from-array': {'f': None, 'op': ''},
         }
     def __init__(self, parameters,  named_inputs, named_outputs):
         MetaPlatformOperation.__init__(self, parameters,  named_inputs,  named_outputs)
@@ -154,7 +159,26 @@ class TransformOperation(MetaPlatformOperation):
                         'prefix': True
                     }
                   })
-            
+        elif self.slug == 'extract-from-array':
+            indexes = [int(x) for x in self.array_index_re.findall(
+                self.parameters.get('indexes', '0') or '0')] or [0]
+            attr = self.attributes[0]
+            for index in indexes:
+                suffix = f'{index}' if index > -1 else f'n{-1*index}'
+                expressions.append(
+                  {
+                    'alias': f'{attr}_{suffix}',
+                    'expression': f'element_at("{attr}", {index})',
+                    'tree': {
+                       'type': 'CallExpression',
+                        'arguments':[
+                            {'type': 'Identifier',  'name': attr},
+                            {'type': 'Literal',  'value': index, 'raw': f'"{index}"' }
+                         ],
+                        'callee': {'type': 'Identifier', 'name': 'element_at'},
+                    }
+                  })
+
         task_obj['forms']['expression'] = {'value': expressions}
         task_obj['operation'] = {'id': 7}
         return json.dumps(task_obj)
@@ -170,7 +194,7 @@ class CleanMissingOperation(MetaPlatformOperation):
 
     def generate_code(self):
         task_obj = self._get_task_obj()
-        for prop in ['attributes', 'cleaning_mode', 'value', 
+        for prop in ['attributes', 'cleaning_mode', 'value',
             'min_missing_ratio', 'max_missing_ratio']:
             value = getattr(self, prop)
             task_obj['forms'][prop] = {'value': value}
@@ -313,3 +337,60 @@ class SortOperation(MetaPlatformOperation):
         })
         task_obj['operation'] = {"id": 32}
         return json.dumps(task_obj)
+
+class SelectOperation(MetaPlatformOperation):
+    def __init__(self, parameters,  named_inputs, named_outputs):
+        MetaPlatformOperation.__init__(self, parameters,  named_inputs,  named_outputs)
+        self.attributes = self.get_required_parameter(parameters, 'attributes')
+        self.mode = parameters.get('mode', 'include') or 'include'
+        self.output_port_name = 'output projected data'
+
+    def generate_code(self):
+        task_obj = self._get_task_obj()
+        task_obj['forms'].update({
+          "attributes": {"value": self.attributes},
+          "mode": {"value": self.mode},
+        })
+        task_obj['operation'] = {"id": 6}
+        return json.dumps(task_obj)
+
+class RenameOperation(SelectOperation):
+    def generate_code(self):
+        task_obj = self._get_task_obj()
+        task_obj['forms'].update({
+          "attributes": {"value": self.attributes},
+          "mode": {"value": "rename"},
+        })
+        task_obj['operation'] = {"id": 6}
+        return json.dumps(task_obj)
+
+class DiscardOperation(SelectOperation):
+    def generate_code(self):
+        task_obj = self._get_task_obj()
+        task_obj['forms'].update({
+          "attributes": {"value":
+                [{'attribute': a} for a in self.attributes]},
+          "mode": {"value": "exclude"},
+        })
+        task_obj['operation'] = {"id": 6}
+        return json.dumps(task_obj)
+
+class DuplicateOperation(SelectOperation):
+    def generate_code(self):
+        task_obj = self._get_task_obj()
+        task_obj['forms'].update({
+          "attributes": {"value": self.attributes},
+          "mode": {"value": "duplicate"},
+        })
+        task_obj['operation'] = {"id": 6}
+        return json.dumps(task_obj)
+
+class ExtractFromArrayOperation(MetaPlatformOperation):
+    exp_index = re.compile(r'\b(\d+)\b')
+    def __init__(self, parameters,  named_inputs, named_outputs):
+        MetaPlatformOperation.__init__(self, parameters,  named_inputs,  named_outputs)
+        self.attributes = self.get_required_parameter(parameters, 'attributes')
+        self.indexes = exp_index.findall(parameters.get('indexes', '') or '')
+
+    def generate_code(self):
+        pass
