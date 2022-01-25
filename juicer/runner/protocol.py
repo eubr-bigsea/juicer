@@ -35,3 +35,5 @@ SCRIPT = 'script'
 TERMINATE = 'terminate'
 
 MORE_DATA = 'more data'
+
+EXPORT = 'export'

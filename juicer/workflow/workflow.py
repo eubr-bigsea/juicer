@@ -31,7 +31,8 @@ class Workflow(object):
     log = logging.getLogger(__name__)
 
     def __init__(self, workflow_data, config, query_operations=None,
-                 query_data_sources=None, lang='en'):
+                 query_data_sources=None, lang='en',
+                 include_disabled=False):
         """
         Constructor.
         :param workflow_data: Workflow dictionary
@@ -43,6 +44,8 @@ class Workflow(object):
         self.query_operations = query_operations
         self.query_data_sources = query_data_sources
         self.lang = lang
+
+        self.include_disabled = include_disabled
 
         # Initialize
         self.graph = nx.MultiDiGraph()
@@ -161,7 +164,7 @@ class Workflow(object):
                 #raise ValueError(gettext('Task names must be unique.'))
             all_task_names.append(task.get('name'))
 
-            if task.get('enabled', True) and task.get(
+            if (self.include_disabled or task.get('enabled', True)) and task.get(
                     'environment', 'DESIGN') == 'DESIGN':
                 operation = operations_tahiti.get(task['operation']['id'])
                 form_fields = {}
@@ -205,7 +208,7 @@ class Workflow(object):
                     # Correct form field types if the interface (Citron) does
                     # not send this information
                     for k, v in list(task.get('forms', {}).items()):
-                        v['category'] = form_fields.get(k, 'EXECUTION')
+                        v['category'] = form_fields.get(k, 'execution')
 
                     for port in ports_list:
                         if port['type'] == 'INPUT':
@@ -313,7 +316,8 @@ class Workflow(object):
         #print([t['environment'] for t in self.workflow['tasks']])
         #print(self.graph.node.keys())
         #print(self.disabled_tasks.keys())
-        #print('-' * 10)
+        # print('-' * 10)
+
         return self.graph
 
     # def builds_sorted_workflow_graph(self, tasks, flows):
@@ -561,7 +565,7 @@ class Workflow(object):
 
         variable_re = re.compile(r'\$\{[_A-Za-z][_A-Za-z0-9]*\}')
         for task in self.workflow['tasks']:
-            if 'forms' in task and task['enabled']:
+            if 'forms' in task and (task['enabled'] or self.include_disabled):
                 task['forms'] = self._replace(task['forms'], all_vars, variable_re, task)
 
                 # Handle properties associated to variables

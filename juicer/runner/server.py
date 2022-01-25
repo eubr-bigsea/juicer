@@ -158,11 +158,11 @@ class JuicerServer:
             workflow_id = str(msg_info['workflow_id'])
             app_id = str(msg_info['app_id'])
             job_id = str(msg_info.get('job_id', 0))
-            if msg_type in juicer_protocol.EXECUTE:
+            if msg_type in [juicer_protocol.EXECUTE, juicer_protocol.EXPORT]:
                 platform = msg_info['workflow'].get('platform', {}).get(
                     'slug', 'spark')
 
-                cluster = msg_info['cluster']
+                cluster = msg_info.get('cluster')
                 self._forward_to_minion(msg_type, workflow_id, app_id, job_id,
                                         msg, platform, cluster)
 
@@ -178,7 +178,7 @@ class JuicerServer:
                 self._forward_to_minion(msg_type, workflow_id, app_id, job_id,
                                         msg, None, None)
             else:
-                log.warn(_('Unknown message type %s'), msg_type)
+                log.warn(_('Unknown message type "%s"'), msg_type)
 
         except ConnectionError as cx:
             log.exception(cx)

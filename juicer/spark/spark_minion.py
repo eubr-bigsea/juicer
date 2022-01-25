@@ -415,10 +415,10 @@ class SparkMinion(Minion):
             self._generate_output(_('Unknown message type %s') % msg_type)
 
     def _execute_future(self, job_id, workflow, app_configs):
-        return self.executor.submit(self._perform_execute,
+        return self.executor.submit(self.perform_execute,
                                     job_id, workflow, app_configs)
 
-    def _perform_execute(self, job_id, workflow, app_configs):
+    def perform_execute(self, job_id, workflow, app_configs):
 
         # Sleeps 1s in order to wait for client join notification room
         time.sleep(1)
@@ -732,7 +732,7 @@ class SparkMinion(Minion):
             })
 
             # FIXME: Report missing or process workflow until this task
-            if self._perform_execute(job_id, workflow, app_configs):
+            if self.perform_execute(job_id, workflow, app_configs):
                 success, status_data, data = \
                     self._read_dataframe_data(task_id, output, port)
             else:
