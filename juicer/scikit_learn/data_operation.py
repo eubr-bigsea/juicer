@@ -182,8 +182,8 @@ class DataReaderOperation(Operation):
                 extra_params = json.loads(self.metadata['storage'][
                     'extra_params'])
 
-        if self.metadata.get('privacy_aware', False):
-            raise ValueError(_('Not supported'))
+        # if self.metadata.get('privacy_aware', False):
+        #    raise ValueError(_('Not supported'))
 
         if parsed.scheme not in ('hdfs', 'file', 'mysql'):
             raise ValueError(_('Not supported'))

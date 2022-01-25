@@ -15,7 +15,7 @@ class MetaPlatformOperation(Operation):
         self.output_port_name = 'output data'
         self.input_port_name = 'input data'
         self.has_code = True
-        self.target_platform = 'scikit-learn' # FIXME
+        self.target_platform = 'scikit-learn'
 
     def get_required_parameter(self, parameters, name):
         if name not in parameters:
@@ -24,15 +24,21 @@ class MetaPlatformOperation(Operation):
         else:
             return parameters.get(name)
 
-    def generate_flow(self, sibling):
-
-        return json.dumps({
-            'source_id': self.new_id, 'target_id': sibling.new_id,
+    def generate_flows(self, next_task):
+        result = [json.dumps({
+            'source_id': self.new_id, 'target_id': next_task.new_id,
             'source_port_name': self.output_port_name,
-            'target_port_name': self.input_port_name,
+            'target_port_name': next_task.input_port_name,
             'source_port': 0,
             'target_port': 0
-        })
+        })]
+        extra = next_task.generate_extra_flows()
+        if extra:
+            result.append(extra)
+
+        return ','.join(result)
+    def generate_extra_flows(self):
+        return None 
 
     def set_last(self, value):
         self.last = 1 if value else 0
@@ -52,9 +58,9 @@ class MetaPlatformOperation(Operation):
               "display_text": {"value": "1"}
             },
             "name": self.task['name'],
-            "enabled": True,
+            "enabled": self.task['enabled'],
             "left": (order % 4)* 250 + 100,
-            "top": (order // 4)+ 100,
+            "top": (order // 4) * 150 + 100,
             "z_index": 10
         }
 
@@ -257,15 +263,39 @@ class FindReplaceOperation(MetaPlatformOperation):
     def __init__(self, parameters,  named_inputs, named_outputs):
         MetaPlatformOperation.__init__(self, parameters,  named_inputs,  named_outputs)
         self.has_code = True
-        self.target_platform = 'scikit-learn'
-        self.attributes = "" # self.get_required_parameter(parameters, 'attributes')
+        
+        self.attributes = self.get_required_parameter(parameters, 'attributes')
+        if isinstance(self.attributes, list):
+            self.attributes = self.attributes[0]
+
+        self.find = self.get_required_parameter(parameters, 'find')
+        self.replace= self.get_required_parameter(parameters, 'replace')
 
     def generate_code(self):
         task_obj = self._get_task_obj()
+        attr = self.attributes
+        formula = {
+             'alias': attr,
+             'expression': f'when({attr} == {self.find}, {self.replace}, {attr})',
+             'tree': {
+                 'type': 'CallExpression',
+                 'arguments': [
+                    {'type': 'BinaryExpression', 'operator': '==',
+                     'left': {'type': 'Identifier', 'name': attr},
+                     'right': {'type': 'Literal', 'value': self.find, 
+                        'raw': f'{self.find}'}
+                    },
+                    {'type': 'Literal', 'value': self.replace, 
+                        'raw': f'{self.replace}'},
+                    {'type': 'Identifier', 'name': attr},
+                 ],
+                 'callee': {'type': 'Identifier', 'name': 'when'},
+             }
+        }
         task_obj['forms'].update({
-          "attributes": {"value": [{"attribute": "Sepal_length", "f": "asc"}] },
+          "expression": {"value": [formula]},
         })
-        task_obj['operation'] = {"id": 32}
+        task_obj['operation'] = {"id": 7}
         return json.dumps(task_obj)
 
 class FilterOperation(MetaPlatformOperation):
@@ -392,5 +422,249 @@ class ExtractFromArrayOperation(MetaPlatformOperation):
         self.attributes = self.get_required_parameter(parameters, 'attributes')
         self.indexes = exp_index.findall(parameters.get('indexes', '') or '')
 
+class SaveOperation(MetaPlatformOperation):
+    def __init__(self, parameters,  named_inputs, named_outputs):
+        MetaPlatformOperation.__init__(self, parameters,  named_inputs,  named_outputs)
+        self.parameter_names = ['name', 'path', 'format', 'tags', 
+            'mode', 'header', 'storage']
+
     def generate_code(self):
-        pass
+        task_obj = self._get_task_obj()
+        for param in self.parameter_names:
+            task_obj['forms'][param] = {'value': self.parameters.get(param)}
+        task_obj['operation'] = {"id": 30}
+        return json.dumps(task_obj)
+
+class ConcatRowsOperation(MetaPlatformOperation):
+    def __init__(self, parameters,  named_inputs, named_outputs):
+        MetaPlatformOperation.__init__(self, parameters,  named_inputs,  named_outputs)
+        self.data_source= self.get_required_parameter(parameters, 'data_source')
+        self.task_id = self.task.get('id')
+        self.other_id = f'{self.task_id}-1'
+        self.input_port_name = 'input data 1'
+
+    def generate_code(self):
+        order = self.task.get('display_order', 0)
+        task_obj = self._get_task_obj()
+        task_obj['operation'] = {"id": 12}
+
+        other_task = {
+            "id": self.other_id,
+            "display_order": 100,
+            "environment": "DESIGN",
+            "forms": {
+              "display_schema": {"value": "0"},
+              "display_sample": {"value": "0"},
+              "display_text": {"value": "0"},
+              "data_source": {"value": self.data_source},
+            },
+            "name": gettext('Read data'),
+            "enabled": True,
+            "left": (order % 4) * 250 + 100,
+            "top": (order // 4) * 150 + 175,
+            "z_index": 100,
+            "operation": {"id": 18}
+        }
+
+        return json.dumps(task_obj) + ',' + json.dumps(other_task)
+
+    def generate_extra_flows(self):
+        return json.dumps({
+                'source_id': self.other_id, 
+                'target_id': f'{self.task_id}-0',
+                'source_port_name': 'output data',
+                'target_port_name': 'input data 2',
+                'source_port': 0,
+                'target_port': 0
+            })
+
+class JoinOperation(MetaPlatformOperation):
+    def __init__(self, parameters,  named_inputs, named_outputs):
+        MetaPlatformOperation.__init__(self, parameters,  named_inputs,  named_outputs)
+
+        self.data_source= self.get_required_parameter(parameters, 'data_source')
+        
+        self.task_id = self.task.get('id')
+        self.other_id = f'{self.task_id}-1'
+        
+        self.input_port_name = 'input data 1'
+        self.parameter_names = ['keep_right_keys', 'match_case', 'join_parameters']
+
+    def generate_code(self):
+        order = self.task.get('display_order', 0)
+        task_obj = self._get_task_obj()
+        task_obj['operation'] = {"id": 16}
+
+        for param in self.parameter_names:
+            task_obj['forms'][param] = {'value': self.parameters.get(param)}
+
+        other_task = {
+            "id": self.other_id,
+            "display_order": 100,
+            "environment": "DESIGN",
+            "forms": {
+              "display_schema": {"value": "0"},
+              "display_sample": {"value": "0"},
+              "display_text": {"value": "0"},
+              "data_source": {"value": self.data_source},
+            },
+            "name": gettext('Read data'),
+            "enabled": True,
+            "left": (order % 4) * 250 + 100,
+            "top": (order // 4) * 150 + 175,
+            "z_index": 100,
+            "operation": {"id": 18}
+        }
+
+        return json.dumps(task_obj) + ',' + json.dumps(other_task)
+
+    def generate_extra_flows(self):
+        return json.dumps({
+                'source_id': self.other_id, 
+                'target_id': f'{self.task_id}-0',
+                'source_port_name': 'output data',
+                'target_port_name': 'input data 2',
+                'source_port': 0,
+                'target_port': 0
+            })
+
+class ModelMetaOperation(Operation):
+    def __init__(self, parameters,  named_inputs, named_outputs):
+        Operation.__init__(self, parameters,  named_inputs,  named_outputs)
+        self.task = parameters.get('task')
+
+        self.has_code = True
+
+class EvaluatorOperation(ModelMetaOperation):
+    TYPE_TO_CLASS = {
+        'binary-classification': 'BinaryClassificationEvaluator',
+        'multiclass-classification': 'MulticlassClassificationEvaluator',
+        'regression': 'RegressionEvaluator',
+        'clustering': 'ClusteringEvaluator',
+    }
+    TYPE_TO_METRIC_PARAM = {
+        'binary-classification': 'bin_metric',
+        'multiclass-classification': 'multi_metric',
+        'regression': 'reg_metric',
+        'clustering': 'clust_metric',
+    }
+    def __init__(self, parameters,  named_inputs, named_outputs):
+        ModelMetaOperation.__init__(self, parameters,  named_inputs,  named_outputs)
+        self.task_type = parameters.get('task_type', 'binary-classification')
+
+
+    def generate_code(self):
+        metric = self.TYPE_TO_METRIC_PARAM[self.task_type]
+        evaluator = self.TYPE_TO_CLASS[self.task_type]
+        code = dedent(
+            f"""
+            # Pipeline evaluator
+            evaluator = evaluation.{evaluator}(labelCol=label, metricName='{metric}')
+            stages.append(evaluator)
+            """)
+        return code.strip()
+
+class FeaturesOperation(ModelMetaOperation):
+    def __init__(self, parameters,  named_inputs, named_outputs):
+        ModelMetaOperation.__init__(self, parameters,  named_inputs,  named_outputs)
+
+class FeaturesReductionOperation(ModelMetaOperation):
+    def __init__(self, parameters,  named_inputs, named_outputs):
+        ModelMetaOperation.__init__(self, parameters,  named_inputs,  named_outputs)
+        self.method = parameters.get('method', 'pca') or 'pca'
+        self.k = int(parameters.get('k', 2) or 2)
+
+    def generate_code(self):
+        code = dedent(f"""
+            # Feature reduction
+            feature_reducer = feature.PCA(k={self.k})
+            stages.append(feature_reducer)
+        """)
+        return code.strip()
+
+class SplitOperation(ModelMetaOperation):
+    STRATEGY_TO_CLASS = {
+        'split': 'CustomTrainValidationSplit',
+        'cross_validation': 'CustomCrossValidation',
+    }
+    def __init__(self, parameters,  named_inputs, named_outputs):
+        ModelMetaOperation.__init__(self, parameters,  named_inputs,  named_outputs)
+        self.strategy = parameters.get('strategy', 'split')
+        self.seed = parameters.get('seed', 'None') or 'None'
+        self.ratio = parameters.get('ratio', 0.8) or 0.8
+
+    def generate_code(self):
+        if self.strategy == 'split':
+            code = dedent(f"""
+            seed = {self.seed} # random number generation
+            train_ratio = {self.ratio} # Between 0.01 and 0.99
+            split_strategy = CustomTrainValidationSplit(
+                pipeline, evaluator, train_ratio, seed)
+            """)
+        elif self.strategy == 'cross_validation':
+            code = dedent(f"""
+            """)
+
+        return code.strip()
+
+class GridOperation(ModelMetaOperation):
+    def __init__(self, parameters,  named_inputs, named_outputs):
+        ModelMetaOperation.__init__(self, parameters,  named_inputs,  named_outputs)
+
+
+class KMeansOperation(ModelMetaOperation):
+    def __init__(self, parameters,  named_inputs, named_outputs):
+        ModelMetaOperation.__init__(self, parameters,  named_inputs,  named_outputs)
+
+class GaussianMixOperation(ModelMetaOperation):
+    def __init__(self, parameters,  named_inputs, named_outputs):
+        ModelMetaOperation.__init__(self, parameters,  named_inputs,  named_outputs)
+
+class DecisionTreeClassifierOperation(ModelMetaOperation):
+    def __init__(self, parameters,  named_inputs, named_outputs):
+        ModelMetaOperation.__init__(self, parameters,  named_inputs,  named_outputs)
+
+class GBTClassifierOperation(ModelMetaOperation):
+    def __init__(self, parameters,  named_inputs, named_outputs):
+        ModelMetaOperation.__init__(self, parameters,  named_inputs,  named_outputs)
+
+class NaiveBayesClassifierOperation(ModelMetaOperation):
+    def __init__(self, parameters,  named_inputs, named_outputs):
+        ModelMetaOperation.__init__(self, parameters,  named_inputs,  named_outputs)
+
+class PerceptronClassifierOperation(ModelMetaOperation):
+    def __init__(self, parameters,  named_inputs, named_outputs):
+        ModelMetaOperation.__init__(self, parameters,  named_inputs,  named_outputs)
+
+class RandomForestClassifierOperation(ModelMetaOperation):
+    def __init__(self, parameters,  named_inputs, named_outputs):
+        ModelMetaOperation.__init__(self, parameters,  named_inputs,  named_outputs)
+
+class LogisticRegressionOperation(ModelMetaOperation):
+    def __init__(self, parameters,  named_inputs, named_outputs):
+        ModelMetaOperation.__init__(self, parameters,  named_inputs,  named_outputs)
+
+class SVMClassifierOperation(ModelMetaOperation):
+    def __init__(self, parameters,  named_inputs, named_outputs):
+        ModelMetaOperation.__init__(self, parameters,  named_inputs,  named_outputs)
+
+class LinearRegressionOperation(ModelMetaOperation):
+    def __init__(self, parameters,  named_inputs, named_outputs):
+        ModelMetaOperation.__init__(self, parameters,  named_inputs,  named_outputs)
+
+class IsotonicRegressionOperation(ModelMetaOperation):
+    def __init__(self, parameters,  named_inputs, named_outputs):
+        ModelMetaOperation.__init__(self, parameters,  named_inputs,  named_outputs)
+
+class GBTRegressorOperation(ModelMetaOperation):
+    def __init__(self, parameters,  named_inputs, named_outputs):
+        ModelMetaOperation.__init__(self, parameters,  named_inputs,  named_outputs)
+
+class RandomForestRegressorOperation(ModelMetaOperation):
+    def __init__(self, parameters,  named_inputs, named_outputs):
+        ModelMetaOperation.__init__(self, parameters,  named_inputs,  named_outputs)
+
+class GeneralizedLinearRegressionOperation(ModelMetaOperation):
+    def __init__(self, parameters,  named_inputs, named_outputs):
+        ModelMetaOperation.__init__(self, parameters,  named_inputs,  named_outputs)
+

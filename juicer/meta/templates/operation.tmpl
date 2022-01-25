@@ -1,0 +1,116 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+"""
+Auto-generated Spark code from Lemonade Workflow
+(c) Speed Labs - Departamento de Ciência da Computação
+    Universidade Federal de Minas Gerais
+More information about Lemonade to be provided.
+"""
+from pyspark.ml import classification, evaluation, feature, tuning, clustering
+from pyspark.sql import functions, types, Row, DataFrame
+
+from pyspark.ml import Pipeline, PipelineModel
+
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import operator
+
+{%- for imps in transpiler.imports %}
+{{imps}}
+{%- endfor %}
+
+{% for auxiliary_code in transpiler.get_auxiliary_code(instances) %}
+{%- include auxiliary_code with context %}
+{%- endfor %}
+
+class CustomCrossValidation():
+    pass
+
+class CustomTrainValidationSplit():
+    """ Mimic the TrainValidationSplit from Spark, but emit information
+    about the process after each iteration."""
+    def _init_(self, estimator, evaluator, train_ratio=0.7, seed=None):
+                
+        self.estimator = estimator
+        self.evaluator = evaluator
+        self.train_ratio = train_ratio
+        self.seed = seed
+
+    def fit(self, df, emit):
+        sub_models = []
+        train, test = df.randomSplit([train_ratio, 1 - train_ratio], seed)
+        
+        train.cache()
+        test.cache()
+        results = []
+        with ThreadPoolExecutor(max_workers=4) as executor: # FIXME number of workers
+            future_train = {
+               executor.submit(
+                    perform_training, train, test, estimator, evaluator, params): 
+                 params for params in params
+            }
+            for future in as_completed(future_train):
+                try:
+                    result = future.result()
+                    results.append(result)
+                    if emit:
+                        emit(result)
+                except Exception as exc:
+                    print(exc)
+        # Unpersist training & validation set once all metrics have been produced
+        train.unpersist()
+        test.unpersist()
+
+        return results
+
+
+def emit_task_running(task_id, spark_session, emit_event):
+    emit_event(name='update task', message=_('Task running'), status='RUNNING',
+               identifier=task_id)
+    juicer_ext.spark_logging(spark_session).info(
+        'Lemonade task {} started'.format(task_id))
+
+def emit_task_completed(task_id, spark_session, emit_event):
+    emit_event(name='update task', message=_('Task completed'),
+               status='COMPLETED', identifier=task_id)
+    juicer_ext.spark_logging(spark_session).info(
+        'Lemonade task {} completed'.format(task_id))
+
+{% set builder_params = transpiler.transpiler.prepare_model_builder_parameters(instances) %}
+def read_data():
+    df = None
+    return df
+
+def create_pipeline():
+    """ Define a Spark pipeline model."""
+    
+    stages = []
+    {% if builder_params.evaluator %}
+    {{ builder_params.evaluator.generate_code() |indent(width=4, first=False)}}
+    {%- endif %}
+    {% if builder_params.reduction %}
+    {{ builder_params.reduction.generate_code() |indent(width=4, first=False)}}
+    {%- endif %}
+
+    pipeline = Pipeline(stages=stages)
+
+
+def main(spark_session, cached_state, emit_event):
+    """ Run generated code """
+
+    try:
+        df = read_data()
+        {% if builder_params.sample %}
+        {{ builder_params.sample.generate_code() |indent(width=8, first=False)}}
+        {%- endif %}
+
+        pipeline = create_pipeline()
+        {% if builder_params.split %}
+        {{ builder_params.split.generate_code() |indent(width=8, first=False)}}
+        {%- endif %}
+
+    except Exception as e:
+        spark_session.sparkContext.cancelAllJobs()
+        traceback.print_exc(file=sys.stderr)
+        if not dataframe_util.handle_spark_exception(e):
+            raise
+

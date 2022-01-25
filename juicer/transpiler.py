@@ -92,6 +92,9 @@ class Transpiler(object):
     def get_plain_template(self):
         return "templates/plain.tmpl"
 
+    def get_meta_template(self):
+        return "templates/meta.tmpl"
+
     def get_audit_info(self, graph, workflow, task, parameters):
         result = []
         task['ancestors'] = list(nx.ancestors(graph, task['id']))
@@ -326,7 +329,13 @@ class Transpiler(object):
             template = template_env.get_template(self.get_plain_template())
             out.write(template.render(env_setup))
         else:
-            template = template_env.get_template(self.get_code_template())
+            workflow_type = workflow.get('type')
+
+            if workflow_type in ('WORKFLOW', 'MODEL_BUILDER'):
+                template = template_env.get_template(self.get_code_template())
+            elif workflow_type in ('DATA_EXPLORER', ):
+                template = template_env.get_template(self.get_meta_template())
+                
             gen_source_code = template.render(env_setup)
             if using_stdout:
                 out.write(gen_source_code)
