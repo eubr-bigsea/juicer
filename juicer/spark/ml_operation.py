@@ -3152,12 +3152,11 @@ class DecisionTreeRegressionOperation(RegressionOperation):
             declare = dedent("""
             {output} = DecisionTreeRegressor(featuresCol='{features}',
                                              labelCol='{label}',
-                                             maxDepth={max_iter},
+                                             maxDepth={max_depth},
                                              minInstancesPerNode={min_instance},
                                              minInfoGain={min_info},
                                              impurity='{impurity}',
                                              seed={seed},
-                                             varianceCol={variance_col}
                                              )
             """).format(output=self.output,
                         features=self.features,
@@ -3167,7 +3166,6 @@ class DecisionTreeRegressionOperation(RegressionOperation):
                         min_info=self.min_info_gain,
                         impurity=self.impurity,
                         seed=self.seed,
-                        variance_col=self.variance_col
                         )
             # add , weightCol={weight} if exist
             code = [declare]
