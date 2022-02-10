@@ -3473,8 +3473,8 @@ class SaveModelOperation(Operation):
 
                 models_to_save = [m.best for m in all_models]
 
-
             def _save_model(model_to_save, model_path, model_name, format, df):
+                import shutil
                 final_model_path = '{final_url}/{{}}'.format(model_path)
                 if format == 'MLEAP':
                     import pyarrow as pa
@@ -3486,17 +3486,22 @@ class SaveModelOperation(Operation):
                     tmp_file = '/tmp/model_{job_id}.zip'
                     model_to_save.serializeToBundle(
                         'jar:file:' + tmp_file, df)
-                    # Copy model to HDFS
-                    fs = pa.hdfs.connect(
-                        host=parsed.hostname, 
-                        port=parsed.port,
-                        user=parsed.username)
-                    overwrite = '{write_mode}' != ''
-                    if fs.exists(final_model_path):
-                        if not overwrite:
-                            raise ValueError('{exists}')
-                    with open(tmp_file, 'rb') as f:
-                        fs.upload(final_model_path, f)
+                    if parsed.scheme == 'file':
+                        final_path = re.sub(r'/+', '/', parsed.path)
+                        os.makedirs(os.path.dirname(final_path), exist_ok=True)
+                        shutil.copy(tmp_file, final_path)
+                    elif parsed.scheme == 'hdfs':
+                        # Copy model to HDFS
+                        fs = pa.hdfs.connect(
+                            host=parsed.hostname,
+                            port=parsed.port,
+                            user=parsed.username)
+                        overwrite = '{write_mode}' != ''
+                        if fs.exists(final_model_path):
+                            if not overwrite:
+                                raise ValueError('{exists}')
+                        with open(tmp_file, 'rb') as f:
+                            fs.upload(final_model_path, f)
                     os.remove(tmp_file)
 
                 else:
