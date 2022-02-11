@@ -148,7 +148,8 @@ class MetaMinion(Minion):
             job_id = msg_info['job_id']
             workflow = msg_info['workflow']
 
-            self.current_lang = msg_info.get('app_configs', {}).get('locale', self.current_lang)
+            self.current_lang = msg_info.get('app_configs', {}).get(
+                'locale', self.current_lang)
             lang = self.current_lang
             t = gettext.translation('messages', locales_path, [lang],
                                     fallback=True)
@@ -170,36 +171,6 @@ class MetaMinion(Minion):
             self.job_future = self._execute_future(job_id, workflow,
                                                    app_configs)
             log.info(_('Execute message finished'))
-        elif msg_type == juicer_protocol.EXPORT:
-            # print(msg_info)
-            try:
-                if msg_info.get('format') == 'JSON':
-                    job_id = msg_info.get('job_id')
-                    workflow_id = msg_info.get('workflow_id')
-                    workflow = msg_info.get('workflow')
-                    workflow['name'] = (msg_info.get('name', workflow['name']) or
-                        workflow['name'])
-                    app_configs = msg_info.get('app_configs', {})
-                    target_platform = msg_info.get('target_platform')
-
-                    target_workflow = self._get_target_workflow(job_id, workflow, 
-                        app_configs, target_platform, True)
-                    if 'app_configs' in target_workflow:
-                        del target_workflow['app_configs']
-
-                    self._emit_event(room=str(job_id), namespace='/stand')(
-                        name='exported result',
-                        message=target_workflow,
-                        status='FINISHED', identifier=msg_info.get('ticket'))
-                    # print(target_workflow, job_id)
-                else:
-                    pass # FIXME
-            except Exception as e:
-                self._emit_event(room=job_id, namespace='/stand')(
-                    name='exported result',
-                    message=str(e),
-                    status='ERROR', identifier=msg_info.get('ticket'))
-                
 
         elif msg_type == juicer_protocol.TERMINATE:
             job_id = msg_info.get('job_id', None)
@@ -214,36 +185,14 @@ class MetaMinion(Minion):
 
         elif msg_type == Minion.MSG_PROCESSED:
             self.active_messages -= 1
-        elif msg_type == juicer_protocol.MORE_DATA:
-            if self.target_minion is not None:
-                import pandas as pd
-                state = self.target_minion.get_state()
-                task_id = f'{msg_info.get("task_id")}-0'
-                if task_id in state:
-                    df = next((p for p in state[task_id][0].values()
-                        if isinstance(p, pd.DataFrame)), None)
-                    if df is None:
-                        print('Port not found', port, task_id)
-                    else:
-                        size = int(msg_info.get('size', 50))
-                        page = int(msg_info.get('page', 1))
-
-                        # FIXME Adjust according to platform
-                        emit_event_fn = self._emit_event(room=msg_info.get('job_id'),
-                            namespace='/stand')
-                        dataframe_util.emit_sample_sklearn(
-                            task_id, df, emit_event=emit_event_fn, name='',
-                            size=size, page=page)
-                else:
-                    print('Cached data not found', task_id, port, msg_info, state.keys())
         else:
             log.warn(_('Unknown message type %s'), msg_type)
             self._generate_output(_('Unknown message type %s') % msg_type)
 
     def _execute_future(self, job_id, workflow, app_configs):
-        #return self.executor.submit(self._perform_execute,
+        #return self.executor.submit(self.perform_execute,
         #                            job_id, workflow, app_configs)
-        return self._perform_execute(job_id, workflow, app_configs)
+        return self.perform_execute(job_id, workflow, app_configs)
 
     def _get_target_workflow(self, job_id, workflow, app_configs, target_platform,
             include_disabled=False):
@@ -264,12 +213,36 @@ class MetaMinion(Minion):
         target_workflow['app_configs'] = app_configs
         return target_workflow
 
-    def _perform_execute(self, job_id, workflow, app_configs):
+    def perform_execute(self, job_id, workflow, app_configs):
+        if workflow.get('type') == 'MODEL_BUILDER':
+            self._execute_model_builder(job_id, workflow, app_configs)
+        else:
+            self._execute_target_workflow(job_id, workflow, app_configs)
+
+    def _execute_model_builder(self, job_id, workflow, app_configs):
+        loader = Workflow(workflow, self.config, lang=self.current_lang)
+        loader.handle_variables({'job_id': job_id})
+        out = StringIO()
+
+        self.transpiler.transpile(loader.workflow, loader.graph,
+            self.config, out, job_id, persist=app_configs.get('persist'))
+        out.seek(0)
+        code = out.read()
+
+        if self.target_minion is None:
+            # Only Spark is supported
+            self.target_minion = SparkMinion(
+                self.redis_conn, self.workflow_id,
+                self.app_id, self.config, self.current_lang)
+
+        self.target_minion.perform_execute(job_id, workflow, app_configs, code)
+
+    def _execute_target_workflow(self, job_id, workflow, app_configs):
         app_configs['persist'] = False
 
-        log.info('Converting workflow to platform %s', 
+        log.info('Converting workflow to platform %s',
             app_configs.get('target_platform', 'scikit_learn'))
-        target_workflow = self._get_target_workflow(job_id, workflow, 
+        target_workflow = self._get_target_workflow(job_id, workflow,
             app_configs, None)
 
         # REMOVE: Auto plug allows to connect ports automatically if they're compatible

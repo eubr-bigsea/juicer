@@ -94,6 +94,7 @@ class MetaTranspiler(Transpiler):
             'gbt-regressor': ops.GBTRegressorOperation,
             'random-forest-regressor': ops.RandomForestRegressorOperation,
             'generalized-linear-regressor': ops.GeneralizedLinearRegressionOperation,
+            'decision-tree-regressor': ops.DecisionTreeRegressorOperation,
         }
         self.operations.update(model)
         for f in transform:
@@ -107,7 +108,8 @@ class MetaTranspiler(Transpiler):
             'gbt-classifier', 'naive-bayes', 'perceptron', 
             'random-forest-classifier', 'logistic-regression', 'svm', 
             'linear-regression', 'isotonic-regression', 'gbt-regressor', 
-            'random-forest-regressor', 'generalized-linear-regressor'}
+            'random-forest-regressor', 'generalized-linear-regressor',
+            'decision-tree-regressor'}
 
         param_dict = {'estimators': []}
         for op in ops:
