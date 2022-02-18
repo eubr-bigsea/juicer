@@ -16,6 +16,7 @@ import juicer.spark.trustworthy_operation as trustworthy_operation
 import juicer.spark.vis_operation as vis_operation
 import juicer.spark.ws_operation as ws_operation
 import juicer.spark.validation_operation as validation
+import juicer.spark.nlp_operation as nlp_operation
 import os
 from juicer import operation
 from juicer.transpiler import Transpiler
@@ -155,6 +156,7 @@ class SparkTranspiler(Transpiler):
         }
         other_ops = {
             'comment': operation.NoOp,
+            'sentimentanalysis': nlp_operation.SentimentAnalysisOperation,
         }
         geo_ops = {
             'read-shapefile': geo_operation.ReadShapefile,
