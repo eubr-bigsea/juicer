@@ -330,10 +330,9 @@ class Transpiler(object):
             out.write(template.render(env_setup))
         else:
             workflow_type = workflow.get('type')
-
             if workflow_type in ('WORKFLOW', 'MODEL_BUILDER'):
                 template = template_env.get_template(self.get_code_template())
-            elif workflow_type in ('DATA_EXPLORER', ):
+            elif workflow_type in ('DATA_EXPLORER', 'VIS_BUILDER'):
                 template = template_env.get_template(self.get_meta_template())
                 
             gen_source_code = template.render(env_setup)

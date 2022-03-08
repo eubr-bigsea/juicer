@@ -1,20 +1,23 @@
 {
   {%- for k, v in workflow.items() %}
-  {%- if k in ('id', 'name', 'enabled', 'created', 'updated', 'version', 'type') and k[:3] != 'is_'%}
+  {%- if k in ('id', 'name', 'enabled', 'created', 'updated', 'version',) and k[:3] != 'is_'%}
   "{{k}}": {{v|tojson}},
   {%- endif %}
   {%- endfor %}
+  "type": "WORKFLOW",
   "platform": {"id": {{target_platform_id}}, "name": "{{target_platform}}", "slug": "{{target_platform}}"},
   "user": {"id": {{workflow.user.id}}, "name": "{{workflow.user.name}}", "login": "{{workflow.user.login}}" },
   "total": {{instances|length}},
   "tasks": [
   {%- for instance in instances %}
+  {%- if instance.has_code %}
   {{- instance.set_last(loop.last) }}
   {%- set task = instance.parameters.task %}
   {%- set task_id = task.id %}
 	{%- set code = instance.generate_code() %}
 	{{ code }}
 	{%- if not loop.last %},{% endif %}
+  {%- endif %}
   {%- endfor %}
   ],
   "flows": [

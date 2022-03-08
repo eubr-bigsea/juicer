@@ -200,7 +200,6 @@ class MetaMinion(Minion):
             include_disabled=include_disabled)
         loader.handle_variables({'job_id': job_id})
         out = StringIO()
-
         # print('-' * 20)
         # print(loader.workflow, loader.graph.nodes())
         #loader.workflow['disabled_tasks'] = []
