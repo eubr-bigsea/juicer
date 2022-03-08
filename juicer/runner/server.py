@@ -158,11 +158,11 @@ class JuicerServer:
             workflow_id = str(msg_info['workflow_id'])
             app_id = str(msg_info['app_id'])
             job_id = str(msg_info.get('job_id', 0))
-            if msg_type in juicer_protocol.EXECUTE:
+            if msg_type in [juicer_protocol.EXECUTE, juicer_protocol.EXPORT]:
                 platform = msg_info['workflow'].get('platform', {}).get(
                     'slug', 'spark')
 
-                cluster = msg_info['cluster']
+                cluster = msg_info.get('cluster')
                 self._forward_to_minion(msg_type, workflow_id, app_id, job_id,
                                         msg, platform, cluster)
 
@@ -174,9 +174,11 @@ class JuicerServer:
                 self._forward_to_minion(msg_type, workflow_id, app_id, job_id,
                                         msg, platform, cluster)
                 self._terminate_minion(workflow_id, cluster)
-
+            elif msg_type == juicer_protocol.MORE_DATA:
+                self._forward_to_minion(msg_type, workflow_id, app_id, job_id,
+                                        msg, None, None)
             else:
-                log.warn(_('Unknown message type %s'), msg_type)
+                log.warn(_('Unknown message type "%s"'), msg_type)
 
         except ConnectionError as cx:
             log.exception(cx)
@@ -376,45 +378,6 @@ class JuicerServer:
         #     time.sleep(10)
         pass
 
-    #
-    # def read_minion_support_queue(self, redis_conn):
-    #     try:
-    #         state_control = StateControlRedis(redis_conn)
-    #         ticket = json.loads(state_control.pop_master_queue())
-    #         workflow_id = ticket.get('workflow_id')
-    #         app_id = ticket.get('app_id', ticket.get('workflow_id'))
-    #         reason = ticket.get('reason')
-    #         log.info(_("Master received a ticket for app %s"), app_id)
-    #         if reason == self.HELP_UNHANDLED_EXCEPTION:
-    #             # Let's kill the minion and start another
-    #             minion_info = json.loads(
-    #                 state_control.get_minion_status(app_id))
-    #             while True:
-    #                 try:
-    #                     os.kill(minion_info['pid'], signal.SIGKILL)
-    #                 except OSError as err:
-    #                     if err.errno == errno.ESRCH:
-    #                         break
-    #                 time.sleep(.5)
-    #
-    #             # Review with cluster
-    #             # FIXME: platform
-    #             platform = 'spark'
-    #             self._start_minion(workflow_id, app_id, state_control,
-    #                                platform)
-    #
-    #         elif reason == self.HELP_STATE_LOST:
-    #             pass
-    #         else:
-    #             log.warn(_("Unknown help reason %s"), reason)
-    #     except KeyboardInterrupt:
-    #         pass
-    #     except ConnectionError as cx:
-    #         log.exception(cx)
-    #         time.sleep(1)
-    #
-    #     except Exception as ex:
-    #         log.exception(ex)
 
     def _get_next_available_port(self):
         return self.port_range[0]

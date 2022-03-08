@@ -52,7 +52,7 @@ class Transpiler(object):
     DATA_SOURCE_OPS = ['data-reader']
     __slots__ = (
         'configuration', 'current_task_id', 'operations', 'port_id_to_port',
-        'slug_to_op_id', 'template_dir'
+        'slug_to_op_id', 'template_dir', 'sample_size', 'verbosity'
     )
 
     def __init__(self, configuration, template_dir, slug_to_op_id=None,
@@ -71,6 +71,8 @@ class Transpiler(object):
         self.configuration = configuration
         self.template_dir = template_dir
         self.current_task_id = None
+        self.sample_size = 50
+        self.verbosity = 10
 
     def _assign_operations(self):
         raise NotImplementedError()
@@ -90,9 +92,12 @@ class Transpiler(object):
     def get_plain_template(self):
         return "templates/plain.tmpl"
 
+    def get_meta_template(self):
+        return "templates/meta.tmpl"
+
     def get_audit_info(self, graph, workflow, task, parameters):
         result = []
-        task['ancestors'] = nx.ancestors(graph, task['id'])
+        task['ancestors'] = list(nx.ancestors(graph, task['id']))
         ancestors = [graph.node[task_id] for task_id in task['ancestors']]
         ancestors_data_source = [int(p['forms']['data_source'].get('value', 0))
                                  for p in ancestors if p['is_data_source']]
@@ -133,7 +138,7 @@ class Transpiler(object):
     def generate_code(self, graph, job_id, out, params, ports,
                       sorted_tasks_id, state, task_hash, using_stdout,
                       workflow, deploy=False, export_notebook=False,
-                      plain=False):
+                      plain=False, persist=True):
         if deploy:
             # To be able to convert, workflow must obey all these rules:
             # - 1 and exactly 1 data source;
@@ -160,6 +165,8 @@ class Transpiler(object):
 
         audit_events = []
         for i, task_id in enumerate(tasks_ids):
+            if task_id not in graph.node:
+                continue
             task = graph.node[task_id]['attr_dict']
             task['parents'] = graph.node[task_id]['parents']
             self.current_task_id = task_id
@@ -227,11 +234,12 @@ class Transpiler(object):
                 # Some temporary variables need to be identified by a sequential
                 # number, so it will be stored in this field
                 'order': i,
+                'plain': plain,
+                # 'sorted_tasks_ids': sorted_tasks_ids,
                 'task': task,
                 'task_id': task['id'],
                 'transpiler': self,  # Allows operation to notify transpiler
                 'transpiler_utils': transpiler_utils,
-                'plain': plain,
                 'user': workflow['user'],
                 'workflow': workflow,
                 'workflow_id': workflow['id'],
@@ -245,7 +253,6 @@ class Transpiler(object):
             parameters['my_ports'] = port.get('my_ports', [])
 
             # print task['name'], parameters['parents'] # port.get('parents', [])
-
             instance = class_name(parameters, port.get('named_inputs', {}),
                                   port.get('named_outputs', {}))
 
@@ -322,7 +329,12 @@ class Transpiler(object):
             template = template_env.get_template(self.get_plain_template())
             out.write(template.render(env_setup))
         else:
-            template = template_env.get_template(self.get_code_template())
+            workflow_type = workflow.get('type')
+            if workflow_type in ('WORKFLOW', 'MODEL_BUILDER'):
+                template = template_env.get_template(self.get_code_template())
+            elif workflow_type in ('DATA_EXPLORER', 'VIS_BUILDER'):
+                template = template_env.get_template(self.get_meta_template())
+                
             gen_source_code = template.render(env_setup)
             if using_stdout:
                 out.write(gen_source_code)
@@ -330,7 +342,7 @@ class Transpiler(object):
                 out.write(gen_source_code)
             stand_config = self.configuration.get('juicer', {}).get(
                 'services', {}).get('stand')
-            if stand_config and job_id:
+            if stand_config and job_id and persist:
                 # noinspection PyBroadException
                 try:
                     stand_service.save_job_source_code(
@@ -340,7 +352,8 @@ class Transpiler(object):
                     log.exception(str(ex))
 
     def transpile(self, workflow, graph, params, out=None, job_id=None,
-                  state=None, deploy=False, export_notebook=False, plain=False):
+                  state=None, deploy=False, export_notebook=False, plain=False, 
+                  persist=True):
         """ Transpile the tasks from Lemonade's workflow into code """
 
         using_stdout = out is None
@@ -349,6 +362,10 @@ class Transpiler(object):
         ports = {}
         sequential_ports = {}
         counter = 0
+
+        # if there is not edge, do not sort the graph
+        topological_sort = len(graph.edges.keys()) > 0
+
         for edge_key in list(graph.edges.keys()):
             source_id, target_id, index = edge_key
             source_name = graph.node[source_id]['name']
@@ -385,13 +402,13 @@ class Transpiler(object):
             sequence = sequential_ports[flow_id]
 
             source_port = ports[source_id]
-            if True or sequence not in source_port['outputs']:
+            if sequence not in source_port['outputs']:
                 source_port['named_outputs'][
                     flow['source_port_name']] = sequence
                 source_port['outputs'].append(sequence)
 
             target_port = ports[target_id]
-            if True or sequence not in target_port['inputs']:
+            if sequence not in target_port['inputs']:
                 flow_name = flow['target_port_name']
                 # Test if multiple inputs connects to a port
                 # because it may have multiplicity MANY
@@ -409,11 +426,15 @@ class Transpiler(object):
                     target_port['named_inputs'][flow_name] = sequence
                 target_port['inputs'].append(sequence)
 
+        sorted_tasks_ids = nx.topological_sort(graph) if topological_sort \
+            else [t['id'] for t in sorted(workflow['tasks'], key=lambda x: x['display_order'])]
+
         self.generate_code(graph, job_id, out, params,
-                           ports, nx.topological_sort(graph), state,
+                           ports, sorted_tasks_ids, state,
                            hashlib.sha1(),
                            using_stdout, workflow, deploy, export_notebook,
-                           plain=plain)
+                           plain=plain,
+                           persist=persist)
 
     def get_data_sources(self, workflow):
         return len(
@@ -432,6 +453,8 @@ class TranspilerUtils(object):
         self.transpiler = transpiler
         self.imports = set()
         self.custom_functions = dict()
+        if transpiler:
+            self.sample_size = transpiler.sample_size
 
     @staticmethod
     def _get_enabled_tasks_to_execute(instances):
@@ -443,6 +466,10 @@ class TranspilerUtils(object):
             if instance.must_be_executed(is_satisfied):
                 result.append(instance)
         return result
+
+    @staticmethod
+    def enabled_only(tasks):
+        return TranspilerUtils._get_enabled_tasks(tasks)
 
     @staticmethod
     def _get_enabled_tasks(instances):
@@ -564,7 +591,7 @@ class TranspilerUtils(object):
             name = 'df_'  # name[:3]
         else:
             name = ''.join([p[0] for p in parts])
-        return '{}{}'.format(name, seq)
+        return f'{name}{seq}'
 
     def add_import(self, name):
         """ Add an import to the generated code. More than one operation may add

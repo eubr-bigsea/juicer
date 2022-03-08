@@ -233,7 +233,7 @@ msgstr "Tipo da mensagem desconhecido %s"
 #: juicer/scikit_learn/scikit_learn_minion.py:202
 #: juicer/spark/spark_minion.py:435
 msgid "Running job"
-msgstr "Executando tarefa"
+msgstr "Executando trabalho"
 
 #: juicer/compss/compss_minion.py:303 juicer/jobs/script_minion.py:410
 #: juicer/keras/keras_minion.py:341 juicer/plugin/plugin_minion.py:260
