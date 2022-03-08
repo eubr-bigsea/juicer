@@ -58,6 +58,7 @@ class Minion:
         self.workflow_id = workflow_id
         self.app_id = app_id
         self.config = config
+        self._state = {}
 
         # Errors and messages
         self.MNN000 = ('MNN000', _('Success.'))
@@ -83,6 +84,9 @@ class Minion:
             _('Task running (cached data)')
         ]
         self.pid = os.getpid()
+
+    def get_state(self):
+        return self._state
 
     def process(self):
         raise NotImplementedError()
