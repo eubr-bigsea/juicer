@@ -28,6 +28,19 @@ class ResultType:
     VISUALIZATION = 'VISUALIZATION'
     MODEL = 'MODEL'
 
+class SampleConfiguration(object):
+    """ Allow to set configuration options for operation sampling. """
+    __slots__ = ('size', 'infer', 'use_types', 'describe', 'page')
+    def __init__(self, size=50, infer=False, describe=False, use_types=None, page=1):
+        if use_types is None:
+            self.use_types = []
+        self.size = size
+        self.infer = infer
+        self.describe = describe
+        self.page = page
+
+    def get_config(self):
+        return repr([self.size, self.infer, self.describe, self.use_types])
 
 class Operation(object):
     """ Defines an operation in Lemonade """
@@ -35,7 +48,7 @@ class Operation(object):
                  'named_outputs', 'multiple_inputs', 'has_code',
                  'expected_output_ports', 'out_degree', 'order',
                  'supports_cache', 'config', 'deployable', 'plain',
-                 'transpiler_utils')
+                 'transpiler_utils', 'sample_configuration', 'template')
 
     def __init__(self, parameters, named_inputs, named_outputs):
         self.parameters = parameters
@@ -85,10 +98,20 @@ class Operation(object):
         self.output = self.named_outputs.get(
             'output data', 'out_task_{}'.format(self.order))
 
+        self.sample_configuration = SampleConfiguration(
+            infer=parameters.get('infer_sample') in [1, '1', 'true', True],
+            size=int(parameters.get('sample_size', 50)),
+            page=int(parameters.get('sample_page', 1)),
+            describe=parameters.get('describe_sample') in [1, '1', 'true', True],
+            use_types=parameters.get('use_types_in_sample'))
+
     def generate_code(self):
         raise NotImplementedError(
             _("Method generate_code should be implemented "
               "in {} subclass").format(self.__class__))
+
+    def render_template(self, context: dict):
+        return self.transpiler_utils.render_template(self.template, context)
 
     # noinspection PyMethodMayBeStatic
     def get_auxiliary_code(self):
@@ -100,6 +123,9 @@ class Operation(object):
          Results can be models and visualizations (for while).
         """
         return []
+
+    def get_port_multiplicity(self, port):
+        return self.parameters.get('multiplicity',{}).get('input data', 1)
 
     @property
     def enabled(self):

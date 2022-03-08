@@ -9,6 +9,7 @@ import datetime
 import re
 import simplejson
 from six import text_type
+from collections.abc import Sequence
 import collections
 
 
@@ -180,6 +181,16 @@ def emit_schema(task_id, df, emit_event, name, notebook=False):
 
 
 def emit_schema_sklearn(task_id, df, emit_event, name, notebook=False):
+    rows = [{'name': c, 'type': d.name} for c, d in zip(df.columns, df.dtypes)]
+
+    emit_event('update task', status='COMPLETED',
+               identifier=task_id,
+               message=json.dumps(rows),
+               type='OBJECT', title=_('Schema for {}').format(name),
+               meaning='schema',
+               task={'id': task_id})
+
+def old_emit_schema_sklearn(task_id, df, emit_event, name, notebook=False):
     from juicer.spark.reports import SimpleTableReport
     headers = [_('Attribute'), _('Type')]
     rows = [[i, str(f)] for i, f in zip(df.columns, df.dtypes)]
@@ -194,7 +205,6 @@ def emit_schema_sklearn(task_id, df, emit_event, name, notebook=False):
                message=content.generate(),
                type='HTML', title=_('Schema for {}').format(name),
                task={'id': task_id})
-
 
 def emit_sample(task_id, df, emit_event, name, size=50, notebook=False,
                 title=None):
@@ -233,8 +243,151 @@ def emit_sample(task_id, df, emit_event, name, size=50, notebook=False,
                type='HTML', title=title,
                task={'id': task_id})
 
+def is_float_or_null(v):
+    try:
+        if v is None:
+            return True
+        float(v)
+        return True
+    except:
+        return False
 
-def emit_sample_sklearn(task_id, df, emit_event, name, size=50, notebook=False):
+def emit_sample_sklearn(task_id, df, emit_event, name, size=50, notebook=False, 
+        describe=False, infer=False, use_types=None, page=1):
+
+    import pandas as pd
+    from collections import defaultdict
+    from pandas.api import types 
+        
+    result = {}
+    type_mappings = {'Int64': 'Integer', 'Float64': 'Decimal', 'object': 'Text',
+            'datetime64[ns]': 'Datetime', 'float64': 'Decimal', 'int64': 'Integer',
+            'bool': 'Boolean', 'array': 'Array'}
+
+    df2 = df
+    # Decide which data frame to use.
+    # UI may require original data, represented as string and 
+    # without casting. But in order to describe the data set,
+    # a inferred data frame (or a user provided types) must be 
+    # used.
+    if describe and False:
+        converters = {}
+        if use_types:
+            pandas_converters = {
+                'Integer': lambda v: pd.to_numeric(v, errors='coerce'),
+                'Decimal': lambda v: pd.to_numeric(v, errors='coerce'),
+                'DateTime': lambda v: pd.to_datetime(v, errors='coerce'),
+                'Boolean': bool,
+            }
+            # User provided types for attributes
+            for attr, dtype in use_types.items():
+                f = pandas_converters.get(dtype)
+                if f:
+                    converters[attr] = f
+        if infer:
+            # df.infer_objects() is not working.
+            # save as CSV to infer data types
+            buf = io.StringIO()
+            df.to_csv(buf, index=False)
+            buf.seek(0)
+            df2 = pd.read_csv(buf, converters=converters) 
+
+    rows = []
+
+    number_types = (int, float, decimal.Decimal)
+
+    truncated = set()
+    missing = defaultdict(list)
+    invalid = defaultdict(list)
+
+    dtypes = df2.dtypes[:]
+    it = df.iloc[size * (page - 1) : size * page].iterrows()
+    for y, (label, row) in enumerate(it):
+        new_row = []
+        for x, col in enumerate(df.columns):
+
+            col_value = row[col]
+            col_py_type = type(col_value)
+            if (col_py_type != list and (
+                    pd.isnull(row[col]) or (not row[col] and row[col] != 0))):
+                missing[y].append(x)
+                new_row.append('')
+                continue
+
+            if types.is_datetime64_dtype(df[col].dtypes):
+                value = row[col].isoformat()
+            elif types.is_numeric_dtype(col_py_type):
+                if not types.is_integer_dtype(col_py_type):
+                    value = round(row[col], 8)
+                else:
+                    value = row[col]
+            elif types.is_datetime64_any_dtype(col_py_type): # list of dates
+                value = '[' + ','.join(['"{}'.format(d.isoformat()) 
+                    for d in row[col]]) + ']'
+            elif isinstance(col_value, Sequence) and not isinstance(col_value, 
+                    (str, bytes, bytearray)):
+                value = '[' + ', '.join([str(x) if isinstance(x, number_types)
+                                   else "'{}'".format(x) for x in row[col]]) + ']'
+                dtypes[x] = 'array'
+            elif types.is_string_dtype(col_py_type):
+                # truncate column if size is bigger than 200 chars.
+                value = row[col]
+                if value and len(value) > 60:
+                    value = value[:60] + ' (trunc.)'
+                    truncated.add(col)
+            else:
+                value = json.dumps(row[col], cls=CustomEncoder)
+
+            new_row.append(value)
+        rows.append(new_row)
+   
+    result['attributes'] = [{'label': i, 'key': i, 
+        'type': type_mappings.get(str(f), str(f))} 
+            for i, f in zip(df2.columns, dtypes)]
+
+    result['rows'] = rows
+    result['page'] = page
+    result['size'] = size
+    result['total'] = len(df)
+    if describe:
+        missing_counters = df2.isna().sum().to_dict()    
+        result['total'] = len(df)
+        for attr in result['attributes']:
+            attr['missing_count'] = missing_counters.get(attr['key'], 0)
+            attr['count'] = result['total']
+            attr['invalid_count'] = 0
+            
+
+
+        pandas_converters = {
+            'Integer': lambda v: v.isdigit(),
+            'Decimal': lambda v: is_float_or_null(v),
+            'DateTime': lambda v: True,
+            'Boolean': lambda v: True,
+        }
+        for i, attr in enumerate(df.columns):
+            f = None
+            if pd.api.types.is_integer_dtype(df[attr].dtype):
+                f = pandas_converters.get('Integer')
+            elif pd.api.types.is_numeric_dtype(df[attr].dtype):
+                f = pandas_converters.get('Decimal')
+        
+            if f:
+                df_invalid = df[~df[attr].apply(is_float_or_null) & df[attr].notnull()]
+                result['attributes'][i]['invalid_count'] = len(df_invalid)
+                invalid[attr].extend(df_invalid[:size].index.to_numpy())
+
+        result['missing'] = missing 
+        result['invalid'] = invalid
+        result['truncated'] = list(truncated)
+    emit_event('update task', status='COMPLETED',
+               identifier=task_id,
+               message=json.dumps(result), meaning='sample',
+               type='OBJECT', title=_('Sample data for {}').format(name),
+               task={'id': task_id})
+
+
+def old_emit_sample_sklearn(task_id, df, emit_event, name, size=50, notebook=False):
     from juicer.spark.reports import SimpleTableReport
     headers = list(df.columns)
 
@@ -246,8 +399,6 @@ def emit_sample_sklearn(task_id, df, emit_event, name, size=50, notebook=False):
         rows.append(new_row)
         for col in row:
             if isinstance(col, str):
-                value = col
-            elif isinstance(col, str):
                 value = col
             elif isinstance(col, (datetime.datetime, datetime.date)):
                 value = col.isoformat()

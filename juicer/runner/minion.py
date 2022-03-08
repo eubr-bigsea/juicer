@@ -16,6 +16,7 @@ from juicer.scikit_learn.scikit_learn_minion import ScikitLearnMinion
 from juicer.jobs.script_minion import ScriptMinion
 from juicer.spark.spark_minion import SparkMinion
 from juicer.plugin.plugin_minion import PluginMinion
+from juicer.meta.meta_minion import MetaMinion
 
 # Important!
 # See https://stackoverflow.com/a/29172195/1646932
@@ -102,6 +103,13 @@ if __name__ == '__main__':
         elif args.type == 'plugin':
             log.info('Starting Plugin Minion')
             minion = PluginMinion(redis_conn,
+                                 args.workflow_id,
+                                 args.app_id or args.workflow_id,
+                                 juicer_config,
+                                 args.lang)
+        elif args.type == 'meta':
+            log.info('Starting Meta Minion')
+            minion = MetaMinion(redis_conn,
                                  args.workflow_id,
                                  args.app_id or args.workflow_id,
                                  juicer_config,

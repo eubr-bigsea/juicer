@@ -31,7 +31,8 @@ class Workflow(object):
     log = logging.getLogger(__name__)
 
     def __init__(self, workflow_data, config, query_operations=None,
-                 query_data_sources=None):
+                 query_data_sources=None, lang='en',
+                 include_disabled=False):
         """
         Constructor.
         :param workflow_data: Workflow dictionary
@@ -42,6 +43,9 @@ class Workflow(object):
         self.config = config
         self.query_operations = query_operations
         self.query_data_sources = query_data_sources
+        self.lang = lang
+
+        self.include_disabled = include_disabled
 
         # Initialize
         self.graph = nx.MultiDiGraph()
@@ -146,23 +150,27 @@ class Workflow(object):
         """ Builds a graph with the tasks """
 
         operations_tahiti = {op['id']: op for op
-                in self._get_operations(self.workflow['id'])}
+                in self._get_operations(self.workflow)}
+
         # Querying all operations from tahiti one time
         task_map = {}
 
         all_task_names = []
 
         for task in self.workflow['tasks']:
-            # Removed. See eubr-bigsea/citrus#248
-            # if not task.get('name') in all_task_names:
-            #    all_task_names.append(task.get('name'))
-            #else:
-            #    raise ValueError(gettext('Task names must be unique.'))
+            # See eubr-bigsea/citrus#248
+            if task.get('name') in all_task_names:
+                task['name'] = f'{task.get("name")}_{task.get("display_order")}'
+                #raise ValueError(gettext('Task names must be unique.'))
+            all_task_names.append(task.get('name'))
 
-            if task.get('enabled', True) and task.get(
+            if (self.include_disabled or task.get('enabled', True)) and task.get(
                     'environment', 'DESIGN') == 'DESIGN':
                 operation = operations_tahiti.get(task['operation']['id'])
                 form_fields = {}
+                if operation is None:
+                    raise ValueError(gettext('Invalid operation: {}').format(
+                        task['operation']['id']))
                 for form in operation.get('forms', []):
                     for field in form['fields']:
                         form_fields[field['name']] = form['category']
@@ -172,7 +180,8 @@ class Workflow(object):
                     # Slug information is required in order to select which
                     # operation will be executed
                     task['operation']['slug'] = operation['slug']
-                    task['operation']['name'] = operation['name']
+                    task['operation']['name'] = operation.get('name',
+                        operation['slug'])
                     task['operation']['ports'] = dict(
                         [
                             (
@@ -199,7 +208,7 @@ class Workflow(object):
                     # Correct form field types if the interface (Citron) does
                     # not send this information
                     for k, v in list(task.get('forms', {}).items()):
-                        v['category'] = form_fields.get(k, 'EXECUTION')
+                        v['category'] = form_fields.get(k, 'execution')
 
                     for port in ports_list:
                         if port['type'] == 'INPUT':
@@ -251,25 +260,37 @@ class Workflow(object):
                     flow['target_id'] not in self.disabled_tasks]):
                 # Updates the source_port_name and target_port_name. They are
                 # used in the transpiler part instead of the id of the port.
-                source_port = list([p for p in
-                                    task_map[flow['source_id']]['operation'][
-                                        'ports'] if
-                                    int(p['id']) == int(flow['source_port'])])
+                source_ports = task_map[flow['source_id']]['operation']['ports']
+                target_ports = task_map[flow['target_id']]['operation']['ports']
 
-                target_port = list([p for p in
-                                    task_map[flow['target_id']]['operation'][
-                                        'ports'] if
-                                    int(p['id']) == int(flow['target_port'])])
+                source_port = next((p for p in source_ports 
+                    if p['id'] == flow['source_port'] or p['slug'] == flow['source_port_name']),
+                    None)
+                target_port = next((p for p in target_ports 
+                    if p['id'] == flow['target_port'] or p['slug'] == flow['target_port_name']),
+                    None)
+                # source_port = list([p for p in
+                #                     task_map[flow['source_id']]['operation'][
+                #                         'ports'] if
+                #                     int(p['id']) == int(flow['source_port'])])
 
-                if all([source_port, target_port]):
+                # target_port = list([p for p in
+                #                     task_map[flow['target_id']]['operation'][
+                #                         'ports'] if
+                #                     int(p['id']) == int(flow['target_port'])])
+
+                if not (source_port is None or target_port is None):
                     # Compatibility assertion, may be removed in future
                     # assert 'target_port_name' not in flow or \
                     #        flow['target_port_name'] == target_port[0]['slug']
                     # assert 'source_port_name' not in flow \
                     #      or flow['source_port_name'] == source_port[0]['slug']
 
-                    flow['target_port_name'] = target_port[0]['slug']
-                    flow['source_port_name'] = source_port[0]['slug']
+                    # Sync id and slug. Some code use slug, other, the id
+                    flow['target_port_name'] = target_port['slug']
+                    flow['source_port_name'] = source_port['slug']
+                    flow['target_port'] = target_port['id']
+                    flow['source_port'] = source_port['id']
 
                     self.graph.add_edge(flow['source_id'], flow['target_id'],
                                         attr_dict=flow)
@@ -280,7 +301,7 @@ class Workflow(object):
                         _("Incorrect configuration for ports: %s, %s"),
                         source_port, target_port)
                     raise ValueError(_(
-                        "Invalid or non-existing port: '{op}' {s} {t}").format(
+                        "Invalid or non-existing port: Operation: {op} ({s} {t})").format(
                         op=task_map[flow['source_id']]['operation']['name'],
                         s=flow['source_port'], t=flow['target_port']))
 
@@ -290,6 +311,12 @@ class Workflow(object):
         #     self.graph.nodes[node]['out_degree'] = self.graph.out_degree(node)
         #     # self.graph.node[node]['parents'] = list(
         #     #        nx.edge_dfs(self.graph, node, orientation='reverse'))
+
+        # print('-' * 10)
+        #print([t['environment'] for t in self.workflow['tasks']])
+        #print(self.graph.node.keys())
+        #print(self.disabled_tasks.keys())
+        # print('-' * 10)
 
         return self.graph
 
@@ -402,21 +429,22 @@ class Workflow(object):
                 return False
         return True
 
-    def _get_operations(self, workflow_id):
+    def _get_operations(self, workflow):
         """ Returns operations available in Tahiti """
         tahiti_conf = self.config['juicer']['services']['tahiti']
+        ids = '&'.join([f"ids[]={t['operation']['id']}" for t in workflow['tasks']])
         params = {
             'base_url': tahiti_conf['url'],
             'item_path': 'operations',
             'token': str(tahiti_conf['auth_token']),
             'item_id': '',
-            'qs': 'workflow={}'.format(workflow_id)
+            'qs': 'lang={}&{}'.format(self.lang, ids)
         }
 
         # Querying tahiti operations to get number of inputs and outputs
         return tahiti_service.query_tahiti(
             params['base_url'], params['item_path'], params['token'],
-            params['item_id']).get('data')
+            params['item_id'], qs=params['qs']).get('data')
 
     def get_ports_from_operation_tasks(self, id_operation):
         tahiti_conf = self.config['juicer']['services']['tahiti']
@@ -530,15 +558,14 @@ class Workflow(object):
         }
         if custom_vars:
             all_vars.update(custom_vars)
-
-        for variable in self.workflow.get('variables'):
+        for variable in self.workflow.get('variables', []):
             var_value = variable.get('value', variable.get('default_value'))
             if var_value is not None and var_value != '':
                 all_vars[variable['name']] = var_value
 
         variable_re = re.compile(r'\$\{[_A-Za-z][_A-Za-z0-9]*\}')
         for task in self.workflow['tasks']:
-            if 'forms' in task and task['enabled']:
+            if 'forms' in task and (task['enabled'] or self.include_disabled):
                 task['forms'] = self._replace(task['forms'], all_vars, variable_re, task)
 
                 # Handle properties associated to variables

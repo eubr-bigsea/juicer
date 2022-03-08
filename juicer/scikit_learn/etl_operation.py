@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
 import itertools
+import re
 from gettext import gettext
 from textwrap import dedent
 
 from juicer.operation import Operation
-from juicer.scikit_learn.expression import Expression
+from juicer.scikit_learn.expression import Expression, \
+        JAVA_2_PYTHON_DATE_FORMAT
 
 
 class AddColumnsOperation(Operation):
@@ -28,8 +30,8 @@ class AddColumnsOperation(Operation):
     def generate_code(self):
         if self.has_code:
             code = """
-            {out} = pd.merge({input1}, {input2}, left_index=True, 
-            right_index=True, suffixes=('{s1}', '{s2}')) 
+            {out} = pd.merge({input1}, {input2}, left_index=True,
+            right_index=True, suffixes=('{s1}', '{s2}'))
         """.format(out=self.output,
                    s1=self.suffixes[0],
                    s2=self.suffixes[1],
@@ -151,19 +153,19 @@ class AggregationOperation(Operation):
 
                 code += dedent("""
                 aggfunc = {aggfunc}
-                {output} = pd.pivot_table(input_data, index={index}, 
+                {output} = pd.pivot_table(input_data, index={index},
                     columns={pivot}, aggfunc=aggfunc)
                 # rename columns and convert to DataFrame
                 {output}.reset_index(inplace=True)
                 new_idx = [n[0] if n[1] == ''
                            else "%s_%s_%s" % (n[0],n[1], n[2])
-                           for n in {output}.columns.ravel()]    
+                           for n in {output}.columns.ravel()]
                 {output}.columns = new_idx
                 """.format(pivot=self.pivot, values=self.values,
                            index=self.attributes, output=self.output,
                            aggfunc=self.input_operations_pivot))
             else:
-                code += dedent("""   
+                code += dedent("""
                 {output} = {input}.groupby({columns}).agg({operations}).reset_index()
                 """.format(output=self.output,
                            input=self.named_inputs['input data'],
@@ -264,7 +266,7 @@ class CleanMissingOperation(Operation):
                         ratio_mask = (ratio > min_missing_ratio) & (ratio <= max_missing_ratio)
                         if ratio_mask:
                             to_remove.append(col)
-                    
+
                     {output}.drop(columns=to_remove, inplace=True)
                     """ \
                     .format(min_thresh=self.min_ratio, max_thresh=self.max_ratio,
@@ -346,7 +348,7 @@ class DifferenceOperation(Operation):
             if len(cols) != len(cols1) or \\
                any([{input1}[c].dtype != {input2}[c].dtype for c in cols]):
                 raise ValueError('{error}')
-                            
+
             {output} = {input1}\
                 .merge({input2}, indicator = True, how='left')\
                 .loc[lambda x : x['_merge']=='left_only']\
@@ -463,7 +465,7 @@ class ExecutePythonOperation(Operation):
                     out2 = None
                     DataFrame = pd.DataFrame
                     createDataFrame = pd.DataFrame
-                    """.format(in1=in1, in2=in2)) 
+                    """.format(in1=in1, in2=in2))
                 code = code + '\n' + self.code
                 return code
             else:
@@ -479,7 +481,7 @@ class ExecutePythonOperation(Operation):
         # Output data, initialized as None
         out1 = None
         out2 = None
-        # Variables and language supportedn 
+        # Variables and language supportedn
         ctx = {{
             'wf_results': results,
             'in1': in1,
@@ -488,7 +490,7 @@ class ExecutePythonOperation(Operation):
             'out2': out2,
             'DataFrame': pd.DataFrame,
             'createDataFrame': pd.DataFrame,
-            
+
             # Restrictions in Python language
             '_write_': lambda v: v,
             # '_getattr_': getattr,
@@ -587,7 +589,7 @@ class ExecuteSQLOperation(Operation):
             query = {query}
             {out} = sqldf(query, {{'ds1': {in1}, 'ds2': {in2}}})
             names = {names}
-            
+
             if names is not None and len(names) > 0:
                 old_names = {out}.columns
                 if len(old_names) != len(names):
@@ -687,7 +689,7 @@ class IntersectionOperation(Operation):
         {in1} = {in1}.dropna(axis=0, how='any')
         {in2} = {in2}.dropna(axis=0, how='any')
         keys = {in1}.columns.tolist()
-        {in1} = pd.merge({in1}, {in2}, how='left', on=keys, 
+        {in1} = pd.merge({in1}, {in2}, how='left', on=keys,
         indicator=True, copy=False)
         {out} = {in1}.loc[{in1}['_merge'] == 'both', keys]
         """.format(out=self.output,
@@ -745,10 +747,10 @@ class JoinOperation(Operation):
             code = """
             cols1 = [ c + '{suf_l}' for c in {in1}.columns]
             cols2 = [ c + '{suf_r}' for c in {in2}.columns]
-            
+
             {in1}.columns = cols1
             {in2}.columns = cols2
-            
+
             keys1 = [c + '{suf_l}' for c in {keys1}]
             keys2 = [c + '{suf_r}' for c in {keys2}]
             """.format(in1=self.named_inputs['input data 1'],
@@ -763,12 +765,12 @@ class JoinOperation(Operation):
             data1_tmp.columns = [c + "_lower" for c in data1_tmp.columns]
             col1 = list(data1_tmp.columns)
             data1_tmp = pd.concat([{in1}, data1_tmp], axis=1, sort=False)
-                
+
             data2_tmp = {in2}[keys2].applymap(lambda col: str(col).lower()).copy()
             data2_tmp.columns = [c + "_lower" for c in data2_tmp.columns]
             col2 = list(data2_tmp.columns)
             data2_tmp = pd.concat([{in2}, data2_tmp], axis=1, sort=False)
-    
+
             {out} = pd.merge(data1_tmp, data2_tmp, left_on=col1, right_on=col2,
                 copy=False, suffixes={suffixes}, how='{type}')
             # Why drop col_lower?
@@ -781,7 +783,7 @@ class JoinOperation(Operation):
                             suffixes=self.suffixes)
             else:
                 code += """
-            {out} = pd.merge({in1}, {in2}, how='{type}', 
+            {out} = pd.merge({in1}, {in2}, how='{type}',
                     suffixes={suffixes},
                     left_on=keys1, right_on=keys2)
                  """.format(out=self.output, type=self.join_type,
@@ -932,31 +934,70 @@ class SelectOperation(Operation):
     - The list of columns selected.
     """
     ATTRIBUTES_PARAM = 'attributes'
+    MODE_PARAM = 'mode'
+    template = """
+        {%- if op.mode == 'exclude' %}
+        
+        exclude = {{op.attributes}}
+        selection = [c for c in {{op.input}}.columns.tolist() if c not in exclude]
+        {{op.output}} = {{op.input}}.copy()[selection]
+
+        {% elif op.mode == 'include' %}
+        selection = {{op.attributes}}
+        {{op.output}} = {{op.input}}.copy()[selection]
+          {%- if op.aliases %}
+        {{op.output}}.columns = {{op.aliases}}
+          {%- endif %}
+
+        {%- elif op.mode == 'rename' %}
+        {{op.output}} = {{op.input}}.copy()..rename(
+            columns={{op.alias_dict}}, inplace=False)
+
+        {%- elif op.mode == 'duplicate' %}
+        {{op.output}} = {{op.input}}.copy()
+        {%- for k, v in op.alias_dict.items() %}
+        {{op.output}}['{{v}}'] = {{op.output}}['{{k}}']
+        {%- endfor %}
+        {%- endif %}
+    """
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
+
+        self.has_code = len(self.named_inputs) == 1 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
+
+        if not self.has_code:
+            return
 
         if self.ATTRIBUTES_PARAM in parameters:
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
             self.cols = ','.join(['"{}"'.format(x)
                                   for x in self.attributes])
-        else:
-            raise ValueError(
-                _("Parameter '{}' must be informed for task {}").format
-                (self.ATTRIBUTES_PARAM, self.__class__))
+        self.mode = parameters.get(self.MODE_PARAM)
 
-        self.has_code = len(self.named_inputs) == 1 and any(
-            [len(self.named_outputs) >= 1, self.contains_results()])
         self.output = self.named_outputs.get(
             'output projected data', 'projection_data_{}'.format(self.order))
 
     def generate_code(self):
-        if self.has_code:
-            code = "{output} = {input}[[{column}]]" \
-                .format(output=self.output, column=self.cols,
-                        input=self.named_inputs['input data'])
-            return dedent(code)
+        attributes = []
+        aliases = []
+        alias_dict = {}
+        for attr in self.attributes:
+            if self.mode is None: # legacy format, without alias
+                self.attributes.append(attr)
+            else:
+                attribute_name = attr.get('attribute')
+                attributes.append(attribute_name)
 
+                alias = attr.get('alias')
+                aliases.append(alias or attribute_name)
+                alias_dict[attribute_name] = alias or attribute_name
+        if self.has_code:
+            return dedent(self.render_template(
+                {'op': {'attributes': attributes, 'aliases': aliases, 'mode': self.mode,
+                    'input': self.named_inputs['input data'], 'output': self.output, 
+                    'alias_dict': alias_dict} }))
 
 class SortOperation(Operation):
     """
@@ -980,10 +1021,10 @@ class SortOperation(Operation):
                     self.ATTRIBUTES_PARAM, self.__class__))
 
         self.columns = [att['attribute'] for att in attributes]
-        self.ascending = [True for _ in range(len(self.columns))]
-        for i, v in enumerate([att['f'] for att in attributes]):
-            if v != "asc":
-                self.ascending[i] = False
+        self.ascending = []
+
+        for v in [att['f'] for att in attributes]:
+            self.ascending.append(v != "desc")
 
         self.has_code = len(self.named_inputs) == 1 and any(
             [len(self.named_outputs) >= 1, self.contains_results()])
@@ -1031,7 +1072,7 @@ class SplitOperation(Operation):
 
     def generate_code(self):
         if self.has_code:
-            code = """{out1}, {out2} = np.split({input}.sample(frac=1, 
+            code = """{out1}, {out2} = np.split({input}.sample(frac=1,
                 random_state={seed}), [int({weights}*len({input}))])
             """.format(out1=self.out1, out2=self.out2,
                        input=self.named_inputs['input data'],
@@ -1049,6 +1090,7 @@ class TransformationOperation(Operation):
     """
     ALIAS_PARAM = 'alias'
     EXPRESSION_PARAM = 'expression'
+    POSITION_PARAM = 'position'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
@@ -1058,6 +1100,16 @@ class TransformationOperation(Operation):
         if self.has_code:
             if self.EXPRESSION_PARAM in parameters:
                 self.expressions = parameters[self.EXPRESSION_PARAM]
+                self.positions = parameters.get(self.POSITION_PARAM)
+                num_expressions = len(self.expressions)
+                if self.positions is None or len(self.positions) == 0:
+                    self.positions = [-1] * num_expressions
+                elif len(self.positions) > num_expressions:
+                    self.positions = [int(x) for x in self.positions[:num_expressions]]
+                else:
+                    complement = num_expressions - len(self.positions)
+                    self.positions = [int(x) for x in self.positions] + (
+                            [-1] * complement)
             else:
                 msg = _("Parameter must be informed for task {}.")
                 raise ValueError(
@@ -1078,17 +1130,31 @@ class TransformationOperation(Operation):
             self.imports.update(expression.imports)
             # row.append(expression.imports) #TODO: by operation itself
 
-        copy_code = ".copy()" \
-            if self.parameters['multiplicity']['input data'] > 1 else ""
+        #copy_code = ".copy()" \
+        #    if self.parameters['multiplicity']['input data'] > 1 else ""
+        # Always copy. If the target name (alias) exists in df,
+        # the original df is changed and may impact the workflow
+        # processing.
+        copy_code = '.copy()'
 
+        import_clause = '\n'.join([(8 * ' ' + imp) for imp in
+            expression.imports.split('\n')])
         code = """
+        {imp}
         {out} = {input}{copy_code}
         functions = [{expr}]
-        for col, function in functions:
-            {out}[col] = {out}.apply(function, axis=1)
+        positions = {positions}
+        for i, (col, function) in enumerate(functions):
+            if positions[i] == -1:
+                {out}[col] = {out}.apply(function, axis=1)
+            else:
+                {out}.insert(positions[i], col, {out}.apply(function, axis=1))
+
         """.format(copy_code=copy_code,
                    out=self.output, input=self.named_inputs['input data'],
-                   expr=functions)
+                   expr=functions,
+                   imp=import_clause,
+                   positions=repr(self.positions))
         return dedent(code)
 
 
@@ -1178,14 +1244,14 @@ class SplitKFoldOperation(Operation):
             if self.stratified:
                 code = """
         skf = StratifiedKFold(n_splits={n_splits}, shuffle={shuffle},
-        random_state={random_state}) 
-        
+        random_state={random_state})
+
         {output_data} = {input}{copy_code}
         tmp = np.full(len({input}), fill_value=-1, dtype=int)
         j = 0
         y = {input}['{column}'].to_numpy().tolist()
         for _, test_index in skf.split({input}, y):
-            tmp[test_index] = j 
+            tmp[test_index] = j
             j += 1
         {output_data}['{alias}'] = tmp
                     """.format(output=self.output,
@@ -1200,14 +1266,14 @@ class SplitKFoldOperation(Operation):
                 return dedent(code)
             else:
                 code += """
-        kf = KFold(n_splits={n_splits}, shuffle={shuffle}, 
-        random_state={random_state}) 
-                    
+        kf = KFold(n_splits={n_splits}, shuffle={shuffle},
+        random_state={random_state})
+
         {output_data} = {input}{copy_code}
         tmp = np.full(len({input}), fill_value=-1, dtype=int)
         j = 0
         for _, test_index in kf.split({input}):
-            tmp[test_index] = j 
+            tmp[test_index] = j
             j += 1
         {output_data}['{alias}'] = tmp
                     """.format(output=self.output,
@@ -1220,9 +1286,109 @@ class SplitKFoldOperation(Operation):
                                alias=self.alias)
                 return dedent(code)
 
+class CastOperation(Operation):
+    """ Change attribute type.
+    """
+
+    template = """
+        # Changing type implies changes in dataframe,
+        # better do a copy of original one
+        {{op.output}} = {{op.input}}.copy()
+        try:
+        {%- for attr in op.attributes %}
+            {{op.output}}['{{attr.attribute}}'] =
+            {%- if attr.type == 'Integer' -%}
+                pd.to_numeric(
+                    {{op.output}}['{{attr.attribute}}'], errors='{{op.panda_errors}}').astype(int)
+            {%- elif attr.type == 'Decimal' -%}
+                pd.to_numeric(
+                    {{op.output}}['{{attr.attribute}}'], errors='{{op.panda_errors}}')
+            {%- elif attr.type == 'Boolean' -%}
+                {{op.output}}['{{attr.attribute}}'].astype('bool')
+            {%- elif attr.type in ('Date', 'DateTime', 'Datetime', 'Time') -%}
+                pd.to_datetime(
+                    {{op.output}}['{{attr.attribute}}'], errors='{{op.panda_errors}}',
+                    format='{{attr.formats}}')
+            {%- elif attr.type == 'Text' -%}
+                {{op.output}}['{{attr.attribute}}'].astype(str)
+            {%- elif attr.type == 'Array' -%}
+                {{op.output}}['{{attr.attribute}}'].apply(lambda v: [v])
+            {%- elif attr.type == 'JSON' -%}
+                {{op.output}}['{{attr.attribute}}']
+            {%-endif %}
+            {%- if op.errors == 'move' %}
+                # Copy invalid data to a new attribute
+                # Invalid output rows have NaN in cells, but not in input.
+                s = ({{op.input}}['{{attr.attribute}}'].notnull() != {{op.output}}['{{attr.attribute}}'].notnull())
+                {{op.output}}.loc[s, '{{attr.attribute}}{{op.invalid_values}}'] = {{op.input}}['{{attr.attribute}}']
+        {%- endif %}
+        {%- endfor %}
+        except pd.errors.IntCastingNaNError:
+            raise ValueError('{{errors.NaN_2_int}}')
+        except ValueError as ve:
+            msg = str(ve)
+            if 'Unable to parse string' in msg:
+                expr = re.compile(r'.+string "(.+)" at position (\d+)')
+                parts = expr.findall(msg)[0]
+                raise ValueError('{{errors.unable_to_parse}}'.format(*parts))
+            else:
+                raise
+    """
+    ATTRIBUTES_PARAM = 'cast_attributes'
+    ERROR_PARAM = 'errors'
+    INVALID_VALUES_PARAM = 'invalid_values'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+
+        self.has_code = len(self.named_inputs) == 1 and any(
+            [len(self.named_outputs) >= 1, self.contains_results()])
+
+        self.output = self.named_outputs.get(
+            'output data', 'output_data_{}'.format(self.order))
+        self.input = self.named_inputs.get('input data')
+
+        self.errors = parameters.get(self.ERROR_PARAM, 'coerce') or 'coerce'
+        self.panda_errors = 'coerce' if self.errors == 'move' else self.errors
+        self.invalid_values = parameters.get(
+            self.INVALID_VALUES_PARAM, '_invalid') or '_invalid'
+
+        if self.has_code:
+            if self.ATTRIBUTES_PARAM in parameters:
+                self.attributes = parameters[self.ATTRIBUTES_PARAM]
+                for attr in self.attributes:
+                    if 'formats' in attr:
+                        attr['formats'] = self.parse_date_format(attr['formats'])
+            else:
+                raise ValueError(
+                    _("Parameter '{}' must be informed for task {}").format
+                    ('attributes', self.__class__))
+
+    @property
+    def get_data_out_names(self, sep=','):
+        return self.output
+
+    def parse_date_format(self, fmt):
+        parts = re.split('([^\w\d"\'])', fmt)
+        py_fmt = ''.join([JAVA_2_PYTHON_DATE_FORMAT.get(x, x)
+            for x in parts])
+        return py_fmt
+
+    def generate_code(self):
+        errors = {
+            'NaN_2_int': gettext(
+                'Integer values cannot be null. Handle them or use a Decimal type.'),
+            'unable_to_parse': gettext('Unable to convert value {} at record {} (starts from 0).')
+        }
+        if self.has_code:
+            return dedent(self.render_template({'op': self, 'errors': errors}))
+
+
 # Custom functions
 def _collect_list(x):
     return x.tolist()
 
 def _collect_set(x):
     return set(x.tolist())
+
+
