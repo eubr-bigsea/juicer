@@ -10,7 +10,9 @@ from uuid import uuid4
 from collections import namedtuple
 
 from juicer.spark.data_operation import DataReaderOperation
-from juicer.spark.etl_operation import SampleOrPartitionOperation
+from juicer.spark.etl_operation import (
+    SampleOrPartitionOperation, AggregationOperation, 
+    FilterOperation as SparkFilterOperation)
 
 import unicodedata
 
@@ -117,24 +119,38 @@ class MetaPlatformOperation(Operation):
 
     def _get_task_obj(self):
         order = self.task.get('display_order', 0)
-        return {
+        wf_type = self.parameters.get('workflow').get('type')
+
+        result = {
             "id": self.new_id,
             "display_order": self.task.get('display_order', 0),
             "environment": "DESIGN",
-            "forms": {
-              "display_schema": {"value": "1"},
-              "display_sample": {"value": f"{self.last}"},
-              "sample_size": {"value": self.parameters[
-                'transpiler'].sample_size},
-              "display_text": {"value": "1"}
-            },
             "name": self.task['name'],
             "enabled": self.task['enabled'],
             "left": (order % 4)* 250 + 100,
             "top": (order // 4) * 150 + 100,
             "z_index": 10
         }
+        if wf_type != 'VIS_BUILDER':
+            result.update(
+                {'forms': {
+                    "display_schema": {"value": "1"},
+                    "display_sample": {"value": f"{self.last}"},
+                    "sample_size": {"value": self.parameters[
+                        'transpiler'].sample_size},
+                    "display_text": {"value": "1"}
+                    }
+                })
+        else:
+            result['forms'] = {}
 
+        return result
+
+    def model_builder_code(self):
+        pass
+
+    def visualization_builder_code(self):
+        pass
 
 class ReadDataOperation(MetaPlatformOperation):
     def __init__(self, parameters,  named_inputs, named_outputs):
@@ -156,6 +172,9 @@ class ReadDataOperation(MetaPlatformOperation):
         params['mode'] = 'PERMISSIVE'
         dro = DataReaderOperation(params, {}, {'output data': 'df'})
         return dro.generate_code()
+
+    def visualization_builder_code(self):
+       return self.model_builder_code() 
 
 class TransformOperation(MetaPlatformOperation):
     number_re = r'[\d]+[.,\d]+|[\d]*[.][\d]+|[\d]+'
@@ -304,8 +323,16 @@ class CastOperation(MetaPlatformOperation):
 class GroupOperation(MetaPlatformOperation):
     def __init__(self, parameters,  named_inputs, named_outputs):
         MetaPlatformOperation.__init__(self, parameters,  named_inputs,  named_outputs)
-        self.attributes = self.get_required_parameter(parameters, 'attributes')
+        self.attributes = parameters.get('attributes')
         self.function = parameters.get('function')
+
+        for f in self.function:
+            if f['f'] == '':
+                f['f'] = 'ident'
+            else:
+                f['f'] = f['f'].lower()
+
+        self.has_code = bool(self.attributes)
 
     def generate_code(self):
         task_obj = self._get_task_obj()
@@ -316,14 +343,24 @@ class GroupOperation(MetaPlatformOperation):
         task_obj['operation'] = {"id": 15}
         return json.dumps(task_obj)
 
+    def visualization_builder_code(self):
+        params = {}
+        params.update(self.parameters)
+        agg = AggregationOperation(params, {}, {'input data': 'df', 
+            'output data': 'df'})
+        return agg.generate_code()
+
+
 class SampleOperation(MetaPlatformOperation):
     def __init__(self, parameters,  named_inputs, named_outputs):
         MetaPlatformOperation.__init__(self, parameters,  named_inputs,  named_outputs)
         self.type = parameters.get('type')
-        self.value = parameters.get('value', 50)
+        self.value = int(parameters.get('value', 0))
         self.seed = parameters.get('seed')
         self.fraction = parameters.get('fraction')
         self.output_port_name = 'sampled data'
+
+        self.has_code = self.value > 0
 
     def generate_code(self):
         task_obj = self._get_task_obj()
@@ -337,9 +374,19 @@ class SampleOperation(MetaPlatformOperation):
         return json.dumps(task_obj)
 
     def model_builder_code(self):
-        dro = SampleOrPartitionOperation(self.parameters, {'input data': 'df'},
+        spo = SampleOrPartitionOperation(self.parameters, {'input data': 'df'},
+            {'sampled data': 'df'})
+        return spo.generate_code()
+ 
+    def visualization_builder_code(self):
+        params = {}
+        params.update(self.parameters)
+        params['type'] = 'value'
+        params['value'] = self.parameters.get('value', 50)
+        dro = SampleOrPartitionOperation(params, {'input data': 'df'},
             {'sampled data': 'df'})
         return dro.generate_code()
+       
 
 class FindReplaceOperation(MetaPlatformOperation):
     def __init__(self, parameters,  named_inputs, named_outputs):
@@ -392,6 +439,14 @@ class FilterOperation(MetaPlatformOperation):
         })
         task_obj['operation'] = {"id": 5}
         return json.dumps(task_obj)
+
+    def visualization_builder_code(self):
+        params = {}
+        params.update(self.parameters)
+        flter = SparkFilterOperation(params, {}, {'input data': 'df', 
+            'output data': 'df'})
+        return flter.generate_code()
+
 
 class AddByFormulaOperation(MetaPlatformOperation):
     def __init__(self, parameters,  named_inputs, named_outputs):
@@ -884,7 +939,6 @@ class FeaturesOperation(ModelMetaOperation):
                 to_remove.append(f)
 
         if by_constant:
-            import pdb; pdb.set_trace()
             replacements = dict([(f['name'], f['constant']) for f in by_constant])
             code.append(f'df = df.na.fill({json.dumps(replacements, indent=4)})')
         if to_remove:
@@ -1231,3 +1285,34 @@ class GeneralizedLinearRegressionOperation(RegressionOperation):
                 f'{{{self.var}.family: {repr(family)}, '
                 f'{self.var}.link: {repr(link)}}}')
         return result
+class VisualizationOperation(MetaPlatformOperation):
+    def __init__(self, parameters,  named_inputs, named_outputs):
+        MetaPlatformOperation.__init__(self, parameters,  named_inputs,  named_outputs)
+        self.vis_type = parameters.get('type', 'line')
+        self.group = next((t for t in parameters['workflow']['tasks'] 
+            if t['operation']['slug'] == 'group'))
+        if self.group is None:
+            raise ValueError(_('Invalid workflow. There is no group operation'))
+
+    def generate_code(self):
+        task_obj = self._get_task_obj()
+        task_obj['forms'].update({
+            'id_attribute': {'value': 'X'}, 
+            'value_attribute': {'value': 'FIXME'}
+        })
+ 
+        if self.vis_type == 'line':
+           task_obj['operation'] = {"id": 68}
+        elif self.vis_type == 'bar':
+           task_obj['operation'] = {"id": 69}
+        elif self.vis_type == 'pie':
+           task_obj['operation'] = {"id": 70}
+        elif self.vis_type == 'filled-area':
+           task_obj['operation'] = {"id": 71}
+        elif self.vis_type == 'scatter':
+           task_obj['operation'] = {"id": 87}
+        elif self.vis_type == 'bubble':
+           task_obj['operation'] = {"id": 134}
+
+        return json.dumps(task_obj)
+

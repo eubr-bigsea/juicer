@@ -96,7 +96,12 @@ class MetaTranspiler(Transpiler):
             'generalized-linear-regressor': ops.GeneralizedLinearRegressionOperation,
             'decision-tree-regressor': ops.DecisionTreeRegressorOperation,
         }
+
         self.operations.update(model)
+
+        visualizations = {'visualization': ops.VisualizationOperation}
+        self.operations.update(visualizations)
+
         for f in transform:
             self.operations[f] = ops.TransformOperation
 
