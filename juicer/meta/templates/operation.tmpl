@@ -1,0 +1,343 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+"""
+Auto-generated Spark code from Lemonade Workflow
+(c) Speed Labs - Departamento de Ciência da Computação
+    Universidade Federal de Minas Gerais
+More information about Lemonade to be provided.
+"""
+from pyspark.ml import (classification, regression, clustering,
+                        evaluation, feature, tuning)
+from pyspark.sql import functions, types, Row, DataFrame
+
+from pyspark.ml import Pipeline, PipelineModel
+
+from collections import namedtuple
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import functools
+import itertools
+import operator
+import pdb
+import random
+import traceback
+import sys
+import time
+
+import numpy as np
+
+from juicer.util import dataframe_util
+
+{%- for imps in transpiler.imports %}
+{{imps}}
+{%- endfor %}
+
+{% for auxiliary_code in transpiler.get_auxiliary_code(instances) %}
+{%- include auxiliary_code with context %}
+{%- endfor %}
+
+TrainingContext = namedtuple('TrainingContext',
+    ['index', 'task_id', 'task_name', 'name', 'details', 'operation_id', 'start'])
+
+TrainingResult= namedtuple('TrainingResult',
+    ['status', 'model', 'details', 'metric', 'exception', 'ctx'],
+    defaults=(None,) * 6)
+
+class CustomCrossValidation():
+    pass
+
+class CustomTrainValidationSplit():
+    """ Mimic the TrainValidationSplit from Spark, but emit information
+    about the process after each iteration."""
+    def __init__(self, estimator, evaluator, params, train_ratio=0.7, seed=None):
+
+        self.estimator = estimator
+        self.evaluator = evaluator
+        self.train_ratio = train_ratio
+        self.seed = seed
+        self.params = params
+        self.train_size = 0
+        self.test_size = 0
+
+    def _perform_training(self, train, test, estimator, evaluator, params, details, ctx):
+        try:
+            model = estimator.fit(train, params)
+            metric = evaluator.evaluate(model.transform(test, params))
+            return TrainingResult('OK', model, details, metric, ctx=ctx)
+        except Exception as e:
+            try:
+                dataframe_util.handle_spark_exception(e)
+            except ValueError as ve:
+                return TrainingResult('ERROR', details=details, 
+                    exception=ve, ctx=ctx)
+
+    def fit(self, df, emit):
+        sub_models = []
+        train, test = df.randomSplit(
+            [self.train_ratio, 1 - self.train_ratio], self.seed)
+
+        train.cache()
+        test.cache()
+        results = []
+
+        # emit(identifier=self.evaluator.task_id, status='COMPLETED', 
+        #     operation_id=self.evaluator.operation_id, 
+        #     message={'grid_size': len(self.params)},
+        #     title='')
+
+        with ThreadPoolExecutor(max_workers=4) as executor: # FIXME number of workers
+            future_train = {}
+            for counter, params in enumerate(self.params):
+                task_id = None
+                task_name = None
+                operation_id = None
+                estimator = None
+                details = {}
+                for param, value in params.items():
+                    if param.name == 'stages':
+                        task_id = value[-1].task_id
+                        task_name = value[-1].task_name
+                        operation_id = value[-1].operation_id
+                        name = value[-1].__class__.__name__
+                    else:
+                        details[param.name] = value
+
+                ctx = TrainingContext(counter, task_id, task_name, name, details,
+                    operation_id, time.time())
+                submission = executor.submit(
+                    self._perform_training, train, test, self.estimator,
+                    self.evaluator, params, details, ctx)
+                future_train[submission] = ctx
+
+            is_larger_better = self.evaluator.isLargerBetter()
+            for future in as_completed(future_train):
+                try:
+                    ctx = future_train[future]
+                    result = future.result()
+                    message = {'params': ctx.details, 't': round((time.time() - ctx.start), 2),
+                        'index': ctx.index} 
+                    if result.status == 'OK':
+                        results.append(result)
+                        metric_name = self.evaluator.extractParamMap().get(
+                            self.evaluator.metricName)
+                        message['metric'] = {'name': metric_name, 'value': result.metric, 
+                            'is_larger_better': is_larger_better}
+                        emit(identifier=ctx.task_id, status='COMPLETED',
+                            message=message, title=ctx.task_name,
+                            operation_id=ctx.operation_id, )
+                    else:
+                        message['error'] = str(result.exception)
+                        emit(identifier=ctx.task_id, status='ERROR',
+                             message=message, title=ctx.task_name,
+                             operation_id=ctx.operation_id)
+                except Exception as exc:
+                    raise
+                    print(exc)
+
+        self.train_size = train.count()
+        self.test_size = test.count()
+        # Unpersist training & validation set once all metrics have been produced
+        train.unpersist()
+        test.unpersist()
+
+        return results
+
+
+def emit_metric(emit_event):
+    return functools.partial(
+        emit_event, name='task result', type='METRIC')
+
+{% set builder_params = transpiler.transpiler.prepare_model_builder_parameters(instances) %}
+def read_data(spark_session):
+    """ Read input data."""
+    {%- if builder_params.read_data %}
+
+    {{ builder_params.read_data.model_builder_code()|indent(width=4, first=False) }}
+    {%- endif %}
+
+    # Many Spark 2.x transformers, including Binarizer and Imputer,
+    # work only with float or double types.
+    # Decimal and eve int are not supported.
+    # See https://issues.apache.org/jira/browse/SPARK-20604.
+    # Current solution is to convert all unsupported numeric data types
+    # to double
+    for s in df.schema:
+        if s.dataType.typeName() in ['integer', 'decimal']:
+            df = df.withColumn(s.name, df[s.name].cast('double'))
+
+
+    {%- for feat in builder_params.features.numerical_features %}
+    {%- if feat.feature_type == 'numerical' %}
+    if df.schema['{{feat.name}}'].dataType.typeName() == 'string':
+        # Cast features marked as Numeric, but loaded as String
+        df = df.withColumn('{{feat.name}}', df['{{feat.name}}'].cast('double'))
+    {%- endif %}
+    {%- endfor %}
+
+    return df
+
+def create_pipeline(label: str):
+    """ Define a Spark pipeline model."""
+
+    # Control variables
+    prediction = 'prediction'
+
+    # Features
+    features_stages = []
+
+    {{ builder_params.features.generate_code() |indent(width=4, first=False)}}
+    {%- set has_numerical_features = builder_params.features.numerical_features|length > 0%}
+    {%- set use_pca = builder_params.reduction.has_code and has_numerical_features and has_numerical_features%}
+    {# -
+    {%- if has_numerical_features%}
+    numeric_features = []
+    {% -endif %}
+    -#}
+
+    features_names = [
+        {%- for f in builder_params.features.get_final_features_names() -%}
+        '{{ f }}'{%- if not loop.last %}, {% endif %}
+        {%- if loop.index % 3 == 1 %}
+        {# extra line #}
+        {%- endif %}
+        {%- endfor %}
+    ]
+
+    {%- if use_pca %}
+
+    # Feature reduction
+    numerical_features = [
+        {%- for f in builder_params.features.numerical_features %}
+        '{{f.name}}'{% if not loop.last %},{% endif %}
+        {%- endfor %}
+    ]
+    {{ builder_params.reduction.generate_code() |indent(width=4, first=False)}}
+    {% else %}
+    {%- endif %}
+
+    # Assembling of all features
+    vec_assembler = feature.VectorAssembler(
+        handleInvalid='skip',
+        outputCol='features',
+        inputCols=[
+            {%- for f in builder_params.features.get_final_features_names() -%}
+            '{{f}}',
+            {% endfor %}
+            {%- if builder_params.reduction.reduction %}'pca_features'
+            {%- endif %}
+        ])
+
+    # Algorithms
+    alg_params = {'predictionCol': prediction, 
+        {%- if builder_params.evaluator.task_type != 'clustering'%}'labelCol': label,{% endif %}
+        'featuresCol': 'features'}
+
+    {%- for estimator in builder_params.estimators %}
+    {{ estimator.generate_code() |indent(width=4, first=False)}}
+    {%- endfor %}
+
+    common_stages = features_stages + {% if use_pca %}[pca_va, feature_reducer] + {% endif %} [vec_assembler]
+    # See https://stackoverflow.com/a/54992651/1646932
+    pipeline = Pipeline(stages=[])
+
+    # Grid parameters
+    {%- for estimator in builder_params.estimators %}
+    {%- set variations = estimator.get_variations() %}
+    {%- if variations %}
+    {%- for name, params in variations %}
+    grid_{{estimator.var}}_{{loop.index0}} = tuning.ParamGridBuilder()\
+        .baseOn({pipeline.stages: common_stages + [{{estimator.var}}_{{loop.index0}}] })\
+        {{ estimator.generate_hyperparameters_code(estimator.var, loop.index0, params.get('invalid')) 
+            |indent(width=8, first=False)}}
+    {{ estimator.generate_random_hyperparameters_code() |indent(width=4, first=False)}}
+    {%- endfor %}
+    {%- else %}
+    grid_{{estimator.var}} = tuning.ParamGridBuilder()\
+        .baseOn({pipeline.stages: common_stages + [{{estimator.var}}] })\
+        {{ estimator.generate_hyperparameters_code() |indent(width=8, first=False)}}
+    {{ estimator.generate_random_hyperparameters_code() |indent(width=4, first=False)}}
+    {%- endif %}
+    {% endfor %}
+    grid = ({% for estimator in builder_params.estimators -%}
+        {%- set variations = estimator.get_variations() %}
+        {%- if variations %}
+        {%- for variation in variations -%} grid_{{estimator.var}}_{{loop.index0}}{% if not loop.last %} + {% endif %}{% endfor %}
+        {%- else %}
+        grid_{{estimator.var}}
+        {%- endif %}
+        {%- if not loop.last %} + {% else %}){% endif %}
+        {%- if loop.index % 3 == 0 %}
+        {# extra line #}
+        {%- endif %}
+    {%- endfor %}
+    {%- if builder_params.grid %}
+    {{ builder_params.grid.generate_code() |indent(width=4, first=False)}}
+    {%- endif %}
+
+    return pipeline, grid
+
+def main(spark_session: any, cached_state: dict, emit_event: callable):
+    """ Run generated code """
+
+    try:
+        {%- if builder_params.evaluator.task_type != 'clustering' %}
+        label = '{{builder_params.features.label.name}}'
+        {%- else %}
+        label = None
+        {%- endif %}
+        df = read_data(spark_session)
+        {%- if builder_params.sample and builder_params.sample.type %}
+        {{ builder_params.sample.model_builder_code() |indent(width=8, first=False)}}
+        {%- endif %}
+
+        # Missing data handling
+        {{ builder_params.features.generate_code_for_missing_data_handling() |indent(width=8, first=False)}}
+
+        # Pipeline
+        pipeline, grid = create_pipeline(label)
+
+        emit = emit_metric(emit_event)
+
+        # Pipeline evaluator
+        {%- if builder_params.evaluator %}
+        {{ builder_params.evaluator.generate_code() |indent(width=8, first=False)}}
+ 
+        {%- endif %}
+
+        # Train/validation definition
+        # It can be a simple train + validation or
+        # it can be a cross validation
+        {%- if builder_params.split %}
+        {{ builder_params.split.generate_code() |indent(width=8, first=False)}}
+        {%- endif %}
+
+        results = executor.fit(df, emit)
+        results = sorted(results, key=lambda x: x[3], reverse=evaluator.isLargerBetter())
+
+        if len(results):
+            status, model, params, metric, ex, ctx = results[0]
+            metric_name = evaluator.extractParamMap().get(evaluator.metricName)
+            message = {'best': params, 'metric_value': metric, 
+                'larger_better': evaluator.isLargerBetter(),
+                'index': ctx.index, 'metric_name': metric_name,
+                'estimator': ctx.name, 'task_name': ctx.task_name,
+                'train_size': executor.train_size, 
+                'test_size': executor.test_size,
+                'model_count': len(results)
+                }
+
+            emit(status='COMPLETED', type='OTHER',
+                identifier=evaluator.task_id,
+                operation_id=evaluator.operation_id,
+                title='{{ builder_params.evaluator.task_name}}',
+                message=message)
+            print(message)
+        # for status, model, params, metric, ex in results:
+        #    print(model.stages[-1], [(p, v) for p, v in params.items()], metric)
+
+
+    except Exception as e:
+        spark_session.sparkContext.cancelAllJobs()
+        traceback.print_exc(file=sys.stderr)
+        if not dataframe_util.handle_spark_exception(e):
+            raise
+

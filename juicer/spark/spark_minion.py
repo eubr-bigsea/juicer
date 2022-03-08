@@ -364,15 +364,16 @@ class SparkMinion(Minion):
 
             lang = workflow.get('locale', self.current_lang)
 
+            t = gettext.translation('messages', locales_path, [lang],
+                                    fallback=True)
+            t.install()
+
             self._emit_event(room=job_id, namespace='/stand')(
                 name='update job',
                 message=_('Running job with lang {}/{}').format(
                     lang, self.current_lang),
                 status='RUNNING', identifier=job_id)
 
-            t = gettext.translation('messages', locales_path, [lang],
-                                    fallback=True)
-            t.install()
 
             # TODO: We should consider the case in which the spark session is
             # already instantiated and this new request asks for a different set
@@ -383,6 +384,10 @@ class SparkMinion(Minion):
             # existing
             # (old configs) spark session?
             app_configs = msg_info.get('app_configs', {})
+
+            # Sample size can be informed in API, limited to 1000 rows.
+            self.transpiler.sample_size = min(1000, int(app_configs.get(
+                'sample_size', 50)))
 
             if self.job_future:
                 self.job_future.result()
@@ -410,19 +415,22 @@ class SparkMinion(Minion):
             self._generate_output(_('Unknown message type %s') % msg_type)
 
     def _execute_future(self, job_id, workflow, app_configs):
-        return self.executor.submit(self._perform_execute,
+        return self.executor.submit(self.perform_execute,
                                     job_id, workflow, app_configs)
 
-    def _perform_execute(self, job_id, workflow, app_configs):
+    def perform_execute(self, job_id, workflow, app_configs, code=None):
 
         # Sleeps 1s in order to wait for client join notification room
         time.sleep(1)
+        workflow_name = workflow.get('name', '')
+
+        if code is None:
+            loader = Workflow(workflow, self.config)
+            loader.handle_variables({'job_id': job_id})
 
         result = True
         start = timer()
         try:
-            loader = Workflow(workflow, self.config)
-            loader.handle_variables({'job_id': job_id})
 
             # Mark job as running
             if self.new_session:
@@ -454,13 +462,20 @@ class SparkMinion(Minion):
             generated_code_path = os.path.join(
                     self.tmp_dir, module_name + '.py')
 
-            if not freeze:
+            if not freeze and code is None:
+
                 with codecs.open(generated_code_path, 'w', 'utf8') as out:
                     self.transpiler.transpile(
                         loader.workflow, loader.graph, {}, out, job_id,
-                        self._state)
+                        self._state, persist=app_configs.get('persist', True))
+            elif code is not None:
+                # Code was generated somewhere else. For example, 
+                # in minion from Meta Platform
+                with codecs.open(generated_code_path, 'w', 'utf8') as out:
+                    print(code, file=out)
+
             # force the spark context creation
-            self.get_or_create_spark_session(loader, app_configs, job_id)
+            self.get_or_create_spark_session(workflow_name, app_configs, job_id)
 
             # Get rid of .pyc file if it exists
             if os.path.isfile('{}c'.format(generated_code_path)):
@@ -480,7 +495,7 @@ class SparkMinion(Minion):
             # of several partial workflow executions.
             try:
                 new_state = self.module.main(
-                    self.get_or_create_spark_session(loader, app_configs,
+                    self.get_or_create_spark_session(workflow_name, app_configs,
                                                      job_id),
                     self._state,
                     self._emit_event(room=job_id, namespace='/stand'))
@@ -498,7 +513,8 @@ class SparkMinion(Minion):
 
             # We update the state incrementally, i.e., new task results can be
             # overwritten but never lost.
-            self._state.update(new_state)
+            if new_state:
+                self._state.update(new_state)
 
         except UnicodeEncodeError as ude:
             message = self.MNN006[1].format(ude)
@@ -570,7 +586,7 @@ class SparkMinion(Minion):
                 not self.spark_session.sparkContext._jsc.sc().isStopped())
 
     # noinspection PyUnresolvedReferences,PyProtectedMember
-    def get_or_create_spark_session(self, loader, app_configs, job_id):
+    def get_or_create_spark_session(self, workflow_name, app_configs, job_id):
         """
         Get an existing spark session (context) for this minion or create a new
         one. Ideally the spark session instantiation is done only once, in order
@@ -582,7 +598,7 @@ class SparkMinion(Minion):
 
             log.info(_("Creating a new Spark session"))
             app_name = '{name} (workflow_id={wf})'.format(
-                name=strip_accents(loader.workflow.get('name', '')),
+                name=strip_accents(workflow_name),
                 wf=self.workflow_id)
             app_name = ''.join([i if ord(i) < 128 else ' ' for i in app_name])
             spark_builder = SparkSession.builder.appName(
@@ -727,7 +743,7 @@ class SparkMinion(Minion):
             })
 
             # FIXME: Report missing or process workflow until this task
-            if self._perform_execute(job_id, workflow, app_configs):
+            if self.perform_execute(job_id, workflow, app_configs):
                 success, status_data, data = \
                     self._read_dataframe_data(task_id, output, port)
             else:

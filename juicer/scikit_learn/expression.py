@@ -2,8 +2,29 @@
 # -*- coding: utf-8 -*-
 
 import re
+import json
 from six import text_type
+from gettext import gettext
 
+JAVA_2_PYTHON_DATE_FORMAT = {
+    'yyyy': '%Y', 'y': '%Y', 'yy': '%y',
+    'YYYY': '%Y', 'Y': '%Y', 'YY': '%y',
+
+    'MM': '%m', 'MMM': '%b', 'MMMM': '%B', 'M': '%-m',
+
+    'd': '%-d',
+    'dd': '%d',
+    'D': '%j',
+    'HH': '%H', 'h': '%I',
+    'mm': '%M',
+    'ss': '%S', 's': '%-S',
+    'S': '%s',
+    'EEE': '%a', 'EEEE': '%A',
+    'a': '%p',
+    'Z': '%Z',
+    "'": ''
+}
+ 
 
 class Expression:
     def __init__(self, json_code, params):
@@ -19,7 +40,8 @@ class Expression:
     def parse(self, tree, params):
 
         if tree['type'] == 'BinaryExpression':
-            result = "{} {} {}".format(
+            # Parenthesis are needed in some pandas/np expressions 
+            result = "({} {} {})".format(  
                 self.parse(tree['left'], params),
                 tree['operator'],
                 self.parse(tree['right'], params))
@@ -48,14 +70,14 @@ class Expression:
         # Unary Expression parsing
         elif tree['type'] == 'UnaryExpression':
             if tree['operator'] == '!':
-                tree['operator'] = '~'
+                tree['operator'] = 'not'
             result = "({} {})".format(tree['operator'],
                                       self.parse(tree['argument'], params))
 
         elif tree['type'] == 'LogicalExpression':
             operators = {"&&": "&", "||": "|", "!": "~"}
             operator = operators[tree['operator']]
-            result = "({}) {} ({})".format(self.parse(tree['left'], params),
+            result = "{} {} {}".format(self.parse(tree['left'], params),
                                            operator,
                                            self.parse(tree['right'], params))
 
@@ -89,6 +111,20 @@ class Expression:
         # function_name = spec['callee']['name']
         result = " np.{}({})".format(function, arguments)
         return result
+
+    def get_when_function(self, spec, params):
+        """
+        Map when() function call in Lemonade into np.select() call in Pandas.
+        """
+        arguments = [self.parse(x, params) for x in spec['arguments']]
+        # print >> sys.stderr, group(arguments[:-1], 2)
+        code = "np.select([{}], [{}], default=[{}])[0]".format(
+            ', '.join(arguments[:-1:2]),
+            ', '.join(arguments[1::2]), 
+            arguments[-1])
+
+        return code
+
 
     def get_function_call(self, spec, params, alias=None):
         """
@@ -200,7 +236,7 @@ class Expression:
                 self.imports += imp
         arguments = ', '.join(
             [self.parse(x, params) for x in spec['arguments']])
-        result = " ''.join(c for c in unicodedata.normalize('NFD', unicode({})) if unicodedata.category(c) != 'Mn')".format(
+        result = " ''.join(c for c in unicodedata.normalize('NFD', {}) if unicodedata.category(c) != 'Mn')".format(
             arguments)
 
         return result
@@ -222,24 +258,38 @@ class Expression:
         spec['arguments'].insert(inx, arg)
         return spec
 
-    def get_to_timestamp_function(self, spec, params):
-        mapping = {
-            'yyyy': '%Y', 'yy': '%y',
-            'MM': '%m', 'MMM': '%b', 'MMMM': '%B',
-            'dd': '%d',
-            'HH': '%H', 'h': '%I',
-            'mm': '%M',
-            'ss': '%S',
-            'EEE': '%a', 'EEEE': '%A',
-            'a': '%p',
-            "'": ''
-        }
-        value = self.parse(spec['arguments'][0], params)
-        fmt = spec['arguments'][1]['value']  # no parsing
-        parts = re.split(r'(\W)', fmt)
-        py_fmt = ''.join([mapping.get(x, x) for x in parts])
+    def _get_python_date_format(self, fmt):
+        parts = re.split(r'(\W)', fmt.replace('$', ''))
+        return ''.join([JAVA_2_PYTHON_DATE_FORMAT.get(x, x) for x in parts])
 
+    def get_to_timestamp_function(self, spec, params):
+        # No parsing
+        py_fmt = self._get_python_date_format(spec['arguments'][1]['value'])
+        value = self.parse(spec['arguments'][0], params)
         return "datetime.datetime.strptime({}, '{}')".format(value, py_fmt)
+
+    def get_date_format_call(self, spec, params):
+        # No parsing
+        py_fmt = self._get_python_date_format(spec['arguments'][1]['value'])
+        value = self.parse(spec['arguments'][0], params)
+        return "{}.strftime('{}')".format(value, py_fmt)
+
+    def get_date_trunc_call(self, spec, params):
+        value = self.parse(spec['arguments'][0], params)
+        fmt = spec['arguments'][1]['value'].lower()
+        py_fmt = {
+                'hour': 'h', 'minute': 't', 'second': 's', 'day': 'd',
+        }.get(fmt)
+
+        if py_fmt:
+            return "{}.floor('{}')".format(value, py_fmt)
+        elif fmt == 'year':
+            return "{}.to_period('Y').to_timestamp()".format(value)
+        elif fmt == 'month':
+            return "{}.to_period('M').to_timestamp()".format(value)
+        elif fmt == 'week':
+            v = "{d} - pd.to_timedelta({d}.weekday(), unit='D').floor('D')"
+            return v.format(d=value)
 
     def get_substring_function_call(self, spec, params):
         args = spec['arguments']
@@ -251,6 +301,29 @@ class Expression:
             raise ValueError(
                 _('Incorrect number of arguments ({}) for function {}'.format
                   (len(args), 'substring')))
+
+    def get_concat_call(self, spec, params):
+        args = spec['arguments'][:]
+
+        sep = ''
+        if spec['callee']['name'] == 'concat_ws':
+            if args[0]['type'] == 'Identifier':
+                raise ValueError(gettext('Separator cannot be an attribute'))
+            if len(args) < 3:
+                raise ValueError(gettext(
+                    'Invalid number of arguments for function concat_ws'))
+            sep = args.pop(0)['value']
+        elif len(args) < 2:
+            raise ValueError(gettext(
+                'Invalid number of arguments for function concat_ws'))
+        attributes = [
+                f'str({self.parse(arg, params)})' 
+                if arg['type'] == 'Identifier' 
+                else self.parse(arg, params)
+                for arg in args]
+
+        to_concat = ', '.join(attributes)
+        return f'{repr(sep)}.join([{to_concat}])'
 
     def get_substring_index_function_call(self, spec, params):
         raise ValueError(_('Unsupported function: {}').format(
@@ -421,6 +494,8 @@ class Expression:
             'less_equal': self.get_numpy_function_call,
             'greater': self.get_numpy_function_call,
             'less': self.get_numpy_function_call,
+
+            #
         }
 
         date_functions = {
@@ -438,6 +513,7 @@ class Expression:
             'utcnow': self.get_date_function_call,
             'fromtimestamp': self.get_date_function_call,
             'utcfromtimestamp': self.get_date_function_call,
+            'from_utc_timestamp': self.get_date_function_call,
             'fromordinal': self.get_date_function_call,
             'combine': self.get_date_function_call,
 
@@ -520,6 +596,7 @@ class Expression:
             "sha1": "import hashlib",
             "sha2": "import hashlib",
             "md5": "import hashlib",
+            "urlsplit": "import urllib",
 
         }
 
@@ -543,18 +620,31 @@ class Expression:
             'atan2': lambda s, p: self.get_numpy_function_call(s, p, 'arctan2'),
             # TODO handle differences: python adds 0b to the result
             'bin': self.get_function_call,
+            'concat': self.get_concat_call,
+            'concat_ws': self.get_concat_call,
+            'capitalize': lambda s, p: self.get_function_call(s, p, 'str.capitalize'),
             'current_date': lambda s, p: 'datetime.date.today()',
             'current_timestamp': lambda s, p: 'datetime.datetime.now()',
             # 'datediff': lambda s, p: '{}[::-1]'.format(self.parse(s['arguments'][0], p))
+            'date_format': self.get_date_format_call,
+            'date_trunc': self.get_date_trunc_call,
             'dayofmonth': lambda s, p: self.get_date_instance_attribute_call(s, p, 'day'),
-            'dayofweek': self.get_date_instance_attribute_call,
+            'dayofweek': lambda s, p: self.get_date_instance_attribute_call(s, p, 'weekday()'),
             'dayofyear': self.get_date_instance_attribute_call,
             'degrees': self.get_numpy_function_call,
+            'element_at': lambda s, p: '{val}[{inx}] if len({val}) >= {check} else None'.format(
+                val=self.parse(s['arguments'][0], p),
+                inx=self.parse(s['arguments'][1], p),
+                check=abs(int(self.parse(s['arguments'][1], p))) + 
+                    (1 if int(self.parse(s['arguments'][1], p)) > 0 else 0)),
+            'from_unixtime': lambda s, p: f"pd.to_datetime({self.parse(s['arguments'][0], p)}, unit='s')",
             'instr': lambda s, p: self.get_function_call(s, p, 'str.find'),
             'hex': self.get_function_call,
             'hour': self.get_date_instance_attribute_call,
             'initcap': lambda s, p: self.get_function_call(s, p, 'str.title'),
             'isnan': lambda s, p: self.get_numpy_function_call(s, p, 'isnan'),
+            'isnull': lambda s, p: self.get_function_call(s, p, 'pd.isnull'),
+            'isnotnull': lambda s, p: self.get_function_call(s, p, 'pd.notnull'),
             'least': lambda s, p: self.get_numpy_function_call(s, p, 'min'),
             'length': lambda s, p: self.get_function_call(s, p, 'len'),
             # 'levenshtein':
@@ -578,14 +668,13 @@ class Expression:
             'randn': lambda s, p: self.get_numpy_function_call(
                 s, p, 'random.randn'),
             'regexp_extract': lambda s, p:
-                ("functools.partial(lambda t, inx, expr: expr.findall(t)[inx], "
+                ("functools.partial(lambda t, expr: expr.findall(t), "
                  "expr=re.compile({expr}))"
-                 "({val}, {inx})").format(
+                 "({val})").format(
                     val=self.parse(s['arguments'][0], p),
                     expr=(self.parse(s['arguments'][1], p)
                           if s['arguments'][1]['type'] != 'Literal' else
-                          "r'{}'".format(s['arguments'][1]['value'])),
-                    inx=self.parse(s['arguments'][2], p)),
+                          "r'{}'".format(s['arguments'][1]['value']))),
             'regexp_replace': lambda s, p:
                 ("functools.partial(lambda t, rep, expr: expr.sub(rep, t), "
                  "expr=re.compile({expr}))"
@@ -647,13 +736,15 @@ class Expression:
                     if len(s['arguments']) > 1 else 'False'),
             # Split supports regex
             'split': lambda s, p:
-                ("functools.partial(lambda s, r: r.split(s),"
+                ("functools.partial(lambda s, r: "
+                 "[] if pd.isnull({txt}) else r.split(s),"
                  "r=re.compile(r{expr}))({txt})").format(
                     txt=self.parse(s['arguments'][0], p),
                     expr=self.parse(s['arguments'][1], p),
             ),
             'substring': self.get_substring_function_call,
             'substring_index': self.get_substring_index_function_call,
+            'title': lambda s, p: self.get_function_call(s, p, 'str.title'),
             'to_date': self.get_to_timestamp_function,
             # TODO: Handle some data types in JSON
             'to_json': lambda s, p: self.get_function_call(s, p, 'json.dumps'),
@@ -677,7 +768,12 @@ class Expression:
                     s, 1, {'type': 'Literal', 'value': 16, 'raw': 16}),
                 p, 'int'),
             'unix_timestamp':
-                lambda s, p: self.get_function_call(s, p, 'pd.to_datetime'),
-            "upper": "upper",
+                lambda s, p: f"int({self.parse(s['arguments'][0], p)}.timestamp())",
+            'upper': lambda s, p: self.get_function_call(s, p, 'str.upper'),
+            'urlsplit': lambda s, p: self.get_function_call(s, p, 'urllib.parse.urlsplit'),
+            'weekofyear': lambda s, p: self.get_date_instance_attribute_call(s, p, 
+                    'isocalendar()[1]'),
+            'when': self.get_when_function,
+            'year': self.get_date_instance_attribute_call,
         }
         self.functions.update(others_functions)
