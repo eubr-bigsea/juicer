@@ -168,9 +168,19 @@ class MetaMinion(Minion):
             self.transpiler.sample_size = min(1000, int(app_configs.get(
                 'sample_size', 50)))
 
-            self.job_future = self._execute_future(job_id, workflow,
+            try:
+                self.job_future = self._execute_future(job_id, workflow,
                                                    app_configs)
-            log.info(_('Execute message finished'))
+                log.info(_('Execute message finished'))
+            except Exception as e:
+                import traceback
+                tb = traceback.format_exception(*sys.exc_info())
+                log.exception(_('Unhandled error'))
+                self._emit_event(room=job_id, namespace='/stand')(
+                    exception_stack='\n'.join(tb),
+                    message=_('Unhandled error'),
+                    name='update job',
+                    status='ERROR', identifier=job_id)
 
         elif msg_type == juicer_protocol.TERMINATE:
             job_id = msg_info.get('job_id', None)
@@ -190,8 +200,6 @@ class MetaMinion(Minion):
             self._generate_output(_('Unknown message type %s') % msg_type)
 
     def _execute_future(self, job_id, workflow, app_configs):
-        #return self.executor.submit(self.perform_execute,
-        #                            job_id, workflow, app_configs)
         return self.perform_execute(job_id, workflow, app_configs)
 
     def _get_target_workflow(self, job_id, workflow, app_configs, target_platform,
