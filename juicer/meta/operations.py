@@ -55,6 +55,8 @@ def _as_list(values, transform, size=None):
         return []
 def _as_boolean_list(values):
     feat = _as_list(values, bool)
+    if feat == []:
+        return [] # Review how this occurs
     return FeatureInfo(
         [x for x in feat.value if isinstance(x, bool)], 
         feat.props, feat.type)
