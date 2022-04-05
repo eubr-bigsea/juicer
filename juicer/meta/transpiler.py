@@ -55,6 +55,8 @@ class MetaTranspiler(Transpiler):
             'save': ops.SaveOperation,
             'select': ops.SelectOperation,
             'sort': ops.SortOperation,
+
+            'n-grams': ops.GenerateNGramsOperation,
         }
         transform = [
             'extract-numbers',
@@ -73,6 +75,8 @@ class MetaTranspiler(Transpiler):
 
             'extract-from-array',
 
+            'flag-empty',
+            'flag-with-formula',
         ]
         model = {
             'evaluator': ops.EvaluatorOperation,

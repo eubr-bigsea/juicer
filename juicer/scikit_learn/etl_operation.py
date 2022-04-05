@@ -950,7 +950,7 @@ class SelectOperation(Operation):
           {%- endif %}
 
         {%- elif op.mode == 'rename' %}
-        {{op.output}} = {{op.input}}.copy()..rename(
+        {{op.output}} = {{op.input}}.copy().rename(
             columns={{op.alias_dict}}, inplace=False)
 
         {%- elif op.mode == 'duplicate' %}
@@ -1320,7 +1320,7 @@ class CastOperation(Operation):
                 # Copy invalid data to a new attribute
                 # Invalid output rows have NaN in cells, but not in input.
                 s = ({{op.input}}['{{attr.attribute}}'].notnull() != {{op.output}}['{{attr.attribute}}'].notnull())
-                {{op.output}}.loc[s, '{{attr.attribute}}{{op.invalid_values}}'] = {{op.input}}['{{attr.attribute}}']
+                {{op.output}}.loc[s, '{{op.invalid_values}}'] = {{op.input}}['{{attr.attribute}}']
         {%- endif %}
         {%- endfor %}
         except pd.errors.IntCastingNaNError:

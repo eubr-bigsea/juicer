@@ -202,7 +202,14 @@ class TransformOperation(MetaPlatformOperation):
 
             'invert-boolean': {'f': None, 'op': '!'},
             'extract-from-array': {'f': None, 'op': ''},
+
+            'flag-empty': {'f': 'isnull', },
+            'flag-with-formula': {'f': None},
         }
+    ALIASES = {
+            'flag-empty': '_na'
+    }
+
     def __init__(self, parameters,  named_inputs, named_outputs):
         MetaPlatformOperation.__init__(self, parameters,  named_inputs,  named_outputs)
         op = parameters.get('task').get('operation')
@@ -214,6 +221,9 @@ class TransformOperation(MetaPlatformOperation):
         task_obj = self._get_task_obj()
 
         info = self.SLUG_TO_EXPR[self.slug]
+
+        alias = self.ALIASES.get(self.slug, '')
+
         function_name = info.get('f')
         expressions = []
         if function_name:
@@ -244,7 +254,7 @@ class TransformOperation(MetaPlatformOperation):
             for attr in self.attributes:
                 expressions.append(
                   {
-                    'alias': attr,
+                    'alias': attr + alias,
                     'expression': f'{function_name}({attr}{final_args_str})',
                     'tree': {
                         'type': 'CallExpression',
@@ -283,6 +293,10 @@ class TransformOperation(MetaPlatformOperation):
                         'callee': {'type': 'Identifier', 'name': 'element_at'},
                     }
                   })
+
+
+        elif self.slug == 'flag-with-formula':
+            expressions.extend(self.parameters.get('formula'))
 
         task_obj['forms']['expression'] = {'value': expressions}
         task_obj['operation'] = {'id': 7}
@@ -666,6 +680,23 @@ class JoinOperation(MetaPlatformOperation):
                 'source_port': 0,
                 'target_port': 0
             })
+
+class GenerateNGramsOperation(MetaPlatformOperation):
+    def __init__(self, parameters,  named_inputs, named_outputs):
+        MetaPlatformOperation.__init__(self, parameters,  named_inputs,  named_outputs)
+
+        self.attributes = self.get_required_parameter(parameters, 'attributes')
+        # self.mode = self.get_required_parameter(parameters, 'mode')
+        self.n = self.get_required_parameter(parameters, 'n')
+
+    def generate_code(self):
+        task_obj = self._get_task_obj()
+        for prop in ['attributes', 'n']:
+            value = getattr(self, prop)
+            task_obj['forms'][prop] = {'value': value}
+        task_obj['operation'] = {"id": 51}
+        return json.dumps(task_obj)
+   
 
 class ModelMetaOperation(Operation):
     def __init__(self, parameters,  named_inputs, named_outputs):
