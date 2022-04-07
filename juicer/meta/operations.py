@@ -187,6 +187,7 @@ class TransformOperation(MetaPlatformOperation):
             'to-lower': {'f': 'lower'},
             'capitalize': {'f': 'initcap'},
             'remove-accents': {'f': 'strip_accents'},
+            'parse-to-date': {'f': 'to_date', 'args': ['{format}'], 'transform': [str]},
             'split': {'f': 'split'},
             'trim': {'f': 'trim'},
             'normalize': {'f': 'FIXME'},
@@ -198,7 +199,9 @@ class TransformOperation(MetaPlatformOperation):
             'ts-to-date': {'f': 'from_unixtime'},
 
             'date-to-ts': {'f': 'unix_timestamp'},
+            'date-part': {},
             'format-date': {'f': 'date_format', 'args': ['{format}'], 'transform': [str]},
+            'truncate-date-to': {'f': 'date_trunc', 'args': ['{format}'], 'transform': [str]},
 
             'invert-boolean': {'f': None, 'op': '!'},
             'extract-from-array': {'f': None, 'op': ''},
@@ -274,6 +277,63 @@ class TransformOperation(MetaPlatformOperation):
                         'prefix': True
                     }
                   })
+        elif self.slug == 'date-add':
+            source_type = self.parameters.get('type', 'constant')
+            if source_type == 'constant':
+                source = self.parameters.get('value', 0)
+            else:
+                source = self.parameters.get('value_attribute').get(0)
+
+            component_to_function = {
+                'second': 'seconds',
+                'minute': 'minutes',
+                'hour': 'hours',
+                'day': 'days',
+                'week': 'weeks',
+                'month': 'months',
+                'year': 'years',
+            }
+            component = self.parameters.get('component', 'day')
+            f = component_to_function.get(component)
+            for attr in self.attributes:
+                expressions.append(
+                  {
+                    'alias': f'{attr}_{f}',
+                    'expression': f'{f}("{attr}")',
+                    'tree': {
+                       'type': 'CallExpression',
+                        'arguments':[
+                            {'type': 'Identifier',  'name': attr}
+                         ],
+                        'callee': {'type': 'Identifier', 'name': f},
+                    }
+                })
+ 
+        elif self.slug == 'date-part':
+            component = self.parameters.get('component', 'day')
+            component_to_function = {
+                'second': 'second',
+                'minute': 'minute',
+                'hour': 'hour',
+                'day': 'dayofmonth',
+                'week': 'weekofyear',
+                'month': 'month',
+                'year': 'year',
+            }
+            f = component_to_function.get(component)
+            for attr in self.attributes:
+                expressions.append(
+                  {
+                    'alias': f'{attr}_{f}',
+                    'expression': f'{f}("{attr}")',
+                    'tree': {
+                       'type': 'CallExpression',
+                        'arguments':[
+                            {'type': 'Identifier',  'name': attr}
+                         ],
+                        'callee': {'type': 'Identifier', 'name': f},
+                    }
+                })
         elif self.slug == 'extract-from-array':
             indexes = [int(x) for x in self.array_index_re.findall(
                 self.parameters.get('indexes', '0') or '0')] or [0]
