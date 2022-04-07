@@ -127,9 +127,12 @@ def {{task.operation.slug.replace('-', '_')}}_{{instance.order}}(sklearn_session
         results = {
             'task_name': '{{task.name}}',
           {%- set is_leaf = instance.out_degree == 0 %}
-          {%- for port_name,out in zip(task.port_names, instance.get_output_names(',').split(',')) %}
+          {%- for port_name, out in zip(task.port_names, instance.get_output_names(',').split(',')) %}
             {%- if port_name and out %}
              '{{port_name}}': {{out}},
+            {%- endif %}
+            {%-if loop.index0 == 0 %}
+             '__first__': {{out}},
             {%- endif %}
           {%- endfor %}
         }

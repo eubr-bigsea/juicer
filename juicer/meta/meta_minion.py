@@ -1,4 +1,5 @@
 # coding=utf-8
+import functools
 import gettext
 import imp
 import importlib
@@ -195,8 +196,20 @@ class MetaMinion(Minion):
 
         elif msg_type == Minion.MSG_PROCESSED:
             self.active_messages -= 1
+        elif msg_type == juicer_protocol.MORE_DATA:
+            job_id = msg_info['job_id']
+            task_id = msg_info['task_id']
+            emit = functools.partial(
+                self._emit_event(room=job_id, namespace='/stand'),
+                namespace='/stand')
+            # Meta adds -0 as a suffix
+            df = self.target_minion._state.get(task_id + '-0')[0].get('__first__')
+            dataframe_util.emit_sample_sklearn(task_id, 
+                df, emit, '', size=msg_info.get('size', 100), 
+                page=msg_info.get('page', 1)) 
         else:
             log.warn(_('Unknown message type %s'), msg_type)
+            print(msg)
             self._generate_output(_('Unknown message type %s') % msg_type)
 
     def _execute_future(self, job_id, workflow, app_configs):
