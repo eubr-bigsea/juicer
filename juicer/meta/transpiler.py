@@ -64,12 +64,16 @@ class MetaTranspiler(Transpiler):
             'split-into-words',
             'trim', 'normalize-text',
             'truncate-text',
+            'parse-to-date',
 
             'round-number',
             'ts-to-date',
 
             'date-to-ts',
+            'date-part',
+            'date-add',
             'format-date',
+            'truncate-date-to',
 
             'invert-boolean',
 
