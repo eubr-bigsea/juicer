@@ -87,6 +87,8 @@ class MetaTranspiler(Transpiler):
             'features': ops.FeaturesOperation,
             'features-reduction': ops.FeaturesReductionOperation,
             'split': ops.SplitOperation,
+            # 'bucketize': ops.BucketizeOperation,
+            'rescale': ops.RescaleOperation,
             'grid': ops.GridOperation,
             'k-means': ops.KMeansOperation,
             'gaussian-mix': ops.GaussianMixOperation,

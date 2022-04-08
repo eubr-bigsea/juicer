@@ -462,7 +462,39 @@ class SampleOperation(MetaPlatformOperation):
         dro = SampleOrPartitionOperation(params, {'input data': 'df'},
             {'sampled data': 'df'})
         return dro.generate_code()
-       
+
+class RescaleOperation(MetaPlatformOperation):
+    def __init__(self, parameters,  named_inputs, named_outputs):
+        MetaPlatformOperation.__init__(self, parameters,  named_inputs,  named_outputs)
+        self.type = parameters.get('type')
+        self.attributes = parameters.get('attributes')
+
+        if self.type == 'min_max':
+            self.operation_id = 91
+            self.forms = {
+                'min': {'value': float(parameters.get('min', 0))},
+                'max': {'value': float(parameters.get('max', 1))},
+            }
+        elif self.type == 'z_score':
+            self.operation_id = 90
+            self.forms = {
+                'with_std': {'value': parameters.get('with_std')},
+                'with_mean': {'value': parameters.get('with_mean')}
+            }
+        else:
+            self.operation_id = 92
+            self.forms = {}
+
+    def generate_code(self):
+        task_obj = self._get_task_obj()
+        task_obj['forms'].update(self.forms)
+        task_obj['forms'].update({
+          'attributes': {'value': self.attributes},
+        })
+        task_obj['operation'] = {"id": self.operation_id}
+        return json.dumps(task_obj)
+
+
 
 class FindReplaceOperation(MetaPlatformOperation):
     def __init__(self, parameters,  named_inputs, named_outputs):
