@@ -202,8 +202,7 @@ class Transpiler(object):
                 # escape invalid characters for code generation
                 # except JSON (starting with {)
                 if definition['value'] is not None and not isinstance(
-                        definition['value'], bool) and not isinstance(
-                    definition['value'], int):
+                        definition['value'], (bool, int, float)):
                     if '"' in definition['value'] or "'" in definition['value']:
                         if definition['value'][0] != '{':
                             definition['value'] = TranspilerUtils.escape_chars(
