@@ -23,7 +23,7 @@ import numpy as np
 import modin.pandas as pd
 import functools
 import threading
-
+from nltk.stem import SnowballStemmer
 from concurrent.futures import ThreadPoolExecutor
 from timeit import default_timer as timer
 from juicer.util import dataframe_util
