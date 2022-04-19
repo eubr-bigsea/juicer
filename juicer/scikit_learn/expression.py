@@ -615,7 +615,8 @@ class Expression:
                     s['arguments'][1], p)),
             'array_distinct': lambda s, p: 'np.unique({0}).ravel()'.format(
                 self.parse(s['arguments'][0], p)),
-
+            'array_join': lambda s, p: f"{self.parse(s['arguments'][1], p)}.join(" +
+                    f"{self.parse(s['arguments'][0], p)})",
             'ascii': self.get_function_call,
             'atan2': lambda s, p: self.get_numpy_function_call(s, p, 'arctan2'),
             # TODO handle differences: python adds 0b to the result

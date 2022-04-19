@@ -183,6 +183,9 @@ class TransformOperation(MetaPlatformOperation):
     array_index_re = re.compile(r'(?:\D*?)(-?\d+)(?:\D?)')
     SLUG_TO_EXPR = {
             'extract-numbers': {'f': 'regexp_extract', 'args': [number_re], 'transform': [str]},
+            'extract-with-regex': {'f': 'regexp_extract', 'args': ['{regex}'], 'transform': [str]},
+            'replace-with-regex': {'f': 'regexp_replace', 'args': ['{regex}', '{replace}'], 
+                'transform': [str, lambda v: '' if v is None else v]},
             'to-upper': {'f': 'upper'},
             'to-lower': {'f': 'lower'},
             'capitalize': {'f': 'initcap'},
@@ -204,7 +207,9 @@ class TransformOperation(MetaPlatformOperation):
             'truncate-date-to': {'f': 'date_trunc', 'args': ['{format}'], 'transform': [str]},
 
             'invert-boolean': {'f': None, 'op': '!'},
+
             'extract-from-array': {'f': None, 'op': ''},
+            'concat-array': {'f': 'array_join', 'args': ['{delimiter}'], 'transform': [str]},
 
             'flag-empty': {'f': 'isnull', },
             'flag-with-formula': {'f': None},
@@ -232,10 +237,10 @@ class TransformOperation(MetaPlatformOperation):
         if function_name:
 
             self.form_parameters = {}
-            for arg in info.get('args', []):
+            for arg, transform in zip(info.get('args', []), info.get('transform', [])):
                 if arg[0] == '{' and arg[-1] == '}':
-                    self.form_parameters[arg[1:-1]] = self.parameters.get(
-                        arg[1:-1])
+                    self.form_parameters[arg[1:-1]] = transform(self.parameters.get(
+                        arg[1:-1]))
             # import sys
             #print(self.form_parameters, file=sys.stderr)
 
@@ -250,9 +255,8 @@ class TransformOperation(MetaPlatformOperation):
                 final_args_str = ', ' + ', '.join(function_args)
                 transform = info['transform']
                 for i, arg in enumerate(function_args):
-                    v = transform[i](arg)
                     final_args.append(
-                    {'type': 'Literal', 'value': v, 'raw': f'{v}'})
+                    {'type': 'Literal', 'value': arg, 'raw': f'{arg}'})
             # Uses the same attribute name as alias, so it will be overwritten
             for attr in self.attributes:
                 expressions.append(
@@ -554,6 +558,48 @@ class FilterOperation(MetaPlatformOperation):
         flter = SparkFilterOperation(params, {}, {'input data': 'df', 
             'output data': 'df'})
         return flter.generate_code()
+
+class RemoveMissingOperation(MetaPlatformOperation):
+    def __init__(self, parameters,  named_inputs, named_outputs):
+        MetaPlatformOperation.__init__(self, parameters,  named_inputs,  named_outputs)
+        self.attributes = self.get_required_parameter(parameters, 'attributes')
+
+    def _get_tree(self, attributes):
+        if len(attributes) > 1:
+            return {
+                'type': 'LogicalExpression',
+                'operator': '&&',
+                'left': self._get_tree(attributes[1:]),
+                'right': {
+                    'type': 'CallExpression',
+                    'arguments': [
+                        {'type': 'Identifier', 'name': attributes[0]}
+                    ],
+                    'callee': {'type': 'Identifier', 'name': 'isnotnull'}
+                }
+            }
+        elif len(attributes) == 1:
+            return {
+                    'type': 'CallExpression',
+                    'arguments': [
+                        {'type': 'Identifier', 'name': attributes[0]}
+                    ],
+                    'callee': {'type': 'Identifier', 'name': 'isnotnull'}
+                }
+    
+    def generate_code(self):
+        task_obj = self._get_task_obj()
+        conditions = [f'isnotnull({attr})' for attr in self.attributes]
+        expression = [
+            {
+                "alias": "filter", 
+                "expression": ' && '.join(conditions), 
+                "tree": self._get_tree(self.attributes)
+             }
+        ]
+        task_obj['forms'].update({"expression": {"value": expression}})
+        task_obj['operation'] = {"id": 5}
+        return json.dumps(task_obj)
 
 
 class AddByFormulaOperation(MetaPlatformOperation):

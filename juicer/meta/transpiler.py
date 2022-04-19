@@ -57,9 +57,12 @@ class MetaTranspiler(Transpiler):
             'sort': ops.SortOperation,
 
             'n-grams': ops.GenerateNGramsOperation,
+            'remove-missing': ops.RemoveMissingOperation,
         }
         transform = [
             'extract-numbers',
+            'extract-with-regex',
+            'replace-with-regex',
             'to-upper', 'to-lower', 'initcap', 'capitalize', 'remove-accents',
             'split-into-words',
             'trim', 'normalize-text',
@@ -78,6 +81,7 @@ class MetaTranspiler(Transpiler):
             'invert-boolean',
 
             'extract-from-array',
+            'concat-array',
 
             'flag-empty',
             'flag-with-formula',
