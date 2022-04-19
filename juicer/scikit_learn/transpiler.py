@@ -167,6 +167,7 @@ class ScikitLearnTranspiler(Transpiler):
         other_ops = {
             'comment': operation.NoOp,
             'stemming': nlp_operation.StemmingOperation,
+            'lemmatization':nlp_operation.LemmatizationOperation,
 
         }
 
