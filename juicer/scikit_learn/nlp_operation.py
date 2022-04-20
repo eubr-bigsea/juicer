@@ -57,7 +57,7 @@ class WordCountingOperation(Operation):
                 item = dict(row.iteritems())
                 key = list(item.keys())[0]
 
-                text = list(item.values())[0].lower()
+                text = list(item.values())[0]
                 tokens = tokenizer.tokenize(text)
                 counter = Counter(tokens)
                 words = dict(counter)
