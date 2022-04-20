@@ -11,7 +11,6 @@ class WordCountingOperation(Operation):
     """ Counts the words
     """
     ATTRIBUTES_PARAM = 'attributes'
-    ALIAS_PARAM = 'alias'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
@@ -23,12 +22,6 @@ class WordCountingOperation(Operation):
                 _("Parameter '{}' must be informed for task {}")
                 .format(self.ATTRIBUTES_PARAM, self.__class__))
 
-        self.alias = [ alias.strip() for alias in parameters.get(self.ALIAS_PARAM, '').split(',')] 
-
-        # Adjust alias in order to have the same number of aliases as attributes 
-        # by filling missing alias with the attribute name suffixed by _pdf.
-        self.alias = [x[1] or '{}_wc'.format(x[0]) for x 
-                in zip_longest(self.attributes, self.alias[:len(self.attributes)])] 
 
         self.output = self.named_outputs.get(
                 'output data', 'output_data_{}'.format(self.order))
@@ -51,7 +44,6 @@ class WordCountingOperation(Operation):
         #df.drop(df.index, inplace=True)
         df = pd.DataFrame()
         
-        alias = {self.alias}
         for i, attr in enumerate({self.attributes}):
             for j, row in {self.input}.iterrows():
                 item = dict(row.iteritems())
