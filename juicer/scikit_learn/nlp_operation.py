@@ -40,8 +40,6 @@ class WordCountingOperation(Operation):
         code = f"""
         tokenizer = RegexpTokenizer(r'\w+', flags=re.IGNORECASE)
 
-        #df = {self.input}
-        #df.drop(df.index, inplace=True)
         df = pd.DataFrame()
         
         for i, attr in enumerate({self.attributes}):
