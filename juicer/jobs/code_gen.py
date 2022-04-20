@@ -18,6 +18,8 @@ from juicer.service.tahiti_service import query_tahiti
 from juicer.spark.transpiler import SparkTranspiler
 from juicer.workflow.workflow import Workflow
 import juicer.plugin.util as plugin_util
+#Add to protoboard example
+from juicer.protoboard.transpiler import ProtoboardTranspiler
 
 logging.config.fileConfig('logging_config.ini')
 
@@ -104,6 +106,8 @@ def _generate(workflow_id, job_id, execute_main, params, config, out=sys.stdout,
                 configuration.get_config(), loader.platform.get('id'))
             factory = plugin_factories.get(loader.platform['id'])
             transpiler = factory.get_transpiler(configuration.get_config())
+        elif loader.platform['slug'] == 'protoboard':
+            transpiler = ProtoboardTranspiler(configuration.get_config())
         else:
             raise ValueError(
                 gettext('Invalid platform value: {}').format(loader.platform))

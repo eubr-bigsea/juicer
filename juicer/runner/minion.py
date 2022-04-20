@@ -16,6 +16,7 @@ from juicer.scikit_learn.scikit_learn_minion import ScikitLearnMinion
 from juicer.jobs.script_minion import ScriptMinion
 from juicer.spark.spark_minion import SparkMinion
 from juicer.plugin.plugin_minion import PluginMinion
+from juicer.protoboard.protoboard_minion import ProtoboardMinion
 
 # Important!
 # See https://stackoverflow.com/a/29172195/1646932
@@ -88,6 +89,13 @@ if __name__ == '__main__':
         elif args.type == 'keras':
             log.info('Starting Keras Minion')
             minion = KerasMinion(redis_conn,
+                                 args.workflow_id,
+                                 args.app_id or args.workflow_id,
+                                 juicer_config,
+                                 args.lang)
+        elif args.type == 'protoboard':
+            log.info('Starting Protoboard Minion')
+            minion = ProtoboardMinion(redis_conn,
                                  args.workflow_id,
                                  args.app_id or args.workflow_id,
                                  juicer_config,
