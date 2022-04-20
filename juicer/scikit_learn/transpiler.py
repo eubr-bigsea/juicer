@@ -186,6 +186,7 @@ class ScikitLearnTranspiler(Transpiler):
 
         nlp_ops = {
             'nlp-word-counting': nlp_operation.WordCountingOperation,
+            'nlp-lower-case': nlp_operation.LowerCaseOperation,
         }
 
         self.operations = {}
