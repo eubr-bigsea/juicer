@@ -374,6 +374,7 @@ class CleanMissingOperation(MetaPlatformOperation):
         self.value = parameters.get('value')
         self.min_missing_ratio = parameters.get('min_missing_ratio')
         self.max_missing_ratio = parameters.get('max_missing_ratio')
+        self.output_port_name = 'output result'
 
     def generate_code(self):
         task_obj = self._get_task_obj()

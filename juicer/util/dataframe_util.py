@@ -1,16 +1,21 @@
 # coding=utf-8
-
-
+import math
+import base64
 import decimal
 import json
 
 import datetime
 
 import re
+import io
 import simplejson
+import pandas as pd
 from six import text_type
 from collections.abc import Sequence
+from typing import Any
 import collections
+import matplotlib.pyplot as plt
+import numpy as np
 
 
 def is_numeric(schema, col):
@@ -40,6 +45,17 @@ def default_encoder(obj):
     else:
         return str(obj)
 
+class NpEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        if isinstance(obj, np.floating):
+            if math.isnan(obj):
+                return None
+            return float(obj)
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return super(NpEncoder, self).default(obj)
 
 class SimpleJsonEncoder(simplejson.JSONEncoder):
     def default(self, obj):
@@ -424,6 +440,69 @@ def old_emit_sample_sklearn(task_id, df, emit_event, name, size=50, notebook=Fal
                identifier=task_id,
                message=content.generate(),
                type='HTML', title=_('Sample data for {}').format(name),
+               task={'id': task_id})
+
+
+def analyse_attribute(task_id: str, df: Any, emit_event: Any, attribute: str):
+    stats = ['median', 'nunique']
+    import plotly.express as px
+    from pandas.api.types import is_numeric_dtype
+
+    if attribute is None: # Statistics for the entire dataframe
+        d = df.describe(include = 'all')
+        d.append(df.reindex(d.columns, axis = 1).agg(stats))
+        result = d.transpose().to_json(orient="split", double_precision=4)
+    else:
+        info = {}
+        serie = df[attribute]
+        stats = ['median', 'nunique']
+        if is_numeric_dtype(serie):
+            d = serie.describe(include = 'all').append(serie.agg(stats))
+        else:
+            d = serie.describe(include = 'all')
+
+        info['stats'] = dict(list(zip(d.index, d)))
+
+        if is_numeric_dtype(serie):
+            info['histogram'] = [x.tolist() for x in np.histogram(
+                    serie.dropna(), bins=40)]
+
+            q1 = info['stats']['25%']
+            q3 = info['stats']['75%']
+            iqr = q3 - q1
+            info['stats']['iqr'] = iqr
+            info['fence_low']  = q1 - 1.5 * iqr
+            info['fence_high'] = q3 + 1.5 * iqr
+            info['outliers'] = serie[((serie < info['fence_low']) 
+                | (serie > info['fence_high']))].iloc[:10].tolist()
+
+        counts = serie.value_counts(dropna=False).iloc[:20]
+        info['top20'] = list(zip([x if not pd.isna(x) else 'null' for x in counts.index], counts))
+        info['nulls'] =  serie.isna().sum()
+        info['stats']['nulls'] =  serie.isna().sum()
+        info['stats']['rows'] = len(serie)
+
+        # fig = px.histogram(serie, 
+        #           marginal="box", # or violin, rug
+        #           )
+        # info['plotly'] = fig.to_dict()
+
+        # box_plot = io.BytesIO()
+        # fig = serie.plot.box(figsize=(1,2))
+        # plt.tight_layout()
+        # fig.figure.savefig(box_plot, format='png')
+        # box_plot.seek(0)
+        # info['box_plot'] = base64.b64encode(box_plot.read()).decode('utf8')
+        # plt.close()
+
+
+        result = json.dumps(info, cls=NpEncoder)
+
+    emit_event('analysis', status='COMPLETED',
+               identifier=task_id,
+               message=result,
+               attribute=attribute,
+               type='OBJECT', title=_('Analysis for attribute {}').format(attribute),
                task={'id': task_id})
 
 

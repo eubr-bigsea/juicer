@@ -196,12 +196,29 @@ class MetaMinion(Minion):
 
         elif msg_type == Minion.MSG_PROCESSED:
             self.active_messages -= 1
+
+        elif msg_type == juicer_protocol.ANALYSE_ATTRIBUTE:
+            job_id = msg_info['job_id']
+            task_id = msg_info['task_id']
+            emit = functools.partial(
+                self._emit_event(room=job_id, namespace='/stand'),
+                namespace='/stand')
+            if not self.target_minion:
+                return
+            # Meta adds -0 as a suffix
+            df = self.target_minion._state.get(task_id + '-0')[0].get('__first__')
+            dataframe_util.analyse_attribute(task_id, 
+                df, emit, attribute=msg_info.get('attribute')) 
+           
         elif msg_type == juicer_protocol.MORE_DATA:
             job_id = msg_info['job_id']
             task_id = msg_info['task_id']
             emit = functools.partial(
                 self._emit_event(room=job_id, namespace='/stand'),
                 namespace='/stand')
+            if not self.target_minion:
+                return
+            # Meta adds -0 as a suffix
             # Meta adds -0 as a suffix
             df = self.target_minion._state.get(task_id + '-0')[0].get('__first__')
             dataframe_util.emit_sample_sklearn(task_id, 
