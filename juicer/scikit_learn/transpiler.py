@@ -12,6 +12,7 @@ import juicer.scikit_learn.regression_operation as regression
 import juicer.scikit_learn.text_operation as text_operations
 import juicer.scikit_learn.vis_operation as vis_operation
 import juicer.scikit_learn.outlier_detection as lof
+import juicer.scikit_learn.nlp_operation as nlp_operation
 import os
 from juicer import operation
 from juicer.transpiler import Transpiler
@@ -183,7 +184,11 @@ class ScikitLearnTranspiler(Transpiler):
             'map': vis_operation.MapOperation
         }
 
+        nlp_ops = {
+            'nlp-word-counting': nlp_operation.WordCountingOperation,
+        }
+
         self.operations = {}
         for ops in [data_ops, etl_ops, geo_ops, ml_ops,
-                    other_ops, text_ops, ws_ops, vis_ops]:
+                    other_ops, text_ops, ws_ops, vis_ops, nlp_ops]:
             self.operations.update(ops)
