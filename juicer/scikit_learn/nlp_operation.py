@@ -53,7 +53,6 @@ class WordCountingOperation(Operation):
         
         alias = {self.alias}
         for i, attr in enumerate({self.attributes}):
-            #tmp_input = {self.input}[attr]
             for j, row in {self.input}.iterrows():
                 item = dict(row.iteritems())
                 key = list(item.keys())[0]
@@ -66,10 +65,8 @@ class WordCountingOperation(Operation):
 
                 df = df.append(to_append, ignore_index=True)
                 
-            #{self.output} = df[attr[i]]
             df = df.fillna(0)
 	
-            #df[attr+ str(i)] = [len({self.input})]
         {self.output} = df
         """
         return dedent(code)
