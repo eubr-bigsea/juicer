@@ -60,8 +60,9 @@ class WordCountingOperation(Operation):
                 text = list(item.values())[0].lower()
                 tokens = tokenizer.tokenize(text)
                 counter = Counter(tokens)
-                to_append = dict(counter)
-
+                words = dict(counter)
+                to_append = dict()
+                to_append[attr] = words
 
                 df = df.append(to_append, ignore_index=True)
                 
