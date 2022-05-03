@@ -401,6 +401,36 @@ class CastOperation(MetaPlatformOperation):
         return json.dumps(task_obj)
 
 
+class StringIndexerOperation(MetaPlatformOperation):
+    def __init__(self, parameters,  named_inputs, named_outputs):
+        MetaPlatformOperation.__init__(self, parameters,  named_inputs,  named_outputs)
+        self.attributes = self.get_required_parameter(parameters, 'attributes')
+
+    def generate_code(self):
+        task_obj = self._get_task_obj()
+        for prop in ['attributes']:
+            value = getattr(self, prop)
+            task_obj['forms'][prop] = {'value': value}
+        task_obj['forms']['alias'] = {'value': ','.join([f'{a}_inx' for a in self.attributes])}
+        task_obj['operation'] = {"id": 40}
+        return json.dumps(task_obj)
+
+
+class OneHotEncodingOperation(MetaPlatformOperation):
+    def __init__(self, parameters,  named_inputs, named_outputs):
+        MetaPlatformOperation.__init__(self, parameters,  named_inputs,  named_outputs)
+        self.attributes = self.get_required_parameter(parameters, 'attributes')
+
+    def generate_code(self):
+        task_obj = self._get_task_obj()
+        for prop in ['attributes']:
+            value = getattr(self, prop)
+            task_obj['forms'][prop] = {'value': value}
+        task_obj['forms']['alias'] = {'value': ','.join([f'{a}_ohe' for a in self.attributes])}
+        task_obj['operation'] = {"id": 75}
+        return json.dumps(task_obj)
+
+
 class GroupOperation(MetaPlatformOperation):
     def __init__(self, parameters,  named_inputs, named_outputs):
         MetaPlatformOperation.__init__(self, parameters,  named_inputs,  named_outputs)
@@ -516,9 +546,22 @@ class FindReplaceOperation(MetaPlatformOperation):
     def generate_code(self):
         task_obj = self._get_task_obj()
         attr = self.attributes
-        formula = {
+        is_number = True
+        replacement = None
+        try:
+            find = float(self.find)
+            replacement = float(self.replace)
+        except:
+            is_number = False
+        if is_number:
+            expression = (f'when({attr} == "{self.find}", "{self.replace}", '
+                f'{attr} == {self.find}, {self.replace}, {attr})')
+        else:
+            expression = f'when({attr} == {self.find}, {self.replace}, {attr})'
+        if not is_number:
+            formula = {
              'alias': attr,
-             'expression': f'when({attr} == {self.find}, {self.replace}, {attr})',
+             'expression': expression,
              'tree': {
                  'type': 'CallExpression',
                  'arguments': [
@@ -533,7 +576,28 @@ class FindReplaceOperation(MetaPlatformOperation):
                  ],
                  'callee': {'type': 'Identifier', 'name': 'when'},
              }
-        }
+            }
+        else:
+            find = float(self.find) if '.' in self.find else int(self.find)
+            replace = float(self.replace) if '.' in self.replace else int(self.replace)
+            formula = {
+             'alias': attr,
+             'expression': expression,
+             'tree': {
+                 'type': 'CallExpression',
+                 'arguments': [
+                    {'type': 'BinaryExpression', 'operator': '==',
+                     'left': {'type': 'Identifier', 'name': attr},
+                     'right': {'type': 'Literal', 'value': find,
+                        'raw': find}
+                    },
+                    {'type': 'Literal', 'value': replace,
+                        'raw': replace},
+                    {'type': 'Identifier', 'name': attr},
+                 ],
+                 'callee': {'type': 'Identifier', 'name': 'when'},
+             }
+            }
         task_obj['forms'].update({
           "expression": {"value": [formula]},
         })
@@ -848,8 +912,8 @@ class ModelMetaOperation(Operation):
 class EstimatorMetaOperation(ModelMetaOperation):
     def __init__(self, parameters,  named_inputs, named_outputs, task_type):
         ModelMetaOperation.__init__(self, parameters,  named_inputs,  named_outputs)
-        self.var = "CHANGE_VAR"
-        self.name = "CHANGE_NAME"
+        self.var = 'estimator' # "CHANGE_VAR"
+        self.name = 'estimator' #"CHANGE_NAME"
         self.hyperparameters = {}
         self.task_type = task_type
         self.grid_info = parameters.get('workflow').get(

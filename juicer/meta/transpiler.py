@@ -55,6 +55,8 @@ class MetaTranspiler(Transpiler):
             'save': ops.SaveOperation,
             'select': ops.SelectOperation,
             'sort': ops.SortOperation,
+            'one-hot-encoding': ops.OneHotEncodingOperation,
+            'string-indexer': ops.StringIndexerOperation,
 
             'n-grams': ops.GenerateNGramsOperation,
             'remove-missing': ops.RemoveMissingOperation,

@@ -17,6 +17,8 @@ import collections
 import matplotlib.pyplot as plt
 import numpy as np
 
+from datasketch import MinHash, MinHashLSH
+from nltk import ngrams
 
 def is_numeric(schema, col):
     import pyspark.sql.types as spark_types
@@ -55,6 +57,8 @@ class NpEncoder(json.JSONEncoder):
             return float(obj)
         if isinstance(obj, np.ndarray):
             return obj.tolist()
+        if isinstance(obj, pd.Timestamp):
+            return obj.strftime('%Y-%m-%dT%H:%M:%S')
         return super(NpEncoder, self).default(obj)
 
 class SimpleJsonEncoder(simplejson.JSONEncoder):
@@ -443,19 +447,38 @@ def old_emit_sample_sklearn(task_id, df, emit_event, name, size=50, notebook=Fal
                task={'id': task_id})
 
 
-def analyse_attribute(task_id: str, df: Any, emit_event: Any, attribute: str):
+def analyse_attribute(task_id: str, df: Any, emit_event: Any, attribute: str, msg: Any):
     stats = ['median', 'nunique']
     import plotly.express as px
     from pandas.api.types import is_numeric_dtype
 
+    analysis_type = 'table'
     if attribute is None: # Statistics for the entire dataframe
         d = df.describe(include = 'all')
         d.append(df.reindex(d.columns, axis = 1).agg(stats))
         result = d.transpose().to_json(orient="split", double_precision=4)
+    elif msg.get('cluster'):
+        lsh = MinHashLSH(threshold=msg.get('threshold', msg.get('similarity', 0.8)), 
+            num_perm=128)
+        min_hashes = {}
+        words = df[attribute].drop_duplicates().astype('str')
+        for c, i in enumerate(words):
+            min_hash = MinHash(num_perm=128)
+            for d in ngrams(i, 3):
+              min_hash.update("".join(d).encode('utf-8'))
+            lsh.insert(c, min_hash)
+            min_hashes[c] = min_hash
+        similar = [] 
+        for k, i in enumerate(min_hashes.keys()):
+            q = lsh.query(min_hashes[k])
+            if len(q) > 1:
+                similar.append([words.iloc[i] for i in q])
+        result = json.dumps(similar[:20])
+        analysis_type = 'cluster'
     else:
         info = {}
         serie = df[attribute]
-        stats = ['median', 'nunique']
+        stats = ['median', 'nunique', 'skew', 'var', 'kurtosis']
         if is_numeric_dtype(serie):
             d = serie.describe(include = 'all').append(serie.agg(stats))
         else:
@@ -497,10 +520,12 @@ def analyse_attribute(task_id: str, df: Any, emit_event: Any, attribute: str):
 
 
         result = json.dumps(info, cls=NpEncoder)
+        analysis_type = 'attribute'
 
     emit_event('analysis', status='COMPLETED',
                identifier=task_id,
                message=result,
+               analysis_type=analysis_type,
                attribute=attribute,
                type='OBJECT', title=_('Analysis for attribute {}').format(attribute),
                task={'id': task_id})
