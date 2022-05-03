@@ -208,7 +208,7 @@ class MetaMinion(Minion):
             # Meta adds -0 as a suffix
             df = self.target_minion._state.get(task_id + '-0')[0].get('__first__')
             dataframe_util.analyse_attribute(task_id, 
-                df, emit, attribute=msg_info.get('attribute')) 
+                df, emit, attribute=msg_info.get('attribute'), msg=msg_info) 
            
         elif msg_type == juicer_protocol.MORE_DATA:
             job_id = msg_info['job_id']

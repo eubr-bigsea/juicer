@@ -679,7 +679,7 @@ class Expression:
             'regexp_replace': lambda s, p:
                 ("functools.partial(lambda t, rep, expr: expr.sub(rep, t), "
                  "expr=re.compile({expr}))"
-                 "({val}, {rep})").format(
+                 "({val}, r{rep})").format(
                     val=self.parse(s['arguments'][0], p),
                     expr=(self.parse(s['arguments'][1], p)
                           if s['arguments'][1]['type'] != 'Literal' else

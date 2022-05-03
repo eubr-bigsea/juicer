@@ -22,6 +22,7 @@ coverage==4.5.4
 cryptography==3.3.2
 cycler==0.10.0
 Cython==0.28.5
+datasketch==1.5.7
 decorator==4.4.0
 dnspython==1.16.0
 docutils==0.15.2

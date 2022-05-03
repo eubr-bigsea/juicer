@@ -331,8 +331,8 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
                 title='{{ builder_params.evaluator.task_name}}',
                 message=message)
             print(message)
-        # for status, model, params, metric, ex in results:
-        #    print(model.stages[-1], [(p, v) for p, v in params.items()], metric)
+        for status, model, params, metric, ex in results:
+           print(model.stages[-1], [(p, v) for p, v in params.items()], metric)
 
 
     except Exception as e:
