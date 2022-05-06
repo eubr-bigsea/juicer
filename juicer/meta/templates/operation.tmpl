@@ -35,12 +35,28 @@ from juicer.util import dataframe_util
 {%- include auxiliary_code with context %}
 {%- endfor %}
 
+def get_feature_importance_score(model, features):
+    if isinstance(model, classification.LogisticRegressionModel):
+        m = model.extractParamMap()
+        if m.get(model.family) == 'multinomial':
+            coef = model.coefficientMatrix
+            mag_coef = []
+            result = coef
+        else:
+            print(model.family)
+            coef = list(model.coefficients)
+            mag_coef = [abs(x) for x in coef]
+            result = list(zip(features, coef, mag_coef))
+        print(result)
+    else:
+        print('>>>>>>>>>>>>>>>>>>', type(model))
+
 TrainingContext = namedtuple('TrainingContext',
     ['index', 'task_id', 'task_name', 'name', 'details', 'operation_id', 'start'])
 
 TrainingResult= namedtuple('TrainingResult',
-    ['status', 'model', 'details', 'metric', 'exception', 'ctx'],
-    defaults=(None,) * 6)
+    ['status', 'model', 'details', 'metric', 'exception', 'ctx', 'feature_importance'],
+    defaults=(None,) * 7)
 
 class CustomCrossValidation():
     pass
@@ -61,7 +77,8 @@ class CustomTrainValidationSplit():
     def _perform_training(self, train, test, estimator, evaluator, params, details, ctx):
         try:
             model = estimator.fit(train, params)
-            metric = evaluator.evaluate(model.transform(test, params))
+            df = model.transform(test, params)
+            metric = evaluator.evaluate(df)
             return TrainingResult('OK', model, details, metric, ctx=ctx)
         except Exception as e:
             try:
@@ -196,10 +213,7 @@ def create_pipeline(label: str):
     features_names = [
         {%- for f in builder_params.features.get_final_features_names() -%}
         '{{ f }}'{%- if not loop.last %}, {% endif %}
-        {%- if loop.index % 3 == 1 %}
-        {# extra line #}
-        {%- endif %}
-        {%- endfor %}
+        {%- endfor -%}
     ]
 
     {%- if use_pca %}
@@ -257,11 +271,11 @@ def create_pipeline(label: str):
     {{ estimator.generate_random_hyperparameters_code() |indent(width=4, first=False)}}
     {%- endif %}
     {% endfor %}
-    grid = ({% for estimator in builder_params.estimators -%}
+    grid = ({%- for estimator in builder_params.estimators -%}
         {%- set variations = estimator.get_variations() %}
         {%- if variations %}
         {%- for variation in variations -%} grid_{{estimator.var}}_{{loop.index0}}{% if not loop.last %} + {% endif %}{% endfor %}
-        {%- else %}
+        {%- else -%}
         grid_{{estimator.var}}
         {%- endif %}
         {%- if not loop.last %} + {% else %}){% endif %}
@@ -314,7 +328,7 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
         results = sorted(results, key=lambda x: x[3], reverse=evaluator.isLargerBetter())
 
         if len(results):
-            status, model, params, metric, ex, ctx = results[0]
+            status, model, params, metric, ex, ctx, fi = results[0]
             metric_name = evaluator.extractParamMap().get(evaluator.metricName)
             message = {'best': params, 'metric_value': metric, 
                 'larger_better': evaluator.isLargerBetter(),
@@ -330,9 +344,14 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
                 operation_id=evaluator.operation_id,
                 title='{{ builder_params.evaluator.task_name}}',
                 message=message)
-            print(message)
-        for status, model, params, metric, ex in results:
-           print(model.stages[-1], [(p, v) for p, v in params.items()], metric)
+            #print(message)
+        for status, model, params, metric, ex, ctx, fi in results:
+            # print(model.stages[-1], [(p, v) for p, v in params.items()], metric)
+            ml_model = model.stages[-1]
+            features = model.stages[-2].getInputCols()
+            importance = get_feature_importance_score(ml_model, features)
+            # print(feature_assembler.metadata)
+            # print(ml_model.metadata["ml_attr"]["attrs"].values())
 
 
     except Exception as e:
