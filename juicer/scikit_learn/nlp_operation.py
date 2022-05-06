@@ -6,6 +6,7 @@ from itertools import zip_longest
 from juicer.operation import Operation
 
 
+
 class TokenizeOperation(Operation):
     """TokenizerOperation.
     The tokenization operation breaks a paragraph of text into smaller pieces, such as words or sentences. Token is a single entity that is
@@ -72,6 +73,9 @@ class TokenizeOperation(Operation):
 
             if self.type == self.TYPE_SIMPLE:
                 code = """
+                import nltk
+                nltk.download('punkt')
+                nltk.download('averaged_perceptron_tagger')
                 from nltk.tokenize import TweetTokenizer
                 from nltk.tag import pos_tag
                 from nltk.tokenize import word_tokenize
@@ -89,6 +93,7 @@ class TokenizeOperation(Operation):
                            limit=self.min_token_lenght)
             else:
                 code = """
+                nltk.download('wordnet')
                 from nltk.tokenize import regexp_tokenize
                 from nltk.tokenize import RegexpTokenizer
                 from nltk.tag import pos_tag
@@ -107,3 +112,58 @@ class TokenizeOperation(Operation):
                           exp=self.expression_param, limit=self.min_token_lenght)
 
             return dedent(code)
+
+class SynonymsOperation(Operation):
+    """This operation generate synonyms of a word.
+    """
+    ATTRIBUTES_PARAM = 'attributes'
+    ALIAS_PARAM = 'alias'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+        
+
+        self.attributes = parameters.get(self.ATTRIBUTES_PARAM, []) or []
+        if not self.attributes:
+            raise ValueError(
+                _("Parameter '{}' must be informed for task {}")
+                .format(self.ATTRIBUTES_PARAM, self.__class__))
+
+        self.alias = [ alias.strip() for alias in parameters.get(self.ALIAS_PARAM, '').split(',')] 
+
+        # Adjust alias in order to have the same number of aliases as attributes 
+        # by filling missing alias with the attribute name suffixed by _pdf.
+        self.alias = [x[1] or '{}_synonym'.format(x[0]) for x 
+                in zip_longest(self.attributes, self.alias[:len(self.attributes)])] 
+
+        self.output = self.named_outputs.get(
+                'output data', 'output_data_{}'.format(self.order))
+
+        self.input = self.named_inputs.get(
+                'input data', 'input_data_{}'.format(self.order))
+        self.has_code = any([len(named_outputs) > 0, self.contains_results()]) 
+
+    def generate_code(self):
+        """Generate code."""
+        code = """
+        import nltk
+        nltk.download('wordnet')
+        from nltk.corpus import wordnet
+        def synonym(word):
+            synonyms = []
+            for syn in wordnet.synsets(word):
+                for l in syn.lemmas():
+                    synonyms.append(l.name())
+    
+            return synonyms
+
+        {out} = {input}
+        alias = {alias}
+        for i, attr in enumerate({attributes}):
+            {out}[alias[i]] = {input}[attr].apply(synonym)
+        """.format(attributes=self.attributes,
+                alias = self.alias,
+                input = self.input,
+                out=self.output)
+        return dedent(code)
+  
