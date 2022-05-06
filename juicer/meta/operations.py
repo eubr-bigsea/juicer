@@ -33,7 +33,8 @@ def _as_list(values, transform, size=None):
             return FeatureInfo(values, None, 'simple_list')
         elif isinstance(values, str):
             return []
-        elif values.get('type') == 'list' or values.get('list'):
+        elif (values.get('type') == 'list' or (
+                values.get('type') != 'range' and values.get('list'))):
             v = [transform(x) for x in values.get('list', []) if x is not None]
             return FeatureInfo(v, values, 'list') 
         elif values.get('type') == 'range':
@@ -43,11 +44,13 @@ def _as_list(values, transform, size=None):
             if values.get('distribution') == 'log_uniform':
                 return FeatureInfo(
                     f'random.sample(np.log10(np.logspace({_min}, {_max}, {qty})).tolist(), {qty})',
-                    values, 'range')
+                    values, 'function')
             else:
                 return FeatureInfo(
                     f'random.sample(np.linspace({_min}, {_max}, {qty}).tolist(), {qty})',
                     values, 'function')
+            return []
+        elif values.get('type') is None:
             return []
         else:
             return FeatureInfo([transform(x) for x in values if x is not None], None)
@@ -912,8 +915,8 @@ class ModelMetaOperation(Operation):
 class EstimatorMetaOperation(ModelMetaOperation):
     def __init__(self, parameters,  named_inputs, named_outputs, task_type):
         ModelMetaOperation.__init__(self, parameters,  named_inputs,  named_outputs)
-        self.var = 'estimator' # "CHANGE_VAR"
-        self.name = 'estimator' #"CHANGE_NAME"
+        self.var = "CHANGE_VAR"
+        self.name = "CHANGE_NAME"
         self.hyperparameters = {}
         self.task_type = task_type
         self.grid_info = parameters.get('workflow').get(
@@ -1084,6 +1087,8 @@ class FeaturesOperation(ModelMetaOperation):
         self.features_names = []
 
         for f in features:
+            if f.get('usage') == 'unused':
+                continue
             f['var'] = pythonize(f['name'])
             transform = f.get('transform')
             name = f['name']
@@ -1095,12 +1100,8 @@ class FeaturesOperation(ModelMetaOperation):
             else:
                 f['na_name'] = name
 
-            if transform == 'keep':
-                if f['usage'] != 'label':
-                    self.features_names.append(name)
-                final_name = name
-            else:
-                final_name = f'{name}_{transform}'
+            # Feature used as is
+            final_name = name
 
             f['final_name'] = final_name
         
@@ -1127,25 +1128,87 @@ class FeaturesOperation(ModelMetaOperation):
 
     def generate_code(self):
         code = []
+        # import pdb; pdb.set_trace()
         for f in self.features:
             name = f.get('name')
             transform = f.get('transform')
-            if transform == 'keep':
-                pass # nothing to do
-            elif transform == 'binarize':
-                threshold = float(self.parameters.get('threshold', 0.0)
-                    or 0.0)
-                code.append(dedent(f"""
-                    {f['var']}_bin = feature.Binarizer(
-                        threshold={threshold}, inputCol='{f['na_name']}',
-                        outputCol='{f['final_name']}')
-                    features_stages.append({f['var']}_bin) """))
-            elif transform == 'not_null':
-                final_name = name + '_not_null'
-            elif transform == 'quantis':
-                final_name = name + '_quantis'
-            elif transform == 'buckets':
-                final_name = name + '_buckets'
+            data_type = f.get('feature_type')
+            missing = f.get('missing_data')
+
+            if data_type == 'numerical': 
+                if transform in ('keep', '', None):
+                    final_name = name
+                elif transform == 'binarize':
+                    final_name = name + '_binz'
+                    threshold = self.parameters.get('threshold', 0.0)
+                    code.append(dedent(f"""
+                        {f['var']}_bin = feature.Binarizer(
+                            threshold={threshold}, inputCol='{f['na_name']}',
+                            outputCol='{final_name}')
+                        features_stages.append({f['var']}_bin) """))
+                elif transform in ('quantiles', 'quantis'):
+                    final_name = name + '_qtles'
+                    num_buckets = f.get('quantis', 2)
+                    code.append(dedent(f"""
+                        {f['var']}_qtles = feature.QuantileDiscretizer(
+                            numBuckets={num_buckets}, inputCol='{f['na_name']}',
+                            outputCol='{final_name}', handleInvalid='skip')
+                        features_stages.append({f['var']}_qtles) """))
+                elif transform == 'buckets':
+                    import pdb; pdb.set_trace()
+                    num_buckets = f.get('quantis', 2)
+                    code.append(dedent(f"""
+                        {f['var']}_qtles = feature.QuantileDiscretizer(
+                            numBuckets={num_buckets}, inputCol='{f['na_name']}',
+                            outputCol='{final_name}', handleInvalid='skip')
+                        features_stages.append({f['var']}_qtles) """))
+                    final_name = name + '_bkt'
+
+                self.features_names.append(final_name)
+            elif data_type == 'categorical':
+                if missing == 'constant' and transform != 'not_null':
+                    cte = f.get('constant')
+                    stmt = f"SELECT *, COALESCE({f['name']}, '{cte}') AS {f['var']}_na FROM __THIS__"
+                    code.append(dedent(f"""
+                        {f['var']}_na = feature.SQLTransformer(
+                            statement="{stmt}")
+                        features_stages.append({f['var']}_na) """))
+                elif missing == 'remove' and transform != 'not_null':
+                    stmt = f"SELECT * FROM __THIS__ WHERE NOT ISNULL({f['name']})"
+                    code.append(dedent(f"""
+                        {f['var']} = feature.SQLTransformer(
+                            statement="{stmt}")
+                        features_stages.append({f['var']}) """))
+                    f['na_name'] = f['name']
+                     
+                if transform == 'not_null':
+                    final_name = name + '_na'
+                    stmt = f"SELECT *, INT(ISNULL({f['na_name']})) AS {f['var']}_na FROM __THIS__"
+                    code.append(dedent(f"""
+                        {f['var']}_na = feature.SQLTransformer(
+                            statement='{stmt}')
+                        features_stages.append({f['var']}_na) """))
+
+                else: #transform in ('string_indexer', '', None):
+                    final_name = name + '_inx'
+                    code.append(dedent(f"""
+                        {f['var']}_inx = feature.StringIndexer(
+                            inputCol='{f['na_name']}',
+                            outputCol='{final_name}',
+                            handleInvalid='skip')
+                        features_stages.append({f['var']}_inx) """))
+
+                if transform == 'one_hot_encoder':
+                    old_final_name = final_name
+                    final_name = name + '_ohe'
+                    code.append(dedent(f"""
+                        {f['var']}_ohe = feature.OneHotEncoder(
+                            inputCol='{old_final_name}',
+                            outputCol='{final_name}')
+                        features_stages.append({f['var']}_ohe) """))
+
+                self.features_names.append(final_name)
+               
 
         return '\n'.join(code).strip()
 
@@ -1358,26 +1421,101 @@ class DecisionTreeClassifierOperation(ClassificationOperation):
 class GBTClassifierOperation(ClassificationOperation):
     def __init__(self, parameters,  named_inputs, named_outputs):
         ClassificationOperation.__init__(self, parameters,  named_inputs,  named_outputs)
+        self.hyperparameters = {
+            'cacheNodeIds': parameters.get('cache_node_ids'),
+            'checkpointInterval': parameters.get('checkpoint_interval'),
+            'lossType': parameters.get('loss_type'),
+            'maxBins': parameters.get('max_bins'),
+            'maxDepth':_as_int_list(parameters.get('max_depth'), self.grid_info),
+            'maxIter': _as_int_list(parameters.get('max_iter'), self.grid_info),
+            'minInfoGain':_as_float_list(parameters.get('min_info_gain'), self.grid_info),
+            'minInstancesPerNode':_as_int_list(parameters.get('min_instances_per_node'), self.grid_info),
+            'seed':_as_int_list(parameters.get('seed'), self.grid_info),
+            'stepSize': parameters.get('step_size'),
+            'subsamplingRate': parameters.get('subsampling_rate'),
+
+        }
+        self.var = 'gbt_classifier'
+        self.name = 'GBTClassifier'
 
 class NaiveBayesClassifierOperation(ClassificationOperation):
     def __init__(self, parameters,  named_inputs, named_outputs):
         ClassificationOperation.__init__(self, parameters,  named_inputs,  named_outputs)
+        self.hyperparameters = {
+            'modelType': parameters.get('model_type'),
+            'smoothing': _as_float_list(parameters.get('smoothing')),
+            'thresholds': parameters.get('thresholds'),
+            'weightCol': parameters.get('weight_attribute'),
+        }
+        self.var = 'nb_classifier'
+        self.name = 'NaiveBayes'
 
 class PerceptronClassifierOperation(ClassificationOperation):
     def __init__(self, parameters,  named_inputs, named_outputs):
         ClassificationOperation.__init__(self, parameters,  named_inputs,  named_outputs)
+        self.hyperparameters = {
+            'layers': parameters.get('layers'),
+            'blockSize':_as_int_list(parameters.get('block_size'), self.grid_info),
+            'maxIter': _as_int_list(parameters.get('max_iter'), self.grid_info),
+            'seed':_as_int_list(parameters.get('seed'), self.grid_info),
+            'solver': parameters.get('solver'),
+        }
+        self.var = 'mlp_classifier'
+        self.name = 'MultilayerPerceptronClassifier'
+
 
 class RandomForestClassifierOperation(ClassificationOperation):
     def __init__(self, parameters,  named_inputs, named_outputs):
         ClassificationOperation.__init__(self, parameters,  named_inputs,  named_outputs)
+        self.hyperparameters = {
+            'impurity': parameters.get('impurity'),
+            'cacheNodeIds': parameters.get('cache_node_ids'),
+            'checkpointInterval':
+                parameters.get('checkpoint_interval'),
+            'featureSubsetStrategy':
+                _as_string_list(parameters.get('feature_subset_strategy')),
+            'maxBins':_as_int_list(parameters.get('max_bins'), self.grid_info),
+            'maxDepth':_as_int_list(parameters.get('max_depth'), self.grid_info),
+            'minInfoGain':_as_float_list(parameters.get('min_info_gain'), self.grid_info),
+            'minInstancesPerNode':
+                parameters.get('min_instances_per_node'),
+            'numTrees':_as_int_list(parameters.get('num_trees'), self.grid_info),
+            'seed': parameters.get('seed'),
+            'subsamplingRate': parameters.get('subsampling_rate'),
+        }
+        self.var = 'rand_forest_cls'
+        self.name = 'RandomForestClassifier'
 
 class LogisticRegressionOperation(ClassificationOperation):
     def __init__(self, parameters,  named_inputs, named_outputs):
         ClassificationOperation.__init__(self, parameters,  named_inputs,  named_outputs)
+        self.hyperparameters = {
+            'weightCol': _as_string_list(parameters.get('weight_col')),
+            'family': _as_string_list(parameters.get('family')),
+            'aggregationDepth': _as_int_list(parameters.get('aggregation_depth'), self.grid_info),
+            'elasticNetParam': _as_float_list(parameters.get('elastic_net_param'), self.grid_info),
+            'fitIntercept': _as_int_list(parameters.get('fit_intercept'), self.grid_info),
+            'maxIter': _as_int_list(parameters.get('max_iter'), self.grid_info),
+            'regParam': _as_float_list(parameters.get('reg_param'), self.grid_info),
+            'tol': _as_float_list(parameters.get('tol'), self.grid_info),
+            'threshold': _as_float_list(parameters.get('threshold'), self.grid_info),
+            'thresholds': _as_string_list(parameters.get('thresholds')),
+        }
+        self.var = 'lr'
+        self.name = 'LogisticRegression'
 
 class SVMClassifierOperation(ClassificationOperation):
     def __init__(self, parameters,  named_inputs, named_outputs):
         ClassificationOperation.__init__(self, parameters,  named_inputs,  named_outputs)
+        self.hyperparameters = {
+            'maxIter': _as_int_list(parameters.get('max_iter'), self.grid_info),
+            'standardization': _as_int_list(parameters.get('standardization'), self.grid_info),
+            'threshold': _as_float_list(parameters.get('threshold'), self.grid_info),
+            'tol': _as_float_list(parameters.get('tol'), self.grid_info),
+            'weightCol': _as_string_list(parameters.get('weight_attr')),
+        }
+        self.var = 'svm_cls'
+        self.name = 'LinearSVC'
 
 class RegressionOperation(EstimatorMetaOperation):
     def __init__(self, parameters,  named_inputs, named_outputs):
