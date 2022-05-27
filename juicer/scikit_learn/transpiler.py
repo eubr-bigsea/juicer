@@ -160,6 +160,7 @@ class ScikitLearnTranspiler(Transpiler):
         nlp_ops = {
             'tokenize': nlp_operation.TokenizeOperation,
             'synonyms': nlp_operation.SynonymsOperation,
+            'antonyms': nlp_operation.AntonymsOperation,
         }
 
         text_ops = {
