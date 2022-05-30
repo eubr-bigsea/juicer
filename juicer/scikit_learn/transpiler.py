@@ -13,6 +13,7 @@ import juicer.scikit_learn.text_operation as text_operations
 import juicer.scikit_learn.vis_operation as vis_operation
 import juicer.scikit_learn.outlier_detection as lof
 import juicer.scikit_learn.stat_operation as stat_operation
+import juicer.scikit_learn.nlp_operation as nlp_operation
 import os
 from juicer import operation
 from juicer.transpiler import Transpiler
@@ -165,6 +166,10 @@ class ScikitLearnTranspiler(Transpiler):
 
         other_ops = {
             'comment': operation.NoOp,
+            'stemming': nlp_operation.StemmingOperation,
+            'lemmatization': nlp_operation.LemmatizationOperation,
+            'normalizer': nlp_operation.NormalizationOperation,
+
         }
 
         statistical_ops = {
