@@ -1134,6 +1134,7 @@ class FeaturesOperation(ModelMetaOperation):
             transform = f.get('transform')
             data_type = f.get('feature_type')
             missing = f.get('missing_data')
+            scaler = f.get('scale')
 
             if data_type == 'numerical': 
                 if transform in ('keep', '', None):
@@ -1155,16 +1156,39 @@ class FeaturesOperation(ModelMetaOperation):
                             outputCol='{final_name}', handleInvalid='skip')
                         features_stages.append({f['var']}_qtles) """))
                 elif transform == 'buckets':
-                    import pdb; pdb.set_trace()
-                    num_buckets = f.get('quantis', 2)
+                    splits = ', '.join([str(x) for x in sorted([float(x) for x in f.get('buckets')])])
+                    if splits:
+                        final_name = name + '_bkt'
+                        code.append(dedent(f"""
+                            {f['var']}_qtles = feature.Bucketizer(
+                                splits=[-float('inf'), {splits}, float('inf')],
+                                inputCol='{f['na_name']}',
+                                outputCol='{final_name}', handleInvalid='skip')
+                            features_stages.append({f['var']}_qtles) """))
+                    else:
+                        final_name = None
+                if scaler:
+                    old_final_name = final_name
+                    final_name = name + '_scl'
+                    if scaler == 'min_max':
+                        scaler_cls = 'MinMaxScaler'
+                    elif scaler == 'standard':
+                        scaler_cls = 'StandardScaler'
+                    else:
+                        scaler_cls = 'MaxAbsScaler'
                     code.append(dedent(f"""
-                        {f['var']}_qtles = feature.QuantileDiscretizer(
-                            numBuckets={num_buckets}, inputCol='{f['na_name']}',
-                            outputCol='{final_name}', handleInvalid='skip')
-                        features_stages.append({f['var']}_qtles) """))
-                    final_name = name + '_bkt'
+                        {f['var']}_asm = feature.VectorAssembler(
+                            handleInvalid='skip',
+                            inputCols=['{old_final_name}'],
+                            outputCol='{f['var']}_asm')
+                        features_stages.append({f['var']}_asm)
+                        {f['var']}_scl = feature.{scaler_cls}(
+                            inputCol='{f['var']}_asm',
+                            outputCol='{final_name}')
+                        features_stages.append({f['var']}_scl) """))
 
-                self.features_names.append(final_name)
+                if final_name is not None:
+                    self.features_names.append(final_name)
             elif data_type == 'categorical':
                 if missing == 'constant' and transform != 'not_null':
                     cte = f.get('constant')
