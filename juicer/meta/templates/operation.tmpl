@@ -45,8 +45,7 @@ def get_feature_importance_score(model, features):
         else:
             print(model.family)
             coef = list(model.coefficients)
-            mag_coef = [abs(x) for x in coef]
-            result = list(zip(features, coef, mag_coef))
+            result = list(zip(features, coef))
         print(result)
     else:
         print('>>>>>>>>>>>>>>>>>>', type(model))
