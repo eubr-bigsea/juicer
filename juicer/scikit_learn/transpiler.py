@@ -161,6 +161,7 @@ class ScikitLearnTranspiler(Transpiler):
             'tokenize': nlp_operation.TokenizeOperation,
             'synonyms': nlp_operation.SynonymsOperation,
             'antonyms': nlp_operation.AntonymsOperation,
+            'definer': nlp_operation.DefinerOperation,
         }
 
         text_ops = {
