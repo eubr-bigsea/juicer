@@ -168,7 +168,7 @@ class PosTaggingOperation(Operation):
 
         # Adjust alias in order to have the same number of aliases as attributes 
         # by filling missing alias with the attribute name suffixed by _pdf.
-        self.alias = [x[1] or '{}_postags'.format(x[0]) for x 
+        self.alias = [x[1] or '{}_posTags'.format(x[0]) for x 
                 in zip_longest(self.attributes, self.alias[:len(self.attributes)])] 
 
         self.output = self.named_outputs.get(
