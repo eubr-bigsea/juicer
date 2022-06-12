@@ -170,7 +170,8 @@ class ScikitLearnTranspiler(Transpiler):
             'stemming': nlp_operation.StemmingOperation,
             'lemmatization': nlp_operation.LemmatizationOperation,
             'normalizer': nlp_operation.NormalizationOperation,
-            'postagging': nlp_operation.PosTaggingOperation
+            'postagging': nlp_operation.PosTaggingOperation,
+            'wordsegmentation': nlp_operation.WordSegmentationOperation
 
         }
 
