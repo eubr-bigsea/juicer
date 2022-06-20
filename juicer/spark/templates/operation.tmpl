@@ -172,7 +172,12 @@ def {{task.operation.slug.replace('-', '_')}}_{{instance.order}}(spark_session, 
         if isinstance(out, df_types)]
     {%- if instance.has_code and instance.enabled and instance.contains_sample %}
     for name, out in outputs:
+        {%- if transpiler.transpiler.sample_style == 'DATA_EXPLORER' 
+            or instance.parameters.workflow.get('app_configs', {}).get('sample_style') == 'DATA_EXPLORER' %}
+        dataframe_util.emit_sample_data_explorer(task_id, out, emit_event, name)
+        {%- else %}
         dataframe_util.emit_sample(task_id, out, emit_event, name)
+        {%- endif %}
     {%- endif %}
     {%- if instance.has_code and instance.enabled and instance.contains_schema %}
     for name, out in outputs:

@@ -276,9 +276,9 @@ class MetaMinion(Minion):
 
     def _execute_target_workflow(self, job_id, workflow, app_configs):
         app_configs['persist'] = False
-
+        print(app_configs)
         log.info('Converting workflow to platform %s',
-            app_configs.get('target_platform', 'scikit_learn'))
+            app_configs.get('target_platform', 'spark'))
         target_workflow = self._get_target_workflow(job_id, workflow,
             app_configs, None)
 

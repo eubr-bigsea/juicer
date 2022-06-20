@@ -93,7 +93,7 @@ class MetaPlatformOperation(Operation):
         self.output_port_name = 'output data'
         self.input_port_name = 'input data'
         self.has_code = True
-        self.target_platform = 'scikit-learn'
+        # self.target_platform = 'scikit-learn'
 
     def get_required_parameter(self, parameters, name):
         if name not in parameters:

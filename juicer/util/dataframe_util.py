@@ -272,6 +272,10 @@ def is_float_or_null(v):
     except:
         return False
 
+def emit_sample_data_explorer(task_id, df, emit_event, name, size=50, notebook=False, 
+        describe=False, infer=False, use_types=None, page=1):
+    emit_sample_sklearn(task_id, df.toPandas(), emit_event, name, size, notebook, describe, infer, use_types, page)
+
 def emit_sample_sklearn(task_id, df, emit_event, name, size=50, notebook=False, 
         describe=False, infer=False, use_types=None, page=1):
 
@@ -349,6 +353,8 @@ def emit_sample_sklearn(task_id, df, emit_event, name, size=50, notebook=False,
                 value = '[' + ', '.join([str(x) if isinstance(x, number_types)
                                    else "'{}'".format(x) for x in row[col]]) + ']'
                 dtypes[x] = 'array'
+            elif col_py_type == decimal.Decimal:
+                value = str(row[col])
             elif types.is_string_dtype(col_py_type):
                 # truncate column if size is bigger than 200 chars.
                 value = row[col]
