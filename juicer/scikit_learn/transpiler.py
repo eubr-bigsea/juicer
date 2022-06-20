@@ -162,6 +162,7 @@ class ScikitLearnTranspiler(Transpiler):
             'synonyms': nlp_operation.SynonymsOperation,
             'antonyms': nlp_operation.AntonymsOperation,
             'definer': nlp_operation.DefinerOperation,
+            'ner': nlp_operation.NerOperation,
         }
 
         text_ops = {
