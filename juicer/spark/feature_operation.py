@@ -4,7 +4,7 @@
 import json
 from collections import namedtuple
 from textwrap import dedent
-
+from gettext import gettext
 from juicer.operation import Operation, TransformModelOperation
 
 ScalerNameAndParameters = namedtuple("ScalerNameAndParameters",
@@ -17,6 +17,7 @@ class ScalerOperation(Operation):
     """
 
     ATTRIBUTE_PARAM = 'attribute'
+    ATTRIBUTES_PARAM = 'attributes'
     ALIAS_PARAM = 'alias'
 
     __slots__ = ('attribute', 'scaled_attr', 'model')
@@ -25,6 +26,8 @@ class ScalerOperation(Operation):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
         if self.ATTRIBUTE_PARAM in parameters:
             self.attribute = parameters.get(self.ATTRIBUTE_PARAM)
+        elif self.ATTRIBUTES_PARAM in parameters:
+            self.attribute = parameters.get(self.ATTRIBUTES_PARAM)
         else:
             raise ValueError(
                 _("Parameter '{}' must be informed for task {}").format(

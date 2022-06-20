@@ -51,6 +51,7 @@ class SparkTranspiler(Transpiler):
             'add-columns': etl_operation.AddColumnsOperation,
             'add-rows': etl_operation.AddRowsOperation,
             'aggregation': etl_operation.AggregationOperation,
+            'cast': etl_operation.CastOperation,
             'clean-missing': etl_operation.CleanMissingOperation,
             'difference': etl_operation.DifferenceOperation,
             'distinct': etl_operation.RemoveDuplicatedOperation,

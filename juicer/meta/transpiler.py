@@ -26,14 +26,14 @@ class MetaTranspiler(Transpiler):
             configuration, os.path.abspath(os.path.dirname(__file__)),
             slug_to_op_id, port_id_to_port)
 
-        self.target_platform = 'scikit-learn'
+        # self.target_platform = 'scikit-learn'
         self._assign_operations()
 
-    def get_context(self):
-        return {'target_platform_id': 
-            self.SUPPORTED_TARGET_PLATFORMS.get(
-                self.target_platform, 4),
-            'target_platform': self.target_platform or 'scikit-learn'}
+    # def get_context(self):
+    #     return {'target_platform_id': 
+    #         self.SUPPORTED_TARGET_PLATFORMS.get(
+    #             self.target_platform, 4),
+    #         'target_platform': self.target_platform or 'scikit-learn'}
 
     def _assign_operations(self):
         self.operations = {

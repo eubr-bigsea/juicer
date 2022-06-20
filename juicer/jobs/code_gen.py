@@ -122,22 +122,33 @@ def _generate(workflow_id, job_id, execute_main, params, config, out=sys.stdout,
         transpiler.execute_main = execute_main
         if loader.platform['slug'] == 'meta' and from_meta:
             out1 = StringIO()
+
+            loader = Workflow(resp, config, lang=lang)
+            targets = {'spark': {'id': 1, 'slug': 'spark'}, 
+                'scikit-learn': {'id': 4, 'slug': 'scikit-learn'}}
+            loader.workflow['target_meta_platform'] = targets[from_meta]
+
             transpiler.transpile(
                 loader.workflow, loader.graph, params=params, deploy=deploy,
                 export_notebook=export_notebook, plain=plain, job_id=job_id, out=out1)
             out1.seek(0)
+            
             resp = json.loads(out1.read())
-
-            loader = Workflow(resp, config, lang=lang)
-            loader.handle_variables(custom_vars)
+            target_loader = Workflow(resp, config, lang=lang)
+            target_loader.handle_variables(custom_vars)
 
             ops, slug_to_op_id, port_id_to_port = _get_lookups(
                 tahiti_conf, 0, resp, lang)        
 
-            # FIXME: choose the right transpiler
-            transpiler = ScikitLearnTranspiler(configuration.get_config())
-            transpiler.transpile(
-                loader.workflow, loader.graph, params=params, deploy=deploy,
+            if transpiler.target_meta.get('slug') == 'spark':
+                final_transpiler = SparkTranspiler(configuration.get_config())
+            elif transpiler.target_meta.get('slug') == 'scikit-learn':
+                final_transpiler = ScikitLearnTranspiler(configuration.get_config())
+            else:
+                raise ValueError('Invalid target platform')
+            final_transpiler.sample_style = 'DATA_EXPLORER'
+            final_transpiler.transpile(
+                target_loader.workflow, target_loader.graph, params=params, deploy=deploy,
                 export_notebook=export_notebook, plain=plain, job_id=job_id, out=out)
 
         else:
@@ -171,7 +182,7 @@ if __name__ == "__main__":
     parser.add_argument("-n", "--notebook", action="store_true",
                         help="Generate Jupyter Notebook")
 
-    parser.add_argument("-m", "--meta", action="store_true",
+    parser.add_argument("-m", "--meta", 
                         help="Convert from Meta Plataform")
 
     parser.add_argument("--lang", help="Minion messages language (i18n)",

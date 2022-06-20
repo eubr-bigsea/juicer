@@ -388,6 +388,8 @@ class SparkMinion(Minion):
             # Sample size can be informed in API, limited to 1000 rows.
             self.transpiler.sample_size = min(1000, int(app_configs.get(
                 'sample_size', 50)))
+            self.transpiler.sample_style = app_configs.get('sample_style',
+                'ORIGINAL')
 
             if self.job_future:
                 self.job_future.result()

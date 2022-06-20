@@ -5,6 +5,7 @@ import json
 import time
 from random import random
 from textwrap import dedent
+from gettext import gettext
 
 from juicer.operation import Operation
 from juicer.spark.expression import Expression
@@ -590,8 +591,40 @@ class SelectOperation(Operation):
     - The list of columns selected.
     """
     ATTRIBUTES_PARAM = 'attributes'
-    REMOVE_ATTRIBUTES_PARAM = 'remove_attributes'
-    ASCENDING_PARAM = 'ascending'
+    MODE_PARAM = 'mode'
+    template = """
+        {%- if op.mode == 'exclude' %}
+        
+        exclude = {{op.attributes}}
+        selection = [c.name for c in {{op.input}}.schema 
+            if c.name not in exclude]
+        {{op.output}} = {{op.input}}.select(selection)
+
+        {% elif op.mode == 'include' %}
+        selection = {{op.attributes}}
+          {%- if op.aliases %}
+        {{op.output}} = {{op.input}}.select(
+            {%- for attr, alias in op.alias_dict.items() %}
+            functions.col('{{attr}}').alias('{{alias}}'),
+            {%- endfor %}
+        )
+          {%- else %}
+        {{op.output}} = {{op.input}}.select(selection)
+          {%- endif %}
+
+        {%- elif op.mode == 'rename' %}
+        {{op.output}} = {{op.input}}\\
+            {%- for attr, alias in op.alias_dict.items() %}
+            .withColumnRenamed('{{attr}}', '{{alias}}'){%if not loop.last%}\{%endif%}
+            {%- endfor %}
+
+        {%- elif op.mode == 'duplicate' %}
+        {{op.output}} = {{op.input}}\\
+            {%- for attr, alias in op.alias_dict.items() %}
+            .withColumn('{{alias}}', functions.col('{{attr}}')){%if not loop.last%}\{%endif%}
+            {%- endfor %}
+        {%- endif %}
+    """
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
@@ -603,8 +636,29 @@ class SelectOperation(Operation):
                     self.ATTRIBUTES_PARAM, self.__class__))
         self.output = self.named_outputs.get(
             'output projected data', 'projection_data_{}'.format(self.order))
+        self.mode = parameters.get(self.MODE_PARAM, 'include')
 
     def generate_code(self):
+        attributes = []
+        aliases = []
+        alias_dict = {}
+        for attr in self.attributes:
+            if self.mode is None: # legacy format, without alias
+                self.attributes.append(attr)
+            else:
+                attribute_name = attr.get('attribute')
+                attributes.append(attribute_name)
+
+                alias = attr.get('alias')
+                aliases.append(alias or attribute_name)
+                alias_dict[attribute_name] = alias or attribute_name
+        if self.has_code:
+            return dedent(self.render_template(
+                {'op': {'attributes': attributes, 'aliases': aliases, 'mode': self.mode,
+                    'input': self.named_inputs['input data'], 'output': self.output, 
+                    'alias_dict': alias_dict} }))
+
+    def old_generate_code(self):
         input_data = self.named_inputs['input data']
         code = "{out} = {in1}.select({select})".format(
             out=self.output, in1=input_data,
@@ -980,8 +1034,8 @@ class CleanMissingOperation(Operation):
         attrs_json = json.dumps(self.attributes)
 
         if any([self.min_missing_ratio, self.max_missing_ratio]):
-            self.min_missing_ratio = float(self.min_missing_ratio)
-            self.max_missing_ratio = float(self.max_missing_ratio)
+            self.min_missing_ratio = float(self.min_missing_ratio or 0)
+            self.max_missing_ratio = float(self.max_missing_ratio or 1)
 
             # Based on http://stackoverflow.com/a/35674589/1646932
             select_list = [
@@ -1765,20 +1819,20 @@ class CastOperation(Operation):
             {{op.output}} =
             {%- if attr.type in ('Integer', 'Decimal', 'Boolean') -%}
                 {{op.input}}.withColumn('{{attr.attribute}}',
-                                        functions.col('{{attr.attribute}').cast('{{attr.type.lower()}}'))
+                                        functions.col('{{attr.attribute}}').cast('{{attr.type.lower()}}'))
             {%- elif attr.type in ('Date', 'DateTime', 'Datetime', 'Time') -%}
                 {{op.input}}.withColumn('{{attr.attribute}}',
-                                        functions.col('{{attr.attribute}').cast('date'))
+                                        functions.col('{{attr.attribute}}').cast('date'))
             {%- elif attr.type == 'Text' -%}
                 {{op.input}}.withColumn('{{attr.attribute}}',
-                                        functions.col('{{attr.attribute}').cast('text'))
+                                        functions.col('{{attr.attribute}}').cast('text'))
             {%- elif attr.type == 'Array' -%}
                 {{op.input}}.withColumn('{{attr.attribute}}',
-                                        functions.col('{{attr.attribute}').cast(
+                                        functions.col('{{attr.attribute}}').cast(
                                             types.ArrayType()))
             {%- elif attr.type == 'JSON' -%}
                 {{op.input}}.withColumn('{{attr.attribute}}',
-                                        functions.to_json('{{attr.attribute}')
+                                        functions.to_json('{{attr.attribute}}')
             {%-endif %}
             {%- if op.errors == 'move' %}
                 # Copy invalid data to a new attribute

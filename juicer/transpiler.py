@@ -52,12 +52,12 @@ class Transpiler(object):
     DATA_SOURCE_OPS = ['data-reader']
     __slots__ = (
         'configuration', 'current_task_id', 'operations', 'port_id_to_port',
-        'slug_to_op_id', 'template_dir', 'sample_size', 'verbosity'
+        'slug_to_op_id', 'template_dir', 'sample_size', 'verbosity', 'target_meta',
+        'sample_style'
     )
 
     def __init__(self, configuration, template_dir, slug_to_op_id=None,
                  port_id_to_port=None):
-        self.operations = {}
         if slug_to_op_id is None:
             self.slug_to_op_id = {}
         else:
@@ -67,12 +67,15 @@ class Transpiler(object):
         else:
             self.port_id_to_port = port_id_to_port
         self.operations = {}
+
         self._assign_operations()
         self.configuration = configuration
         self.template_dir = template_dir
         self.current_task_id = None
         self.sample_size = 50
         self.verbosity = 10
+        self.target_meta = {}
+        self.sample_style = 'ORIGINAL'
 
     def _assign_operations(self):
         raise NotImplementedError()
@@ -288,7 +291,8 @@ class Transpiler(object):
                         instances[task_id].parameters['multiplicity'][
                             in_port] = sum([1 for f in workflow['flows']
                                             if f['source_port'] == source_port])
-
+        
+        self.target_meta = workflow.get('target_meta_platform', {'id': 1, 'name': 'spark'})
         env_setup = {
             'autopep8': autopep8,
             'dependency_controller': DependencyController(
@@ -304,6 +308,8 @@ class Transpiler(object):
             'transpiler': transpiler_utils,
             'workflow_name': workflow['name'],
             'workflow': workflow,
+            'target_platform_id': self.target_meta.get('id'),
+            'target_platform': self.target_meta.get('name'),
         }
         env_setup.update(self.get_context())
 
