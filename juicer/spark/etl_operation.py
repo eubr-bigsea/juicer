@@ -4,12 +4,12 @@
 import json
 import time
 from random import random
-from textwrap import dedent
+from textwrap import dedent, indent
 from gettext import gettext
 
 from juicer.operation import Operation
 from juicer.spark.expression import Expression
-
+from juicer.util import dataframe_util
 
 class SplitOperation(Operation):
     """
@@ -1024,6 +1024,8 @@ class CleanMissingOperation(Operation):
             len(self.named_inputs) > 0]), self.contains_results()])
         self.output = self.named_outputs.get('output result',
                                              'out_{}'.format(self.order))
+        self.transpiler_utils.add_custom_function('cast_value', 
+            dataframe_util.cast_value)
 
     def generate_code(self):
 
@@ -1062,10 +1064,14 @@ class CleanMissingOperation(Operation):
 
         elif self.cleaning_mode == self.VALUE:
             # value = ast.literal_eval(self.value)
-            partial.append(
-                "\n    {0} = {1}.na.fill(value={2}, "
-                "subset=attributes_{1})".format(self.output, input_data,
-                                                self.value))
+            partial.append(indent(dedent("""
+                val_replace = dict()
+                value = '{2}'
+                schema = {1}.schema
+                for val_attr in attributes_{1}:
+                    val_replace[val_attr] = cast_value(schema, val_attr, value)
+                {0} = {1}.fillna(val_replace)""".format(
+                    self.output, input_data, self.value)), '    '))
 
         elif self.cleaning_mode == self.REMOVE_COLUMN:
             # Based on http://stackoverflow.com/a/35674589/1646932"
@@ -1078,20 +1084,21 @@ class CleanMissingOperation(Operation):
             # Based on http://stackoverflow.com/a/36695251/1646932
             # But null values cause exception, so it needs to remove them
             partial.append("""
+                # replace with mode
                 import decimal
-                md_replace_{1} = dict()
-                for md_attr_{1} in attributes_{1}:
-                    md_count_{1} = {1}.na.drop(subset=[md_attr_{1}]).groupBy(
-                        md_attr_{1}).count().orderBy(
+                md_replace = dict()
+                for md_attr in attributes_{1}:
+                    md_count = {1}.na.drop(subset=[md_attr]).groupBy(
+                        md_attr).count().orderBy(
                             functions.desc('count')).limit(1)
                     # Spark does not support BigDecimal!
-                    if isinstance(md_count_{1}.collect()[0][0],
+                    if isinstance(md_count.collect()[0][0],
                         decimal.Decimal):
-                        replacement = float(md_count_{1}.collect()[0][0])
+                        replacement = float(md_count.collect()[0][0])
                     else:
-                        replacement = md_count_{1}.collect()[0][0]
-                    md_replace_{1}[md_attr_{1}] = replacement
-                {0} = {1}.fillna(value=md_replace_{1})""".format(
+                        replacement = md_count.collect()[0][0]
+                    md_replace[md_attr] = replacement
+                {0} = {1}.fillna(md_replace)""".format(
                 self.output, input_data)
             )
 
@@ -1099,17 +1106,19 @@ class CleanMissingOperation(Operation):
             # See http://stackoverflow.com/a/31437177/1646932
             # But null values cause exception, so it needs to remove them
             partial.append("""
-                mdn_replace_{1} = dict()
-                for mdn_attr_{1} in attributes_{1}:
+                # replace with median
+                mdn_replace = dict()
+                for mdn_attr in attributes_{1}:
                     # Computes median value for column with relat. error=10%
-                    mdn_{1} = {1}.na.drop(subset=[mdn_attr_{1}])\\
-                        .approxQuantile(str(mdn_attr_{1}), [.5], .1)
-                    mdn_replace_{1}[mdn_attr_{1}] = mdn_{1}[0]
-                {0} = {1}.fillna(value=mdn_replace_{1})""".format(
+                    mdn_{1} = {1}.na.drop(subset=[mdn_attr])\\
+                        .approxQuantile(str(mdn_attr), [.5], .1)
+                    mdn_replace[mdn_attr] = mdn_{1}[0]
+                {0} = {1}.fillna(value=mdn_replace)""".format(
                 self.output, input_data))
 
         elif self.cleaning_mode == self.MEAN:
             partial.append("""
+                # replace with mean
                 avg_{1} = {1}.select([functions.avg(c).alias(c)
                                         for c in attributes_{1}]).collect()
                 # Convert to float because Spark complains about Decimal
@@ -1817,9 +1826,12 @@ class CastOperation(Operation):
         try:
         {%- for attr in op.attributes %}
             {{op.output}} =
-            {%- if attr.type in ('Integer', 'Decimal', 'Boolean') -%}
+            {%- if attr.type in ('Integer', 'Boolean') -%}
                 {{op.input}}.withColumn('{{attr.attribute}}',
                                         functions.col('{{attr.attribute}}').cast('{{attr.type.lower()}}'))
+            {%- elif attr.type in ('Decimal') -%}
+                {{op.input}}.withColumn('{{attr.attribute}}',
+                                        functions.col('{{attr.attribute}}').cast('double'))
             {%- elif attr.type in ('Date', 'DateTime', 'Datetime', 'Time') -%}
                 {{op.input}}.withColumn('{{attr.attribute}}',
                                         functions.col('{{attr.attribute}}').cast('date'))
