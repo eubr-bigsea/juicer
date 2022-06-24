@@ -974,7 +974,7 @@ class SelectOperation(Operation):
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
             self.cols = ','.join(['"{}"'.format(x)
                                   for x in self.attributes])
-        self.mode = parameters.get(self.MODE_PARAM)
+        self.mode = parameters.get(self.MODE_PARAM, 'include')
 
         self.output = self.named_outputs.get(
             'output projected data', 'projection_data_{}'.format(self.order))

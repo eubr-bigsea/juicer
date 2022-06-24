@@ -59,6 +59,14 @@ task_futures = {}
 {%- include auxiliary_code with context %}
 {%- endfor %}
 
+{%- if transpiler.custom_functions %}
+# Custom functions
+{%- for code in transpiler.custom_functions.values() %}
+{{code}}
+{%- endfor -%}
+# End custom functions
+{%- endif %}
+
 {%- for instance in instances %}
 {%-  handleinstance instance %}
 {%- if instance.has_code and instance.enabled %}

@@ -26,6 +26,32 @@ def is_numeric(schema, col):
     return isinstance(schema[str(col)].dataType, spark_types.NumericType) or \
         isinstance(schema[str(col)].dataType, VectorUDT) 
 
+def is_numeric_col(schema, col):
+    import pyspark.sql.types as spark_types
+    return isinstance(schema[str(col)].dataType, spark_types.NumericType)
+
+def cast_value(schema, col, value):
+    import pyspark.sql.types as spark_types
+    from datetime import datetime
+    from gettext import gettext
+    field = schema[col]
+    if isinstance(field.dataType, spark_types.StringType):
+        return str(value)
+    elif isinstance(field.dataType, spark_types.IntegralType):
+        return int(value)
+    elif isinstance(field.dataType, spark_types.FractionalType):
+        return float(value)
+    elif isinstance(field.dataType, spark_types.BooleanType):
+        return bool(value)
+    elif isinstance(field.dataType, spark_types.DateType):
+        return datetime.strptime(value, '%Y-%m-%d')
+    elif isinstance(field.dataType, spark_types.TimestampType):
+        return datetime.strptime(value, '%Y-%m-%d %H:%M:%S')
+    else:
+        raise ValueError(
+            gettext('Unsupported value "{}" for attribute "{}"').format(
+                value, col))
+
 
 def default_encoder_sklearn(obj):
     if isinstance(obj, float):
@@ -274,7 +300,15 @@ def is_float_or_null(v):
 
 def emit_sample_data_explorer(task_id, df, emit_event, name, size=50, notebook=False, 
         describe=False, infer=False, use_types=None, page=1):
-    emit_sample_sklearn(task_id, df.toPandas(), emit_event, name, size, notebook, describe, infer, use_types, page)
+    pandas_df = df.toPandas()
+    for c in df.schema.fields:
+        # print(c.name, c.dataType.typeName())
+        if c.dataType.typeName() in ('integer', 'byte', 'short', 'long'):
+            pandas_df[c.name] = pandas_df[c.name].astype('Int64')
+        elif c.dataType.typeName() in ('decimal'):
+            pandas_df[c.name] = pandas_df[c.name].astype('float64')
+
+    emit_sample_sklearn(task_id, pandas_df, emit_event, name, size, notebook, describe, infer, use_types, page)
 
 def emit_sample_sklearn(task_id, df, emit_event, name, size=50, notebook=False, 
         describe=False, infer=False, use_types=None, page=1):
