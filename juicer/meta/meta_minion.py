@@ -24,6 +24,7 @@ from timeit import default_timer as timer
 from concurrent.futures import ThreadPoolExecutor
 from juicer.runner import configuration
 from juicer.runner import protocol as juicer_protocol
+from juicer.service.tahiti_service import save_workflow
 
 from juicer.runner.minion_base import Minion
 from juicer.meta.transpiler import MetaTranspiler
@@ -224,6 +225,24 @@ class MetaMinion(Minion):
             dataframe_util.emit_sample_sklearn(task_id, 
                 df, emit, '', size=msg_info.get('size', 100), 
                 page=msg_info.get('page', 1)) 
+        elif msg_type == juicer_protocol.EXPORT:
+            app_configs = msg_info.get('app_configs', {})
+            job_id = msg_info['job_id']
+            workflow = self._get_target_workflow(
+                job_id, msg_info['workflow'], app_configs, 
+                msg_info['target_platform'], json_format=True)
+            print(self.config.keys())
+            tahiti_config = self.config['juicer']['services']['tahiti']
+            wf_id = save_workflow(
+                tahiti_config.get('url'), 
+                tahiti_config.get('auth_token'),
+                workflow)
+
+            self._emit_event(room=job_id, namespace='/stand')(
+                message=_('Workflow exported (id = {}').format(wf_id),
+                name='update job',
+                status='SUCCESS', identifier=job_id)
+
         else:
             log.warn(_('Unknown message type %s'), msg_type)
             print(msg)
@@ -233,7 +252,7 @@ class MetaMinion(Minion):
         return self.perform_execute(job_id, workflow, app_configs)
 
     def _get_target_workflow(self, job_id, workflow, app_configs, target_platform,
-            include_disabled=False):
+            include_disabled=False, json_format=False):
         loader = Workflow(workflow, self.config, lang=self.current_lang,
             include_disabled=include_disabled)
         loader.handle_variables({'job_id': job_id})
@@ -246,8 +265,11 @@ class MetaMinion(Minion):
         self.transpiler.transpile(loader.workflow, loader.graph,
             self.config, out, job_id, persist=app_configs.get('persist'))
         out.seek(0)
-        target_workflow = json.loads(out.read())
-        target_workflow['app_configs'] = app_configs
+        if json_format:
+            target_workflow = out.read()
+        else:
+            target_workflow = json.loads(out.read())
+            target_workflow['app_configs'] = app_configs
         return target_workflow
 
     def perform_execute(self, job_id, workflow, app_configs):
@@ -276,7 +298,7 @@ class MetaMinion(Minion):
 
     def _execute_target_workflow(self, job_id, workflow, app_configs):
         app_configs['persist'] = False
-        print(app_configs)
+        # print(app_configs)
         log.info('Converting workflow to platform %s',
             app_configs.get('target_platform', 'spark'))
         target_workflow = self._get_target_workflow(job_id, workflow,

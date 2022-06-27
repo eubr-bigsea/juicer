@@ -103,6 +103,7 @@ class MetaPlatformOperation(Operation):
             return parameters.get(name)
 
     def generate_flows(self, next_task):
+        # import pdb; pdb.set_trace()
         result = [json.dumps({
             'source_id': self.new_id, 'target_id': next_task.new_id,
             'source_port_name': self.output_port_name,
