@@ -1,39 +1,27 @@
 # coding=utf-8
 import functools
 import gettext
-import imp
-import importlib
 import json
 import logging.config
 import multiprocessing
+import os
 import signal
 import sys
-import time
 import traceback
-
-# noinspection PyUnresolvedReferences
-import datetime
-
-import codecs
-import os
-
-from io import StringIO
-import pandas
-import socketio
-from timeit import default_timer as timer
 from concurrent.futures import ThreadPoolExecutor
+from io import StringIO
+from timeit import default_timer as timer
+
+import socketio
+from juicer.meta.transpiler import MetaTranspiler
 from juicer.runner import configuration
 from juicer.runner import protocol as juicer_protocol
-from juicer.service.tahiti_service import save_workflow
-
 from juicer.runner.minion_base import Minion
-from juicer.meta.transpiler import MetaTranspiler
-# from juicer.spark.transpiler import SparkTranspiler
-# from juicer.scikit_learn.transpiler import ScikitLearnTranspiler
+from juicer.scikit_learn.scikit_learn_minion import ScikitLearnMinion
+from juicer.service import tahiti_service
+from juicer.spark.spark_minion import SparkMinion
 from juicer.util import dataframe_util
 from juicer.workflow.workflow import Workflow
-from juicer.scikit_learn.scikit_learn_minion import ScikitLearnMinion
-from juicer.spark.spark_minion import SparkMinion
 
 logging.config.fileConfig('logging_config.ini')
 log = logging.getLogger('juicer.meta.meta_minion')
@@ -87,8 +75,8 @@ class MetaMinion(Minion):
 
     def _emit_event(self, room, namespace):
         def emit_event(name, message, status, identifier, **kwargs):
-            log.debug(_('Emit %s %s %s %s'), name, message, status,
-                      identifier)
+            log.debug(gettext.gettext('Emit %s %s %s %s'), name, message,
+                      status, identifier)
             data = {'message': message, 'status': status, 'id': identifier}
             data.update(kwargs)
             # print('+' * 20)
@@ -107,7 +95,7 @@ class MetaMinion(Minion):
                 self._process_message_nb()
             except Exception as ee:
                 tb = traceback.format_exception(*sys.exc_info())
-                log.exception(_('Unhandled error (%s) \n>%s'),
+                log.exception(gettext.gettext('Unhandled error (%s) \n>%s'),
                               str(ee), '>\n'.join(tb))
 
     def _process_message(self):
@@ -140,8 +128,9 @@ class MetaMinion(Minion):
 
         # Extract the message type
         msg_type = msg_info['type']
-        self._generate_output(_('Processing message %s for app %s') %
-                              (msg_type, self.app_id))
+        self._generate_output(
+            gettext.gettext('Processing message %s for app %s') %
+            (msg_type, self.app_id))
 
         # Forward the message according to its purpose
         if msg_type == juicer_protocol.EXECUTE:
@@ -159,7 +148,7 @@ class MetaMinion(Minion):
 
             self._emit_event(room=job_id, namespace='/stand')(
                 name='update job',
-                message=_('Running job with lang {}/{}').format(
+                message=gettext.gettext('Running job with lang {}/{}').format(
                     lang, self.current_lang),
                 status='RUNNING', identifier=job_id)
 
@@ -172,26 +161,27 @@ class MetaMinion(Minion):
 
             try:
                 self.job_future = self._execute_future(job_id, workflow,
-                                                   app_configs)
-                log.info(_('Execute message finished'))
+                                                       app_configs)
+                log.info(gettext.gettext('Execute message finished'))
             except Exception as e:
                 import traceback
                 tb = traceback.format_exception(*sys.exc_info())
-                log.exception(_('Unhandled error'))
+                log.exception(gettext.gettext('Unhandled error'))
                 self._emit_event(room=job_id, namespace='/stand')(
                     exception_stack='\n'.join(tb),
-                    message=_('Unhandled error'),
+                    message=gettext.gettext('Unhandled error'),
                     name='update job',
                     status='ERROR', identifier=job_id)
 
         elif msg_type == juicer_protocol.TERMINATE:
             job_id = msg_info.get('job_id', None)
             if job_id:
-                log.info(_('Terminate message received (job_id=%s)'),
-                         job_id)
+                log.info(
+                    gettext.gettext('Terminate message received (job_id=%s)'),
+                    job_id)
                 self.cancel_job(job_id)
             else:
-                log.info(_('Terminate message received (app=%s)'),
+                log.info(gettext.gettext('Terminate message received (app=%s)'),
                          self.app_id)
                 self.terminate()
 
@@ -207,10 +197,12 @@ class MetaMinion(Minion):
             if not self.target_minion:
                 return
             # Meta adds -0 as a suffix
-            df = self.target_minion._state.get(task_id + '-0')[0].get('__first__')
-            dataframe_util.analyse_attribute(task_id, 
-                df, emit, attribute=msg_info.get('attribute'), msg=msg_info) 
-           
+            df = self.target_minion._state.get(
+                task_id + '-0')[0].get('__first__')
+            dataframe_util.analyse_attribute(
+                task_id, df, emit,
+                attribute=msg_info.get('attribute'), msg=msg_info)
+
         elif msg_type == juicer_protocol.MORE_DATA:
             job_id = msg_info['job_id']
             task_id = msg_info['task_id']
@@ -221,40 +213,50 @@ class MetaMinion(Minion):
                 return
             # Meta adds -0 as a suffix
             # Meta adds -0 as a suffix
-            df = self.target_minion._state.get(task_id + '-0')[0].get('__first__')
-            dataframe_util.emit_sample_sklearn(task_id, 
-                df, emit, '', size=msg_info.get('size', 100), 
-                page=msg_info.get('page', 1)) 
+            df = self.target_minion._state.get(
+                task_id + '-0')[0].get('__first__')
+            dataframe_util.emit_sample_sklearn(
+                task_id,
+                df, emit, '', size=msg_info.get('size', 100),
+                page=msg_info.get('page', 1))
         elif msg_type == juicer_protocol.EXPORT:
             app_configs = msg_info.get('app_configs', {})
             job_id = msg_info['job_id']
-            workflow = self._get_target_workflow(
-                job_id, msg_info['workflow'], app_configs, 
-                msg_info['target_platform'], json_format=True)
-            print(self.config.keys())
+            target_workflow = self._get_target_workflow(
+                job_id, msg_info['workflow'], app_configs,
+                msg_info['target_platform'])
+            
             tahiti_config = self.config['juicer']['services']['tahiti']
-            wf_id = save_workflow(
-                tahiti_config.get('url'), 
-                tahiti_config.get('auth_token'),
-                workflow)
+            base_url = tahiti_config.get('url')
+            token = str(tahiti_config.get('auth_token'))
 
+            # ids = "&".join(
+            #     [f'ids[]={t.get("id")}' for t in target_workflow.get('tasks')])
+            # ops = tahiti_service.query_tahiti(base_url, '/operations', token, 
+            #     None, qs=f"platform=1&fields=id,ports&{ids}").get('data')
+            wf_id = tahiti_service.save_workflow(base_url, token, 
+                json.dumps(target_workflow))
+
+            print("OKKKKKKKKKK", wf_id)
             self._emit_event(room=job_id, namespace='/stand')(
-                message=_('Workflow exported (id = {}').format(wf_id),
+                message=gettext.gettext(
+                    'Workflow exported (id = {}').format(wf_id),
                 name='update job',
                 status='SUCCESS', identifier=job_id)
 
         else:
-            log.warn(_('Unknown message type %s'), msg_type)
+            log.warn(gettext.gettext('Unknown message type %s'), msg_type)
             print(msg)
-            self._generate_output(_('Unknown message type %s') % msg_type)
+            self._generate_output(gettext.gettext(
+                'Unknown message type %s') % msg_type)
 
     def _execute_future(self, job_id, workflow, app_configs):
         return self.perform_execute(job_id, workflow, app_configs)
 
-    def _get_target_workflow(self, job_id, workflow, app_configs, target_platform,
-            include_disabled=False, json_format=False):
+    def _get_target_workflow(self, job_id, workflow, app_configs,
+                             target_platform, include_disabled=False):
         loader = Workflow(workflow, self.config, lang=self.current_lang,
-            include_disabled=include_disabled)
+                          include_disabled=include_disabled)
         loader.handle_variables({'job_id': job_id})
         out = StringIO()
         # print('-' * 20)
@@ -263,13 +265,12 @@ class MetaMinion(Minion):
         # print('-' * 20)
         self.transpiler.target_platform = target_platform
         self.transpiler.transpile(loader.workflow, loader.graph,
-            self.config, out, job_id, persist=app_configs.get('persist'))
+                                  self.config, out, job_id,
+                                  persist=app_configs.get('persist'))
         out.seek(0)
-        if json_format:
-            target_workflow = out.read()
-        else:
-            target_workflow = json.loads(out.read())
-            target_workflow['app_configs'] = app_configs
+        json_workflow = out.read()
+        target_workflow = json.loads(json_workflow)
+        target_workflow['app_configs'] = app_configs
         return target_workflow
 
     def perform_execute(self, job_id, workflow, app_configs):
@@ -284,7 +285,8 @@ class MetaMinion(Minion):
         out = StringIO()
 
         self.transpiler.transpile(loader.workflow, loader.graph,
-            self.config, out, job_id, persist=app_configs.get('persist'))
+                                  self.config, out, job_id,
+                                  persist=app_configs.get('persist'))
         out.seek(0)
         code = out.read()
 
@@ -300,11 +302,12 @@ class MetaMinion(Minion):
         app_configs['persist'] = False
         # print(app_configs)
         log.info('Converting workflow to platform %s',
-            app_configs.get('target_platform', 'spark'))
+                 app_configs.get('target_platform', 'spark'))
         target_workflow = self._get_target_workflow(job_id, workflow,
-            app_configs, None)
+                                                    app_configs, None)
 
-        # REMOVE: Auto plug allows to connect ports automatically if they're compatible
+        # REMOVE: Auto plug allows to connect ports automatically if they're
+        # compatible
         # app_configs['auto_plug'] = True
 
         if self.target_minion is None:
@@ -317,7 +320,7 @@ class MetaMinion(Minion):
                     self.redis_conn, self.workflow_id,
                     self.app_id, self.config, self.current_lang)
 
-        #return self.executor.submit(
+        # return self.executor.submit(
         #    self.target_minion.perform_execute,
         #    job_id, target_workflow, app_configs)
 
@@ -327,8 +330,8 @@ class MetaMinion(Minion):
         return self.target_minion.perform_execute(
             job_id, target_workflow, app_configs)
 
-
     # noinspection PyUnusedLocal
+
     def cancel_job(self, job_id):
         if self.job_future:
             while True:
@@ -385,12 +388,12 @@ class MetaMinion(Minion):
 
         self.self_terminate = False
         log.info('Minion finished, pid = %s (%s)',
-                os.getpid(), multiprocessing.current_process().name)
+                 os.getpid(), multiprocessing.current_process().name)
         self.state_control.shutdown()
         sys.exit(0)
 
     def process(self):
-        log.info(_(
+        log.info(gettext.gettext(
             'Meta minion (workflow_id=%s,app_id=%s) started (pid=%s)'),
             self.workflow_id, self.app_id, os.getpid())
         self.execute_process = multiprocessing.Process(
@@ -410,7 +413,7 @@ class MetaMinion(Minion):
         # explicitly receiving a SIGKILL signal.
         self.execute_process.join()
         self.ping_process.join()
-        # https://stackoverflow.com/questions/29703063/python-multhttps://stackoverflow.com/questions/29703063/python-multiprocessing-queue-is-emptyiprocessing-queue-is-empty
+        # https://stackoverflow.com/questions/29703063/python-multiprocessing-queue-is-emptyiprocessing-queue-is-empty
         self.terminate_proc_queue.close()
         self.terminate_proc_queue.join_thread()
         sys.exit(0)

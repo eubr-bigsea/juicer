@@ -157,6 +157,7 @@ def {{task.operation.slug.replace('-', '_')}}_{{instance.order}}(spark_session, 
             {%- endif %}
             {{out}} = {{out}}.withColumn('{{trace.attribute}}',
                 functions.col('{{trace.attribute}}').alias('', metadata=meta))
+            
         {%- endif %}
         {%- endfor %}
         {%- endfor %}
@@ -170,6 +171,9 @@ def {{task.operation.slug.replace('-', '_')}}_{{instance.order}}(spark_session, 
           {%- for port_name, out in zip(task.port_names, instance.get_output_names(',').split(',')) %}
             {%- if port_name and out %}
             '{{port_name}}': {{out}},
+            {%- endif %}
+            {%-if loop.index0 == 0 %}
+             '__first__': {{out}},
             {%- endif %}
           {%- endfor %}
         }
