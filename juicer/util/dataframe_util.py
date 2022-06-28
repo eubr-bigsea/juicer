@@ -1,39 +1,40 @@
 # coding=utf-8
-import math
-import base64
-import decimal
-import json
-
-import datetime
-
-import re
-import io
-import simplejson
-import pandas as pd
-from six import text_type
-from collections.abc import Sequence
-from typing import Any
 import collections
-import matplotlib.pyplot as plt
-import numpy as np
+import datetime
+import decimal
+import io
+import json
+import math
+import re
+from collections.abc import Sequence
+from gettext import gettext
+from typing import Any
 
+import numpy as np
+import pandas as pd
+import simplejson
 from datasketch import MinHash, MinHashLSH
 from nltk import ngrams
+from six import text_type
+
 
 def is_numeric(schema, col):
     import pyspark.sql.types as spark_types
     from pyspark.ml.linalg import VectorUDT
     return isinstance(schema[str(col)].dataType, spark_types.NumericType) or \
-        isinstance(schema[str(col)].dataType, VectorUDT) 
+        isinstance(schema[str(col)].dataType, VectorUDT)
+
 
 def is_numeric_col(schema, col):
     import pyspark.sql.types as spark_types
     return isinstance(schema[str(col)].dataType, spark_types.NumericType)
 
+
 def cast_value(schema, col, value):
-    import pyspark.sql.types as spark_types
     from datetime import datetime
     from gettext import gettext
+
+    import pyspark.sql.types as spark_types
     field = schema[col]
     if isinstance(field.dataType, spark_types.StringType):
         return str(value)
@@ -73,6 +74,7 @@ def default_encoder(obj):
     else:
         return str(obj)
 
+
 class NpEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, np.integer):
@@ -86,6 +88,7 @@ class NpEncoder(json.JSONEncoder):
         if isinstance(obj, pd.Timestamp):
             return obj.strftime('%Y-%m-%dT%H:%M:%S')
         return super(NpEncoder, self).default(obj)
+
 
 class SimpleJsonEncoder(simplejson.JSONEncoder):
     def default(self, obj):
@@ -174,18 +177,20 @@ def format_row_for_visualization(row):
     date_types = [datetime.datetime, datetime.date]
     if len(row) == 2:
         # Use first column as id and name
-        value = row[1] if type(row[1]) not in date_types else row[1].isoformat()
+        value = row[1] if type(
+            row[1]) not in date_types else row[1].isoformat()
         _id = row[0]
         name = row[0]
     elif len(row) == 3:
         # Use first column as id and name
-        value = row[2] if type(row[2]) not in date_types else row[2].isoformat()
+        value = row[2] if type(
+            row[2]) not in date_types else row[2].isoformat()
         _id = row[0]
         name = row[0]
     else:
-        raise ValueError(_('Invalid input data for visualization. '
-                           'It should contains 2 (name, value) or '
-                           '3 columns (id, name, value).'))
+        raise ValueError(gettext('Invalid input data for visualization. '
+                                 'It should contains 2 (name, value) or '
+                                 '3 columns (id, name, value).'))
     return dict(id=_id, name=name, value=value)
 
 
@@ -193,36 +198,39 @@ def format_row_for_bar_chart_visualization(row):
     date_types = [datetime.datetime, datetime.date]
     if len(row) == 2:
         # Use first column as id and name
-        value = row[1] if type(row[1]) not in date_types else row[1].isoformat()
+        value = row[1] if type(
+            row[1]) not in date_types else row[1].isoformat()
         _id = row[0]
         name = row[0]
     elif len(row) == 3:
         # Use first column as id and name
-        value = row[2] if type(row[2]) not in date_types else row[2].isoformat()
+        value = row[2] if type(
+            row[2]) not in date_types else row[2].isoformat()
         _id = row[0]
         name = row[0]
     else:
-        raise ValueError(_('Invalid input data for visualization. '
-                           'It should contains 2 (name, value) or '
-                           '3 columns (id, name, value).'))
+        raise ValueError(gettext('Invalid input data for visualization. '
+                                 'It should contains 2 (name, value) or '
+                                 '3 columns (id, name, value).'))
     return dict(id=_id, name=name, value=value)
 
 
 def emit_schema(task_id, df, emit_event, name, notebook=False):
     from juicer.spark.reports import SimpleTableReport
-    headers = [_('Attribute'), _('Type'), _('Metadata (Spark)')]
+    headers = [gettext('Attribute'), gettext(
+        'Type'), gettext('Metadata (Spark)')]
     rows = [[f.name, str(f.dataType), json.dumps(f.metadata) if f else ''] for f
             in df.schema.fields]
     css_class = 'table table-striped table-bordered w-auto' \
         if not notebook else ''
     content = SimpleTableReport(
-        css_class, headers, rows, _('Schema for {}').format(name),
+        css_class, headers, rows, gettext('Schema for {}').format(name),
         numbered=True)
 
     emit_event('update task', status='COMPLETED',
                identifier=task_id,
                message=content.generate(),
-               type='HTML', title=_('Schema for {}').format(name),
+               type='HTML', title=gettext('Schema for {}').format(name),
                task={'id': task_id})
 
 
@@ -232,25 +240,27 @@ def emit_schema_sklearn(task_id, df, emit_event, name, notebook=False):
     emit_event('update task', status='COMPLETED',
                identifier=task_id,
                message=json.dumps(rows),
-               type='OBJECT', title=_('Schema for {}').format(name),
+               type='OBJECT', title=gettext('Schema for {}').format(name),
                meaning='schema',
                task={'id': task_id})
 
+
 def old_emit_schema_sklearn(task_id, df, emit_event, name, notebook=False):
     from juicer.spark.reports import SimpleTableReport
-    headers = [_('Attribute'), _('Type')]
+    headers = [gettext('Attribute'), gettext('Type')]
     rows = [[i, str(f)] for i, f in zip(df.columns, df.dtypes)]
     css_class = 'table table-striped table-bordered w-auto' \
         if not notebook else ''
     content = SimpleTableReport(
-        css_class, headers, rows, _('Schema for {}').format(name),
+        css_class, headers, rows, gettext('Schema for {}').format(name),
         numbered=True)
 
     emit_event('update task', status='COMPLETED',
                identifier=task_id,
                message=content.generate(),
-               type='HTML', title=_('Schema for {}').format(name),
+               type='HTML', title=gettext('Schema for {}').format(name),
                task={'id': task_id})
+
 
 def emit_sample(task_id, df, emit_event, name, size=50, notebook=False,
                 title=None):
@@ -280,7 +290,7 @@ def emit_sample(task_id, df, emit_event, name, size=50, notebook=False,
     css_class = 'table table-striped table-bordered w-auto' \
         if not notebook else ''
     if title is None:
-        title = _('Sample data for {}').format(name)
+        title = gettext('Sample data for {}').format(name)
     content = SimpleTableReport(css_class, headers, rows, title, numbered=True)
 
     emit_event('update task', status='COMPLETED',
@@ -288,6 +298,7 @@ def emit_sample(task_id, df, emit_event, name, size=50, notebook=False,
                message=content.generate(),
                type='HTML', title=title,
                task={'id': task_id})
+
 
 def is_float_or_null(v):
     try:
@@ -298,8 +309,9 @@ def is_float_or_null(v):
     except:
         return False
 
-def emit_sample_data_explorer(task_id, df, emit_event, name, size=50, notebook=False, 
-        describe=False, infer=False, use_types=None, page=1):
+
+def emit_sample_data_explorer(task_id, df, emit_event, name, size=50,
+                              notebook=False, describe=False, infer=False, use_types=None, page=1):
     pandas_df = df.toPandas()
     for c in df.schema.fields:
         # print(c.name, c.dataType.typeName())
@@ -308,25 +320,28 @@ def emit_sample_data_explorer(task_id, df, emit_event, name, size=50, notebook=F
         elif c.dataType.typeName() in ('decimal'):
             pandas_df[c.name] = pandas_df[c.name].astype('float64')
 
-    emit_sample_sklearn(task_id, pandas_df, emit_event, name, size, notebook, describe, infer, use_types, page)
+    emit_sample_sklearn(task_id, pandas_df, emit_event, name,
+                        size, notebook, describe, infer, use_types, page)
 
-def emit_sample_sklearn(task_id, df, emit_event, name, size=50, notebook=False, 
-        describe=False, infer=False, use_types=None, page=1):
+
+def emit_sample_sklearn(task_id, df, emit_event, name, size=50, notebook=False,
+                        describe=False, infer=False, use_types=None, page=1):
+
+    from collections import defaultdict
 
     import pandas as pd
-    from collections import defaultdict
-    from pandas.api import types 
-        
+    from pandas.api import types
+
     result = {}
     type_mappings = {'Int64': 'Integer', 'Float64': 'Decimal', 'object': 'Text',
-            'datetime64[ns]': 'Datetime', 'float64': 'Decimal', 'int64': 'Integer',
-            'bool': 'Boolean', 'array': 'Array'}
+                     'datetime64[ns]': 'Datetime', 'float64': 'Decimal',
+                     'int64': 'Integer', 'bool': 'Boolean', 'array': 'Array'}
 
     df2 = df
     # Decide which data frame to use.
-    # UI may require original data, represented as string and 
+    # UI may require original data, represented as string and
     # without casting. But in order to describe the data set,
-    # a inferred data frame (or a user provided types) must be 
+    # a inferred data frame (or a user provided types) must be
     # used.
     if describe and False:
         converters = {}
@@ -348,7 +363,7 @@ def emit_sample_sklearn(task_id, df, emit_event, name, size=50, notebook=False,
             buf = io.StringIO()
             df.to_csv(buf, index=False)
             buf.seek(0)
-            df2 = pd.read_csv(buf, converters=converters) 
+            df2 = pd.read_csv(buf, converters=converters)
 
     rows = []
 
@@ -359,7 +374,7 @@ def emit_sample_sklearn(task_id, df, emit_event, name, size=50, notebook=False,
     invalid = defaultdict(list)
 
     dtypes = df2.dtypes[:]
-    it = df.iloc[size * (page - 1) : size * page].iterrows()
+    it = df.iloc[size * (page - 1): size * page].iterrows()
     for y, (label, row) in enumerate(it):
         new_row = []
         for x, col in enumerate(df.columns):
@@ -379,13 +394,14 @@ def emit_sample_sklearn(task_id, df, emit_event, name, size=50, notebook=False,
                     value = round(row[col], 8)
                 else:
                     value = row[col]
-            elif types.is_datetime64_any_dtype(col_py_type): # list of dates
-                value = '[' + ','.join(['"{}'.format(d.isoformat()) 
-                    for d in row[col]]) + ']'
-            elif isinstance(col_value, Sequence) and not isinstance(col_value, 
-                    (str, bytes, bytearray)):
-                value = '[' + ', '.join([str(x) if isinstance(x, number_types)
-                                   else "'{}'".format(x) for x in row[col]]) + ']'
+            elif types.is_datetime64_any_dtype(col_py_type):  # list of dates
+                value = '[' + ','.join(['"{}'.format(d.isoformat())
+                                        for d in row[col]]) + ']'
+            elif (isinstance(col_value, Sequence) and
+                  not isinstance(col_value, (str, bytes, bytearray))):
+                value = '[' + ', '.join(
+                    [str(x) if isinstance(x, number_types)
+                     else "'{}'".format(x) for x in row[col]]) + ']'
                 dtypes[x] = 'array'
             elif col_py_type == decimal.Decimal:
                 value = str(row[col])
@@ -400,24 +416,22 @@ def emit_sample_sklearn(task_id, df, emit_event, name, size=50, notebook=False,
 
             new_row.append(value)
         rows.append(new_row)
-   
-    result['attributes'] = [{'label': i, 'key': i, 
-        'type': type_mappings.get(str(f), str(f))} 
-            for i, f in zip(df2.columns, dtypes)]
+
+    result['attributes'] = [{'label': i, 'key': i,
+                             'type': type_mappings.get(str(f), str(f))}
+                            for i, f in zip(df2.columns, dtypes)]
 
     result['rows'] = rows
     result['page'] = page
     result['size'] = size
     result['total'] = len(df)
     if describe:
-        missing_counters = df2.isna().sum().to_dict()    
+        missing_counters = df2.isna().sum().to_dict()
         result['total'] = len(df)
         for attr in result['attributes']:
             attr['missing_count'] = missing_counters.get(attr['key'], 0)
             attr['count'] = result['total']
             attr['invalid_count'] = 0
-            
-
 
         pandas_converters = {
             'Integer': lambda v: v.isdigit(),
@@ -431,23 +445,25 @@ def emit_sample_sklearn(task_id, df, emit_event, name, size=50, notebook=False,
                 f = pandas_converters.get('Integer')
             elif pd.api.types.is_numeric_dtype(df[attr].dtype):
                 f = pandas_converters.get('Decimal')
-        
+
             if f:
-                df_invalid = df[~df[attr].apply(is_float_or_null) & df[attr].notnull()]
+                df_invalid = df[~df[attr].apply(
+                    is_float_or_null) & df[attr].notnull()]
                 result['attributes'][i]['invalid_count'] = len(df_invalid)
                 invalid[attr].extend(df_invalid[:size].index.to_numpy())
 
-        result['missing'] = missing 
+        result['missing'] = missing
         result['invalid'] = invalid
         result['truncated'] = list(truncated)
     emit_event('update task', status='COMPLETED',
                identifier=task_id,
                message=json.dumps(result), meaning='sample',
-               type='OBJECT', title=_('Sample data for {}').format(name),
+               type='OBJECT', title=gettext('Sample data for {}').format(name),
                task={'id': task_id})
 
 
-def old_emit_sample_sklearn(task_id, df, emit_event, name, size=50, notebook=False):
+def old_emit_sample_sklearn(task_id, df, emit_event, name, size=50,
+                            notebook=False):
     from juicer.spark.reports import SimpleTableReport
     headers = list(df.columns)
 
@@ -465,8 +481,9 @@ def old_emit_sample_sklearn(task_id, df, emit_event, name, size=50, notebook=Fal
             elif isinstance(col, number_types):
                 value = str(col)
             elif isinstance(col, list):
-                value = '[' + ', '.join([str(x) if isinstance(x, number_types)
-                                   else "'{}'".format(x) for x in col]) + ']'
+                value = '[' + ', '.join(
+                    [str(x) if isinstance(x, number_types)
+                     else "'{}'".format(x) for x in col]) + ']'
             else:
                 value = json.dumps(col, cls=CustomEncoder)
             # truncate column if size is bigger than 200 chars.
@@ -477,38 +494,41 @@ def old_emit_sample_sklearn(task_id, df, emit_event, name, size=50, notebook=Fal
     css_class = 'table table-striped table-bordered w-auto' \
         if not notebook else ''
     content = SimpleTableReport(
-        css_class, headers, rows, _('Sample data for {}').format(name),
+        css_class, headers, rows, gettext('Sample data for {}').format(name),
         numbered=True)
 
     emit_event('update task', status='COMPLETED',
                identifier=task_id,
                message=content.generate(),
-               type='HTML', title=_('Sample data for {}').format(name),
+               type='HTML', title=gettext('Sample data for {}').format(name),
                task={'id': task_id})
 
 
-def analyse_attribute(task_id: str, df: Any, emit_event: Any, attribute: str, msg: Any):
+def analyse_attribute(task_id: str, df: Any, emit_event: Any, attribute: str,
+                      msg: dict) -> None:
     stats = ['median', 'nunique']
-    import plotly.express as px
+    # import plotly.express as px
     from pandas.api.types import is_numeric_dtype
 
+    pandas_df = df.toPandas() if hasattr(df, 'toPandas') else df
     analysis_type = 'table'
-    if attribute is None: # Statistics for the entire dataframe
-        d = df.describe(include = 'all')
-        d.append(df.reindex(d.columns, axis = 1).agg(stats))
+    if attribute is None:  # Statistics for the entire dataframe
+        d = pandas_df.describe(include='all')
+        d.append(pandas_df.reindex(d.columns, axis=1).agg(stats))
         result = d.transpose().to_json(orient="split", double_precision=4)
     elif msg.get('cluster'):
-        lsh = MinHashLSH(threshold=msg.get('threshold', msg.get('similarity', 0.8)), 
+        lsh = MinHashLSH(
+            threshold=msg.get('threshold', msg.get('similarity', 0.8)),
             num_perm=128)
         min_hashes = {}
-        words = df[attribute].drop_duplicates().astype('str')
+        words = pandas_df[attribute].drop_duplicates().astype('str')
         for c, i in enumerate(words):
             min_hash = MinHash(num_perm=128)
             for d in ngrams(i, 3):
-              min_hash.update("".join(d).encode('utf-8'))
+                min_hash.update("".join(d).encode('utf-8'))
             lsh.insert(c, min_hash)
             min_hashes[c] = min_hash
-        similar = [] 
+        similar = []
         for k, i in enumerate(min_hashes.keys()):
             q = lsh.query(min_hashes[k])
             if len(q) > 1:
@@ -517,35 +537,38 @@ def analyse_attribute(task_id: str, df: Any, emit_event: Any, attribute: str, ms
         analysis_type = 'cluster'
     else:
         info = {}
-        serie = df[attribute]
+        serie = pandas_df[attribute]
         stats = ['median', 'nunique', 'skew', 'var', 'kurtosis']
         if is_numeric_dtype(serie):
-            d = serie.describe(include = 'all').append(serie.agg(stats))
+            d = serie.describe(include='all').append(serie.agg(stats))
         else:
-            d = serie.describe(include = 'all')
+            d = serie.describe(include='all')
 
         info['stats'] = dict(list(zip(d.index, d)))
 
         if is_numeric_dtype(serie):
             info['histogram'] = [x.tolist() for x in np.histogram(
-                    serie.dropna(), bins=40)]
+                serie.dropna(), bins=40)]
 
             q1 = info['stats']['25%']
             q3 = info['stats']['75%']
             iqr = q3 - q1
             info['stats']['iqr'] = iqr
-            info['fence_low']  = q1 - 1.5 * iqr
+            info['fence_low'] = q1 - 1.5 * iqr
             info['fence_high'] = q3 + 1.5 * iqr
-            info['outliers'] = serie[((serie < info['fence_low']) 
-                | (serie > info['fence_high']))].iloc[:10].tolist()
+            info['outliers'] = serie[
+                ((serie < info['fence_low'])
+                 | (serie > info['fence_high']))].iloc[:10].tolist()
 
         counts = serie.value_counts(dropna=False).iloc[:20]
-        info['top20'] = list(zip([x if not pd.isna(x) else 'null' for x in counts.index], counts))
-        info['nulls'] =  serie.isna().sum()
-        info['stats']['nulls'] =  serie.isna().sum()
+        info['top20'] = list(zip(
+            [x if not pd.isna(x) else 'null' for x in counts.index],
+            counts))
+        info['nulls'] = serie.isna().sum()
+        info['stats']['nulls'] = serie.isna().sum()
         info['stats']['rows'] = len(serie)
 
-        # fig = px.histogram(serie, 
+        # fig = px.histogram(serie,
         #           marginal="box", # or violin, rug
         #           )
         # info['plotly'] = fig.to_dict()
@@ -558,7 +581,6 @@ def analyse_attribute(task_id: str, df: Any, emit_event: Any, attribute: str, ms
         # info['box_plot'] = base64.b64encode(box_plot.read()).decode('utf8')
         # plt.close()
 
-
         result = json.dumps(info, cls=NpEncoder)
         analysis_type = 'attribute'
 
@@ -567,7 +589,8 @@ def analyse_attribute(task_id: str, df: Any, emit_event: Any, attribute: str, ms
                message=result,
                analysis_type=analysis_type,
                attribute=attribute,
-               type='OBJECT', title=_('Analysis for attribute {}').format(attribute),
+               type='OBJECT',
+               title=gettext('Analysis for attribute {}').format(attribute),
                task={'id': task_id})
 
 
@@ -653,7 +676,8 @@ class SparkObjectProxy(object):
                 else:
                     return method_to_call
 
-        return wrapper if isinstance(member_to_call, collections.Callable) else member_to_call
+        return (wrapper if isinstance(member_to_call, collections.Callable)
+                else member_to_call)
 
 
 def spark_version(spark_session):
@@ -677,37 +701,46 @@ def handle_spark_exception(e):
         if found:
             field, fields = found[0]
             raise ValueError(
-                _('Attribute {} not found. Valid attributes: {}').format(
+                gettext('Attribute {} not found. Valid attributes: {}').format(
                     field, fields.replace(';', '')))
         else:
+            err_desc = e.desc.split('\n')[0]
             value_expr = re.compile(r'The data type of the expression in the '
                                     r'ORDER BY clause should be a numeric type')
-            found = value_expr.findall(e.desc.split('\n')[0])
+            found = value_expr.findall(err_desc)
             if found:
                 raise ValueError(
-                    _('When using Window Operation with range type, the order '
-                      'by attribute must be numeric.'))
+                    gettext('When using Window Operation with range type, '
+                            'the order by attribute must be numeric.'))
             found = 'This Range Window Frame only accepts ' \
                     'at most one ORDER BY' in e.desc
             if found:
                 raise ValueError(
-                    _('When using Window Operation with range type, the order '
-                      'option must include only one attribute.'))
+                    gettext('When using Window Operation with range type, the '
+                            'order option must include only one attribute.'))
             found = 'Path does not exist' in e.desc
             if found:
                 raise ValueError(
-                    _('Data source does not exist. It may have been deleted.'))
+                    gettext('Data source does not exist. It may have been '
+                            'deleted.'))
             value_expr = re.compile(r'Table or view not found: (.+?);')
-            found = value_expr.findall(e.desc.split('\n')[0])
+            found = value_expr.findall(err_desc)
             if found:
                 raise ValueError(
-                        _('Table or view not found: {}').format(found[0]))
+                    gettext('Table or view not found: {}').format(found[0]))
+            found = re.findall(
+                r'Cannot resolve column name "(.+)" among (.+)',
+                err_desc)
+            if found:
+                raise ValueError(
+                    f'{gettext("Attribute")} {found[0][0]}'
+                    f'{gettext("not found. Valid ones:")} {found[0][1]}.')
     elif isinstance(e, KeyError):
         value_expr = re.compile(r'No StructField named (.+)\'$')
         found = value_expr.findall(str(e))
         if found:
             raise ValueError(
-                _('Attribute {} not found.').format(found[0]))
+                gettext('Attribute {} not found.').format(found[0]))
     elif isinstance(e, IllegalArgumentException):
         # Invalid column type
         if 'must be of type equal' in str(e):
@@ -717,10 +750,11 @@ def handle_spark_exception(e):
             found = value_expr.findall(e.desc)
             if found:
                 attr, correct, used = found[0]
-                raise ValueError(_('Attribute {attr} must be one of these types'
-                                   ' [{correct}], but it is {used}').format(
-                    attr=attr, used=used, correct=correct
-                ))
+                raise ValueError(
+                    gettext('Attribute {attr} must be one of these types'
+                            ' [{correct}], but it is {used}').format(
+                        attr=attr, used=used, correct=correct
+                    ))
         elif 'Available fields' in str(e):
             value_expr = re.compile(
                 r'Field "(.+?)" does not exist.\nAvailable fields: (.+)',
@@ -729,7 +763,8 @@ def handle_spark_exception(e):
             if found:
                 used, correct = found[0]
                 raise ValueError(
-                    _('Attribute {} not found. Valid attributes: {}').format(
+                    gettext(
+                        'Attribute {} not found. Valid attributes: {}').format(
                         used, correct))
         elif 'Binomial family only supports' in str(e):
             value_expr = re.compile(
@@ -739,8 +774,8 @@ def handle_spark_exception(e):
             if found:
                 total = found[0]
                 raise ValueError(
-                    _('Binomial family only supports 1 or 2 outcome '
-                      'classes but found {}').format(total))
+                    gettext('Binomial family only supports 1 or 2 outcome '
+                            'classes but found {}').format(total))
         else:
             raise ValueError(e.desc)
     elif hasattr(e, 'java_exception'):
@@ -765,52 +800,57 @@ def handle_spark_exception(e):
             if cause.getClass().getName() == nfe and cause_msg:
                 value_expr = re.compile(r'.+"(.+)"')
                 value = value_expr.findall(cause_msg)[0]
-                raise ValueError(_('Invalid numeric data in at least one '
-                                   'data source (value: {})').format(
+                raise ValueError(gettext('Invalid numeric data in at least one '
+                                         'data source (value: {})').format(
                     value).encode('utf8'))
             elif 'Malformed' in cause_msg:
-                raise ValueError(_('At least one input data source is not in '
-                                   'the correct format.'))
+                raise ValueError(gettext('At least one input data source is not '
+                                         'in the correct format.'))
             elif inner_cause and inner_cause.getClass().getName() == npe:
                 if cause_msg and 'createTransformFunc' in cause_msg:
-                    raise ValueError(_('There is null values in your data set '
-                                       'and Spark cannot handle them. '
-                                       'Please, remove them before applying '
-                                       'a data transformation.'))
+                    raise ValueError(
+                        gettext('There is null values in your data '
+                                'set and Spark cannot handle them. '
+                                'Please, remove them before applying '
+                                'a data transformation.'))
                 pass
             elif cause.getClass().getName() == bme:
                 raise ValueError(
-                    _('Cannot read data from the data source. In this case, '
-                      'it may be a configuration problem with HDFS. '
-                      'Please, check if HDFS namenode is up and you '
-                      'correctly configured the option '
-                      'dfs.client.use.datanode.hostname in Juicer\' config.'))
+                    gettext(
+                        'Cannot read data from the data source. In this case, '
+                        'it may be a configuration problem with HDFS. '
+                        'Please, check if HDFS namenode is up and you '
+                        'correctly configured the option '
+                        'dfs.client.use.datanode.hostname in Juicer\' config.'))
             elif cause.getClass().getName() == ace:
                 raise ValueError(
-                    _('You do not have permissions to read or write in the '
-                      'storage. Probably, it is a configuration problem. '
-                      'Please, contact the support.')
+                    gettext(
+                        'You do not have permissions to read or write in the '
+                        'storage. Probably, it is a configuration problem. '
+                        'Please, contact the support.')
                 )
             elif cause.getClass().getName() == iae:
                 gbt_error = 'dataset with invalid label'
                 if cause_msg is not None and gbt_error in cause_msg:
-                    raise ValueError(_('GBT classifier requires labels '
-                                       'to be in [0, 1] range.'))
+                    raise ValueError(gettext('GBT classifier requires labels '
+                                             'to be in [0, 1] range.'))
                 else:
                     raise ValueError(cause_msg)
         elif e.java_exception.getMessage():
             cause_msg = e.java_exception.getMessage()
             if 'already exists' in cause_msg:
                 raise ValueError(
-                    _('File already exists. Try to use options to overwrite it.'))
+                    gettext('File already exists. Try to use options '
+                            'to overwrite it.'))
             value_expr = re.compile(r'CSV data source does not support '
                                     r'(.+?) data type')
             value = value_expr.findall(cause_msg)
             if value:
                 raise ValueError(
-                    _('CSV format does not support the data type {}. '
-                      'Try to convert the attribute to string (see to_json()) '
-                      'before saving.'.format(value[0])))
+                    gettext(
+                        'CSV format does not support the data type {}. '
+                        'Try to convert the attribute to string '
+                        '(see to_json()) before saving.'.format(value[0])))
     return result
 
 
@@ -824,4 +864,5 @@ def df_zip_with_index(df, offset=1, name="row_id"):
     zipped_rdd = df.rdd.zipWithIndex()
 
     return zipped_rdd.map(
-        lambda row_row_id: ([row_row_id[1] + offset] + list(row_row_id[0]))).toDF(new_schema)
+        lambda row_row_id: ([row_row_id[1] + offset] +
+                            list(row_row_id[0]))).toDF(new_schema)

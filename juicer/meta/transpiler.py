@@ -6,21 +6,25 @@ from collections import namedtuple
 from juicer import operation
 from juicer.transpiler import Transpiler
 
-ModelBuilderTemplateParams = namedtuple('ModelBuilderTemplateParams',
-    ['evaluator', 'estimators', 'grid', 'read_data', 'sample', 
-    'reduction', 'split', 'features'])
+ModelBuilderTemplateParams = namedtuple(
+    'ModelBuilderTemplateParams',
+    ['evaluator', 'estimators', 'grid', 'read_data', 'sample', 'reduction',
+        'split', 'features'])
 
 # noinspection SpellCheckingInspection
+
+
 class MetaTranspiler(Transpiler):
     """
-    Convert Lemonade workflow representation (JSON) into code to be run in
-    Meta and then the final target platform.
+    Convert Lemonade workflow representation (JSON) to code in
+    Meta JSON format and then to the final (Python) target platform.
     """
 
     SUPPORTED_TARGET_PLATFORMS = {
         'spark': 1,
         'scikit-learn': 4
     }
+
     def __init__(self, configuration, slug_to_op_id=None, port_id_to_port=None):
         super(MetaTranspiler, self).__init__(
             configuration, os.path.abspath(os.path.dirname(__file__)),
@@ -29,11 +33,16 @@ class MetaTranspiler(Transpiler):
         self.target_platform = 'spark'
         self._assign_operations()
 
-    def get_context(self):
-        return {'target_platform_id': 
-            self.SUPPORTED_TARGET_PLATFORMS.get(
-                self.target_platform, 1),
-            'target_platform': self.target_platform or 'spark'}
+    def get_context(self) -> dict:
+        """Returns extra variables to be used in template
+
+        Returns:
+            _type_: Dict with extra variables
+        """
+        return {'target_platform_id':
+                self.SUPPORTED_TARGET_PLATFORMS.get(
+                    self.target_platform, 1),
+                'target_platform': self.target_platform or 'spark'}
 
     def _assign_operations(self):
         self.operations = {
@@ -121,37 +130,35 @@ class MetaTranspiler(Transpiler):
         for f in transform:
             self.operations[f] = ops.TransformOperation
 
-    def prepare_model_builder_parameters(self, ops):
+    def prepare_model_builder_parameters(self, ops) -> \
+            ModelBuilderTemplateParams:
         """ Organize operations to be used in the code generation
-        template. """
+        template. 
 
-        estimators = {'k-means', 'gaussian-mix', 'decision-tree-classifier', 
-            'gbt-classifier', 'naive-bayes', 'perceptron', 
-            'random-forest-classifier', 'logistic-regression', 'svm', 
-            'linear-regression', 'isotonic-regression', 'gbt-regressor', 
-            'random-forest-regressor', 'generalized-linear-regressor',
-            'decision-tree-regressor'}
+        Args:
+            ops (list): List of operations
+
+        Returns:
+            _type_: Model builder parameters
+        """
+
+        estimators = {'k-means', 'gaussian-mix', 'decision-tree-classifier',
+                      'gbt-classifier', 'naive-bayes', 'perceptron',
+                      'random-forest-classifier', 'logistic-regression', 'svm',
+                      'linear-regression', 'isotonic-regression', 'gbt-regressor',
+                      'random-forest-regressor', 'generalized-linear-regressor',
+                      'decision-tree-regressor'}
 
         param_dict = {'estimators': []}
         for op in ops:
             slug = op.task.get('operation').get('slug')
             if slug == 'read-data':
                 param_dict['read_data'] = op
-            elif slug == 'split':
-                param_dict['split'] = op
-            elif slug == 'sample':
-                param_dict['sample'] = op
-            elif slug == 'grid':
-                param_dict['grid'] = op
-            elif slug == 'evaluator':
-                param_dict['evaluator'] = op
-            elif slug == 'features':
-                param_dict['features'] = op
             elif slug == 'features-reduction':
                 param_dict['reduction'] = op
             elif slug in estimators:
                 param_dict['estimators'].append(op)
-
+            else:
+                param_dict[slug] = op
 
         return ModelBuilderTemplateParams(**param_dict)
-

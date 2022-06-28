@@ -31,8 +31,12 @@ class Expression(object):
         # Literal parsing
         elif tree['type'] == 'Literal':
             v = tree['value']
-            result = "'{}'".format(v) if isinstance(
-                v, (str, text_type)) else str(v)
+            if isinstance(v, (str, text_type)):
+                result = "'{}'".format(v)
+            elif v is None:
+                result = None
+            else:
+                result = str(v)
 
         # Expression parsing
         elif tree['type'] == 'CallExpression':

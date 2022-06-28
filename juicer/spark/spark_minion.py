@@ -675,7 +675,8 @@ class SparkMinion(Minion):
 
             # All options passed by application are sent to Spark
             for option, value in app_configs.items():
-                spark_builder = spark_builder.config(option, value)
+                if option.startswith('spark.'):
+                    spark_builder = spark_builder.config(option, value)
 
             # All options passed by the client during job execution
             for option, value in self.cluster_options.items():
