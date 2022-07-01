@@ -7,8 +7,7 @@ import json
 import math
 import re
 from collections.abc import Sequence
-from gettext import gettext
-from typing import Any
+from typing import Any, Callable
 
 import numpy as np
 import pandas as pd
@@ -17,6 +16,8 @@ from datasketch import MinHash, MinHashLSH
 from nltk import ngrams
 from six import text_type
 
+# https://github.com/microsoft/pylance-release/issues/140#issuecomment-661487878
+_: Callable[[str], str] 
 
 def is_numeric(schema, col):
     import pyspark.sql.types as spark_types
@@ -32,7 +33,6 @@ def is_numeric_col(schema, col):
 
 def cast_value(schema, col, value):
     from datetime import datetime
-    from gettext import gettext
 
     import pyspark.sql.types as spark_types
     field = schema[col]
@@ -50,7 +50,7 @@ def cast_value(schema, col, value):
         return datetime.strptime(value, '%Y-%m-%d %H:%M:%S')
     else:
         raise ValueError(
-            gettext('Unsupported value "{}" for attribute "{}"').format(
+            _('Unsupported value "{}" for attribute "{}"').format(
                 value, col))
 
 
@@ -188,7 +188,7 @@ def format_row_for_visualization(row):
         _id = row[0]
         name = row[0]
     else:
-        raise ValueError(gettext('Invalid input data for visualization. '
+        raise ValueError(_('Invalid input data for visualization. '
                                  'It should contains 2 (name, value) or '
                                  '3 columns (id, name, value).'))
     return dict(id=_id, name=name, value=value)
@@ -209,7 +209,7 @@ def format_row_for_bar_chart_visualization(row):
         _id = row[0]
         name = row[0]
     else:
-        raise ValueError(gettext('Invalid input data for visualization. '
+        raise ValueError(_('Invalid input data for visualization. '
                                  'It should contains 2 (name, value) or '
                                  '3 columns (id, name, value).'))
     return dict(id=_id, name=name, value=value)
@@ -217,20 +217,20 @@ def format_row_for_bar_chart_visualization(row):
 
 def emit_schema(task_id, df, emit_event, name, notebook=False):
     from juicer.spark.reports import SimpleTableReport
-    headers = [gettext('Attribute'), gettext(
-        'Type'), gettext('Metadata (Spark)')]
+    headers = [_('Attribute'), _(
+        'Type'), _('Metadata (Spark)')]
     rows = [[f.name, str(f.dataType), json.dumps(f.metadata) if f else ''] for f
             in df.schema.fields]
     css_class = 'table table-striped table-bordered w-auto' \
         if not notebook else ''
     content = SimpleTableReport(
-        css_class, headers, rows, gettext('Schema for {}').format(name),
+        css_class, headers, rows, _('Schema for {}').format(name),
         numbered=True)
 
     emit_event('update task', status='COMPLETED',
                identifier=task_id,
                message=content.generate(),
-               type='HTML', title=gettext('Schema for {}').format(name),
+               type='HTML', title=_('Schema for {}').format(name),
                task={'id': task_id})
 
 
@@ -240,25 +240,25 @@ def emit_schema_sklearn(task_id, df, emit_event, name, notebook=False):
     emit_event('update task', status='COMPLETED',
                identifier=task_id,
                message=json.dumps(rows),
-               type='OBJECT', title=gettext('Schema for {}').format(name),
+               type='OBJECT', title=_('Schema for {}').format(name),
                meaning='schema',
                task={'id': task_id})
 
 
 def old_emit_schema_sklearn(task_id, df, emit_event, name, notebook=False):
     from juicer.spark.reports import SimpleTableReport
-    headers = [gettext('Attribute'), gettext('Type')]
+    headers = [_('Attribute'), _('Type')]
     rows = [[i, str(f)] for i, f in zip(df.columns, df.dtypes)]
     css_class = 'table table-striped table-bordered w-auto' \
         if not notebook else ''
     content = SimpleTableReport(
-        css_class, headers, rows, gettext('Schema for {}').format(name),
+        css_class, headers, rows, _('Schema for {}').format(name),
         numbered=True)
 
     emit_event('update task', status='COMPLETED',
                identifier=task_id,
                message=content.generate(),
-               type='HTML', title=gettext('Schema for {}').format(name),
+               type='HTML', title=_('Schema for {}').format(name),
                task={'id': task_id})
 
 
@@ -290,7 +290,7 @@ def emit_sample(task_id, df, emit_event, name, size=50, notebook=False,
     css_class = 'table table-striped table-bordered w-auto' \
         if not notebook else ''
     if title is None:
-        title = gettext('Sample data for {}').format(name)
+        title = _('Sample data for {}').format(name)
     content = SimpleTableReport(css_class, headers, rows, title, numbered=True)
 
     emit_event('update task', status='COMPLETED',
@@ -458,7 +458,7 @@ def emit_sample_sklearn(task_id, df, emit_event, name, size=50, notebook=False,
     emit_event('update task', status='COMPLETED',
                identifier=task_id,
                message=json.dumps(result), meaning='sample',
-               type='OBJECT', title=gettext('Sample data for {}').format(name),
+               type='OBJECT', title=_('Sample data for {}').format(name),
                task={'id': task_id})
 
 
@@ -494,13 +494,13 @@ def old_emit_sample_sklearn(task_id, df, emit_event, name, size=50,
     css_class = 'table table-striped table-bordered w-auto' \
         if not notebook else ''
     content = SimpleTableReport(
-        css_class, headers, rows, gettext('Sample data for {}').format(name),
+        css_class, headers, rows, _('Sample data for {}').format(name),
         numbered=True)
 
     emit_event('update task', status='COMPLETED',
                identifier=task_id,
                message=content.generate(),
-               type='HTML', title=gettext('Sample data for {}').format(name),
+               type='HTML', title=_('Sample data for {}').format(name),
                task={'id': task_id})
 
 
@@ -590,7 +590,7 @@ def analyse_attribute(task_id: str, df: Any, emit_event: Any, attribute: str,
                analysis_type=analysis_type,
                attribute=attribute,
                type='OBJECT',
-               title=gettext('Analysis for attribute {}').format(attribute),
+               title=_('Analysis for attribute {}').format(attribute),
                task={'id': task_id})
 
 
@@ -701,7 +701,7 @@ def handle_spark_exception(e):
         if found:
             field, fields = found[0]
             raise ValueError(
-                gettext('Attribute {} not found. Valid attributes: {}').format(
+                _('Attribute {} not found. Valid attributes: {}').format(
                     field, fields.replace(';', '')))
         else:
             err_desc = e.desc.split('\n')[0]
@@ -710,37 +710,37 @@ def handle_spark_exception(e):
             found = value_expr.findall(err_desc)
             if found:
                 raise ValueError(
-                    gettext('When using Window Operation with range type, '
+                    _('When using Window Operation with range type, '
                             'the order by attribute must be numeric.'))
             found = 'This Range Window Frame only accepts ' \
                     'at most one ORDER BY' in e.desc
             if found:
                 raise ValueError(
-                    gettext('When using Window Operation with range type, the '
+                    _('When using Window Operation with range type, the '
                             'order option must include only one attribute.'))
             found = 'Path does not exist' in e.desc
             if found:
                 raise ValueError(
-                    gettext('Data source does not exist. It may have been '
+                    _('Data source does not exist. It may have been '
                             'deleted.'))
             value_expr = re.compile(r'Table or view not found: (.+?);')
             found = value_expr.findall(err_desc)
             if found:
                 raise ValueError(
-                    gettext('Table or view not found: {}').format(found[0]))
+                    _('Table or view not found: {}').format(found[0]))
             found = re.findall(
                 r'Cannot resolve column name "(.+)" among (.+)',
                 err_desc)
             if found:
                 raise ValueError(
-                    f'{gettext("Attribute")} {found[0][0]}'
-                    f'{gettext("not found. Valid ones:")} {found[0][1]}.')
+                    f'{_("Attribute")} {found[0][0]} '
+                    f'{_("not found. Valid ones:")} {found[0][1]}.')
     elif isinstance(e, KeyError):
         value_expr = re.compile(r'No StructField named (.+)\'$')
         found = value_expr.findall(str(e))
         if found:
             raise ValueError(
-                gettext('Attribute {} not found.').format(found[0]))
+                _('Attribute {} not found.').format(found[0]))
     elif isinstance(e, IllegalArgumentException):
         # Invalid column type
         if 'must be of type equal' in str(e):
@@ -751,7 +751,7 @@ def handle_spark_exception(e):
             if found:
                 attr, correct, used = found[0]
                 raise ValueError(
-                    gettext('Attribute {attr} must be one of these types'
+                    _('Attribute {attr} must be one of these types'
                             ' [{correct}], but it is {used}').format(
                         attr=attr, used=used, correct=correct
                     ))
@@ -763,7 +763,7 @@ def handle_spark_exception(e):
             if found:
                 used, correct = found[0]
                 raise ValueError(
-                    gettext(
+                    _(
                         'Attribute {} not found. Valid attributes: {}').format(
                         used, correct))
         elif 'Binomial family only supports' in str(e):
@@ -774,7 +774,7 @@ def handle_spark_exception(e):
             if found:
                 total = found[0]
                 raise ValueError(
-                    gettext('Binomial family only supports 1 or 2 outcome '
+                    _('Binomial family only supports 1 or 2 outcome '
                             'classes but found {}').format(total))
         else:
             raise ValueError(e.desc)
@@ -800,23 +800,23 @@ def handle_spark_exception(e):
             if cause.getClass().getName() == nfe and cause_msg:
                 value_expr = re.compile(r'.+"(.+)"')
                 value = value_expr.findall(cause_msg)[0]
-                raise ValueError(gettext('Invalid numeric data in at least one '
+                raise ValueError(_('Invalid numeric data in at least one '
                                          'data source (value: {})').format(
                     value).encode('utf8'))
             elif 'Malformed' in cause_msg:
-                raise ValueError(gettext('At least one input data source is not '
+                raise ValueError(_('At least one input data source is not '
                                          'in the correct format.'))
             elif inner_cause and inner_cause.getClass().getName() == npe:
                 if cause_msg and 'createTransformFunc' in cause_msg:
                     raise ValueError(
-                        gettext('There is null values in your data '
+                        _('There is null values in your data '
                                 'set and Spark cannot handle them. '
                                 'Please, remove them before applying '
                                 'a data transformation.'))
                 pass
             elif cause.getClass().getName() == bme:
                 raise ValueError(
-                    gettext(
+                    _(
                         'Cannot read data from the data source. In this case, '
                         'it may be a configuration problem with HDFS. '
                         'Please, check if HDFS namenode is up and you '
@@ -824,7 +824,7 @@ def handle_spark_exception(e):
                         'dfs.client.use.datanode.hostname in Juicer\' config.'))
             elif cause.getClass().getName() == ace:
                 raise ValueError(
-                    gettext(
+                    _(
                         'You do not have permissions to read or write in the '
                         'storage. Probably, it is a configuration problem. '
                         'Please, contact the support.')
@@ -832,7 +832,7 @@ def handle_spark_exception(e):
             elif cause.getClass().getName() == iae:
                 gbt_error = 'dataset with invalid label'
                 if cause_msg is not None and gbt_error in cause_msg:
-                    raise ValueError(gettext('GBT classifier requires labels '
+                    raise ValueError(_('GBT classifier requires labels '
                                              'to be in [0, 1] range.'))
                 else:
                     raise ValueError(cause_msg)
@@ -840,14 +840,14 @@ def handle_spark_exception(e):
             cause_msg = e.java_exception.getMessage()
             if 'already exists' in cause_msg:
                 raise ValueError(
-                    gettext('File already exists. Try to use options '
+                    _('File already exists. Try to use options '
                             'to overwrite it.'))
             value_expr = re.compile(r'CSV data source does not support '
                                     r'(.+?) data type')
             value = value_expr.findall(cause_msg)
             if value:
                 raise ValueError(
-                    gettext(
+                    _(
                         'CSV format does not support the data type {}. '
                         'Try to convert the attribute to string '
                         '(see to_json()) before saving.'.format(value[0])))
