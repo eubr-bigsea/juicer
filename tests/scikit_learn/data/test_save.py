@@ -1,6 +1,5 @@
 from tests.scikit_learn import util
-from juicer.scikit_learn.etl_operation import SaveOperation
-import pytest
+from juicer.scikit_learn.data_operation import SaveOperation
 
 # Save
 # 
@@ -10,7 +9,9 @@ def test_save_success():
         'petalwidth', 'petallength'], slice_size)]
 
     arguments = {
-        'parameters': {},
+        'parameters': {
+            
+        },
         'named_inputs': {
             'input data': df[0],
         },
