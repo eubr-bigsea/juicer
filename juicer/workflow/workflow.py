@@ -191,7 +191,7 @@ class Workflow(object):
                                     'type': port['type'],
                                     'slug': port['slug'],
                                     'multiplicity': port['multiplicity'],
-                                    'interfaces': [pi['name'] for pi in port[
+                                    'interfaces': [pi.get('name') for pi in port[
                                         'interfaces']]
                                 }) for port in
                             operation['ports']])

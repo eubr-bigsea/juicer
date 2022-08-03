@@ -12,6 +12,7 @@ import juicer.scikit_learn.regression_operation as regression
 import juicer.scikit_learn.text_operation as text_operations
 import juicer.scikit_learn.vis_operation as vis_operation
 import juicer.scikit_learn.outlier_detection as lof
+import juicer.scikit_learn.stat_operation as stat_operation
 import os
 from juicer import operation
 from juicer.transpiler import Transpiler
@@ -67,6 +68,7 @@ class ScikitLearnTranspiler(Transpiler):
             'split': etl.SplitOperation,
             'transformation': etl.TransformationOperation,
             # TODO in 'transformation': test others functions
+            'rename-attr': etl.RenameAttrOperation,
         }
 
         data_ops = {
@@ -166,6 +168,12 @@ class ScikitLearnTranspiler(Transpiler):
             'comment': operation.NoOp,
         }
 
+        statistical_ops = {
+            'pdf': stat_operation.PdfOperation,
+            'cdf': stat_operation.CdfOperation,
+            'ccdf': stat_operation.CcdfOperation,
+        }
+
         ws_ops = {}
 
         vis_ops = {
@@ -186,5 +194,5 @@ class ScikitLearnTranspiler(Transpiler):
 
         self.operations = {}
         for ops in [data_ops, etl_ops, geo_ops, ml_ops,
-                    other_ops, text_ops, ws_ops, vis_ops]:
+                    other_ops, text_ops, ws_ops, statistical_ops, vis_ops]:
             self.operations.update(ops)
