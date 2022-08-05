@@ -361,7 +361,7 @@ def emit_sample_sklearn(task_id, df, emit_event, name, size=50, notebook=False,
             # df.infer_objects() is not working.
             # save as CSV to infer data types
             buf = io.StringIO()
-            df.to_csv(buf, index=False)
+            work_df.to_csv(buf, index=False)
             buf.seek(0)
             df2 = pd.read_csv(buf, converters=converters)
 
@@ -374,10 +374,16 @@ def emit_sample_sklearn(task_id, df, emit_event, name, size=50, notebook=False,
     invalid = defaultdict(list)
 
     dtypes = df2.dtypes[:]
-    it = df.iloc[size * (page - 1): size * page].iterrows()
+    is_pandas_df = not hasattr(df, 'toPandas')
+    if is_pandas_df:
+        work_df = df
+    else:
+        work_df = df.limit(size * page).toPandas()
+
+    it = work_df.iloc[size * (page - 1): size * page].iterrows()
     for y, (label, row) in enumerate(it):
         new_row = []
-        for x, col in enumerate(df.columns):
+        for x, col in enumerate(work_df.columns):
 
             col_value = row[col]
             col_py_type = type(col_value)
@@ -387,7 +393,7 @@ def emit_sample_sklearn(task_id, df, emit_event, name, size=50, notebook=False,
                 new_row.append('')
                 continue
 
-            if types.is_datetime64_dtype(df[col].dtypes):
+            if types.is_datetime64_dtype(work_df[col].dtypes):
                 value = row[col].isoformat()
             elif types.is_numeric_dtype(col_py_type):
                 if not types.is_integer_dtype(col_py_type):
@@ -424,10 +430,10 @@ def emit_sample_sklearn(task_id, df, emit_event, name, size=50, notebook=False,
     result['rows'] = rows
     result['page'] = page
     result['size'] = size
-    result['total'] = len(df)
+    result['total'] = len(work_df)
     if describe:
         missing_counters = df2.isna().sum().to_dict()
-        result['total'] = len(df)
+        result['total'] = len(work_df)
         for attr in result['attributes']:
             attr['missing_count'] = missing_counters.get(attr['key'], 0)
             attr['count'] = result['total']
@@ -439,16 +445,16 @@ def emit_sample_sklearn(task_id, df, emit_event, name, size=50, notebook=False,
             'DateTime': lambda v: True,
             'Boolean': lambda v: True,
         }
-        for i, attr in enumerate(df.columns):
+        for i, attr in enumerate(work_df.columns):
             f = None
-            if pd.api.types.is_integer_dtype(df[attr].dtype):
+            if pd.api.types.is_integer_dtype(work_df[attr].dtype):
                 f = pandas_converters.get('Integer')
-            elif pd.api.types.is_numeric_dtype(df[attr].dtype):
+            elif pd.api.types.is_numeric_dtype(work_df[attr].dtype):
                 f = pandas_converters.get('Decimal')
 
             if f:
-                df_invalid = df[~df[attr].apply(
-                    is_float_or_null) & df[attr].notnull()]
+                df_invalid = work_df[~work_df[attr].apply(
+                    is_float_or_null) & work_df[attr].notnull()]
                 result['attributes'][i]['invalid_count'] = len(df_invalid)
                 invalid[attr].extend(df_invalid[:size].index.to_numpy())
 
@@ -510,7 +516,8 @@ def analyse_attribute(task_id: str, df: Any, emit_event: Any, attribute: str,
     # import plotly.express as px
     from pandas.api.types import is_numeric_dtype
 
-    pandas_df = df.toPandas() if hasattr(df, 'toPandas') else df
+    pandas_df = df.select(attribute).toPandas() if hasattr(df, 'toPandas') \
+        else df
     analysis_type = 'table'
     if attribute is None:  # Statistics for the entire dataframe
         d = pandas_df.describe(include='all')
@@ -522,6 +529,9 @@ def analyse_attribute(task_id: str, df: Any, emit_event: Any, attribute: str,
             num_perm=128)
         min_hashes = {}
         words = pandas_df[attribute].drop_duplicates().astype('str')
+        print('*' * 30)
+        print(words)
+        print('*' * 30)
         for c, i in enumerate(words):
             min_hash = MinHash(num_perm=128)
             for d in ngrams(i, 3):

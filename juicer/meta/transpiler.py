@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 
 import os
+from typing import Callable
 import juicer.meta.operations as ops
 from collections import namedtuple
-from juicer import operation
 from juicer.transpiler import Transpiler
 
 ModelBuilderTemplateParams = namedtuple(
@@ -12,6 +12,9 @@ ModelBuilderTemplateParams = namedtuple(
         'split', 'features'])
 
 # noinspection SpellCheckingInspection
+
+# https://github.com/microsoft/pylance-release/issues/140#issuecomment-661487878
+_: Callable[[str], str] 
 
 
 class MetaTranspiler(Transpiler):
@@ -118,7 +121,8 @@ class MetaTranspiler(Transpiler):
             'isotonic-regression': ops.IsotonicRegressionOperation,
             'gbt-regressor': ops.GBTRegressorOperation,
             'random-forest-regressor': ops.RandomForestRegressorOperation,
-            'generalized-linear-regressor': ops.GeneralizedLinearRegressionOperation,
+            'generalized-linear-regressor':
+                ops.GeneralizedLinearRegressionOperation,
             'decision-tree-regressor': ops.DecisionTreeRegressorOperation,
         }
 
@@ -145,9 +149,9 @@ class MetaTranspiler(Transpiler):
         estimators = {'k-means', 'gaussian-mix', 'decision-tree-classifier',
                       'gbt-classifier', 'naive-bayes', 'perceptron',
                       'random-forest-classifier', 'logistic-regression', 'svm',
-                      'linear-regression', 'isotonic-regression', 'gbt-regressor',
-                      'random-forest-regressor', 'generalized-linear-regressor',
-                      'decision-tree-regressor'}
+                      'linear-regression', 'isotonic-regression', 
+                      'gbt-regressor', 'random-forest-regressor', 
+                      'generalized-linear-regressor', 'decision-tree-regressor'}
 
         param_dict = {'estimators': []}
         for op in ops:

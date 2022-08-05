@@ -202,6 +202,7 @@ class MetaMinion(Minion):
             dataframe_util.analyse_attribute(
                 task_id, df, emit,
                 attribute=msg_info.get('attribute'), msg=msg_info)
+            log.info(gettext.gettext('Analyse attribute message finished'))
 
         elif msg_type == juicer_protocol.MORE_DATA:
             job_id = msg_info['job_id']

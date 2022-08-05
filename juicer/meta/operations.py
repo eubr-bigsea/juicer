@@ -44,17 +44,19 @@ def _as_list(values, transform, size=None):
             _max = values.get('max', 3)
             if values.get('distribution') == 'log_uniform':
                 return FeatureInfo(
-                    f'random.sample(np.log10(np.logspace({_min}, {_max}, {qty})).tolist(), {qty})',
+                    f'random.sample(np.log10(np.logspace('
+                    f'{_min}, {_max}, {qty})).tolist(), {qty})',
                     values, 'function')
             else:
                 return FeatureInfo(
-                    f'random.sample(np.linspace({_min}, {_max}, {qty}).tolist(), {qty})',
+                    f'random.sample(np.linspace('
+                    f'{_min}, {_max}, {qty}, dtype=int).tolist(), {qty})',
                     values, 'function')
-            return []
         elif values.get('type') is None:
             return []
         else:
-            return FeatureInfo([transform(x) for x in values if x is not None], None)
+            return FeatureInfo(
+                [transform(x) for x in values if x is not None], None)
     else:
         return []
 
@@ -598,7 +600,7 @@ class FindReplaceOperation(MetaPlatformOperation):
         else:
             replacement = None
             is_number = False
-            
+
         if is_number:
             expression = (f'when({attr} == "{self.find}", {self.replace}", '
                           f'{attr} == {self.find}, {self.replace}, {attr})')
@@ -793,7 +795,7 @@ class SelectOperation(MetaPlatformOperation):
             "attributes": {"value": self.attributes},
             "mode": {"value": self.mode},
         })
-        task_obj['operation'] = {"id": 6}
+        task_obj['operation'] = {"id": 6, 'slug': 'projection'}
         return json.dumps(task_obj)
 
 
@@ -1338,7 +1340,8 @@ class FeaturesOperation(ModelMetaOperation):
                 if f['feature_type'] == 'numerical':
                     # Adjust single quote for texts
                     f['constant'] = (float(f['constant'])
-                                     if '.' in f['constant'] else int(f['constant']))
+                                     if '.' in f['constant']
+                                     else int(f['constant']))
                 by_constant.append(f)
             elif na == 'remove':
                 to_remove.append(f)
@@ -1475,10 +1478,12 @@ class KMeansOperation(ClusteringOperation):
         self.types = parameters.get('type', ['kmeas'])
 
         self.hyperparameters = {
-            'k': _as_int_list(parameters.get('number_of_clusters'), self.grid_info),
+            'k': _as_int_list(
+                parameters.get('number_of_clusters'), self.grid_info),
             'tol': _as_float_list(parameters.get('tolerance'), self.grid_info),
             'initMode': _as_string_list(parameters.get('init_mode')),
-            'maxIter ': _as_int_list(parameters.get('max_iterations'), self.grid_info),
+            'maxIter ': _as_int_list(
+                parameters.get('max_iterations'), self.grid_info),
             'distanceMeasure': _as_string_list(parameters.get('distance')),
             'seed': _as_int_list(parameters.get('seed'), self.grid_info),
         }
@@ -1501,9 +1506,12 @@ class GaussianMixOperation(ClusteringOperation):
             self, parameters,  named_inputs,  named_outputs)
         self.var = 'gaussian_mix'
         self.hyperparameters = {
-            'k': _as_int_list(parameters.get('number_of_clusters'), self.grid_info),
-            'tol': _as_float_list(parameters.get('tolerance'), self.grid_info),
-            'maxIter ': _as_int_list(parameters.get('max_iterations'), self.grid_info),
+            'k': _as_int_list(
+                parameters.get('number_of_clusters'), self.grid_info),
+            'tol': _as_float_list(
+                parameters.get('tolerance'), self.grid_info),
+            'maxIter ': _as_int_list(
+                parameters.get('max_iterations'), self.grid_info),
             'seed': _as_int_list(parameters.get('seed'), self.grid_info),
         }
         self.name = 'GaussianMixture'
@@ -1530,15 +1538,18 @@ class DecisionTreeClassifierOperation(ClassificationOperation):
             'impurity': _as_string_list(parameters.get('impurity')),
             'leafCol': parameters.get('leaf_col'),
             'maxBins': _as_int_list(parameters.get('max_bins'), self.grid_info),
-            'maxDepth': _as_int_list(parameters.get('max_depth'), self.grid_info),
+            'maxDepth': _as_int_list(
+                parameters.get('max_depth'), self.grid_info),
             'maxMemoryInMB': parameters.get('max_memory_in_m_b'),
-            'minInfoGain': _as_float_list(parameters.get('min_info_gain'), self.grid_info),
+            'minInfoGain': _as_float_list(
+                parameters.get('min_info_gain'), self.grid_info),
             'minInstancesPerNode':
             _as_int_list(parameters.get(
                 'min_instances_per_node'), self.grid_info),
             'minWeightFractionPerNode':
                 parameters.get('min_weight_fraction_per_node'),
-            'numTrees': _as_int_list(parameters.get('num_trees'), self.grid_info),
+            'numTrees': _as_int_list(
+                parameters.get('num_trees'), self.grid_info),
             'seed': parameters.get('seed'),
             'subsamplingRate': parameters.get('subsampling_rate'),
             'weightCol': parameters.get('weight_col')
@@ -1556,10 +1567,14 @@ class GBTClassifierOperation(ClassificationOperation):
             'checkpointInterval': parameters.get('checkpoint_interval'),
             'lossType': parameters.get('loss_type'),
             'maxBins': parameters.get('max_bins'),
-            'maxDepth': _as_int_list(parameters.get('max_depth'), self.grid_info),
-            'maxIter': _as_int_list(parameters.get('max_iter'), self.grid_info),
-            'minInfoGain': _as_float_list(parameters.get('min_info_gain'), self.grid_info),
-            'minInstancesPerNode': _as_int_list(parameters.get('min_instances_per_node'), self.grid_info),
+            'maxDepth': _as_int_list(
+                parameters.get('max_depth'), self.grid_info),
+            'maxIter': _as_int_list(
+                parameters.get('max_iter'), self.grid_info),
+            'minInfoGain': _as_float_list(
+                parameters.get('min_info_gain'), self.grid_info),
+            'minInstancesPerNode': _as_int_list(
+                parameters.get('min_instances_per_node'), self.grid_info),
             'seed': _as_int_list(parameters.get('seed'), self.grid_info),
             'stepSize': parameters.get('step_size'),
             'subsamplingRate': parameters.get('subsampling_rate'),
@@ -1589,7 +1604,8 @@ class PerceptronClassifierOperation(ClassificationOperation):
             self, parameters,  named_inputs,  named_outputs)
         self.hyperparameters = {
             'layers': parameters.get('layers'),
-            'blockSize': _as_int_list(parameters.get('block_size'), self.grid_info),
+            'blockSize': _as_int_list(
+                parameters.get('block_size'), self.grid_info),
             'maxIter': _as_int_list(parameters.get('max_iter'), self.grid_info),
             'seed': _as_int_list(parameters.get('seed'), self.grid_info),
             'solver': parameters.get('solver'),
@@ -1610,11 +1626,14 @@ class RandomForestClassifierOperation(ClassificationOperation):
             'featureSubsetStrategy':
                 _as_string_list(parameters.get('feature_subset_strategy')),
             'maxBins': _as_int_list(parameters.get('max_bins'), self.grid_info),
-            'maxDepth': _as_int_list(parameters.get('max_depth'), self.grid_info),
-            'minInfoGain': _as_float_list(parameters.get('min_info_gain'), self.grid_info),
+            'maxDepth': _as_int_list(
+                parameters.get('max_depth'), self.grid_info),
+            'minInfoGain': _as_float_list(
+                parameters.get('min_info_gain'), self.grid_info),
             'minInstancesPerNode':
                 parameters.get('min_instances_per_node'),
-            'numTrees': _as_int_list(parameters.get('num_trees'), self.grid_info),
+            'numTrees': _as_int_list(
+                parameters.get('num_trees'), self.grid_info),
             'seed': parameters.get('seed'),
             'subsamplingRate': parameters.get('subsampling_rate'),
         }
@@ -1629,13 +1648,19 @@ class LogisticRegressionOperation(ClassificationOperation):
         self.hyperparameters = {
             'weightCol': _as_string_list(parameters.get('weight_col')),
             'family': _as_string_list(parameters.get('family')),
-            'aggregationDepth': _as_int_list(parameters.get('aggregation_depth'), self.grid_info),
-            'elasticNetParam': _as_float_list(parameters.get('elastic_net_param'), self.grid_info),
-            'fitIntercept': _as_int_list(parameters.get('fit_intercept'), self.grid_info),
-            'maxIter': _as_int_list(parameters.get('max_iter'), self.grid_info),
-            'regParam': _as_float_list(parameters.get('reg_param'), self.grid_info),
+            'aggregationDepth': _as_int_list(
+                parameters.get('aggregation_depth'), self.grid_info),
+            'elasticNetParam': _as_float_list(
+                parameters.get('elastic_net_param'), self.grid_info),
+            'fitIntercept': _as_int_list(
+                parameters.get('fit_intercept'), self.grid_info),
+            'maxIter': _as_int_list(
+                parameters.get('max_iter'), self.grid_info),
+            'regParam': _as_float_list(
+                parameters.get('reg_param'), self.grid_info),
             'tol': _as_float_list(parameters.get('tol'), self.grid_info),
-            'threshold': _as_float_list(parameters.get('threshold'), self.grid_info),
+            'threshold': _as_float_list(
+                parameters.get('threshold'), self.grid_info),
             'thresholds': _as_string_list(parameters.get('thresholds')),
         }
         self.var = 'lr'
@@ -1782,6 +1807,9 @@ class GeneralizedLinearRegressionOperation(RegressionOperation):
         RegressionOperation.__init__(
             self, parameters,  named_inputs,  named_outputs)
         self.family_link = parameters.get('family_link') or []
+        if 'solver' in parameters:
+            parameters['solver'] = [s for s in parameters['solver']
+                                    if s != 'auto']
 
         self.hyperparameters = {
             # 'aggregationDepth': parameters.get('aggregation_depth'),
@@ -1789,15 +1817,14 @@ class GeneralizedLinearRegressionOperation(RegressionOperation):
             # 'linkPower': parameters.get('link_power'),
             # 'maxIter': parameters.get('max_iter'),
             # 'offsetCol': parameters.get('offset'),
-            'regParam': _as_float_list(parameters.get('elastic_net'), self.grid_info),
+            'regParam': _as_float_list(parameters.get('elastic_net'),
+                                       self.grid_info),
             'solver': _as_string_list(parameters.get('solver')),
             # 'standardization': parameters.get('standardization'),
             # 'tol': parameters.get('tol'),
             # 'variancePower': parameters.get('variance_power'),
             # 'weightCol': parameters.get('weight'),
         }
-        if self.hyperparameters['solver'] == 'auto':
-            self.hyperparameters['solver'] = 'irls'
         self.var = 'gen_linear_regression'
         self.name = 'GeneralizedLinearRegression'
 
