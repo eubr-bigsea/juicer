@@ -3,9 +3,7 @@
 
 import collections
 import decimal
-import itertools
 import json
-from collections import Iterable
 from textwrap import dedent
 
 import pandas as pd

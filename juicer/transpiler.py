@@ -1,6 +1,7 @@
 # coding=utf-8
 
 
+from typing import Callable
 import autopep8
 import datetime
 import hashlib
@@ -27,6 +28,8 @@ AUDITING_JOB_NAME = 'seed.jobs.auditing'
 
 log = logging.getLogger(__name__)
 
+# https://github.com/microsoft/pylance-release/issues/140#issuecomment-661487878
+_: Callable[[str], str] 
 
 class DependencyController(object):
     """ Evaluates if a dependency is met when generating code. """
@@ -101,7 +104,7 @@ class Transpiler(object):
     def get_audit_info(self, graph, workflow, task, parameters):
         result = []
         task['ancestors'] = list(nx.ancestors(graph, task['id']))
-        ancestors = [graph.node[task_id] for task_id in task['ancestors']]
+        ancestors = [graph.nodes[task_id] for task_id in task['ancestors']]
         ancestors_data_source = [int(p['forms']['data_source'].get('value', 0))
                                  for p in ancestors if p['is_data_source']]
 
@@ -168,10 +171,10 @@ class Transpiler(object):
 
         audit_events = []
         for i, task_id in enumerate(tasks_ids):
-            if task_id not in graph.node:
+            if task_id not in graph.nodes:
                 continue
-            task = graph.node[task_id]['attr_dict']
-            task['parents'] = graph.node[task_id]['parents']
+            task = graph.nodes[task_id]['attr_dict']
+            task['parents'] = graph.nodes[task_id]['parents']
             self.current_task_id = task_id
 
             class_name = self.operations[task['operation']['slug']]
@@ -258,7 +261,7 @@ class Transpiler(object):
             instance = class_name(parameters, port.get('named_inputs', {}),
                                   port.get('named_outputs', {}))
 
-            graph.node[task['id']]['is_data_source'] = instance.is_data_source
+            graph.nodes[task['id']]['is_data_source'] = instance.is_data_source
             parameters['audit_events'] = instance.get_audit_events()
 
             if self.configuration['juicer'].get('auditing', False):
@@ -292,7 +295,8 @@ class Transpiler(object):
                             in_port] = sum([1 for f in workflow['flows']
                                             if f['source_port'] == source_port])
         
-        self.target_meta = workflow.get('target_meta_platform', {'id': 1, 'name': 'spark'})
+        self.target_meta = workflow.get('target_meta_platform', 
+            {'id': 1, 'name': 'spark'})
         env_setup = {
             'autopep8': autopep8,
             'dependency_controller': DependencyController(
@@ -373,8 +377,8 @@ class Transpiler(object):
 
         for edge_key in list(graph.edges.keys()):
             source_id, target_id, index = edge_key
-            source_name = graph.node[source_id]['name']
-            source_slug = graph.node[source_id]['operation']['slug']
+            source_name = graph.nodes[source_id]['name']
+            source_slug = graph.nodes[source_id]['operation']['slug']
             flow = graph.edges[edge_key]['attr_dict']
             flow_id = '[{}:{}]'.format(source_id, flow['source_port'], )
 
@@ -432,7 +436,8 @@ class Transpiler(object):
                 target_port['inputs'].append(sequence)
 
         sorted_tasks_ids = nx.topological_sort(graph) if topological_sort \
-            else [t['id'] for t in sorted(workflow['tasks'], key=lambda x: x['display_order'])]
+            else [t['id'] for t in sorted(workflow['tasks'], 
+            key=lambda x: x['display_order'])]
 
         self.generate_code(graph, job_id, out, params,
                            ports, sorted_tasks_ids, state,

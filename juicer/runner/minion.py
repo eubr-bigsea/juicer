@@ -5,18 +5,18 @@ import argparse
 import gettext
 import logging.config
 import os
+from urllib.parse import urlparse
 
 import matplotlib
 import redis
 import yaml
-from future.moves.urllib.parse import urlparse
 from juicer.compss.compss_minion import COMPSsMinion
-from juicer.keras.keras_minion import KerasMinion
-from juicer.scikit_learn.scikit_learn_minion import ScikitLearnMinion
 from juicer.jobs.script_minion import ScriptMinion
-from juicer.spark.spark_minion import SparkMinion
-from juicer.plugin.plugin_minion import PluginMinion
+from juicer.keras.keras_minion import KerasMinion
 from juicer.meta.meta_minion import MetaMinion
+from juicer.plugin.plugin_minion import PluginMinion
+from juicer.scikit_learn.scikit_learn_minion import ScikitLearnMinion
+from juicer.spark.spark_minion import SparkMinion
 
 # Important!
 # See https://stackoverflow.com/a/29172195/1646932
