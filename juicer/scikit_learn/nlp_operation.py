@@ -48,6 +48,7 @@ class TokenizeOperation(Operation):
         import nltk
         nltk.download('punkt')
         nltk.download('averaged_perceptron_tagger')
+        
         from nltk.tokenize import TweetTokenizer
         from nltk.tag import pos_tag
         from nltk.tokenize import word_tokenize
@@ -267,8 +268,11 @@ class NerOperation(Operation):
     def generate_code(self):
         """Generate code."""
         code = """
-        import pt_core_news_md
-        nlp = pt_core_news_md.load()
+
+        import spacy
+        import spacy.cli
+        spacy.cli.download("pt_core_news_sm")
+        nlp = spacy.load('pt_core_news_sm')
 
         def ner(word):
             r = []
