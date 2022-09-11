@@ -1,5 +1,10 @@
 # -*- coding: utf-8 -*-
 
+import os
+
+from juicer import operation
+from juicer.transpiler import Transpiler
+
 import juicer.scikit_learn.associative_operation as associative
 import juicer.scikit_learn.classification_operation as classifiers
 import juicer.scikit_learn.clustering_operation as clustering
@@ -14,10 +19,6 @@ import juicer.scikit_learn.vis_operation as vis_operation
 import juicer.scikit_learn.outlier_detection as lof
 import juicer.scikit_learn.stat_operation as stat_operation
 import juicer.scikit_learn.nlp_operation as nlp_operation
-import os
-from juicer import operation
-from juicer.transpiler import Transpiler
-
 
 # noinspection SpellCheckingInspection
 class ScikitLearnTranspiler(Transpiler):
@@ -175,6 +176,12 @@ class ScikitLearnTranspiler(Transpiler):
 
         other_ops = {
             'comment': operation.NoOp,
+            'stemming': nlp_operation.StemmingOperation,
+            'lemmatization': nlp_operation.LemmatizationOperation,
+            'normalizer': nlp_operation.NormalizationOperation,
+            'postagging': nlp_operation.PosTaggingOperation,
+            'wordsegmentation': nlp_operation.WordSegmentationOperation
+
         }
 
         statistical_ops = {
