@@ -158,6 +158,14 @@ class ScikitLearnTranspiler(Transpiler):
             'local-outlier-factor': lof.OutlierDetectionOperation,
         }
 
+        nlp_ops = {
+            'tokenize': nlp_operation.TokenizeOperation,
+            'synonyms': nlp_operation.SynonymsOperation,
+            'antonyms': nlp_operation.AntonymsOperation,
+            'definer': nlp_operation.DefinerOperation,
+            'ner': nlp_operation.NerOperation,
+        }
+
         text_ops = {
             'generate-n-grams': text_operations.GenerateNGramsOperation,
             'remove-stop-words': text_operations.RemoveStopWordsOperation,
@@ -199,6 +207,6 @@ class ScikitLearnTranspiler(Transpiler):
         }
 
         self.operations = {}
-        for ops in [data_ops, etl_ops, geo_ops, ml_ops,
-                    other_ops, text_ops, ws_ops, vis_ops, nlp_ops, statistical_ops,]:
+        for ops in [data_ops, etl_ops, geo_ops, ml_ops, nlp_ops,
+                    other_ops, text_ops, ws_ops, statistical_ops, vis_ops]:
             self.operations.update(ops)
