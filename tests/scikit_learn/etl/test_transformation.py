@@ -292,7 +292,7 @@ def test_function_implementation():
 
     test_functions = [x for x in all_functions if x[0] in to_test]
     for func_name, field, args, test in test_functions:
-        print('Testing', func_name)
+        #print('Testing', func_name)
         expr = {
             "alias": "{}_new".format(func_name),
             "expression": "{}(attr0)".format(func_name),
@@ -325,8 +325,6 @@ def test_function_implementation():
         code = instance.generate_code()
         util.execute(code, dict([dd]))
         if test is not None:
-            import pdb
-            pdb.set_trace()
             assert len(df[df.apply(test, axis=1)]) == 0
             # assert test(
         # assert result['out'].equals(util.iris(size=slice_size))

@@ -1,13 +1,15 @@
 # coding=utf-8
 
-
 import functools
 import json
 from textwrap import dedent
+from typing import Callable
 
 from juicer.util import group
 from six import text_type
 
+# https://github.com/microsoft/pylance-release/issues/140#issuecomment-661487878
+_: Callable[[str], str] 
 
 class Expression(object):
     def __init__(self, json_code, params, window=False):
@@ -31,8 +33,12 @@ class Expression(object):
         # Literal parsing
         elif tree['type'] == 'Literal':
             v = tree['value']
-            result = "'{}'".format(v) if isinstance(
-                v, (str, text_type)) else str(v)
+            if isinstance(v, (str, text_type)):
+                result = "'{}'".format(v)
+            elif v is None:
+                result = None
+            else:
+                result = str(v)
 
         # Expression parsing
         elif tree['type'] == 'CallExpression':
@@ -319,8 +325,8 @@ class Expression(object):
             'element_at': self.get_function_call,
             'encode': self.get_function_call,
             'exp': self.get_function_call,
-            'explode': self.get_function_call, 
-            'explode_outer': self.get_function_call, 
+            'explode': self.get_function_call,
+            'explode_outer': self.get_function_call,
             'expm1': self.get_function_call,
             'expr': self.get_function_call,
             'flatten': self.get_function_call,

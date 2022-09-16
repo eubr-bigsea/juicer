@@ -4,11 +4,12 @@
 import json
 import time
 from random import random
-from textwrap import dedent
+from textwrap import dedent, indent
+from gettext import gettext
 
 from juicer.operation import Operation
 from juicer.spark.expression import Expression
-
+from juicer.util import dataframe_util
 
 class SplitOperation(Operation):
     """
@@ -590,8 +591,40 @@ class SelectOperation(Operation):
     - The list of columns selected.
     """
     ATTRIBUTES_PARAM = 'attributes'
-    REMOVE_ATTRIBUTES_PARAM = 'remove_attributes'
-    ASCENDING_PARAM = 'ascending'
+    MODE_PARAM = 'mode'
+    template = """
+        {%- if op.mode == 'exclude' %}
+        
+        exclude = {{op.attributes}}
+        selection = [c.name for c in {{op.input}}.schema 
+            if c.name not in exclude]
+        {{op.output}} = {{op.input}}.select(selection)
+
+        {% elif op.mode == 'include' %}
+        selection = {{op.attributes}}
+          {%- if op.aliases %}
+        {{op.output}} = {{op.input}}.select(
+            {%- for attr, alias in op.alias_dict.items() %}
+            functions.col('{{attr}}').alias('{{alias}}'),
+            {%- endfor %}
+        )
+          {%- else %}
+        {{op.output}} = {{op.input}}.select(selection)
+          {%- endif %}
+
+        {%- elif op.mode == 'rename' %}
+        {{op.output}} = {{op.input}}\\
+            {%- for attr, alias in op.alias_dict.items() %}
+            .withColumnRenamed('{{attr}}', '{{alias}}'){%if not loop.last%}\{%endif%}
+            {%- endfor %}
+
+        {%- elif op.mode == 'duplicate' %}
+        {{op.output}} = {{op.input}}\\
+            {%- for attr, alias in op.alias_dict.items() %}
+            .withColumn('{{alias}}', functions.col('{{attr}}')){%if not loop.last%}\{%endif%}
+            {%- endfor %}
+        {%- endif %}
+    """
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
@@ -603,8 +636,29 @@ class SelectOperation(Operation):
                     self.ATTRIBUTES_PARAM, self.__class__))
         self.output = self.named_outputs.get(
             'output projected data', 'projection_data_{}'.format(self.order))
+        self.mode = parameters.get(self.MODE_PARAM, 'include')
 
     def generate_code(self):
+        attributes = []
+        aliases = []
+        alias_dict = {}
+        for attr in self.attributes:
+            if self.mode is None: # legacy format, without alias
+                self.attributes.append(attr)
+            else:
+                attribute_name = attr.get('attribute')
+                attributes.append(attribute_name)
+
+                alias = attr.get('alias')
+                aliases.append(alias or attribute_name)
+                alias_dict[attribute_name] = alias or attribute_name
+        if self.has_code:
+            return dedent(self.render_template(
+                {'op': {'attributes': attributes, 'aliases': aliases, 'mode': self.mode,
+                    'input': self.named_inputs['input data'], 'output': self.output, 
+                    'alias_dict': alias_dict} }))
+
+    def old_generate_code(self):
         input_data = self.named_inputs['input data']
         code = "{out} = {in1}.select({select})".format(
             out=self.output, in1=input_data,
@@ -970,6 +1024,8 @@ class CleanMissingOperation(Operation):
             len(self.named_inputs) > 0]), self.contains_results()])
         self.output = self.named_outputs.get('output result',
                                              'out_{}'.format(self.order))
+        self.transpiler_utils.add_custom_function('cast_value', 
+            dataframe_util.cast_value)
 
     def generate_code(self):
 
@@ -980,8 +1036,8 @@ class CleanMissingOperation(Operation):
         attrs_json = json.dumps(self.attributes)
 
         if any([self.min_missing_ratio, self.max_missing_ratio]):
-            self.min_missing_ratio = float(self.min_missing_ratio)
-            self.max_missing_ratio = float(self.max_missing_ratio)
+            self.min_missing_ratio = float(self.min_missing_ratio or 0)
+            self.max_missing_ratio = float(self.max_missing_ratio or 1)
 
             # Based on http://stackoverflow.com/a/35674589/1646932
             select_list = [
@@ -1008,10 +1064,14 @@ class CleanMissingOperation(Operation):
 
         elif self.cleaning_mode == self.VALUE:
             # value = ast.literal_eval(self.value)
-            partial.append(
-                "\n    {0} = {1}.na.fill(value={2}, "
-                "subset=attributes_{1})".format(self.output, input_data,
-                                                self.value))
+            partial.append(indent(dedent("""
+                val_replace = dict()
+                value = '{2}'
+                schema = {1}.schema
+                for val_attr in attributes_{1}:
+                    val_replace[val_attr] = cast_value(schema, val_attr, value)
+                {0} = {1}.fillna(val_replace)""".format(
+                    self.output, input_data, self.value)), '    '))
 
         elif self.cleaning_mode == self.REMOVE_COLUMN:
             # Based on http://stackoverflow.com/a/35674589/1646932"
@@ -1024,20 +1084,21 @@ class CleanMissingOperation(Operation):
             # Based on http://stackoverflow.com/a/36695251/1646932
             # But null values cause exception, so it needs to remove them
             partial.append("""
+                # replace with mode
                 import decimal
-                md_replace_{1} = dict()
-                for md_attr_{1} in attributes_{1}:
-                    md_count_{1} = {1}.na.drop(subset=[md_attr_{1}]).groupBy(
-                        md_attr_{1}).count().orderBy(
+                md_replace = dict()
+                for md_attr in attributes_{1}:
+                    md_count = {1}.na.drop(subset=[md_attr]).groupBy(
+                        md_attr).count().orderBy(
                             functions.desc('count')).limit(1)
                     # Spark does not support BigDecimal!
-                    if isinstance(md_count_{1}.collect()[0][0],
+                    if isinstance(md_count.collect()[0][0],
                         decimal.Decimal):
-                        replacement = float(md_count_{1}.collect()[0][0])
+                        replacement = float(md_count.collect()[0][0])
                     else:
-                        replacement = md_count_{1}.collect()[0][0]
-                    md_replace_{1}[md_attr_{1}] = replacement
-                {0} = {1}.fillna(value=md_replace_{1})""".format(
+                        replacement = md_count.collect()[0][0]
+                    md_replace[md_attr] = replacement
+                {0} = {1}.fillna(md_replace)""".format(
                 self.output, input_data)
             )
 
@@ -1045,17 +1106,19 @@ class CleanMissingOperation(Operation):
             # See http://stackoverflow.com/a/31437177/1646932
             # But null values cause exception, so it needs to remove them
             partial.append("""
-                mdn_replace_{1} = dict()
-                for mdn_attr_{1} in attributes_{1}:
+                # replace with median
+                mdn_replace = dict()
+                for mdn_attr in attributes_{1}:
                     # Computes median value for column with relat. error=10%
-                    mdn_{1} = {1}.na.drop(subset=[mdn_attr_{1}])\\
-                        .approxQuantile(str(mdn_attr_{1}), [.5], .1)
-                    mdn_replace_{1}[mdn_attr_{1}] = mdn_{1}[0]
-                {0} = {1}.fillna(value=mdn_replace_{1})""".format(
+                    mdn_{1} = {1}.na.drop(subset=[mdn_attr])\\
+                        .approxQuantile(str(mdn_attr), [.5], .1)
+                    mdn_replace[mdn_attr] = mdn_{1}[0]
+                {0} = {1}.fillna(value=mdn_replace)""".format(
                 self.output, input_data))
 
         elif self.cleaning_mode == self.MEAN:
             partial.append("""
+                # replace with mean
                 avg_{1} = {1}.select([functions.avg(c).alias(c)
                                         for c in attributes_{1}]).collect()
                 # Convert to float because Spark complains about Decimal
@@ -1763,22 +1826,25 @@ class CastOperation(Operation):
         try:
         {%- for attr in op.attributes %}
             {{op.output}} =
-            {%- if attr.type in ('Integer', 'Decimal', 'Boolean') -%}
+            {%- if attr.type in ('Integer', 'Boolean') -%}
                 {{op.input}}.withColumn('{{attr.attribute}}',
-                                        functions.col('{{attr.attribute}').cast('{{attr.type.lower()}}'))
+                                        functions.col('{{attr.attribute}}').cast('{{attr.type.lower()}}'))
+            {%- elif attr.type in ('Decimal') -%}
+                {{op.input}}.withColumn('{{attr.attribute}}',
+                                        functions.col('{{attr.attribute}}').cast('double'))
             {%- elif attr.type in ('Date', 'DateTime', 'Datetime', 'Time') -%}
                 {{op.input}}.withColumn('{{attr.attribute}}',
-                                        functions.col('{{attr.attribute}').cast('date'))
+                                        functions.col('{{attr.attribute}}').cast('date'))
             {%- elif attr.type == 'Text' -%}
                 {{op.input}}.withColumn('{{attr.attribute}}',
-                                        functions.col('{{attr.attribute}').cast('text'))
+                                        functions.col('{{attr.attribute}}').cast('text'))
             {%- elif attr.type == 'Array' -%}
                 {{op.input}}.withColumn('{{attr.attribute}}',
-                                        functions.col('{{attr.attribute}').cast(
+                                        functions.col('{{attr.attribute}}').cast(
                                             types.ArrayType()))
             {%- elif attr.type == 'JSON' -%}
                 {{op.input}}.withColumn('{{attr.attribute}}',
-                                        functions.to_json('{{attr.attribute}')
+                                        functions.to_json('{{attr.attribute}}')
             {%-endif %}
             {%- if op.errors == 'move' %}
                 # Copy invalid data to a new attribute

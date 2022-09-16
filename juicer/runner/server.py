@@ -11,11 +11,12 @@ import signal
 import subprocess
 import sys
 import time
+from typing import Callable
+from urllib.parse import urlparse
 
 import redis
 import socketio
 import yaml
-from future.moves.urllib.parse import urlparse
 from juicer.exceptions import JuicerException
 from juicer.kb8s import delete_kb8s_job
 from juicer.runner import configuration
@@ -29,6 +30,8 @@ os.chdir(os.environ.get('JUICER_HOME', '.'))
 logging.config.fileConfig('logging_config.ini')
 log = logging.getLogger('juicer.runner.server')
 
+# https://github.com/microsoft/pylance-release/issues/140#issuecomment-661487878
+_: Callable[[str], str] 
 
 class JuicerServer:
     """
@@ -174,7 +177,8 @@ class JuicerServer:
                 self._forward_to_minion(msg_type, workflow_id, app_id, job_id,
                                         msg, platform, cluster)
                 self._terminate_minion(workflow_id, cluster)
-            elif msg_type == juicer_protocol.MORE_DATA:
+            elif msg_type in (juicer_protocol.MORE_DATA, 
+                    juicer_protocol.ANALYSE_ATTRIBUTE):
                 self._forward_to_minion(msg_type, workflow_id, app_id, job_id,
                                         msg, None, None)
             else:

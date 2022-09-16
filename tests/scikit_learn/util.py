@@ -77,9 +77,9 @@ def execute(code, arguments):
         # 'import pdb;pdb.set_trace()',
         code
     ])
-    print()
-    print('=' * 10, ' testing code ', '=' * 10)
-    print(final_code)
+    # 'print()
+    # print('=' * 10, ' testing code ', '=' * 10)
+    # 'print(final_code)
 
     result = {}
     exec(final_code, arguments, result)

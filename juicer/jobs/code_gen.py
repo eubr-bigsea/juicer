@@ -30,7 +30,7 @@ log.setLevel(logging.DEBUG)
 def generate(workflow_id, template_name, lang='en'):
     juicer_config = {}
     result = {}
-    import pdb; pdb.set_trace()
+    # import pdb; pdb.set_trace()
 
     locales_path = os.path.join(os.path.dirname(__file__), 'i18n', 'locales')
     t = translation('messages', locales_path, [lang],
@@ -45,10 +45,10 @@ def generate(workflow_id, template_name, lang='en'):
         try:
             _generate(workflow_id,
                       False,
-                      {}, 
+                      {},
                       juicer_config,
-                      out=out, 
-                      export_notebook=template_name == 'notebook', 
+                      out=out,
+                      export_notebook=template_name == 'notebook',
                       plain=template_name == 'python', lang=lang)
             result['code'] = str(out.getvalue())
             result['status'] = 'OK'
@@ -62,11 +62,13 @@ def generate(workflow_id, template_name, lang='en'):
 
     return result
 
+
 def _get_lookups(tahiti_conf, workflow_id, resp, lang):
     ops = query_tahiti(
         base_url=tahiti_conf['url'], item_path='/operations',
         token=str(tahiti_conf['auth_token']), item_id='',
-        qs='lang={}&fields=id,slug,ports.id,ports.slug,ports.interfaces&platform={}&workflow={}'.format(
+        qs='lang={}&fields=id,slug,ports.id,ports.slug,ports.interfaces&'
+        'platform={}&workflow={}'.format(
             lang, resp['platform']['id'], workflow_id)).get('data')
     slug_to_op_id = dict([(op['slug'], op['id']) for op in ops])
     port_id_to_port = dict([(p['id'], p) for op in ops for p in op['ports']])
@@ -78,11 +80,11 @@ def _generate(workflow_id, job_id, execute_main, params, config, out=sys.stdout,
               deploy=False, export_notebook=False, plain=False,
               custom_vars=None, lang='en', from_meta=False):
     log.debug(gettext(
-        'Generating code for workflow %s, notebook=%s, plain=%s'), 
+        'Generating code for workflow %s, notebook=%s, plain=%s'),
         workflow_id,
         export_notebook,
         plain
-        )
+    )
     tahiti_conf = config['juicer']['services']['tahiti']
 
     resp = query_tahiti(base_url=tahiti_conf['url'],
@@ -96,7 +98,7 @@ def _generate(workflow_id, job_id, execute_main, params, config, out=sys.stdout,
     configuration.set_config(config)
 
     ops, slug_to_op_id, port_id_to_port = _get_lookups(
-        tahiti_conf, workflow_id, resp, lang)        
+        tahiti_conf, workflow_id, resp, lang)
     try:
         if loader.platform['slug'] == "spark":
             transpiler = SparkTranspiler(configuration.get_config(),
@@ -122,31 +124,52 @@ def _generate(workflow_id, job_id, execute_main, params, config, out=sys.stdout,
         transpiler.execute_main = execute_main
         if loader.platform['slug'] == 'meta' and from_meta:
             out1 = StringIO()
-            transpiler.transpile(
-                loader.workflow, loader.graph, params=params, deploy=deploy,
-                export_notebook=export_notebook, plain=plain, job_id=job_id, out=out1)
-            out1.seek(0)
-            resp = json.loads(out1.read())
 
             loader = Workflow(resp, config, lang=lang)
-            loader.handle_variables(custom_vars)
+            targets = {'spark': {'id': 1, 'slug': 'spark'},
+                       'scikit-learn': {'id': 4, 'slug': 'scikit-learn'}}
+            loader.workflow['target_meta_platform'] = targets[from_meta]
 
-            ops, slug_to_op_id, port_id_to_port = _get_lookups(
-                tahiti_conf, 0, resp, lang)        
-
-            # FIXME: choose the right transpiler
-            transpiler = ScikitLearnTranspiler(configuration.get_config())
             transpiler.transpile(
                 loader.workflow, loader.graph, params=params, deploy=deploy,
-                export_notebook=export_notebook, plain=plain, job_id=job_id, out=out)
+                export_notebook=export_notebook, plain=plain, job_id=job_id,
+                out=out1)
+            out1.seek(0)
+
+            if loader.workflow.get('type') == 'MODEL_BUILDER':
+                out.write(out1.read())
+            else:
+                resp = json.loads(out1.read())
+                target_loader = Workflow(resp, config, lang=lang)
+                target_loader.handle_variables(custom_vars)
+
+                ops, slug_to_op_id, port_id_to_port = _get_lookups(
+                    tahiti_conf, 0, resp, lang)
+
+                if transpiler.target_meta.get('slug') == 'spark':
+                    final_transpiler = SparkTranspiler(
+                        configuration.get_config())
+                elif transpiler.target_meta.get('slug') == 'scikit-learn':
+                    final_transpiler = ScikitLearnTranspiler(
+                        configuration.get_config())
+                else:
+                    raise ValueError('Invalid target platform')
+                final_transpiler.sample_style = 'DATA_EXPLORER'
+                final_transpiler.transpile(
+                    target_loader.workflow, target_loader.graph,
+                    params=params, deploy=deploy,
+                    export_notebook=export_notebook,
+                    plain=plain, job_id=job_id, out=out)
 
         else:
             transpiler.transpile(
                 loader.workflow, loader.graph, params=params, deploy=deploy,
-                export_notebook=export_notebook, plain=plain, job_id=job_id, out=out)
+                export_notebook=export_notebook, plain=plain, job_id=job_id,
+                out=out)
 
     except ValueError as ve:
-        log.exception(gettext("At least one parameter is missing"), exc_info=ve)
+        log.exception(
+            gettext("At least one parameter is missing"), exc_info=ve)
     except:
         raise
 
@@ -159,7 +182,7 @@ if __name__ == "__main__":
 
     parser.add_argument("-w", "--workflow", type=int, required=True,
                         help="Workflow identification number")
-    
+
     parser.add_argument("-j", "--job_id", type=int, required=False,
                         help="Job identification number", default=0)
 
@@ -171,13 +194,14 @@ if __name__ == "__main__":
     parser.add_argument("-n", "--notebook", action="store_true",
                         help="Generate Jupyter Notebook")
 
-    parser.add_argument("-m", "--meta", action="store_true",
+    parser.add_argument("-m", "--meta",
                         help="Convert from Meta Plataform")
 
     parser.add_argument("--lang", help="Minion messages language (i18n)",
                         required=False, default="en_US")
-    parser.add_argument("--vars", help="Path to a YAML file with the extra variables", 
-        required=False)
+    parser.add_argument("--vars",
+                        help="Path to a YAML file with the extra variables",
+                        required=False)
     parser.add_argument(
         "-p", "--plain", required=False, action="store_true",
         help="Indicates if workflow should be plain Python, "
@@ -200,7 +224,8 @@ if __name__ == "__main__":
             custom_vars = yaml.load(vars_file.read(),
                                     Loader=yaml.FullLoader)
 
-    _generate(args.workflow, args.job_id, args.execute_main, {"plain": args.plain},
+    _generate(args.workflow, args.job_id, args.execute_main,
+              {"plain": args.plain},
               config=juicer_config, deploy=args.deploy,
               export_notebook=args.notebook, plain=args.plain,
               custom_vars=custom_vars, lang=args.lang, from_meta=args.meta)
