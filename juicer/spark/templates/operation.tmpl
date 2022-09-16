@@ -59,6 +59,14 @@ task_futures = {}
 {%- include auxiliary_code with context %}
 {%- endfor %}
 
+{%- if transpiler.custom_functions %}
+# Custom functions
+{%- for code in transpiler.custom_functions.values() %}
+{{code}}
+{%- endfor -%}
+# End custom functions
+{%- endif %}
+
 {%- for instance in instances %}
 {%-  handleinstance instance %}
 {%- if instance.has_code and instance.enabled %}
@@ -149,6 +157,7 @@ def {{task.operation.slug.replace('-', '_')}}_{{instance.order}}(spark_session, 
             {%- endif %}
             {{out}} = {{out}}.withColumn('{{trace.attribute}}',
                 functions.col('{{trace.attribute}}').alias('', metadata=meta))
+            
         {%- endif %}
         {%- endfor %}
         {%- endfor %}
@@ -163,6 +172,9 @@ def {{task.operation.slug.replace('-', '_')}}_{{instance.order}}(spark_session, 
             {%- if port_name and out %}
             '{{port_name}}': {{out}},
             {%- endif %}
+            {%-if loop.index0 == 0 %}
+             '__first__': {{out}},
+            {%- endif %}
           {%- endfor %}
         }
 
@@ -172,7 +184,12 @@ def {{task.operation.slug.replace('-', '_')}}_{{instance.order}}(spark_session, 
         if isinstance(out, df_types)]
     {%- if instance.has_code and instance.enabled and instance.contains_sample %}
     for name, out in outputs:
+        {%- if transpiler.transpiler.sample_style == 'DATA_EXPLORER' 
+            or instance.parameters.workflow.get('app_configs', {}).get('sample_style') == 'DATA_EXPLORER' %}
+        dataframe_util.emit_sample_data_explorer(task_id, out, emit_event, name)
+        {%- else %}
         dataframe_util.emit_sample(task_id, out, emit_event, name)
+        {%- endif %}
     {%- endif %}
     {%- if instance.has_code and instance.enabled and instance.contains_schema %}
     for name, out in outputs:

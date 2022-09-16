@@ -48,9 +48,13 @@ class Expression:
 
         # Literal parsing
         elif tree['type'] == 'Literal':
-            value = tree['value']
-            result = "'{}'".format(value) if isinstance(
-                value, (str, text_type)) else str(value)
+            v = tree['value']
+            if isinstance(v, (str, text_type)):
+                result = "'{}'".format(v)
+            elif v is None:
+                result = None
+            else:
+                result = str(v)
 
         # Expression parsing
         elif tree['type'] == 'CallExpression':
@@ -615,7 +619,8 @@ class Expression:
                     s['arguments'][1], p)),
             'array_distinct': lambda s, p: 'np.unique({0}).ravel()'.format(
                 self.parse(s['arguments'][0], p)),
-
+            'array_join': lambda s, p: f"{self.parse(s['arguments'][1], p)}.join(" +
+                    f"{self.parse(s['arguments'][0], p)})",
             'ascii': self.get_function_call,
             'atan2': lambda s, p: self.get_numpy_function_call(s, p, 'arctan2'),
             # TODO handle differences: python adds 0b to the result
@@ -678,7 +683,7 @@ class Expression:
             'regexp_replace': lambda s, p:
                 ("functools.partial(lambda t, rep, expr: expr.sub(rep, t), "
                  "expr=re.compile({expr}))"
-                 "({val}, {rep})").format(
+                 "({val}, r{rep})").format(
                     val=self.parse(s['arguments'][0], p),
                     expr=(self.parse(s['arguments'][1], p)
                           if s['arguments'][1]['type'] != 'Literal' else

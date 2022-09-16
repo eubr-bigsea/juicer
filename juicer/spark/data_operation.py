@@ -1,15 +1,14 @@
 # -*- coding: utf-8 -*-
 
 
+import datetime
 import itertools
 import json
 import pprint
 import uuid
 from textwrap import dedent
+from urllib.parse import parse_qs, urlparse
 
-import datetime
-
-from future.backports.urllib.parse import urlparse, parse_qs
 from juicer import auditing
 from juicer.deploy import Deployment, DeploymentFlow, DeploymentTask
 from juicer.operation import Operation
@@ -707,12 +706,12 @@ class SaveOperation(Operation):
             # nullable information is also stored in metadata
             # because Spark ignores this information when loading CSV files
             attributes = []
-            decimal_regex = re.compile(r'DecimalType\((\d+),\s*(\d+)\)')
+            
             for att in {input}.schema:
                 type_name = str(att.dataType)
                 precision = None
                 scale = None
-                found = decimal_regex.findall(type_name)
+                found = isinstance(attr.dataType, types.DecimalType)
                 if found:
                     type_name = 'DecimalType'
                     precision = found[0][0]

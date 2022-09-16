@@ -37,3 +37,5 @@ TERMINATE = 'terminate'
 MORE_DATA = 'more data'
 
 EXPORT = 'export'
+
+ANALYSE_ATTRIBUTE = 'analyse attribute'

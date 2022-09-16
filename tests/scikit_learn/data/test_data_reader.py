@@ -1,6 +1,5 @@
 from tests.scikit_learn import util
-from juicer.scikit_learn.etl_operation import DataReaderOperation
-import pytest
+from juicer.scikit_learn.data_operation import DataReaderOperation
 
 # DataReader
 # 

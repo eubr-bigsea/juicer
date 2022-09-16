@@ -388,6 +388,8 @@ class SparkMinion(Minion):
             # Sample size can be informed in API, limited to 1000 rows.
             self.transpiler.sample_size = min(1000, int(app_configs.get(
                 'sample_size', 50)))
+            self.transpiler.sample_style = app_configs.get('sample_style',
+                'ORIGINAL')
 
             if self.job_future:
                 self.job_future.result()
@@ -673,7 +675,8 @@ class SparkMinion(Minion):
 
             # All options passed by application are sent to Spark
             for option, value in app_configs.items():
-                spark_builder = spark_builder.config(option, value)
+                if option.startswith('spark.'):
+                    spark_builder = spark_builder.config(option, value)
 
             # All options passed by the client during job execution
             for option, value in self.cluster_options.items():
