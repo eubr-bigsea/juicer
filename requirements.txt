@@ -65,7 +65,7 @@ modin[dask]==0.10.2
 monotonic==1.5
 more-itertools==7.2.0
 networkx==2.6.3
-nltk==3.5
+nltk==3.6.6
 numpy==1.21.2
 oauthlib==3.1.0
 opt-einsum==3.0.1
