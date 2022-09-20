@@ -164,7 +164,15 @@ class ScikitLearnTranspiler(Transpiler):
             'synonyms': nlp_operation.SynonymsOperation,
             'antonyms': nlp_operation.AntonymsOperation,
             'definer': nlp_operation.DefinerOperation,
+            'comment': operation.NoOp,
+            'stemming': nlp_operation.StemmingOperation,
+            'lemmatization': nlp_operation.LemmatizationOperation,
+            'normalizer': nlp_operation.NormalizationOperation,
+            'postagging': nlp_operation.PosTaggingOperation,
+            'wordsegmentation': nlp_operation.WordSegmentationOperation
             'ner': nlp_operation.NerOperation,
+            'nlp-word-counting': nlp_operation.WordCountingOperation,
+            'nlp-lower-case': nlp_operation.LowerCaseOperation,
         }
 
         text_ops = {
@@ -172,16 +180,6 @@ class ScikitLearnTranspiler(Transpiler):
             'remove-stop-words': text_operations.RemoveStopWordsOperation,
             'tokenizer': text_operations.TokenizerOperation,
             'word-to-vector': text_operations.WordToVectorOperation
-        }
-
-        other_ops = {
-            'comment': operation.NoOp,
-            'stemming': nlp_operation.StemmingOperation,
-            'lemmatization': nlp_operation.LemmatizationOperation,
-            'normalizer': nlp_operation.NormalizationOperation,
-            'postagging': nlp_operation.PosTaggingOperation,
-            'wordsegmentation': nlp_operation.WordSegmentationOperation
-
         }
 
         statistical_ops = {
@@ -208,12 +206,7 @@ class ScikitLearnTranspiler(Transpiler):
             'map': vis_operation.MapOperation
         }
 
-        nlp_ops = {
-            'nlp-word-counting': nlp_operation.WordCountingOperation,
-            'nlp-lower-case': nlp_operation.LowerCaseOperation,
-        }
-
         self.operations = {}
         for ops in [data_ops, etl_ops, geo_ops, ml_ops, nlp_ops,
-                    other_ops, text_ops, ws_ops, statistical_ops, vis_ops]:
+                    text_ops, ws_ops, statistical_ops, vis_ops]:
             self.operations.update(ops)
