@@ -250,6 +250,7 @@ class DataReaderOperation(Operation):
         {{output}} = pd.read_csv(f, sep='{{sep}}',
                                  encoding='{{encoding}}',
                                  header={{header}},
+                                 compression='infer',
                                  {%- if infer_from_limonero %}
                                  names={{names}},
                                  dtype=columns,
@@ -270,6 +271,7 @@ class DataReaderOperation(Operation):
         {%- elif format == 'TEXT' %}
         {{output}} = pd.read_csv(f, sep='{{sep}}',
                                  encoding='{{encoding}}',
+                                 compression='infer',
                                  names = ['value'],
                                  error_bad_lines={{mode_failfast}})
         f.close()
