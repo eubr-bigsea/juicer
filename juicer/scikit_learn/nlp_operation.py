@@ -42,24 +42,11 @@ class WordCountingOperation(Operation):
         code = f"""
         tokenizer = RegexpTokenizer(r'\w+', flags=re.IGNORECASE)
 
-        df = pd.DataFrame()
-        
-        for i, attr in enumerate({self.attributes}):
-            for j, row in {self.input}.iterrows():
-                item = dict(row.iteritems())
-                key = list(item.keys())[0]
+        df = {self.input}
+        for attr in {self.attributes}:
+            df[attr + '_word_count'] = df[attr].astype(str).str.findall(r'(\w+)').str.len()
 
-                text = list(item.values())[0]
-                tokens = tokenizer.tokenize(text)
-                counter = Counter(tokens)
-                words = dict(counter)
-                to_append = dict()
-                to_append[attr] = words
 
-                df = df.append(to_append, ignore_index=True)
-                
-            df = df.fillna(0)
-	
         {self.output} = df
         """
         return dedent(code)
