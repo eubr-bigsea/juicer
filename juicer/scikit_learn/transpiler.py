@@ -169,7 +169,7 @@ class ScikitLearnTranspiler(Transpiler):
             'lemmatization': nlp_operation.LemmatizationOperation,
             'normalizer': nlp_operation.NormalizationOperation,
             'postagging': nlp_operation.PosTaggingOperation,
-            'wordsegmentation': nlp_operation.WordSegmentationOperation
+            'wordsegmentation': nlp_operation.WordSegmentationOperation,
             'ner': nlp_operation.NerOperation,
             'nlp-word-counting': nlp_operation.WordCountingOperation,
             'nlp-lower-case': nlp_operation.LowerCaseOperation,
