@@ -87,22 +87,9 @@ class LowerCaseOperation(Operation):
 
         code = f"""
 
-        df = pd.DataFrame()
-        
-        alias = {self.alias}
-        for i, attr in enumerate({self.attributes}):
-            for j, row in {self.input}.iterrows():
-                item = dict(row.iteritems())
-                key = list(item.keys())[0]
-
-                text = list(item.values())[0]
-
-                to_append = dict()
-                to_append[alias[i]] = text.lower()
-
-                df = df.append(to_append, ignore_index=True)
-                
-            df = df.fillna(0)
+        df = {self.input}
+        for attr in {self.attributes}:
+            df[attr] = df[attr].astype(str).str.lower()
 	
         {self.output} = df
         """
