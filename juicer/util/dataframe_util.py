@@ -320,11 +320,11 @@ def emit_sample_data_explorer(task_id, df, emit_event, name, size=50,
         elif c.dataType.typeName() in ('decimal'):
             pandas_df[c.name] = pandas_df[c.name].astype('float64')
 
-    emit_sample_sklearn(task_id, pandas_df, emit_event, name,
+    emit_sample_sklearn_explorer(task_id, pandas_df, emit_event, name,
                         size, notebook, describe, infer, use_types, page)
 
 
-def emit_sample_sklearn(task_id, df, emit_event, name, size=50, notebook=False,
+def emit_sample_sklearn_explorer(task_id, df, emit_event, name, size=50, notebook=False,
                         describe=False, infer=False, use_types=None, page=1):
 
     from collections import defaultdict
@@ -468,7 +468,7 @@ def emit_sample_sklearn(task_id, df, emit_event, name, size=50, notebook=False,
                task={'id': task_id})
 
 
-def old_emit_sample_sklearn(task_id, df, emit_event, name, size=50,
+def emit_sample_sklearn(task_id, df, emit_event, name, size=50,
                             notebook=False):
     from juicer.spark.reports import SimpleTableReport
     headers = list(df.columns)
