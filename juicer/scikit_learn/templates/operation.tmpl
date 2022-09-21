@@ -139,7 +139,8 @@ def {{task.operation.slug.replace('-', '_')}}_{{instance.order}}(sklearn_session
           {%- endfor %}
         }
     {%- if instance.contains_results() %}
-    outputs = [(name, out) for name, out in results.items() if isinstance(out, pd.DataFrame)]
+    outputs = [(name, out) for name, out in results.items() 
+        if isinstance(out, pd.DataFrame) and not name.startswith('__')]
     {%- if instance.has_code and instance.enabled and instance.contains_sample %}
     size, infer, describe, use_types = {{ instance.sample_configuration.get_config() }}
     for name, out in outputs:
