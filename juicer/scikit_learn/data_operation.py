@@ -245,12 +245,17 @@ class DataReaderOperation(Operation):
         {%- elif parsed.scheme == 'file' %}
         f = open('{{parsed.path}}', 'rb')
         {%- endif %}
+        {%- if parsed.path.endswith('.gz') %}
+        compression = 'gzip'
+        {%- else %}
+        compression = 'infer'
+        {%- endif %}
 
         {%- if format == 'CSV' %}
         {{output}} = pd.read_csv(f, sep='{{sep}}',
                                  encoding='{{encoding}}',
                                  header={{header}},
-                                 compression='infer',
+                                 compression=compression,
                                  {%- if infer_from_limonero %}
                                  names={{names}},
                                  dtype=columns,
