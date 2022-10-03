@@ -144,9 +144,8 @@ class TokenizeOperation(Operation):
 
         def tokenizer(word):
             tokens=nltk.word_tokenize(word)
-            classes = nltk.pos_tag(tokens)
             
-            return classes
+            return tokens
         {out} = {input}
         alias = {alias}
         for i, attr in enumerate({attributes}):
