@@ -120,7 +120,7 @@ class TokenizeOperation(Operation):
 
         # Adjust alias in order to have the same number of aliases as attributes 
         # by filling missing alias with the attribute name suffixed by _pdf.
-        self.alias = [x[1] or '{}_tokens'.format(x[0]) for x 
+        self.alias = [x[1] or '{}_tokenize'.format(x[0]) for x 
                 in zip_longest(self.attributes, self.alias[:len(self.attributes)])] 
 
         self.output = self.named_outputs.get(
@@ -144,9 +144,8 @@ class TokenizeOperation(Operation):
 
         def tokenizer(word):
             tokens=nltk.word_tokenize(word)
-            classes = nltk.pos_tag(tokens)
             
-            return classes
+            return tokens
         {out} = {input}
         alias = {alias}
         for i, attr in enumerate({attributes}):
@@ -562,7 +561,7 @@ class PosTaggingOperation(Operation):
         code = """
         nltk.download('averaged_perceptron_tagger')
         def posTagging(sentence):
-            aux = eval(sentence)
+            aux = eval(str(sentence))
             return nltk.pos_tag(aux)
         {out} = {input}
         alias = {alias}
