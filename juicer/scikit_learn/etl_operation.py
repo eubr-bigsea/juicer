@@ -789,7 +789,7 @@ class JoinOperation(Operation):
                 code += """
             {out} = pd.merge({in1}, {in2}, how='{type}',
                     suffixes={suffixes},
-                    left_on=keys1, right_on=keys2)
+                    left_on=keys1, right_on=keys2).copy()
                  """.format(out=self.output, type=self.join_type,
                             in1=self.named_inputs['input data 1'],
                             in2=self.named_inputs['input data 2'],
