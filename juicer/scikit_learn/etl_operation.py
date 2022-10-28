@@ -634,14 +634,18 @@ class FilterOperation(Operation):
             input_data = self.named_inputs['input data']
             params = {'input': input_data}
 
+            copy_code = ".copy()" \
+                if self.parameters.get('multiplicity',
+                                       {}).get('input data', 1) > 1 else ""
             filters = [
                 "{0} {1} {2}".format(f['attribute'], f['f'],
                                        f.get('value', f.get('alias')))
                 for f in self.filter]
 
             code = """
-            {out} = {input}""".format(out=self.output,
-                                      input=self.named_inputs['input data'])
+            {out} = {input}{copy_code}""".format(out=self.output,
+                                      input=self.named_inputs['input data'],
+                                      copy_code=copy_code)
 
             expressions = []
             for i, expr in enumerate(self.advanced_filter):
