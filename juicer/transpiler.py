@@ -174,6 +174,7 @@ class Transpiler(object):
             if task_id not in graph.nodes:
                 continue
             task = graph.nodes[task_id]['attr_dict']
+
             task['parents'] = graph.nodes[task_id]['parents']
             self.current_task_id = task_id
 
@@ -257,7 +258,6 @@ class Transpiler(object):
             parameters['parents_by_port'] = port.get('parents_by_port', [])
             parameters['my_ports'] = port.get('my_ports', [])
 
-            # print task['name'], parameters['parents'] # port.get('parents', [])
             instance = class_name(parameters, port.get('named_inputs', {}),
                                   port.get('named_outputs', {}))
 
@@ -283,6 +283,7 @@ class Transpiler(object):
             q.enqueue(AUDITING_JOB_NAME, json.dumps(audit_events))
 
         # adding information about the parents's multiplicity
+
         for task_id in instances:
             instances[task_id].parameters['multiplicity'] = dict()
             for p_id in instances[task_id].parameters['task']['parents']:
@@ -402,6 +403,7 @@ class Transpiler(object):
                                     'parents_slug': [],
                                     'named_inputs': {},
                                     'named_outputs': {}}
+
             ports[target_id]['parents'].append(source_name)
             ports[target_id]['parents_slug'].append(source_slug)
             ports[target_id]['parents_by_port'].append(
@@ -417,23 +419,24 @@ class Transpiler(object):
                 source_port['outputs'].append(sequence)
 
             target_port = ports[target_id]
-            if sequence not in target_port['inputs']:
-                flow_name = flow['target_port_name']
-                # Test if multiple inputs connects to a port
-                # because it may have multiplicity MANY
-                if flow_name in target_port['named_inputs']:
-                    if not isinstance(
-                            target_port['named_inputs'][flow_name],
-                            list):
-                        target_port['named_inputs'][flow_name] = [
-                            target_port['named_inputs'][flow_name],
-                            sequence]
-                    else:
-                        target_port['named_inputs'][flow_name].append(
-                            sequence)
+
+            flow_name = flow['target_port_name']
+            # Test if multiple inputs connects to a port
+            # because it may have multiplicity MANY
+            if flow_name in target_port['named_inputs']:
+                if not isinstance(
+                        target_port['named_inputs'][flow_name],
+                        list):
+                    target_port['named_inputs'][flow_name] = [
+                        target_port['named_inputs'][flow_name],
+                        sequence]
                 else:
-                    target_port['named_inputs'][flow_name] = sequence
-                target_port['inputs'].append(sequence)
+                    target_port['named_inputs'][flow_name].append(
+                        sequence)
+            else:
+                target_port['named_inputs'][flow_name] = sequence
+            target_port['inputs'].append(sequence)
+
 
         sorted_tasks_ids = nx.topological_sort(graph) if topological_sort \
             else [t['id'] for t in sorted(workflow['tasks'], 
