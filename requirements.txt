@@ -14,7 +14,7 @@ backports.functools-lru-cache==1.5
 backports.weakref==1.0.post1
 bz2file==0.98
 cachetools==3.1.1
-certifi==2019.6.16
+certifi==2022.12.7
 cffi==1.12.3
 chardet==3.0.4
 configparser==3.8.1
