@@ -138,14 +138,14 @@ def test_function_implementation():
         ("month", "date", [], None),
         #("months_between", "sepalwidth", [], None),
         #("nanvl", "sepalwidth", [], None),
-        ("next_day", "date", ["TU"],
-            lambda row: row['next_day_new'] != row['date'] + \
-         datetime.timedelta(days=(1-row['date'].weekday()+7) % 7)
-         ),
-         ("next_day", "date", ["Sunday"],
-            lambda row: row['next_day_new'] != row['date'] + \
-         datetime.timedelta(days=(6-row['date'].weekday()+7) % 7)
-         ),
+        #("next_day", "date", ["TU"],
+        #    lambda row: row['next_day_new'] != row['date'] + \
+        # datetime.timedelta(days=(1-row['date'].weekday()+7) % 7)
+        # ),
+        # ("next_day", "date", ["Sunday"],
+        #    lambda row: row['next_day_new'] != row['date'] + \
+        # datetime.timedelta(days=(6-row['date'].weekday()+7) % 7)
+        # ),
         # Difficult
         #("posexplode", "sepalwidth", [], None),
         ("pow", "sepalwidth", [12], None),

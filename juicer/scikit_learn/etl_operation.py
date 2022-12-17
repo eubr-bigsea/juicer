@@ -978,18 +978,26 @@ class SelectOperation(Operation):
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
             self.cols = ','.join(['"{}"'.format(x)
                                   for x in self.attributes])
-        self.mode = parameters.get(self.MODE_PARAM, 'include')
+        else:
+            raise ValueError(
+                gettext("Parameter '{}' must be"
+                        " informed for task {}").format(
+                    self.ATTRIBUTES_PARAM, self.__class__))
+        self.mode = parameters.get(self.MODE_PARAM)
 
         self.output = self.named_outputs.get(
-            'output projected data', 'projection_data_{}'.format(self.order))
+            'output projected data', f'projection_data_{self.order}')
 
     def generate_code(self):
+        if not self.has_code:
+            return
+
         attributes = []
         aliases = []
         alias_dict = {}
         for attr in self.attributes:
             if self.mode is None: # legacy format, without alias
-                self.attributes.append(attr)
+                attributes.append(attr)
             else:
                 attribute_name = attr.get('attribute')
                 attributes.append(attribute_name)
@@ -999,7 +1007,7 @@ class SelectOperation(Operation):
                 alias_dict[attribute_name] = alias or attribute_name
         if self.has_code:
             return dedent(self.render_template(
-                {'op': {'attributes': attributes, 'aliases': aliases, 'mode': self.mode,
+                {'op': {'attributes': attributes, 'aliases': aliases, 'mode': self.mode or 'include',
                     'input': self.named_inputs['input data'], 'output': self.output, 
                     'alias_dict': alias_dict} }))
 
@@ -1028,7 +1036,7 @@ class SortOperation(Operation):
         self.ascending = []
 
         for v in [att['f'] for att in attributes]:
-            self.ascending.append(v != "desc")
+            self.ascending.append(v not in ("desc", "false"))
 
         self.has_code = len(self.named_inputs) == 1 and any(
             [len(self.named_outputs) >= 1, self.contains_results()])
@@ -1332,7 +1340,7 @@ class CastOperation(Operation):
         except ValueError as ve:
             msg = str(ve)
             if 'Unable to parse string' in msg:
-                expr = re.compile(r'.+string "(.+)" at position (\d+)')
+                expr = re.compile(r'.+string "(.+)" at position (\\d+)')
                 parts = expr.findall(msg)[0]
                 raise ValueError('{{errors.unable_to_parse}}'.format(*parts))
             else:
@@ -1373,7 +1381,7 @@ class CastOperation(Operation):
         return self.output
 
     def parse_date_format(self, fmt):
-        parts = re.split('([^\w\d"\'])', fmt)
+        parts = re.split(r'([^\w\d"\'])', fmt)
         py_fmt = ''.join([JAVA_2_PYTHON_DATE_FORMAT.get(x, x)
             for x in parts])
         return py_fmt
