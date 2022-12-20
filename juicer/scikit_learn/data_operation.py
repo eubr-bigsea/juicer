@@ -217,8 +217,6 @@ class DataReaderOperation(Operation):
              self.metadata.get('attributes'))
 
         self.template = """
-        import time
-        time.sleep(10)
         {%- if infer_from_limonero %}
         {%-   if attributes and format in ('TEXT', 'CSV') %}
         columns = {
