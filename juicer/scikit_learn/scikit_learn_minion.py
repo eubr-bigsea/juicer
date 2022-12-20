@@ -66,6 +66,9 @@ class ScikitLearnMinion(Minion):
 
         signal.signal(signal.SIGTERM, self._terminate)
 
+        log.info(_('Using redis %s and queue %s'),
+            config['juicer']['servers']['redis_url'],
+                         'job_output')
         self.mgr = socketio.RedisManager(
             config['juicer']['servers']['redis_url'],
             'job_output')
@@ -118,7 +121,7 @@ class ScikitLearnMinion(Minion):
             self._timeout_termination()
             return
         if msg is None:
-            return 
+            return
         msg_info = json.loads(msg)
 
         # Sanity check: this minion should not process messages from another
@@ -139,8 +142,10 @@ class ScikitLearnMinion(Minion):
         # Forward the message according to its purpose
         if msg_type == juicer_protocol.EXECUTE:
             self.active_messages += 1
-            log.info('Execute message received')
             job_id = msg_info['job_id']
+            job_type = msg_info.get('job_type', 'NORMAL')
+            log.info(
+                f'Execute message received with job_id={job_id} ({job_type})')
             workflow = msg_info['workflow']
 
             lang = workflow.get('locale', self.current_lang)
@@ -168,7 +173,13 @@ class ScikitLearnMinion(Minion):
 
             self.job_future = self._execute_future(job_id, workflow,
                                                    app_configs)
+            # Wait until execution ends
+            self.job_future.result()
             log.info(_('Execute message finished'))
+            if job_type == 'BATCH':
+                log.info(_('Job (id=%s) is finishing (type=BATCH)'), job_id)
+                self.terminate()
+
         elif msg_type == juicer_protocol.TERMINATE:
             job_id = msg_info.get('job_id', None)
             if job_id:
@@ -247,7 +258,7 @@ class ScikitLearnMinion(Minion):
             # if app_configs.get('auto_plug'):
             #    log.info('Auto-plugging ports')
             #    self._auto_plug(loader)
-                    
+
             loader.handle_variables({'job_id': job_id})
 
             # force the scikit-learn context creation
@@ -271,7 +282,7 @@ class ScikitLearnMinion(Minion):
 
             with codecs.open(generated_code_path, 'w', 'utf8') as out:
                 self.transpiler.transpile(
-                    loader.workflow, loader.graph, {}, out, job_id, 
+                    loader.workflow, loader.graph, {}, out, job_id,
                     persist=app_configs.get('persist', True))
 
             # Get rid of .pyc file if it exists
@@ -302,6 +313,7 @@ class ScikitLearnMinion(Minion):
                 name='update job',
                 message=_('Job finished in {0:.2f}s').format(end - start),
                 status='COMPLETED', identifier=job_id)
+            log.info(_('Sending COMPLETED status for the job %s to Stand'), job_id)
 
             # We update the state incrementally, i.e., new task results can be
             # overwritten but never lost.
@@ -484,7 +496,7 @@ class ScikitLearnMinion(Minion):
         self.state_control.unset_minion_status(self.app_id)
 
         self.self_terminate = False
-        log.info('Minion finished, pid = %s (%s)', 
+        log.info('Minion finished, pid = %s (%s)',
                 os.getpid(), multiprocessing.current_process().name)
         self.state_control.shutdown()
         sys.exit(0)

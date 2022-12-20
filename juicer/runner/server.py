@@ -161,13 +161,15 @@ class JuicerServer:
             workflow_id = str(msg_info['workflow_id'])
             app_id = str(msg_info['app_id'])
             job_id = str(msg_info.get('job_id', 0))
+            job_type = str(msg_info.get('job_type', 'NORMAL'))
+
             if msg_type in [juicer_protocol.EXECUTE, juicer_protocol.EXPORT]:
                 platform = msg_info['workflow'].get('platform', {}).get(
                     'slug', 'spark')
 
                 cluster = msg_info.get('cluster')
                 self._forward_to_minion(msg_type, workflow_id, app_id, job_id,
-                                        msg, platform, cluster)
+                                        msg, platform, cluster, job_type)
 
             elif msg_type == juicer_protocol.TERMINATE:
                 platform = msg_info.get('workflow', {}).get('platform', {}).get(
@@ -202,7 +204,7 @@ class JuicerServer:
                     app_id, json.dumps({'code': 500, 'message': str(ex)}))
 
     def _forward_to_minion(self, msg_type, workflow_id, app_id, job_id, msg,
-                           platform, cluster):
+                           platform, cluster, job_type='NORMAL'):
         # Get minion status, if it exists
         minion_info = self.state_control.get_minion_status(app_id)
         log.info(_('Minion status for (workflow_id=%s,app_id=%s): %s'),
@@ -211,16 +213,17 @@ class JuicerServer:
         # If there is status registered for the application then we do not
         # need to launch a minion for it, because it is already running.
         # Otherwise, we launch a new minion for the application.
-        if minion_info:
-            log.info(_('Minion (workflow_id=%s,app_id=%s) is running on %s.'),
-                     workflow_id, app_id, platform)
+        if minion_info and job_type != 'BATCH':
+            log.info(_('Minion (workflow_id=%s,app_id=%s,job_id=%s,type=%s) is running on %s.'),
+                     workflow_id, app_id, job_id, job_type, platform)
         else:
             # This is a special case when the minion timed out.
             # In this case we kill it before starting a new one
             active_minions = self.redis_conn.hgetall('active_minions')
-            if (workflow_id, app_id) in active_minions:
+            if (workflow_id, app_id) in active_minions and job_type != 'BATCH':
                 self._terminate_minion(workflow_id)
 
+            log.info('Start a new minion')
             minion_process = self._start_minion(
                 workflow_id, app_id, job_id, self.state_control, platform,
                 cluster=cluster)
@@ -228,7 +231,8 @@ class JuicerServer:
         # Forward the message to the minion, which can be an execute or a
         # deliver command
         self.state_control.push_app_queue(app_id, msg)
-        self.state_control.set_workflow_status(workflow_id, self.STARTED)
+        if job_type != 'BATCH':
+            self.state_control.set_workflow_status(workflow_id, self.STARTED)
 
         log.info(_('Message %s forwarded to minion (workflow_id=%s,app_id=%s)'),
                  msg_type, workflow_id, app_id)
@@ -239,8 +243,7 @@ class JuicerServer:
              'message': 'Minion is processing message %s' % msg_type}))
 
     def _start_minion(self, workflow_id, app_id, job_id, state_control,
-                      platform,
-                      restart=False, cluster=None):
+                      platform, restart=False, cluster=None):
 
         log.info('Cluster: %s', cluster)
         if cluster is None:
