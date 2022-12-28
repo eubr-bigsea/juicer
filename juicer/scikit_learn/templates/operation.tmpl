@@ -21,6 +21,7 @@ import time
 import unicodedata
 import numpy as np
 import modin.pandas as pd
+import polars as pl
 import functools
 import threading
 import nltk
@@ -33,22 +34,46 @@ from juicer.scikit_learn.model_operation import ModelsEvaluationResultList
 from juicer.spark.reports import *
 import traceback
 
-{% autopep8 %}
-
+{%- autopep8 %}
 {%- for imps in transpiler.imports %}
 {{imps}}
 {%- endfor %}
 
 {%- if transpiler.custom_functions %}
+
 # Custom functions
 {%- for code in transpiler.custom_functions.values() %}
-{{code}}
-{%- endfor -%}
+{{code.strip()}}
+{%- endfor %}
 # End custom functions
 {%- endif %}
 
 def sklearn_logging(msg):
     print(msg)
+
+
+def emit_task_running(task_id, sklearn_session, emit_event):
+    emit_event(name='update task', message=_('Task running'), status='RUNNING',
+               identifier=task_id)
+
+def emit_task_completed(task_id, sklearn_session, emit_event):
+    emit_event(name='update task', message=_('Task completed'),
+               status='COMPLETED', identifier=task_id)
+
+def get_results(_task_futures, task_id):
+    return _task_futures[task_id].result() if task_id in _task_futures else None
+
+def get_cached_state(task_id, cached_state, emit_event, spark_session,
+                     task_hash, verbosity=10):
+    results = None
+    if task_id in cached_state:
+        cached, _hash = cached_state.get(task_id)
+        if _hash == task_hash and verbosity >= 10:
+            emit_event(name='update task',
+                message=_('Task running (cached data)'), status='RUNNING',
+                identifier=task_id)
+            results = cached
+    return results
 
 executor = ThreadPoolExecutor(max_workers=3*{{instances|length}})
 submission_lock = threading.Lock()
@@ -73,8 +98,6 @@ def {{task.operation.slug.replace('-', '_')}}_{{instance.order}}(sklearn_session
     """
     task_id = '{{task_id}}'
     {%- if task.parents %}
-    {% set msg = dict_msgs['lemonade_task_afterbefore'].format(instance.parameters.task.parents, instance.parameters.task.id) %}
-    sklearn_logging("{{msg}}")
 
     # If the task's result is not cached, we submit its dependencies first
     {%- set parents = transpiler._get_parent_tasks(instances_by_task_id, instance) %}
@@ -118,7 +141,7 @@ def {{task.operation.slug.replace('-', '_')}}_{{instance.order}}(sklearn_session
     {%- endif %}
     if results is None:
         # --- Begin operation code ---- #
-        {{instance.generate_code().strip() | indent(width=8, indentfirst=False)}}
+        {{instance.generate_code().strip() | indent(width=8, first=False)}}
         # --- End operation code ---- #
         {%- if not plain %}
         {%- for gen_result in instance.get_generated_results() %}
@@ -147,7 +170,8 @@ def {{task.operation.slug.replace('-', '_')}}_{{instance.order}}(sklearn_session
     {%- if instance.has_code and instance.enabled and instance.contains_sample %}
     size, infer, describe, use_types = {{ instance.sample_configuration.get_config() }}
     for name, out in outputs:
-        dataframe_util.emit_sample_sklearn(task_id, out, emit_event, name, 
+        dataframe_util.emit_sample_sklearn(
+            task_id, out, emit_event, name, 
             size=size, infer=infer, describe=describe, use_types=use_types)
     {%- endif %}
     {%- if instance.has_code and instance.enabled and instance.contains_schema %}
@@ -168,29 +192,6 @@ def {{task.operation.slug.replace('-', '_')}}_{{instance.order}}(sklearn_session
 {%- endif %}
 {%- endhandleinstance %}
 {% endfor %}
-
-def emit_task_running(task_id, sklearn_session, emit_event):
-    emit_event(name='update task', message=_('Task running'), status='RUNNING',
-               identifier=task_id)
-
-def emit_task_completed(task_id, sklearn_session, emit_event):
-    emit_event(name='update task', message=_('Task completed'),
-               status='COMPLETED', identifier=task_id)
-
-def get_results(_task_futures, task_id):
-    return _task_futures[task_id].result() if task_id in _task_futures else None
-
-def get_cached_state(task_id, cached_state, emit_event, spark_session,
-                     task_hash, verbosity=10):
-    results = None
-    if task_id in cached_state:
-        cached, _hash = cached_state.get(task_id)
-        if _hash == task_hash and verbosity >= 10:
-            emit_event(name='update task',
-                message=_('Task running (cached data)'), status='RUNNING',
-                identifier=task_id)
-            results = cached
-    return results
 
 def main(sklearn_session, cached_state, emit_event):
     """ Run generated code """
