@@ -432,15 +432,16 @@ class Workflow(object):
     def _get_operations(self, workflow):
         """ Returns operations available in Tahiti """
         tahiti_conf = self.config['juicer']['services']['tahiti']
-        # ids = '&'.join([f"ids[]={t['operation']['id']}" for t in workflow['tasks']])
+
+        # Cannot use workflow id as filter because there is Meta plataform
+        ids = '&'.join([f"ids[]={t['operation']['id']}" for t in workflow['tasks']])
 
         params = {
             'base_url': tahiti_conf['url'],
             'item_path': 'operations',
             'token': str(tahiti_conf['auth_token']),
             'item_id': '',
-            'qs': f"lang={self.lang}&workflow={workflow['id']}"
-            #'qs': f'lang={self.lang}&{ids}'
+            'qs': f'lang={self.lang}&{ids}'
         }
 
         # Querying tahiti operations to get number of inputs and outputs
