@@ -26,7 +26,7 @@ matplotlib.set_loglevel("warning")
 logging.config.fileConfig('logging_config.ini')
 log = logging.getLogger(__name__)
 
-# locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
+# locale.setlocale(locale.LC_ALL, 'en.UTF-8')
 locales_path = os.path.join(os.path.dirname(__file__), '..', 'i18n', 'locales')
 
 if __name__ == '__main__':
@@ -40,7 +40,7 @@ if __name__ == '__main__':
     parser.add_argument("-t", "--type", help="Execution engine.",
                         required=False, default="spark")
     parser.add_argument("--lang", help="Minion messages language (i18n).",
-                        required=False, default="en_US")
+                        required=False, default="en")
     parser.add_argument("--jars", help="Add Java JAR files to class path.",
                         required=False)
 
