@@ -150,9 +150,11 @@ def _generate(workflow_id, job_id, execute_main, params, config, out=sys.stdout,
                     tahiti_conf, 0, resp, lang)
 
                 if transpiler.target_meta.get('slug') == 'spark':
+                    from juicer.spark.transpiler import SparkTranspiler
                     final_transpiler = SparkTranspiler(
                         configuration.get_config())
                 elif transpiler.target_meta.get('slug') == 'scikit-learn':
+                    from juicer.scikit_learn.transpiler import ScikitLearnTranspiler
                     final_transpiler = ScikitLearnTranspiler(
                         configuration.get_config())
                 else:
