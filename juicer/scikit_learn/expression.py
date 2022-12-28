@@ -27,15 +27,17 @@ JAVA_2_PYTHON_DATE_FORMAT = {
  
 
 class Expression:
-    def __init__(self, json_code, params):
+    def __init__(self, json_code, params, parse = True):
+        self.imports = ""
         self.code = json_code
         self.functions = {}
         self.imports_functions = {}
         self.translate_functions = {}
         self.build_functions_dict()
 
-        self.imports = ""
-        self.parsed_expression = "lambda row: " + self.parse(json_code, params)
+        if parse:
+            self.parsed_expression = "lambda row: " + self.parse(
+                json_code, params)
 
     def parse(self, tree, params):
 

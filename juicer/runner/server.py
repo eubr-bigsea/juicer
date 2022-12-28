@@ -523,7 +523,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("-c", "--config", help="Config file", required=True)
     parser.add_argument("--lang", help="Minion messages language (i18n)",
-                        required=False, default="en_US")
+                        required=False, default="en")
     args = parser.parse_args()
 
     t = gettext.translation('messages', locales_path, [args.lang],

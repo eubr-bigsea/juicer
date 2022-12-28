@@ -25,4 +25,5 @@ class AutoPep8Extension(Extension):
 
     @staticmethod
     def _format_support(caller):
-        return autopep8.fix_code(caller(), options={'aggressive': 1})
+        options = autopep8.parse_args(['--max-line-length', '81', '-'])
+        return autopep8.fix_code(caller(), options=options)

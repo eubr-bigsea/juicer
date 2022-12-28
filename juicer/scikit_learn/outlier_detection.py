@@ -62,7 +62,7 @@ class OutlierDetectionOperation(Operation):
             raise ValueError(
                 _("Parameter '{}' must be x>=0 and x<=0.5 for task {}").format(
                     self.CONTAMINATION_ATTRIBUTE_PARAM, self.__class__))
-        if self.metric is 'minkowski':
+        if self.metric == 'minkowski':
             if self.p <= 0:
                 raise ValueError(
                     _("Parameter '{}' must be x>0 for task {}").format(

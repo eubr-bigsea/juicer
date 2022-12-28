@@ -11,13 +11,8 @@ import sys
 
 import yaml
 from io import StringIO
-from juicer.compss.transpiler import COMPSsTranspiler
-from juicer.keras.transpiler import KerasTranspiler
 from juicer.runner import configuration
-from juicer.scikit_learn.transpiler import ScikitLearnTranspiler
-from juicer.meta.transpiler import MetaTranspiler
 from juicer.service.tahiti_service import query_tahiti
-from juicer.spark.transpiler import SparkTranspiler
 from juicer.workflow.workflow import Workflow
 import juicer.plugin.util as plugin_util
 
@@ -78,7 +73,7 @@ def _get_lookups(tahiti_conf, workflow_id, resp, lang):
 
 def _generate(workflow_id, job_id, execute_main, params, config, out=sys.stdout,
               deploy=False, export_notebook=False, plain=False,
-              custom_vars=None, lang='en', from_meta=False):
+              custom_vars=None, lang='en', from_meta=False, variant=None):
     log.debug(gettext(
         'Generating code for workflow %s, notebook=%s, plain=%s'),
         workflow_id,
@@ -94,6 +89,8 @@ def _generate(workflow_id, job_id, execute_main, params, config, out=sys.stdout,
 
     loader = Workflow(resp, config, lang=lang)
     loader.handle_variables(custom_vars)
+    if variant is not None:
+        config['variant'] = variant
 
     configuration.set_config(config)
 
@@ -101,13 +98,18 @@ def _generate(workflow_id, job_id, execute_main, params, config, out=sys.stdout,
         tahiti_conf, workflow_id, resp, lang)
     try:
         if loader.platform['slug'] == "spark":
+            from juicer.spark.transpiler import SparkTranspiler
+
             transpiler = SparkTranspiler(configuration.get_config(),
                                          slug_to_op_id, port_id_to_port)
         elif loader.platform['slug'] == "compss":
+            from juicer.compss.transpiler import COMPSsTranspiler
             transpiler = COMPSsTranspiler(configuration.get_config())
         elif loader.platform['slug'] == "scikit-learn":
+            from juicer.scikit_learn.transpiler import ScikitLearnTranspiler
             transpiler = ScikitLearnTranspiler(configuration.get_config())
         elif loader.platform['slug'] == 'keras':
+            from juicer.keras.transpiler import KerasTranspiler
             transpiler = KerasTranspiler(configuration.get_config())
         elif loader.platform.get('plugin'):
             plugin_factories = plugin_util.prepare_and_get_plugin_factory(
@@ -115,6 +117,7 @@ def _generate(workflow_id, job_id, execute_main, params, config, out=sys.stdout,
             factory = plugin_factories.get(loader.platform['id'])
             transpiler = factory.get_transpiler(configuration.get_config())
         elif loader.platform['slug'] == 'meta':
+            from juicer.meta.transpiler import MetaTranspiler
             transpiler = MetaTranspiler(configuration.get_config())
         else:
             raise ValueError(
@@ -198,10 +201,12 @@ if __name__ == "__main__":
                         help="Convert from Meta Plataform")
 
     parser.add_argument("--lang", help="Minion messages language (i18n)",
-                        required=False, default="en_US")
+                        required=False, default="en")
     parser.add_argument("--vars",
                         help="Path to a YAML file with the extra variables",
                         required=False)
+    parser.add_argument("-v", "--variant", type=str, required=False,
+                        help="Variant used to code generation in platform")
     parser.add_argument(
         "-p", "--plain", required=False, action="store_true",
         help="Indicates if workflow should be plain Python, "
@@ -228,4 +233,5 @@ if __name__ == "__main__":
               {"plain": args.plain},
               config=juicer_config, deploy=args.deploy,
               export_notebook=args.notebook, plain=args.plain,
-              custom_vars=custom_vars, lang=args.lang, from_meta=args.meta)
+              custom_vars=custom_vars, lang=args.lang, from_meta=args.meta,
+              variant=args.variant)

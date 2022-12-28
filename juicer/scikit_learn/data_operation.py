@@ -131,7 +131,7 @@ class DataReaderOperation(Operation):
                                            self.INFER_FROM_LIMONERO)
         self.mode = parameters.get(self.MODE_PARAM, 'FAILFAST')
 
-    def analyse_attributes(self, attrs):
+    def analyse_attributes(self, mapping, attrs):
         attributes = None
         converters = None
         parse_dates = None
@@ -149,7 +149,7 @@ class DataReaderOperation(Operation):
                 # elif attr['type'] == 'DECIMAL':
                     #    converters[attr['name']] = 'decimal.Decimal'
         
-                data_type = self.LIMONERO_TO_PANDAS_DATA_TYPES[attr['type']]
+                data_type = mapping[attr['type']]
                 attributes.append([attr['name'], data_type])
 
                 # Metadata is not supported in scikit-learn
@@ -214,6 +214,7 @@ class DataReaderOperation(Operation):
         self.header = self.metadata.get('is_first_line_header')
 
         attributes, converters, parse_dates, names = self.analyse_attributes(
+             self.LIMONERO_TO_PANDAS_DATA_TYPES, 
              self.metadata.get('attributes'))
 
         self.template = """
