@@ -80,9 +80,11 @@ def {{task.operation.slug.replace('-', '_')}}_{{instance.order}}(sklearn_session
     {%- set parents = transpiler._get_parent_tasks(instances_by_task_id, instance) %}
     {%- for parent_id, method in parents %}
     parent_id = '{{parent_id}}'
+    submission_lock.acquire()
     if parent_id not in task_futures:
         task_futures[parent_id] = executor.submit(
                 lambda: {{method}}(sklearn_session, cached_state, emit_event))
+    submission_lock.release()
     {%- endfor %}
     {%- endif %}
 
@@ -127,6 +129,7 @@ def {{task.operation.slug.replace('-', '_')}}_{{instance.order}}(sklearn_session
         {%- endif %}
 
         results = {
+            'execution_date': datetime.datetime.utcnow(),
             'task_name': '{{task.name}}',
           {%- set is_leaf = instance.out_degree == 0 %}
           {%- for port_name, out in zip(task.port_names, instance.get_output_names(',').split(',')) %}
