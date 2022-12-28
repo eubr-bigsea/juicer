@@ -98,7 +98,7 @@ if __name__ == "__main__":
                         help="Generate Jupyter Notebook")
 
     parser.add_argument("--lang", help="Minion messages language (i18n)",
-                        required=False, default="en_US")
+                        required=False, default="en")
     parser.add_argument("--vars", help="Add variables", required=False)
     parser.add_argument(
         "-p", "--plain", required=False, action="store_true",

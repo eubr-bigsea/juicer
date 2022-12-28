@@ -20,6 +20,9 @@ import juicer.scikit_learn.outlier_detection as lof
 import juicer.scikit_learn.stat_operation as stat_operation
 import juicer.scikit_learn.nlp_operation as nlp_operation
 
+import juicer.scikit_learn.polars.data_operation as polars_io
+import juicer.scikit_learn.polars.etl_operation as polars_etl
+
 # noinspection SpellCheckingInspection
 class ScikitLearnTranspiler(Transpiler):
     """
@@ -32,7 +35,10 @@ class ScikitLearnTranspiler(Transpiler):
             configuration, os.path.abspath(os.path.dirname(__file__)),
             slug_to_op_id, port_id_to_port)
 
-        self._assign_operations()
+        if configuration.get('variant') == 'polars':
+            self._assign_polars_operations()
+        else:
+            self._assign_operations()
 
     def get_context(self):
         dict_msgs = {
@@ -45,6 +51,42 @@ class ScikitLearnTranspiler(Transpiler):
                 "Submitting parent task {} before {}")}
 
         return {'dict_msgs': dict_msgs}
+
+    def _assign_polars_operations(self):
+        data_ops = {
+            'data-reader': polars_io.DataReaderOperation,
+            'data-writer': polars_io.SaveOperation,
+            'save': polars_io.SaveOperation,
+        }
+        etl_ops = {
+            'add-columns': polars_etl.AddColumnsOperation,
+            'add-rows': polars_etl.UnionOperation,
+            'aggregation': polars_etl.AggregationOperation,  # TODO: agg sem groupby
+            'cast': polars_etl.CastOperation,
+            'clean-missing': polars_etl.CleanMissingOperation,
+            'difference': polars_etl.DifferenceOperation,
+            'drop': polars_etl.DropOperation,
+            'execute-python': polars_etl.ExecutePythonOperation,
+            'execute-sql': polars_etl.ExecuteSQLOperation,
+            'filter-selection': polars_etl.FilterOperation,
+            'join': polars_etl.JoinOperation,
+            'k-fold': polars_etl.SplitKFoldOperation,
+            'locality-sensitive-hashing': feature_extraction.LSHOperation,
+            'projection': polars_etl.SelectOperation,
+            'remove-duplicated-rows': polars_etl.DistinctOperation,
+            'replace-value': polars_etl.ReplaceValuesOperation,
+            'sample': polars_etl.SampleOrPartitionOperation,
+            'set-intersection': polars_etl.IntersectionOperation,
+            'sort': polars_etl.SortOperation,
+            'split': polars_etl.SplitOperation,
+            'transformation': polars_etl.TransformationOperation,
+            # TODO in 'transformation': test others functions
+            'rename-attr': polars_etl.RenameAttrOperation,
+        }
+
+        self.operations = {}
+        for ops in [data_ops, etl_ops]:
+            self.operations.update(ops)
 
     def _assign_operations(self):
         etl_ops = {

@@ -319,10 +319,14 @@ class Transpiler(object):
 
         template_loader = jinja2.FileSystemLoader(
             searchpath=self.template_dir)
+        # precompiled_loader = jinja2.ModuleLoader('/tmp/jinja2.zip')
         template_env = jinja2.Environment(loader=template_loader,
                                           extensions=[AutoPep8Extension,
                                                       HandleExceptionExtension,
                                                       'jinja2.ext.do'])
+        #import pdb; pdb.set_trace()
+        #template_env.compile_templates('/tmp/jinja2.zip', 
+        #    filter_func=lambda name: name.endswith('.tmpl'))
         template_env.globals.update(zip=zip)
 
         if deploy:
@@ -607,7 +611,10 @@ class TranspilerUtils(object):
         """ Add an import to the generated code. More than one operation may add
         the same import. This method handles it, by removing duplicates.
         """
-        self.imports.add(name)
+        if isinstance(name, list):
+            self.imports.extend(name)
+        else:
+            self.imports.add(name)
 
     def add_custom_function(self, name, f):
         """ Add a custom function to the generated code. More than one operation
