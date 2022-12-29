@@ -84,9 +84,11 @@ class ScikitLearnTranspiler(Transpiler):
             'rename-attr': polars_etl.RenameAttrOperation,
         }
 
+
         self.operations = {}
         for ops in [data_ops, etl_ops]:
             self.operations.update(ops)
+        self._assign_common_operations()
 
     def _assign_operations(self):
         etl_ops = {
@@ -121,7 +123,12 @@ class ScikitLearnTranspiler(Transpiler):
             'save': io.SaveOperation,
             # 'change-attribute': io.ChangeAttributesOperation,
         }
+        self.operations = {}
+        for ops in [data_ops, etl_ops]:
+            self.operations.update(ops)
+        self._assign_common_operations()
 
+    def _assign_common_operations(self):
         geo_ops = {
             'read-shapefile': geo.ReadShapefileOperation,
             'stdbscan': geo.STDBSCANOperation,
@@ -248,7 +255,6 @@ class ScikitLearnTranspiler(Transpiler):
             'map': vis_operation.MapOperation
         }
 
-        self.operations = {}
-        for ops in [data_ops, etl_ops, geo_ops, ml_ops, nlp_ops,
+        for ops in [geo_ops, ml_ops, nlp_ops,
                     text_ops, ws_ops, statistical_ops, vis_ops]:
             self.operations.update(ops)

@@ -59,7 +59,8 @@ class ScikitLearnMinion(Minion):
         self.config = config
 
         self.transpiler = ScikitLearnTranspiler(config)
-        configuration.set_config(self.config)
+        # FIXME unused
+        # configuration.set_config(self.config)
 
         self.tmp_dir = self.config.get('config', {}).get('tmp_dir', '/tmp')
         sys.path.append(self.tmp_dir)
@@ -87,8 +88,6 @@ class ScikitLearnMinion(Minion):
     def _emit_event(self, room, namespace):
         def emit_event(name, message, status, identifier, **kwargs):
             log.debug(_('Emit %s %s %s %s'), name, message, status,
-                      identifier)
-            print(_('Emit %s %s %s %s') % name, message, status,
                       identifier)
             data = {'message': message, 'status': status, 'id': identifier}
             data.update(kwargs)
