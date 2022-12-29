@@ -623,6 +623,9 @@ class TranspilerUtils(object):
         code = inspect.getsource(f)
         self.custom_functions[name] = dedent(code)
 
+    def get_app_config(self, key: str) -> any:
+        return self.transpiler.configuration.get('app_configs', {}).get(key)
+
     def __unicode__(self):
         return 'TranspilerUtils object'
 
