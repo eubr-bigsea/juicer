@@ -102,9 +102,11 @@ class ScikitLearnTranspiler(Transpiler):
             'locality-sensitive-hashing': polars_feature.LSHOperation,
         }
 
+
         self.operations = {}
         for ops in [data_ops, etl_ops, feature]:
             self.operations.update(ops)
+        self._assign_common_operations()
 
     def _assign_operations(self):
         etl_ops = {
@@ -139,7 +141,12 @@ class ScikitLearnTranspiler(Transpiler):
             'save': io.SaveOperation,
             # 'change-attribute': io.ChangeAttributesOperation,
         }
+        self.operations = {}
+        for ops in [data_ops, etl_ops]:
+            self.operations.update(ops)
+        self._assign_common_operations()
 
+    def _assign_common_operations(self):
         geo_ops = {
             'read-shapefile': geo.ReadShapefileOperation,
             'stdbscan': geo.STDBSCANOperation,
@@ -252,24 +259,6 @@ class ScikitLearnTranspiler(Transpiler):
             'map': vis_operation.MapOperation
         }
 
-        feature = {
-            # ------ Feature Extraction Operations  ------#
-            'feature-assembler': feature_extraction.FeatureAssemblerOperation,
-            'feature-disassembler':
-                feature_extraction.FeatureDisassemblerOperation,
-            'min-max-scaler': feature_extraction.MinMaxScalerOperation,
-            'max-abs-scaler': feature_extraction.MaxAbsScalerOperation,
-            'one-hot-encoder': feature_extraction.OneHotEncoderOperation,
-            'pca': feature_extraction.PCAOperation,
-            'kbins-discretizer':
-                feature_extraction.KBinsDiscretizerOperation,
-            'standard-scaler': feature_extraction.StandardScalerOperation,
-            'feature-indexer': feature_extraction.StringIndexerOperation,
-            'string-indexer': feature_extraction.StringIndexerOperation,
-            'locality-sensitive-hashing': feature_extraction.LSHOperation,
-        }
-
-        self.operations = {}
-        for ops in [data_ops, feature, etl_ops, geo_ops, ml_ops, nlp_ops,
+        for ops in [geo_ops, ml_ops, nlp_ops,
                     text_ops, ws_ops, statistical_ops, vis_ops]:
             self.operations.update(ops)

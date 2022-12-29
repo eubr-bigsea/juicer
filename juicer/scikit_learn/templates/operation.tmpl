@@ -5,6 +5,7 @@ Auto-generated Scikit-Learn code from Lemonade Workflow
 (c) Speed Labs - Departamento de Ciência da Computação
     Universidade Federal de Minas Gerais
 More information about Lemonade to be provided
+
 """
 
 import datetime
@@ -170,7 +171,11 @@ def {{task.operation.slug.replace('-', '_')}}_{{instance.order}}(sklearn_session
     {%- if instance.has_code and instance.enabled and instance.contains_sample %}
     size, infer, describe, use_types = {{ instance.sample_configuration.get_config() }}
     for name, out in outputs:
+        {%- if transpiler.get_app_config('meta_platform') %}
+        dataframe_util.emit_sample_sklearn_explorer(
+        {%- else %}
         dataframe_util.emit_sample_sklearn(
+        {%- endif %}
             task_id, out, emit_event, name, 
             size=size, infer=infer, describe=describe, use_types=use_types)
     {%- endif %}
