@@ -10,9 +10,9 @@ import polars as pl
 from six import text_type
 
 import juicer.scikit_learn.expression as sk_expression
+from juicer.scikit_learn.util import (levenshtein, soundex, strip_accents,
+                                      to_json)
 from juicer.util import group
-from juicer.scikit_learn.util import (to_json, soundex, levenshtein, 
-    strip_accents)
 
 
 @dataclass
@@ -605,7 +605,8 @@ class Expression(sk_expression.Expression):
 
 
             SF('regexp_extract', (any, str, int), lambda s, p:
-                self._series_method_call(s, p, 'str.extract')),
+                f"{self._arg(s, p, 0)}.str.extract(r{self._arg(s, p, 1)})"
+            ),
             SF('regexp_replace', (any, str, str), lambda s, p:
                 self._series_method_call(s, p, 'str.replace_all')),
 
@@ -648,8 +649,10 @@ class Expression(sk_expression.Expression):
                 s, p, fn = f"lambda x: x * {self._arg(s, p, 1)}")
             ),
 
-            # strip_accents
-
+            # Data Explorer
+            SF('isnotnull', (any, ), 
+                lambda s, p: self._series_method_call(s, p, 'is_not_null'),
+            ),
         ]
         # 'bround',
         # create_map',

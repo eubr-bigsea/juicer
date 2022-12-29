@@ -22,8 +22,11 @@ import juicer.scikit_learn.nlp_operation as nlp_operation
 
 import juicer.scikit_learn.polars.data_operation as polars_io
 import juicer.scikit_learn.polars.etl_operation as polars_etl
+import juicer.scikit_learn.polars.feature_operation as polars_feature
 
 # noinspection SpellCheckingInspection
+
+
 class ScikitLearnTranspiler(Transpiler):
     """
     Convert Lemonade workflow representation (JSON) into code to be run in
@@ -71,7 +74,6 @@ class ScikitLearnTranspiler(Transpiler):
             'filter-selection': polars_etl.FilterOperation,
             'join': polars_etl.JoinOperation,
             'k-fold': polars_etl.SplitKFoldOperation,
-            'locality-sensitive-hashing': feature_extraction.LSHOperation,
             'projection': polars_etl.SelectOperation,
             'remove-duplicated-rows': polars_etl.DistinctOperation,
             'replace-value': polars_etl.ReplaceValuesOperation,
@@ -83,9 +85,25 @@ class ScikitLearnTranspiler(Transpiler):
             # TODO in 'transformation': test others functions
             'rename-attr': polars_etl.RenameAttrOperation,
         }
+        feature = {
+            # ------ Feature Extraction Operations  ------#
+            'feature-assembler': polars_feature.FeatureAssemblerOperation,
+            'feature-disassembler':
+                polars_feature.FeatureDisassemblerOperation,
+            'min-max-scaler': polars_feature.MinMaxScalerOperation,
+            'max-abs-scaler': polars_feature.MaxAbsScalerOperation,
+            'one-hot-encoder': polars_feature.OneHotEncoderOperation,
+            'pca': polars_feature.PCAOperation,
+            'kbins-discretizer':
+                polars_feature.KBinsDiscretizerOperation,
+            'standard-scaler': polars_feature.StandardScalerOperation,
+            'feature-indexer': polars_feature.StringIndexerOperation,
+            'string-indexer': polars_feature.StringIndexerOperation,
+            'locality-sensitive-hashing': polars_feature.LSHOperation,
+        }
 
         self.operations = {}
-        for ops in [data_ops, etl_ops]:
+        for ops in [data_ops, etl_ops, feature]:
             self.operations.update(ops)
 
     def _assign_operations(self):
@@ -134,20 +152,6 @@ class ScikitLearnTranspiler(Transpiler):
             'association-rules': associative.AssociationRulesOperation,
             'frequent-item-set': associative.FrequentItemSetOperation,
             'sequence-mining': associative.SequenceMiningOperation,
-
-            # ------ Feature Extraction Operations  ------#
-            'feature-assembler': feature_extraction.FeatureAssemblerOperation,
-            'feature-disassembler':
-                feature_extraction.FeatureDisassemblerOperation,
-            'min-max-scaler': feature_extraction.MinMaxScalerOperation,
-            'max-abs-scaler': feature_extraction.MaxAbsScalerOperation,
-            'one-hot-encoder': feature_extraction.OneHotEncoderOperation,
-            'pca': feature_extraction.PCAOperation,
-            'kbins-discretizer':
-                feature_extraction.KBinsDiscretizerOperation,
-            'standard-scaler': feature_extraction.StandardScalerOperation,
-            'feature-indexer': feature_extraction.StringIndexerOperation,
-            'string-indexer': feature_extraction.StringIndexerOperation,
 
             # ------ Model Operations  ------#
             'apply-model': model.ApplyModelOperation,
@@ -248,7 +252,24 @@ class ScikitLearnTranspiler(Transpiler):
             'map': vis_operation.MapOperation
         }
 
+        feature = {
+            # ------ Feature Extraction Operations  ------#
+            'feature-assembler': feature_extraction.FeatureAssemblerOperation,
+            'feature-disassembler':
+                feature_extraction.FeatureDisassemblerOperation,
+            'min-max-scaler': feature_extraction.MinMaxScalerOperation,
+            'max-abs-scaler': feature_extraction.MaxAbsScalerOperation,
+            'one-hot-encoder': feature_extraction.OneHotEncoderOperation,
+            'pca': feature_extraction.PCAOperation,
+            'kbins-discretizer':
+                feature_extraction.KBinsDiscretizerOperation,
+            'standard-scaler': feature_extraction.StandardScalerOperation,
+            'feature-indexer': feature_extraction.StringIndexerOperation,
+            'string-indexer': feature_extraction.StringIndexerOperation,
+            'locality-sensitive-hashing': feature_extraction.LSHOperation,
+        }
+
         self.operations = {}
-        for ops in [data_ops, etl_ops, geo_ops, ml_ops, nlp_ops,
+        for ops in [data_ops, feature, etl_ops, geo_ops, ml_ops, nlp_ops,
                     text_ops, ws_ops, statistical_ops, vis_ops]:
             self.operations.update(ops)
