@@ -611,8 +611,8 @@ class TranspilerUtils(object):
         """ Add an import to the generated code. More than one operation may add
         the same import. This method handles it, by removing duplicates.
         """
-        if isinstance(name, list):
-            self.imports.extend(name)
+        if isinstance(name, (list, set)):
+            self.imports.update(set(name))
         else:
             self.imports.add(name)
 

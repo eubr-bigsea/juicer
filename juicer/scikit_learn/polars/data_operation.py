@@ -135,7 +135,7 @@ class DataReaderOperation(sk.DataReaderOperation):
             dtype='str',
             {%-   endif %}
             null_values={{na_values}},
-            #ignore_parser_errors=False
+            ignore_errors=True
             ).lazy()
         {%- if parsed.scheme == 'hdfs'  %}
         f.close()

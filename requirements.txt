@@ -29,6 +29,7 @@ docutils==0.15.2
 dummyrdd==0.1.2
 enum34==1.1.6
 eventlet==0.31.0
+datasketch==1.5.7
 Faker==2.0.1
 funcsigs==1.0.2
 funcy==1.13

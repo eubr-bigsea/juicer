@@ -43,7 +43,7 @@ def get_label_data(df, label):
 
     # Validating multiple columns on label
     if len(label) > 1:
-        raise ValueError(gettex('Label must be a single column of dataset'))
+        raise ValueError(gettext('Label must be a single column of dataset'))
 
     # Validating OneHotEncode data existence
     if isinstance(df[label[0]].iloc[0], list):

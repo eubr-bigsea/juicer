@@ -93,40 +93,33 @@ class CastOperation(Operation):
     """
 
     template = """
-        # Changing type implies changes in dataframe,
-        # better do a copy of original one
-        {{op.output}} = {{op.input}}.copy()
         try:
+            {{op.output}} = {{op.input}}.select([
+                pl.exclude(
+                {%- for attr in op.attributes %}'{{attr.attribute}}',
+                {%- endfor %}),
         {%- for attr in op.attributes %}
-            {{op.output}}['{{attr.attribute}}'] =
-            {%- if attr.type == 'Integer' -%}
-                pd.to_numeric(
-                    {{op.output}}['{{attr.attribute}}'], errors='{{op.panda_errors}}').astype(int)
-            {%- elif attr.type == 'Decimal' -%}
-                pd.to_numeric(
-                    {{op.output}}['{{attr.attribute}}'], errors='{{op.panda_errors}}')
-            {%- elif attr.type == 'Boolean' -%}
-                {{op.output}}['{{attr.attribute}}'].astype('bool')
-            {%- elif attr.type in ('Date', 'DateTime', 'Datetime', 'Time') -%}
-                pd.to_datetime(
-                    {{op.output}}['{{attr.attribute}}'], errors='{{op.panda_errors}}',
-                    format='{{attr.formats}}')
-            {%- elif attr.type == 'Text' -%}
-                {{op.output}}['{{attr.attribute}}'].astype(str)
-            {%- elif attr.type == 'Array' -%}
-                {{op.output}}['{{attr.attribute}}'].apply(lambda v: [v])
-            {%- elif attr.type == 'JSON' -%}
-                {{op.output}}['{{attr.attribute}}']
+            {%- if attr.type == 'Integer' %}
+                pl.col('{{attr.attribute}}').cast(pl.Int64, strict=False)
+            {%- elif attr.type == 'Decimal' %}
+                pl.col('{{attr.attribute}}').cast(pl.Float64, strict=False)
+            {%- elif attr.type == 'Boolean' %}
+                pl.col('{{attr.attribute}}').cast(pl.Boolean, strict=False)
+            {%- elif attr.type == 'Date' %}
+                pl.col('{{attr.attribute}}').cast(pl.Date, strict=False)
+            {%- elif attr.type in ('DateTime', 'Datetime') %}
+                pl.col('{{attr.attribute}}').cast(pl.Datetime, strict=False)
+            {%- elif attr.type in ('Time', ) %}
+                pl.col('{{attr.attribute}}').cast(pl.Time, strict=False)
+            {%- elif attr.type == 'Text' %}
+                pl.col('{{attr.attribute}}').cast(pl.Utf8)
+            {%- elif attr.type == 'Array' %}
+                pl.col('{{attr.attribute}}').apply(lambda x: [x])
+            {%- elif attr.type == 'JSON' %}
+                pl.col('{{attr.attribute}}').apply(to_json)
             {%-endif %}
-            {%- if op.errors == 'move' %}
-                # Copy invalid data to a new attribute
-                # Invalid output rows have NaN in cells, but not in input.
-                s = ({{op.input}}['{{attr.attribute}}'].notnull() != {{op.output}}['{{attr.attribute}}'].notnull())
-                {{op.output}}.loc[s, '{{op.invalid_values}}'] = {{op.input}}['{{attr.attribute}}']
-        {%- endif %}
         {%- endfor %}
-        except pd.errors.IntCastingNaNError:
-            raise ValueError('{{errors.NaN_2_int}}')
+            ])
         except ValueError as ve:
             msg = str(ve)
             if 'Unable to parse string' in msg:
@@ -135,6 +128,14 @@ class CastOperation(Operation):
                 raise ValueError('{{errors.unable_to_parse}}'.format(*parts))
             else:
                 raise
+    {%- if op.errors == 'move' %}
+        {%- for attr in op.attributes %}
+        # Copy invalid data to a new attribute
+        # Invalid output rows have NaN in cells, but not in input.
+        #s = ({{op.input}}['{{attr.attribute}}'].notnull() != {{op.output}}['{{attr.attribute}}'].notnull())
+        #{{op.output}}.loc[s, '{{op.invalid_values}}'] = {{op.input}}['{{attr.attribute}}']
+        {%- endfor %}
+    {%- endif %}
     """
     ATTRIBUTES_PARAM = 'cast_attributes'
     ERROR_PARAM = 'errors'
@@ -595,9 +596,9 @@ class FilterOperation(Operation):
             params = {'input': input_data}
 
             expressions = []
+            expression = Expression(None, params)
             for expr in self.advanced_filter:
-                expression = Expression(expr['tree'], params)
-                expressions.append(expression.parsed_expression)
+                expressions.append(expression.parse(expr['tree'], params))
                 self.transpiler_utils.add_import(expression.imports)
 
             ctx = {
