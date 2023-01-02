@@ -88,8 +88,6 @@ class ScikitLearnMinion(Minion):
         def emit_event(name, message, status, identifier, **kwargs):
             log.debug(_('Emit %s %s %s %s'), name, message, status,
                       identifier)
-            print(_('Emit %s %s %s %s') % name, message, status,
-                      identifier)
             data = {'message': message, 'status': status, 'id': identifier}
             data.update(kwargs)
             self.mgr.emit(name, data=data, room=str(room), namespace=namespace)
