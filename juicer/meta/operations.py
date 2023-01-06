@@ -200,8 +200,10 @@ class TransformOperation(MetaPlatformOperation):
     number_re = r'([\d]+[.,\d]+|[\d]*[.][\d]+|[\d]+)'
     array_index_re = re.compile(r'(?:\D*?)(-?\d+)(?:\D?)')
     SLUG_TO_EXPR = {
-        'extract-numbers': {'f': 'regexp_extract', 'args': [number_re, 1],
-                            'transform': [str, None]},
+        #'extract-numbers': {'f': 'regexp_extract', 'args': [number_re, 1],
+        #                    'transform': [str, None]},
+        'extract-numbers': {'f': 'extract_numbers', 'args': [],
+                            'transform': []},
         'extract-with-regex': {'f': 'regexp_extract', 'args': ['{regex}'],
                                'transform': [str]},
         'replace-with-regex': {'f': 'regexp_replace', 'args': ['{regex}', '{replace}'],
