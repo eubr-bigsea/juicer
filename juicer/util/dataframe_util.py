@@ -103,6 +103,15 @@ class SimpleJsonEncoderSklearn(simplejson.JSONEncoder):
             return obj.isoformat()
         return default_encoder_sklearn(obj)
 
+class CustomEncoderSkLearn(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, decimal.Decimal):
+            return str(obj)
+        elif isinstance(obj, datetime.datetime):
+            return obj.isoformat()
+        elif isinstance(obj, set):
+            return default_encoder(list(obj))
+        return default_encoder_sklearn(obj)
 
 class CustomEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -490,7 +499,7 @@ def emit_sample_sklearn(task_id, df, emit_event, name, size=50, notebook=False,
                     [str(x) if isinstance(x, number_types)
                      else "'{}'".format(x) for x in col]) + ']'
             else:
-                value = json.dumps(col, cls=CustomEncoder)
+                value = json.dumps(col, cls=CustomEncoderSkLearn)
             # truncate column if size is bigger than 200 chars.
             if len(value) > 200:
                 value = value[:150] + ' ... ' + value[-50:]
