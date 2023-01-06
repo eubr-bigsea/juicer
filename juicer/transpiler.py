@@ -10,8 +10,10 @@ import jinja2
 import json
 import logging
 import networkx as nx
+import os
 import redis
 import sys
+import tempfile
 import uuid
 from collections import OrderedDict
 from rq import Queue
@@ -317,16 +319,30 @@ class Transpiler(object):
         }
         env_setup.update(self.get_context())
 
+        #import pdb; pdb.set_trace()
+
+        compiled_tmpl_dir = os.path.join(tempfile.gettempdir(), 'juicer')
+        os.makedirs(compiled_tmpl_dir, exist_ok=True)
         template_loader = jinja2.FileSystemLoader(
             searchpath=self.template_dir)
-        # precompiled_loader = jinja2.ModuleLoader('/tmp/jinja2.zip')
+        precompiled_loader = jinja2.ModuleLoader(compiled_tmpl_dir)
+        loader = jinja2.ChoiceLoader([
+            precompiled_loader,
+            template_loader
+        ])
         template_env = jinja2.Environment(loader=template_loader,
                                           extensions=[AutoPep8Extension,
                                                       HandleExceptionExtension,
                                                       'jinja2.ext.do'])
-        #import pdb; pdb.set_trace()
-        #template_env.compile_templates('/tmp/jinja2.zip', 
-        #    filter_func=lambda name: name.endswith('.tmpl'))
+        # import pdb; pdb.set_trace()
+        # if (os.path.getmtime(self.template_dir) > 
+        #                 os.path.getmtime(compiled_tmpl_dir)):
+        #     template_env.compile_templates(compiled_tmpl_dir, 
+        #         filter_func=lambda name: name.endswith('.tmpl'), zip=None, 
+        #         ignore_errors=False)
+
+        template_env.loader = loader
+
         template_env.globals.update(zip=zip)
 
         if deploy:

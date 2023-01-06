@@ -5,7 +5,14 @@ Auto-generated Scikit-Learn code from Lemonade Workflow
 (c) Speed Labs - Departamento de Ciência da Computação
     Universidade Federal de Minas Gerais
 More information about Lemonade to be provided
-
+{%- if transpiler.transpiler.variant == 'duckdb' %}
+{%- set duckdb = True %}
+{%- elif transpiler.transpiler.variant == 'polars' %}
+{%- set polars = True %}
+{%- else %}
+{%- set pandas = True %}
+{%- endif %}
+Variant: {{transpiler.transpiler.variant}}
 """
 
 import datetime
@@ -26,6 +33,7 @@ import polars as pl
 import functools
 import threading
 import nltk
+from gettext import gettext
 from nltk.stem import SnowballStemmer, WordNetLemmatizer
 from wordsegment import load, segment
 from concurrent.futures import ThreadPoolExecutor
@@ -39,7 +47,9 @@ import traceback
 {%- for imps in transpiler.imports %}
 {{imps}}
 {%- endfor %}
-
+{%- if duckdb %}
+con = duckdb.connect()
+{%- endif %}
 {%- if transpiler.custom_functions %}
 
 # Custom functions
@@ -167,7 +177,14 @@ def {{task.operation.slug.replace('-', '_')}}_{{instance.order}}(sklearn_session
         }
     {%- if instance.contains_results() %}
     outputs = [(name, out) for name, out in results.items() 
-        if isinstance(out, pd.DataFrame) and not name.startswith('__')]
+        {%- if duckdb %}
+        if isinstance(out, duckdb.DuckDBPyRelation)
+        {%- elif polars %}
+        if isinstance(out, pl.DataFrame) 
+        {%- else %}
+        if isinstance(out, pd.DataFrame) 
+        {%- endif %}
+        and not name.startswith('__')]
     {%- if instance.has_code and instance.enabled and instance.contains_sample %}
     size, infer, describe, use_types = {{ instance.sample_configuration.get_config() }}
     for name, out in outputs:
@@ -176,7 +193,7 @@ def {{task.operation.slug.replace('-', '_')}}_{{instance.order}}(sklearn_session
         {%- else %}
         dataframe_util.emit_sample_sklearn(
         {%- endif %}
-            task_id, out, emit_event, name, 
+            task_id, out{%if duckdb%}.limit(size).df(){%endif%}, emit_event, name, 
             size=size, infer=infer, describe=describe, use_types=use_types)
     {%- endif %}
     {%- if instance.has_code and instance.enabled and instance.contains_schema %}
