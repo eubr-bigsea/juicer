@@ -26,6 +26,7 @@ datasketch==1.5.7
 decorator==4.4.0
 dnspython==1.16.0
 docutils==0.15.2
+duckdb=0.6.1
 dummyrdd==0.1.2
 enum34==1.1.6
 eventlet==0.31.0
