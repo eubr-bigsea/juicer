@@ -39,14 +39,14 @@ class Expression:
             self.parsed_expression = "lambda row: " + self.parse(
                 json_code, params)
 
-    def parse(self, tree, params):
+    def parse(self, tree, params, plain_identifier=False):
 
         if tree['type'] == 'BinaryExpression':
             # Parenthesis are needed in some pandas/np expressions 
             result = "({} {} {})".format(  
-                self.parse(tree['left'], params),
+                self.parse(tree['left'], params, plain_identifier),
                 tree['operator'],
-                self.parse(tree['right'], params))
+                self.parse(tree['right'], params, plain_identifier))
 
         # Literal parsing
         elif tree['type'] == 'Literal':
@@ -67,7 +67,9 @@ class Expression:
 
         # Identifier parsing
         elif tree['type'] == 'Identifier':
-            if 'input' in params:
+            if plain_identifier:
+                result = tree['name']
+            elif 'input' in params:
                 result = "{}['{}']".format('row', tree[
                     'name'])  # params['input'], tree['name'])
             else:
@@ -78,14 +80,16 @@ class Expression:
             if tree['operator'] == '!':
                 tree['operator'] = 'not'
             result = "({} {})".format(tree['operator'],
-                                      self.parse(tree['argument'], params))
+                                      self.parse(tree['argument'], params, 
+                                      plain_identifier))
 
         elif tree['type'] == 'LogicalExpression':
             operators = {"&&": "&", "||": "|", "!": "~"}
             operator = operators[tree['operator']]
             result = "{} {} {}".format(self.parse(tree['left'], params),
                                            operator,
-                                           self.parse(tree['right'], params))
+                                           self.parse(tree['right'], params, 
+                                           plain_identifier))
 
         elif tree['type'] == 'ConditionalExpression':
             spec = {'arguments': [tree['test'], tree['consequent'],

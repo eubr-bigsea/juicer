@@ -95,6 +95,15 @@ class AggregationOperation(Operation):
             'min': "min",
             'sum': "sum",
             'size': "size",
+            'countDistinct': 'countDistinct', # Missing for pandas
+            'approx_count_distinct': 'approx_count_distinct', # missing for pandas
+            'sumDistinct': 'sum_distinct', # missing for pandas
+            'stddev': 'stddev', # missing for pandas
+            'stddev_pop': 'stddev_pop', # missing for pandas
+            'variance': 'variance', # missing for pandas
+            'var_pop': 'var_pop', # missing for pandas 
+            'kurtosis': 'kurtosis', # missing for pandas
+            'skewness': 'skewness', # missing for pandas
         }
 
         for dictionary in self.functions:
@@ -203,7 +212,7 @@ class CleanMissingOperation(Operation):
 
         if self.has_code:
             if self.ATTRIBUTES_PARAM in parameters:
-                self.attributes_CM = parameters[self.ATTRIBUTES_PARAM]
+                self.attributes = parameters[self.ATTRIBUTES_PARAM]
             else:
                 raise ValueError(
                     _("Parameter '{}' must be informed for task {}").format
@@ -221,11 +230,11 @@ class CleanMissingOperation(Operation):
                     _("Parameter '{}' must be 0<=x<=1 for task {}").format(
                         'attributes', self.__class__))
 
-            self.mode_CM = self.parameters.get(self.CLEANING_MODE_PARAM,
+            self.mode = self.parameters.get(self.CLEANING_MODE_PARAM,
                                                "REMOVE_ROW")
-            self.value_CM = self.parameters.get(self.VALUE_PARAMETER, None)
+            self.value = self.parameters.get(self.VALUE_PARAMETER, None)
 
-            if all([self.value_CM is None, self.mode_CM == "VALUE"]):
+            if all([self.value is None, self.mode == "VALUE"]):
                 raise ValueError(
                     _("Parameter '{}' must be not None when"
                       " mode is '{}' for task {}").format
@@ -240,7 +249,7 @@ class CleanMissingOperation(Operation):
             copy_code = ".copy()" \
                 if self.parameters.get('multiplicity',
                                        {}).get('input data', 1) > 1 else ""
-            if self.mode_CM == "REMOVE_ROW":
+            if self.mode == "REMOVE_ROW":
                 code = """
                     min_missing_ratio = {min_thresh}
                     max_missing_ratio = {max_thresh}
@@ -252,9 +261,9 @@ class CleanMissingOperation(Operation):
                     .format(min_thresh=self.min_ratio, max_thresh=self.max_ratio,
                             copy_code=copy_code, output=self.output,
                             input=self.named_inputs['input data'],
-                            columns=self.attributes_CM, op=op)
+                            columns=self.attributes, op=op)
 
-            elif self.mode_CM == "REMOVE_COLUMN":
+            elif self.mode == "REMOVE_COLUMN":
 
                 code = """
                     min_missing_ratio = {min_thresh}
@@ -272,27 +281,27 @@ class CleanMissingOperation(Operation):
                     .format(min_thresh=self.min_ratio, max_thresh=self.max_ratio,
                             output=self.output, copy_code=copy_code,
                             input=self.named_inputs['input data'],
-                            columns=self.attributes_CM, op=op)
+                            columns=self.attributes, op=op)
 
             else:
 
-                if self.mode_CM == "VALUE":
-                    if isinstance(self.check_parameter(self.value_CM), str):
+                if self.mode == "VALUE":
+                    if isinstance(self.check_parameter(self.value), str):
                         op = "{output}[col].fillna(value='{value}', inplace=True)" \
-                            .format(output=self.output, value=self.value_CM)
+                            .format(output=self.output, value=self.value)
                     else:
                         op = "{output}[col].fillna(value={value}, inplace=True)" \
-                            .format(output=self.output, value=self.value_CM)
+                            .format(output=self.output, value=self.value)
 
-                elif self.mode_CM == "MEAN":
+                elif self.mode == "MEAN":
                     op = "{output}[col].fillna(value={output}" \
                          "[col].mean(), inplace=True)".format(output=self.output)
-                elif self.mode_CM == "MEDIAN":
+                elif self.mode == "MEDIAN":
                     op = "{output}[col].fillna(value={output}" \
                          "[col].median(), inplace=True)".format(
                         output=self.output)
 
-                elif self.mode_CM == "MODE":
+                elif self.mode == "MODE":
                     op = "{out}[col].fillna(value={out}[col].mode()[0], inplace=True)" \
                         .format(out=self.output)
 
@@ -309,7 +318,7 @@ class CleanMissingOperation(Operation):
                     .format(min_thresh=self.min_ratio, max_thresh=self.max_ratio,
                             output=self.output, copy_code=copy_code,
                             input=self.named_inputs['input data'],
-                            columns=self.attributes_CM, op=op)
+                            columns=self.attributes, op=op)
             return dedent(code)
 
     @staticmethod
@@ -546,10 +555,6 @@ class ExecuteSQLOperation(Operation):
             msg = _("Required parameter {} must be informed for task {}")
             raise ValueError(msg.format(self.QUERY_PARAM, self.__class__))
 
-        self.query = ExecuteSQLOperation._escape_string(
-            parameters.get(self.QUERY_PARAM).strip().replace('\n', ' '))
-        if self.query[:6].upper() != 'SELECT':
-            raise ValueError(_('Invalid query. Only SELECT is allowed.'))
 
         if self.NAMES_PARAM in parameters:
             self.names = [
@@ -563,7 +568,16 @@ class ExecuteSQLOperation(Operation):
         self.output = self.named_outputs.get('output data',
                                              'out_{}'.format(self.order))
 
-        self.transpiler_utils.add_import("from pandasql import sqldf")
+        if self.transpiler_utils.transpiler.variant == 'pandas':
+            self.transpiler_utils.add_import("from pandasql import sqldf")
+            self.query = ExecuteSQLOperation._escape_string(
+                parameters.get(self.QUERY_PARAM).strip().replace('\n', ' '))
+        else:
+            self.query = ExecuteSQLOperation._escape_string(
+                parameters.get(self.QUERY_PARAM).strip())
+
+        if self.query[:6].upper() != 'SELECT':
+            raise ValueError(_('Invalid query. Only SELECT is allowed.'))
 
     def get_data_out_names(self, sep=','):
         return self.output
@@ -574,13 +588,13 @@ class ExecuteSQLOperation(Operation):
         https://github.com/PyMySQL/PyMySQL/blob/master/pymysql/converters.py"""
         return value
         # _escape_table = [unichr(x) for x in range(128)]
-        # _escape_table[0] = u'\\0'
-        # _escape_table[ord('\\')] = u'\\\\'
-        # _escape_table[ord('\n')] = u'\\n'
-        # _escape_table[ord('\r')] = u'\\r'
-        # _escape_table[ord('\032')] = u'\\Z'
-        # _escape_table[ord('"')] = u'\\"'
-        # _escape_table[ord("'")] = u"\\'"
+        # _escape_table[0] = '\\0'
+        # _escape_table[ord('\\')] = '\\\\'
+        # _escape_table[ord('\n')] = '\\n'
+        # _escape_table[ord('\r')] = '\\r'
+        # _escape_table[ord('\032')] = '\\Z'
+        # _escape_table[ord('"')] = '\\"'
+        # _escape_table[ord("'")] = "\\'"
         # return value.translate(_escape_table)
 
     def generate_code(self):
@@ -677,11 +691,6 @@ class IntersectionOperation(Operation):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
         self.has_code = len(named_inputs) == 2 and \
                         len(named_outputs) > 0 or self.contains_results()
-
-        if not self.has_code:
-            raise ValueError(
-                _("Parameter '{}' and '{}' must be informed for task {}").format
-                ('input data 1', 'input data 2', self.__class__))
 
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
@@ -984,24 +993,30 @@ class SelectOperation(Operation):
             'output projected data', 'projection_data_{}'.format(self.order))
 
     def generate_code(self):
+        if not self.has_code:
+            return None
+            
         attributes = []
         aliases = []
         alias_dict = {}
         for attr in self.attributes:
             if self.mode is None: # legacy format, without alias
-                self.attributes.append(attr)
+                attributes.append(attr)
             else:
                 attribute_name = attr.get('attribute')
                 attributes.append(attribute_name)
 
-                alias = attr.get('alias')
+                alias = attr.get('alias', '') or ''
+                if self.mode == 'duplicate' and len(alias.strip()) == 0:
+                    raise ValueError(
+                        gettext('When using "duplicate" option, you must inform' 
+                            ' aliases for all attributes.'))
                 aliases.append(alias or attribute_name)
                 alias_dict[attribute_name] = alias or attribute_name
-        if self.has_code:
-            return dedent(self.render_template(
-                {'op': {'attributes': attributes, 'aliases': aliases, 'mode': self.mode,
-                    'input': self.named_inputs['input data'], 'output': self.output, 
-                    'alias_dict': alias_dict} }))
+        return dedent(self.render_template(
+            {'op': {'attributes': attributes, 'aliases': aliases, 'mode': self.mode,
+                'input': self.named_inputs['input data'], 'output': self.output, 
+                'alias_dict': alias_dict} }))
 
 class SortOperation(Operation):
     """
