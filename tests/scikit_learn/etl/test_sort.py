@@ -18,7 +18,7 @@ def test_sort_success():
     arguments = {
         'parameters': {
             'attributes': [{'attribute': 'sepalwidth',
-                            'f': 'sur'}]},
+                            'f': 'desc'}]},
         'named_inputs': {
             'input data': 'df',
         },
@@ -27,8 +27,7 @@ def test_sort_success():
         }
     }
     instance = SortOperation(**arguments)
-    result = util.execute(util.get_complete_code(instance),
-                          {'df': df})
+    result = util.execute(util.get_complete_code(instance), {'df': df})
     assert not result['out'].equals(test_df)
     assert """out = df.sort_values(by=['sepalwidth'], ascending=[False])""" == \
            instance.generate_code()
@@ -62,7 +61,7 @@ def test_sort_ascending_param_false_success():
     arguments = {
         'parameters': {
             'attributes': [{'attribute': 'sepalwidth',
-                            'f': 'false'}]},
+                            'f': 'desc'}]},
         'named_inputs': {
             'input data': 'df',
         },

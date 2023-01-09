@@ -54,13 +54,11 @@ def get_arguments(get_columns):
 
     ({'n_init': 12, 'random_state': 1}, {'n_init': 12, 'random_state': 1}),
 
-    ({'n_jobs': -1, 'random_state': 1}, {'n_jobs': -1, 'random_state': 1}),
-
     ({'algorithm': 'full', 'random_state': 1},
      {'algorithm': 'full', 'random_state': 1}),
 
 ], ids=["default_params", "n_clusters_param", "init_param", "max_iter_param",
-        "tol_param", "n_init_param", "n_jobs_param", "algorithm_param"])
+        "tol_param", "n_init_param", "algorithm_param"])
 def test_k_means_clustering_params_success(get_df, get_arguments, get_columns,
                                            operation_par, algorithm_par):
     test_df = get_df
@@ -75,7 +73,7 @@ def test_k_means_clustering_params_success(get_df, get_arguments, get_columns,
 
     model_1 = KMeans(n_clusters=8, init='k-means++', max_iter=100,
                      tol=0.0001, random_state=1, n_init=10,
-                     n_jobs=None, algorithm='auto')
+                     algorithm='auto')
 
     for key, value in algorithm_par.items():
         setattr(model_1, key, value)

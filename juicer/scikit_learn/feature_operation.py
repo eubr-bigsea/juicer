@@ -33,7 +33,8 @@ class FeatureAssemblerOperation(Operation):
         if self.has_code:
             code = """
             cols = {cols}
-            if {input}[cols].dtypes.all() == np.object:
+            if ({input}[cols].shape[1] != 
+                {input}[cols].select_dtypes(include=np.number).shape[1]):
                 raise ValueError("Input '{input}' must contain numeric values"
                 " only for task {cls}")
             
@@ -535,8 +536,8 @@ class LSHOperation(Operation):
 
         self.input_treatment()
 
-        self.transpiler_utils.add_import(
-                "from sklearn.neighbors import LSHForest")
+        # self.transpiler_utils.add_import(
+        #         "from sklearn.neighbors import LSHForest")
         self.transpiler_utils.add_custom_function(
                 'get_X_train_data', get_X_train_data)
 
@@ -554,6 +555,7 @@ class LSHOperation(Operation):
                     self.RADIUS_CUTOFF_RATIO_ATTRIBUTE_PARAM, self.__class__))
 
     def generate_code(self):
+        raise ValueError('Deprecated in Scikit-Learn')
         input_data = self.named_inputs['input data']
         """Generate code."""
         #TODO: LSHForest algorithm is using all columns.
@@ -561,7 +563,8 @@ class LSHOperation(Operation):
         #TODO: Is this working?
 
         copy_code = ".copy()" \
-            if self.parameters['multiplicity']['input data'] > 1 else ""
+            if self.parameters.get('multiplicity', {'input data': 0}).get(
+                'input data', 0) > 1 else ""
 
         code = """
             {output_data} = {input}{copy_code}

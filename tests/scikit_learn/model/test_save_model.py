@@ -1,5 +1,5 @@
 from tests.scikit_learn import util
-from juicer.scikit_learn.etl_operation import SaveModelOperation
+from juicer.scikit_learn.model_operation import SaveModel
 import pytest
 
 # SaveModel
@@ -18,7 +18,7 @@ def test_save_model_success():
             'output data': 'out'
         }
     }
-    instance = SaveModelOperation(**arguments)
+    instance = SaveModel(**arguments)
     result = util.execute(instance.generate_code(), 
                           dict([df]))
     assert result['out'].equals(util.iris(size=slice_size))

@@ -1,6 +1,5 @@
 from tests.scikit_learn import util
-from juicer.scikit_learn.etl_operation import CartographicProjectionOperation
-import pytest
+from juicer.scikit_learn.geo_operation import CartographicProjectionOperation
 
 # CartographicProjection
 # 

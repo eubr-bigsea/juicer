@@ -1,5 +1,6 @@
 from tests.scikit_learn import util
-from juicer.scikit_learn.etl_operation import ClassificationModelOperation
+from juicer.scikit_learn.classification_operation import (
+    NaiveBayesClassifierOperation)
 import pytest
 
 # ClassificationModel
@@ -18,7 +19,7 @@ def test_classification_model_success():
             'output data': 'out'
         }
     }
-    instance = ClassificationModelOperation(**arguments)
+    instance = NaiveBayesClassifierOperation(**arguments)
     result = util.execute(instance.generate_code(), 
                           dict([df]))
     assert result['out'].equals(util.iris(size=slice_size))

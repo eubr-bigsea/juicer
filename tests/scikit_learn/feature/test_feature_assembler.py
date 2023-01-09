@@ -4,6 +4,7 @@ from textwrap import dedent
 import pytest
 import pandas as pd
 import numpy as np
+from pandas.api.types import is_object_dtype
 
 
 # pd.set_option('display.max_rows', None)
@@ -40,7 +41,8 @@ def test_feature_assembler_success():
     assert result['out'].equals(test_df)
     assert dedent("""
     cols = ['sepalwidth', 'petalwidth']
-    if df[cols].dtypes.all() == np.object:
+    if (df[cols].shape[1] != 
+        df[cols].select_dtypes(include=np.number).shape[1]):
         raise ValueError("Input 'df' must contain numeric values"
         " only for task <class 'juicer.scikit_learn.feature_operation.FeatureAssemblerOperation'>")
            
@@ -75,7 +77,8 @@ def test_feature_assembler_alias_param_success():
     assert result['out'].equals(test_df)
     assert dedent("""
     cols = ['sepalwidth', 'petalwidth']
-    if df[cols].dtypes.all() == np.object:
+    if (df[cols].shape[1] != 
+        df[cols].select_dtypes(include=np.number).shape[1]):
         raise ValueError("Input 'df' must contain numeric values"
         " only for task <class 'juicer.scikit_learn.feature_operation.FeatureAssemblerOperation'>")
 
@@ -117,7 +120,8 @@ def test_feature_assembler_na_drop_success():
     assert result['out'].equals(test_df)
     assert dedent("""
     cols = ['sepalwidth', 'petalwidth']
-    if df[cols].dtypes.all() == np.object:
+    if (df[cols].shape[1] != 
+        df[cols].select_dtypes(include=np.number).shape[1]):
         raise ValueError("Input 'df' must contain numeric values"
         " only for task <class 'juicer.scikit_learn.feature_operation.FeatureAssemblerOperation'>")
 

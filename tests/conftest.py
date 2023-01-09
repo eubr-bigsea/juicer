@@ -4,11 +4,18 @@ from __future__ import absolute_import
 import gettext
 import os
 import sys
+import logging
 
 import pytest
 
 sys.path.append(os.path.dirname(os.path.curdir))
 
+def pytest_configure(config):
+    """Disable the faker logger."""
+    disabled = ['gensim.models.word2vec', 'faker.factory']
+    for name in disabled:
+        logger = logging.getLogger(name)
+        logger.propagate = False
 
 def pytest_sessionstart(session):
     locales_path = os.path.join(os.path.dirname(__file__), '..', 'juicer',
