@@ -78,7 +78,7 @@ def test_perceptron_classifier_params_success(get_arguments, get_df, get_columns
     y = np.reshape(y, len(y))
     model_1 = Perceptron(tol=0.001, alpha=0.0001,
                          max_iter=1000, shuffle=False, random_state=None,
-                         penalty='None', fit_intercept=1,
+                         penalty=None, fit_intercept=1,
                          eta0=1.0, n_jobs=None, early_stopping=False,
                          validation_fraction=0.1,
                          n_iter_no_change=5,

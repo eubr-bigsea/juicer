@@ -1,5 +1,5 @@
 from tests.scikit_learn import util
-from juicer.scikit_learn.regression_operation import RegressionOperation
+from juicer.scikit_learn.regression_operation import LinearRegressionOperation
 import pandas as pd
 import pytest
 
@@ -13,22 +13,6 @@ import pytest
 #
 #
 # # # # # # # # # # Success # # # # # # # # # #
-def test_regression_read_common_params_success():
-    arguments = {
-        'parameters': {'features': ['test'],
-                       'label': ['test'],
-                       'prediction': ['test']},
-        'named_inputs': {
-            'input data': 'df',
-        },
-        'named_outputs': {
-            'output data': 'out'
-        }
-    }
-    instance = RegressionOperation(**arguments)
-    instance.read_common_params(arguments['parameters'])
-
-
 def test_regression_get_outputs_names_success():
     arguments = {
         'parameters': {'features': ['test'],
@@ -41,8 +25,8 @@ def test_regression_get_outputs_names_success():
             'output data': 'out'
         }
     }
-    instance = RegressionOperation(**arguments)
-    assert instance.get_output_names() == "regression_algorithm_1"
+    instance = LinearRegressionOperation(**arguments)
+    assert instance.get_output_names() == "out"
 
 
 def test_regression_get_data_out_names_success():
@@ -57,8 +41,8 @@ def test_regression_get_data_out_names_success():
             'output data': 'out'
         }
     }
-    instance = RegressionOperation(**arguments)
-    assert instance.get_data_out_names() == ''
+    instance = LinearRegressionOperation(**arguments)
+    assert instance.get_data_out_names() == 'out'
 
 
 # # # # # # # # # # Fail # # # # # # # # # #
@@ -73,9 +57,8 @@ def test_regression_missing_features_param_fail():
             'output data': 'out'
         }
     }
-    instance = RegressionOperation(**arguments)
     with pytest.raises(ValueError) as val_err:
-        instance.read_common_params(arguments['parameters'])
+        LinearRegressionOperation(**arguments)
     assert "Parameters 'features' and 'label' must be informed for task" in \
            str(val_err.value)
 
@@ -91,8 +74,7 @@ def test_regression_missing_label_param_fail():
             'output data': 'out'
         }
     }
-    instance = RegressionOperation(**arguments)
     with pytest.raises(ValueError) as val_err:
-        instance.read_common_params(arguments['parameters'])
+        LinearRegressionOperation(**arguments)
     assert "Parameters 'features' and 'label' must be informed for task" in \
            str(val_err.value)

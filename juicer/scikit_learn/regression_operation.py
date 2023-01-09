@@ -66,6 +66,9 @@ class RegressionModelOperation(Operation):
         return sep.join([self.output, self.model])
 
     def generate_code(self):
+        if not self.has_code:
+            return None
+
         copy_code = ".copy()" \
             if self.parameters['multiplicity'].get('train input data', 0) > 1 \
             or self.parameters['multiplicity'].get('input data', 0) > 1 \
@@ -122,8 +125,9 @@ class RegressionModelOperation(Operation):
                    title=_("Clustering result"),
                    summary=gettext('Summary'),
                    metrics=gettext('Metrics'),
-                   display_text=self.parameters['task']['forms'].get(
-                           'display_text', {}).get('value') in (1, '1'))
+                   display_text=self.parameters.get('task', {}).get(
+                        'forms', {}).get('display_text', {}).get(
+                            'value') in (1, '1'))
 
         return dedent(code)
 
@@ -269,7 +273,12 @@ class GradientBoostingRegressorOperation(Operation):
             self.n_iter_no_change = parameters.get(self.N_ITER_NO_CHANGE_PARAM,
                                                    None) or None
             self.tol = float(parameters.get(self.TOL_PARAM, 1e-4) or 1e-4)
-            self.loss = parameters.get(self.LOSS_PARAM, 'ls') or 'ls'
+
+            # FIXME: Changed in SkLearn 1.0
+            self.loss = (parameters.get(self.LOSS_PARAM, 'squared_error') 
+                or 'squared_error')
+            if self.loss == 'ls':
+                self.loss = 'squared_error'
 
             vals = [self.learning_rate, self.n_estimators,
                     self.min_samples_split, self.min_samples_leaf,
@@ -564,7 +573,8 @@ class LinearRegressionOperation(Operation):
 
     ALPHA_PARAM = 'alpha'
     ELASTIC_NET_PARAM = 'l1_ratio'
-    NORMALIZE_PARAM = 'normalize'
+    # Deprecated in Scikit-Learn
+    # NORMALIZE_PARAM = 'normalize'
     MAX_ITER_PARAM = 'max_iter'
     TOLERANCE_PARAM = 'tol'
     SEED_PARAM = 'random_state'
@@ -586,14 +596,23 @@ class LinearRegressionOperation(Operation):
             self.alpha = float(parameters.get(self.ALPHA_PARAM, 1.0) or 1.0)
             self.elastic = float(
                 parameters.get(self.ELASTIC_NET_PARAM, 0.5) or 0.5)
-            self.normalize = self.parameters.get(self.NORMALIZE_PARAM,
-                                                 True) in (1, '1', 'true', True)
+            # Deprecated in Scikit-Learn
+            # self.normalize = self.parameters.get(self.NORMALIZE_PARAM,
+            #                                      True) in (1, '1', 'true', True)
             self.max_iter = int(
                 parameters.get(self.MAX_ITER_PARAM, 1000) or 1000)
             self.tol = float(
                 self.parameters.get(self.TOLERANCE_PARAM, 0.0001) or 0.0001)
             seed_ = self.parameters.get(self.SEED_PARAM, None)
-            self.features = parameters['features']
+
+            if not all([self.FEATURES_PARAM in parameters,
+                        self.LABEL_PARAM in parameters]):
+                msg = _("Parameters '{}' and '{}' must be informed for task {}")
+                raise ValueError(msg.format(
+                    self.FEATURES_PARAM, self.LABEL_PARAM,
+                    self.__class__.__name__))
+
+            self.features = parameters[self.FEATURES_PARAM]
             self.label = parameters.get(self.LABEL_PARAM, None)
             self.prediction = self.parameters.get(self.PREDICTION_PARAM,
                                                   'prediction')
@@ -643,14 +662,13 @@ class LinearRegressionOperation(Operation):
             code = """    
             algorithm = ElasticNet(alpha={alpha}, l1_ratio={elastic}, tol={tol}, 
                 max_iter={max_iter}, random_state={seed},
-                normalize={normalize}, positive={positive}, 
+                positive={positive}, 
                 fit_intercept={fit_intercept})  
             """.format(max_iter=self.max_iter,
                        alpha=self.alpha,
                        elastic=self.elastic,
                        seed=self.seed,
                        tol=self.tol,
-                       normalize=self.normalize,
                        fit_intercept=self.fit_intercept,
                        positive=self.positive)
 
@@ -949,7 +967,10 @@ class RandomForestRegressorOperation(Operation):
             self.min_samples_leaf = int(
                 parameters.get(self.MIN_LEAF_PARAM, 1) or 1)
             self.criterion = parameters.get(self.CRITERION_PARAM,
-                                            'mse') or 'mse'
+                                            'friedman_mse') or 'friedman_mse'
+            if self.criterion == 'mae': # Changed in SkLearn 1.0
+                self.criterion = 'friedman_mse'
+
             self.min_weight_fraction_leaf = float(
                 parameters.get(self.MIN_WEIGHT_FRACTION_LEAF_PARAM, 0) or 0)
             self.max_leaf_nodes = parameters.get(self.MAX_LEAF_NODES_PARAM,
@@ -1121,7 +1142,10 @@ class SGDRegressorOperation(Operation):
             self.early_stopping = int(parameters.get(self.EARLY_STOPPING, 0))
             self.validation_fraction = float(
                 parameters.get(self.VALIDATION_FRACTION_PARAM, 0.1))
-            self.loss = parameters.get(self.LOSS_PARAM, 'squared_loss')
+            self.loss = parameters.get(self.LOSS_PARAM, 'squared_error')
+            if self.loss == 'squared_loss': # Changed in SKLearn 1.0
+                self.loss = 'squared_error'
+
             self.epsilon = float(parameters.get(self.EPSILON_PARAM, 0.1))
             self.n_iter_no_change = int(
                 parameters.get(self.N_ITER_NO_CHANGE_PARAM, 5))
@@ -1209,7 +1233,7 @@ class SGDRegressorOperation(Operation):
         self.seed = """random_state={seed}""".format(seed=self.seed)
         functions_required.append(self.seed)
 
-        if self.loss != 'squared_loss':
+        if self.loss != 'squared_error':
             self.epsilon = """epsilon={epsilon}""".format(epsilon=self.epsilon)
             functions_required.append(self.epsilon)
         if self.learning_rate != 'optimal':
@@ -1243,7 +1267,8 @@ class SGDRegressorOperation(Operation):
 class GeneralizedLinearRegressionOperation(Operation):
 
     FIT_INTERCEPT_ATTRIBUTE_PARAM = 'fit_intercept'
-    NORMALIZE_ATTRIBUTE_PARAM = 'normalize'
+    # Deprecated in Scikit-Learn
+    # NORMALIZE_ATTRIBUTE_PARAM = 'normalize'
     COPY_X_ATTRIBUTE_PARAM = 'copy_X'
     N_JOBS_ATTRIBUTE_PARAM = 'n_jobs'
     LABEL_ATTRIBUTE_PARAM = 'label'
@@ -1258,7 +1283,6 @@ class GeneralizedLinearRegressionOperation(Operation):
 
         self.fit_intercept = int(
             parameters.get(self.FIT_INTERCEPT_ATTRIBUTE_PARAM, 1))
-        self.normalize = int(parameters.get(self.NORMALIZE_ATTRIBUTE_PARAM, 0))
         self.copy_X = int(parameters.get(self.COPY_X_ATTRIBUTE_PARAM, 1))
         self.n_jobs = int(parameters.get(self.N_JOBS_ATTRIBUTE_PARAM, 0))
 
@@ -1274,7 +1298,6 @@ class GeneralizedLinearRegressionOperation(Operation):
 
         self.n_jobs = 1 if int(self.n_jobs) == 0 else int(self.n_jobs)
         self.fit_intercept = True if int(self.fit_intercept) == 1 else False
-        self.normalize = True if int(self.normalize) == 1 else False
         self.copy_X = True if int(self.copy_X) == 1 else False
 
     @staticmethod
@@ -1289,12 +1312,8 @@ class GeneralizedLinearRegressionOperation(Operation):
 
     def generate_code(self):
         if self.has_code:
-            code = """
-            algorithm = LinearRegression(fit_intercept={fit_intercept}, 
-                normalize={normalize}, copy_X={copy_X}, n_jobs={n_jobs})
-            """.format(fit_intercept=self.fit_intercept,
-                       normalize=self.normalize,
-                       copy_X=self.copy_X,
-                       n_jobs=self.n_jobs)
-
+            code = f"""
+            algorithm = LinearRegression(fit_intercept={self.fit_intercept}, 
+                copy_X={self.copy_X}, n_jobs={self.n_jobs})
+            """
             return code

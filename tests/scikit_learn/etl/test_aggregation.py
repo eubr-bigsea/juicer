@@ -444,7 +444,7 @@ def test_aggregation_invalid_function_param_attribute_fail():
     with pytest.raises(KeyError) as key_err:
         util.execute(util.get_complete_code(instance),
                      {'df': df})
-    assert "Column 'invalid' does not exist!" in str(key_err.value)
+    assert "Column(s) [\'invalid\'] do not exist" in str(key_err.value)
 
 
 def test_aggregation_invalid_function_param_function_fail():
@@ -554,10 +554,11 @@ def test_aggregation_non_numeric_attributes_fail():
         }
     }
     instance = AggregationOperation(**arguments)
-    with pytest.raises(pd.core.base.DataError) as data_err:
+    with pytest.raises(TypeError) as data_err:
         util.execute(util.get_complete_code(instance),
                      {'df': df})
-    assert "No numeric types to aggregate" in str(data_err.value)
+    assert ("Could not convert Amenia, NDAmenia, ND to numeric" 
+        in str(data_err.value))
 
 # DONE:
 # tests with non numeric camps

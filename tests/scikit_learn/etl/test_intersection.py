@@ -47,10 +47,9 @@ def test_intersection_success_missing_input_inplies_no_code():
             'output data': 'out'
         }
     }
-    with pytest.raises(ValueError) as exc_info:
-        IntersectionOperation(**arguments)
-    assert "Parameter 'input data 1' and 'input data 2' must be informed" \
-           " for task" in str(exc_info.value)
+    
+    intersection = IntersectionOperation(**arguments)
+    assert not intersection.has_code
 
 
 def test_intersection_success_missing_output_inplies_no_code():
@@ -61,13 +60,10 @@ def test_intersection_success_missing_output_inplies_no_code():
             'input data 1': 'df1',
             'input data 2': 'df2'
         },
-        'named_outputs': {
-        }
+        'named_outputs': {}
     }
-    with pytest.raises(ValueError) as exc_info:
-        IntersectionOperation(**arguments)
-    assert "Parameter 'input data 1' and 'input data 2' must be informed" \
-           " for task" in str(exc_info.value)
+    intersection = IntersectionOperation(**arguments)
+    assert not intersection.has_code
 
 
 # # # # # # # # # # Fail # # # # # # # # # #
@@ -81,10 +77,8 @@ def test_1_input():
             'output data': 'out'
         }
     }
-    with pytest.raises(ValueError) as exc_info:
-        IntersectionOperation(**arguments)
-    assert "Parameter 'input data 1' and 'input data 2' must be informed" \
-           " for task" in str(exc_info.value)
+    intersection = IntersectionOperation(**arguments)
+    assert not intersection.has_code
 
 
 def test_3_input():
@@ -99,10 +93,8 @@ def test_3_input():
             'output data': 'out'
         }
     }
-    with pytest.raises(ValueError) as exc_info:
-        IntersectionOperation(**arguments)
-    assert "Parameter 'input data 1' and 'input data 2' must be informed" \
-           " for task" in str(exc_info.value)
+    intersection = IntersectionOperation(**arguments)
+    assert not intersection.has_code
 
 
 def test_intersection_fail_different_colunms():
