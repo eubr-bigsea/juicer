@@ -216,7 +216,7 @@ class MetaMinion(Minion):
             # Meta adds -0 as a suffix
             df = self.target_minion._state.get(
                 task_id + '-0')[0].get('__first__')
-            dataframe_util.emit_sample_sklearn(
+            dataframe_util.emit_sample_sklearn_explorer(
                 task_id,
                 df, emit, '', size=msg_info.get('size', 100),
                 page=msg_info.get('page', 1))
@@ -238,7 +238,6 @@ class MetaMinion(Minion):
             wf_id = tahiti_service.save_workflow(base_url, token, 
                 json.dumps(target_workflow))
 
-            print("OKKKKKKKKKK", wf_id)
             self._emit_event(room=job_id, namespace='/stand')(
                 message=gettext.gettext(
                     'Workflow exported (id = {}').format(wf_id),
@@ -312,6 +311,12 @@ class MetaMinion(Minion):
         # app_configs['auto_plug'] = True
 
         if self.target_minion is None:
+            app_configs['meta_platform'] = True
+            # print('*'*20)
+            # print(app_configs, self.config)
+            # print('*'*20)
+            # FIXME: Use variant here
+            self.config['app_configs'] = app_configs
             if app_configs.get('target_platform') == 'spark':
                 self.target_minion = SparkMinion(
                     self.redis_conn, self.workflow_id,

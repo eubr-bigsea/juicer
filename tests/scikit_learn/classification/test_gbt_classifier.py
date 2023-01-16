@@ -64,8 +64,8 @@ def get_arguments(get_columns):
     ({'subsample': 0.9, "random_state": 1},
      {'subsample': 0.9, "random_state": 1}),
 
-    ({'criterion': 'mae', "random_state": 1},
-     {'criterion': 'mae', "random_state": 1}),
+    ({'criterion': 'friedman_mse', "random_state": 1},
+     {'criterion': 'friedman_mse', "random_state": 1}),
 
     ({'min_weight_fraction_leaf': 0.1, "random_state": 1},
      {'min_weight_fraction_leaf': 0.1, "random_state": 1}),

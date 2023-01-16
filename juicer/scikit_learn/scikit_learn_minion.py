@@ -59,7 +59,8 @@ class ScikitLearnMinion(Minion):
         self.config = config
 
         self.transpiler = ScikitLearnTranspiler(config)
-        configuration.set_config(self.config)
+        # FIXME Unused
+        # configuration.set_config(self.config)
 
         self.tmp_dir = self.config.get('config', {}).get('tmp_dir', '/tmp')
         sys.path.append(self.tmp_dir)

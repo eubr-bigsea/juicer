@@ -92,7 +92,7 @@ def test_sgd_regressor_params_success(get_arguments, get_df, get_columns,
     x_train = get_X_train_data(test_df, get_columns)
     y = get_label_data(test_df, [get_columns[0]])
 
-    model_1 = SGDRegressor(loss='squared_loss', power_t=0.5,
+    model_1 = SGDRegressor(loss='squared_error', power_t=0.5,
                            tol=0.001, early_stopping=False,
                            n_iter_no_change=5, penalty='l2',
                            fit_intercept=1, average=1,

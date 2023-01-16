@@ -1,19 +1,15 @@
 # -*- coding: utf-8 -*-
-import re
 from gettext import gettext
 from textwrap import dedent
 
-import polars as pl
-
-from juicer.operation import Operation
-from juicer.scikit_learn.polars.expression import (
-    JAVA_2_PYTHON_DATE_FORMAT, Expression)
+from juicer.scikit_learn.duckdb.expression import Expression
 import juicer.scikit_learn.etl_operation as sk
 
 
 class AddColumnsOperation(sk.AddColumnsOperation):
     """
     Merge two data frames, column-wise, similar to the command paste in Linux.
+    Since 2.6
     """
 
     def __init__(self, parameters, named_inputs, named_outputs):
@@ -29,10 +25,25 @@ class AddColumnsOperation(sk.AddColumnsOperation):
 
         # Ok
         code = f"""
-            {self.output} = pl.concat(
-                [{input1}.select(pl.all().prefix('{s1}')).collect(), 
-                    {input2}.select(pl.all().prefix('{s2}')).collect()], 
-                how='horizontal').lazy()
+            cols1 = ', '.join(
+                [f'{{col}} AS {s1}{{col}}' for col in {input1}.columns])
+ 
+            # Convert to pandas because Python API do not support FULL OUTER JOIN
+            tmp1 = {input1}.project(
+                f'{{cols1}}, row_number() over () AS _tmp_1')
+            tmp1.create_view('tb1_{self.order}')
+
+            cols2 = ', '.join(
+                [f'{{col}} AS {s2}{{col}}' for col in {input2}.columns])
+            tmp2 = {input2}.set_alias('{s2}').project(
+                f'{{cols2}}, row_number() over () AS _tmp_2')
+            tmp2.create_view('tb2_{self.order}')
+
+            {self.output} = con.query('''
+                SELECT * FROM tb1_{self.order} AS {s1}
+                FULL OUTER JOIN tb2_{self.order} AS {s2} 
+                    ON {s1}._tmp_1 = {s2}._tmp_2'''
+                ).project('* EXCLUDE (_tmp_1, _tmp_2)')
         """
         return dedent(code)
 
@@ -44,25 +55,29 @@ class AggregationOperation(sk.AggregationOperation):
         - Expression: a single dict mapping from string to string, then the key
         is the column to perform aggregation on, and the value is the aggregate
         function. The available aggregate functions avg, collect_list,
-        collect_set, count, first, last, max, min, sum and size
+        collect_set, count, first, last, max, min, sum and size.
+    Since 2.6
     """
 
     template = """
-    {%- if pivot %}:
-        {%- if pivot_values %}:
-    input_data = {input}.loc[{input}['{pivot}'].isin([{values}])]
-        {%- else %}
-    input_data = {input}
-        {%-- endif %}
-    {output} = pd.pivot_table(input_data, index={index},
-            columns={pivot}, aggfunc={agg_func})
-    # rename columns and convert to DataFrame
-    {output}.reset_index(inplace=True)
-    new_idx = [n[0] if n[1] == '' else "%s_%s_%s" % (n[0],n[1], n[2])
-                    for n in {output}.columns.ravel()]
-    {output}.columns = new_idx
-    {%- else %}:
-        {output} = {input}.groupby({columns}).agg({operations}).reset_index()
+    {%- if pivot %}
+    raise ValueError('{{unsupported}}')
+    {%- else %}
+    {{output}} = {{input}}.aggregate(
+        aggr_expr='''
+        {%- for agg in aggregations %}
+            {%- if agg.f == 'countDistinct' %}
+            COUNT(DISTINCT {{agg.attribute}}) AS {{agg.alias}}
+            {%- elif agg.f == 'sumDistinct' %}
+            SUM(DISTINCT {{agg.attribute}}) AS {{agg.alias}}
+            {%- else %}
+            {{agg.f.upper()}}({{agg.attribute}}) AS {{agg.alias}}
+            {%- endif %}
+            {%- if not loop.last%}, {% endif %}
+        {%- endfor %}
+        ''',
+        group_expr='{{columns|join(', ')}}'
+    )
     {%- endif %}
     """
 
@@ -72,13 +87,15 @@ class AggregationOperation(sk.AggregationOperation):
     def generate_code(self):
         if not self.has_code:
             return None
-
         ctx = {
-            'pivot': self.pivot[0],
+            'columns': self.attributes,
+            'pivot': self.pivot,
             'pivot_values': self.pivot_values,
             'input': self.named_inputs['input data'],
+            'output': self.output,
             'agg_func': self.input_operations_pivot,
-            'operations': ', '.join(self.input_operations_non_pivot),
+            'aggregations': self.functions,
+            'unsupported': gettext('Pivot is not supported.')
         }
         code = self.render_template(ctx)
         return dedent(code)
@@ -86,36 +103,38 @@ class AggregationOperation(sk.AggregationOperation):
 
 class CastOperation(sk.CastOperation):
     """ Change attribute type.
+    Since 2.6
     """
 
     template = """
         try:
-            {{op.output}} = {{op.input}}.select([
-                pl.exclude(
-                {%- for attr in op.attributes %}'{{attr.attribute}}',
+            {{op.output}} = {{op.input}}.project('''
+                * EXCLUDE(
+                {%- for attr in op.attributes %}{{attr.attribute}}
+                {%- if not loop.last %}, {% endif %}
                 {%- endfor %}),
         {%- for attr in op.attributes %}
             {%- if attr.type == 'Integer' %}
-                pl.col('{{attr.attribute}}').cast(pl.Int64, strict=False)
+                TRY_CAST({{attr.attribute}} AS INTEGER)
             {%- elif attr.type == 'Decimal' %}
-                pl.col('{{attr.attribute}}').cast(pl.Float64, strict=False)
+                TRY_CAST({{attr.attribute}} AS FLOAT)
             {%- elif attr.type == 'Boolean' %}
-                pl.col('{{attr.attribute}}').cast(pl.Boolean, strict=False)
+                TRY_CAST({{attr.attribute}} AS BOOLEAN)
             {%- elif attr.type == 'Date' %}
-                pl.col('{{attr.attribute}}').cast(pl.Date, strict=False)
+                TRY_CAST({{attr.attribute}} AS DATE)
             {%- elif attr.type in ('DateTime', 'Datetime') %}
-                pl.col('{{attr.attribute}}').cast(pl.Datetime, strict=False)
+                TRY_CAST({{attr.attribute}} AS DATETIME)
             {%- elif attr.type in ('Time', ) %}
-                pl.col('{{attr.attribute}}').cast(pl.Time, strict=False)
+                TRY_CAST({{attr.attribute}} AS TIME)
             {%- elif attr.type == 'Text' %}
-                pl.col('{{attr.attribute}}').cast(pl.Utf8)
+                CAST({{attr.attribute}} AS VARCHAR)
             {%- elif attr.type == 'Array' %}
-                pl.col('{{attr.attribute}}').apply(lambda x: [x])
+                CAST({{attr.attribute}} AS LIST)
             {%- elif attr.type == 'JSON' %}
-                pl.col('{{attr.attribute}}').apply(to_json)
-            {%-endif %}
+                TO_JSON({{attr.attribute}})
+            {%-endif %} AS {{attr.attribute}}{% if not loop.last%}, {%endif%}
         {%- endfor %}
-            ])
+            ''')
         except ValueError as ve:
             msg = str(ve)
             if 'Unable to parse string' in msg:
@@ -162,49 +181,48 @@ class CleanMissingOperation(sk.CleanMissingOperation):
           * "REMOVE_ROW": remove entire row
           * "REMOVE_COLUMN": remove entire column
         - value: optional, used to replace missing values
+    Since 2.6
     """
     template = """
     {%- if mode == "REMOVE_ROW" %}
         cols = {{columns}}
-        min_missing_ratio = {{min_thresh}}
-        max_missing_ratio = {{max_thresh}}
-        {{output}} = ({{input}}.with_column(
-                pl.sum(pl.col(cols).is_null()).alias('@res'))
-            .filter(pl.col('@res').is_between(
-                min_missing_ratio, max_missing_ratio, (False, True)))
-            .select(pl.exclude('@res'))
-        )
+        {{output}} = {{input}}.filter('''
+            {%- for col in columns %}
+            {{col}} IS NOT NULL {% if not loop.last %} AND {% endif %}
+            {%- endfor %}
+        ''')
 
     {%- elif mode == "REMOVE_COLUMN" %}
-        min_missing_ratio = {{min_thresh}}
-        max_missing_ratio = {{max_thresh}}
         cols = {{columns}}
-        df_remove = ({{input}}.select(
-            (pl.col(cols).is_null().sum() / pl.col(cols).count())
-                .is_between(min_missing_ratio, max_missing_ratio)
-                .suffix('_')).collect()[0])
-        to_remove = [col for col in cols if df_remove[f'{col}_'][0]]
+        miss_ratio_df = {{input}}.aggregate('''
+            {%- for col in columns %}
+            1.0 * SUM(CASE WHEN {{col}} IS NULL THEN 1 ELSE 0 END) / COUNT(*) 
+                BETWEEN {{min_thresh}} AND {{max_thresh}} AS _tmp_{{col}}
+            {%- if not loop.last %}, {% endif %}
+            {%- endfor %}
+        ''').df()
+        to_remove = [col for col in cols if miss_ratio_df[f'_tmp_{col}'][0]]
         if to_remove:
-            {{output}} = {{input}}.select(pl.exclude(to_remove))
+            {{output}} = {{input}}.project(f"* EXCLUDE ({','.join(to_remove)})")
         else:
             {{output}} = {{input}}
 
     {%- elif mode == "VALUE" %}
-        {{output}} = {{input}}.select([
-            pl.exclude({{columns}}), 
+        {{output}} = {{input}}.project('''
+            * EXCLUDE ({{columns|join(', ')}}), 
             {%- for col in columns %}
-            pl.col('{{col}}').fill_null(value={{value}}),
+            COALESCE({{col}}, {{value}}) AS {{col}}
+            {%- if not loop.last %},{% endif %}
             {%- endfor %}
-        ])
+        ''')
 
-    {%- elif mode in ("MEAN", "MEDIAN", "MODE") %}
-        {{output}} = {{input}}.select([
-            pl.exclude({{columns}}), 
+    {%- elif mode in ("MEAN", "MEDIAN", "MODE", "AVG") %}
+        {{output}} = {{input}}.project('''
+            * EXCLUDE ({{columns|join(', ')}}), 
             {%- for col in columns %}
-            pl.col('{{col}}').fill_null(
-                value=pl.col('{{col}}').{{mode.lower()}}()),
+            COALESCE({{col}}, {{mode.upper()}}({{col}}) OVER ()) AS {{col}}
             {%- endfor %}
-        ])
+        ''')
     {%- else %}
         raise ValueError('{{invalid_mode}}'.format('{{mode}}'))
     {%- endif %}
@@ -225,7 +243,7 @@ class CleanMissingOperation(sk.CleanMissingOperation):
         ctx = {
             'multiplicity': self.parameters.get('multiplicity', {}).get(
                 'input data', 1),
-            'mode': self.mode,
+            'mode': self.mode if self.mode not in ('mean', 'MEAN') else 'AVG',
             'min_thresh': self.min_ratio, 'max_thresh': self.max_ratio,
             'copy_code': copy_code, 'output': self.output,
             'input': self.named_inputs['input data'],
@@ -254,6 +272,7 @@ class DifferenceOperation(sk.DifferenceOperation):
     """
     Returns a new DataFrame containing rows in this frame but not in another
     frame.
+    Since 2.6
     """
 
     def __init__(self, parameters, named_inputs, named_outputs):
@@ -272,8 +291,7 @@ class DifferenceOperation(sk.DifferenceOperation):
         code = f"""
         if len({in1}.columns) != len({in2}.columns):
             raise ValueError('{error}')
-        {self.output} = {in1}.join(
-            left_on={in1}.columns, right_on={in2}.columns, how='anti')
+        {self.output} = {in1}.except_({in2})
         """
         return dedent(code)
 
@@ -282,6 +300,8 @@ class DistinctOperation(sk.DistinctOperation):
     """
     Returns a new DataFrame containing the distinct rows in this DataFrame.
     Parameters: attributes to consider during operation (keys)
+
+    Since 2.6
     """
 
     def __init__(self, parameters, named_inputs, named_outputs):
@@ -292,11 +312,10 @@ class DistinctOperation(sk.DistinctOperation):
             return None
 
         in1 = self.named_inputs['input data']
-        columns = self.attributes
+        cols = self.attributes
 
         # Ok
-        code = f"{self.output} = {in1}.unique(subset={columns}, keep='first')"
-        return dedent(code)
+        return f"{self.output} = {in1}.project('{', '.join(cols)}').distinct()"
 
 
 class DropOperation(sk.DropOperation):
@@ -304,8 +323,9 @@ class DropOperation(sk.DropOperation):
     Returns a new DataFrame that drops the specified column.
     Nothing is done if schema doesn't contain the given column name(s).
     The only parameters is the name of the columns to be removed.
+
+    Since 2.6
     """
-    ATTRIBUTES_PARAM = 'attributes'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         super().__init__(parameters, named_inputs, named_outputs)
@@ -315,9 +335,8 @@ class DropOperation(sk.DropOperation):
             return None
 
         input = self.named_inputs['input data']
-        columns = self.attributes
-        # Ok
-        code = f"{self.output} = {input}.drop(columns={columns})"
+        code = f"""{self.output} = {input}.project(
+            '* EXCLUDE({', '.join(self.attributes)})')"""
         return dedent(code)
 
 
@@ -360,13 +379,12 @@ class ExecutePythonOperation(sk.ExecutePythonOperation):
         # Variables and language supportedn
         ctx = {{
             'wf_results': results,
-            'in1': in1,
-            'in2': in2,
+            'in1': in1.df() if in1 is not None else None,
+            'in2': in2.df() if in2 is not None else None,,
             'out1': out1,
             'out2': out2,
             'DataFrame': pl.DataFrame,
-            'createDataFrame': pl.DataFrame,
-            'pl': pl,
+            'createDataFrame': pd.DataFrame,
 
             # Restrictions in Python language
             '_write_': lambda v: v,
@@ -386,8 +404,13 @@ class ExecutePythonOperation(sk.ExecutePythonOperation):
             exec(compiled_code, ctx)
 
             # Retrieve values changed in the context
-            out1 = ctx['out1']
-            out2 = ctx['out2']
+            df_out1 = ctx['out1']
+            df_out2 = ctx['out2']
+            
+            out1 = (con.execute('SELECT * FRM df_out1') if df_out1 is not None
+                else None)
+            out2 = (con.execute('SELECT * FRM df_out2') if df_out2 is not None
+                else None)
             if '_print' in ctx:
                 emit_event(name='update task',
                     message=ctx['_print'](),
@@ -410,12 +433,29 @@ class ExecutePythonOperation(sk.ExecutePythonOperation):
 
 
 class ExecuteSQLOperation(sk.ExecuteSQLOperation):
+    """
+    Execute SQL.
+    Since 2.6
+    """
+    template = """
+        {%- if op.input1 %}
+        con.register('ds1', {{op.input1}}.df())
+        {%- endif %}
+        {%- if op.input2 %}
+        con.register('ds2', {{op.input2}}.df())
+        {%- endif %}
+        {{op.output}} = con.query(\"\"\"
+            {%- for line in op.query.split('\n') %}
+            {{line}}
+            {%- endfor %}
+        \"\"\")
+    """
 
     def __init__(self, parameters, named_inputs, named_outputs):
         super().__init__(parameters, named_inputs, named_outputs)
 
-        raise ValueError(
-            gettext('ExecuteSQLOperation not supported by this variant.'))
+    def generate_code(self):
+        return dedent(self.render_template({'op': self}))
 
 
 class FilterOperation(sk.FilterOperation):
@@ -423,14 +463,16 @@ class FilterOperation(sk.FilterOperation):
     Filters rows using the given condition.
     Parameters:
         - A boolean expression
+
+    Since 2.6
     """
     template = """
         {%- if expressions %}
-        {{out}} = {{input}}.filter(
+        {{out}} = {{input}}.filter('''
         {%- for expr in expressions %}
-            ({{expr}}){% if not loop.last %} & {% endif %}
+            {{expr}}{% if not loop.last %} AND {% endif %}
         {%- endfor %}
-        )
+        ''')
         {%- else %}
         {out} = {input}
         {%- endif %}
@@ -440,28 +482,32 @@ class FilterOperation(sk.FilterOperation):
         super().__init__(parameters, named_inputs, named_outputs)
 
     def generate_code(self):
-        if self.has_code:
-            input_data = self.named_inputs['input data']
-            params = {'input': input_data}
+        if not self.has_code:
+            return None
 
-            expressions = []
-            expression = Expression(None, params)
-            for expr in self.advanced_filter:
-                expressions.append(expression.parse(expr['tree'], params))
-                self.transpiler_utils.add_import(expression.imports)
+        input_data = self.named_inputs['input data']
+        params = {'input': input_data}
 
-            ctx = {
-                'out': self.output,
-                'input': self.named_inputs['input data'],
-                'expressions': expressions
-            }
-            return dedent(self.render_template(ctx))
+        expressions = []
+        expression = Expression(None, params)
+        for expr in self.advanced_filter:
+            expressions.append(expression.parse(expr['tree'], params))
+            self.transpiler_utils.add_import(expression.imports)
+
+        ctx = {
+            'out': self.output,
+            'input': self.named_inputs['input data'],
+            'expressions': expressions
+        }
+        return dedent(self.render_template(ctx))
 
 
 class IntersectionOperation(sk.IntersectionOperation):
     """
     Returns a new DataFrame containing rows only in both this
     frame and another frame.
+
+    Since 2.6
     """
 
     def __init__(self, parameters, named_inputs, named_outputs):
@@ -477,8 +523,7 @@ class IntersectionOperation(sk.IntersectionOperation):
         code = f"""
         if len({in1}.columns) != len({in2}.columns):
             raise ValueError('{error}')
-        {self.output} = {in1}.join(
-            left_on={in1}.columns, right_on={in2}.columns, how='semi')
+        {self.output} = {in1}.intersect({in2})
         """
         return dedent(code)
 
@@ -557,9 +602,9 @@ class JoinOperation(sk.JoinOperation):
 
 class RenameAttrOperation(sk.RenameAttrOperation):
     """Renames the attributes
+
+    Since 2.6
     """
-    ATTRIBUTES_PARAM = 'attributes'
-    ALIAS_PARAM = 'alias'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         sk.RenameAttrOperation.__init__(self, parameters, named_inputs,
@@ -570,9 +615,13 @@ class RenameAttrOperation(sk.RenameAttrOperation):
         if not self.has_code:
             return None
 
-        rename = dict(zip(self.attributes, self.alias))
+        rename = [f'{attr} AS {alias}'
+                  for attr, alias in zip(self.attributes, self.alias)]
         code = f"""
-            {self.output} = {self.input}.rename({repr(rename)})
+            {self.output} = {self.input}.project('''
+                * EXCLUDE ({', '.join(self.attributes)}),
+                {', '.join(rename)}
+            ''')
         """
         return dedent(code)
 
@@ -582,22 +631,34 @@ class ReplaceValuesOperation(sk.ReplaceValuesOperation):
     Replace values in one or more attributes from a dataframe.
     Parameters:
     - The list of columns selected.
+
+    Since 2.6
+    """
+    template = """
+        {{op.output}} = {{op.input}}.project('''
+            * EXCLUDE ({{op.replaces.keys()|join(', ')}}),
+        {%- for attr, pairs in op.replaces.items() %}
+            CASE {{attr}}
+            {%- for value in pairs[0] %}
+            {%- if not loop.last %}, {%- endif %}
+                WHEN '{{value}}' THEN '{{pairs[1][loop.index0]}}'
+            {%- endfor %}
+            ELSE 
+                {{attr}}
+            END AS {{attr}}
+            {%- if not loop.last %}, {%- endif %}
+        {% endfor %}
+        ''')
     """
 
     def __init__(self, parameters, named_inputs, named_outputs):
         super().__init__(parameters, named_inputs, named_outputs)
+        self.input = self.named_inputs['input data']
 
     def generate_code(self):
-        if self.has_code:
-            code = """
-            {out} = {in1}
-            replacement = {replaces}
-            for col in replacement:
-                list_replaces = replacement[col]
-                {out}[col] = {out}[col].replace(list_replaces[0], list_replaces[1])
-            """.format(out=self.output, in1=self.named_inputs['input data'],
-                       replaces=self.replaces)
-            return dedent(code)
+        if not self.has_code:
+            return None
+        return dedent(self.render_template({'op': self}))
 
 
 class SampleOrPartitionOperation(sk.SampleOrPartitionOperation):
@@ -608,37 +669,39 @@ class SampleOrPartitionOperation(sk.SampleOrPartitionOperation):
         without replacement: probability that each element is chosen;
             fraction must be [0, 1]
     - seed -> seed for random operation.
+
+    Since 2.6
     """
 
     template = """
-        {%- if type == 'percent' %}
-        {{output}} = {{input}}.collect().sample(
-            frac={{fraction}}, shuffle=True, seed={{seed}}).lazy()
-        {%- elif type == 'head' %}
-        {{output}} = {{input}}.head({{value}})
-        {%- else %}
-        {{output}} = {{input}}.collect().sample(n={{value}}, 
-            shuffle=True, seed={{seed}}).lazy()
+        {%- if op.type in ('percent', 'value') %}
+        cols = ', '.join([f'{c} {t}' 
+            for c, t in zip({{op.input}}.columns, {{op.input}}.dtypes)])
+        {{op.input}}.create_view('_tmp_{{op.order}}')
+       
+        {{op.output}} = con.query('''
+            SELECT * FROM _tmp_{{op.order}}
+            USING SAMPLE
+            {%- if op.type == 'percent' %}
+                {{100*op.fraction}} PERCENT (BERNOULLI, {{op.seed}})
+            {%- else %}
+                RESERVOIR({{op.value}} ROWS) 
+                    REPEATABLE ({{op.seed}})
+            {% endif %} 
+        ''')
+        {%- elif op.type == 'head' %}
+        {{op.output}} = {{op.input}}.limit({{op.value}})
     {%- endif %}
     """
 
     def __init__(self, parameters, named_inputs, named_outputs):
         super().__init__(parameters, named_inputs, named_outputs)
+        self.input = self.named_inputs['input data']
 
     def generate_code(self):
         if not self.has_code:
             return None
-
-        ctx = {
-            'output': self.output,
-            'input': self.named_inputs['input data'],
-            'seed': self.seed,
-            'value': self.value,
-            'fraction': self.fraction,
-            'type': self.type
-        }
-        code = self.render_template(ctx)
-        return dedent(code)
+        return dedent(self.render_template({'op': self}))
 
 
 class SelectOperation(sk.SelectOperation):
@@ -646,30 +709,42 @@ class SelectOperation(sk.SelectOperation):
     Projects a set of expressions and returns a new DataFrame.
     Parameters:
     - The list of columns selected.
+
+    Since 2.6
     """
     template = """
         {%- if op.mode == 'exclude' %}
         
-        exclude = {{op.attributes}}
-        {{op.output}} = {{op.input}}.select(pl.all().exclude(exclude))
+        {{op.output}} = {{op.input}}.project(
+            '* EXCLUDE ({{op.attributes |join(', ')}})')
 
         {% elif op.mode == 'include' %}
-        selection = {{op.attributes}}
-        {{op.output}} = {{op.input}}.select(selection)
           {%- if op.aliases %}
+        {{op.output}} = {{op.input}}.project('
+            {%- for attr, alias in op.alias_dict.items() -%}
+            {{attr}}{% if attr != alias %} AS {{alias}}{% endif %}
+            {%- if not loop.last%}, {% endif %}
+            {%- endfor -%}
+        ')
+          {%- else %}
+        {{op.output}} = {{op.input}}.project(
+            '{{op.attributes |join(', ')}}'
+        )
         {{op.output}}.columns = {{op.aliases}}
           {%- endif %}
 
         {%- elif op.mode == 'rename' %}
-        {{op.output}} = {{op.input}}.rename(mapping={{op.alias_dict}})
+        aliases = {{op.alias_dict}}
+        columns = [f'{col} AS {aliases.get(col, col)}' for col in {{op.input}}.columns]
+        {{op.output}} = {{op.input}}.project(', '.join(columns))
 
         {%- elif op.mode == 'duplicate' %}
-        {{op.output}} = {{op.input}}.select([
-            pl.all(),
+        {{op.output}} = {{op.input}}.project('''
+            *, 
             {%- for k, v in op.alias_dict.items() %}
-            pl.col('{{k}}').alias('{{v}}'),
+            {{k}} AS {{v}}{% if not loop.last %},{% endif %}
             {%- endfor %}
-        ])
+        ''')
         {%- endif %}
     """
 
@@ -677,29 +752,7 @@ class SelectOperation(sk.SelectOperation):
         super().__init__(parameters, named_inputs, named_outputs)
 
     def generate_code(self):
-        if not self.has_code:
-            return
-
-        attributes = []
-        aliases = []
-        alias_dict = {}
-        for attr in self.attributes:
-            if self.mode is None:  # legacy format, without alias
-                attributes.append(attr)
-            else:
-                attribute_name = attr.get('attribute')
-                attributes.append(attribute_name)
-
-                alias = attr.get('alias')
-                aliases.append(alias or attribute_name)
-                alias_dict[attribute_name] = alias or attribute_name
-
-        return dedent(self.render_template(
-            {'op': {'attributes': attributes, 'aliases': aliases,
-                    'mode': self.mode or 'include',
-                    'input': self.named_inputs['input data'],
-                    'output': self.output,
-                    'alias_dict': alias_dict}}))
+        return super().generate_code()
 
 
 class SortOperation(sk.SortOperation):
@@ -710,6 +763,8 @@ class SortOperation(sk.SortOperation):
     - A list indicating whether the sort order is ascending for the columns.
     Condition: the list of columns should have the same size of the list of
                boolean to indicating if it is ascending sorting.
+
+    Since 2.6
     """
 
     def __init__(self, parameters, named_inputs, named_outputs):
@@ -719,12 +774,16 @@ class SortOperation(sk.SortOperation):
         if not self.has_code:
             return None
         input = self.named_inputs['input data']
-        reverse = [not x for x in self.ascending]
+        direction = ['asc' if x else 'desc' for x in self.ascending]
 
         # Ok
+        order = ', '.join(
+            [f'{c} {direction}'
+                for c, direction in zip(self.columns, direction)])
         code = f"""
-            {self.output} = {input}.sort(
-                by={repr(self.columns)}, reverse={repr(reverse)})
+            {self.output} = {input}.order(
+                '{order}'
+            )
         """
 
         return dedent(code)
@@ -735,56 +794,28 @@ class SplitKFoldOperation(sk.SplitKFoldOperation):
     def __init__(self, parameters, named_inputs, named_outputs):
         super().__init__(parameters, named_inputs, named_outputs)
 
+    template = """
+        {%- if op.stratified %}
+        # n = {{op.input}}.project('COUNT(DISTINCT {{op.column}})').df().loc[0][0]
+        {%- if op.shuffle %}
+        con.execute('SELECT setseed({{op.random_state}})')
+        {%- endif %}
+        {{op.output}} = {{op.input}}
+            {%- if op.shuffle %}.order('random()'){% endif -%}
+            .project('''
+            *,
+            NTILE({{op.n_splits}}) OVER (PARTITION BY {{op.column}} 
+                ORDER BY {{op.column}}) AS {{op.alias}}
+        ''')
+        {%- else %}
+        {% endif %}
+        """
     def generate_code(self):
-        if self.has_code:
-            code = """"""
-            copy_code = ".copy()" \
-                if self.parameters['multiplicity']['input data'] > 1 else ""
+        if not self.has_code:
+            return None
 
-            if self.stratified:
-                code = """
-        skf = StratifiedKFold(n_splits={n_splits}, shuffle={shuffle},
-        random_state={random_state})
-
-        {output_data} = {input}{copy_code}
-        tmp = np.full(len({input}), fill_value=-1, dtype=int)
-        j = 0
-        y = {input}['{column}'].to_numpy().tolist()
-        for _, test_index in skf.split({input}, y):
-            tmp[test_index] = j
-            j += 1
-        {output_data}['{alias}'] = tmp
-                    """.format(output=self.output,
-                               copy_code=copy_code,
-                               input=self.named_inputs['input data'],
-                               n_splits=self.n_splits,
-                               shuffle=self.shuffle,
-                               random_state=self.random_state,
-                               output_data=self.output,
-                               column=self.column,
-                               alias=self.alias)
-                return dedent(code)
-            else:
-                code += """
-        kf = KFold(n_splits={n_splits}, shuffle={shuffle},
-        random_state={random_state})
-
-        {output_data} = {input}{copy_code}
-        tmp = np.full(len({input}), fill_value=-1, dtype=int)
-        j = 0
-        for _, test_index in kf.split({input}):
-            tmp[test_index] = j
-            j += 1
-        {output_data}['{alias}'] = tmp
-                    """.format(output=self.output,
-                               copy_code=copy_code,
-                               input=self.named_inputs['input data'],
-                               n_splits=self.n_splits,
-                               shuffle=self.shuffle,
-                               random_state=self.random_state,
-                               output_data=self.output,
-                               alias=self.alias)
-                return dedent(code)
+        self.input = self.named_inputs['input data']
+        return dedent(self.render_template({'op': self}))
 
 
 class SplitOperation(sk.SplitOperation):
@@ -794,7 +825,8 @@ class SplitOperation(sk.SplitOperation):
     - List with two weights for the two new data frames.
     - Optional seed in case of deterministic random operation
         ('0' means no seed).
-
+    
+    Since 2.6
     """
 
     def __init__(self, parameters, named_inputs, named_outputs):
@@ -803,16 +835,20 @@ class SplitOperation(sk.SplitOperation):
     def generate_code(self):
         if not self.has_code:
             return None
-
-        # Ok
+        self.input = self.named_inputs['input data']
+        
         code = f"""
-            shuffled = {self.named_inputs['input data']}.collect().sample(
-                frac=1.0, seed={self.seed}, shuffle=True)
+            con.execute('select setseed(0.{self.seed})')
+            shuffled = ({self.input}
+                .project('*, RANDOM() AS _tmp_')
+                .order('_tmp_')
+                .project('* EXCLUDE(_tmp_)'))
             percent = {repr(self.weights)}
-            pos = round(shuffled.shape[0] * percent)
+            total = shuffled.count('*').df().loc[0][0]
+            pos = round(total * percent)
 
-            {self.out1} = shuffled.slice(0, pos).lazy()
-            {self.out2} = shuffled.slice(pos).lazy()
+            {self.out1} = shuffled.limit(pos)
+            {self.out2} = shuffled.limit(total - pos, pos)
         """
         return dedent(code)
 
@@ -824,6 +860,7 @@ class TransformationOperation(sk.TransformationOperation):
         - Alias: new column name. If the name is the same of an existing,
             replace it.
         - Expression: json describing the transformation expression
+    Since 2.6
     """
 
     def __init__(self, parameters, named_inputs, named_outputs):
@@ -850,13 +887,17 @@ class TransformationOperation(sk.TransformationOperation):
         self.parameters = parameters
 
     def generate_code(self):
+        if not self.has_code:
+            return None
+
         self.template = """
             {%- if functions %}
-            {{out}} = {{input}}.with_columns([
+            {{out}} = {{input}}.project('''
+                *, 
                 {%- for (alias, f) in functions %}
-                {{f}}.alias('{{alias}}'),
+                {{f}} AS {{alias}}{% if not loop.last %},{% endif %}
                 {%- endfor %}
-            ])
+            ''')
             {%- else %}
             {{out}} = {{input}}
             {%- endif %}
@@ -870,7 +911,7 @@ class TransformationOperation(sk.TransformationOperation):
             {%- for pos in positions %}
             new_cols.insert({{pos}}, '{{functions[loop.index0][0]}}')
             {%- endfor %}
-            {{out}} = {{out}}.select(new_cols)
+            {{out}} = {{out}}.project(', '.join(new_cols))
             {%- endif %}
         """
         ctx = {
@@ -886,6 +927,7 @@ class UnionOperation(sk.UnionOperation):
     """
     Return a new DataFrame containing all rows in this frame and another frame.
     Takes no parameters.
+    Since 2.6
     """
 
     def __init__(self, parameters, named_inputs, named_outputs):
@@ -898,5 +940,5 @@ class UnionOperation(sk.UnionOperation):
         df1 = self.named_inputs['input data 1']
         df2 = self.named_inputs['input data 2']
         # Ok
-        code = f"{self.output} = pl.concat([{df1}, {df2}], how='vertical')"
+        code = f"{self.output} = {df1}.union({df2}.project('*'))"
         return dedent(code)

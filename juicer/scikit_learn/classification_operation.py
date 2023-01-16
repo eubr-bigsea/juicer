@@ -848,7 +848,7 @@ class MLPClassifierOperation(Operation):
         else:
             self.batch_size = "'" + self.batch_size + "'"
 
-        if not bool(re.match('(\d+,)+\d*', self.hidden_layers)):
+        if not bool(re.match(r'(\d+,)+\d*', self.hidden_layers)):
             raise ValueError(
                     _("Parameter '{}' must be a tuple with the size "
                       "of each layer for task {}").format(
@@ -1151,7 +1151,7 @@ class PerceptronClassifierOperation(Operation):
     PENALTY_PARAM_EN = 'elasticnet'
     PENALTY_PARAM_L1 = 'l1'
     PENALTY_PARAM_L2 = 'l2'
-    PENALTY_PARAM_NONE = 'None'
+    PENALTY_PARAM_NONE = None
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
@@ -1165,9 +1165,7 @@ class PerceptronClassifierOperation(Operation):
                     self.TOLERANCE_PARAM, 0.001)) or 0.001
             self.shuffle = int(parameters.get(self.SHUFFLE_PARAM, 0) or 0)
             self.seed = parameters.get(self.SEED_PARAM, 'None') or 'None'
-            self.penalty = parameters.get(
-                    self.PENALTY_PARAM,
-                    self.PENALTY_PARAM_NONE) or self.PENALTY_PARAM_NONE
+            self.penalty = parameters.get(self.PENALTY_PARAM)
             self.fit_intercept = int(parameters.get(
                     self.FIT_INTERCEPT_PARAM, 1) or 1)
             self.eta0 = float(parameters.get(self.ETA0_PARAM, 1) or 1)
@@ -1230,7 +1228,7 @@ class PerceptronClassifierOperation(Operation):
         code = """
         algorithm = Perceptron(tol={tol}, alpha={alpha}, 
             max_iter={max_iter}, shuffle={shuffle}, random_state={seed}, 
-            penalty='{penalty}', fit_intercept={fit_intercept}, 
+            penalty={penalty}, fit_intercept={fit_intercept}, 
             eta0={eta0}, n_jobs={n_jobs}, early_stopping={early_stopping}, 
             validation_fraction={validation_fraction}, 
             n_iter_no_change={n_iter_no_change}, 
@@ -1239,7 +1237,7 @@ class PerceptronClassifierOperation(Operation):
                    alpha=self.alpha,
                    max_iter=self.max_iter,
                    shuffle=self.shuffle,
-                   penalty=self.penalty,
+                   penalty=f"'{self.penalty}'" if self.penalty else 'None',
                    seed=self.seed,
                    fit_intercept=self.fit_intercept,
                    eta0=self.eta0,

@@ -402,7 +402,8 @@ class KMeansClusteringOperation(Operation):
     SEED_PARAM = 'random_state'
     N_INIT_PARAM = 'n_init'
     N_INIT_MB_PARAM = 'n_init_mb'
-    N_JOBS_PARAM = 'n_jobs'
+    # Deprecated
+    # N_JOBS_PARAM = 'n_jobs'
     ALGORITHM_PARAM = 'algorithm'
     BATCH_SIZE_PARAM = 'batch_size'
     TOL_PARAM = 'tol'
@@ -420,7 +421,8 @@ class KMeansClusteringOperation(Operation):
 
         if self.has_code:
             self.n_init = int(parameters.get(self.N_INIT_PARAM, 10) or 10)
-            self.n_jobs = parameters.get(self.N_JOBS_PARAM, None) or None
+            # Deprecated in Scikit-Learn
+            # self.n_jobs = parameters.get(self.N_JOBS_PARAM, None) or None
             self.algorithm = parameters.get(self.ALGORITHM_PARAM, 'auto') or 'auto'
             self.n_init_mb = int(parameters.get(self.N_INIT_MB_PARAM, 3) or 3)
             self.tol = float(parameters.get(self.TOL_PARAM, 0.0) or 0.0)
@@ -466,10 +468,6 @@ class KMeansClusteringOperation(Operation):
         else:
             self.seed = None
 
-        if self.n_jobs is not None and self.n_jobs != '0':
-            self.n_jobs = int(self.n_jobs)
-        else:
-            self.n_jobs = None
 
     @staticmethod
     def get_output_metrics_code():
@@ -493,11 +491,11 @@ class KMeansClusteringOperation(Operation):
             algorithm = KMeans(n_clusters={k}, init='{init}', 
                                max_iter={max_iter}, tol={tol}, 
                                random_state={seed}, n_init={n_init}, 
-                               n_jobs={n_jobs}, algorithm='{algorithm}')
+                               algorithm='{algorithm}')
             """.format(k=self.n_clusters, max_iter=self.max_iter,
                        tol=self.tolerance, init=self.init_mode,
                        seed=self.seed, n_init=self.n_init,
-                       n_jobs=self.n_jobs, algorithm=self.algorithm)
+                       algorithm=self.algorithm)
         else:
             code = """
             algorithm = MiniBatchKMeans(n_clusters={k}, init='{init}', 

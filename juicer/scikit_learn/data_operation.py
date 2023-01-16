@@ -11,9 +11,13 @@ from juicer.service import limonero_service
 
 from urllib.request import urlopen
 from urllib.parse import urlparse, parse_qs
-
+from gettext import gettext
 
 class DataReaderOperation(Operation):
+    __slots__ = [
+        'data_source_id', 'has_code', 'header', 'infer_schema',
+        'metadata', 'mode', 'null_values', 'output', 'quote', 
+        'sep', 'supports_cache',]
     HEADER_PARAM = 'header'
     SEPARATOR_PARAM = 'separator'
     QUOTE_PARAM = 'quote'
@@ -31,6 +35,7 @@ class DataReaderOperation(Operation):
     SEPARATORS = {
         '{tab}': '\\t',
         '{new_line}': '\\n',
+        '{empty}': ''
     }
 
     SUPPORTED_DRIVERS = {
@@ -73,7 +78,7 @@ class DataReaderOperation(Operation):
             else:
                 raise ValueError(
                     _("Parameter '{}' must be informed for task {}").format(
-                        self.DATA_SOURCE_ID_PARAM, self.__class__))
+                        self.DATA_SOURCE_ID_PARAM, self.__class__.__name__))
 
             # Test if data source was changed since last execution and
             # invalidate cache if so.
@@ -120,7 +125,7 @@ class DataReaderOperation(Operation):
             self.SEPARATOR_PARAM,
             self.metadata.get('attribute_delimiter', ',')) or ','
         if self.metadata['format'] == 'TEXT':
-            self.sep = '{new_line}'
+            self.sep = '{empty}'
         self.quote = parameters.get(self.QUOTE_PARAM,
                                     self.metadata.get('text_delimiter'))
         if self.quote == '\'':
@@ -169,7 +174,6 @@ class DataReaderOperation(Operation):
         infer_from_limonero = self.infer_schema == self.INFER_FROM_LIMONERO
         do_not_infer = self.infer_schema == self.DO_NOT_INFER
         mode_failfast = self.mode == self.OPT_MODE_FAILFAST
-        
         protect = (self.parameters.get('export_notebook', False) or
                    self.parameters.get('plain', False)) or self.plain
         data_format = self.metadata.get('format')
@@ -275,11 +279,12 @@ class DataReaderOperation(Operation):
                         for i, _ in enumerate({output}.columns)]
         {%-   endif %}
         {%- elif format == 'TEXT' %}
-        {{output}} = pd.read_csv(f, sep='{{sep}}',
-                                 encoding='{{encoding}}',
-                                 compression='infer',
-                                 names = ['value'],
-                                 error_bad_lines={{mode_failfast}})
+        {{output}} = pd.read_table(
+            f, 
+            encoding='{{encoding}}',
+            compression='infer',
+            names = ['value'],
+            error_bad_lines={{mode_failfast}})
         f.close()
         {%- elif format == 'PARQUET' %}
         {{output}} = pd.read_parquet(f, engine='pyarrow')
@@ -363,10 +368,11 @@ class SaveOperation(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-        for att in [self.NAME_PARAM, self.FORMAT_PARAM, self.PATH_PARAM]:
+        for att in (self.NAME_PARAM, self.FORMAT_PARAM, self.PATH_PARAM,
+                self.STORAGE_ID_PARAM):
             if att not in parameters:
                 raise ValueError(
-                    _("Parameter '{}' must be informed for task {}").format(
+                    gettext("Parameter '{}' must be informed for task {}").format(
                         att, self.__class__))
 
         self.name = parameters.get(self.NAME_PARAM)
@@ -375,6 +381,7 @@ class SaveOperation(Operation):
         self.path = parameters.get(self.PATH_PARAM, '.')
         self.mode = parameters.get(self.OVERWRITE_MODE_PARAM, self.MODE_ERROR)
         self.storage_id = parameters.get(self.STORAGE_ID_PARAM)
+
         self.user = parameters.get(self.USER_PARAM)
         self.workflow_id = parameters.get(self.WORKFLOW_ID_PARAM)
 
@@ -386,6 +393,7 @@ class SaveOperation(Operation):
 
         self.filename = self.name
         self.has_code = len(self.named_inputs) == 1
+        self.transpiler_utils.add_import('import os')
 
     def generate_code(self):
 
@@ -393,6 +401,7 @@ class SaveOperation(Operation):
             self.parameters['configuration']['juicer']['services']['limonero']
         url = '{}'.format(limonero_config['url'], self.mode)
         token = str(limonero_config['auth_token'])
+        
         storage = limonero_service.get_storage_info(url, token, self.storage_id)
 
         if storage['type'] != 'HDFS':
@@ -404,17 +413,11 @@ class SaveOperation(Operation):
 
         if storage['url'].endswith('/'):
             storage['url'] = storage['url'][:-1]
-        if self.path.endswith('/'):
-            self.path = self.path[:-1]
-
-        if self.path.startswith('/'):
-            self.path = self.path[1:]
-
-        final_url = '{}/limonero/user_data/{}/{}/{}'.format(
-            storage['url'],
-            self.user['id'],
-            self.path,
-            self.name.replace(' ', '_'))
+        
+        final_url = (
+            f'{storage["url"]}/limonero/user_data/' +
+            f'{self.user["id"]}/{self.path.strip("/")}/'.replace('//', '/') +
+            f'{self.name.replace(" ", "_")}')
 
         if self.format == self.FORMAT_CSV and not final_url.endswith('.csv'):
             final_url += '.csv'
@@ -469,7 +472,7 @@ class SaveOperation(Operation):
                 fs.mkdir(os.path.dirname(path))
                 {%- elif scheme == 'file' %}
                 parent_dir = os.path.dirname(path)
-                os.makedirs(parent_dir)
+                os.makedirs(parent_dir, exist_ok=True)
                 {%- else %}
                 pass
                 {%- endif%}
