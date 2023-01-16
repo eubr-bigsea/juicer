@@ -28,8 +28,7 @@ def test_select_success():
         }
     }
     instance = SelectOperation(**arguments)
-    result = util.execute(instance.generate_code(),
-                          {'df': df})
+    result = util.execute(instance.generate_code(), {'df': df})
     assert result['out'].equals(util.iris(['sepallength'], size=10))
 
 

@@ -1,5 +1,5 @@
 from tests.scikit_learn import util
-from juicer.scikit_learn.etl_operation import CrossValidationOperation
+from juicer.scikit_learn.model_operation import CrossValidationOperation
 import pytest
 
 # CrossValidation

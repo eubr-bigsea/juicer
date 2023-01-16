@@ -51,7 +51,10 @@ def test_regression_model_various_models_success():
         arguments = {
             f'parameters': {'multiplicity': {'train input data': 1},
                             'features': [['sepallength', 'sepalwidth']],
-                            'label': [['sepalwidth']]},
+                            'label': [['sepalwidth']],
+                            'task_id': '0000000000000001000',
+                            'operation_id': 1,
+                            },
             'named_inputs': {
                 'algorithm': algorithm,
                 'train input data': 'df'

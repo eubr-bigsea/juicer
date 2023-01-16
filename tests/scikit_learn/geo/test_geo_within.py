@@ -1,6 +1,6 @@
 from tests.scikit_learn import util
-from juicer.scikit_learn.etl_operation import GeoWithinOperation
-import pytest
+from juicer.scikit_learn.geo_operation import GeoWithinOperation
+
 
 # GeoWithin
 # 

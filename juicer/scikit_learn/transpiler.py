@@ -22,8 +22,15 @@ import juicer.scikit_learn.nlp_operation as nlp_operation
 
 import juicer.scikit_learn.polars.data_operation as polars_io
 import juicer.scikit_learn.polars.etl_operation as polars_etl
+import juicer.scikit_learn.polars.feature_operation as polars_feature
+
+import juicer.scikit_learn.duckdb.data_operation as duckdb_io
+import juicer.scikit_learn.duckdb.etl_operation as duckdb_etl
+import juicer.scikit_learn.duckdb.feature_operation as duckdb_feature
 
 # noinspection SpellCheckingInspection
+
+
 class ScikitLearnTranspiler(Transpiler):
     """
     Convert Lemonade workflow representation (JSON) into code to be run in
@@ -31,12 +38,15 @@ class ScikitLearnTranspiler(Transpiler):
     """
 
     def __init__(self, configuration, slug_to_op_id=None, port_id_to_port=None):
-        super(ScikitLearnTranspiler, self).__init__(
+        super().__init__(
             configuration, os.path.abspath(os.path.dirname(__file__)),
             slug_to_op_id, port_id_to_port)
 
-        if configuration.get('variant') == 'polars':
+        self.variant = configuration.get('variant', 'pandas')
+        if self.variant == 'polars':
             self._assign_polars_operations()
+        elif self.variant == 'duckdb':
+            self._assign_duckdb_operations()
         else:
             self._assign_operations()
 
@@ -71,7 +81,6 @@ class ScikitLearnTranspiler(Transpiler):
             'filter-selection': polars_etl.FilterOperation,
             'join': polars_etl.JoinOperation,
             'k-fold': polars_etl.SplitKFoldOperation,
-            'locality-sensitive-hashing': feature_extraction.LSHOperation,
             'projection': polars_etl.SelectOperation,
             'remove-duplicated-rows': polars_etl.DistinctOperation,
             'replace-value': polars_etl.ReplaceValuesOperation,
@@ -83,10 +92,82 @@ class ScikitLearnTranspiler(Transpiler):
             # TODO in 'transformation': test others functions
             'rename-attr': polars_etl.RenameAttrOperation,
         }
+        feature = {
+            # ------ Feature Extraction Operations  ------#
+            'feature-assembler': polars_feature.FeatureAssemblerOperation,
+            'feature-disassembler':
+                polars_feature.FeatureDisassemblerOperation,
+            'min-max-scaler': polars_feature.MinMaxScalerOperation,
+            'max-abs-scaler': polars_feature.MaxAbsScalerOperation,
+            'one-hot-encoder': polars_feature.OneHotEncoderOperation,
+            'pca': polars_feature.PCAOperation,
+            'kbins-discretizer':
+                polars_feature.KBinsDiscretizerOperation,
+            'standard-scaler': polars_feature.StandardScalerOperation,
+            'feature-indexer': polars_feature.StringIndexerOperation,
+            'string-indexer': polars_feature.StringIndexerOperation,
+            'locality-sensitive-hashing': polars_feature.LSHOperation,
+        }
+
+
 
         self.operations = {}
-        for ops in [data_ops, etl_ops]:
+        for ops in [data_ops, etl_ops, feature]:
             self.operations.update(ops)
+        self._assign_common_operations()
+
+    def _assign_duckdb_operations(self):
+        data_ops = {
+            'data-reader': duckdb_io.DataReaderOperation,
+            'data-writer': duckdb_io.SaveOperation,
+            'save': duckdb_io.SaveOperation,
+        }
+        etl_ops = {
+            'add-columns': duckdb_etl.AddColumnsOperation,
+            'add-rows': duckdb_etl.UnionOperation,
+            'aggregation': duckdb_etl.AggregationOperation,  # TODO: agg sem groupby
+            'cast': duckdb_etl.CastOperation,
+            'clean-missing': duckdb_etl.CleanMissingOperation,
+            'difference': duckdb_etl.DifferenceOperation,
+            'drop': duckdb_etl.DropOperation,
+            'execute-python': duckdb_etl.ExecutePythonOperation,
+            'execute-sql': duckdb_etl.ExecuteSQLOperation,
+            'filter-selection': duckdb_etl.FilterOperation,
+            'join': duckdb_etl.JoinOperation,
+            'k-fold': duckdb_etl.SplitKFoldOperation,
+            'projection': duckdb_etl.SelectOperation,
+            'remove-duplicated-rows': duckdb_etl.DistinctOperation,
+            'replace-value': duckdb_etl.ReplaceValuesOperation,
+            'sample': duckdb_etl.SampleOrPartitionOperation,
+            'set-intersection': duckdb_etl.IntersectionOperation,
+            'sort': duckdb_etl.SortOperation,
+            'split': duckdb_etl.SplitOperation,
+            'transformation': duckdb_etl.TransformationOperation,
+            # TODO in 'transformation': test others functions
+            'rename-attr': duckdb_etl.RenameAttrOperation,
+        }
+        feature = {
+            # ------ Feature Extraction Operations  ------#
+            'feature-assembler': duckdb_feature.FeatureAssemblerOperation,
+            'feature-disassembler':
+                duckdb_feature.FeatureDisassemblerOperation,
+            'min-max-scaler': duckdb_feature.MinMaxScalerOperation,
+            'max-abs-scaler': duckdb_feature.MaxAbsScalerOperation,
+            'one-hot-encoder': duckdb_feature.OneHotEncoderOperation,
+            'pca': duckdb_feature.PCAOperation,
+            'kbins-discretizer':
+                duckdb_feature.KBinsDiscretizerOperation,
+            'standard-scaler': duckdb_feature.StandardScalerOperation,
+            'feature-indexer': duckdb_feature.StringIndexerOperation,
+            'string-indexer': duckdb_feature.StringIndexerOperation,
+            'locality-sensitive-hashing': duckdb_feature.LSHOperation,
+        }
+
+
+        self.operations = {}
+        for ops in [data_ops, etl_ops, feature]:
+            self.operations.update(ops)
+        self._assign_common_operations()
 
     def _assign_operations(self):
         etl_ops = {
@@ -121,7 +202,12 @@ class ScikitLearnTranspiler(Transpiler):
             'save': io.SaveOperation,
             # 'change-attribute': io.ChangeAttributesOperation,
         }
+        self.operations = {}
+        for ops in [data_ops, etl_ops]:
+            self.operations.update(ops)
+        self._assign_common_operations()
 
+    def _assign_common_operations(self):
         geo_ops = {
             'read-shapefile': geo.ReadShapefileOperation,
             'stdbscan': geo.STDBSCANOperation,
@@ -134,20 +220,6 @@ class ScikitLearnTranspiler(Transpiler):
             'association-rules': associative.AssociationRulesOperation,
             'frequent-item-set': associative.FrequentItemSetOperation,
             'sequence-mining': associative.SequenceMiningOperation,
-
-            # ------ Feature Extraction Operations  ------#
-            'feature-assembler': feature_extraction.FeatureAssemblerOperation,
-            'feature-disassembler':
-                feature_extraction.FeatureDisassemblerOperation,
-            'min-max-scaler': feature_extraction.MinMaxScalerOperation,
-            'max-abs-scaler': feature_extraction.MaxAbsScalerOperation,
-            'one-hot-encoder': feature_extraction.OneHotEncoderOperation,
-            'pca': feature_extraction.PCAOperation,
-            'kbins-discretizer':
-                feature_extraction.KBinsDiscretizerOperation,
-            'standard-scaler': feature_extraction.StandardScalerOperation,
-            'feature-indexer': feature_extraction.StringIndexerOperation,
-            'string-indexer': feature_extraction.StringIndexerOperation,
 
             # ------ Model Operations  ------#
             'apply-model': model.ApplyModelOperation,
@@ -248,7 +320,6 @@ class ScikitLearnTranspiler(Transpiler):
             'map': vis_operation.MapOperation
         }
 
-        self.operations = {}
-        for ops in [data_ops, etl_ops, geo_ops, ml_ops, nlp_ops,
+        for ops in [geo_ops, ml_ops, nlp_ops,
                     text_ops, ws_ops, statistical_ops, vis_ops]:
             self.operations.update(ops)

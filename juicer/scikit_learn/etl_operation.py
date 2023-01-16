@@ -6,7 +6,7 @@ from textwrap import dedent
 
 from juicer.operation import Operation
 from juicer.scikit_learn.expression import Expression, \
-        JAVA_2_PYTHON_DATE_FORMAT
+    JAVA_2_PYTHON_DATE_FORMAT
 
 
 class AddColumnsOperation(Operation):
@@ -95,6 +95,15 @@ class AggregationOperation(Operation):
             'min': "min",
             'sum': "sum",
             'size': "size",
+            'countDistinct': 'countDistinct',  # Missing for pandas
+            'approx_count_distinct': 'approx_count_distinct',  # missing for pandas
+            'sumDistinct': 'sum_distinct',  # missing for pandas
+            'stddev': 'stddev',  # missing for pandas
+            'stddev_pop': 'stddev_pop',  # missing for pandas
+            'variance': 'variance',  # missing for pandas
+            'var_pop': 'var_pop',  # missing for pandas
+            'kurtosis': 'kurtosis',  # missing for pandas
+            'skewness': 'skewness',  # missing for pandas
         }
 
         for dictionary in self.functions:
@@ -203,7 +212,7 @@ class CleanMissingOperation(Operation):
 
         if self.has_code:
             if self.ATTRIBUTES_PARAM in parameters:
-                self.attributes_CM = parameters[self.ATTRIBUTES_PARAM]
+                self.attributes = parameters[self.ATTRIBUTES_PARAM]
             else:
                 raise ValueError(
                     _("Parameter '{}' must be informed for task {}").format
@@ -221,11 +230,11 @@ class CleanMissingOperation(Operation):
                     _("Parameter '{}' must be 0<=x<=1 for task {}").format(
                         'attributes', self.__class__))
 
-            self.mode_CM = self.parameters.get(self.CLEANING_MODE_PARAM,
-                                               "REMOVE_ROW")
-            self.value_CM = self.parameters.get(self.VALUE_PARAMETER, None)
+            self.mode = self.parameters.get(self.CLEANING_MODE_PARAM,
+                                            "REMOVE_ROW")
+            self.value = self.parameters.get(self.VALUE_PARAMETER, None)
 
-            if all([self.value_CM is None, self.mode_CM == "VALUE"]):
+            if all([self.value is None, self.mode == "VALUE"]):
                 raise ValueError(
                     _("Parameter '{}' must be not None when"
                       " mode is '{}' for task {}").format
@@ -240,21 +249,23 @@ class CleanMissingOperation(Operation):
             copy_code = ".copy()" \
                 if self.parameters.get('multiplicity',
                                        {}).get('input data', 1) > 1 else ""
-            if self.mode_CM == "REMOVE_ROW":
+            if self.mode == "REMOVE_ROW":
                 code = """
                     min_missing_ratio = {min_thresh}
                     max_missing_ratio = {max_thresh}
                     {output} = {input}{copy_code}
-                    ratio = {input}[{columns}].isnull().sum(axis=1) / len({columns})
-                    ratio_mask = (ratio > min_missing_ratio) & (ratio <= max_missing_ratio)
+                    ratio = {input}[{columns}].isnull().sum(
+                        axis=1) / len({columns})
+                    ratio_mask = (ratio > min_missing_ratio) & (
+                        ratio <= max_missing_ratio)
                     {output} = {output}[~ratio_mask]
                     """ \
                     .format(min_thresh=self.min_ratio, max_thresh=self.max_ratio,
                             copy_code=copy_code, output=self.output,
                             input=self.named_inputs['input data'],
-                            columns=self.attributes_CM, op=op)
+                            columns=self.attributes, op=op)
 
-            elif self.mode_CM == "REMOVE_COLUMN":
+            elif self.mode == "REMOVE_COLUMN":
 
                 code = """
                     min_missing_ratio = {min_thresh}
@@ -263,7 +274,8 @@ class CleanMissingOperation(Operation):
                     to_remove = []
                     for col in {columns}:
                         ratio = {input}[col].isnull().sum() / len({input})
-                        ratio_mask = (ratio > min_missing_ratio) & (ratio <= max_missing_ratio)
+                        ratio_mask = (ratio > min_missing_ratio) & (
+                            ratio <= max_missing_ratio)
                         if ratio_mask:
                             to_remove.append(col)
 
@@ -272,27 +284,28 @@ class CleanMissingOperation(Operation):
                     .format(min_thresh=self.min_ratio, max_thresh=self.max_ratio,
                             output=self.output, copy_code=copy_code,
                             input=self.named_inputs['input data'],
-                            columns=self.attributes_CM, op=op)
+                            columns=self.attributes, op=op)
 
             else:
 
-                if self.mode_CM == "VALUE":
-                    if isinstance(self.check_parameter(self.value_CM), str):
+                if self.mode == "VALUE":
+                    if isinstance(self.check_parameter(self.value), str):
                         op = "{output}[col].fillna(value='{value}', inplace=True)" \
-                            .format(output=self.output, value=self.value_CM)
+                            .format(output=self.output, value=self.value)
                     else:
                         op = "{output}[col].fillna(value={value}, inplace=True)" \
-                            .format(output=self.output, value=self.value_CM)
+                            .format(output=self.output, value=self.value)
 
-                elif self.mode_CM == "MEAN":
+                elif self.mode == "MEAN":
                     op = "{output}[col].fillna(value={output}" \
-                         "[col].mean(), inplace=True)".format(output=self.output)
-                elif self.mode_CM == "MEDIAN":
+                         "[col].mean(), inplace=True)".format(
+                             output=self.output)
+                elif self.mode == "MEDIAN":
                     op = "{output}[col].fillna(value={output}" \
                          "[col].median(), inplace=True)".format(
-                        output=self.output)
+                             output=self.output)
 
-                elif self.mode_CM == "MODE":
+                elif self.mode == "MODE":
                     op = "{out}[col].fillna(value={out}[col].mode()[0], inplace=True)" \
                         .format(out=self.output)
 
@@ -302,14 +315,15 @@ class CleanMissingOperation(Operation):
                         {output} = {input}{copy_code}
                         for col in {columns}:
                             ratio = {input}[col].isnull().sum() / len({input})
-                            ratio_mask = (ratio > min_missing_ratio) & (ratio <= max_missing_ratio)
+                            ratio_mask = (ratio > min_missing_ratio) & (
+                                ratio <= max_missing_ratio)
                             if ratio_mask:
                                 {op}
                                 """ \
                     .format(min_thresh=self.min_ratio, max_thresh=self.max_ratio,
                             output=self.output, copy_code=copy_code,
                             input=self.named_inputs['input data'],
-                            columns=self.attributes_CM, op=op)
+                            columns=self.attributes, op=op)
             return dedent(code)
 
     @staticmethod
@@ -425,7 +439,8 @@ class ExecutePythonOperation(Operation):
 
         if not all([self.PYTHON_CODE_PARAM in parameters]):
             msg = _("Required parameter {} must be informed for task {}")
-            raise ValueError(msg.format(self.PYTHON_CODE_PARAM, self.__class__))
+            raise ValueError(msg.format(
+                self.PYTHON_CODE_PARAM, self.__class__))
 
         self.code = parameters.get(self.PYTHON_CODE_PARAM)
 
@@ -546,11 +561,6 @@ class ExecuteSQLOperation(Operation):
             msg = _("Required parameter {} must be informed for task {}")
             raise ValueError(msg.format(self.QUERY_PARAM, self.__class__))
 
-        self.query = ExecuteSQLOperation._escape_string(
-            parameters.get(self.QUERY_PARAM).strip().replace('\n', ' '))
-        if self.query[:6].upper() != 'SELECT':
-            raise ValueError(_('Invalid query. Only SELECT is allowed.'))
-
         if self.NAMES_PARAM in parameters:
             self.names = [
                 n.strip() for n in parameters.get(self.NAMES_PARAM).split(',')
@@ -563,7 +573,17 @@ class ExecuteSQLOperation(Operation):
         self.output = self.named_outputs.get('output data',
                                              'out_{}'.format(self.order))
 
-        self.transpiler_utils.add_import("from pandasql import sqldf")
+        if (self.transpiler_utils.transpiler is None or
+                self.transpiler_utils.transpiler.variant == 'pandas'):
+            self.transpiler_utils.add_import("from pandasql import sqldf")
+            self.query = ExecuteSQLOperation._escape_string(
+                parameters.get(self.QUERY_PARAM).strip().replace('\n', ' '))
+        else:
+            self.query = ExecuteSQLOperation._escape_string(
+                parameters.get(self.QUERY_PARAM).strip())
+
+        if self.query[:6].upper() != 'SELECT':
+            raise ValueError(_('Invalid query. Only SELECT is allowed.'))
 
     def get_data_out_names(self, sep=','):
         return self.output
@@ -574,13 +594,13 @@ class ExecuteSQLOperation(Operation):
         https://github.com/PyMySQL/PyMySQL/blob/master/pymysql/converters.py"""
         return value
         # _escape_table = [unichr(x) for x in range(128)]
-        # _escape_table[0] = u'\\0'
-        # _escape_table[ord('\\')] = u'\\\\'
-        # _escape_table[ord('\n')] = u'\\n'
-        # _escape_table[ord('\r')] = u'\\r'
-        # _escape_table[ord('\032')] = u'\\Z'
-        # _escape_table[ord('"')] = u'\\"'
-        # _escape_table[ord("'")] = u"\\'"
+        # _escape_table[0] = '\\0'
+        # _escape_table[ord('\\')] = '\\\\'
+        # _escape_table[ord('\n')] = '\\n'
+        # _escape_table[ord('\r')] = '\\r'
+        # _escape_table[ord('\032')] = '\\Z'
+        # _escape_table[ord('"')] = '\\"'
+        # _escape_table[ord("'")] = "\\'"
         # return value.translate(_escape_table)
 
     def generate_code(self):
@@ -639,13 +659,13 @@ class FilterOperation(Operation):
                                        {}).get('input data', 1) > 1 else ""
             filters = [
                 "{0} {1} {2}".format(f['attribute'], f['f'],
-                                       f.get('value', f.get('alias')))
+                                     f.get('value', f.get('alias')))
                 for f in self.filter]
 
             code = """
             {out} = {input}{copy_code}""".format(out=self.output,
-                                      input=self.named_inputs['input data'],
-                                      copy_code=copy_code)
+                                                 input=self.named_inputs['input data'],
+                                                 copy_code=copy_code)
 
             expressions = []
             for i, expr in enumerate(self.advanced_filter):
@@ -676,12 +696,7 @@ class IntersectionOperation(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
         self.has_code = len(named_inputs) == 2 and \
-                        len(named_outputs) > 0 or self.contains_results()
-
-        if not self.has_code:
-            raise ValueError(
-                _("Parameter '{}' and '{}' must be informed for task {}").format
-                ('input data 1', 'input data 2', self.__class__))
+            len(named_outputs) > 0 or self.contains_results()
 
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
@@ -765,12 +780,14 @@ class JoinOperation(Operation):
             # Should be positive boolean logic? ---> '''if self.match_case:'''
             if not self.match_case:
                 code += """
-            data1_tmp = {in1}[keys1].applymap(lambda col: str(col).lower()).copy()
+            data1_tmp = {in1}[keys1].applymap(
+                lambda col: str(col).lower()).copy()
             data1_tmp.columns = [c + "_lower" for c in data1_tmp.columns]
             col1 = list(data1_tmp.columns)
             data1_tmp = pd.concat([{in1}, data1_tmp], axis=1, sort=False)
 
-            data2_tmp = {in2}[keys2].applymap(lambda col: str(col).lower()).copy()
+            data2_tmp = {in2}[keys2].applymap(
+                lambda col: str(col).lower()).copy()
             data2_tmp.columns = [c + "_lower" for c in data2_tmp.columns]
             col2 = list(data2_tmp.columns)
             data2_tmp = pd.concat([{in2}, data2_tmp], axis=1, sort=False)
@@ -834,7 +851,7 @@ class ReplaceValuesOperation(Operation):
         self.has_code = len(self.named_inputs) == 1 and any(
             [len(self.named_outputs) >= 1, self.contains_results()])
         self.output = self.named_outputs.get(
-                'output data', 'output_data_{}'.format(self.order))
+            'output data', 'output_data_{}'.format(self.order))
 
     @staticmethod
     def check_parameter(parameter):
@@ -856,7 +873,8 @@ class ReplaceValuesOperation(Operation):
             replacement = {replaces}
             for col in replacement:
                 list_replaces = replacement[col]
-                {out}[col] = {out}[col].replace(list_replaces[0], list_replaces[1])
+                {out}[col] = {out}[col].replace(
+                    list_replaces[0], list_replaces[1])
             """.format(out=self.output, in1=self.named_inputs['input data'],
                        replaces=self.replaces)
             return dedent(code)
@@ -898,7 +916,7 @@ class SampleOrPartitionOperation(Operation):
         self.seed = self.parameters.get(self.SEED, 'None')
         if type(self.seed) == int:
             self.seed = 0 if self.seed >= 4294967296 or \
-                             self.seed < 0 else self.seed
+                self.seed < 0 else self.seed
 
         self.output = self.named_outputs.get('sampled data',
                                              'output_data_{}'.format(
@@ -941,12 +959,13 @@ class SelectOperation(Operation):
     MODE_PARAM = 'mode'
     template = """
         {%- if op.mode == 'exclude' %}
-        
+
         exclude = {{op.attributes}}
-        selection = [c for c in {{op.input}}.columns.tolist() if c not in exclude]
+        selection = [c for c in {
+            {op.input}}.columns.tolist() if c not in exclude]
         {{op.output}} = {{op.input}}.copy()[selection]
 
-        {% elif op.mode == 'include' %}
+        {% elif op.mode in ('include', 'legacy') %}
         selection = {{op.attributes}}
         {{op.output}} = {{op.input}}.copy()[selection]
           {%- if op.aliases %}
@@ -978,30 +997,45 @@ class SelectOperation(Operation):
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
             self.cols = ','.join(['"{}"'.format(x)
                                   for x in self.attributes])
-        self.mode = parameters.get(self.MODE_PARAM, 'include')
+        else:
+            raise ValueError(gettext("Parameter '{}' must be"
+                                     " informed for task {}").format(
+                self.ATTRIBUTES_PARAM, self.__class__))
+        # Default as 'legacy' for old version of operation
+        self.mode = parameters.get(self.MODE_PARAM, 'legacy')
 
         self.output = self.named_outputs.get(
-            'output projected data', 'projection_data_{}'.format(self.order))
+            'output projected data', f'projection_data_{self.order}')
 
     def generate_code(self):
+        if not self.has_code:
+            return None
+
         attributes = []
         aliases = []
         alias_dict = {}
+
         for attr in self.attributes:
-            if self.mode is None: # legacy format, without alias
-                self.attributes.append(attr)
+            if self.mode == 'legacy':  # legacy format, without alias
+                attributes.append(attr)
             else:
                 attribute_name = attr.get('attribute')
                 attributes.append(attribute_name)
 
-                alias = attr.get('alias')
+                alias = attr.get('alias', '') or ''
+                if self.mode == 'duplicate' and len(alias.strip()) == 0:
+                    raise ValueError(
+                        gettext('When using "duplicate" option, you must inform'
+                                ' aliases for all attributes.'))
                 aliases.append(alias or attribute_name)
                 alias_dict[attribute_name] = alias or attribute_name
-        if self.has_code:
-            return dedent(self.render_template(
-                {'op': {'attributes': attributes, 'aliases': aliases, 'mode': self.mode,
-                    'input': self.named_inputs['input data'], 'output': self.output, 
-                    'alias_dict': alias_dict} }))
+        return dedent(self.render_template(
+            {'op': {'attributes': attributes, 'aliases': aliases,
+                    'mode': self.mode,
+                    'input': self.named_inputs['input data'],
+                    'output': self.output,
+                    'alias_dict': alias_dict}}))
+
 
 class SortOperation(Operation):
     """
@@ -1062,7 +1096,7 @@ class SplitOperation(Operation):
         self.seed = self.parameters.get('seed', 'None')
         if type(self.seed) == int:
             self.seed = 0 if self.seed >= 4294967296 or \
-                             self.seed < 0 else self.seed
+                self.seed < 0 else self.seed
         self.out1 = self.named_outputs.get('split 1',
                                            'split_1_task_{}'.format(self.order))
         self.out2 = self.named_outputs.get('split 2',
@@ -1109,11 +1143,12 @@ class TransformationOperation(Operation):
                 if self.positions is None or len(self.positions) == 0:
                     self.positions = [-1] * num_expressions
                 elif len(self.positions) > num_expressions:
-                    self.positions = [int(x) for x in self.positions[:num_expressions]]
+                    self.positions = [int(x)
+                                      for x in self.positions[:num_expressions]]
                 else:
                     complement = num_expressions - len(self.positions)
                     self.positions = [int(x) for x in self.positions] + (
-                            [-1] * complement)
+                        [-1] * complement)
             else:
                 msg = _("Parameter must be informed for task {}.")
                 raise ValueError(
@@ -1134,7 +1169,7 @@ class TransformationOperation(Operation):
             self.imports.update(expression.imports)
             # row.append(expression.imports) #TODO: by operation itself
 
-        #copy_code = ".copy()" \
+        # copy_code = ".copy()" \
         #    if self.parameters['multiplicity']['input data'] > 1 else ""
         # Always copy. If the target name (alias) exists in df,
         # the original df is changed and may impact the workflow
@@ -1142,7 +1177,7 @@ class TransformationOperation(Operation):
         copy_code = '.copy()'
 
         import_clause = '\n'.join([(8 * ' ' + imp) for imp in
-            expression.imports.split('\n')])
+                                   expression.imports.split('\n')])
         code = """
         {imp}
         {out} = {input}{copy_code}
@@ -1209,7 +1244,8 @@ class SplitKFoldOperation(Operation):
         self.random_state = parameters.get(self.RANDOM_STATE_ATTRIBUTE_PARAM,
                                            None)
         self.alias = parameters.get(self.ALIAS_ATTRIBUTE_PARAM, "fold")
-        self.stratified = int(parameters.get(self.STRATIFIED_ATTRIBUTE_PARAM, 0))
+        self.stratified = int(parameters.get(
+            self.STRATIFIED_ATTRIBUTE_PARAM, 0))
         self.column = None
         self.transpiler_utils.add_import("from sklearn.model_selection "
                                          "import KFold")
@@ -1232,7 +1268,7 @@ class SplitKFoldOperation(Operation):
             if self.COLUMN_ATTRIBUTE_PARAM not in self.parameters:
                 msg = _("Parameter '{}' must be informed for task {}")
                 raise ValueError(msg.format(
-                        self.COLUMN_ATTRIBUTE_PARAM, self.__class__.__name__))
+                    self.COLUMN_ATTRIBUTE_PARAM, self.__class__.__name__))
             self.column = self.parameters[self.COLUMN_ATTRIBUTE_PARAM][0]
 
         self.shuffle = int(self.shuffle) == 1
@@ -1290,11 +1326,12 @@ class SplitKFoldOperation(Operation):
                                alias=self.alias)
                 return dedent(code)
 
+
 class CastOperation(Operation):
     """ Change attribute type.
     """
 
-    template = """
+    template = r"""
         # Changing type implies changes in dataframe,
         # better do a copy of original one
         {{op.output}} = {{op.input}}.copy()
@@ -1362,7 +1399,8 @@ class CastOperation(Operation):
                 self.attributes = parameters[self.ATTRIBUTES_PARAM]
                 for attr in self.attributes:
                     if 'formats' in attr:
-                        attr['formats'] = self.parse_date_format(attr['formats'])
+                        attr['formats'] = self.parse_date_format(
+                            attr['formats'])
             else:
                 raise ValueError(
                     _("Parameter '{}' must be informed for task {}").format
@@ -1373,9 +1411,9 @@ class CastOperation(Operation):
         return self.output
 
     def parse_date_format(self, fmt):
-        parts = re.split('([^\w\d"\'])', fmt)
+        parts = re.split(r'([^\w\d"\'])', fmt)
         py_fmt = ''.join([JAVA_2_PYTHON_DATE_FORMAT.get(x, x)
-            for x in parts])
+                          for x in parts])
         return py_fmt
 
     def generate_code(self):
@@ -1396,7 +1434,6 @@ class RenameAttrOperation(Operation):
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
-        
 
         self.attributes = parameters.get(self.ATTRIBUTES_PARAM, []) or []
         if not self.attributes:
@@ -1404,19 +1441,20 @@ class RenameAttrOperation(Operation):
                 _("Parameter '{}' must be informed for task {}")
                 .format(self.ATTRIBUTES_PARAM, self.__class__))
 
-        self.alias = [ alias.strip() for alias in parameters.get(self.ALIAS_PARAM, '').split(',')] 
+        self.alias = [alias.strip() for alias in parameters.get(
+            self.ALIAS_PARAM, '').split(',')]
 
-        # Adjust alias in order to have the same number of aliases as attributes 
+        # Adjust alias in order to have the same number of aliases as attributes
         # by filling missing alias with the attribute name suffixed by _pdf.
-        self.alias = [x[1] or '{}_renamed'.format(x[0]) for x 
-                in itertools.zip_longest(self.attributes, self.alias[:len(self.attributes)])] 
+        self.alias = [x[1] or '{}_renamed'.format(x[0]) for x
+                      in itertools.zip_longest(self.attributes, self.alias[:len(self.attributes)])]
 
         self.output = self.named_outputs.get(
-                'output data', 'output_data_{}'.format(self.order))
+            'output data', 'output_data_{}'.format(self.order))
 
         self.input = self.named_inputs.get(
-                'input data', 'input_data_{}'.format(self.order))
-        self.has_code = any([len(named_outputs) > 0, self.contains_results()]) 
+            'input data', 'input_data_{}'.format(self.order))
+        self.has_code = any([len(named_outputs) > 0, self.contains_results()])
 
     def generate_code(self):
         """Generate code."""
@@ -1436,7 +1474,6 @@ class RenameAttrOperation(Operation):
 def _collect_list(x):
     return x.tolist()
 
+
 def _collect_set(x):
     return set(x.tolist())
-
-

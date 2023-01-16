@@ -1,5 +1,5 @@
 from tests.scikit_learn import util
-from juicer.scikit_learn.etl_operation import LoadModelOperation
+from juicer.scikit_learn.model_operation import LoadModel
 import pytest
 
 # LoadModel
@@ -18,7 +18,7 @@ def test_load_model_success():
             'output data': 'out'
         }
     }
-    instance = LoadModelOperation(**arguments)
+    instance = LoadModel(**arguments)
     result = util.execute(instance.generate_code(), 
                           dict([df]))
     assert result['out'].equals(util.iris(size=slice_size))

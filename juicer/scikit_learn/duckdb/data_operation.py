@@ -12,24 +12,26 @@ from urllib.request import urlopen
 from urllib.parse import urlparse, parse_qs
 import juicer.scikit_learn.data_operation as sk
 
+
 class DataReaderOperation(sk.DataReaderOperation):
-    
-    LIMONERO_TO_POLARS_DATA_TYPES = {
-        "CHARACTER": 'pl.Utf8',
-        "DATETIME": 'pl.Datetime',
-        "DATE": 'pl.Date',
-        "DOUBLE": 'pl.Float64',
-        "DECIMAL": 'pl.Float64',
-        "FLOAT": 'pl.Float32',
-        "LONG": 'pl.Int64',
-        "INTEGER": 'pl.Int32',
-        "TEXT": 'pl.Utf8',
+
+    LIMONERO_TO_DUCKDB_DATA_TYPES = {
+        'CHARACTER': 'VARCHAR',
+        'DATETIME': 'DATETIME',
+        'DATE': 'DATE',
+        'DOUBLE': 'DOUBLE',
+        'DECIMAL': 'DECIMAL',
+        'FLOAT': 'FLOAT',
+        'LONG': 'LONG',
+        'INTEGER': 'INTEGER',
+        'TEXT': 'TEXT',
     }
 
     def __init__(self, parameters, named_inputs, named_outputs):
-        sk.DataReaderOperation.__init__(self, parameters, named_inputs, 
-            named_outputs)
+        super().__init__(parameters, named_inputs, named_outputs)
         self.transpiler_utils.add_import('import gzip')
+        self.transpiler_utils.add_import('import duckdb')
+
     def generate_code(self):
         """
         """
@@ -40,7 +42,7 @@ class DataReaderOperation(sk.DataReaderOperation):
         infer_from_limonero = self.infer_schema == self.INFER_FROM_LIMONERO
         do_not_infer = self.infer_schema == self.DO_NOT_INFER
         mode_failfast = self.mode == self.OPT_MODE_FAILFAST
-        
+
         protect = (self.parameters.get('export_notebook', False) or
                    self.parameters.get('plain', False)) or self.plain
         data_format = self.metadata.get('format')
@@ -72,38 +74,39 @@ class DataReaderOperation(sk.DataReaderOperation):
 
             jdbc_code = indent(
                 dedent(self.SUPPORTED_DRIVERS[parsed.scheme].format(
-                scheme=parsed.scheme, host=parsed.hostname,
-                db=parsed.path[1:],
-                port=parsed.port,
-                query=self.metadata.get('command'),
-                user=qs_parsed.get('user', [''])[0],
-                password=qs_parsed.get('password', [''])[0],
-                out=self.output)), '    ')
+                    scheme=parsed.scheme, host=parsed.hostname,
+                    db=parsed.path[1:],
+                    port=parsed.port,
+                    query=self.metadata.get('command'),
+                    user=qs_parsed.get('user', [''])[0],
+                    password=qs_parsed.get('password', [''])[0],
+                    out=self.output)), '    ')
         else:
             jdbc_code = None
 
         self.header = self.metadata.get('is_first_line_header')
 
         attributes, converters, parse_dates, names = self.analyse_attributes(
-             self.LIMONERO_TO_POLARS_DATA_TYPES, 
-             self.metadata.get('attributes'))
+            self.LIMONERO_TO_DUCKDB_DATA_TYPES,
+            self.metadata.get('attributes'))
 
         self.template = """
         {%- if infer_from_limonero %}
+        auto_detect = False
         {%-   if attributes and format in ('TEXT', 'CSV') %}
         columns = {
         {%-     for attr in attributes %}
-            '{{attr[0]}}': {{attr[1]}},
+            '{{attr[0]}}': '{{attr[1]}}',
         {%-     endfor %}
         }
         {%-   elif format in ('TEXT', 'CSV') %}
-        columns = {'value': object}
+        columns = {'value': 'text'}
         {%-   endif %}
         {%- elif infer_from_data and format in ('TEXT', 'CSV') %}
         columns = None
-        header = 'infer'
+        auto_detect = True
         {%- elif do_not_infer and format in ('TEXT', 'CSV') %}
-        header = 'infer'
+        auto_detect = True
         {%- endif %}
 
         # Open data source
@@ -119,41 +122,32 @@ class DataReaderOperation(sk.DataReaderOperation):
         {%- endif %}
 
         {%- if format == 'CSV' %}
-        {{output}} = pl.read_csv(
-            f, sep='{{sep}}',
-            encoding='{{encoding}}',
-            has_header={{header}},
-            {%- if infer_from_limonero %}
-            {%- if header %}
-            new_columns={{names}},
-            {%- endif %}
-            dtype=columns,
-            parse_dates={{parse_dates}},
-            {%- elif do_not_infer %}
-            parse_dates = None,
-            converters = None,
-            dtype='str',
-            {%-   endif %}
-            null_values={{na_values}},
-            ignore_errors=True
-            ).lazy()
+        
+        # encoding='{{encoding}}',
+        #parse_dates={{parse_dates}},
+        {{output}} = con.query(f'''
+                {%- if infer_from_limonero %}
+                FROM read_csv(
+                    '{f}', sep='{{sep}}', 
+                    {%- if na_values %}nullstr='{{na_values}}',{%- endif%} 
+                    auto_detect={auto_detect}, header={{header}},
+                    columns={columns}, ignore_errors=True
+                    )
+                {%- else %}
+                FROM read_csv_auto('{f}')
+                {%- endif %}
+            ''')
         {%- if parsed.scheme == 'hdfs'  %}
         f.close()
         {%- endif %}
-        {%-   if header == 'infer' %}
-        {{output}}.columns = ['attr{{i}}'.format(i=i) 
-                        for i, _ in enumerate({output}.columns)]
-        {%-   endif %}
         {%- elif format == 'TEXT' %}
         {{output}} = pl.read_csv(f, sep='{{sep}}',
                                  encoding='{{encoding}}',
                                  compression='infer',
                                  names = ['value'],
                                  error_bad_lines={{mode_failfast}})
-        f.close()
         {%- elif format == 'PARQUET' %}
-        {{output}} = pl.read_parquet(f, engine='pyarrow')
-        f.close()
+        {{output}} = con.query('FROM read_parquet(f)')
         {%- elif format == 'JSON' %}
         {{output}} = pl.read_json(f, orient='records')
         f.close()
@@ -168,7 +162,7 @@ class DataReaderOperation(sk.DataReaderOperation):
         """
         ctx = {
             'attributes': attributes,
-            'parse_dates': True,
+            'parse_dates': parse_dates,
             'names': names,
             'converters': converters,
 
@@ -182,10 +176,10 @@ class DataReaderOperation(sk.DataReaderOperation):
             'extra_params': extra_params,
             'format': data_format,
             'encoding': ((self.metadata.get('encoding', 'utf8') or 'utf8')
-                .replace('-', '')),
+                         .replace('-', '')),
             'header': bool(self.header),
             'sep': self.sep,
-            'na_values': self.null_values if len(self.null_values) else 'None',
+            'na_values': self.null_values[0] if len(self.null_values) else None,
             'output': self.output,
             'mode_failfast': mode_failfast,
 
@@ -232,7 +226,8 @@ class SaveOperation(sk.SaveOperation):
     }
 
     def __init__(self, parameters, named_inputs, named_outputs):
-        sk.SaveOperation.__init__(self, parameters, named_inputs, named_outputs)
+        sk.SaveOperation.__init__(
+            self, parameters, named_inputs, named_outputs)
 
     def generate_code(self):
 
@@ -240,14 +235,15 @@ class SaveOperation(sk.SaveOperation):
             self.parameters['configuration']['juicer']['services']['limonero']
         url = '{}'.format(limonero_config['url'], self.mode)
         token = str(limonero_config['auth_token'])
-        storage = limonero_service.get_storage_info(url, token, self.storage_id)
+        storage = limonero_service.get_storage_info(
+            url, token, self.storage_id)
 
         if storage['type'] != 'HDFS':
             raise ValueError(_('Storage type not supported: {}').format(
                 storage['type']))
 
-        protect = (self.parameters.get('export_notebook', False) or 
-             self.parameters.get('plain', False)) or self.plain
+        protect = (self.parameters.get('export_notebook', False) or
+                   self.parameters.get('plain', False)) or self.plain
 
         if storage['url'].endswith('/'):
             storage['url'] = storage['url'][:-1]

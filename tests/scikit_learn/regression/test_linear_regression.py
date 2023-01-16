@@ -43,25 +43,21 @@ def get_arguments(get_columns):
 #
 # # # # # # # # # # Success # # # # # # # # # #
 @pytest.mark.parametrize(("operation_par", "algorithm_par"), [
-    ({"normalize": False}, {"normalize": False}),
+    ({'alpha': 0.5}, {'alpha': 0.5}),
 
-    ({'alpha': 0.5}, {'alpha': 0.5, 'normalize': True}),
+    ({'l1_ratio': 1.0}, {'l1_ratio': 1.0}),
 
-    ({'l1_ratio': 1.0}, {'l1_ratio': 1.0, 'normalize': True}),
+    ({'max_iter': 500}, {'max_iter': 500}),
 
-    ({'normalize': True}, {'normalize': True}),
+    ({'tol': 0.652}, {'tol': 0.652}),
 
-    ({'max_iter': 500}, {'max_iter': 500, 'normalize': True}),
+    ({'random_state': 2002}, {'random_state': 2002, }),
 
-    ({'tol': 0.652}, {'tol': 0.652, 'normalize': True}),
-
-    ({'random_state': 2002}, {'random_state': 2002, 'normalize': True}),
-
-    ({'positive': True}, {'positive': True, 'normalize': True}),
+    ({'positive': True}, {'positive': True, }),
 
     ({'random_state': 1, 'fit_intercept': True},
-     {'random_state': 1, 'fit_intercept': True, 'normalize': True})
-], ids=["default_params", 'alpha_param', 'l1_ratio_param', 'normalize_param',
+     {'random_state': 1, 'fit_intercept': True, })
+], ids=['alpha_param', 'l1_ratio_param', 
         'max_iter_param', 'tol_param', "random_state_param", 'positive_param',
         'fit_intercept_param'])
 def test_linear_regression_params_success(get_arguments, get_columns, get_df,
@@ -81,7 +77,7 @@ def test_linear_regression_params_success(get_arguments, get_columns, get_df,
 
     model_1 = ElasticNet(alpha=1.0, l1_ratio=0.5, tol=0.0001,
                          max_iter=1000, random_state=None,
-                         normalize=False, positive=False,
+                         positive=False,
                          fit_intercept=False)
 
     for key, value in algorithm_par.items():

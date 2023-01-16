@@ -393,7 +393,7 @@ class WordToVectorOperation(Operation):
                                 
                 {model}.fit(corpus)
                 {out}['{alias}'] = {model}.transform(corpus).toarray().tolist()
-                {vocab} = {model}.get_feature_names()
+                {vocab} = {model}.get_feature_names_out()
                 """.format(
                         copy_code=copy_code,
                         input=input_data,
@@ -419,7 +419,7 @@ class WordToVectorOperation(Operation):
                                 
                 {model}.fit(corpus)
                 {out}['{alias}'] = {model}.transform(corpus).toarray().tolist()
-                {vocab} = {model}.get_feature_names()
+                {vocab} = {model}.get_feature_names_out()
                 """.format(
                         copy_code=copy_code,
                         input=input_data,
@@ -468,10 +468,10 @@ class WordToVectorOperation(Operation):
                 corpus = {out}['{att}'].to_numpy().tolist()
 
                 {model} = Word2Vec(corpus, min_count={min_df}, 
-                    max_vocab_size={max_vocab}, size=dim)
+                    max_vocab_size={max_vocab}, vector_size=dim)
                                 
                 {out}['{alias}'] = get_w2v_vector(corpus, {model}, dim)
-                {vocab} = [w for w in {model}.wv.vocab]
+                {vocab} = [w for w in {model}.wv.index_to_key]
                     """.format(copy_code=copy_code,
                                att=self.attributes,
                                input=input_data,

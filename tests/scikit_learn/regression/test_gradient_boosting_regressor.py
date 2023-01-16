@@ -50,7 +50,7 @@ def get_arguments(get_columns):
     ({'min_samples_split': 6}, {'min_samples_split': 6}),
     ({'min_samples_leaf': 3}, {'min_samples_leaf': 3}),
     ({'max_features': 'auto'}, {'max_features': 'auto'}),
-    ({'criterion': 'mse'}, {'criterion': 'mse'}),
+    ({'criterion': 'friedman_mse'}, {'criterion': 'friedman_mse'}),
     ({'min_weight_fraction_leaf': 0.5}, {'min_weight_fraction_leaf': 0.5}),
     ({'max_leaf_nodes': 2}, {'max_leaf_nodes': 2}),
     ({'min_impurity_decrease': 0.5}, {'min_impurity_decrease': 0.5}),
@@ -88,7 +88,7 @@ def test_gradient_boosting_regressor_params_success(get_arguments,
     y = get_label_data(test_df, [get_columns[0]])
 
     model_1 = GradientBoostingRegressor(
-        loss='ls',
+        loss='squared_error',
         learning_rate=0.1,
         n_estimators=100, subsample=1.0,
         criterion='friedman_mse',

@@ -154,7 +154,8 @@ def _generate(workflow_id, job_id, execute_main, params, config, out=sys.stdout,
                     final_transpiler = SparkTranspiler(
                         configuration.get_config())
                 elif transpiler.target_meta.get('slug') == 'scikit-learn':
-                    from juicer.scikit_learn.transpiler import ScikitLearnTranspiler
+                    from juicer.scikit_learn.transpiler import (
+                        ScikitLearnTranspiler)
                     final_transpiler = ScikitLearnTranspiler(
                         configuration.get_config())
                 else:

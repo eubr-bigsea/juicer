@@ -1,11 +1,15 @@
 """
 Utilities for testing scikit-learn usage in Lemonade.
 """
-from juicer.scikit_learn.util import get_X_train_data, get_label_data
-import pandas as pd
-import numpy as np
 import os
+
+import pandas as pd
+
+from juicer.scikit_learn.util import get_label_data, get_X_train_data
 from juicer.transpiler import TranspilerUtils
+from typing import List, Dict
+from juicer.operation import Operation
+
 
 DATA_SETS = ['iris', 'titanic', 'wine']
 DATA_DIRECTORY = 'data'
@@ -26,26 +30,26 @@ def read(name, columns=None, size=None):
     return df
 
 
-def iris(columns=None, size=None):
+def iris(columns: List[str] = None, size: int = None) -> pd.DataFrame:
     return read('iris', columns, size)
 
 
-def wine(columns=None, size=None):
+def wine(columns: List[str] = None, size: int = None) -> pd.DataFrame:
     return read('wine', columns, size)
 
 
-def titanic(columns=None, size=None):
+def titanic(columns: List[str] = None, size: int = None) -> pd.DataFrame:
     return read('titanic', columns, size)
 
 
-def get_common_imports():
+def get_common_imports() -> str:
     return '\n'.join([
-        'import pandas as pd', 'import numpy as np', 
+        'import pandas as pd', 'import numpy as np',
         'import base64', 'import json',
         'import datetime', 'import string',
         'import functools', 'import re',
         'import hashlib', 'import itertools',
-        'global np', 'global pd', 'global base64', 
+        'global np', 'global pd', 'global base64',
         'global json', 'global datetime', 'global string',
         'global functools', 'global re',
         'global hashlib', 'global itertools'
@@ -62,16 +66,16 @@ def add_minimum_ml_args(args):
     return args
 
 
-def get_complete_code(instance):
-    code = "\n" + \
-           "\n".join(list(instance.transpiler_utils.imports)) + \
-           "\n" + \
-           "\n".join(instance.transpiler_utils.custom_functions.values()) + \
-           "\n" + instance.generate_code().lstrip()
-    return code
+def get_complete_code(instance: Operation):
+    code: List[str] = [""]
+    code.extend(instance.transpiler_utils.imports)
+    code.append('')
+    code.extend(instance.transpiler_utils.custom_functions.values())
+    code.append(instance.generate_code().lstrip())
+    return '\n'.join(code)
 
 
-def execute(code, arguments):
+def execute(code: str, arguments: Dict[any, any]):
     final_code = '\n'.join([
         get_common_imports(),
         # 'import pdb;pdb.set_trace()',
@@ -84,4 +88,3 @@ def execute(code, arguments):
     result = {}
     exec(final_code, arguments, result)
     return result
-
