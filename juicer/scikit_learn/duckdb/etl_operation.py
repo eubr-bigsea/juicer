@@ -23,23 +23,32 @@ class AddColumnsOperation(sk.AddColumnsOperation):
         s1 = self.suffixes[0]
         s2 = self.suffixes[1]
 
+        con = 'get_global_duckdb_conn()'
         # Ok
         code = f"""
-            cols1 = ', '.join(
-                [f'{{col}} AS {s1}{{col}}' for col in {input1}.columns])
+            ok_columns = set({input1}.columns).symmetric_difference(
+                set({input2}.columns))
+
+            cols1 = []
+            for col in {input1}.columns:
+                    cols1.append(col if col in ok_columns else
+                        f'{{col}} AS {s1}{{col}}')
  
             # Convert to pandas because Python API do not support FULL OUTER JOIN
             tmp1 = {input1}.project(
-                f'{{cols1}}, row_number() over () AS _tmp_1')
+                f'{{", ".join(cols1)}}, row_number() over () AS _tmp_1')
             tmp1.create_view('tb1_{self.order}')
 
-            cols2 = ', '.join(
-                [f'{{col}} AS {s2}{{col}}' for col in {input2}.columns])
+            cols2 = []
+            for col in {input2}.columns:
+                    cols2.append(col if col in ok_columns else
+                        f'{{col}} AS {s1}{{col}}')
+
             tmp2 = {input2}.set_alias('{s2}').project(
-                f'{{cols2}}, row_number() over () AS _tmp_2')
+                f'{{", ".join(cols2)}}, row_number() over () AS _tmp_2')
             tmp2.create_view('tb2_{self.order}')
 
-            {self.output} = con.query('''
+            {self.output} = {con}.query('''
                 SELECT * FROM tb1_{self.order} AS {s1}
                 FULL OUTER JOIN tb2_{self.order} AS {s2} 
                     ON {s1}._tmp_1 = {s2}._tmp_2'''
@@ -422,7 +431,7 @@ class ExecutePythonOperation(sk.ExecutePythonOperation):
         except ImportError as ie:
             raise ValueError(gettext('Command import is not supported'))
         """.format(in1=in1, in2=in2, code=self.code.encode('unicode_escape'),
-                   name="execute_python", order=self.order,
+                   order=self.order,
                    id=self.parameters['task']['id']))
 
         code += dedent("""
@@ -578,8 +587,6 @@ class JoinOperation(sk.JoinOperation):
                 """.format(out=self.output, type=self.join_type,
                            in1=self.named_inputs['input data 1'],
                            in2=self.named_inputs['input data 2'],
-                           id1=self.left_attributes,
-                           id2=self.right_attributes,
                            suffixes=self.suffixes)
         else:
             code += """
@@ -718,7 +725,7 @@ class SelectOperation(sk.SelectOperation):
         {{op.output}} = {{op.input}}.project(
             '* EXCLUDE ({{op.attributes |join(', ')}})')
 
-        {% elif op.mode == 'include' %}
+        {% elif op.mode in ('include', 'legacy') %}
           {%- if op.aliases %}
         {{op.output}} = {{op.input}}.project('
             {%- for attr, alias in op.alias_dict.items() -%}
@@ -810,6 +817,7 @@ class SplitKFoldOperation(sk.SplitKFoldOperation):
         {%- else %}
         {% endif %}
         """
+
     def generate_code(self):
         if not self.has_code:
             return None
@@ -825,7 +833,7 @@ class SplitOperation(sk.SplitOperation):
     - List with two weights for the two new data frames.
     - Optional seed in case of deterministic random operation
         ('0' means no seed).
-    
+
     Since 2.6
     """
 
@@ -836,7 +844,7 @@ class SplitOperation(sk.SplitOperation):
         if not self.has_code:
             return None
         self.input = self.named_inputs['input data']
-        
+
         code = f"""
             con.execute('select setseed(0.{self.seed})')
             shuffled = ({self.input}

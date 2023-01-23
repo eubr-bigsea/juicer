@@ -1,58 +1,65 @@
 from itertools import zip_longest as zip_longest
 from textwrap import dedent
 
-from juicer.operation import Operation
-from juicer.scikit_learn.util import get_X_train_data
-
 import juicer.scikit_learn.feature_operation as sk_feature
 
 
 class FeatureAssemblerOperation(sk_feature.FeatureAssemblerOperation):
+    """Assemble features as a vector/list
+    Since 2.6
+    """
 
     def __init__(self, parameters,  named_inputs, named_outputs):
         sk_feature.FeatureAssemblerOperation.__init__(
             self, parameters,  named_inputs,  named_outputs)
 
     def generate_code(self):
-        if self.has_code:
-            code = """
-            cols = {cols}
-            if {input}[cols].dtypes.all() == np.object:
-                raise ValueError("Input '{input}' must contain numeric values"
-                " only for task {cls}")
+        if not self.has_code:
+            return None
+        self.input = self.parameters[self.ATTRIBUTES_PARAM]
+        code = f"""
+        features = {self.attributes}
+        numeric_types = {{
+            pl.UInt8, pl.UInt16, pl.UInt32, pl.UInt64, 
+            pl.Int8, pl.Int16, pl.Int32, pl.Int64, 
+            pl.Float32, pl.Float64,}}
+        test_invalid = lambda t: (t not in numeric_types and 
+            t != pl.List t.inner not in numeric_types)
 
-            {output} = {input}.dropna(subset=cols)
-            {output}['{alias}'] = {output}[cols].to_numpy().tolist()
-            """.format(output=self.output, alias=self.alias,
-                       input=self.named_inputs['input data'],
-                       cols=self.parameters[self.ATTRIBUTES_PARAM],
-                       cls=self.__class__)
-            return dedent(code)
+        invalid = [c for i, c in enumerate({self.input}.columns) 
+            if c in features and test_invalid({self.input}.dtypes[i])]
+        if invalid:
+            raise ValueError("Input '{self.input}' must contain only numeric "
+            " values for task {self.__class__}")
+        # Nulls and NaN are assembled. FIXME: evaluate a property to skip 
+        # or keep such values.
+        {self.output} = {self.input}.select(
+            pl.concat_list(features).alias('{self.alias}'))
+        """
+        return dedent(code)
 
 
 class FeatureDisassemblerOperation(sk_feature.FeatureDisassemblerOperation):
+    """ 
+    Since 2.6
+    """
 
     def __init__(self, parameters, named_inputs, named_outputs):
         sk_feature.FeatureDisassemblerOperation.__init__(
             self, parameters, named_inputs, named_outputs)
 
     def generate_code(self):
-        if self.has_code:
+        if not self.has_code:
+            return None
 
-            code = """
-            {input} = {input}.reset_index(drop=True)
-            feature = {input}['{feature}'].to_numpy()
-            tmp_vec = np.stack(feature, axis=0)
-            dim = tmp_vec.shape[1] if {topn} > tmp_vec.shape[1] else {topn}
-            columns = ["{alias}"+str(i+1) for i in range(dim)]
-            new_df = pd.DataFrame(tmp_vec[:,:dim], columns=columns)
-            {output} = {input}.merge(new_df, left_index=True, right_index=True)
-            """.format(output=self.output,
-                       alias=self.alias,
-                       topn=self.topn,
-                       input=self.named_inputs['input data'],
-                       feature=self.feature)
-            return dedent(code)
+        code = f"""
+        {self.output} = {self.named_inputs['input data']}.select(
+            pl.exclude('{self.feature}'),
+            pl.col('{self.feature}').arr
+                .to_struct(n_field_strategy="max_width")).unnest(
+                    '{self.feature}')
+        """
+        return dedent(code)
 
 
 class MinMaxScalerOperation(sk_feature.MinMaxScalerOperation):
@@ -65,6 +72,7 @@ class MinMaxScalerOperation(sk_feature.MinMaxScalerOperation):
 
     This transformation is often used as an alternative to zero mean,
     unit variance scaling.
+    Since 2.6
     """
 
     def __init__(self, parameters,  named_inputs, named_outputs):
@@ -76,17 +84,14 @@ class MinMaxScalerOperation(sk_feature.MinMaxScalerOperation):
             return None
         input1 = self.named_inputs['input data']
         code = f"""
-            X_train = {input1}.select([
-                {self.attributes}
-            ]).to_numpy()
-
-            {self.model} = MinMaxScaler(feature_range=({self.min}, {self.max}))
-            values = pl.Dataframe(
-                {self.model}.fit_transform(X_train), 
-                columns={self.alias})
-
-            {self.output} = pl.concat(
-                [{input1}, values], how='horizontal').lazy()
+            attributes = {self.attributes}
+            # Second select: restores attributes original order
+            {self.output} = {input1}.select(
+                [pl.exclude(attributes)] + 
+                [((pl.col(c) - pl.col(c).min()) /
+                        (pl.col(c).max() - pl.col(c).min()) 
+                            * ({self.max} - {self.min}) + {self.min}).alias(c)
+                for c in attributes]).select({input1}.columns)
         """
 
         return dedent(code)
@@ -99,7 +104,8 @@ class MaxAbsScalerOperation(sk_feature.MaxAbsScalerOperation):
     This estimator scales and translates each feature individually
     such that the maximal absolute value of each feature in the training
     set will be 1.0. It does not shift/center the data, and thus does not
-     destroy any sparsity.
+    destroy any sparsity.
+    Since 2.6
     """
 
     def __init__(self, parameters, named_inputs, named_outputs):
@@ -108,21 +114,19 @@ class MaxAbsScalerOperation(sk_feature.MaxAbsScalerOperation):
 
     def generate_code(self):
         """Generate code."""
-        if self.has_code:
-            code = """
-            X_train = get_X_train_data({input}, {att})
+        if not self.has_code:
+            return None
 
-            {model} = MaxAbsScaler()
-            values = {model}.fit_transform(X_train)
-
-            {output} = pd.concat([{input},
-                pd.DataFrame(values, columns={alias})],
-                ignore_index=False, axis=1)
-            """.format(output=self.output, model=self.model,
-                       input=self.named_inputs['input data'],
-                       att=self.attributes, alias=self.alias)
-
-            return dedent(code)
+        input1 = self.named_inputs['input data']
+        code = f"""
+            attributes = {self.attributes}
+            # Second select: restores attributes original order
+            {self.output} = {input1}.select(
+                [pl.exclude(attributes)] + 
+                [(pl.col(c) / pl.col(c).abs().max()).alias(c)
+                    for c in attributes]).select({input1}.columns)
+        """
+        return dedent(code)
 
 
 class StandardScalerOperation(sk_feature.StandardScalerOperation):
@@ -137,6 +141,7 @@ class StandardScalerOperation(sk_feature.StandardScalerOperation):
     Standardization of a dataset is a common requirement for many machine
     learning estimators: they might behave badly if the individual feature
     do not more or less look like standard normally distributed data.
+    Since 2.6
     """
 
     def __init__(self, parameters, named_inputs, named_outputs):
@@ -144,66 +149,63 @@ class StandardScalerOperation(sk_feature.StandardScalerOperation):
             self, parameters, named_inputs, named_outputs)
 
     def generate_code(self):
-        if self.has_code:
-            """Generate code."""
-            op = "with_mean={value}" \
-                .format(value=self.with_mean)
-            op += ", with_std={value}" \
-                .format(value=self.with_std)
-
-            code = """
-            X_train = get_X_train_data({input}, {att})
-
-            {model} = StandardScaler({op})
-            values = {model}.fit_transform(X_train)
-
-            {output} = pd.concat([{input},
-                pd.DataFrame(values, columns={alias})],
-                ignore_index=False, axis=1)
-            """.format(model=self.model, output=self.output,
-                       input=self.named_inputs['input data'],
-                       att=self.attributes, alias=self.alias, op=op)
-
-            return dedent(code)
+        if not self.has_code:
+            return None
+        input1 = self.named_inputs['input data']
+        return dedent(f"""
+            attributes = {self.attributes}
+            # Second select: restores attributes original order
+            {self.output} = {input1}.select(
+                [pl.exclude(attributes)] + 
+                [((pl.col(c) - pl.col(c).mean()) / pl.col(c).std()).alias(c)
+                    for c in attributes]).select({input1}.columns)
+        """)
 
 
 class KBinsDiscretizerOperation(sk_feature.KBinsDiscretizerOperation):
     """
     Transform features using Kbins discretizer.
+    Discretizes features into k bins:
+    """
 
-    This method transforms the features to follow a uniform or a
-    normal distribution. Therefore, for a given feature, this transformation
-    tends to spread out the most frequent values.
+    template = """
+        {%- if strategy == 'uniform' %}
+        min_value = math.floor({{input}}.get_column('{{attr}}').min())
+        max_value = math.floor({{input}}.get_column('{{attr}}').max())
+        breaks = np.linspace(min_value, max_value, {{n_quantiles}}).tolist()
+        {{output}} = {{input}}.insert_at_idx(
+            len({{input}}.columns),
+            pl.cut(
+                {{input}}, 
+                breaks, 
+                category_label='{{alias}}').select(
+                    pl.col('{{attr}}').rank('dense')).get_column('{{attr}}'))
+        {%- else %}
+        {{output}} = {{input}}.with_column(
+            {{input}}.select(((pl.col('{{attr}}').rank('dense') - 1) 
+                % {{n_quantiles}})).alias('{{alias}}'))
+        {%- endif %}
     """
 
     def __init__(self, parameters, named_inputs, named_outputs):
         sk_feature.KBinsDiscretizerOperation.__init__(
             self, parameters, named_inputs, named_outputs)
+        if self.output_distribution:
+            self.transpiler_utils.add_import("import math")
+            self.transpiler_utils.add_import("import numpy as np")
 
     def generate_code(self):
-        if self.has_code:
-            """Generate code."""
-            copy_code = ".copy()" \
-                if self.parameters['multiplicity']['input data'] > 1 else ""
+        """Generate code."""
+        if not self.has_code:
+            return None
+        ctx = dict(output=self.output,
+                   model=self.model,
+                   input=self.named_inputs['input data'],
+                   strategy=self.output_distribution,
+                   att=self.attribute, alias=self.alias,
+                   n_quantiles=self.n_quantiles,)
 
-            code = """
-            {output} = {input}{copy_code}
-            {model} = KBinsDiscretizer(n_bins={n_quantiles}, 
-                encode='ordinal', strategy='{strategy}')
-            X_train = get_X_train_data({input}, {att})
-            
-            values = {model}.fit_transform(X_train)
-
-            {output} = pd.concat([{input}, 
-                pd.DataFrame(values, columns={alias})],
-                ignore_index=False, axis=1)
-            """.format(copy_code=copy_code, output=self.output,
-                       model=self.model,
-                       input=self.named_inputs['input data'],
-                       strategy=self.output_distribution,
-                       att=self.attribute, alias=self.alias,
-                       n_quantiles=self.n_quantiles,)
-            return dedent(code)
+        return dedent(self.render_template(ctx))
 
 
 class OneHotEncoderOperation(sk_feature.OneHotEncoderOperation):
@@ -213,30 +215,26 @@ class OneHotEncoderOperation(sk_feature.OneHotEncoderOperation):
     This encoding is needed for feeding categorical data to many
     scikit-learn estimators, notably linear models and SVMs with
     the standard kernels.
+    Since 2.6
     """
 
-    ALIAS_PARAM = 'alias'
-    ATTRIBUTE_PARAM = 'attributes'
-
     def __init__(self, parameters, named_inputs, named_outputs):
-        sk_feature.OneHotEncoderOperation.__init__(
-            self, parameters, named_inputs, named_outputs)
+        super().__init__(parameters, named_inputs, named_outputs)
 
     def generate_code(self):
         """Generate code."""
-        if self.has_code:
-            copy_code = ".copy()" \
-                if self.parameters['multiplicity']['input data'] > 1 else ""
+        if not self.has_code:
+            return None
 
-            code = """
-            {output} = {input}{copy_code}
-            enc = OneHotEncoder()
-            X_train = get_X_train_data({input}, {att})
-            {output}['{alias}'] = enc.fit_transform(X_train).toarray().tolist()
-            """.format(copy_code=copy_code, output=self.output,
-                       input=self.named_inputs['input data'],
-                       att=self.attribute, alias=self.alias)
-            return dedent(code)
+        self.input = self.named_inputs['input data']
+        return dedent(f"""
+            {self.output} = {self.input}.with_column(
+                ({self.input}.select(pl.col('{self.attribute}'))
+                    .to_dummies()
+                    .select(pl.concat_list(pl.all()))
+                    .to_series()
+                    .alias('{self.alias}'))
+        """)
 
 
 class PCAOperation(sk_feature.PCAOperation):
@@ -290,7 +288,7 @@ class LSHOperation(sk_feature.LSHOperation):
             if self.parameters['multiplicity']['input data'] > 1 else ""
 
         code = """
-            {output_data} = {input}{copy_code}
+            {output} = {input}{copy_code}
             X_train = {input}.to_numpy().tolist()
             lshf = LSHForest(min_hash_match={min_hash_match}, 
                 n_candidates={n_candidates}, n_estimators={n_estimators},
@@ -307,7 +305,6 @@ class LSHOperation(sk_feature.LSHOperation):
                        random_state=self.random_state,
                        radius=self.radius,
                        radius_cutoff_ratio=self.radius_cutoff_ratio,
-                       output_data=self.output,
                        model=self.model)
 
         return dedent(code)
@@ -326,27 +323,22 @@ class StringIndexerOperation(sk_feature.StringIndexerOperation):
             self, parameters, named_inputs, named_outputs)
 
     def generate_code(self):
-        if self.has_code:
-            input_data = self.named_inputs['input data']
-            output = self.named_outputs.get('output data',
-                                            'out_task_{}'.format(self.order))
+        if not self.has_code:
+            return None
 
-            models = self.named_outputs.get('models',
-                                            'models_task_{}'.format(self.order))
-            copy_code = ".copy()" \
-                if self.parameters['multiplicity']['input data'] > 1 else ""
+        input_data = self.named_inputs['input data']
+        output = self.named_outputs.get('output data',
+                                        'out_task_{}'.format(self.order))
 
-            code = dedent("""
-               {output} = {input}{copy_code}
-               {models} = dict()
-               le = LabelEncoder()
-               for col, new_col in zip({columns}, {alias}):
-                   data = {input}[col].to_numpy().tolist()
-                   {models}[new_col] = le.fit_transform(data)
-                   {output}[new_col] =le.fit_transform(data)    
-               """.format(copy_code=copy_code, input=input_data,
-                          output=output,
-                          models=models,
-                          columns=self.attributes,
-                          alias=self.alias))
-            return code
+        # FIXME: Models are not supported
+        models = self.named_outputs.get('models',
+                                        'models_task_{}'.format(self.order))
+        code = f"""
+            # Models are not supported
+            {models} = dict()
+            attr_alias = zip({self.attributes}, {self.alias})
+            {output} = {input_data}.select([pl.all()] +  
+                [ pl.col(attr).over(attr).rank('dense').alias(alias)
+                    for attr, alias in attr_alias])
+            """
+        return dedent(code)
