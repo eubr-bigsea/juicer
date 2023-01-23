@@ -31,7 +31,7 @@ class AddColumnsOperation(Operation):
         if self.has_code:
             code = """
             {out} = pd.merge({input1}, {input2}, left_index=True,
-            right_index=True, suffixes=('{s1}', '{s2}'))
+            right_index=True, suffixes=('{s1}', '{s2}'), how='outer')
         """.format(out=self.output,
                    s1=self.suffixes[0],
                    s2=self.suffixes[1],
