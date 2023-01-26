@@ -132,10 +132,7 @@ class CastOperation(sk.CastOperation):
     template = """
         try:
             strict = {{op.errors == 'raise'}}
-            {{op.output}} = {{op.input}}.select([
-                pl.exclude([
-                {%- for attr in op.attributes %}'{{attr.attribute}}',
-                {%- endfor %}]),
+            {{op.output}} = {{op.input}}.with_columns([
         {%- for attr in op.attributes %}
             {%- if attr.type == 'Integer' %}
                 {%- set method_call = 'cast(pl.Int64, strict=strict)' %}
