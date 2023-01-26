@@ -332,6 +332,61 @@ def emit_sample_data_explorer(task_id, df, emit_event, name, size=50,
     emit_sample_sklearn_explorer(task_id, pandas_df, emit_event, name,
                         size, notebook, describe, infer, use_types, page)
 
+def emit_sample_explorer_polars(task_id, df, emit_event, name, size=50, notebook=False,
+                        describe=False, infer=False, use_types=None, page=1):
+
+    # Discard last '}' in order to include more information
+    result = [df.limit(size).write_json(None)[:-1]]
+    result.append(
+        f', "page": {page}, "size": {size}, "total": {df.shape[0]}, "format": "polars"')
+    result.append('}')
+
+    emit_event('update task', status='COMPLETED',
+               identifier=task_id,
+               message=' '.join(result), meaning='sample',
+               type='OBJECT', title=_('Sample data for {}').format(name),
+               task={'id': task_id})
+
+def emit_sample_sklearn(task_id, df, emit_event, name, size=50, notebook=False,
+                        describe=False, infer=False, use_types=None, page=1):
+    from juicer.spark.reports import SimpleTableReport
+    headers = list(df.columns)
+
+    number_types = (int, float, decimal.Decimal)
+    rows = []
+
+    for row in df.head(size).values:
+        new_row = []
+        rows.append(new_row)
+        for col in row:
+            if isinstance(col, str):
+                value = col
+            elif isinstance(col, (datetime.datetime, datetime.date)):
+                value = col.isoformat()
+            elif isinstance(col, number_types):
+                value = str(col)
+            elif isinstance(col, list):
+                value = '[' + ', '.join(
+                    [str(x) if isinstance(x, number_types)
+                     else "'{}'".format(x) for x in col]) + ']'
+            else:
+                value = json.dumps(col, cls=CustomEncoderSkLearn)
+            # truncate column if size is bigger than 200 chars.
+            if len(value) > 200:
+                value = value[:150] + ' ... ' + value[-50:]
+            new_row.append(value)
+
+    css_class = 'table table-striped table-bordered w-auto' \
+        if not notebook else ''
+    content = SimpleTableReport(
+        css_class, headers, rows, _('Sample data for {}').format(name),
+        numbered=True)
+
+    emit_event('update task', status='COMPLETED',
+               identifier=task_id,
+               message=content.generate(),
+               type='HTML', title=_('Sample data for {}').format(name),
+               task={'id': task_id})
 
 def emit_sample_sklearn_explorer(task_id, df, emit_event, name, size=50, notebook=False,
                         describe=False, infer=False, use_types=None, page=1):
