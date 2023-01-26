@@ -67,11 +67,16 @@ class Expression(sk_expression.Expression):
 
     def parse(self, tree, params, enclose_literal=False):
 
-        if tree['type'] == 'BinaryExpression':
+        if tree['type'] in ('BinaryExpression', 'LogicalExpression'):
+            operators = {"&&": "&", "||": "|", "!": "~"}
+            if tree['operator'] in operators:
+                operator = operators[tree['operator']]
+            else:
+                operator = tree['operator']
             # Parenthesis are needed in some pandas/np expressions
             result = "({} {} {})".format(
                 self.parse(tree['left'], params),
-                tree['operator'],
+                operator,
                 self.parse(tree['right'], params))
 
         # Literal parsing
@@ -109,13 +114,6 @@ class Expression(sk_expression.Expression):
                 tree['operator'] = 'not'
             result = "({} {})".format(tree['operator'],
                                       self.parse(tree['argument'], params))
-
-        elif tree['type'] == 'LogicalExpression':
-            operators = {"&&": "&", "||": "|", "!": "~"}
-            operator = operators[tree['operator']]
-            result = "{} {} {}".format(self.parse(tree['left'], params),
-                                       operator,
-                                       self.parse(tree['right'], params))
 
         elif tree['type'] == 'ConditionalExpression':
             spec = {'arguments': [tree['test'], tree['consequent'],
