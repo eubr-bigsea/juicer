@@ -266,6 +266,7 @@ class MetaMinion(Minion):
         self.transpiler.target_platform = target_platform
         self.transpiler.transpile(loader.workflow, loader.graph,
                                   self.config, out, job_id,
+                                  state=self._state,
                                   persist=app_configs.get('persist'))
         out.seek(0)
         json_workflow = out.read()
@@ -333,8 +334,11 @@ class MetaMinion(Minion):
         # print('*' * 20)
         # print(self.target_minion._state)
         # print('*' * 20)
-        return self.target_minion.perform_execute(
+        self.target_minion._state.update(self._state)
+        result = self.target_minion.perform_execute(
             job_id, target_workflow, app_configs)
+        self._state.update(self.target_minion._state)
+        return result
 
     # noinspection PyUnusedLocal
 

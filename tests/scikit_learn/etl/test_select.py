@@ -1,7 +1,7 @@
 from tests.scikit_learn import util
 from juicer.scikit_learn.etl_operation import SelectOperation
 import pytest
-import pandas as pd
+from ..fixtures import get_parametrize
 
 
 # pd.set_option('display.max_rows', None)
@@ -13,7 +13,8 @@ import pandas as pd
 #
 #
 # # # # # # # # # # Success # # # # # # # # # #
-def test_select_success():
+@pytest.mark.parametrize(**get_parametrize())
+def test_select_success(impl, source, target):
     df = util.iris(['sepallength', 'sepalwidth',
                     'petalwidth', 'petallength'], size=10)
     arguments = {
@@ -27,9 +28,10 @@ def test_select_success():
             'output projected data': 'out'
         }
     }
-    instance = SelectOperation(**arguments)
-    result = util.execute(instance.generate_code(), {'df': df})
-    assert result['out'].equals(util.iris(['sepallength'], size=10))
+    instance = impl(**arguments)
+    result = util.execute(instance.generate_code(), {'df': source(df)})
+    
+    assert target(result['out']).equals(util.iris(['sepallength'], size=10))
 
 
 def test_select_with_two_valid_attributes_param_success():

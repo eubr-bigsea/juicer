@@ -237,7 +237,7 @@ class Expression(sk_expression.Expression):
 
     def build_functions_dict(self):
         SF = SupportedFunction
-        #number_regex: str = r'([\d]+[.,\d]+|[\d]*[.][\d]+|[\d]+)'
+        # number_regex: str = r'([\d]+[.,\d]+|[\d]*[.][\d]+|[\d]+)'
         f1 = [
             SF('abs', (any,), self._function_call),
             SF('acos', (any,), self._function_call),
@@ -249,7 +249,7 @@ class Expression(sk_expression.Expression):
             SF('ceil', (any,), self._function_call),
             SF('cos', (any,), self._function_call),
             SF('cosh', (any,), lambda s, p:
-                self._function_call_fmt(s, p, '0.5*(EXP(0.3)+EXP(-0.3))')),
+                self._function_call_fmt(s, p, '0.5*(EXP({0}})+EXP(-{0}))')),
             # SF('crc32', (any, ), lambda s, p: self._series_apply_call(
             #     s, p,
             #     fn="lambda x: zlib.crc32(x.encode('utf-8'))"),
@@ -263,9 +263,10 @@ class Expression(sk_expression.Expression):
                 s, p,  'SQRT({0}**2 + {1}**2)')),
 
             SF('log', (float, any,),
-                lambda s, p: self._function_call_fmt(s, p,
-                                                     'LN({0})' if len(s['arguments']) == 1
-                                                     else 'LN({0})/LN({1})')),
+                lambda s, p: self._function_call_fmt(
+                    s, p,
+                'LN({0})' if len(s['arguments']) == 1
+                else 'LN({0})/LN({1})')),
             SF('log2', (any,), self._function_call),
             SF('log10', (any,), self._function_call),
             SF('log1p', (any,), lambda s, p:
@@ -282,7 +283,7 @@ class Expression(sk_expression.Expression):
             #     self._function_call(s, p, 'round')),
             SF('round', (any,), self._function_call),
             # FIXME Array support
-            #SF('sequence', (any,), self._function_call),
+            # SF('sequence', (any,), self._function_call),
 
             SF('sin', (any,), self._function_call),
             SF('sinh', (any,), lambda s, p:
@@ -537,7 +538,7 @@ class Expression(sk_expression.Expression):
             SF('extract_numbers', (any, ), lambda s, p: self._function_call_fmt(
                 s, p,
                 "LIST_TRANSFORM(LIST_FILTER("
-                "STRING_SPLIT_REGEX({0}', '[^\D\.]'), X->X<>''), "
+                r"STRING_SPLIT_REGEX({0}', '[^\D\.]'), X->X<>''), "
                 "X->CAST(X AS DOUBLE))")
                ),
 

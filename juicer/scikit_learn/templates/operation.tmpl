@@ -28,8 +28,11 @@ import sys
 import time
 import unicodedata
 import numpy as np
+{%- if pandas %}
 import modin.pandas as pd
+{% elif polars %}
 import polars as pl
+{%- endif %}
 import functools
 import threading
 import nltk
@@ -79,10 +82,11 @@ def get_cached_state(task_id, cached_state, emit_event, spark_session,
     results = None
     if task_id in cached_state:
         cached, _hash = cached_state.get(task_id)
-        if _hash == task_hash and verbosity >= 10:
-            emit_event(name='update task',
-                message=_('Task running (cached data)'), status='RUNNING',
-                identifier=task_id)
+        if _hash == task_hash:
+            if verbosity >= 10:
+                emit_event(name='update task',
+                    message=_('Task running (cached data)'), status='RUNNING',
+                    identifier=task_id)
             results = cached
     return results
 
@@ -175,12 +179,13 @@ def {{task.operation.slug.replace('-', '_')}}_{{instance.order}}(sklearn_session
             {%- endif %}
           {%- endfor %}
         }
+       
     {%- if instance.contains_results() %}
     outputs = [(name, out) for name, out in results.items() 
         {%- if duckdb %}
         if isinstance(out, duckdb.DuckDBPyRelation)
         {%- elif polars %}
-        if isinstance(out, pl.DataFrame) 
+        if isinstance(out, (pl.DataFrame, pl.LazyFrame)) 
         {%- else %}
         if isinstance(out, pd.DataFrame) 
         {%- endif %}
@@ -189,11 +194,15 @@ def {{task.operation.slug.replace('-', '_')}}_{{instance.order}}(sklearn_session
     size, infer, describe, use_types = {{ instance.sample_configuration.get_config() }}
     for name, out in outputs:
         {%- if transpiler.get_app_config('meta_platform') %}
+        {%- if polars %}
+        dataframe_util.emit_sample_explorer_polars(
+        {%- else %}
         dataframe_util.emit_sample_sklearn_explorer(
+        {%- endif %}
         {%- else %}
         dataframe_util.emit_sample_sklearn(
         {%- endif %}
-            task_id, out{%if duckdb%}.limit(size).df(){%endif%}, emit_event, name, 
+            task_id, out{%if duckdb%}.limit(size).df(){%elif polars%}.collect(streaming=True){%endif%}, emit_event, name, 
             size=size, infer=infer, describe=describe, use_types=use_types)
     {%- endif %}
     {%- if instance.has_code and instance.enabled and instance.contains_schema %}

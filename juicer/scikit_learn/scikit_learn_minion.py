@@ -284,6 +284,7 @@ class ScikitLearnMinion(Minion):
             with codecs.open(generated_code_path, 'w', 'utf8') as out:
                 self.transpiler.transpile(
                     loader.workflow, loader.graph, {}, out, job_id,
+                    state=self._state,
                     persist=app_configs.get('persist', True))
 
             # Get rid of .pyc file if it exists

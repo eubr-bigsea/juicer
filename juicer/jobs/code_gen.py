@@ -63,7 +63,7 @@ def _get_lookups(tahiti_conf, workflow_id, resp, lang):
         base_url=tahiti_conf['url'], item_path='/operations',
         token=str(tahiti_conf['auth_token']), item_id='',
         qs='lang={}&fields=id,slug,ports.id,ports.slug,ports.interfaces&'
-        'platform={}&workflow={}'.format(
+        'platform={}&workflow={}&code_gen=1'.format(
             lang, resp['platform']['id'], workflow_id)).get('data')
     slug_to_op_id = dict([(op['slug'], op['id']) for op in ops])
     port_id_to_port = dict([(p['id'], p) for op in ops for p in op['ports']])
