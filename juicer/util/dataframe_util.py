@@ -693,7 +693,7 @@ def analyse_attribute(task_id: str, df: Any, emit_event: Any, attribute: str,
             result = pl.concat([result,
                 polars_df.select(pl.n_unique(
                     [col for col in polars_df.columns]))
-                        .transpose(column_names=['count'])],
+                        .transpose(column_names=['unique'])],
                 how='horizontal')
             result.insert_at_idx(
                 0, pl.Series('attribute', polars_df.columns)
