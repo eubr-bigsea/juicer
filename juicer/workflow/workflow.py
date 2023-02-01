@@ -441,7 +441,7 @@ class Workflow(object):
             'item_path': 'operations',
             'token': str(tahiti_conf['auth_token']),
             'item_id': '',
-            'qs': f'lang={self.lang}&{ids}'
+            'qs': f'code_gen=1&lang={self.lang}&{ids}'
         }
 
         # Querying tahiti operations to get number of inputs and outputs
@@ -462,7 +462,8 @@ class Workflow(object):
         operations_ports = tahiti_service.query_tahiti(params['base_url'],
                                                        params['item_path'],
                                                        params['token'],
-                                                       params['item_id'])
+                                                       params['item_id'], 
+                                                       qs='code_gen=1')
         # Get operation requirements in tahiti
         result = {
             'N_INPUT': 0,

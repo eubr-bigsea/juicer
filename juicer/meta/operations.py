@@ -150,7 +150,7 @@ class MetaPlatformOperation(Operation):
         if wf_type != 'VIS_BUILDER':
             result.update(
                 {'forms': {
-                    "display_schema": {"value": "1"},
+                    "display_schema": {"value": "0"},
                     "display_sample": {"value": f"{self.last}"},
                     "sample_size": {"value": self.parameters[
                         'transpiler'].sample_size},
@@ -260,11 +260,17 @@ class TransformOperation(MetaPlatformOperation):
         if function_name:
 
             self.form_parameters = {}
-            for arg, transform in zip(info.get('args', []), info.get(
-                    'transform', [])):
-                if transform is not None and arg[0] == '{' and arg[-1] == '}':
-                    self.form_parameters[arg[1:-1]] = transform(
-                        self.parameters.get(arg[1:-1]))
+            param_names = []
+            for i, (arg, transform) in enumerate(zip(info.get('args', []), info.get(
+                    'transform', []))):
+                if transform is not None:
+                    if arg[0] == '{' and arg[-1] == '}':
+                        self.form_parameters[arg[1:-1]] = transform(
+                            self.parameters.get(arg[1:-1]))
+                        param_names.append(arg[1:-1])
+                    else:
+                        self.form_parameters[f'param_{i}'] = transform(arg)
+                        param_names.append(f'param_{i}')
             # import sys
             #print(self.form_parameters, file=sys.stderr)
 
@@ -281,12 +287,13 @@ class TransformOperation(MetaPlatformOperation):
                 final_args_str = ', ' + ', '.join(function_args)
                 transform = info['transform']
                 for i, arg in enumerate(function_args):
-                    if isinstance(args[i], str):
-                        value = arg
-                    else:
-                        value = args[i]
+                    # if isinstance(args[i], str):
+                    #     value = arg
+                    # else:
+                    #     value = args[i]
+                    value = self.form_parameters.get(param_names[i])
                     final_args.append(
-                        {'type': 'Literal', 'value': value, 'raw': f'{arg}'})
+                        {'type': 'Literal', 'value': value, 'raw': value})
             # Uses the same attribute name as alias, so it will be overwritten
             for attr in self.attributes:
                 expressions.append(
@@ -585,7 +592,7 @@ class FindReplaceOperation(MetaPlatformOperation):
             self.attributes = self.attributes[0]
 
         self.find = self.get_required_parameter(parameters, 'find')
-        self.replace = self.get_required_parameter(parameters, 'replace')
+        self.replace = parameters.get('replace', '')
         self.nullify = parameters.get('nullify') in ('1', 1)
 
     def generate_code(self):

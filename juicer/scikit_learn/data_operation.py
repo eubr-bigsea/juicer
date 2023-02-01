@@ -91,7 +91,6 @@ class DataReaderOperation(Operation):
             self.supports_cache = (
                 parameters.get('execution_date') is not None and
                 data_source_updated < parameters['execution_date'])
-
             self.output = named_outputs.get('output data',
                                             'out_task_{}'.format(self.order))
 

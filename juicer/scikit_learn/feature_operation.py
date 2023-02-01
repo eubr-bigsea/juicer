@@ -23,7 +23,8 @@ class FeatureAssemblerOperation(Operation):
                 raise ValueError(
                     _("Parameters '{}' must be informed for task {}")
                     .format(self.ATTRIBUTES_PARAM, self.__class__))
-
+            else:
+                self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
             self.alias = parameters.get(self.ALIAS_PARAM, 'FeatureField')
             self.output = self.named_outputs.get('output data',
                                                  'output_data_{}'.format(
@@ -307,10 +308,7 @@ class StandardScalerOperation(Operation):
 class KBinsDiscretizerOperation(Operation):
     """
     Transform features using Kbins discretizer.
-
-    This method transforms the features to follow a uniform or a
-    normal distribution. Therefore, for a given feature, this transformation
-    tends to spread out the most frequent values.
+    Discretizes features into k bins:
     """
 
     ALIAS_PARAM = 'alias'

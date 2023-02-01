@@ -4,12 +4,13 @@ Utilities for testing scikit-learn usage in Lemonade.
 import os
 
 import pandas as pd
+import duckdb
+import polars as pl
 
 from juicer.scikit_learn.util import get_label_data, get_X_train_data
 from juicer.transpiler import TranspilerUtils
 from typing import List, Dict
 from juicer.operation import Operation
-
 
 DATA_SETS = ['iris', 'titanic', 'wine']
 DATA_DIRECTORY = 'data'
@@ -49,6 +50,7 @@ def get_common_imports() -> str:
         'import datetime', 'import string',
         'import functools', 'import re',
         'import hashlib', 'import itertools',
+        'import polars as pl',
         'global np', 'global pd', 'global base64',
         'global json', 'global datetime', 'global string',
         'global functools', 'global re',
@@ -71,6 +73,7 @@ def get_complete_code(instance: Operation):
     code.extend(instance.transpiler_utils.imports)
     code.append('')
     code.extend(instance.transpiler_utils.custom_functions.values())
+    code.append('import duckdb; duckdb_global_con = duckdb.connect()')
     code.append(instance.generate_code().lstrip())
     return '\n'.join(code)
 
@@ -88,3 +91,9 @@ def execute(code: str, arguments: Dict[any, any]):
     result = {}
     exec(final_code, arguments, result)
     return result
+
+def pandas_2_polars(df: pd.DataFrame):
+    return pl.from_pandas(df).lazy()
+
+def pandas_2_duckdb(df: pd.DataFrame):
+    return None

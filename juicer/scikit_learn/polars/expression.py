@@ -3,10 +3,8 @@
 
 import re
 from dataclasses import dataclass, field
-from gettext import gettext
 from typing import Dict, List, Tuple
 
-import polars as pl
 from six import text_type
 
 import juicer.scikit_learn.expression as sk_expression
@@ -69,11 +67,16 @@ class Expression(sk_expression.Expression):
 
     def parse(self, tree, params, enclose_literal=False):
 
-        if tree['type'] == 'BinaryExpression':
+        if tree['type'] in ('BinaryExpression', 'LogicalExpression'):
+            operators = {"&&": "&", "||": "|", "!": "~"}
+            if tree['operator'] in operators:
+                operator = operators[tree['operator']]
+            else:
+                operator = tree['operator']
             # Parenthesis are needed in some pandas/np expressions
             result = "({} {} {})".format(
                 self.parse(tree['left'], params),
-                tree['operator'],
+                operator,
                 self.parse(tree['right'], params))
 
         # Literal parsing
@@ -112,13 +115,6 @@ class Expression(sk_expression.Expression):
             result = "({} {})".format(tree['operator'],
                                       self.parse(tree['argument'], params))
 
-        elif tree['type'] == 'LogicalExpression':
-            operators = {"&&": "&", "||": "|", "!": "~"}
-            operator = operators[tree['operator']]
-            result = "{} {} {}".format(self.parse(tree['left'], params),
-                                       operator,
-                                       self.parse(tree['right'], params))
-
         elif tree['type'] == 'ConditionalExpression':
             spec = {'arguments': [tree['test'], tree['consequent'],
                                   tree['alternate']]}
@@ -137,7 +133,7 @@ class Expression(sk_expression.Expression):
     def _series_method_call(self, spec: dict, params: dict,
                             alias: str = None, *args: any) -> str:
 
-        #import pdb; pdb.set_trace()
+        # import pdb; pdb.set_trace()
         function = spec['callee']['name']
         if function in self.imports_functions:
             imp = self.imports_functions[function] + "\n"
@@ -178,19 +174,18 @@ class Expression(sk_expression.Expression):
         result = f"pl.struct([{arguments}]).apply({fn})"
         return result
 
-    def _series_new_column_call(self, spec: dict, params: dict,
-                                fn: str = None) -> str:
+    def _rand_call(self, spec: dict, params: dict, alias: str) -> str:
 
         # parsed = [self.parse(x, params) for x in spec['arguments']]
-        result = f"pl.col({params['input']}.columns[0]).apply({fn})"
+        result = f"pl.Series(np.random.{alias}({params['input']}.shape[0]))"
         return result
 
-    def _bitwise_call(self, spec: dict, params: dict,
-                      fn: str = None) -> str:
+    # def _bitwise_call(self, spec: dict, params: dict,
+    #                   fn: str = None) -> str:
 
-        parsed = [self.parse(x, params) for x in spec['arguments']]
-        result = f"{parsed[0]}.apply(lambda x: np.{fn}(x, {parsed[1]}))"
-        return result
+    #     parsed = [self.parse(x, params) for x in spec['arguments']]
+    #     result = f"{parsed[0]}.apply(lambda x: np.{fn}(x, {parsed[1]}))"
+    #     return result
 
     def _pl_method_call(self, spec: dict, params: dict,
                         alias: str = None, *args: any) -> str:
@@ -319,40 +314,293 @@ class Expression(sk_expression.Expression):
         args = [self.parse(x, params) for x in spec['arguments']]
         return f"{args[0]}.str.replace_all(r{args[1]}, chr(2)).str.split(chr(2))"
 
+    def _concat_ws_call(self, spec: dict, params: dict) -> str:
+        # First parameter is the deliter. In polars, it is the last
+        args = spec['arguments'][1:] + spec['arguments'][0:1]
+        new_spec = dict(spec)
+        new_spec['arguments'] = args
+        return self._pl_method_call(new_spec, params, 'concat_str')
+
     def _assert_int(self, description: str, value: int):
         if not isinstance(value, int):
             raise ValueError(_('{} is not integer').format(description, value))
+
+    def _call_fmt(self, spec: dict, params: dict, fmt: str = None
+                  ) -> str:
+        parsed = [self.parse(x, params, i == 0)
+                  for i, x in enumerate(spec['arguments'])]
+        return fmt.format(*parsed)
 
     def build_functions_dict(self):
         SF = SupportedFunction
         number_regex: str = r'([\d]+[.,\d]+|[\d]*[.][\d]+|[\d]+)'
         f1 = [
+
+            # Bitwise
+            SF('bitwiseNot', (any, ), lambda s, p: self._call_fmt(
+                s, p, fmt='np.invert(pl.col({0}))'), ['import numpy as np']),
+            SF('shiftLeft', (any, int), lambda s, p: self._call_fmt(
+                s, p, fmt='np.left_shift({0}, {1})'), ['import numpy as np']),
+            SF('shiftRight', (any, int), lambda s, p: self._call_fmt(
+                s, p, fmt='np.right_shift({0}, {1})'), ['import numpy as np']),
+            # SF('shiftRightUnsigned', (any, int), lambda s, p: self._call_fmt(
+            #     s, p, fmt='np.right_shift({0}, {1})'), ['import numpy as np']),
+
+            # Logic/conditional
+            SF('isnull', (any, ),
+               lambda s, p: self._series_method_call(s, p, 'is_null')),
+            SF('isnan', (any, ),
+               lambda s, p: self._series_method_call(s, p, 'is_nan')),
+            SF('when', (any, List[any]), self._when_call),
+
+
             SF('abs', (any,), self._series_method_call),
             SF('acos', (any,),
                 lambda s, p: self._series_method_call(s, p, 'arccos')),
-            SF('add_months', (any, int), self._add_month_call),
-            SF('array_contains', (any, any),
-                lambda s, p: self._series_method_call(s, p, 'arr.contains')),
-            SF('array_distinct', (any, any),
-                lambda s, p: self._series_method_call(s, p, 'arr.unique')),
-            SF('array_except', (any, any), self._array_set_call),
-            SF('array_intersect', (any, any), self._array_set_call),
-            SF('array_join', (any, any),
-                lambda s, p: self._series_method_call(s, p, 'arr.join')),
-            SF('shuffle', (any, ), lambda s, p: self._series_apply_call(
+            SF('asin', (any,),
+                lambda s, p: self._series_method_call(s, p, 'arcsin')),
+            SF('atan', (any,),
+                lambda s, p: self._series_method_call(s, p, 'arctan')),
+            # See atan2 definition
+            SF('atan2', (any, float, float), lambda s, p:self._call_fmt(
                 s, p,
-                fn='lambda x: x.shuffle(random.randint(0, sys.maxsize))'),
-                ['import random']),
-
-            SF('conv', (any, str, str), lambda s, p: self._series_apply_call(
+                '''(
+                    pl.when({1} > 0).then(({0} / {1}).arctan())
+                    pl.when(({1} < 0) & ({0} >=0)).then(
+                        ({0} / {1}).arctan() + math.pi)
+                    pl.when(({1} < 0) & ({0} < 0)).then(
+                        ({0} / {1}).arctan() - math.pi)
+                    pl.when(({1} == 0) & ({0} > 0)).then(math.pi / 2)
+                    pl.when(({1} == 0) & ({0} < 0)).then(- math.pi / 2)
+                        .otherwise(0.0)
+                )'''), ['import math']),
+            SF('bround', (any, any), lambda s, p: self._series_apply_call(
                 s, p,
-                fn="lambda x: np.base_repr(int(x, base={1}), base={2})")),
-
+                '''(lambda n: round(n) + 1 if math.isclose(math.modf(n)[0],0.5) 
+                    and int(number) % 2 != 0 else round(number))'''),
+               ['import math']),
+            SF('cbrt', (any, ), lambda s, p:
+                self._series_method_call(s, p, 'pow', '1.0/3')),
+            # Alternative (using pow is faster)
+            # SF('cbrt', (any, ), lambda s, p:
+            #     self._call_fmt(s, p, np.cbrt({0}))),
+            SF('ceil', (any,), self._series_method_call),
+            SF('cos', (any,), self._series_method_call),
+            SF('cosh', (any,), self._series_method_call),
             SF('crc32', (any, ), lambda s, p: self._series_apply_call(
                 s, p,
                 fn="lambda x: zlib.crc32(x.encode('utf-8'))"),
                 ['import zlib']),
+            SF('degrees', (any, ), lambda s, p: self._call_fmt(
+                s, p, '({0} * 180.0) / math.pi'), imports=['import math']),
+            SF('exp', (any,), self._series_method_call),
+            SF('expm1', (any,), lambda s, p: self._call_fmt(s, p,
+                                                            '{0}.exp() - 1')),
+            SF('floor', (any,), self._series_method_call),
+            SF('hypot', (any, str, ), lambda s, p: self._call_fmt(
+                s, p, '({0}**2 + {1}**2).sqrt()')),
+            SF('log', (float, any,), self._log_call),
+            SF('log10', (any,), self._series_method_call),
+            SF('log1p', (any,), lambda s, p: self._call_fmt(
+                s, p, '({0} + 1).log()')),
+            SF('log2', (any,), lambda s, p:
+                self._series_method_call(s, p, 'log', '2')),
+            SF('pow', (any, float), self._series_method_call),
+            SF('radians', (any, ), lambda s, p: self._call_fmt(
+                s, p, '({0} * math.pi) / 180.0'), imports=['import math']),
 
+            SF('rand', (any, ), lambda s, p: self._rand_call(
+                s, p, alias='rand')),
+            SF('randn', (any, ), lambda s, p: self._rand_call(
+                s, p, alias='randn')),
+            SF('rint', (any,), lambda s, p:
+                self._series_method_call(s, p, 'round')),
+            SF('round', (any, int), self._series_method_call),
+            # Sequence
+            SF('sin', (any,), self._series_method_call),
+            SF('sinh', (any,), self._series_method_call),
+            SF('sqrt', (any,), self._series_method_call),
+            SF('tan', (any,), self._series_method_call),
+            SF('tanh', (any,), self._series_method_call),
+
+            # Date and time
+            SF('add_months', (any, int), self._add_month_call),
+            SF('current_date', (any, ),
+               lambda s, p: self._pl_method_call(s, p, 'lit',
+                                                 'datetime.date.today()')),
+            SF('current_timestamp', (any, ),
+               lambda s, p: self._pl_method_call(s, p, 'lit',
+                                                 'datetime.datetime.now()')),
+            SF('date_add', (any, int),
+                lambda s, p: self._series_method_call(s, p, 'str.offset_by')),
+            SF('date_format', (any, str),
+                lambda s, p: self._series_method_call(s, p, 'dt.strftime')),
+            SF('date_sub', (any, int),
+                lambda s, p: self._series_method_call(s, p, 'str.offset_by')),
+
+            SF('date_trunc', (any, str), self._date_trunc_call),
+            SF('datediff', (any, any), self._datediff_call),
+            SF('dayofmonth', (any, any),
+                lambda s, p: self._series_method_call(s, p, 'dt.day')),
+            SF('dayofweek', (any, any),
+                lambda s, p: self._series_method_call(s, p, 'dt.weekday')),
+            SF('dayofyear', (any, any),
+                lambda s, p: self._series_method_call(s, p, 'dt.ordinal_day')),
+            SF('from_unixtime', (any, int), lambda s, p: self._call_fmt(s, p,
+               '{0}.cast(pl.Datetime).with_time_unit("ms")')),
+            SF('from_utc_timestamp', (any, str), lambda s, p: self._call_fmt(
+                s, p, '{0}.dt.tz_localize("UTC").dt.cast_time_zone("{1}")')),
+            SF('hour', (any, any),
+                lambda s, p: self._series_method_call(s, p, 'dt.hour')),
+            SF('last_day', (any, ), self._series_method_call),
+            SF('minute', (any, any),
+                lambda s, p: self._series_method_call(s, p, 'dt.minute')),
+            SF('month', (any, any),
+                lambda s, p: self._series_method_call(s, p, 'dt.day')),
+            SF('months_between', (any, str), lambda s, p: self._call_fmt(
+                s, p, '{0} - {1}).dt.days() / 30')),
+            SF('next_day', (any, int),
+               lambda s, p: self._series_method_call(s, p, 'str.offset_by')),
+            SF('now', (any, ),
+               lambda s, p: self._pl_method_call(s, p, 'lit',
+                                                 'datetime.datetime.now()')),
+            # SF('months_between', (any, any), lambda s, p:
+            #     self._datediff_call(s, p, 'months')),
+            SF('quarter', (any, any),
+                lambda s, p: self._series_method_call(s, p, 'dt.quarter')),
+            SF('second', (any, any),
+                lambda s, p: self._series_method_call(s, p, 'dt.second')),
+            SF('to_date', (any, str), lambda s, p:
+                self._to_timestamp_call(s, p, use_date=True)),
+            SF('to_timestamp', (any, str), lambda s, p:
+                self._to_timestamp_call(s, p, False)),
+            SF('to_utc_timestamp', (any, str), lambda s, p: self._call_fmt(s, p,
+               "'{0}'.dt.tz_localize('{1}').dt.cast_time_zone('UTC')")),
+            # Reverso e com parâmetros diferentes mapeáveis
+            SF('trunc', (str, any), self._date_trunc_call),
+
+            SF('unix_timestamp', (any, str), lambda s, p:
+                self._to_timestamp_call(s, p, True)),
+            SF('weekofyear', (any, any),
+                lambda s, p: self._series_method_call(s, p, 'dt.week')),
+            SF('year', (any, any),
+               lambda s, p: self._series_method_call(s, p, 'dt.second')),
+
+            # Text
+            SF('ascii', (any, any), lambda s, p: self._series_apply_call(
+                s, p, fn="lambda x: ord(x)")),
+            SF('base64', (any, any),
+                lambda s, p: self._series_method_call(s, p, 'encode', 'base64')),
+            SF('bin', (any, any), lambda s, p: self._series_apply_call(
+                s, p, fn="lambda x: bin(x)")),
+            SF('concat', (any, any),
+                lambda s, p: self._pl_method_call(s, p, 'concat_str')),
+            SF('concat_ws', (any, any), self._concat_ws_call),
+            SF('conv', (any, str, str), lambda s, p: self._series_apply_call(
+                s, p,
+                fn="lambda x: np.base_repr(int(x, base={1}), base={2})")),
+            SF('decode', (any, str), lambda s, p: self._series_apply_call(
+                s, p, fn="lambda x: x.encode('utf8').decode({1})")),
+            SF('encode', (any, str), lambda s, p: self._series_apply_call(
+                s, p, fn="lambda x: x.encode({1})")),
+            SF('format_number', (any, int),
+               lambda s, p: self._series_apply_call(
+                s, p, fn="lambda x: '{{:,.5f}}'.format(x)")),
+            SF('hex', (any, any),
+                lambda s, p: self._series_method_call(s, p, 'encode', 'hex')),
+
+            SF('initcap', (any, int),
+               lambda s, p: self._series_apply_call(
+                s, p, fn="str.title")),
+            SF('instr', (any, str), self._find_call),
+            SF('length', (any, any),
+                lambda s, p: self._series_method_call(s, p, 'str.lengths')),
+            SF('levenshtein', (any, ),
+               lambda s, p: self._series_apply_call(
+                s, p, fn="levenshtein"),
+                custom_functions=levenshtein),
+
+            SF('locate', (any, str, int), self._find_call),
+            SF('lower', (any, any),
+                lambda s, p:
+                self._series_method_call(s, p, 'str.to_lowercase')),
+            SF('lpad', (any, int, str),
+                lambda s, p: self._series_method_call(s, p, 'str.ljust')),
+            SF('ltrim', (any, ),
+                lambda s, p: self._series_method_call(s, p, 'str.lstrip')),
+            SF('regexp_extract', (any, str, int), lambda s, p: self._call_fmt(
+                s, p, '{0}.str.extract_all(r{1))')),
+            SF('regexp_replace', (any, str, str), lambda s, p:
+                self._series_method_call(s, p, 'str.replace_all')),
+            SF('repeat', (any, int), lambda s, p: self._series_apply_call(
+                s, p, fn=f"lambda x: x * {self._arg(s, p, 1)}")
+               ),
+            SF('reverse', (any, ), lambda s, p: self._series_apply_call(
+                s, p, fn="lambda x: x[::-1]")
+               ),
+            SF('rpad', (any, int, str),
+                lambda s, p: self._series_method_call(s, p, 'str.rjust')),
+            SF('rtrim', (any, ),
+                lambda s, p: self._series_method_call(s, p, 'str.rstrip')),
+            SF('soundex', (any, ), lambda s, p: self._series_apply_call(
+                s, p, fn="lambda x: soundex(x)"),
+                custom_functions={'soundex': soundex}),
+            SF('strip_accents', (any, ), lambda s, p: self._series_apply_call(
+                s, p, fn="lambda x: strip_accents(x)"),
+                imports=['import unicodedata'],
+                custom_functions={'strip_accents': strip_accents}),
+            # Separator is the first argument
+            SF('split', (any,),  # https://github.com/pola-rs/polars/issues/4819
+                self._split_call),
+            SF('substring', (any, int, int),
+                lambda s, p: self._series_method_call(s, p, 'str.slice')),
+            SF('substring_index', (any, str, int), self._substring_index_call),
+            SF('translate', (any, str, str),
+               lambda s, p: self._series_apply_call(
+                s, p, fn="lambda x: x.translate(x.maketrans({1}, {2}))")),
+            SF('trim', (any,),
+                lambda s, p: self._series_method_call(s, p, 'str.strip')),
+            SF('unbase64', (any, any),
+               lambda s, p: self._series_method_call(s, p, 'decode', 'base64')),
+            SF('unhex', (any, any),
+                lambda s, p: self._series_method_call(s, p, 'decode', 'hex')),
+            SF('upper', (any, any),
+                lambda s, p: self._series_method_call(s, p,
+                                                      'str.to_uppercase')),
+            # SF('basestring', (any, any), self._series_method_call),
+
+            # Util
+            SF('coalesce', (any, any), self._pl_method_call),
+            SF('from_json', (any, ),
+               lambda s, p: self._series_apply_call(
+                s, p, fn="json.loads"),
+                imports=['import json']),
+            SF('get_json_object', (any, str, ), lambda s, p:
+                self._series_method_call(s, p, 'str.json_path_match')),
+            # SF('greatest', (any, List[any]), lambda s, p:
+            #     self._struct_apply_call(
+            #         s, p,
+            #     'lambda x: np.max('
+            #     '[v for v in x.values() if v is not None] or None)')),
+            SF('greatest', (any, List[any]), lambda s, p:
+                self._pl_method_call(s, p, 'max')),
+            SF('hash', (any, List[any]), lambda s, p:
+               self._struct_apply_call(
+                s, p,
+                'lambda x: hash((v for v in x if))')),
+            SF('least', (any, List[any]), lambda s, p:
+                self._pl_method_call(s, p, 'min')),
+            # SF('least', (any, List[any]), lambda s, p:
+            #     self._struct_apply_call(
+            #         s, p,
+            #     'lambda x: np.min('
+            #     '[v for v in x.values() if v is not None] or None)')),
+            SF('lit', (any,), self._pl_method_call),
+            SF('md5', (any, ), lambda s, p: self._series_apply_call(
+                s, p,
+                fn="lambda x: hashlib.sha1(x.encode('utf8')).hexdigest()"),
+                ['import hashlib']),
+            SF('nanvl', (any, any), self._nanvl_call),
             SF('sha1', (any, ), lambda s, p: self._series_apply_call(
                 s, p,
                 fn="lambda x: hashlib.sha1(x.encode('utf8')).hexdigest()"),
@@ -362,313 +610,78 @@ class Expression(sk_expression.Expression):
                 fn=f"lambda x: hashlib.sha{self.parse(s['arguments'][1], p)}"
                 "(x.encode('utf8')).hexdigest()"),
                 ['import hashlib']),
-            SF('md5', (any, ), lambda s, p: self._series_apply_call(
-                s, p,
-                fn="lambda x: hashlib.sha1(x.encode('utf8')).hexdigest()"),
-                ['import hashlib']),
-
-            SF('hash', (any, List[any]), lambda s, p:
-               self._struct_apply_call(
-                s, p,
-                'lambda x: hash((v for v in x if))')),
-
-            SF('soundex', (any, ), lambda s, p: self._series_apply_call(
-                s, p, fn="lambda x: soundex(x)"),
-                custom_functions={'soundex': soundex}),
-            SF('strip_accents', (any, ), lambda s, p: self._series_apply_call(
-                s, p, fn="lambda x: strip_accents(x)"),
-                imports=['import unicodedata'],
-                custom_functions={'strip_accents': strip_accents}),
-
-            SF('encode', (any, str), lambda s, p: self._series_apply_call(
-                s, p, fn="lambda x: x.encode({1})")),
-            SF('decode', (any, str), lambda s, p: self._series_apply_call(
-                s, p, fn="lambda x: x.encode('utf8').decode({1})")),
-            SF('translate', (any, str, str),
-               lambda s, p: self._series_apply_call(
-                s, p, fn="lambda x: x.translate(x.maketrans({1}, {2}))")),
-
-            SF('array_max', (any, ),
-                lambda s, p: self._series_method_call(s, p, 'arr.max')),
-            SF('array_min', (any, ),
-                lambda s, p: self._series_method_call(s, p, 'arr.min')),
-            SF('slice', (any, ),
-                lambda s, p: self._series_method_call(s, p, 'arr.slice')),
-            SF('size', (any, ),
-                lambda s, p: self._series_method_call(s, p, 'arr.lengths')),
-            SF('element_at', (any, ),
-                lambda s, p: self._series_method_call(s, p, 'arr.get')),
-
-            # SF('array_position', (any, any),
-            #    lambda s, p: self._series_method_call(s, p, 'arr.max')),
-            # SF('array_remove', (any, any),
-            #    lambda s, p: self._series_method_call(s, p, 'arr.max')),
-            # SF('array_repeat', (any, any),
-            #    lambda s, p: self._series_method_call(s, p, 'arr.max')),
-            SF('array_sort', (any, ),
-                lambda s, p: self._series_method_call(s, p, 'arr.sort')),
-            SF('sort_array', (any, ),
-                lambda s, p: self._series_method_call(s, p, 'arr.sort')),
-            SF('array_union', (any, any), self._array_set_call),
-            # SF('arrays_overlap', (any, any),
-            #    lambda s, p: self._series_method_call(s, p, 'arr.max')),
-            # SF('arrays_zip', (any, any),
-            #    lambda s, p: self._series_method_call(s, p, 'arr.max')),
-
-            # SF('ascii', (any, any), self._series_method_call),
-            SF('asin', (any,),
-                lambda s, p: self._series_method_call(s, p, 'arcsin')),
-            SF('atan', (any,),
-                lambda s, p: self._series_method_call(s, p, 'arctan')),
-            # SF('atan2', (any, any), self._series_method_call),
-            SF('base64', (any, any),
-                lambda s, p: self._series_method_call(s, p, 'encode', 'base64')),
-            SF('hex', (any, any),
-                lambda s, p: self._series_method_call(s, p, 'encode', 'hex')),
-            SF('unbase64', (any, any),
-               lambda s, p: self._series_method_call(s, p, 'decode', 'base64')),
-            SF('unhex', (any, any),
-                lambda s, p: self._series_method_call(s, p, 'decode', 'hex')),
-            # SF('basestring', (any, any), self._series_method_call),
-            # SF('bin',(any, any), self._series_method_call),
-
-            SF('concat', (any, any),
-                lambda s, p: self._pl_method_call(s, p, 'concat_str')),
-            SF('coalesce', (any, any), self._pl_method_call),
-
-            # Separador é o primeiro parâmetro
-            # SF('concat_ws', (any, any),
-            #    lambda s, p: self._pl_method_call(s, p, 'concat_str')),
-            SF('split', (any,),  # https://github.com/pola-rs/polars/issues/4819
-                self._split_call),
-
-            SF('dayofmonth', (any, any),
-                lambda s, p: self._series_method_call(s, p, 'dt.day')),
-            SF('dayofweek', (any, any),
-                lambda s, p: self._series_method_call(s, p, 'dt.weekday')),
-            SF('dayofyear', (any, any),
-                lambda s, p: self._series_method_call(s, p, 'dt.ordinal_day')),
-            SF('hour', (any, any),
-                lambda s, p: self._series_method_call(s, p, 'dt.hour')),
-            SF('minute', (any, any),
-                lambda s, p: self._series_method_call(s, p, 'dt.minute')),
-            SF('month', (any, any),
-                lambda s, p: self._series_method_call(s, p, 'dt.day')),
-            SF('quarter', (any, any),
-                lambda s, p: self._series_method_call(s, p, 'dt.quarter')),
-            SF('second', (any, any),
-                lambda s, p: self._series_method_call(s, p, 'dt.second')),
-            SF('weekofyear', (any, any),
-                lambda s, p: self._series_method_call(s, p, 'dt.week')),
-            SF('year', (any, any),
-               lambda s, p: self._series_method_call(s, p, 'dt.second')),
-
-            SF('lit', (any,), self._pl_method_call),
-
-            SF('ceil', (any,), self._series_method_call),
-            SF('cos', (any,), self._series_method_call),
-            SF('cosh', (any,), self._series_method_call),
-            SF('exp', (any,), self._series_method_call),
-            SF('floor', (any,), self._series_method_call),
-            SF('log', (float, any,), self._log_call),
-            SF('log10', (any,), self._series_method_call),
-            # SF('log1p', (any,), self._series_method_call),
-            # SF('exp1m', (any,), self._series_method_call),
-
-            SF('log2', (any,), lambda s, p:
-                self._series_method_call(s, p, 'log', '2')),
-            SF('pow', (any, float), self._series_method_call),
-            SF('cbrt', (any, ), lambda s, p:
-                self._series_method_call(s, p, 'pow', '1.0/3')),
-            SF('round', (any,), self._series_method_call),
-            SF('rint', (any,), lambda s, p: 
-                self._series_method_call(s, p, 'round')),
-            SF('sin', (any,), self._series_method_call),
-            SF('sinh', (any,), self._series_method_call),
-            SF('tan', (any,), self._series_method_call),
-            SF('tanh', (any,), self._series_method_call),
-
-            SF('length', (any, any),
-                lambda s, p: self._series_method_call(s, p, 'str.lengths')),
-            SF('lower', (any, any),
-                lambda s, p:
-                self._series_method_call(s, p, 'str.to_lowercase')),
-            SF('lpad', (any, int, str),
-                lambda s, p: self._series_method_call(s, p, 'str.ljust')),
-            SF('ltrim', (any, ),
-                lambda s, p: self._series_method_call(s, p, 'str.lstrip')),
-            SF('rpad', (any, int, str),
-                lambda s, p: self._series_method_call(s, p, 'str.rjust')),
-            SF('rtrim', (any, ),
-                lambda s, p: self._series_method_call(s, p, 'str.rstrip')),
-            SF('substring', (any, int, int),
-                lambda s, p: self._series_method_call(s, p, 'str.slice')),
-            SF('trim', (any,),
-                lambda s, p: self._series_method_call(s, p, 'str.strip')),
-            SF('upper', (any, any),
-                lambda s, p: self._series_method_call(s, p,
-                                                      'str.to_uppercase')),
-
-            SF('isnull', (any, ),
-               lambda s, p: self._series_method_call(s, p, 'is_null')),
-            SF('isnan', (any, ),
-               lambda s, p: self._series_method_call(s, p, 'is_nan')),
-
-
-            # Reverso e com parâmetros diferentes mapeáveis
-            SF('date_trunc', (str, any), self._date_trunc_call),
-            SF('trunc', (str, any), self._date_trunc_call),
-
-            SF('date_format', (any, str),
-                lambda s, p: self._series_method_call(s, p, 'dt.strftime')),
-            SF('date_add', (any, int),
-                lambda s, p: self._series_method_call(s, p, 'str.offset_by')),
-            SF('date_sub', (any, int),
-                lambda s, p: self._series_method_call(s, p, 'str.offset_by')),
-            SF('next_day', (any, int),
-               lambda s, p: self._series_method_call(s, p, 'str.offset_by')),
-            SF('datediff', (any, any), self._datediff_call),
-            SF('months_between', (any, any), lambda s, p:
-                self._datediff_call(s, p, 'months')),
-
-            SF('current_date', (any, ),
-               lambda s, p: self._pl_method_call(s, p, 'lit',
-                                                 'datetime.date.today()')),
-            SF('current_timestamp', (any, ),
-               lambda s, p: self._pl_method_call(s, p, 'lit',
-                                                 'datetime.datetime.now()')),
-            SF('now', (any, ),
-               lambda s, p: self._pl_method_call(s, p, 'lit',
-                                                 'datetime.datetime.now()')),
-
-            SF('degrees', (any, ), self.get_numpy_function_call),
-            SF('radians', (any, ), self.get_numpy_function_call),
-
-            SF('rand', (any, ), lambda s, p: self._series_new_column_call(
-                s, p, fn='lambda x: np.random.rand()')),
-            SF('randn', (any, ), lambda s, p: self._series_new_column_call(
-                s, p, fn='lambda x: np.random.randn()')),
-
-            SF('bitwiseNot', (any, ), lambda s, p: self._series_new_column_call(
-                s, p, fn='lambda x: np.invert(x)')),
-            SF('shiftLeft', (any, int),
-                lambda s, p: self._bitwise_call(s, p, fn='left_shift')),
-            SF('shiftRight', (any, int),
-                lambda s, p: self._bitwise_call(s, p, fn='right_shift')),
-
-            SF('greatest', (any, List[any]), lambda s, p:
-                self._struct_apply_call(
-                    s, p,
-                'lambda x: np.max('
-                '[v for v in x.values() if v is not None] or None)')),
-            SF('least', (any, List[any]), lambda s, p:
-                self._struct_apply_call(
-                    s, p,
-                'lambda x: np.min('
-                '[v for v in x.values() if v is not None] or None)')),
-
-            SF('last_day', (any, ), self._series_method_call),
-            SF('unix_timestamp', (any, str), lambda s, p:
-                self._to_timestamp_call(s, p, True)),
-            SF('to_timestamp', (any, str), lambda s, p:
-                self._to_timestamp_call(s, p, False)),
-            SF('to_date', (any, str), lambda s, p:
-                self._to_timestamp_call(s, p, use_date=True)),
-
-            SF('months_between', (any, str), lambda s, p:
-                (f"({self._arg(s, p, 0)} - {self._arg(s, p, 1)})"
-                 ".dt.days() / 30"
-                 )
-               ),
-
-            # Test. FIXME
-            SF('from_unixtime', (any, int), lambda s, p:
-                f"{self._arg(s, p, 0)}.cast(pl.Datetime).with_time_unit('ms')"),
-
-            SF('to_utc_timestamp', (any, str), lambda s, p:
-                (f"{self._arg(s, p, 0)}.dt"
-                 f".tz_localize('{self._arg(s, p, 1)}').dt"
-                 ".cast_time_zone('UTC')")),
-            SF('from_utc_timestamp', (any, str), lambda s, p:
-                (f"{self._arg(s, p, 0)}.dt"
-                 ".tz_localize('UTC').dt"
-                 f".cast_time_zone('{self._arg(s, p, 1)}')")),
-
-
-            SF('when', (any, List[any]), self._when_call),
-
             SF('signum', (any, List[any]), self._signum_call),
-
-            SF('nanvl', (any, any), self._nanvl_call),
-
-            SF('instr', (any, str), self._find_call),
-            SF('locate', (any, str, int), self._find_call),
-
-
-            SF('regexp_extract', (any, str, int), lambda s, p:
-                f"{self._arg(s, p, 0)}.str.extract_all(r{self._arg(s, p, 1)})"
-            ),
-            SF('regexp_replace', (any, str, str), lambda s, p:
-                self._series_method_call(s, p, 'str.replace_all')),
-
-            SF('format_number', (any, int),
-               lambda s, p: self._series_apply_call(
-                s, p, fn="lambda x: '{{:,.5f}}'.format(x)")),
-
-            SF('initcap', (any, int),
-               lambda s, p: self._series_apply_call(
-                s, p, fn="str.title")),
-
-            SF('substring_index', (any, str, int), self._substring_index_call),
-
             SF('to_json', (any, ),
                lambda s, p: self._series_apply_call(
                 s, p, fn="to_json"),
                 custom_functions={'to_json': to_json},
                 imports=['import json']),
 
-            SF('from_json', (any, ),
-               lambda s, p: self._series_apply_call(
-                s, p, fn="json.loads"),
-                imports=['import json']),
+            # Array
+            SF('array', (any, any),
+                lambda s, p: self._pl_method_call(s, p, 'concat_list')),
+            SF('array_contains', (any, any),
+                lambda s, p: self._series_method_call(s, p, 'arr.contains')),
+            SF('array_distinct', (any, any),
+                lambda s, p: self._series_method_call(s, p, 'arr.unique')),
+            SF('array_except', (any, any), self._array_set_call),
+            SF('array_intersect', (any, any), self._array_set_call),
+            SF('array_join', (any, any),
+                lambda s, p: self._series_method_call(s, p, 'arr.join')),
+            SF('array_max', (any, ),
+                lambda s, p: self._series_method_call(s, p, 'arr.max')),
+            SF('array_min', (any, ),
+                lambda s, p: self._series_method_call(s, p, 'arr.min')),
+            # https://github.com/pola-rs/polars/issues/5503
+            SF('array_position', (any, any), lambda s, p: self._call_fmt(
+                s, p,
+                """(pl.when({0}.arr.contains({1})).then({0}.arr.eval(
+                    (pl.element() == {1}).cast(pl.UInt8).arg_max() + 1
+                ).arr.first()).otherwise(0))""")),
             
-            SF('levenshtein', (any, ),
-               lambda s, p: self._series_apply_call(
-                s, p, fn="levenshtein"),
-                custom_functions=levenshtein),
-
-            SF('get_json_object', (any, str, ), lambda s, p:
-                self._series_method_call(s, p, 'str.json_path_match')),
-
-            SF('hypot', (any, str, ), lambda s, p:
-                f"({self._arg(s, p, 0)}**2 + {self._arg(s, p, 0)}**2).sqrt()"),
-            
-            SF('reverse', (any, ), lambda s, p: self._series_apply_call(
-                s, p, fn = "lambda x: x[::-1]")
-            ),
-            SF('repeat', (any, int), lambda s, p: self._series_apply_call(
-                s, p, fn = f"lambda x: x * {self._arg(s, p, 1)}")
-            ),
+            SF('array_remove', (any, any), lambda s, p: self._call_fmt(
+                s, p,
+                "({0}.arr.eval(pl.element().filter(pl.element() != {1}})))")),
+            SF('array_repeat', (any, any), lambda s, p: 
+                self._pl_method_call(s, p, 'repeat_by')),
+            SF('array_sort', (any, ),
+                lambda s, p: self._series_method_call(s, p, 'arr.sort')),
+            SF('array_union', (any, any), self._array_set_call),
+            # SF('arrays_overlap', (any, any),
+            #    lambda s, p: self._series_method_call(s, p, 'arr.max')),
+            # SF('arrays_zip', (any, any),
+            #    lambda s, p: self._series_method_call(s, p, 'arr.max')),
+            SF('element_at', (any, ),
+                lambda s, p: self._series_method_call(s, p, 'arr.get')),
+            SF('shuffle', (any, ), lambda s, p: self._series_apply_call(
+                s, p,
+                fn='lambda x: x.shuffle(random.randint(0, sys.maxsize))'),
+                ['import random']),
+            SF('size', (any, ),
+                lambda s, p: self._series_method_call(s, p, 'arr.lengths')),
+            SF('slice', (any, ),
+                lambda s, p: self._series_method_call(s, p, 'arr.slice')),
+            SF('sort_array', (any, ),
+                lambda s, p: self._series_method_call(s, p, 'arr.sort')),
 
             # Data Explorer
-            SF('isnotnull', (any, ), 
+            SF('isnotnull', (any, ),
                 lambda s, p: self._series_method_call(s, p, 'is_not_null'),
-            ),
+               ),
             SF('cast_array', (any, str), lambda s, p:
                 (f"{self._arg(s, p, 0)}.arr"
                  f".eval(pl.element().cast(pl.{self._arg(s, p, 1)}))")
-            ),
-            
+               ),
+
             SF('extract_numbers', (any, ), lambda s, p:
                 (f"{self._arg(s, p, 0)}"
                  f".str.extract_all(r'{number_regex}')"
                  f".arr.eval(pl.element().cast(pl.Float64))"
                  )
-            ),
+               ),
 
         ]
 
-        # 'bround',
         # create_map',
         # 'explode', 'explode_outer',
         # 'posexplode',
@@ -677,7 +690,6 @@ class Expression(sk_expression.Expression):
         # 'map_concat', 'map_from_arrays', 'map_keys',
         # 'map_values',
         # 'sequence',
-        # 'shiftRightUnsigned',
         # schema_of_json,
         # monotonically_increasing_id: NOT IMPLEMENTED
         # struct: NOT IMPLEMENTED,
@@ -690,6 +702,3 @@ class Expression(sk_expression.Expression):
             # import pdb; pdb.set_trace()
             # if f.custom_functions:
             #     self.custom_functions = f.custom_functions
-
-
-

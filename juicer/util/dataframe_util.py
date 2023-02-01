@@ -6,6 +6,7 @@ import io
 import json
 import math
 import re
+import functools
 from collections.abc import Sequence
 from typing import Any, Callable
 
@@ -15,6 +16,7 @@ import simplejson
 from datasketch import MinHash, MinHashLSH
 from nltk import ngrams
 from six import text_type
+from gettext import gettext
 
 # https://github.com/microsoft/pylance-release/issues/140#issuecomment-661487878
 _: Callable[[str], str] 
@@ -332,6 +334,61 @@ def emit_sample_data_explorer(task_id, df, emit_event, name, size=50,
     emit_sample_sklearn_explorer(task_id, pandas_df, emit_event, name,
                         size, notebook, describe, infer, use_types, page)
 
+def emit_sample_explorer_polars(task_id, df, emit_event, name, size=50, notebook=False,
+                        describe=False, infer=False, use_types=None, page=1):
+
+    # Discard last '}' in order to include more information
+    result = [df.limit(size).write_json(None)[:-1]]
+    result.append(
+        f', "page": {page}, "size": {size}, "total": {df.shape[0]}, "format": "polars"')
+    result.append('}')
+
+    emit_event('update task', status='COMPLETED',
+               identifier=task_id,
+               message=' '.join(result), meaning='sample',
+               type='OBJECT', title=_('Sample data for {}').format(name),
+               task={'id': task_id})
+
+def emit_sample_sklearn(task_id, df, emit_event, name, size=50, notebook=False,
+                        describe=False, infer=False, use_types=None, page=1):
+    from juicer.spark.reports import SimpleTableReport
+    headers = list(df.columns)
+
+    number_types = (int, float, decimal.Decimal)
+    rows = []
+
+    for row in df.head(size).values:
+        new_row = []
+        rows.append(new_row)
+        for col in row:
+            if isinstance(col, str):
+                value = col
+            elif isinstance(col, (datetime.datetime, datetime.date)):
+                value = col.isoformat()
+            elif isinstance(col, number_types):
+                value = str(col)
+            elif isinstance(col, list):
+                value = '[' + ', '.join(
+                    [str(x) if isinstance(x, number_types)
+                     else "'{}'".format(x) for x in col]) + ']'
+            else:
+                value = json.dumps(col, cls=CustomEncoderSkLearn)
+            # truncate column if size is bigger than 200 chars.
+            if len(value) > 200:
+                value = value[:150] + ' ... ' + value[-50:]
+            new_row.append(value)
+
+    css_class = 'table table-striped table-bordered w-auto' \
+        if not notebook else ''
+    content = SimpleTableReport(
+        css_class, headers, rows, _('Sample data for {}').format(name),
+        numbered=True)
+
+    emit_event('update task', status='COMPLETED',
+               identifier=task_id,
+               message=content.generate(),
+               type='HTML', title=_('Sample data for {}').format(name),
+               task={'id': task_id})
 
 def emit_sample_sklearn_explorer(task_id, df, emit_event, name, size=50, notebook=False,
                         describe=False, infer=False, use_types=None, page=1):
@@ -520,87 +577,207 @@ def emit_sample_sklearn(task_id, df, emit_event, name, size=50, notebook=False,
 
 def analyse_attribute(task_id: str, df: Any, emit_event: Any, attribute: str,
                       msg: dict) -> None:
+    
     stats = ['median', 'nunique']
     # import plotly.express as px
-    from pandas.api.types import is_numeric_dtype
+    import polars as pl
+    if isinstance(df, pl.LazyFrame):
+        df = df.collect(streaming=True)
+    print('Analyse attribute', '*' * 20, isinstance(df, pl.DataFrame))
+    if isinstance(df, pd.DataFrame):
+        from pandas.api.types import is_numeric_dtype
 
-    pandas_df = df.select(attribute).toPandas() if hasattr(df, 'toPandas') \
-        else df
-    analysis_type = 'table'
-    if attribute is None:  # Statistics for the entire dataframe
-        d = pandas_df.describe(include='all')
-        d.append(pandas_df.reindex(d.columns, axis=1).agg(stats))
-        result = d.transpose().to_json(orient="split", double_precision=4)
-    elif msg.get('cluster'):
-        lsh = MinHashLSH(
-            threshold=msg.get('threshold', msg.get('similarity', 0.8)),
-            num_perm=128)
-        min_hashes = {}
-        words = pandas_df[attribute].drop_duplicates().astype('str')
-        print('*' * 30)
-        print(words)
-        print('*' * 30)
-        for c, i in enumerate(words):
-            min_hash = MinHash(num_perm=128)
-            for d in ngrams(i, 3):
-                min_hash.update("".join(d).encode('utf-8'))
-            lsh.insert(c, min_hash)
-            min_hashes[c] = min_hash
-        similar = []
-        for k, i in enumerate(min_hashes.keys()):
-            q = lsh.query(min_hashes[k])
-            if len(q) > 1:
-                similar.append([words.iloc[i] for i in q])
-        result = json.dumps(similar[:20])
-        analysis_type = 'cluster'
-    else:
-        info = {}
-        serie = pandas_df[attribute]
-        stats = ['median', 'nunique', 'skew', 'var', 'kurtosis']
-        if is_numeric_dtype(serie):
-            d = serie.describe(include='all').append(serie.agg(stats))
+        pandas_df = df.select(attribute).toPandas() if hasattr(df, 'toPandas') \
+            else df
+        analysis_type = 'table'
+        if attribute is None:  # Statistics for the entire dataframe
+            d = pandas_df.describe(include='all')
+            d.append(pandas_df.reindex(d.columns, axis=1).agg(stats))
+            result = d.transpose().to_json(orient="split", double_precision=4)
+        elif msg.get('cluster'):
+            lsh = MinHashLSH(
+                threshold=msg.get('threshold', msg.get('similarity', 0.8)),
+                num_perm=128)
+            min_hashes = {}
+            words = pandas_df[attribute].drop_duplicates().astype('str')
+            print('*' * 30)
+            print(words)
+            print('*' * 30)
+            for c, i in enumerate(words):
+                min_hash = MinHash(num_perm=128)
+                for d in ngrams(i, 3):
+                    min_hash.update("".join(d).encode('utf-8'))
+                lsh.insert(c, min_hash)
+                min_hashes[c] = min_hash
+            similar = []
+            for k, i in enumerate(min_hashes.keys()):
+                q = lsh.query(min_hashes[k])
+                if len(q) > 1:
+                    similar.append([words.iloc[i] for i in q])
+            result = json.dumps(similar[:20])
+            analysis_type = 'cluster'
         else:
-            d = serie.describe(include='all')
+            info = {}
+            serie = pandas_df[attribute]
+            stats = ['median', 'nunique', 'skew', 'var', 'kurtosis']
+            if is_numeric_dtype(serie):
+                d = serie.describe(include='all').append(serie.agg(stats))
+            else:
+                d = serie.describe(include='all')
 
-        info['stats'] = dict(list(zip(d.index, d)))
+            info['stats'] = dict(list(zip(d.index, d)))
 
-        if is_numeric_dtype(serie):
-            info['histogram'] = [x.tolist() for x in np.histogram(
-                serie.dropna(), bins=40)]
+            if is_numeric_dtype(serie):
+                info['histogram'] = [x.tolist() for x in np.histogram(
+                    serie.dropna(), bins=40)]
 
-            q1 = info['stats']['25%']
-            q3 = info['stats']['75%']
-            iqr = q3 - q1
-            info['stats']['iqr'] = iqr
-            info['fence_low'] = q1 - 1.5 * iqr
-            info['fence_high'] = q3 + 1.5 * iqr
-            info['outliers'] = serie[
-                ((serie < info['fence_low'])
-                 | (serie > info['fence_high']))].iloc[:10].tolist()
+                q1 = info['stats']['25%']
+                q3 = info['stats']['75%']
+                iqr = q3 - q1
+                info['stats']['iqr'] = iqr
+                info['fence_low'] = q1 - 1.5 * iqr
+                info['fence_high'] = q3 + 1.5 * iqr
+                info['outliers'] = serie[
+                    ((serie < info['fence_low'])
+                     | (serie > info['fence_high']))].iloc[:10].tolist()
 
-        counts = serie.value_counts(dropna=False).iloc[:20]
-        info['top20'] = list(zip(
-            [x if not pd.isna(x) else 'null' for x in counts.index],
-            counts))
-        info['nulls'] = serie.isna().sum()
-        info['stats']['nulls'] = serie.isna().sum()
-        info['stats']['rows'] = len(serie)
+            counts = serie.value_counts(dropna=False).iloc[:20]
+            info['top20'] = list(zip(
+                [x if not pd.isna(x) else 'null' for x in counts.index],
+                counts))
+            info['nulls'] = serie.isna().sum()
+            info['stats']['nulls'] = serie.isna().sum()
+            info['stats']['rows'] = len(serie)
 
-        # fig = px.histogram(serie,
-        #           marginal="box", # or violin, rug
-        #           )
-        # info['plotly'] = fig.to_dict()
+            # fig = px.histogram(serie,
+            #           marginal="box", # or violin, rug
+            #           )
+            # info['plotly'] = fig.to_dict()
 
-        # box_plot = io.BytesIO()
-        # fig = serie.plot.box(figsize=(1,2))
-        # plt.tight_layout()
-        # fig.figure.savefig(box_plot, format='png')
-        # box_plot.seek(0)
-        # info['box_plot'] = base64.b64encode(box_plot.read()).decode('utf8')
-        # plt.close()
+            # box_plot = io.BytesIO()
+            # fig = serie.plot.box(figsize=(1,2))
+            # plt.tight_layout()
+            # fig.figure.savefig(box_plot, format='png')
+            # box_plot.seek(0)
+            # info['box_plot'] = base64.b64encode(box_plot.read()).decode('utf8')
+            # plt.close()
 
-        result = json.dumps(info, cls=NpEncoder)
-        analysis_type = 'attribute'
+            result = json.dumps(info, cls=NpEncoder)
+            analysis_type = 'attribute'
+    elif isinstance(df, pl.DataFrame):
+        # Utility function to cast attributes and avoid type conflict
+        def _cast(df: pl.DataFrame) -> pl.DataFrame:
+            columns = []
+            for s in df:
+                if s.is_numeric() or s.is_boolean():
+                    columns.append(s.cast(float))
+                else:
+                    columns.append(s)
+            return pl.DataFrame(columns)
+
+        polars_df = df.select(attribute) if attribute is not None \
+            else df
+        analysis_type = 'table'
+        if attribute is None:  # Statistics for the entire dataframe
+            metrics = [polars_df.mean, polars_df.std, polars_df.min, 
+                polars_df.max, 
+                functools.partial(polars_df.quantile, .25),
+                polars_df.median, 
+                functools.partial(polars_df.quantile, .75),
+            ]
+            result = pl.concat([_cast(m()) for m in metrics])
+            names = ['mean', 'std', 'min', 'max', 
+                '25%', 'median', '75%', ]
+            result = result.transpose(include_header=False,
+                                      column_names=names)
+            result = pl.concat([result,
+                polars_df.select(pl.n_unique(
+                    [col for col in polars_df.columns]))
+                        .transpose(column_names=['unique'])],
+                how='horizontal')
+            result.insert_at_idx(
+                0, pl.Series('attribute', polars_df.columns)
+            )
+            cast_types = [pl.Utf8, pl.Float64, pl.Float64, pl.Utf8,
+                pl.Utf8, pl.Float64, pl.Float64, pl.Float64, pl.Int64]
+            result = result.with_columns([
+                pl.col(c).cast(cast_types[i]).round(2).alias(c) 
+                if cast_types[i] == pl.Float64
+                else pl.col(c) 
+                    for i, c in enumerate(result.columns)
+            ])
+            result = result.write_json(None, row_oriented=False)
+
+        elif msg.get('cluster'):
+            lsh = MinHashLSH(
+                threshold=msg.get('threshold', msg.get('similarity', 0.8)),
+                num_perm=128)
+            min_hashes = {}
+            words = pandas_df[attribute].drop_duplicates().astype('str')
+            print('*' * 30)
+            print(words)
+            print('*' * 30)
+            for c, i in enumerate(words):
+                min_hash = MinHash(num_perm=128)
+                for d in ngrams(i, 3):
+                    min_hash.update("".join(d).encode('utf-8'))
+                lsh.insert(c, min_hash)
+                min_hashes[c] = min_hash
+            similar = []
+            for k, i in enumerate(min_hashes.keys()):
+                q = lsh.query(min_hashes[k])
+                if len(q) > 1:
+                    similar.append([words.iloc[i] for i in q])
+            result = json.dumps(similar[:20])
+            analysis_type = 'cluster'
+        else:
+            info = {}
+            serie = pandas_df[attribute]
+            stats = ['median', 'nunique', 'skew', 'var', 'kurtosis']
+            if is_numeric_dtype(serie):
+                d = serie.describe(include='all').append(serie.agg(stats))
+            else:
+                d = serie.describe(include='all')
+
+            info['stats'] = dict(list(zip(d.index, d)))
+
+            if is_numeric_dtype(serie):
+                info['histogram'] = [x.tolist() for x in np.histogram(
+                    serie.dropna(), bins=40)]
+
+                q1 = info['stats']['25%']
+                q3 = info['stats']['75%']
+                iqr = q3 - q1
+                info['stats']['iqr'] = iqr
+                info['fence_low'] = q1 - 1.5 * iqr
+                info['fence_high'] = q3 + 1.5 * iqr
+                info['outliers'] = serie[
+                    ((serie < info['fence_low'])
+                     | (serie > info['fence_high']))].iloc[:10].tolist()
+
+            counts = serie.value_counts(dropna=False).iloc[:20]
+            info['top20'] = list(zip(
+                [x if not pd.isna(x) else 'null' for x in counts.index],
+                counts))
+            info['nulls'] = serie.isna().sum()
+            info['stats']['nulls'] = serie.isna().sum()
+            info['stats']['rows'] = len(serie)
+
+            # fig = px.histogram(serie,
+            #           marginal="box", # or violin, rug
+            #           )
+            # info['plotly'] = fig.to_dict()
+
+            # box_plot = io.BytesIO()
+            # fig = serie.plot.box(figsize=(1,2))
+            # plt.tight_layout()
+            # fig.figure.savefig(box_plot, format='png')
+            # box_plot.seek(0)
+            # info['box_plot'] = base64.b64encode(box_plot.read()).decode('utf8')
+            # plt.close()
+
+            result = json.dumps(info, cls=NpEncoder)
+            analysis_type = 'attribute'
 
     emit_event('analysis', status='COMPLETED',
                identifier=task_id,
@@ -608,7 +785,7 @@ def analyse_attribute(task_id: str, df: Any, emit_event: Any, attribute: str,
                analysis_type=analysis_type,
                attribute=attribute,
                type='OBJECT',
-               title=_('Analysis for attribute {}').format(attribute),
+               title=gettext('Analysis for attribute {}').format(attribute),
                task={'id': task_id})
 
 

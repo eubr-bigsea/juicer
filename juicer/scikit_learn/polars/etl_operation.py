@@ -1,11 +1,7 @@
 # -*- coding: utf-8 -*-
-import re
 from gettext import gettext
 from textwrap import dedent
 
-import polars as pl
-
-from juicer.operation import Operation
 from juicer.scikit_learn.polars.expression import (
     JAVA_2_PYTHON_DATE_FORMAT, Expression)
 import juicer.scikit_learn.etl_operation as sk
@@ -14,6 +10,7 @@ import juicer.scikit_learn.etl_operation as sk
 class AddColumnsOperation(sk.AddColumnsOperation):
     """
     Merge two data frames, column-wise, similar to the command paste in Linux.
+    Since 2.6
     """
 
     def __init__(self, parameters, named_inputs, named_outputs):
@@ -29,9 +26,26 @@ class AddColumnsOperation(sk.AddColumnsOperation):
 
         # Ok
         code = f"""
-            {self.output} = pl.concat(
-                [{input1}.select(pl.all().prefix('{s1}')).collect(), 
-                    {input2}.select(pl.all().prefix('{s2}')).collect()], 
+            # Get all unique column names in both dataframes
+            ok = set({input1}.columns).symmetric_difference(
+                set({input2}.columns))
+            
+            alias1 = [] 
+            for c in {input1}.columns:
+                if c in ok:
+                    alias1.append(pl.col(c)) 
+                else:
+                    alias1.append(pl.col(c).alias(f'{{c}}{s1}'))
+            alias2 = [] 
+            for c in {input2}.columns:
+                if c in ok:
+                    alias2.append(pl.col(c)) 
+                else:
+                    alias2.append(pl.col(c).alias(f'{{c}}{s2}'))
+            # Lazy only allows {'vertical', 'diagonal'} concat strategy in 0.15.6
+            {self.output} = pl.concat([
+                {input1}.select(alias1).collect(), 
+                {input2}.select(alias2).collect()], 
                 how='horizontal').lazy()
         """
         return dedent(code)
@@ -44,78 +58,111 @@ class AggregationOperation(sk.AggregationOperation):
         - Expression: a single dict mapping from string to string, then the key
         is the column to perform aggregation on, and the value is the aggregate
         function. The available aggregate functions avg, collect_list,
-        collect_set, count, first, last, max, min, sum and size
+        collect_set, count, first, last, max, min, sum and size.
+    Since 2.6
     """
 
     template = """
-    {%- if pivot %}:
-        {%- if pivot_values %}:
-    input_data = {input}.loc[{input}['{pivot}'].isin([{values}])]
+    {%- if op.pivot[0] %}
+        {%- if op.pivot_values %}
+    {{op.output}} = {{op.input}}.filter(
+            pl.col('{{op.pivot[0]}}').isin([{{op.values}}])
         {%- else %}
-    input_data = {input}
-        {%-- endif %}
-    {output} = pd.pivot_table(input_data, index={index},
-            columns={pivot}, aggfunc={agg_func})
-    # rename columns and convert to DataFrame
-    {output}.reset_index(inplace=True)
-    new_idx = [n[0] if n[1] == '' else "%s_%s_%s" % (n[0],n[1], n[2])
-                    for n in {output}.columns.ravel()]
-    {output}.columns = new_idx
-    {%- else %}:
-        {output} = {input}.groupby({columns}).agg({operations}).reset_index()
+    {{op.output}} = {{op.input}}
+        {%- endif %}
+    {{op.output}} = ({{op.output}}
+        .groupby({{op.attributes}} + {{op.pivot}})
+        .agg([
+            {%- for f in op.functions %}
+            pl.col('{{f.attribute}}').{{f.f}}
+                {%- if not f.f.endswith(')') %}(){% endif -%}
+                .alias('{{f.alias}}'),
+            {%- endfor %}
+        ])
+        .collect()
+        .pivot(index={{op.attributes}}, values=[
+            {%- for f in op.functions %}'{{f.alias}}',{% endfor %}], 
+            aggregate_fn='min', columns={{op.pivot}}).lazy()
+    )        
+    {%- else %}
+    {{op.output}} = ({{op.input}}.groupby(
+        {{op.attributes}}).agg([
+            {%- for f in op.functions %}
+            pl.col('{{f.attribute}}').{{f.f}}
+                {%- if not f.f.endswith(')') %}(){% endif -%}
+                .alias('{{f.alias}}'),
+            {%- endfor %}
+    ]))
     {%- endif %}
     """
 
     def __init__(self, parameters, named_inputs, named_outputs):
         super().__init__(parameters, named_inputs, named_outputs)
 
+        mapping_names = {
+            'avg': 'mean',
+            'skewness': 'skew',
+            'collect_list': 'list',
+            'collect_set': 'apply(lambda x: set(x.drop_nulls()))',
+            'countDistinct': 'unique().count()',
+            'approx_count_distinct': 'unique().count()',
+            'sumDistinct': 'unique().sum()',
+            'stddev': 'std',
+            'stddev_pop':
+                'apply(lambda x: np.std(x.drop_nulls().to_numpy(), ddof=0))',
+            'variance': 'var',
+            'var_pop':
+                'apply(lambda x: np.var(x.drop_nulls().to_numpy(), ddof=0))',
+        }
+        for f in self.functions:
+            f['f'] = mapping_names.get(f['f'], f['f'])
+
     def generate_code(self):
         if not self.has_code:
             return None
-
-        ctx = {
-            'pivot': self.pivot[0],
-            'pivot_values': self.pivot_values,
-            'input': self.named_inputs['input data'],
-            'agg_func': self.input_operations_pivot,
-            'operations': ', '.join(self.input_operations_non_pivot),
-        }
-        code = self.render_template(ctx)
-        return dedent(code)
+        self.input = self.named_inputs['input data']
+        return dedent(self.render_template({'op': self}))
 
 
 class CastOperation(sk.CastOperation):
     """ Change attribute type.
+    Since 2.6
     """
 
     template = """
         try:
-            {{op.output}} = {{op.input}}.select([
-                pl.exclude(
-                {%- for attr in op.attributes %}'{{attr.attribute}}',
-                {%- endfor %}),
+            strict = {{op.errors == 'raise'}}
+            {{op.output}} = {{op.input}}.with_columns([
         {%- for attr in op.attributes %}
             {%- if attr.type == 'Integer' %}
-                pl.col('{{attr.attribute}}').cast(pl.Int64, strict=False)
+                {%- set method_call = 'cast(pl.Int64, strict=strict)' %}
             {%- elif attr.type == 'Decimal' %}
-                pl.col('{{attr.attribute}}').cast(pl.Float64, strict=False)
+                {%- set method_call = 'cast(pl.Float64, strict=strict)' %}
             {%- elif attr.type == 'Boolean' %}
-                pl.col('{{attr.attribute}}').cast(pl.Boolean, strict=False)
+                {%- set method_call = 'cast(pl.Boolean, strict=strict)' %}
             {%- elif attr.type == 'Date' %}
-                pl.col('{{attr.attribute}}').cast(pl.Date, strict=False)
+                {%- set method_call = 'cast(pl.Date, strict=strict)' %}
             {%- elif attr.type in ('DateTime', 'Datetime') %}
-                pl.col('{{attr.attribute}}').cast(pl.Datetime, strict=False)
+                {%- set method_call = 'cast(pl.Datetime, strict=strict)' %}
             {%- elif attr.type in ('Time', ) %}
-                pl.col('{{attr.attribute}}').cast(pl.Time, strict=False)
+                {%- set method_call = 'cast(pl.Time, strict=strict)' %}
             {%- elif attr.type == 'Text' %}
-                pl.col('{{attr.attribute}}').cast(pl.Utf8)
+                {%- set method_call = 'cast(pl.Utf8)' %}
             {%- elif attr.type == 'Array' %}
-                pl.col('{{attr.attribute}}').apply(lambda x: [x])
+                {%- set method_call = 'apply(lambda x: [x])' %}
             {%- elif attr.type == 'JSON' %}
-                pl.col('{{attr.attribute}}').apply(to_json)
+                {%- set method_call = 'apply(to_json)' %}
             {%-endif %}
+            {%- if op.errors == 'move' %}
+            pl.when(pl.col('{{attr.attribute}}').{{method_call}}.is_null() &
+                pl.col('{{attr.attribute}}').is_not_null()).then(
+                    pl.col('{{attr.attribute}}')
+                ).alias('error_cast_{{attr.attribute}}'),
+            {%- endif %}
+            pl.col('{{attr.attribute}}').{{method_call}},
         {%- endfor %}
-            ])
+            ]).lazy()
+
         except ValueError as ve:
             msg = str(ve)
             if 'Unable to parse string' in msg:
@@ -124,14 +171,6 @@ class CastOperation(sk.CastOperation):
                 raise ValueError('{{errors.unable_to_parse}}'.format(*parts))
             else:
                 raise
-    {%- if op.errors == 'move' %}
-        {%- for attr in op.attributes %}
-        # Copy invalid data to a new attribute
-        # Invalid output rows have NaN in cells, but not in input.
-        #s = ({{op.input}}['{{attr.attribute}}'].notnull() != {{op.output}}['{{attr.attribute}}'].notnull())
-        #{{op.output}}.loc[s, '{{op.invalid_values}}'] = {{op.input}}['{{attr.attribute}}']
-        {%- endfor %}
-    {%- endif %}
     """
 
     def __init__(self, parameters, named_inputs, named_outputs):
@@ -162,6 +201,7 @@ class CleanMissingOperation(sk.CleanMissingOperation):
           * "REMOVE_ROW": remove entire row
           * "REMOVE_COLUMN": remove entire column
         - value: optional, used to replace missing values
+    Since 2.6
     """
     template = """
     {%- if mode == "REMOVE_ROW" %}
@@ -254,6 +294,7 @@ class DifferenceOperation(sk.DifferenceOperation):
     """
     Returns a new DataFrame containing rows in this frame but not in another
     frame.
+    Since 2.6
     """
 
     def __init__(self, parameters, named_inputs, named_outputs):
@@ -282,6 +323,7 @@ class DistinctOperation(sk.DistinctOperation):
     """
     Returns a new DataFrame containing the distinct rows in this DataFrame.
     Parameters: attributes to consider during operation (keys)
+    Since 2.6
     """
 
     def __init__(self, parameters, named_inputs, named_outputs):
@@ -304,6 +346,7 @@ class DropOperation(sk.DropOperation):
     Returns a new DataFrame that drops the specified column.
     Nothing is done if schema doesn't contain the given column name(s).
     The only parameters is the name of the columns to be removed.
+    Since 2.6
     """
     ATTRIBUTES_PARAM = 'attributes'
 
@@ -399,7 +442,7 @@ class ExecutePythonOperation(sk.ExecutePythonOperation):
         except ImportError as ie:
             raise ValueError(gettext('Command import is not supported'))
         """.format(in1=in1, in2=in2, code=self.code.encode('unicode_escape'),
-                   name="execute_python", order=self.order,
+                   order=self.order,
                    id=self.parameters['task']['id']))
 
         code += dedent("""
@@ -423,6 +466,7 @@ class FilterOperation(sk.FilterOperation):
     Filters rows using the given condition.
     Parameters:
         - A boolean expression
+    Since 2.6
     """
     template = """
         {%- if expressions %}
@@ -462,6 +506,7 @@ class IntersectionOperation(sk.IntersectionOperation):
     """
     Returns a new DataFrame containing rows only in both this
     frame and another frame.
+    Since 2.6
     """
 
     def __init__(self, parameters, named_inputs, named_outputs):
@@ -487,6 +532,79 @@ class JoinOperation(sk.JoinOperation):
     """
     Joins with another DataFrame, using the given join expression.
     The expression must be defined as a string parameter.
+    Since 2.6
+    """
+
+    template = """
+        {%- if match_case %}
+        string_cols1 = {f'{c}{{suf_l}}' for (i, c) in 
+            enumerate({{in1}}.columns) if {{in1}}.dtypes[i] == pl.Utf8}
+        string_cols2 = {f'{c}{{suf_r}}' for (i, c) in 
+            enumerate({{in2}}.columns) if {{in2}}.dtypes[i] == pl.Utf8}
+        {%- endif %}
+
+        {%- if suf_l %}
+        keys1 = [f'{c}{{suf_l}}' for c in {{keys1}}]
+        {%- else %}
+        keys1 = {{keys1}}
+        {% endif %}
+
+        {%- if suf_r %}
+        keys2 = [f'{c}{{suf_r}}' for c in {{keys2}}]
+        {%- else %}
+        keys2 = {{keys2}}
+        {% endif %}
+
+        key_cols1 = [pl.col(c)
+            {%- if match_case %} 
+            if c not in string_cols1 
+            else pl.col(c).str.to_uppercase()
+            {%- endif %} for c in keys1]
+
+        key_cols2 = [pl.col(c)
+            {%- if match_case %} 
+            if c not in string_cols2 
+            else pl.col(c).str.to_uppercase()
+            {%- endif %} for c in keys2]
+
+        {%- if suf_l %}
+        # Add suffix
+        {{in1}} = {{in1}}.select([pl.col(c).alias(f'{c}{{suf_l}}') 
+            for c in {{in1}}.columns])
+        {%- endif %}
+
+        {%- if suf_r %}
+        # Add suffix
+        {{in2}} = {{in2}}.select([pl.col(c).alias(f'{c}{{suf_r}}') 
+            for c in {{in2}}.columns])
+        {%- endif %}
+
+        # Perform the join
+        {%- if type == 'right' %}
+        # Polars does not support 'right' join
+        # See https://github.com/pola-rs/polars/issues/3934
+        # Invert the order to use left outer join
+        {{out}} = {{in2}}.join({{in1}}, right_on=key_cols1, left_on=key_cols2,
+            how='left')
+        # Revert columns' order
+        {{out}} = {{out}}.select(
+            [pl.col(c) if c not in keys1 
+                    else pl.col(keys2[keys1.index(c)]).alias(c)
+                for c in {{in1}}.columns] + 
+            [pl.col(c) for c in {{in2}}.columns
+                {%- if not keep_right_keys %} if c not in keys2 {%- endif %}])
+        {%- else %}
+        {{out}} = {{in1}}.join(
+            {{in2}}, left_on=key_cols1, right_on=key_cols2, how='{{type}}')
+        {% if keep_right_keys %}
+        # Keep the right keys
+        {{out}} = {{out}}.select(
+            [pl.col(c) for c in {{in1}}.columns] + 
+            [pl.col(c) 
+                if c not in keys2 else pl.col(keys1[keys2.index(c)]).alias(c) 
+                for c in {{in2}}.columns])
+        {%- endif %}
+        {%- endif %}
     """
 
     def __init__(self, parameters, named_inputs, named_outputs):
@@ -496,67 +614,23 @@ class JoinOperation(sk.JoinOperation):
         if not self.has_code:
             return None
 
-        self.template = """
+        ctx = dict(
+            out=self.output,
+            in1=self.named_inputs['input data 1'],
+            in2=self.named_inputs['input data 2'],
+            suf_l=self.suffixes[0], suf_r=self.suffixes[1],
+            keys1=self.left_attributes, keys2=self.right_attributes,
+            match_case=self.match_case,
+            type=self.join_type,
+            keep_right_keys=not self.not_keep_right_keys)
 
-        """
-        code = """
-        cols1 = [ c + '{suf_l}' for c in {in1}.columns]
-        cols2 = [ c + '{suf_r}' for c in {in2}.columns]
-
-        {in1}.columns = cols1
-        {in2}.columns = cols2
-
-        keys1 = [c + '{suf_l}' for c in {keys1}]
-        keys2 = [c + '{suf_r}' for c in {keys2}]
-        """.format(in1=self.named_inputs['input data 1'],
-                   in2=self.named_inputs['input data 2'],
-                   suf_l=self.suffixes[0], suf_r=self.suffixes[1],
-                   keys1=self.left_attributes, keys2=self.right_attributes)
-
-        # Should be positive boolean logic? ---> '''if self.match_case:'''
-        if not self.match_case:
-            code += """
-        data1_tmp = {in1}[keys1].applymap(lambda col: str(col).lower()).copy()
-        data1_tmp.columns = [c + "_lower" for c in data1_tmp.columns]
-        col1 = list(data1_tmp.columns)
-        data1_tmp = pd.concat([{in1}, data1_tmp], axis=1, sort=False)
-
-        data2_tmp = {in2}[keys2].applymap(lambda col: str(col).lower()).copy()
-        data2_tmp.columns = [c + "_lower" for c in data2_tmp.columns]
-        col2 = list(data2_tmp.columns)
-        data2_tmp = pd.concat([{in2}, data2_tmp], axis=1, sort=False)
-
-        {out} = pd.merge(data1_tmp, data2_tmp, left_on=col1, right_on=col2,
-            copy=False, suffixes={suffixes}, how='{type}')
-        # Why drop col_lower?
-        {out}.drop(col1+col2, axis=1, inplace=True)
-                """.format(out=self.output, type=self.join_type,
-                           in1=self.named_inputs['input data 1'],
-                           in2=self.named_inputs['input data 2'],
-                           id1=self.left_attributes,
-                           id2=self.right_attributes,
-                           suffixes=self.suffixes)
-        else:
-            code += """
-        {out} = pd.merge({in1}, {in2}, how='{type}',
-                suffixes={suffixes},
-                left_on=keys1, right_on=keys2).copy()
-                """.format(out=self.output, type=self.join_type,
-                           in1=self.named_inputs['input data 1'],
-                           in2=self.named_inputs['input data 2'],
-                           suffixes=self.suffixes)
-
-        if self.not_keep_right_keys:
-            code += """
-        cols_to_remove = keys2
-        {out}.drop(cols_to_remove, axis=1, inplace=True)
-            """.format(out=self.output)
-
+        code = self.render_template(ctx)
         return dedent(code)
 
 
 class RenameAttrOperation(sk.RenameAttrOperation):
     """Renames the attributes
+    Since 2.6
     """
     ATTRIBUTES_PARAM = 'attributes'
     ALIAS_PARAM = 'alias'
@@ -571,10 +645,9 @@ class RenameAttrOperation(sk.RenameAttrOperation):
             return None
 
         rename = dict(zip(self.attributes, self.alias))
-        code = f"""
+        return dedent(f"""
             {self.output} = {self.input}.rename({repr(rename)})
-        """
-        return dedent(code)
+        """)
 
 
 class ReplaceValuesOperation(sk.ReplaceValuesOperation):
@@ -582,22 +655,32 @@ class ReplaceValuesOperation(sk.ReplaceValuesOperation):
     Replace values in one or more attributes from a dataframe.
     Parameters:
     - The list of columns selected.
+    Since 2.6
     """
 
     def __init__(self, parameters, named_inputs, named_outputs):
         super().__init__(parameters, named_inputs, named_outputs)
 
     def generate_code(self):
-        if self.has_code:
-            code = """
-            {out} = {in1}
-            replacement = {replaces}
-            for col in replacement:
-                list_replaces = replacement[col]
-                {out}[col] = {out}[col].replace(list_replaces[0], list_replaces[1])
-            """.format(out=self.output, in1=self.named_inputs['input data'],
-                       replaces=self.replaces)
-            return dedent(code)
+        if not self.has_code:
+            return None
+
+        self.input = self.named_inputs['input data']
+        code = f"""
+            replacements = {self.replaces}
+            to_select = []
+            for col in {self.input}.columns:
+                if col in replacements:
+                    replaces = replacements[col]
+                    to_select.append(
+                        pl.when(pl.col(col) == replaces[0][0])
+                        .then(replaces[1][0])
+                        .otherwise(pl.col(col)))
+                else:
+                    to_select.append(pl.col(col))
+            {self.output} = {self.input}.select(to_select)
+            """
+        return dedent(code)
 
 
 class SampleOrPartitionOperation(sk.SampleOrPartitionOperation):
@@ -608,6 +691,7 @@ class SampleOrPartitionOperation(sk.SampleOrPartitionOperation):
         without replacement: probability that each element is chosen;
             fraction must be [0, 1]
     - seed -> seed for random operation.
+    Since 2.6
     """
 
     template = """
@@ -646,6 +730,7 @@ class SelectOperation(sk.SelectOperation):
     Projects a set of expressions and returns a new DataFrame.
     Parameters:
     - The list of columns selected.
+    Since 2.6
     """
     template = """
         {%- if op.mode == 'exclude' %}
@@ -653,23 +738,24 @@ class SelectOperation(sk.SelectOperation):
         exclude = {{op.attributes}}
         {{op.output}} = {{op.input}}.select(pl.all().exclude(exclude))
 
-        {% elif op.mode == 'include' %}
-        selection = {{op.attributes}}
-        {{op.output}} = {{op.input}}.select(selection)
-          {%- if op.aliases %}
-        {{op.output}}.columns = {{op.aliases}}
-          {%- endif %}
-
+        {% elif op.mode in ('include', 'legacy') %}
+        {{op.output}} = {{op.input}}.select([
+            {%- for attr, alias in op.alias_tuple %}
+            pl.col('{{attr}}')
+                {%- if attr != alias%}.alias('{{alias}}'){% endif %},
+            {%- endfor %}
+        ])
         {%- elif op.mode == 'rename' %}
-        {{op.output}} = {{op.input}}.rename(mapping={{op.alias_dict}})
+        {{op.output}} = {{op.input}}.rename(
+            mapping=dict({{op.alias_tuple}}))
 
         {%- elif op.mode == 'duplicate' %}
         {{op.output}} = {{op.input}}.select([
             pl.all(),
-            {%- for k, v in op.alias_dict.items() %}
+            {%- for k, v in op.alias_tuple %}
             pl.col('{{k}}').alias('{{v}}'),
             {%- endfor %}
-        ])
+        ]).lazy()
         {%- endif %}
     """
 
@@ -682,9 +768,10 @@ class SelectOperation(sk.SelectOperation):
 
         attributes = []
         aliases = []
-        alias_dict = {}
+        alias_tuple = []
         for attr in self.attributes:
-            if self.mode is None:  # legacy format, without alias
+            # legacy format, without alias
+            if self.mode is None or self.mode == 'legacy':
                 attributes.append(attr)
             else:
                 attribute_name = attr.get('attribute')
@@ -692,14 +779,14 @@ class SelectOperation(sk.SelectOperation):
 
                 alias = attr.get('alias')
                 aliases.append(alias or attribute_name)
-                alias_dict[attribute_name] = alias or attribute_name
+                alias_tuple.append([attribute_name, alias or attribute_name])
 
         return dedent(self.render_template(
             {'op': {'attributes': attributes, 'aliases': aliases,
                     'mode': self.mode or 'include',
                     'input': self.named_inputs['input data'],
                     'output': self.output,
-                    'alias_dict': alias_dict}}))
+                    'alias_tuple': alias_tuple}}))
 
 
 class SortOperation(sk.SortOperation):
@@ -710,6 +797,7 @@ class SortOperation(sk.SortOperation):
     - A list indicating whether the sort order is ascending for the columns.
     Condition: the list of columns should have the same size of the list of
                boolean to indicating if it is ascending sorting.
+    Since 2.6
     """
 
     def __init__(self, parameters, named_inputs, named_outputs):
@@ -721,70 +809,77 @@ class SortOperation(sk.SortOperation):
         input = self.named_inputs['input data']
         reverse = [not x for x in self.ascending]
 
-        # Ok
         code = f"""
             {self.output} = {input}.sort(
-                by={repr(self.columns)}, reverse={repr(reverse)})
+                by={repr(self.columns)}, reverse={repr(reverse)}).lazy()
         """
 
         return dedent(code)
 
 
 class SplitKFoldOperation(sk.SplitKFoldOperation):
+    """
+    Since 2.6
+    """
 
     def __init__(self, parameters, named_inputs, named_outputs):
         super().__init__(parameters, named_inputs, named_outputs)
 
-    def generate_code(self):
-        if self.has_code:
-            code = """"""
-            copy_code = ".copy()" \
-                if self.parameters['multiplicity']['input data'] > 1 else ""
-
-            if self.stratified:
-                code = """
-        skf = StratifiedKFold(n_splits={n_splits}, shuffle={shuffle},
-        random_state={random_state})
-
-        {output_data} = {input}{copy_code}
-        tmp = np.full(len({input}), fill_value=-1, dtype=int)
-        j = 0
-        y = {input}['{column}'].to_numpy().tolist()
-        for _, test_index in skf.split({input}, y):
-            tmp[test_index] = j
-            j += 1
-        {output_data}['{alias}'] = tmp
-                    """.format(output=self.output,
-                               copy_code=copy_code,
-                               input=self.named_inputs['input data'],
-                               n_splits=self.n_splits,
-                               shuffle=self.shuffle,
-                               random_state=self.random_state,
-                               output_data=self.output,
-                               column=self.column,
-                               alias=self.alias)
-                return dedent(code)
+    template = """
+        {%- if op.stratified %}
+        {{op.output}} = ({{op.named_inputs['input data']}}
+            {%- if op.shuffle == 1 %}
+            .collect()
+            .sample(frac=1, shuffle=True, seed={{op.random_state}})
+            {%- endif %}
+            .with_column(pl.lit(1).alias('{{op.alias}}'))
+            .select([pl.exclude('{{op.alias}}'), 
+                (pl.col('{{op.alias}}').cumsum().over('{{op.column}}') 
+                    % {{op.n_splits}}).alias('{{op.alias}}')]).lazy()
+        )
+        {%- else %}
+        {{op.output}} = ({{op.named_inputs['input data']}}
+            {%- if op.shuffle == 1 %}
+            .collect()
+            .sample(frac=1, shuffle=True, seed={{op.random_state}})
+            {%- endif %}
+            .with_row_count('{{op.alias}}')).lazy()
+        
+        k = {{op.n_splits}}
+        size = {{op.output}}.select(pl.count()).collect().to_pandas().iloc[0][0]
+        fold_size = size // k
+        remainder = size %  k
+        
+        col = pl.col('{{op.alias}}')
+        replaces = None
+        for i in range(k):
+            fold_start_index = i * fold_size
+            if i < remainder:
+                fold_start_index += i
+                fold_end_index = fold_start_index + fold_size + 1
             else:
-                code += """
-        kf = KFold(n_splits={n_splits}, shuffle={shuffle},
-        random_state={random_state})
+                fold_start_index += remainder
+                fold_end_index = fold_start_index + fold_size
+            if replaces == None:
+                replaces = (pl.when(
+                    (col >= fold_start_index) & (col < fold_end_index))
+                    .then(pl.lit(i)))
+            else:
+                replaces = (replaces.when(
+                    (col >= fold_start_index) & (col < fold_end_index))
+                    .then(pl.lit(i)))
 
-        {output_data} = {input}{copy_code}
-        tmp = np.full(len({input}), fill_value=-1, dtype=int)
-        j = 0
-        for _, test_index in kf.split({input}):
-            tmp[test_index] = j
-            j += 1
-        {output_data}['{alias}'] = tmp
-                    """.format(output=self.output,
-                               copy_code=copy_code,
-                               input=self.named_inputs['input data'],
-                               n_splits=self.n_splits,
-                               shuffle=self.shuffle,
-                               random_state=self.random_state,
-                               output_data=self.output,
-                               alias=self.alias)
-                return dedent(code)
+        {{op.output}} = ({{op.output}}
+            .select([pl.exclude('{{op.alias}}'), 
+                replaces.alias('{{op.alias}}')]).lazy()
+        )
+        {%- endif %}
+    """
+
+    def generate_code(self):
+        if not self.has_code:
+            return None
+        return dedent(self.render_template({'op': self}))
 
 
 class SplitOperation(sk.SplitOperation):
@@ -794,7 +889,7 @@ class SplitOperation(sk.SplitOperation):
     - List with two weights for the two new data frames.
     - Optional seed in case of deterministic random operation
         ('0' means no seed).
-
+    Since 2.6
     """
 
     def __init__(self, parameters, named_inputs, named_outputs):
@@ -804,7 +899,6 @@ class SplitOperation(sk.SplitOperation):
         if not self.has_code:
             return None
 
-        # Ok
         code = f"""
             shuffled = {self.named_inputs['input data']}.collect().sample(
                 frac=1.0, seed={self.seed}, shuffle=True)
@@ -824,7 +918,31 @@ class TransformationOperation(sk.TransformationOperation):
         - Alias: new column name. If the name is the same of an existing,
             replace it.
         - Expression: json describing the transformation expression
+    Since 2.6
     """
+    template = """
+        {%- if functions %}
+        {{out}} = {{input}}.with_columns([
+            {%- for (alias, f) in functions %}
+            {{f}}.alias('{{alias}}'),
+            {%- endfor %}
+        ]).lazy()
+        {%- else %}
+        {{out}} = {{input}}
+        {%- endif %}
+
+        {%- if use_positions %}
+        # Reorder columns. Positions: {{positions}}
+        new_columns = set([
+            {%- for (alias, f) in functions -%}
+            '{{alias}}', {% endfor%}])
+        new_cols = [c for c in {{out}}.columns if c not in new_columns]
+        {%- for pos in positions %}
+        new_cols.insert({{pos}}, '{{functions[loop.index0][0]}}')
+        {%- endfor %}
+        {{out}} = {{out}}.select(new_cols).lazy()
+        {%- endif %}
+        """
 
     def __init__(self, parameters, named_inputs, named_outputs):
         super().__init__(parameters, named_inputs, named_outputs)
@@ -850,29 +968,7 @@ class TransformationOperation(sk.TransformationOperation):
         self.parameters = parameters
 
     def generate_code(self):
-        self.template = """
-            {%- if functions %}
-            {{out}} = {{input}}.with_columns([
-                {%- for (alias, f) in functions %}
-                {{f}}.alias('{{alias}}'),
-                {%- endfor %}
-            ])
-            {%- else %}
-            {{out}} = {{input}}
-            {%- endif %}
 
-            {%- if use_positions %}
-            # Reorder columns. Positions: {{positions}}
-            new_columns = set([
-                {%- for (alias, f) in functions -%}
-                '{{alias}}', {% endfor%}])
-            new_cols = [c for c in {{out}}.columns if c not in new_columns]
-            {%- for pos in positions %}
-            new_cols.insert({{pos}}, '{{functions[loop.index0][0]}}')
-            {%- endfor %}
-            {{out}} = {{out}}.select(new_cols)
-            {%- endif %}
-        """
         ctx = {
             'out': self.output, 'input': self.named_inputs['input data'],
             'functions': self.functions, 'positions': self.positions,
@@ -886,6 +982,7 @@ class UnionOperation(sk.UnionOperation):
     """
     Return a new DataFrame containing all rows in this frame and another frame.
     Takes no parameters.
+    Since 2.6
     """
 
     def __init__(self, parameters, named_inputs, named_outputs):
@@ -897,6 +994,6 @@ class UnionOperation(sk.UnionOperation):
 
         df1 = self.named_inputs['input data 1']
         df2 = self.named_inputs['input data 2']
-        # Ok
-        code = f"{self.output} = pl.concat([{df1}, {df2}], how='vertical')"
-        return dedent(code)
+
+        return dedent(
+            f"{self.output} = pl.concat([{df1}, {df2}], how='vertical').lazy()")

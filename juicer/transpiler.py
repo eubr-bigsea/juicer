@@ -216,15 +216,19 @@ class Transpiler(object):
                             definition['value'] = TranspilerUtils.escape_chars(
                                 definition['value'])
 
+            state = {} if state is None else state
             if state is None or state.get(task_id) is None:
                 parameters['execution_date'] = None
+                # Meta platform adds -0 to task_id
+                gen_source_code = state.get(f'{task_id}-0', [{}])[0]
             else:
                 gen_source_code = state.get(task_id, [{}])[0]
-                if gen_source_code:
-                    parameters['execution_date'] = gen_source_code.get(
-                        'execution_date')
-                else:
-                    parameters['execution_date'] = None
+
+            if gen_source_code:
+                parameters['execution_date'] = gen_source_code.get(
+                    'execution_date')
+            else:
+                parameters['execution_date'] = None
             true_values = (1, '1', True, 'true', 'True')
             parameters.update({
                 'configuration': self.configuration,

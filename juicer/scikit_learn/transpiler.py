@@ -42,7 +42,8 @@ class ScikitLearnTranspiler(Transpiler):
             configuration, os.path.abspath(os.path.dirname(__file__)),
             slug_to_op_id, port_id_to_port)
 
-        self.variant = configuration.get('variant', 'pandas')
+        self.variant = configuration.get('variant', 
+            configuration.get('app_configs', {}).get('variant', 'pandas'))
         if self.variant == 'polars':
             self._assign_polars_operations()
         elif self.variant == 'duckdb':
