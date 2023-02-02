@@ -11,7 +11,7 @@ autopep8==2.0.1
 coverage==7.0.3
 datasketch==1.5.8
 duckdb==0.6.1
-gensim==4.3.0
+gensim==4.2.0
 graphviz==0.20.1
 great-expectations==0.15.42
 kubernetes==25.3.0
