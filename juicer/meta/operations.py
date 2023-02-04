@@ -228,7 +228,7 @@ class TransformOperation(MetaPlatformOperation):
         'format-date': {'f': 'date_format', 'args': ['{format}'], 'transform': [str]},
         'truncate-date-to': {'f': 'date_trunc', 'args': ['{format}'], 'transform': [str]},
 
-        'invert-boolean': {'f': None, 'op': '!'},
+        'invert-boolean': {'f': None, 'op': '~'},
 
         'extract-from-array': {'f': None, 'op': ''},
         'concat-array': {'f': 'array_join', 'args': ['{delimiter}'], 'transform': [str]},
@@ -313,7 +313,7 @@ class TransformOperation(MetaPlatformOperation):
                         'alias': attr,
                         'expression': f'!{attr}',
                         'tree': {
-                            'type': 'UnaryExpression', 'operator': '!',
+                            'type': 'UnaryExpression', 'operator': '~',
                             'argument': {'type': 'Identifier',  'name': attr},
                             'prefix': True
                         }
@@ -588,14 +588,25 @@ class FindReplaceOperation(MetaPlatformOperation):
         self.has_code = True
 
         self.attributes = self.get_required_parameter(parameters, 'attributes')
-        if isinstance(self.attributes, list):
-            self.attributes = self.attributes[0]
 
-        self.find = self.get_required_parameter(parameters, 'find')
-        self.replace = parameters.get('replace', '')
+        self.forms = {'value': {'value': parameters.get('find')}}
         self.nullify = parameters.get('nullify') in ('1', 1)
+        if self.nullify:
+            self.forms['replacement'] = {'value': None}
+        else: 
+            self.forms['replacement'] = {'value': parameters.get('replace')}
+        self.forms['nullify'] = {'value': self.nullify}
+        self.operation_id = 27
 
     def generate_code(self):
+        task_obj = self._get_task_obj()
+        task_obj['forms'].update(self.forms)
+        task_obj['forms'].update({
+            'attributes': {'value': self.attributes},
+        })
+        task_obj['operation'] = {"id": self.operation_id}
+        return json.dumps(task_obj)
+
         task_obj = self._get_task_obj()
         attr = self.attributes
         is_number = True

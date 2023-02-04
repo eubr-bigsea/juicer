@@ -39,7 +39,8 @@ JAVA_2_PYTHON_DATE_FORMAT = {
     'EEE': '%a', 'EEEE': '%A',
     'a': '%p',
     'Z': '%Z',
-    "'": ''
+    "'": '',
+    '"': ''
 }
 
 
@@ -289,8 +290,7 @@ class Expression(sk_expression.Expression):
                     f".replace(tzinfo=datetime.timezone.utc))")
         elif use_date:
             return (f"{value}.apply(lambda x: "
-                    f"datetime.datetime.strptime(x, '{fmt}')"
-                    f".date())")
+                    f"datetime.datetime.strptime(x, '{fmt}'))")
         else:
             return (f"{value}.apply(lambda x: "
                     f"datetime.datetime.strptime(x, '{fmt}'))")
@@ -447,7 +447,7 @@ class Expression(sk_expression.Expression):
             SF('dayofyear', (any, any),
                 lambda s, p: self._series_method_call(s, p, 'dt.ordinal_day')),
             SF('from_unixtime', (any, int), lambda s, p: self._call_fmt(s, p,
-               '{0}.cast(pl.Datetime).with_time_unit("ms")')),
+               '{0}.cast(pl.Datetime).dt.with_time_unit("ms")')),
             SF('from_utc_timestamp', (any, str), lambda s, p: self._call_fmt(
                 s, p, '{0}.dt.tz_localize("UTC").dt.cast_time_zone("{1}")')),
             SF('hour', (any, any),
@@ -456,7 +456,7 @@ class Expression(sk_expression.Expression):
             SF('minute', (any, any),
                 lambda s, p: self._series_method_call(s, p, 'dt.minute')),
             SF('month', (any, any),
-                lambda s, p: self._series_method_call(s, p, 'dt.day')),
+                lambda s, p: self._series_method_call(s, p, 'dt.month')),
             SF('months_between', (any, str), lambda s, p: self._call_fmt(
                 s, p, '{0} - {1}).dt.days() / 30')),
             SF('next_day', (any, int),
@@ -478,9 +478,8 @@ class Expression(sk_expression.Expression):
                "'{0}'.dt.tz_localize('{1}').dt.cast_time_zone('UTC')")),
             # Reverso e com parâmetros diferentes mapeáveis
             SF('trunc', (str, any), self._date_trunc_call),
-
-            SF('unix_timestamp', (any, str), lambda s, p:
-                self._to_timestamp_call(s, p, True)),
+            SF('unix_timestamp', (any, str), lambda s, p: self._call_fmt(s, p, 
+                '{0}.cast(pl.Int64)')),
             SF('weekofyear', (any, any),
                 lambda s, p: self._series_method_call(s, p, 'dt.week')),
             SF('year', (any, any),
@@ -529,7 +528,7 @@ class Expression(sk_expression.Expression):
             SF('ltrim', (any, ),
                 lambda s, p: self._series_method_call(s, p, 'str.lstrip')),
             SF('regexp_extract', (any, str, int), lambda s, p: self._call_fmt(
-                s, p, '{0}.str.extract_all(r{1))')),
+                s, p, '{0}.str.extract_all(r{1})')),
             SF('regexp_replace', (any, str, str), lambda s, p:
                 self._series_method_call(s, p, 'str.replace_all')),
             SF('repeat', (any, int), lambda s, p: self._series_apply_call(

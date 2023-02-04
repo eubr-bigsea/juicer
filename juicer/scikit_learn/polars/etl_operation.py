@@ -134,24 +134,15 @@ class CastOperation(sk.CastOperation):
             strict = {{op.errors == 'raise'}}
             {{op.output}} = {{op.input}}.with_columns([
         {%- for attr in op.attributes %}
-            {%- if attr.type == 'Integer' %}
-                {%- set method_call = 'cast(pl.Int64, strict=strict)' %}
-            {%- elif attr.type == 'Decimal' %}
-                {%- set method_call = 'cast(pl.Float64, strict=strict)' %}
-            {%- elif attr.type == 'Boolean' %}
-                {%- set method_call = 'cast(pl.Boolean, strict=strict)' %}
-            {%- elif attr.type == 'Date' %}
-                {%- set method_call = 'cast(pl.Date, strict=strict)' %}
-            {%- elif attr.type in ('DateTime', 'Datetime') %}
-                {%- set method_call = 'cast(pl.Datetime, strict=strict)' %}
-            {%- elif attr.type in ('Time', ) %}
-                {%- set method_call = 'cast(pl.Time, strict=strict)' %}
+            {%- if attr.type in ('Boolean', 'Date', 'Time', 'Datetime',
+                                'UInt8', 'UInt16', 'UInt32', 'UInt64',
+                                'Int8', 'Int16', 'Int32', 'Int64',
+                                'Float32', 'Float64', 'Categorical') %}
+                {%- set method_call = 'cast(pl.' + attr.type +', strict=strict)' %}
             {%- elif attr.type == 'Text' %}
                 {%- set method_call = 'cast(pl.Utf8)' %}
-            {%- elif attr.type == 'Array' %}
+            {%- elif attr.type == 'List' %}
                 {%- set method_call = 'apply(lambda x: [x])' %}
-            {%- elif attr.type == 'JSON' %}
-                {%- set method_call = 'apply(to_json)' %}
             {%-endif %}
             {%- if op.errors == 'move' %}
             pl.when(pl.col('{{attr.attribute}}').{{method_call}}.is_null() &
@@ -256,18 +247,12 @@ class CleanMissingOperation(sk.CleanMissingOperation):
     def generate_code(self):
         if not self.has_code:
             return None
-        copy_code = ".copy()" \
-            if self.parameters.get('multiplicity',
-                                   {}).get('input data', 1) > 1 else ""
-        value_is_str = isinstance(self.check_parameter(self.value), str)
-        if value_is_str:
-            self.value = f"'{self.value}'"
         ctx = {
             'multiplicity': self.parameters.get('multiplicity', {}).get(
                 'input data', 1),
             'mode': self.mode,
             'min_thresh': self.min_ratio, 'max_thresh': self.max_ratio,
-            'copy_code': copy_code, 'output': self.output,
+            'output': self.output,
             'input': self.named_inputs['input data'],
             'columns': self.attributes,
             'value': self.value,
@@ -660,27 +645,43 @@ class ReplaceValuesOperation(sk.ReplaceValuesOperation):
 
     def __init__(self, parameters, named_inputs, named_outputs):
         super().__init__(parameters, named_inputs, named_outputs)
+        self.nullify = parameters.get('nullify', False) in ('1', 1, True)
 
     def generate_code(self):
         if not self.has_code:
             return None
-
         self.input = self.named_inputs['input data']
-        code = f"""
-            replacements = {self.replaces}
+        self.template = """
+            replacements = {{op.replaces}}
             to_select = []
-            for col in {self.input}.columns:
+            for col in {{op.input}}.columns:
+                col_type = {{op.input}}.schema[col]
                 if col in replacements:
                     replaces = replacements[col]
+                    replacement = replaces[1][0]
+                    value = replaces[0][0]
+                    if col_type in (pl.Int8, pl.Int16, pl.Int32, pl.Int64):
+                        value = int(value)
+                    elif col_type in (pl.Float32, pl.Float64):
+                        value = float(value)
+                    elif col_type in (pl.Utf8,):
+                        value = str(value)
+                    elif col_type in (pl.Boolean,):
+                        value = bool(value)
+                        if replacement in ('true', 'True', 1):
+                            replacement = True
+                        elif replacement in ('false', 'False', 0):
+                            replacement = False
+ 
                     to_select.append(
-                        pl.when(pl.col(col) == replaces[0][0])
-                        .then(replaces[1][0])
-                        .otherwise(pl.col(col)))
+                        pl.when(pl.col(col) == value)
+                        .then(replacement)
+                        .otherwise(pl.col(col)).alias(col))
                 else:
                     to_select.append(pl.col(col))
-            {self.output} = {self.input}.select(to_select)
+            {{op.output}} = {{op.input}}.select(to_select)
             """
-        return dedent(code)
+        return dedent(self.render_template({'op': self}))
 
 
 class SampleOrPartitionOperation(sk.SampleOrPartitionOperation):

@@ -337,10 +337,15 @@ def emit_sample_data_explorer(task_id, df, emit_event, name, size=50,
 def emit_sample_explorer_polars(task_id, df, emit_event, name, size=50, notebook=False,
                         describe=False, infer=False, use_types=None, page=1):
 
+    import polars as pl
     # Discard last '}' in order to include more information
     result = [df.limit(size).write_json(None)[:-1]]
+    result.append(', "types": [' + (', '.join([f'"{str(t)}"' 
+        if t != pl.Datetime else '"Datetime"' for t in df.dtypes])) + ']')
     result.append(
         f', "page": {page}, "size": {size}, "total": {df.shape[0]}, "format": "polars"')
+    result.append(
+        f', "estimated_size": {df.estimated_size()}')
     result.append('}')
 
     emit_event('update task', status='COMPLETED',
@@ -679,16 +684,18 @@ def analyse_attribute(task_id: str, df: Any, emit_event: Any, attribute: str,
             else df
         analysis_type = 'table'
         if attribute is None:  # Statistics for the entire dataframe
-            metrics = [polars_df.mean, polars_df.std, polars_df.min, 
-                polars_df.max, 
+            metrics = [polars_df.mean, polars_df.var, polars_df.std, 
+                polars_df.min, polars_df.max, 
                 functools.partial(polars_df.quantile, .25),
                 polars_df.median, 
                 functools.partial(polars_df.quantile, .75),
             ]
             result = pl.concat([_cast(m()) for m in metrics])
-            names = ['mean', 'std', 'min', 'max', 
+            names = ['mean', 'var', 'std', 'min', 'max', 
                 '25%', 'median', '75%', ]
-            result = result.transpose(include_header=False,
+            result = result.select(
+                [pl.col(c).cast(pl.Utf8) for c in result.columns]
+                ).transpose(include_header=False,
                                       column_names=names)
             result = pl.concat([result,
                 polars_df.select(pl.n_unique(
@@ -731,37 +738,71 @@ def analyse_attribute(task_id: str, df: Any, emit_event: Any, attribute: str,
             result = json.dumps(similar[:20])
             analysis_type = 'cluster'
         else:
-            info = {}
-            serie = pandas_df[attribute]
-            stats = ['median', 'nunique', 'skew', 'var', 'kurtosis']
-            if is_numeric_dtype(serie):
-                d = serie.describe(include='all').append(serie.agg(stats))
-            else:
-                d = serie.describe(include='all')
-
-            info['stats'] = dict(list(zip(d.index, d)))
-
-            if is_numeric_dtype(serie):
+            series = df.get_column(attribute)
+            if series.is_numeric():
+                df = df.with_columns([pl.col(attribute).cast(pl.Float64)])
+                series = df.get_column(attribute)
+                names = ['mean', 'var', 'std', 'min', 'max', 
+                    '25%', 'median', '75%', 'skew', 'unique', 'kurtosis', 'count', 'nulls']
+                metrics = [polars_df.mean, polars_df.var, polars_df.std, 
+                    polars_df.min, polars_df.max, 
+                    functools.partial(polars_df.quantile, .25),
+                    polars_df.median, 
+                    functools.partial(polars_df.quantile, .75),
+                ]
+                result = pl.concat([_cast(m()) for m in metrics])
+                extra = polars_df.select([
+                        pl.n_unique(attribute).alias('unique'),
+                        pl.col(attribute).skew().alias('skew'),
+                        pl.col(attribute).kurtosis().alias('kurtosis'),
+                        pl.col(attribute).count().alias('count'),
+                        pl.col(attribute).null_count().alias('nulls'),
+                        ]).transpose(column_names=[attribute])
+                result = pl.concat([result, extra], how='vertical')
+                info = {'stats': {n:v for n, v in zip(names, result.get_column(attribute))}}
                 info['histogram'] = [x.tolist() for x in np.histogram(
-                    serie.dropna(), bins=40)]
-
+                     series.drop_nulls(), bins=40)]
                 q1 = info['stats']['25%']
                 q3 = info['stats']['75%']
                 iqr = q3 - q1
                 info['stats']['iqr'] = iqr
                 info['fence_low'] = q1 - 1.5 * iqr
                 info['fence_high'] = q3 + 1.5 * iqr
-                info['outliers'] = serie[
-                    ((serie < info['fence_low'])
-                     | (serie > info['fence_high']))].iloc[:10].tolist()
+                info['outliers'] = (df.select(attribute)
+                    .filter((pl.col(attribute) < info['fence_low'])
+                     | (pl.col(attribute) > info['fence_high']))
+                     .unique()
+                     .limit(10)
+                     .select(pl.col(attribute).round(2))
+                     .get_column(attribute)
+                     .to_numpy().tolist())
+                info['top20'] = (polars_df
+                    .groupby(attribute)
+                    .agg(pl.col(attribute).count().alias('counts'))
+                    .sort('counts', reverse=True)
+                    .limit(20)
+                    .select([pl.col(attribute).fill_null('null'), 'counts'])
+                    .to_numpy()
+                    .tolist()
+                )
 
-            counts = serie.value_counts(dropna=False).iloc[:20]
-            info['top20'] = list(zip(
-                [x if not pd.isna(x) else 'null' for x in counts.index],
-                counts))
-            info['nulls'] = serie.isna().sum()
-            info['stats']['nulls'] = serie.isna().sum()
-            info['stats']['rows'] = len(serie)
+            elif series.dtype == pl.Categorical:
+                info = {}
+            else:
+                names = ['min', 'max'] 
+                metrics = [
+                    polars_df.min, polars_df.max, 
+                ]
+                result = pl.concat([_cast(m()) for m in metrics])
+                info = {'stats': {n:v for n, v in zip(names, result.get_column(attribute))}}
+            
+
+            # if is_numeric_dtype(serie):
+            
+            # counts = serie.value_counts(dropna=False).iloc[:20]
+            # info['top20'] = list(zip(
+            #     [x if not pd.isna(x) else 'null' for x in counts.index],
+            #     counts))
 
             # fig = px.histogram(serie,
             #           marginal="box", # or violin, rug
