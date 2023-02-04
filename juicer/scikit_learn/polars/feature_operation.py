@@ -84,6 +84,7 @@ class MinMaxScalerOperation(sk_feature.MinMaxScalerOperation):
             return None
         input1 = self.named_inputs['input data']
         code = f"""
+            {self.model} = None
             attributes = {self.attributes}
             # Second select: restores attributes original order
             {self.output} = {input1}.select(
@@ -119,6 +120,7 @@ class MaxAbsScalerOperation(sk_feature.MaxAbsScalerOperation):
 
         input1 = self.named_inputs['input data']
         code = f"""
+            {self.model} = None
             attributes = {self.attributes}
             # Second select: restores attributes original order
             {self.output} = {input1}.select(
@@ -153,6 +155,7 @@ class StandardScalerOperation(sk_feature.StandardScalerOperation):
             return None
         input1 = self.named_inputs['input data']
         return dedent(f"""
+            {self.model} = None
             attributes = {self.attributes}
             # Second select: restores attributes original order
             {self.output} = {input1}.select(
@@ -228,12 +231,15 @@ class OneHotEncoderOperation(sk_feature.OneHotEncoderOperation):
 
         self.input = self.named_inputs['input data']
         return dedent(f"""
-            {self.output} = {self.input}.with_column(
-                ({self.input}.select(pl.col('{self.attribute}'))
+            attributes = {repr(self.attribute)}
+            {self.output} = {self.input}.with_columns([
+                {self.input}.select(pl.col(col))
+                    .collect()
                     .to_dummies()
                     .select(pl.concat_list(pl.all()))
                     .to_series()
-                    .alias('{self.alias}'))
+                    .alias(f'ohe_{{col}}') for col in attributes 
+                    ]).lazy()
         """)
 
 

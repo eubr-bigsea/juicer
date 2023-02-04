@@ -832,21 +832,22 @@ class ReplaceValuesOperation(Operation):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         self.replaces = {}
-
         if any(['value' not in parameters,
-                'replacement' not in parameters]):
+                ('replacement' not in parameters and not parameters.get('nullify')) ]):
             raise ValueError(
                 _("Parameter {} and {} must be informed if is using "
                   "replace by value in task {}.").format
                 ('value', 'replacement', self.__class__))
-
         for att in parameters['attributes']:
             if att not in self.replaces:
                 self.replaces[att] = [[], []]
             self.replaces[att][0].append(
                 self.check_parameter(self.parameters['value']))
-            self.replaces[att][1].append(
-                self.check_parameter(self.parameters['replacement']))
+            if parameters.get('nullify'):
+                self.replaces[att][1].append(None)
+            else:
+                self.replaces[att][1].append(
+                    self.check_parameter(self.parameters['replacement']))
 
         self.has_code = len(self.named_inputs) == 1 and any(
             [len(self.named_outputs) >= 1, self.contains_results()])

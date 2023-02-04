@@ -52,9 +52,44 @@ import traceback
 {%- endfor %}
 {%- if duckdb %}
 con = duckdb.connect()
+{%- elif polars %}
+# turn on String Cache. See https://github.com/pola-rs/polars/issues/5367
+pl.toggle_string_cache(True)
 {%- endif %}
-{%- if transpiler.custom_functions %}
 
+def _handle_errors(err):
+    """ Handle and translate errors to be sent to user interface
+    """
+    tests = []
+    {%- if polars %}
+    exc_type = type(err)
+    if exc_type in (pl.exceptions.ComputeError, pl.exceptions.ArrowError):
+        tests = [
+            (r"time data '(.+?)' does not match format '(.+?)'$",
+             gettext('Value "{}" does not match format "{}".')),
+            (r"unconverted data remains: (.+)$",
+             gettext('Final "{}" does not match format.')),
+            (r"cannot compare Utf8 with numeric data$",
+             gettext('An informed value is not compatible with numeric data.')),
+            (r"Casting from (.+) to (.+) not supported",
+             gettext('Casting from "{}" to "{}" is not supported.')),
+            (r"Strict conversion from (.+) to (.+) failed for values \[(.+)\]",
+             gettext('Strict conversion from "{}" to "{}" failed for values [{}].')),
+        ]
+    {%- elif pandas %}
+        raise err
+    {%- elif duckdb %}
+        raise err
+    {%- else %}
+        raise err
+    {%- endif %}
+    for test, msg in tests:
+        match = re.compile(test).search(str(err))
+        if match:
+            raise ValueError(msg.format(*match.groups()))    
+    raise err
+
+{%- if transpiler.custom_functions %}
 # Custom functions
 {%- for code in transpiler.custom_functions.values() %}
 {{code.strip()}}
@@ -268,8 +303,7 @@ def main(sklearn_session, cached_state, emit_event):
             {%- endfor %}
         }
     except Exception as e:
-        traceback.print_exc(file=sys.stderr)
-        raise
+        _handle_errors(e)
 
 {%- if execute_main %}
 
