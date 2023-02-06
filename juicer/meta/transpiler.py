@@ -72,6 +72,7 @@ class MetaTranspiler(Transpiler):
 
             'n-grams': ops.GenerateNGramsOperation,
             'remove-missing': ops.RemoveMissingOperation,
+            'force-range': ops.ForceRangeOperation,
         }
         transform = [
             'extract-numbers',

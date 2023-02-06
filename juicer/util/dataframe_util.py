@@ -675,7 +675,7 @@ def analyse_attribute(task_id: str, df: Any, emit_event: Any, attribute: str,
             columns = []
             for s in df:
                 if s.is_numeric() or s.is_boolean():
-                    columns.append(s.cast(float))
+                    columns.append(s.cast(float).round(4))
                 else:
                     columns.append(s)
             return pl.DataFrame(columns)
@@ -708,7 +708,7 @@ def analyse_attribute(task_id: str, df: Any, emit_event: Any, attribute: str,
             cast_types = [pl.Utf8, pl.Float64, pl.Float64, pl.Utf8,
                 pl.Utf8, pl.Float64, pl.Float64, pl.Float64, pl.Int64]
             result = result.with_columns([
-                pl.col(c).cast(cast_types[i]).round(2).alias(c) 
+                pl.col(c).cast(cast_types[i]).round(4).alias(c) 
                 if cast_types[i] == pl.Float64
                 else pl.col(c) 
                     for i, c in enumerate(result.columns)
@@ -743,7 +743,7 @@ def analyse_attribute(task_id: str, df: Any, emit_event: Any, attribute: str,
                 df = df.with_columns([pl.col(attribute).cast(pl.Float64)])
                 series = df.get_column(attribute)
                 names = ['mean', 'var', 'std', 'min', 'max', 
-                    '25%', 'median', '75%', 'skew', 'unique', 'kurtosis', 'count', 'nulls']
+                    '25%', 'median', '75%', 'unique', 'skew', 'kurtosis', 'count', 'nulls']
                 metrics = [polars_df.mean, polars_df.var, polars_df.std, 
                     polars_df.min, polars_df.max, 
                     functools.partial(polars_df.quantile, .25),
@@ -753,8 +753,8 @@ def analyse_attribute(task_id: str, df: Any, emit_event: Any, attribute: str,
                 result = pl.concat([_cast(m()) for m in metrics])
                 extra = polars_df.select([
                         pl.n_unique(attribute).alias('unique'),
-                        pl.col(attribute).skew().alias('skew'),
-                        pl.col(attribute).kurtosis().alias('kurtosis'),
+                        pl.col(attribute).skew().round(4).alias('skew'),
+                        pl.col(attribute).kurtosis().round(4).alias('kurtosis'),
                         pl.col(attribute).count().alias('count'),
                         pl.col(attribute).null_count().alias('nulls'),
                         ]).transpose(column_names=[attribute])
@@ -773,7 +773,7 @@ def analyse_attribute(task_id: str, df: Any, emit_event: Any, attribute: str,
                      | (pl.col(attribute) > info['fence_high']))
                      .unique()
                      .limit(10)
-                     .select(pl.col(attribute).round(2))
+                     .select(pl.col(attribute).round(4))
                      .get_column(attribute)
                      .to_numpy().tolist())
                 info['top20'] = (polars_df

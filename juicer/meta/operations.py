@@ -581,6 +581,143 @@ class RescaleOperation(MetaPlatformOperation):
         return json.dumps(task_obj)
 
 
+class ForceRangeOperation(MetaPlatformOperation):
+    def __init__(self, parameters,  named_inputs, named_outputs):
+        MetaPlatformOperation.__init__(
+            self, parameters,  named_inputs,  named_outputs)
+        self.attributes = self.get_required_parameter(parameters, 'attributes')
+        self.start = float(self.get_required_parameter(parameters, 'start'))
+        self.end = float(self.get_required_parameter(parameters, 'end'))
+
+        if self.start % 1 == 0:
+            self.start = int(self.start)
+        if self.end % 1 == 0:
+            self.end = int(self.end)
+        self.outliers = parameters.get('outliers', 'clip')
+        self.operation_id = 7
+
+    def generate_code(self):
+        task_obj = self._get_task_obj()
+        task_obj['forms'] = {}
+        task_obj['forms'].update({
+            'attributes': {'value': self.attributes},
+        })
+        task_obj = self._get_task_obj()
+        task_obj['operation'] = {"id": self.operation_id}
+
+        expressions = []
+        if self.outliers == 'clean':
+            for attr in self.attributes:
+                expression = (
+                    f'when(({attr} < {self.start}) | ({attr} > {self.end}), None, {attr})')
+                formula = {
+                    'alias': attr,
+                    'expression': expression,
+                    'tree': {
+                        "type":"CallExpression",
+                        "arguments":[
+                            {
+                                "type":"BinaryExpression",
+                                "operator": "|",
+                                "left":{
+                                    "type":"BinaryExpression",
+                                    "operator":"<",
+                                    "left":{
+                                        "type":"Identifier",
+                                        "name": attr
+                                     },
+                                     "right":{
+                                        "type":"Literal",
+                                        "value": self.start,
+                                        "raw": self.start
+                                     }
+                                },
+                                "right":{
+                                    "type":"BinaryExpression",
+                                    "operator":">",
+                                    "left":{
+                                        "type":"Identifier",
+                                        "name": attr
+                                    },
+                                    "right":{
+                                        "type":"Literal",
+                                        "value": self.end,
+                                        "raw": self.end
+                                    }
+                                }
+                            },
+                            {
+                                "type":"Literal",
+                                "value": None,
+                                "raw": None
+                            },
+                            {
+                                "type": "Identifier",
+                                "name": attr
+                            }
+                         ],
+                         "callee":{"type":"Identifier","name":"when"}}
+                    }
+                expressions.append(formula)
+        else:
+            for attr in self.attributes:
+                expression = (
+                    f'when({attr} < {self.start}, {self.start}, {attr} > {self.end}, self.end, {attr})')
+                formula = {
+                    'alias': attr,
+                    'expression': expression,
+                    'tree': {
+                        "type":"CallExpression",
+                        "arguments":[
+                            {
+                                "type":"BinaryExpression",
+                                "operator":"<",
+                                "left":{
+                                   "type":"Identifier",
+                                   "name": attr
+                                },
+                                "right":{
+                                   "type":"Literal",
+                                   "value": self.start,
+                                   "raw": self.start
+                                }
+                            },
+                            {
+                                "type": "Literal",
+                                "value": self.start,
+                                "raw": self.start,
+                            },
+                            {
+                                "type":"BinaryExpression",
+                                "operator":">",
+                                "left":{
+                                    "type":"Identifier",
+                                    "name": attr
+                                },
+                                "right":{
+                                    "type":"Literal",
+                                    "value": self.end,
+                                    "raw": self.end
+                                }
+                            },
+                            {
+                                "type":"Literal",
+                                "value": self.end,
+                                "raw": self.end
+                            },
+                            {
+                                "type": "Identifier",
+                                "name": attr
+                            }
+                         ],
+                         "callee":{"type":"Identifier","name":"when"}}
+                    }
+                expressions.append(formula)
+        task_obj['forms'].update({
+            "expression": {"value": expressions},
+        })
+        return json.dumps(task_obj)
+
 class FindReplaceOperation(MetaPlatformOperation):
     def __init__(self, parameters,  named_inputs, named_outputs):
         MetaPlatformOperation.__init__(
@@ -1232,7 +1369,6 @@ class FeaturesOperation(ModelMetaOperation):
 
     def generate_code(self):
         code = []
-        # import pdb; pdb.set_trace()
         for f in self.features:
             name = f.get('name')
             transform = f.get('transform')
