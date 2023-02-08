@@ -19,7 +19,7 @@ cffi==1.12.3
 chardet==3.0.4
 configparser==3.8.1
 coverage==4.5.4
-cryptography==3.3.2
+cryptography==39.0.1
 cycler==0.10.0
 Cython==0.28.5
 datasketch==1.5.7
