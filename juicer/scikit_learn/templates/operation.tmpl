@@ -76,6 +76,10 @@ def _handle_errors(err):
             (r"Strict conversion from (.+) to (.+) failed for values \[(.+)\]",
              gettext('Strict conversion from "{}" to "{}" failed for values [{}].')),
         ]
+    elif exc_type in (pl.exceptions.NotFoundError, ):
+        raise ValueError(
+             gettext('Attribute {} not found in input data.').format(str(err))
+        )
     {%- elif pandas %}
         raise err
     {%- elif duckdb %}
