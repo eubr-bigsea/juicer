@@ -121,6 +121,8 @@ class Expression(sk_expression.Expression):
                                   tree['alternate']]}
             result = self.get_when_function(spec, params)
 
+        elif tree['type'] == 'ArrayExpression':
+            result = f'pl.Series([{repr([e["value"] for e in tree["elements"]])}])'
         else:
             raise ValueError("Unknown type: {}".format(tree['type']))
 
@@ -325,9 +327,13 @@ class Expression(sk_expression.Expression):
         if not isinstance(value, int):
             raise ValueError(_('{} is not integer').format(description, value))
 
-    def _call_fmt(self, spec: dict, params: dict, fmt: str = None
-                  ) -> str:
-        parsed = [self.parse(x, params, i == 0)
+    def _call_fmt(self, spec: dict, params: dict, fmt: str = None,
+                  use_raw: set = None) -> str:
+        if use_raw is None:
+            use_raw = set()
+
+        parsed = [self.parse(x, params, i == 0) if i not in use_raw
+                  else x['raw']
                   for i, x in enumerate(spec['arguments'])]
         return fmt.format(*parsed)
 
@@ -664,13 +670,17 @@ class Expression(sk_expression.Expression):
                 lambda s, p: self._series_method_call(s, p, 'arr.sort')),
 
             # Data Explorer
+            SF('array_cast', (any, ),
+                lambda s, p: self._call_fmt(s, p, '{}.cast(pl.List(pl.{}))', 
+                    set([1])),
+               ),
             SF('isnotnull', (any, ),
                 lambda s, p: self._series_method_call(s, p, 'is_not_null'),
                ),
-            SF('cast_array', (any, str), lambda s, p:
-                (f"{self._arg(s, p, 0)}.arr"
-                 f".eval(pl.element().cast(pl.{self._arg(s, p, 1)}))")
-               ),
+            #SF('cast_array', (any, str), lambda s, p:
+            #    (f"{self._arg(s, p, 0)}.arr"
+            #     f".eval(pl.element().cast(pl.{self._arg(s, p, 1)}))")
+            #   ),
 
             SF('extract_numbers', (any, ), lambda s, p:
                 (f"{self._arg(s, p, 0)}"

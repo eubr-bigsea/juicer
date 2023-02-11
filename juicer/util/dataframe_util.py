@@ -339,9 +339,25 @@ def emit_sample_explorer_polars(task_id, df, emit_event, name, size=50, notebook
 
     import polars as pl
     # Discard last '}' in order to include more information
-    result = [df.limit(size).write_json(None)[:-1]]
-    result.append(', "types": [' + (', '.join([f'"{str(t)}"' 
-        if t != pl.Datetime else '"Datetime"' for t in df.dtypes])) + ']')
+    try:
+        result = [df.limit(size).write_json(None)[:-1]]
+    except:
+        raise ValueError(gettext(
+            'Internal error'))
+
+    def get_generic_type(t):
+        # Dict does not work because __hash__ implementation is not correct?
+        if t == pl.List:
+            return '"List"'
+        elif t == pl.Datetime:
+            return '"Datetime"'
+        else:
+            return f'"{str(t)}"'
+
+
+    result.append(', "types": [' + (', '.join([
+        get_generic_type(t)
+        for t in df.dtypes])) + ']')
     result.append(
         f', "page": {page}, "size": {size}, "total": {df.shape[0]}, "format": "polars"')
     result.append(
@@ -705,8 +721,8 @@ def analyse_attribute(task_id: str, df: Any, emit_event: Any, attribute: str,
             result.insert_at_idx(
                 0, pl.Series('attribute', polars_df.columns)
             )
-            cast_types = [pl.Utf8, pl.Float64, pl.Float64, pl.Utf8,
-                pl.Utf8, pl.Float64, pl.Float64, pl.Float64, pl.Int64]
+            cast_types = [pl.Utf8, pl.Float64, pl.Float64, pl.Float64, 
+                pl.Utf8, pl.Utf8, pl.Float64, pl.Float64, pl.Float64, pl.Int64]
             result = result.with_columns([
                 pl.col(c).cast(cast_types[i]).round(4).alias(c) 
                 if cast_types[i] == pl.Float64
@@ -739,7 +755,7 @@ def analyse_attribute(task_id: str, df: Any, emit_event: Any, attribute: str,
             analysis_type = 'cluster'
         else:
             series = df.get_column(attribute)
-            if series.is_numeric():
+            if series.is_numeric() and series.dtype != pl.Boolean:
                 df = df.with_columns([pl.col(attribute).cast(pl.Float64)])
                 series = df.get_column(attribute)
                 names = ['mean', 'var', 'std', 'min', 'max', 
@@ -786,19 +802,30 @@ def analyse_attribute(task_id: str, df: Any, emit_event: Any, attribute: str,
                     .tolist()
                 )
 
-            elif series.dtype == pl.Categorical:
-                info = {}
             else:
-                names = ['min', 'max'] 
+                names = ['count', 'nulls', 'min', 'max', 'mode', 'unique']
                 metrics = [
-                    polars_df.min, polars_df.max, 
+                    polars_df.min, polars_df.max
                 ]
-                result = pl.concat([_cast(m()) for m in metrics])
-                info = {'stats': {n:v for n, v in zip(names, result.get_column(attribute))}}
-            
+                extra = polars_df.select([
+                        pl.col(attribute).count().alias('count'),
+                        pl.col(attribute).null_count().alias('nulls'),
+                        pl.col(attribute).drop_nulls().cast(pl.Utf8).min().alias('min'),
+                        pl.col(attribute).drop_nulls().cast(pl.Utf8).max().alias('max'),
+                        pl.col(attribute).drop_nulls().cast(pl.Utf8).mode().alias('mode'),
+                        pl.col(attribute).n_unique().alias('unique'),
+                        ])
+                result = extra
+                info = {'stats': {n:v for n, v in zip(names, extra.to_numpy().tolist()[0] )}}
 
+                info['histogram'] = list(zip(*df.select(attribute)
+                    .drop_nulls()
+                    .groupby(attribute, maintain_order=True)
+                    .count().sort('count', reverse=True)
+                    .limit(40)
+                    .rows()))[::-1]
+            info['numeric'] = series.is_numeric()
             # if is_numeric_dtype(serie):
-            
             # counts = serie.value_counts(dropna=False).iloc[:20]
             # info['top20'] = list(zip(
             #     [x if not pd.isna(x) else 'null' for x in counts.index],

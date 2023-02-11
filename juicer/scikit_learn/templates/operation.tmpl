@@ -76,6 +76,16 @@ def _handle_errors(err):
             (r"Strict conversion from (.+) to (.+) failed for values \[(.+)\]",
              gettext('Strict conversion from "{}" to "{}" failed for values [{}].')),
         ]
+    elif exc_type in (pl.exceptions.SchemaError, ):
+        tests = [
+            (r"cannot call lst.join on Series with dtype (.+).Inner type must be (.+)",
+             gettext('Cannot concat list elements if their data type is "{}". It must be "{}".')),
+        ]
+    elif exc_type in (AttributeError,):
+        tests = [
+            (r"object has no attribute 'alias'",
+             gettext('In order to define a literal value, use the function lit(value).')),
+        ]
     elif exc_type in (pl.exceptions.NotFoundError, ):
         raise ValueError(
              gettext('Attribute {} not found in input data.').format(str(err))
@@ -90,7 +100,7 @@ def _handle_errors(err):
     for test, msg in tests:
         match = re.compile(test).search(str(err))
         if match:
-            raise ValueError(msg.format(*match.groups()))    
+            raise ValueError(msg.format(*match.groups()))
     raise err
 
 {%- if transpiler.custom_functions %}
@@ -218,15 +228,15 @@ def {{task.operation.slug.replace('-', '_')}}_{{instance.order}}(sklearn_session
             {%- endif %}
           {%- endfor %}
         }
-       
+
     {%- if instance.contains_results() %}
-    outputs = [(name, out) for name, out in results.items() 
+    outputs = [(name, out) for name, out in results.items()
         {%- if duckdb %}
         if isinstance(out, duckdb.DuckDBPyRelation)
         {%- elif polars %}
-        if isinstance(out, (pl.DataFrame, pl.LazyFrame)) 
+        if isinstance(out, (pl.DataFrame, pl.LazyFrame))
         {%- else %}
-        if isinstance(out, pd.DataFrame) 
+        if isinstance(out, pd.DataFrame)
         {%- endif %}
         and not name.startswith('__')]
     {%- if instance.has_code and instance.enabled and instance.contains_sample %}
@@ -241,7 +251,7 @@ def {{task.operation.slug.replace('-', '_')}}_{{instance.order}}(sklearn_session
         {%- else %}
         dataframe_util.emit_sample_sklearn(
         {%- endif %}
-            task_id, out{%if duckdb%}.limit(size).df(){%elif polars%}.collect(streaming=True){%endif%}, emit_event, name, 
+            task_id, out{%if duckdb%}.limit(size).df(){%elif polars%}.collect(streaming=False){%endif%}, emit_event, name,
             size=size, infer=infer, describe=describe, use_types=use_types)
     {%- endif %}
     {%- if instance.has_code and instance.enabled and instance.contains_schema %}

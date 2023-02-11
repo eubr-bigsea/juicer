@@ -97,6 +97,8 @@ class MetaTranspiler(Transpiler):
 
             'extract-from-array',
             'concat-array',
+            'sort-array',
+            'change-array-type',
 
             'flag-empty',
             'flag-with-formula',

@@ -232,6 +232,8 @@ class TransformOperation(MetaPlatformOperation):
 
         'extract-from-array': {'f': None, 'op': ''},
         'concat-array': {'f': 'array_join', 'args': ['{delimiter}'], 'transform': [str]},
+        'sort-array': {'f': 'array_sort'},
+        'change-array-type': {'f': 'array_cast', 'args': ['{new_type}'], 'transform': [str]},
 
         'flag-empty': {'f': 'isnull', },
         'flag-with-formula': {'f': None},
