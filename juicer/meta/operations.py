@@ -12,6 +12,7 @@ from juicer.spark.data_operation import DataReaderOperation
 from juicer.spark.etl_operation import AggregationOperation
 from juicer.spark.etl_operation import FilterOperation as SparkFilterOperation
 from juicer.spark.etl_operation import SampleOrPartitionOperation
+from juicer.service import limonero_service
 
 FeatureInfo = namedtuple('FeatureInfo', ['value', 'props', 'type'])
 
@@ -2023,3 +2024,176 @@ class VisualizationOperation(MetaPlatformOperation):
         task_obj['operation'] = {"id": 145}
 
         return json.dumps(task_obj)
+
+class BatchMetaOperation(Operation):
+    """ Base class for batch execution operations """
+    def __init__(self, parameters,  named_inputs, named_outputs):
+       super().__init__(parameters, named_inputs, named_outputs)
+
+    def generate_code(self) -> str:
+        return ''
+
+class ConvertDataSourceFormat(BatchMetaOperation):
+    LIMONERO_TO_SPARK_DATA_TYPES = {
+        "BINARY": 'types.BinaryType',
+        "CHARACTER": 'types.StringType',
+        "DATETIME": 'types.TimestampType',
+        "DATE": 'types.DateType',
+        "DOUBLE": 'types.DoubleType',
+        "DECIMAL": 'types.DecimalType',
+        "FLOAT": 'types.FloatType',
+        "LONG": 'types.LongType',
+        "INTEGER": 'types.IntegerType',
+        "TEXT": 'types.StringType',
+    }
+
+    SUPPORTED_DRIVERS = {
+        'mysql': 'com.mysql.jdbc.Driver'
+    }
+    DATA_TYPES_WITH_PRECISION = {'DECIMAL'}
+
+    SEPARATORS = {
+        '{tab}': '\\t',
+        '{new_line \\n}': '\n',
+        '{new_line \\r\\n}': '\r\n'
+    }
+    DATA_SOURCE_ID_PARAM = 'data_source'
+    HEADER_PARAM = 'header'
+    SEPARATOR_PARAM = 'separator'
+    QUOTE_PARAM = 'quote'
+    INFER_SCHEMA_PARAM = 'infer_schema'
+    NULL_VALUES_PARAM = 'null_values'
+
+    INFER_FROM_LIMONERO = 'FROM_LIMONERO'
+    INFER_FROM_DATA = 'FROM_VALUES'
+
+
+    template = """
+        {%- if infer_schema == 'FROM_LIMONERO' %}
+        # Schema definition
+        schema = types.StructType()
+        {%- for attr in attributes %}
+        schema.add('{{attr.name}}', {{attr.data_type}}, {{attr.nullable}})
+        {%- endfor %} 
+        {%- elif infer_schema == 'FROM_DATA' %}
+        schema = None
+        {%- endif %}
+
+        # Open the source data
+        url = '{{url}}' #protect: url
+        df = (spark_session
+            .read{{null_option}}
+            .option('treatEmptyValuesAsNulls', 'true')
+            .option('wholeFile', True)
+            .option('multiLine', {{multiline}})
+            .option('escape', '"')
+            .option('timestampFormat', '{{date_fmt}}')
+            .csv(
+                url, schema=schema,
+                {%- if quote %}
+                quote='{{quote}}',
+                {%- endif %}
+                ignoreTrailingWhiteSpace=True, # Handle \\r
+                encoding='{{encoding}}',
+                header={{header}}, 
+                sep='{{sep}}',
+                inferSchema={{infer_schema == 'FROM_DATA'}},
+                mode='IGNORE'
+            )
+        )
+        target_url = f'{url}.parquet' #protect: url
+        df.repartition(1).write.mode('overwrite').parquet(target_url)
+
+    """
+
+    def __init__(self, parameters,  named_inputs, named_outputs):
+        super().__init__(parameters, named_inputs, named_outputs)
+        
+        self.data_source_id = self.get_required_parameter(
+            parameters, 'data_source')
+        self.target_format = self.get_required_parameter(
+            parameters, 'target_format')
+        self.parameters = parameters
+        self.has_code = True
+
+        self.transpiler_utils.add_import(
+            'from pyspark.sql import functions, types, Row, DataFrame')
+
+    def generate_code(self) -> str:
+
+        parameters = self.parameters
+        # Load metadata
+        limonero_config = \
+            self.parameters['configuration']['juicer']['services'][
+                'limonero']
+        url = limonero_config['url']
+        token = str(limonero_config['auth_token'])
+        metadata = limonero_service.get_data_source_info(
+            url, token, self.data_source_id)
+
+        if metadata.get('format') not in ('CSV', ):
+            raise ValueError(
+                gettext('Unsupported format: {}').format(
+                    metadata.get('format')))
+
+        header = (metadata.get('is_first_line_header', False) 
+            not in ('0', 0, 'false', False))
+        null_values = [v.strip() for v in parameters.get(
+            self.NULL_VALUES_PARAM, '').split(",")]
+
+        record_delimiter = metadata.get('record_delimiter')
+        sep = parameters.get(
+            self.SEPARATOR_PARAM,
+            metadata.get('attribute_delimiter', ',')) or ','
+        quote = parameters.get(self.QUOTE_PARAM,
+                                    metadata.get('text_delimiter'))
+        if quote == '\'':
+            quote = '\\\''
+        if sep in self.SEPARATORS:
+            sep = self.SEPARATORS[sep]
+        infer_schema = parameters.get(self.INFER_SCHEMA_PARAM,
+                                      self.INFER_FROM_LIMONERO)
+
+        encoding = metadata.get('encoding', 'UTF-8') or 'UTF-8'
+
+        if metadata.get('treat_as_missing'):
+            null_values.extend([x.strip() for x in 
+                metadata.get('treat_as_missing').split(',')])
+        null_option = ''.join(
+            [f".option('nullValue', '{n}')" for n in
+             set(null_values)]) if null_values else ""
+        url = metadata.get('url')
+
+        if infer_schema == self.INFER_FROM_LIMONERO:
+            for attr in metadata.get('attributes'):
+                data_type = self.LIMONERO_TO_SPARK_DATA_TYPES[attr['type']]
+                if attr['type'] in self.DATA_TYPES_WITH_PRECISION:
+                    # extra precision
+                    # precision = (attr.get('precision', 0) or 0) + 3
+                    # scale = (attr.get('scale', 0) or 0) or 0
+                    # data_type = f'{data_type}({precision}, {scale})'
+
+                    # Polars does not support Decimal
+                    # See https://github.com/pola-rs/polars/issues/4104
+                    data_type = 'types.FloatType()'
+                else:
+                    data_type = f'{data_type}()'
+                attr['data_type'] = data_type
+
+
+
+        ctx = {
+            'attributes': metadata.get('attributes'),
+            'date_fmt': "yyyy/MM/dd HH:mm:ss",
+            'encoding': encoding,
+            'header': header,
+            'infer_schema': infer_schema,
+            'multiline': encoding in ('UTF-8', 'UTF8', ''),
+            'null_option': null_option,
+            'op': self,
+            'quote': quote,
+            'record_delimiter': record_delimiter,
+            'sep': sep,
+            'url': url,
+        }
+        return dedent(self.render_template(ctx))

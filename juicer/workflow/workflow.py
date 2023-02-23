@@ -166,6 +166,18 @@ class Workflow(object):
 
             if (self.include_disabled or task.get('enabled', True)) and task.get(
                     'environment', 'DESIGN') == 'DESIGN':
+
+                # operation id = 0 is a special case, used in BATCH workflows
+                if task['operation']['id'] == 0:
+                    task_map[task['id']] = {'task': task}
+                    self.graph.add_node(
+                        task.get('id'),
+                        name=task.get('name'),
+                        forms=task.get('forms'),
+                        parents=[],
+                        attr_dict=task)
+                    continue
+
                 operation = operations_tahiti.get(task['operation']['id'])
                 form_fields = {}
                 if operation is None:
@@ -253,7 +265,7 @@ class Workflow(object):
             else:
                 self.disabled_tasks[task['id']] = task
 
-        for flow in self.workflow['flows']:
+        for flow in self.workflow.get('flows', []):
 
             # Ignore disabled tasks
             if all([flow['source_id'] not in self.disabled_tasks,
@@ -418,13 +430,13 @@ class Workflow(object):
         return sorted_tasks_id
 
     def _is_there_null_source_id_tasks(self):
-        for flow in self.workflow['flows']:
+        for flow in self.workflow.get('flows', []):
             if flow['source_id'] == "":
                 return False
         return True
 
     def _is_there_null_target_id_tasks(self):
-        for flow in self.workflow['flows']:
+        for flow in self.workflow.get('flows', []):
             if flow['target_id'] == "":
                 return False
         return True

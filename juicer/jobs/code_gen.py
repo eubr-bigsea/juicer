@@ -73,7 +73,8 @@ def _get_lookups(tahiti_conf, workflow_id, resp, lang):
 
 def _generate(workflow_id, job_id, execute_main, params, config, out=sys.stdout,
               deploy=False, export_notebook=False, plain=False,
-              custom_vars=None, lang='en', from_meta=False, variant=None):
+              custom_vars=None, lang='en', from_meta=False, variant=None,
+            json_file=None):
     log.debug(gettext(
         'Generating code for workflow %s, notebook=%s, plain=%s'),
         workflow_id,
@@ -81,12 +82,14 @@ def _generate(workflow_id, job_id, execute_main, params, config, out=sys.stdout,
         plain
     )
     tahiti_conf = config['juicer']['services']['tahiti']
-
-    resp = query_tahiti(base_url=tahiti_conf['url'],
+    if json_file is None:
+        resp = query_tahiti(base_url=tahiti_conf['url'],
                         item_path='/workflows',
                         token=str(tahiti_conf['auth_token']),
                         item_id=workflow_id, qs=f'lang={lang}')
-
+    else:
+        with open(json_file) as f:
+            resp = json.loads(f.read().strip())
     loader = Workflow(resp, config, lang=lang)
     loader.handle_variables(custom_vars)
     if variant is not None:
@@ -210,6 +213,8 @@ if __name__ == "__main__":
                         required=False)
     parser.add_argument("-v", "--variant", type=str, required=False,
                         help="Variant used to code generation in platform")
+    parser.add_argument("--json", type=str, required=False,
+                        help="Path to JSON file containing workflow code (do not read from Tahiti API)")
     parser.add_argument(
         "-p", "--plain", required=False, action="store_true",
         help="Indicates if workflow should be plain Python, "
@@ -237,4 +242,4 @@ if __name__ == "__main__":
               config=juicer_config, deploy=args.deploy,
               export_notebook=args.notebook, plain=args.plain,
               custom_vars=custom_vars, lang=args.lang, from_meta=args.meta,
-              variant=args.variant)
+              variant=args.variant, json_file=args.json)

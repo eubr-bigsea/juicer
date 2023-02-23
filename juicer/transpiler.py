@@ -103,6 +103,9 @@ class Transpiler(object):
     def get_meta_template(self):
         return "templates/meta.tmpl"
 
+    def get_batch_template(self):
+        return "templates/batch.tmpl"
+
     def get_audit_info(self, graph, workflow, task, parameters):
         result = []
         task['ancestors'] = list(nx.ancestors(graph, task['id']))
@@ -368,6 +371,8 @@ class Transpiler(object):
                 template = template_env.get_template(self.get_code_template())
             elif workflow_type in ('DATA_EXPLORER', 'VIS_BUILDER'):
                 template = template_env.get_template(self.get_meta_template())
+            elif workflow_type == 'BATCH':
+                template = template_env.get_template(self.get_batch_template())
                 
             gen_source_code = template.render(env_setup)
             if using_stdout:
@@ -462,7 +467,7 @@ class Transpiler(object):
 
         sorted_tasks_ids = nx.topological_sort(graph) if topological_sort \
             else [t['id'] for t in sorted(workflow['tasks'], 
-            key=lambda x: x['display_order'])]
+            key=lambda x: x.get('display_order', 0))]
 
         self.generate_code(graph, job_id, out, params,
                            ports, sorted_tasks_ids, state,
