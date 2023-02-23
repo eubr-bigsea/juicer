@@ -3,6 +3,7 @@
 
 import logging
 from collections import namedtuple
+from gettext import gettext
 
 from juicer.transpiler import TranspilerUtils
 
@@ -245,6 +246,14 @@ class Operation(object):
                 'input data'))
 
         return result
+
+    def get_required_parameter(self, parameters, name):
+        if name not in parameters:
+            raise ValueError(
+                gettext('Missing required parameter: {}').format(
+                    name))
+        else:
+            return parameters.get(name)
 
 
 # noinspection PyAbstractClass

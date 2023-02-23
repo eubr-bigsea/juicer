@@ -277,8 +277,29 @@ class MetaMinion(Minion):
     def perform_execute(self, job_id, workflow, app_configs):
         if workflow.get('type') == 'MODEL_BUILDER':
             self._execute_model_builder(job_id, workflow, app_configs)
+        elif workflow.get('type') == 'BATCH':
+            self._execute_batch(job_id, workflow, app_configs)
         else:
             self._execute_target_workflow(job_id, workflow, app_configs)
+
+    def _execute_batch(self, job_id, workflow, app_configs):
+        loader = Workflow(workflow, self.config, lang=self.current_lang)
+        loader.handle_variables({'job_id': job_id})
+        out = StringIO()
+
+        self.transpiler.transpile(loader.workflow, loader.graph,
+                                  self.config, out, job_id,
+                                  persist=app_configs.get('persist'))
+        out.seek(0)
+        code = out.read()
+
+        if self.target_minion is None:
+            # Only Spark is supported
+            self.target_minion = SparkMinion(
+                self.redis_conn, self.workflow_id,
+                self.app_id, self.config, self.current_lang)
+
+        self.target_minion.perform_execute(job_id, workflow, app_configs, code)
 
     def _execute_model_builder(self, job_id, workflow, app_configs):
         loader = Workflow(workflow, self.config, lang=self.current_lang)

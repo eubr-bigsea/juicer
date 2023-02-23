@@ -129,10 +129,16 @@ class MetaTranspiler(Transpiler):
             'decision-tree-regressor': ops.DecisionTreeRegressorOperation,
         }
 
+
         self.operations.update(model)
 
         visualizations = {'visualization': ops.VisualizationOperation}
         self.operations.update(visualizations)
+        
+        batch= {
+            'convert-data-source': ops.ConvertDataSourceFormat
+        }
+        self.operations.update(batch)
 
         for f in transform:
             self.operations[f] = ops.TransformOperation

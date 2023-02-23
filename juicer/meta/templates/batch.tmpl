@@ -1,0 +1,148 @@
+#!/usr/bin/python
+"""
+Auto-generated Scikit-Learn code from Lemonade Workflow
+(c) Speed Labs - Departamento de Ciência da Computação
+    Universidade Federal de Minas Gerais
+More information about Lemonade to be provided
+Variant: {{transpiler.transpiler.variant}}
+"""
+
+from gettext import gettext
+from timeit import default_timer as timer
+import datetime
+
+{%- autopep8 %}
+{%- for imps in transpiler.imports %}
+{{imps}}
+{%- endfor %}
+
+def _handle_errors(err):
+    """ Handle and translate errors to be sent to user interface
+    """
+    tests = []
+    {%- if polars %}
+    exc_type = type(err)
+    if exc_type in (pl.exceptions.ComputeError, pl.exceptions.ArrowError):
+        tests = [
+            (r"time data '(.+?)' does not match format '(.+?)'$",
+             gettext('Value "{}" does not match format "{}".')),
+            (r"unconverted data remains: (.+)$",
+             gettext('Final "{}" does not match format.')),
+            (r"cannot compare Utf8 with numeric data$",
+             gettext('An informed value is not compatible with numeric data.')),
+            (r"Casting from (.+) to (.+) not supported",
+             gettext('Casting from "{}" to "{}" is not supported.')),
+            (r"Strict conversion from (.+) to (.+) failed for values \[(.+)\]",
+             gettext('Strict conversion from "{}" to "{}" failed for values [{}].')),
+        ]
+    elif exc_type in (pl.exceptions.SchemaError, ):
+        tests = [
+            (r"cannot call lst.join on Series with dtype (.+).Inner type must be (.+)",
+             gettext('Cannot concat list elements if their data type is "{}". It must be "{}".')),
+        ]
+    elif exc_type in (AttributeError,):
+        tests = [
+            (r"object has no attribute 'alias'",
+             gettext('In order to define a literal value, use the function lit(value).')),
+        ]
+    elif exc_type in (pl.exceptions.NotFoundError, ):
+        raise ValueError(
+             gettext('Attribute {} not found in input data.').format(str(err))
+        )
+    {%- elif pandas %}
+        raise err
+    {%- elif duckdb %}
+        raise err
+    {%- endif %}
+    for test, msg in tests:
+        match = re.compile(test).search(str(err))
+        if match:
+            raise ValueError(msg.format(*match.groups()))
+    raise err
+
+{%- if transpiler.custom_functions %}
+# Custom functions
+{%- for code in transpiler.custom_functions.values() %}
+{{code.strip()}}
+{%- endfor %}
+# End custom functions
+{%- endif %}
+
+def emit_task_running(task_id, spark_session, emit_event):
+    emit_event(name='update task', message=_('Task running'), status='RUNNING',
+               identifier=task_id)
+
+def emit_task_completed(task_id, spark_session, emit_event):
+    emit_event(name='update task', message=_('Task completed'),
+               status='COMPLETED', identifier=task_id)
+
+{%- for instance in instances %}
+{%-  handleinstance instance %}
+{%- if instance.has_code and instance.enabled %}
+{%- set task = instance.parameters.task %}
+{%- set task_id = task.id %}
+
+def {{task.operation.slug.replace('-', '_')}}_{{instance.order}}(spark_session, cached_state, emit_event):
+    """
+    {%- if task.forms.comment and task.forms.comment.value %}
+    {{task.forms.comment.value.strip().replace('"', '')}}
+    {%- else %}
+    Operation {{task_id }}
+    {%- endif %}
+    Task hash: {{instance.parameters.hash}}.
+    """
+    task_id = '{{task_id}}'
+
+    {%- if not plain and transpiler.transpiler.verbosity >= 10 %}
+    emit_task_running(task_id, spark_session, emit_event)
+    {%- endif %}
+
+    start = timer()
+    # --- Begin operation code ---- #
+    {{instance.generate_code().strip() | indent(width=4, first=False)}}
+    # --- End operation code ---- #
+    
+    {%- if not plain and transpiler.transpiler.verbosity >= 10 %}
+    emit_task_completed(task_id, spark_session, emit_event)
+    {%- endif %}
+    return {
+        'execution_date': datetime.datetime.utcnow(),
+        'task_name': '{{task.name}}',
+        'time': timer() - start
+    }
+
+
+{%- endif %}
+{%- endhandleinstance %}
+{% endfor %}
+
+def main(spark_session, cached_state, emit_event):
+    """ Run generated code """
+
+    try:
+        {%- set ids_and_methods = transpiler.get_ids_and_methods(instances) %}
+        {%- for task_id, method in ids_and_methods.items() %}
+        result = {{method}}(spark_session, cached_state, emit_event)
+        {%- endfor %}
+
+        return {
+            'status': 'OK',
+            'message': 'Execution defined',
+        }
+    except Exception as e:
+        _handle_errors(e)
+
+{%- if execute_main %}
+
+def dummy_emit_event(room, namespace):
+    def _dummy_emit_event(name, message, status, identifier, **kwargs):
+        return None
+    return _dummy_emit_event
+
+spark_session = "Scikit-Learn"
+#TO DO: LOGLEVEL
+main(spark_session, {}, dummy_emit_event(room=-1, namespace='/none'))
+
+{%- endif %}
+
+{% endautopep8 %}
