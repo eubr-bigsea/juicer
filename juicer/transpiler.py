@@ -310,6 +310,7 @@ class Transpiler(object):
             'disabled_tasks': workflow['disabled_tasks'],
             'execute_main': params.get('execute_main', False),
             'instances': list(instances.values()),
+            'instances_with_code': [i for i in instances.values() if i.has_code],
             'instances_by_task_id': instances,
             'job_id': job_id,
             'now': datetime.datetime.now(), 'user': workflow['user'],

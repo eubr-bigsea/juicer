@@ -113,6 +113,8 @@ class MetaPlatformOperation(Operation):
 
     def generate_flows(self, next_task):
         # import pdb; pdb.set_trace()
+        if not self.has_code:
+            return ''
         result = [json.dumps({
             'source_id': self.new_id, 'target_id': next_task.new_id,
             'source_port_name': self.output_port_name,
@@ -1996,34 +1998,28 @@ class GeneralizedLinearRegressionOperation(RegressionOperation):
 
 
 class VisualizationOperation(MetaPlatformOperation):
+
+    DEFAULT_PALETTE = ['#636EFA', '#EF553B', 
+        '#00CC96', '#AB63FA', '#FFA15A', '#19D3F3',
+        '#FF6692', '#B6E880', '#FF97FF', '#FECB52']
+
     def __init__(self, parameters,  named_inputs, named_outputs):
         MetaPlatformOperation.__init__(
             self, parameters,  named_inputs,  named_outputs)
-        self.vis_type = parameters.get('type', 'line')
-        self.group = next((t for t in parameters['workflow']['tasks']
-                           if t['operation']['slug'] == 'group'))
-        if self.group is None:
-            raise ValueError(
-                gettext('Invalid workflow. There is no group operation'))
+        self.type = self.get_required_parameter(parameters, 'type')
+        self.display_legend = self.get_required_parameter(parameters, 'display_legend')
+        self.palette = parameters.get('palette')
+        self.x = self.get_required_parameter(parameters, 'x')
+        self.y = self.get_required_parameter(parameters, 'y')
+        self.x_axis = self.get_required_parameter(parameters, 'x_axis')
+        self.y_axis = self.get_required_parameter(parameters, 'y_axis')
 
     def generate_code(self):
         task_obj = self._get_task_obj()
         task_obj['forms'].update({
-            'id_attribute': {'value': 'X'},
-            'value_attribute': {'value': 'FIXME'}
+            k: {'value': getattr(self, k)} for k in 
+                ['type', 'display_legend', 'palette', 'x', 'y', 'x_axis', 'y_axis']
         })
-
-        if self.vis_type == 'line':
-            task_obj['operation'] = {"id": 68}
-        elif self.vis_type == 'bar':
-            task_obj['operation'] = {"id": 69}
-        elif self.vis_type == 'pie':
-            task_obj['operation'] = {"id": 70}
-        elif self.vis_type == 'filled-area':
-            task_obj['operation'] = {"id": 71}
-        elif self.vis_type == 'scatter':
-            task_obj['operation'] = {"id": 87}
-        elif self.vis_type == 'bubble':
-            task_obj['operation'] = {"id": 134}
+        task_obj['operation'] = {"id": 145}
 
         return json.dumps(task_obj)

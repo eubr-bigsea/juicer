@@ -23,6 +23,7 @@ import juicer.scikit_learn.nlp_operation as nlp_operation
 import juicer.scikit_learn.polars.data_operation as polars_io
 import juicer.scikit_learn.polars.etl_operation as polars_etl
 import juicer.scikit_learn.polars.feature_operation as polars_feature
+import juicer.scikit_learn.polars.vis_operation as polars_vis
 
 import juicer.scikit_learn.duckdb.data_operation as duckdb_io
 import juicer.scikit_learn.duckdb.etl_operation as duckdb_etl
@@ -109,11 +110,13 @@ class ScikitLearnTranspiler(Transpiler):
             'string-indexer': polars_feature.StringIndexerOperation,
             'locality-sensitive-hashing': polars_feature.LSHOperation,
         }
-
+        visualization = {
+            'visualization': polars_vis.VisualizationOperation,
+        }
 
 
         self.operations = {}
-        for ops in [data_ops, etl_ops, feature]:
+        for ops in [data_ops, etl_ops, feature, visualization]:
             self.operations.update(ops)
         self._assign_common_operations()
 
