@@ -21,7 +21,7 @@
   {%- endfor %}
   ],
   "flows": [
-  {%- for pair in zip(instances, instances[1:]) %}
+  {%- for pair in zip(instances_with_code, instances_with_code[1:]) %}
    {%- set flows = pair[0].generate_flows(pair[1]) %}
    {%- if flows %}
     {{flows}}{% if not loop.last %},{% endif %}
