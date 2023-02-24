@@ -334,9 +334,9 @@ class MetaMinion(Minion):
 
         if self.target_minion is None:
             app_configs['meta_platform'] = True
-            # print('*'*20)
-            # print(app_configs, self.config)
-            # print('*'*20)
+            print('*'*20)
+            print(app_configs, self.config)
+            print('*'*20)
             # FIXME: Use variant here
             self.config['app_configs'] = app_configs
             if app_configs.get('target_platform') == 'spark':

@@ -105,13 +105,6 @@ class MetaPlatformOperation(Operation):
         self.has_code = True
         # self.target_platform = 'scikit-learn'
 
-    def get_required_parameter(self, parameters, name):
-        if name not in parameters:
-            raise ValueError(gettext('Missing required parameter: {}').format(
-                name))
-        else:
-            return parameters.get(name)
-
     def generate_flows(self, next_task):
         # import pdb; pdb.set_trace()
         if not self.has_code:
@@ -820,7 +813,8 @@ class FilterOperation(MetaPlatformOperation):
     def __init__(self, parameters,  named_inputs, named_outputs):
         MetaPlatformOperation.__init__(
             self, parameters,  named_inputs,  named_outputs)
-        self.formula = self.get_required_parameter(parameters, 'formula')
+        self.formula = parameters.get('formula')
+        self.has_code = bool(self.formula)
 
     def generate_code(self):
         task_obj = self._get_task_obj()
