@@ -37,9 +37,9 @@ class VisualizationOperation(Operation):
 
         colors = {{op.palette}}
 
-        {%-if op.x|length > 1%}
+        {%-if op.x|length > 1 or type == 'indicator' %}
         {%- set y_limit = 1 %}
-        # More than 1 item for x-axis, limit y-axis to the 1st serie
+        # More than 1 item for x-axis or type=indicator, limit y-axis to the 1st serie
         {%- else %}
         {%- set y_limit = None %}
         {%- endif %}
@@ -54,12 +54,16 @@ class VisualizationOperation(Operation):
             {%- endfor %}
         ]
 
+        {% if type != 'indicator' %}
         # Group data
         df = df.groupby([
             {%- for x in op.x %}pl.col('dim_{{loop.index0}}'), {%- endfor %}
         ]).agg(aggregations).sort(
             by=['aggr_0', {% for x in op.x %}'dim_{{loop.index0}}', {% endfor %}],
             descending=[True, {% for x in op.x %}False, {% endfor %}])
+        {%- else %}
+        df = df.select(aggregations)
+        {%- endif %}
 
         pandas_df = df.collect().to_pandas()
         labels = {
@@ -96,7 +100,7 @@ class VisualizationOperation(Operation):
                 line_group='dim_1', color='dim_1',{% endif %}
                 log_y={{op.y_axis.logScale}},
                 color_discrete_sequence=colors,
-                title='{{op.parameters.workflow.name}}',
+                title='{{op.title}}',
                 {%- if type in ('bar', 'horizontal-bar') %}barmode='group',{% endif %}
                 {%- if type in ('stacked-bar', 'stacked-horizontal-bar') %}barmode='stack',{% endif %}
                 {%- if type in ('stacked-horizontal-bar', 'horizontal-bar') %}orientation='h',{% endif %}
@@ -155,7 +159,9 @@ class VisualizationOperation(Operation):
         fig = px.pie(pandas_df, values='aggr_0',
             names='dim_0',
             color_discrete_sequence=colors,
-            title='{{op.parameters.workflow.name}}',
+            {%- if op.title %}
+            title='{{op.title}}',
+            {%- endif %}
             {%- if type == 'donut' %}hole={{op.hole * 0.01}},{% endif %}
             #width=800, height=400,
             #{{op.hole}},
@@ -178,17 +184,17 @@ class VisualizationOperation(Operation):
             color='aggr_0',
             color_continuous_scale={{op.color_scale}},
             color_discrete_sequence ={{op.palette}},
-            title='{{op.parameters.workflow.name}}',
+            title='{{op.title}}',
             labels=labels,
         )
         fig.update_layout(margin = dict(t=50, l=25, r=25, b=25))
 
         {%- elif type in ('indicator', ) %}
         fig = go.Figure(go.Indicator(
-            mode = "gauge+number",
-            value = 450,
-            title = {'text': "Speed"},
-            domain = {'x': [0, 1], 'y': [0, 1]}
+            mode = "number",
+            value = pandas_df.iloc[0][0],
+            # title='{{op.title}}',
+            # domain = {'x': [0, 1], 'y': [0, 1]}
         ))
         {%- endif %}
 
@@ -212,6 +218,19 @@ class VisualizationOperation(Operation):
             )
         )
         {%- endif %}
+        
+        # Margins
+        {%- if op.auto_margin %}
+        fig.update_yaxes(automargin=True)
+        fig.update_xaxes(automargin=True)
+        {%- else %}
+        fig.update_layout(
+            margin=dict(
+                l={{op.left_margin}}, r={{op.right_margin}}, 
+                t={{op.top_margin}}, b={{op.bottom_margin}})
+        )
+        {%- endif %}
+
         d = json.loads(fig.to_json())
         del d.get('layout')['template']
         emit_event(
@@ -236,12 +255,18 @@ class VisualizationOperation(Operation):
         self.x_axis = self.get_required_parameter(parameters, 'x_axis')
         self.y_axis = self.get_required_parameter(parameters, 'y_axis')
 
+        self.title = parameters.get('title', '') or ''
         self.hole = parameters.get('hole', 30)
         self.text_position= parameters.get('text_position')
         self.text_info = parameters.get('text_info')
         self.smoothing = parameters.get('smoothing') in (1, True, '1')
         self.palette = parameters.get('palette')
         self.color_scale = parameters.get('color_scale', []) or []
+        self.auto_margin = parameters.get('auto_margin') in (True, 1, '1')
+        self.right_margin = parameters.get('right_margin', 30)
+        self.left_margin = parameters.get('left_margin', 30)
+        self.top_margin = parameters.get('top_margin', 30)
+        self.bottom_margin = parameters.get('bottom_margin', 30)
 
         self.has_code = len(named_inputs) == 1
         self.transpiler_utils.add_import('import json')
