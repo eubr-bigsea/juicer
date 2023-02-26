@@ -2017,7 +2017,9 @@ class VisualizationOperation(MetaPlatformOperation):
             k: {'value': getattr(self, k)} for k in 
                 ['type', 'display_legend', 'palette', 'x', 'y', 'x_axis', 'y_axis']
         })
-        for p in ['hole', 'text_position', 'text_info', 'smoothing', 'color_scale']:
+        for p in ['hole', 'text_position', 'text_info', 'smoothing', 'color_scale',
+                'auto_margin', 'right_margin', 'left_margin', 'top_margin', 'bottom_margin',
+                 'title']:
             task_obj['forms'][p] = {'value': self.parameters.get(p)}
 
         task_obj['operation'] = {"id": 145}
