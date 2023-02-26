@@ -46,7 +46,6 @@ class ScikitLearnTranspiler(Transpiler):
         self.variant = configuration.get('variant', 
             configuration.get('app_configs', {}).get('variant', 'pandas'))
         if self.variant == 'polars':
-            print('#' * 20, '>', self.variant)
             self._assign_polars_operations()
         elif self.variant == 'duckdb':
             self._assign_duckdb_operations()
