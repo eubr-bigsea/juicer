@@ -2009,14 +2009,18 @@ class VisualizationOperation(MetaPlatformOperation):
         self.x_axis = self.get_required_parameter(parameters, 'x_axis')
         self.y_axis = self.get_required_parameter(parameters, 'y_axis')
 
+        self.parameters = parameters
+
     def generate_code(self):
         task_obj = self._get_task_obj()
         task_obj['forms'].update({
             k: {'value': getattr(self, k)} for k in 
                 ['type', 'display_legend', 'palette', 'x', 'y', 'x_axis', 'y_axis']
         })
-        task_obj['operation'] = {"id": 145}
+        for p in ['hole', 'text_position', 'text_info', 'smoothing', 'color_scale']:
+            task_obj['forms'][p] = {'value': self.parameters.get(p)}
 
+        task_obj['operation'] = {"id": 145}
         return json.dumps(task_obj)
 
 class BatchMetaOperation(Operation):

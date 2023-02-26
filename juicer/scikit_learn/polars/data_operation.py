@@ -127,12 +127,12 @@ class DataReaderOperation(sk.DataReaderOperation):
             {%- if header %}
             new_columns={{names}},
             {%- endif %}
-            dtype=columns,
+            dtypes=columns,
             parse_dates={{parse_dates}},
             {%- elif do_not_infer %}
             parse_dates = None,
             converters = None,
-            dtype='str',
+            dtypes=['str'],
             {%-   endif %}
             null_values={{na_values}},
             ignore_errors=True

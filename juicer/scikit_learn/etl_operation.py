@@ -1059,7 +1059,6 @@ class SortOperation(Operation):
                         " informed for task {}").format(
                     self.ATTRIBUTES_PARAM, self.__class__))
 
-        print('>>>>>>>>>>>>>>>>>>', attributes)
         self.columns = [att['attribute'] for att in attributes]
         self.ascending = []
 
