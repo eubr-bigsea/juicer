@@ -46,10 +46,12 @@ class VisualizationOperation(Operation):
         aggregations = [
             {%- for y in op.y[:y_limit] %}
             {%- if y.attribute == '*' %}
-            pl.count().alias('aggr_{{loop.index0}}'),
+            pl.count(){% if type == 'treemap' %}.cast(pl.Float64){% endif -%}
+            .alias('aggr_{{loop.index0}}'),
             {%- else %}
             pl.{{op.AGGR.get(y.aggregation, y.aggregation.lower()) -}}
-                ('{{y.attribute}}').alias('aggr_{{loop.index0}}'),
+                ('{{y.attribute}}'){% if type == 'treemap' %}.cast(pl.Float64){% endif -%}
+                .alias('aggr_{{loop.index0}}'),
             {%- endif %}
             {%- endfor %}
         ]
@@ -183,7 +185,7 @@ class VisualizationOperation(Operation):
             values='aggr_0',
             color='aggr_0',
             color_continuous_scale={{op.color_scale}},
-            color_discrete_sequence ={{op.palette}},
+            # color_discrete_sequence ={{op.palette}},
             title='{{op.title}}',
             labels=labels,
         )
