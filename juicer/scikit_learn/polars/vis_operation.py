@@ -58,13 +58,31 @@ class VisualizationOperation(Operation):
 
         {% if type != 'indicator' %}
         # Group data
-        df = df.groupby([
+        dimensions = [
             {%- for x in op.x %}pl.col('dim_{{loop.index0}}'), {%- endfor %}
-        ]).agg(aggregations).sort(
-            by=['aggr_0', {% for x in op.x %}'dim_{{loop.index0}}', {% endfor %}],
-            descending=[True, {% for x in op.x %}False, {% endfor %}])
+        ]
+        df = df.groupby(dimensions).agg(aggregations).sort(
+            by=[{% if type != 'line' %}'aggr_0', {% endif %} 
+            {%- for x in op.x %}'dim_{{loop.index0}}', {% endfor %}],
+            descending=[{% if type != 'line' %}True, {% endif %}{% for x in op.x %}False, {% endfor %}])
         {%- else %}
         df = df.select(aggregations)
+        {%- endif %}
+
+        {%- if op.x|length > 1 %}
+        # Fill the missing values. Otherwise, series may be wrongly 
+        # sorted in the x-axis (if a new x-value is discovered after 
+        # a previous serie is plot.
+        # For example, for the first serie, there is no ('v1', 'a1') value,
+        # but for there is a value for the second serie. The value 'a1'
+        # would be displayed after values found in the first serie, 
+        # causing x-axis to become wrongly sorted.
+        tmp_df = (df.select('dim_0')
+                    .unique()
+                    .join(df.select('dim_1').unique(), how='cross')
+                )
+        df = df.join(tmp_df, on=['dim_0', 'dim_1'], how='outer').sort(
+            ['dim_0', 'dim_1']).fill_null(0)
         {%- endif %}
 
         pandas_df = df.collect().to_pandas()
@@ -93,12 +111,25 @@ class VisualizationOperation(Operation):
             {%- elif type in ('stacked-bar', 'stacked-horizontal-bar', 'horizontal-bar') -%}
             bar
             {%- else %}{{type}}{% endif -%}(
-                pandas_df, x='dim_0', y=[
+                pandas_df,
+                {%- if op.x|length == 1 or type == 'bar'%}
+                x = 'dim_0',
+                {%- else %}
+                x=[{% for x in op.x %}'dim_{{loop.index0}}',{% endfor%}],
+                {%- endif %}
+
+                {%- if y_limit == 1%}
+                y = 'aggr_0',
+                {%- else %}
+                y=[
                       {%- for y in op.y[:y_limit] -%}
                         'aggr_{{loop.index0}}',
                       {%- endfor -%}
                       ],
-                {%- if op.x|length > 1 and type not in ('scatter', 'bar') -%}
+                {%- endif %}
+                {%- if op.x|length > 1 and type in ('bar', ) -%}
+                color='dim_1',
+                {%- elif op.x|length > 1 and type not in ('scatter', ) -%}
                 line_group='dim_1', color='dim_1',{% endif %}
                 log_y={{op.y_axis.logScale}},
                 color_discrete_sequence=colors,
@@ -232,7 +263,7 @@ class VisualizationOperation(Operation):
                 t={{op.top_margin}}, b={{op.bottom_margin}})
         )
         {%- endif %}
-
+        print(pandas_df)
         d = json.loads(fig.to_json())
         del d.get('layout')['template']
         emit_event(
