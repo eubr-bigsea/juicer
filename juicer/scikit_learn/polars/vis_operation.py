@@ -13,7 +13,8 @@ class VisualizationOperation(Operation):
     }
     template = """
         {%- set type = op.type.lower() %}
-        df = {{input}}
+        df = {{input}}.clone()
+        colors = {{op.palette}}
         # Prepare X-Axis values
 
         {%- for x in op.x %}
@@ -35,7 +36,6 @@ class VisualizationOperation(Operation):
         {%- endif %}
         {%- endfor %}
 
-        colors = {{op.palette}}
 
         {%-if op.x|length > 1 or type == 'indicator' %}
         {%- set y_limit = 1 %}
@@ -46,11 +46,11 @@ class VisualizationOperation(Operation):
         aggregations = [
             {%- for y in op.y[:y_limit] %}
             {%- if y.attribute == '*' %}
-            pl.count(){% if type == 'treemap' %}.cast(pl.Float64){% endif -%}
+            pl.count()
             .alias('aggr_{{loop.index0}}'),
             {%- else %}
             pl.{{op.AGGR.get(y.aggregation, y.aggregation.lower()) -}}
-                ('{{y.attribute}}'){% if type == 'treemap' %}.cast(pl.Float64){% endif -%}
+                ('{{y.attribute}}')
                 .alias('aggr_{{loop.index0}}'),
             {%- endif %}
             {%- endfor %}
@@ -84,6 +84,13 @@ class VisualizationOperation(Operation):
         df = df.join(tmp_df, on=['dim_0', 'dim_1'], how='outer').sort(
             ['dim_0', 'dim_1']).fill_null(0)
         {%- endif %}
+        {%- if type == 'treemap' %}
+        df = df.with_columns([
+            {%- for y in op.y[:y_limit] %}
+            pl.col('aggr_{{loop.index0}}').cast(pl.Float64)
+            {%- endfor %}
+        ])
+        {% endif -%}
 
         pandas_df = df.collect().to_pandas()
         labels = {
