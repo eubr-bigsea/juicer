@@ -128,7 +128,9 @@ class VisualizationOperation(Operation):
                       ],
                 {%- endif %}
                 {%- if op.x|length > 1 and type in ('bar', ) -%}
-                color='dim_1',
+                color='dim_1', 
+                pattern_shape="dim_1", 
+                template="simple_white",
                 {%- elif op.x|length > 1 and type not in ('scatter', ) -%}
                 line_group='dim_1', color='dim_1',{% endif %}
                 log_y={{op.y_axis.logScale}},
@@ -161,7 +163,6 @@ class VisualizationOperation(Operation):
                 #showtickprefix="first",
                 #showticksuffix="last"
         )
-
         {%- if op.smoothing %}
         fig.update_traces(line={'shape': 'spline', 'smoothing': 0.4})
         {%- endif %}
@@ -191,7 +192,12 @@ class VisualizationOperation(Operation):
         {%- elif type in ('pie', 'donut') %}
         fig = px.pie(pandas_df, values='aggr_0',
             names='dim_0',
+            {%- if op.blackWhite %}
+            color_discrete_sequence=n_colors(
+                'rgb(128, 128, 128)', 'rgb(255, 255, 255)', 8, colortype='rgb'),
+            {%- elif op.palette %}
             color_discrete_sequence=colors,
+            {%- endif %}
             {%- if op.title %}
             title='{{op.title}}',
             {%- endif %}
@@ -200,6 +206,13 @@ class VisualizationOperation(Operation):
             #{{op.hole}},
             labels=labels,
         )
+
+        {%- if op.blackWhite and type.endswith('bar') %}
+        fig.update_traces(
+            marker=dict(color="black", line_color="black", pattern_fillmode="replace"))
+        {%- endif %}
+
+
         {%-if op.text_position or op.text_info %}
         fig.update_traces(
             pull=[0.01] * {{op.y |length}},
@@ -251,6 +264,11 @@ class VisualizationOperation(Operation):
             )
         )
         {%- endif %}
+
+        {%- if op.template_ and op.template != 'none' %}
+        # Template/theme
+        fig.update_layout(template='{{op.template_}}')
+        {%- endif %}
         
         # Margins
         {%- if op.auto_margin %}
@@ -263,9 +281,9 @@ class VisualizationOperation(Operation):
                 t={{op.top_margin}}, b={{op.bottom_margin}})
         )
         {%- endif %}
-        print(pandas_df)
+        # print(pandas_df)
         d = json.loads(fig.to_json())
-        del d.get('layout')['template']
+        # del d.get('layout')['template']
         emit_event(
             'update task', status='COMPLETED',
             identifier='{{op.task_id}}',
@@ -300,12 +318,18 @@ class VisualizationOperation(Operation):
         self.left_margin = parameters.get('left_margin', 30)
         self.top_margin = parameters.get('top_margin', 30)
         self.bottom_margin = parameters.get('bottom_margin', 30)
+        self.template_ = parameters.get('template', 'none')
+        self.blackWhite = parameters.get('blackWhite') in (True, 1, '1')
 
         self.has_code = len(named_inputs) == 1
         self.transpiler_utils.add_import('import json')
         self.transpiler_utils.add_import('import numpy as np')
         self.transpiler_utils.add_import('import plotly.express as px')
         self.transpiler_utils.add_import('import plotly.graph_objects as go')
+
+        if self.blackWhite:
+            self.transpiler_utils.add_import('from plotly.colors import n_colors')
+            
         #if self.smoothing:
         #   self.transpiler_utils.add_import(
         #       'from scipy import signal as scipy_signal')
