@@ -34,6 +34,7 @@ pyaml==21.10.1
 pyarrow==10.0.1
 pyfpgrowth==1.0
 pylint==2.15.9
+pyinotify==0.9.6
 pyparsing==3.0.9
 pytest-cov==4.0.0
 pytest-html==3.2.0
