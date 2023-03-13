@@ -101,7 +101,8 @@ def _handle_errors(err):
         match = re.compile(test).search(str(err))
         if match:
             raise ValueError(msg.format(*match.groups()))
-    raise err
+    # raise err
+    raise ValueError('Internal error')
 
 {%- if transpiler.custom_functions %}
 # Custom functions
@@ -317,6 +318,10 @@ def main(sklearn_session, cached_state, emit_event):
             {%- endfor %}
         }
     except Exception as e:
+        _handle_errors(e)
+    except:
+        import sys
+        e = sys.exc_info()[1]
         _handle_errors(e)
 
 {%- if execute_main %}
