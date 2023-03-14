@@ -219,9 +219,17 @@ class Workflow(object):
 
                     # Correct form field types if the interface (Citron) does
                     # not send this information
-                    for k, v in list(task.get('forms', {}).items()):
+                    for k in list(task.get('forms', {}).keys()):
+                        v = task.get('forms').get(k)
                         if v is not None:
-                            v['category'] = form_fields.get(k, 'execution')
+                            if isinstance(v, dict):
+                                v['category'] = form_fields.get(k, 'execution')
+                            else:
+                                v = {'category': 'execution', 'value': v}
+                                task.get('forms')[k] = v
+                        else:
+                            task.get('forms')[k] = {'value': None}
+
 
                     for port in ports_list:
                         if port['type'] == 'INPUT':
