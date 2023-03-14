@@ -10,13 +10,6 @@ from urllib.parse import urlparse
 import matplotlib
 import redis
 import yaml
-from juicer.compss.compss_minion import COMPSsMinion
-from juicer.jobs.script_minion import ScriptMinion
-from juicer.keras.keras_minion import KerasMinion
-from juicer.meta.meta_minion import MetaMinion
-from juicer.plugin.plugin_minion import PluginMinion
-from juicer.scikit_learn.scikit_learn_minion import ScikitLearnMinion
-from juicer.spark.spark_minion import SparkMinion
 
 # Important!
 # See https://stackoverflow.com/a/29172195/1646932
@@ -66,7 +59,8 @@ if __name__ == '__main__':
         if args.freeze != '':
             juicer_config['juicer']['freeze'] = args.freeze
         if args.type == 'spark':
-            # log.info('Starting Juicer Spark Minion')
+            log.info('Starting Juicer Spark Minion')
+            from juicer.spark.spark_minion import SparkMinion
             minion = SparkMinion(redis_conn,
                                  args.workflow_id,
                                  args.app_id or args.workflow_id,
@@ -74,13 +68,15 @@ if __name__ == '__main__':
                                  args.lang, args.jars)
         elif args.type == 'compss':
             # log.info('Starting COMPSs Minion')
+            from juicer.compss.compss_minion import COMPSsMinion
             minion = COMPSsMinion(redis_conn,
                                   args.workflow_id,
                                   args.app_id or args.workflow_id,
                                   juicer_config,
                                   args.lang)
         elif args.type == 'scikit-learn':
-            # log.info('Starting Scikit-learn Minion')
+            log.info('Starting Scikit-learn Minion')
+            from juicer.scikit_learn.scikit_learn_minion import ScikitLearnMinion
             minion = ScikitLearnMinion(redis_conn,
                                        args.workflow_id,
                                        args.app_id or args.workflow_id,
@@ -88,6 +84,7 @@ if __name__ == '__main__':
                                        args.lang)
         elif args.type == 'keras':
             log.info('Starting Keras Minion')
+            from juicer.keras.keras_minion import KerasMinion
             minion = KerasMinion(redis_conn,
                                  args.workflow_id,
                                  args.app_id or args.workflow_id,
@@ -95,6 +92,7 @@ if __name__ == '__main__':
                                  args.lang)
         elif args.type == 'script':
             log.info('Starting Script Minion')
+            from juicer.jobs.script_minion import ScriptMinion
             minion = ScriptMinion(redis_conn,
                                   workflow_id=0,
                                   app_id=0,
@@ -102,6 +100,7 @@ if __name__ == '__main__':
                                   lang=args.lang)
         elif args.type == 'plugin':
             log.info('Starting Plugin Minion')
+            from juicer.plugin.plugin_minion import PluginMinion
             minion = PluginMinion(redis_conn,
                                  args.workflow_id,
                                  args.app_id or args.workflow_id,
@@ -109,6 +108,7 @@ if __name__ == '__main__':
                                  args.lang)
         elif args.type == 'meta':
             log.info('Starting Meta Minion')
+            from juicer.meta.meta_minion import MetaMinion
             minion = MetaMinion(redis_conn,
                                  args.workflow_id,
                                  args.app_id or args.workflow_id,
