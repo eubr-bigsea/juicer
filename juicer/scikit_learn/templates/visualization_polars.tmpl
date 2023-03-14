@@ -146,7 +146,7 @@ fig = px.
         color='dim_1',{% endif %}
         log_y={{op.y_axis.logScale}},
         color_discrete_sequence=colors,
-        title='{{op.title}}',
+	{%- if op.title %}title='{{op.title}}',{% endif %}
         {%- if type in ('bar', 'horizontal-bar') %}barmode='group',{% endif %}
         {%- if type in ('stacked-bar', 'stacked-horizontal-bar') %}barmode='stack',{% endif %}
         {%- if type in ('stacked-horizontal-bar', 'horizontal-bar') %}orientation='h',{% endif %}
@@ -172,21 +172,26 @@ fig = px.
 )
 
 fig.for_each_trace(lambda t: t.update(name = labels.get(t.name, t.name)))
+{%- if op.x_axis.label %}
 fig.update_layout(
      xaxis_title='{{op.x_axis.label}}',
 )
+{%- endif %}
 fig.update_yaxes(
-    title='{{op.y_axis.label}}', showgrid=True,
+    {%- if op.y_axis.label %}title='{{op.y_axis.label}}',{% endif %}
+    showgrid=True,
     gridcolor="rgba(255,0,0,.10)",
     visible={{op.y_axis.display}}, tickformat=
         {%- if type == 'stacked-filled-area' %}None{% else %}'.3f'{% endif %},
-        tickprefix='{{op.y_axis.prefix}}',
+        {%- if op.y_axis.prefix %}tickprefix='{{op.y_axis.prefix}}',{% endif %}
+        {%- if op.y_axis.suffix %}
         ticksuffix=
         {%- if type == 'stacked-filled-area' %}'%'{% else %}'{{op.y_axis.suffix}}'{% endif %},
+        {%- endif %}
         #showtickprefix="first",
         #showticksuffix="last"
 )
-{%- if op.smoothing %}
+{%- if op.smoothing and type == 'line' %}
 fig.update_traces(line={'shape': 'spline', 'smoothing': 0.4})
 {%- endif %}
 
