@@ -39,12 +39,11 @@ class ScikitLearnTranspiler(Transpiler):
     """
 
     def __init__(self, configuration, slug_to_op_id=None, port_id_to_port=None):
+        self.variant = configuration.get('variant', 
+            configuration.get('app_configs', {}).get('variant', 'pandas'))
         super().__init__(
             configuration, os.path.abspath(os.path.dirname(__file__)),
             slug_to_op_id, port_id_to_port)
-
-        self.variant = configuration.get('variant', 
-            configuration.get('app_configs', {}).get('variant', 'pandas'))
         if self.variant == 'polars':
             self._assign_polars_operations()
         elif self.variant == 'duckdb':
@@ -174,6 +173,13 @@ class ScikitLearnTranspiler(Transpiler):
         self._assign_common_operations()
 
     def _assign_operations(self):
+        if self.variant == 'polars':
+            self._assign_polars_operations()
+            return
+        elif self.variant == 'duckdb':
+            self._assign_duckdb_operations()
+            return
+
         etl_ops = {
             'add-columns': etl.AddColumnsOperation,
             'add-rows': etl.UnionOperation,
