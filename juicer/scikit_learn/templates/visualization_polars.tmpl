@@ -29,16 +29,9 @@ df = df.with_columns([col.alias('dim_{{loop.index0}}')])
 {%- endif %}
 {%- endfor %}
 
-
-{%- if x_values|length > 1 or type == 'indicator' %}
-{%- set y_limit = 1 %}
-# More than 1 item for x-axis or type=indicator, limit y-axis to the 1st serie
-{%- else %}
-{%- set y_limit = None %}
-{%- endif %}
-
+{%- if op.aggregations %} {# aggregations #}
 aggregations = [
-    {%- for y in op.y[:y_limit] %}
+    {%- for y in op.aggregations %}
     {%- if y.attribute == '*' %}
     pl.count().alias('aggr_{{loop.index0}}'),
     {%- else %}
@@ -47,8 +40,17 @@ aggregations = [
     {%- endif %}
     {%- endfor %}
 ]
+{%- else %}
+select = [
+	{%- for y in op.literal %}
+	pl.col('{{y.attribute}}'),
+	{%- endfor %}
+]
+{%- endif %}
 
-{% if type != 'indicator' %}
+{% if type == 'indicator' %}
+df = df.select(aggregations)
+{% elif op.aggregations %}
 # Group data
 dimensions = [
     {%- for x in x_values %}pl.col('dim_{{loop.index0}}'), {%- endfor %}
@@ -66,7 +68,13 @@ df = df.groupby(dimensions).agg(aggregations).sort(
     {%- for x in x_values %}'dim_{{loop.index0}}', {% endfor %}],
     descending=[{% if type != 'line' %}True, {% endif %}{% for x in x_values %}False, {% endfor %}])
 {%- else %}
-df = df.select(aggregations)
+# Test
+dimensions = [
+    {%- for x in x_values %}
+	pl.col('dim_{{loop.index0}}'), 
+	{%- endfor %}
+];
+df = df.select(select + dimensions)
 {%- endif %}
 
 {%- if x_values|length > 1 and type != 'treemap'%}
@@ -88,7 +96,7 @@ df = df.join(tmp_df, on=['dim_0', 'dim_1'], how='outer').sort(
 # Remove 0's because they cause ZeroDivisionError
 df = df.filter(pl.col('aggr_0') != 0)
 df = df.with_columns([
-    {%- for y in op.y[:y_limit] %}
+    {%- for y in op.y[:op.y_limit] %}
     pl.col('aggr_{{loop.index0}}').cast(pl.Float64)
     {%- endfor %}
 ])
@@ -97,7 +105,7 @@ df = df.with_columns([
 pandas_df = df.collect().to_pandas()
 labels = {
     'variable': 'Série',
-    {%- for y in op.y[:y_limit] %}
+    {%- for y in op.y[:op.y_limit] %}
     'aggr_{{loop.index0}}':
     {%- if y.label -%}
     '{{y.label}}',
@@ -127,11 +135,11 @@ fig = px.
         x=[{% for x in x_values %}'dim_{{loop.index0}}',{% endfor%}],
         {%- endif %}
 
-        {%- if y_limit == 1%}
+        {%- if op.y_limit == 1%}
         y = 'aggr_0',
         {%- else %}
         y=[
-              {%- for y in op.y[:y_limit] -%}
+              {%- for y in op.y[:op.y_limit] -%}
                 'aggr_{{loop.index0}}',
               {%- endfor -%}
               ],
@@ -268,7 +276,7 @@ fig = px.treemap(
     path=[{% for x in x_values %}'dim_{{loop.index0}}', {% endfor %}],
     values='aggr_0',
     color='aggr_0',
-    color_continuous_scale={{op.color_scale}},
+	{%- if op.color_scale %}color_continuous_scale={{op.color_scale}},{% endif %}
     # color_discrete_sequence ={{op.palette}},
     title='{{op.title}}',
     labels=labels,
