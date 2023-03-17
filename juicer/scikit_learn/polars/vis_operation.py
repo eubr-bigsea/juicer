@@ -19,7 +19,16 @@ class VisualizationOperation(Operation):
         self.display_legend = self.get_required_parameter(
             parameters, 'display_legend')
         self.x = self.get_required_parameter(parameters, 'x')
-        self.y = self.get_required_parameter(parameters, 'y')
+
+        self.y_limit = None
+        if len(self.x) > 1 or type == 'indicator':
+            self.y_limit = 1
+
+        self.y = self.get_required_parameter(parameters, 'y')[:self.y_limit]
+
+        self.aggregations = [y for y in self.y if y.get('aggregation')]
+        self.literal = [y for y in self.y if not y.get('aggregation')]
+
         self.x_axis = self.get_required_parameter(parameters, 'x_axis')
         self.y_axis = self.get_required_parameter(parameters, 'y_axis')
 
