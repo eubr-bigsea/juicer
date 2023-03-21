@@ -2020,7 +2020,8 @@ class VisualizationOperation(MetaPlatformOperation):
         for p in ['hole', 'text_position', 'text_info', 'smoothing', 'color_scale',
                 'auto_margin', 'right_margin', 'left_margin', 'top_margin', 'bottom_margin',
                  'title', 'template', 'blackWhite', 'subgraph', 'subgraph_orientation',
-                 'animation', 'height', 'width', 'opacity']:
+                 'animation', 'height', 'width', 'opacity', 'fill_opacity',
+                 'color_attribute', 'size_attribute']:
             task_obj['forms'][p] = {'value': self.parameters.get(p)}
 
         task_obj['operation'] = {"id": 145}

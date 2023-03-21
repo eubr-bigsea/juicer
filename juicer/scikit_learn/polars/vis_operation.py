@@ -4,6 +4,16 @@ from textwrap import dedent
 
 from juicer.operation import Operation
 
+def hex_to_rgba(hexa, transparency):
+    return 'rgba({},{},{},{})'.format(
+        *tuple(int(hexa[i+1:i+3], 16)  for i in (0, 2, 4)), transparency)
+
+def hex_to_rgb(hexa):
+    return 'rgba({},{},{})'.format(
+        *tuple(int(hexa[i+1:i+3], 16)  for i in (0, 2, 4)))
+
+def rgb_to_rgba(rgb_value, alpha):
+    return f"rgba{rgb_value[3:-1]}, {alpha})"
 
 class VisualizationOperation(Operation):
     """
@@ -21,7 +31,7 @@ class VisualizationOperation(Operation):
         self.x = self.get_required_parameter(parameters, 'x')
 
         self.y_limit = None
-        if len(self.x) > 1 or type == 'indicator':
+        if len(self.x) > 1 or self.type in ('scatter', 'indicator', 'bubble'):
             self.y_limit = 1
 
         self.y = self.get_required_parameter(parameters, 'y')[:self.y_limit]
@@ -49,26 +59,32 @@ class VisualizationOperation(Operation):
         self.subgraph = parameters.get('subgraph')
         self.subgraph_orientation = parameters.get('subgraph_orientation')
         self.animation = parameters.get('animation')
+        self.color_attribute = parameters.get('color_attribute')
+        self.size_attribute = parameters.get('size_attribute')
         self.height = parameters.get('height')
         self.width = parameters.get('width')
         self.opacity = parameters.get('opacity')
+        self.fill_opacity = parameters.get('fill_opacity')
 
         self.has_code = len(named_inputs) == 1
         self.transpiler_utils.add_import('import json')
         self.transpiler_utils.add_import('import numpy as np')
+        self.transpiler_utils.add_import('import itertools')
         self.transpiler_utils.add_import('import plotly.express as px')
         self.transpiler_utils.add_import('import plotly.graph_objects as go')
 
         if self.blackWhite:
             self.transpiler_utils.add_import('from plotly.colors import n_colors')
             
-        if self.type == 'line':
-            self.transpiler_utils.add_import('from itertools import zip_longest')
         #if self.smoothing:
         #   self.transpiler_utils.add_import(
         #       'from scipy import signal as scipy_signal')
             
         self.task_id = parameters['task_id']
+
+        self.custom_colors = [(inx, y.get('color')) for inx, y in enumerate(self.y) if y.get('custom_color')]
+        self.shapes = [(inx, y.get('shape')) for inx, y in enumerate(self.y) if y.get('shape')]
+	# self.custom_shapes = [(inx, y.get('shape')) for inx, y in enumerate(self.y)]
 
         self.supports_cache = False
 
@@ -82,6 +98,9 @@ class VisualizationOperation(Operation):
             'input': self.named_inputs['input data'],
             'out': self.named_outputs.get('visualization', f'out_task_{self.order}'),
             'op': self,
+            'hex_to_rgba': hex_to_rgba,
+            'hex_to_rgb': hex_to_rgb,
+            'rgb_to_rgba': rgb_to_rgba,
         }
         code = self.render_template(ctx)
         return dedent(code)
