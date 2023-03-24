@@ -22,7 +22,7 @@ coverage==4.5.4
 cryptography==3.3.2
 cycler==0.10.0
 Cython==0.28.5
-datasketch==1.5.7
+datasketch==1.5.8
 decorator==4.4.0
 dnspython==1.16.0
 docutils==0.15.2
@@ -91,7 +91,7 @@ pycodestyle==2.5.0
 pycparser==2.19
 pyinotify==0.9.6
 pyfpgrowth==1.0
-polars==0.15.8
+polars-lts-cpu==0.16.14
 pylint==2.3.1
 PyMySQL==0.9.3
 pyparsing==2.4.2
@@ -132,3 +132,4 @@ xgboost==0.90
 zipp==0.6.0
 GitPython==3.1.2
 mleap==0.15.0
+

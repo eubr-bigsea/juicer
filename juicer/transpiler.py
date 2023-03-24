@@ -176,7 +176,7 @@ class Transpiler(object):
             task = graph.nodes[task_id]['attr_dict']
             task['parents'] = graph.nodes[task_id]['parents']
             self.current_task_id = task_id
-
+            
             class_name = self.operations[task['operation']['slug']]
 
             parameters = {}

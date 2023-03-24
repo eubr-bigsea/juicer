@@ -21,7 +21,9 @@ import juicer.scikit_learn.stat_operation as stat_operation
 import juicer.scikit_learn.nlp_operation as nlp_operation
 
 import juicer.scikit_learn.polars.data_operation as polars_io
-import juicer.scikit_learn.polars.etl_operation as polars_etl
+#import juicer.scikit_learn.polars.etl_operation as polars_etl
+
+import juicer.scikit_learn.featuretools_operation as featuretools 
 
 # noinspection SpellCheckingInspection
 class ScikitLearnTranspiler(Transpiler):
@@ -113,6 +115,7 @@ class ScikitLearnTranspiler(Transpiler):
             'transformation': etl.TransformationOperation,
             # TODO in 'transformation': test others functions
             'rename-attr': etl.RenameAttrOperation,
+            'derivate-new-attributes': featuretools.DerivateNewColumnsOperation,
         }
 
         data_ops = {

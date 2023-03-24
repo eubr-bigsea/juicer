@@ -1,0 +1,585 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+"""
+Auto-generated Scikit-Learn code from Lemonade Workflow
+(c) Speed Labs - Departamento de Ciência da Computação
+    Universidade Federal de Minas Gerais
+More information about Lemonade to be provided
+"""
+
+import datetime
+import decimal
+import functools
+import pyarrow as pa
+import os
+import re
+import json
+import simplejson
+import string
+import sys
+import time
+import unicodedata
+import numpy as np
+import modin.pandas as pd
+import polars as pl
+import functools
+import threading
+import nltk
+from nltk.stem import SnowballStemmer, WordNetLemmatizer
+from wordsegment import load, segment
+from concurrent.futures import ThreadPoolExecutor
+from timeit import default_timer as timer
+from juicer.util import dataframe_util
+from juicer.scikit_learn.model_operation import ModelsEvaluationResultList
+from juicer.spark.reports import *
+import traceback
+
+def sklearn_logging(msg):
+    print(msg)
+
+
+def emit_task_running(task_id, sklearn_session, emit_event):
+    emit_event(name='update task', message=_('Task running'), status='RUNNING',
+               identifier=task_id)
+
+
+def emit_task_completed(task_id, sklearn_session, emit_event):
+    emit_event(name='update task', message=_('Task completed'),
+               status='COMPLETED', identifier=task_id)
+
+
+def get_results(_task_futures, task_id):
+    return _task_futures[task_id].result() if task_id in _task_futures else None
+
+
+def get_cached_state(task_id, cached_state, emit_event, spark_session,
+                     task_hash, verbosity=10):
+    results = None
+    if task_id in cached_state:
+        cached, _hash = cached_state.get(task_id)
+        if _hash == task_hash and verbosity >= 10:
+            emit_event(name='update task',
+                       message=_('Task running (cached data)'), status='RUNNING',
+                       identifier=task_id)
+            results = cached
+    return results
+
+
+executor = ThreadPoolExecutor(max_workers=3*7)
+submission_lock = threading.Lock()
+task_futures = {}
+
+
+# noinspection PyUnusedLocal
+def data_reader_0(sklearn_session, cached_state, emit_event):
+    """
+    Operation c3c5efb5-e925-492c-afd7-70d264c0ea4a
+    Task hash: bcc41655ebbe58c2e53f19038d8c55006801b167.
+    """
+    task_id = 'c3c5efb5-e925-492c-afd7-70d264c0ea4a'
+    emit_task_running(task_id, sklearn_session, emit_event)
+
+    start = timer()
+    # First we verify whether this task's result is cached.
+    results = None
+    if results is None:
+        # --- Begin operation code ---- #
+        columns = {
+            'customer_id': pd.Int64Dtype(),
+            'zip_code': pd.Int64Dtype(),
+            'join_date': object,
+            'birthday': object,
+        }
+
+        # Open data source
+        f = open(
+            '/srv/storage/srv/storage/limonero/data/33f5dd77f76a41518048c349db69f173_customers.csv', 'rb')
+        compression = 'infer'
+        df_5 = pd.read_csv(f, sep=',',
+                           encoding='utf-8',
+                           header=0,
+                           compression=compression,
+                           names=['customer_id', 'zip_code',
+                                  'join_date', 'birthday'],
+                           dtype=columns,
+                           parse_dates=['join_date', 'birthday'],
+                           converters={},
+                           na_values=None,
+                           error_bad_lines=False)
+        f.close()
+        # --- End operation code ---- #
+
+        results = {
+            'execution_date': datetime.datetime.utcnow(),
+            'task_name': 'Customers',
+            'output data': df_5,
+            '__first__': df_5,
+        }
+    emit_task_completed(task_id, sklearn_session, emit_event)
+
+    results['time'] = timer() - start
+    return results
+
+
+# noinspection PyUnusedLocal
+def data_reader_1(sklearn_session, cached_state, emit_event):
+    """
+    Operation 1c11ce6b-09ab-4899-aea6-02c48725a1b9
+    Task hash: 56639e5959c8f4ceda8a57eace085f657a6c32d0.
+    """
+    task_id = '1c11ce6b-09ab-4899-aea6-02c48725a1b9'
+    emit_task_running(task_id, sklearn_session, emit_event)
+
+    start = timer()
+    # First we verify whether this task's result is cached.
+    results = None
+    if results is None:
+        # --- Begin operation code ---- #
+        columns = {
+            'transaction_id': pd.Int64Dtype(),
+            'session_id': pd.Int64Dtype(),
+            'transaction_time': object,
+            'product_id': pd.Int64Dtype(),
+            'amount': np.float64,
+        }
+
+        # Open data source
+        f = open(
+            '/srv/storage/srv/storage/limonero/data/2c00d0cefb3f4c53ae763edc8d6b48d4_transactions.csv', 'rb')
+        compression = 'infer'
+        df_2 = pd.read_csv(f, sep=',',
+                           encoding='utf-8',
+                           header=0,
+                           compression=compression,
+                           names=['transaction_id', 'session_id',
+                                  'transaction_time', 'product_id', 'amount'],
+                           dtype=columns,
+                           parse_dates=['transaction_time'],
+                           converters={},
+                           na_values=None,
+                           error_bad_lines=False)
+        f.close()
+        # --- End operation code ---- #
+
+        results = {
+            'execution_date': datetime.datetime.utcnow(),
+            'task_name': 'Transactions',
+            'output data': df_2,
+            '__first__': df_2,
+        }
+    emit_task_completed(task_id, sklearn_session, emit_event)
+
+    results['time'] = timer() - start
+    return results
+
+
+# noinspection PyUnusedLocal
+def data_reader_2(sklearn_session, cached_state, emit_event):
+    """
+    Operation 05865cf4-52dd-4419-b970-c89998d006f8
+    Task hash: c5949f764da007a270742a7f50d50afa74b16b83.
+    """
+    task_id = '05865cf4-52dd-4419-b970-c89998d006f8'
+    emit_task_running(task_id, sklearn_session, emit_event)
+
+    start = timer()
+    # First we verify whether this task's result is cached.
+    results = None
+    if results is None:
+        # --- Begin operation code ---- #
+        columns = {
+            'session_id': pd.Int64Dtype(),
+            'customer_id': pd.Int64Dtype(),
+            'device': object,
+            'session_start': object,
+        }
+
+        # Open data source
+        f = open(
+            '/srv/storage/srv/storage/limonero/data/b96ee1f022c347e8ae2d1b2532aa3fd0_sessions.csv', 'rb')
+        compression = 'infer'
+        df_0 = pd.read_csv(f, sep=',',
+                           encoding='utf-8',
+                           header=0,
+                           compression=compression,
+                           names=['session_id', 'customer_id',
+                                  'device', 'session_start'],
+                           dtype=columns,
+                           parse_dates=['session_start'],
+                           converters={},
+                           na_values=None,
+                           error_bad_lines=False)
+        f.close()
+        # --- End operation code ---- #
+
+        results = {
+            'execution_date': datetime.datetime.utcnow(),
+            'task_name': 'Sessions',
+            'output data': df_0,
+            '__first__': df_0,
+        }
+    emit_task_completed(task_id, sklearn_session, emit_event)
+
+    results['time'] = timer() - start
+    return results
+
+
+# noinspection PyUnusedLocal
+def join_3(sklearn_session, cached_state, emit_event):
+    """
+    Operation 9c7b5f88-fc48-4514-b11e-3b06d19b909d
+    Task hash: 223c2270cc53717272be807f67da9f8469c8d119.
+    """
+    task_id = '9c7b5f88-fc48-4514-b11e-3b06d19b909d'
+
+    # If the task's result is not cached, we submit its dependencies first
+    parent_id = '1c11ce6b-09ab-4899-aea6-02c48725a1b9'
+    submission_lock.acquire()
+    if parent_id not in task_futures:
+        task_futures[parent_id] = executor.submit(
+            lambda: data_reader_1(sklearn_session, cached_state, emit_event))
+    submission_lock.release()
+    parent_id = '05865cf4-52dd-4419-b970-c89998d006f8'
+    submission_lock.acquire()
+    if parent_id not in task_futures:
+        task_futures[parent_id] = executor.submit(
+            lambda: data_reader_2(sklearn_session, cached_state, emit_event))
+    submission_lock.release()
+    # Next we wait for the dependencies to complete
+    parent_result = task_futures['1c11ce6b-09ab-4899-aea6-02c48725a1b9'].result()
+    df_2 = parent_result['output data']
+    ts_df_2 = parent_result['time']
+
+    parent_result = task_futures['05865cf4-52dd-4419-b970-c89998d006f8'].result()
+    df_0 = parent_result['output data']
+    ts_df_0 = parent_result['time']
+
+    sklearn_logging(
+        "Parents completed, submitting 9c7b5f88-fc48-4514-b11e-3b06d19b909d")
+    emit_task_running(task_id, sklearn_session, emit_event)
+
+    start = timer()
+    # First we verify whether this task's result is cached.
+    results = get_cached_state(
+        task_id, cached_state, emit_event, sklearn_session,
+        '223c2270cc53717272be807f67da9f8469c8d119', 10)
+
+    if results is None:
+        # --- Begin operation code ---- #
+        cols1 = [c + '_l' for c in df_2.columns]
+        cols2 = [c + '_r' for c in df_0.columns]
+
+        df_2.columns = cols1
+        df_0.columns = cols2
+
+        keys1 = [c + '_l' for c in ['session_id']]
+        keys2 = [c + '_r' for c in ['session_id']]
+
+        df_4 = pd.merge(df_2, df_0, how='inner',
+                        suffixes=['_l', '_r'],
+                        left_on=keys1, right_on=keys2).copy()
+
+        cols_to_remove = keys2
+        df_4.drop(cols_to_remove, axis=1, inplace=True)
+        # --- End operation code ---- #
+
+        results = {
+            'execution_date': datetime.datetime.utcnow(),
+            'task_name': 'Join 1',
+            'output data': df_4,
+            '__first__': df_4,
+        }
+    emit_task_completed(task_id, sklearn_session, emit_event)
+
+    results['time'] = timer() - start
+    return results
+
+
+# noinspection PyUnusedLocal
+def join_4(sklearn_session, cached_state, emit_event):
+    """
+    Operation 465d0bad-7c13-4389-97c9-351b0940a7c4
+    Task hash: 7a30bcde6b0c6e4e88cc2d85fa7b13fb5bcec69d.
+    """
+    task_id = '465d0bad-7c13-4389-97c9-351b0940a7c4'
+
+    # If the task's result is not cached, we submit its dependencies first
+    parent_id = 'c3c5efb5-e925-492c-afd7-70d264c0ea4a'
+    submission_lock.acquire()
+    if parent_id not in task_futures:
+        task_futures[parent_id] = executor.submit(
+            lambda: data_reader_0(sklearn_session, cached_state, emit_event))
+    submission_lock.release()
+    parent_id = '9c7b5f88-fc48-4514-b11e-3b06d19b909d'
+    submission_lock.acquire()
+    if parent_id not in task_futures:
+        task_futures[parent_id] = executor.submit(
+            lambda: join_3(sklearn_session, cached_state, emit_event))
+    submission_lock.release()
+    # Next we wait for the dependencies to complete
+    parent_result = task_futures['c3c5efb5-e925-492c-afd7-70d264c0ea4a'].result()
+    df_5 = parent_result['output data']
+    ts_df_5 = parent_result['time']
+
+    parent_result = task_futures['9c7b5f88-fc48-4514-b11e-3b06d19b909d'].result()
+    df_4 = parent_result['output data']
+    ts_df_4 = parent_result['time']
+
+    sklearn_logging(
+        "Parents completed, submitting 465d0bad-7c13-4389-97c9-351b0940a7c4")
+    emit_task_running(task_id, sklearn_session, emit_event)
+
+    start = timer()
+    # First we verify whether this task's result is cached.
+    results = get_cached_state(
+        task_id, cached_state, emit_event, sklearn_session,
+        '7a30bcde6b0c6e4e88cc2d85fa7b13fb5bcec69d', 10)
+
+    if results is None:
+        # --- Begin operation code ---- #
+        cols1 = [c + '_l' for c in df_4.columns]
+        cols2 = [c + '_r' for c in df_5.columns]
+
+        df_4.columns = cols1
+        df_5.columns = cols2
+
+        keys1 = [c + '_l' for c in ['customer_id']]
+        keys2 = [c + '_r' for c in ['customer_id']]
+
+        df_3 = pd.merge(df_4, df_5, how='inner',
+                        suffixes=['_l', '_r'],
+                        left_on=keys1, right_on=keys2).copy()
+
+        cols_to_remove = keys2
+        df_3.drop(cols_to_remove, axis=1, inplace=True)
+        # --- End operation code ---- #
+
+        results = {
+            'execution_date': datetime.datetime.utcnow(),
+            'task_name': 'Join 2',
+            'output data': df_3,
+            '__first__': df_3,
+        }
+    emit_task_completed(task_id, sklearn_session, emit_event)
+
+    results['time'] = timer() - start
+    return results
+
+
+# noinspection PyUnusedLocal
+def derivate_new_attributes_5(sklearn_session, cached_state, emit_event):
+    """
+    Operation 10e4c65a-b0af-4055-97bf-81af054e7232
+    Task hash: 0ed236bb976a03293c46f3d2344f4675c86d1ed0.
+    """
+    task_id = '10e4c65a-b0af-4055-97bf-81af054e7232'
+
+    # If the task's result is not cached, we submit its dependencies first
+    parent_id = '465d0bad-7c13-4389-97c9-351b0940a7c4'
+    submission_lock.acquire()
+    if parent_id not in task_futures:
+        task_futures[parent_id] = executor.submit(
+            lambda: join_4(sklearn_session, cached_state, emit_event))
+    submission_lock.release()
+    # Next we wait for the dependencies to complete
+    parent_result = task_futures['465d0bad-7c13-4389-97c9-351b0940a7c4'].result()
+    df_3 = parent_result['output data']
+    ts_df_3 = parent_result['time']
+
+    sklearn_logging(
+        "Parents completed, submitting 10e4c65a-b0af-4055-97bf-81af054e7232")
+    emit_task_running(task_id, sklearn_session, emit_event)
+
+    start = timer()
+    # First we verify whether this task's result is cached.
+    results = get_cached_state(
+        task_id, cached_state, emit_event, sklearn_session,
+        '0ed236bb976a03293c46f3d2344f4675c86d1ed0', 10)
+
+    if results is None:
+        # --- Begin operation code ---- #
+        es = ft.EntitySet(id="entityset_data")
+
+        es = es.add_dataframe(
+            dataframe_name='transaction',
+            dataframe=df_3,
+            index='transaction_id',
+            time_index='transaction-time')
+
+        es = es.normalize_dataframe(
+            base_dataframe_name='transaction',
+            new_dataframe_name='relationship',
+            index='customer_id')
+
+        feature_matrix, features = ft.dfs(entityset=es,
+                                          target_dataframe_name='relationship',
+                                          agg_primitives=[''sum', 'mean''],
+                                          trans_primitives=[''time_since_previous''],
+                                          verbose=false)
+
+        outpu1 = feature_matrix
+        # --- End operation code ---- #
+
+        results = {
+            'execution_date': datetime.datetime.utcnow(),
+            'task_name': 'Derivar novos atributos',
+            'Output': outpu1,
+            '__first__': outpu1,
+        }
+    emit_task_completed(task_id, sklearn_session, emit_event)
+
+    results['time'] = timer() - start
+    return results
+
+
+# noinspection PyUnusedLocal
+def data_writer_6(sklearn_session, cached_state, emit_event):
+    """
+    Operation ee6798b6-dd72-4b4b-87ba-087983aefb5b
+    Task hash: e7dc67057a9c0250a15239f6b47490035ca24568.
+    """
+    task_id = 'ee6798b6-dd72-4b4b-87ba-087983aefb5b'
+
+    # If the task's result is not cached, we submit its dependencies first
+    parent_id = '10e4c65a-b0af-4055-97bf-81af054e7232'
+    submission_lock.acquire()
+    if parent_id not in task_futures:
+        task_futures[parent_id] = executor.submit(
+            lambda: derivate_new_attributes_5(sklearn_session, cached_state, emit_event))
+    submission_lock.release()
+    # Next we wait for the dependencies to complete
+    parent_result = task_futures['10e4c65a-b0af-4055-97bf-81af054e7232'].result()
+    outpu1 = parent_result['Output']
+    ts_outpu1 = parent_result['time']
+
+    sklearn_logging(
+        "Parents completed, submitting ee6798b6-dd72-4b4b-87ba-087983aefb5b")
+    emit_task_running(task_id, sklearn_session, emit_event)
+
+    start = timer()
+    # First we verify whether this task's result is cached.
+    results = get_cached_state(
+        task_id, cached_state, emit_event, sklearn_session,
+        'e7dc67057a9c0250a15239f6b47490035ca24568', 10)
+
+    if results is None:
+        # --- Begin operation code ---- #
+        path = '/srv/storage/limonero/user_data/1/home/ubuntu/data_quality/featuretools/Dataset.csv'
+        exists = os.path.exists(path)
+
+        mode = 'overwrite'
+        if mode not in ('error', 'ignore', 'overwrite'):
+            raise ValueError('Invalid mode overwrite')
+        if exists:
+            if mode == 'error':
+                raise ValueError('File already exists')
+            elif mode == 'ignore':
+                emit_event(name='update task',
+                           message='File not written (already exists)',
+                           status='COMPLETED',
+                           identifier='ee6798b6-dd72-4b4b-87ba-087983aefb5b')
+            else:
+                os.remove(path)
+                parent_dir = os.path.dirname(path)
+                if not os.path.exists(parent_dir):
+                    os.makedirs(parent_dir)
+        else:
+            parent_dir = os.path.dirname(path)
+            os.makedirs(parent_dir)
+        outpu1.to_csv(path, sep=str(','), mode='w',
+                      header=False, index=False, encoding='utf-8')
+        # Code to update Limonero metadata information
+        from juicer.service.limonero_service import register_datasource
+        types_names = {"object": "CHARACTER", "datetime64[ns]": "DATETIME", "float64": "DOUBLE", "float32": "FLOAT",
+                       "int64": "LONG", "Int64": "INTEGER", "int32": "INTEGER", "int16": "INTEGER", "int8": "INTEGER"}
+
+        write_header = False
+        attributes = []
+        for attr in outpu1.columns:
+            type_name = outpu1.dtypes[attr]
+            precision = None
+            scale = None
+            attributes.append({
+                'enumeration': 0,
+                'feature': 0,
+                'label': 0,
+                'name': attr,
+                'type': types_names[str(type_name)],
+                'nullable': True,
+                'metadata': None,
+                'precision': precision,
+                'scale': scale
+            })
+        parameters = {
+            'name': "Dataset",
+            'is_first_line_header': write_header,
+            'enabled': 1,
+            'is_public': 0,
+            'format': "CSV",
+            'storage_id': 1,
+            'description': "Data source generated by workflow 6",
+            'user_id': "1",
+            'user_login': "admin@lemonade.org.br",
+            'user_name': "Admin ",
+            'workflow_id': "6",
+            'task_id': 'ee6798b6-dd72-4b4b-87ba-087983aefb5b',
+            'url': "file:///srv/storage/limonero/user_data/1/home/ubuntu/data_quality/featuretools/Dataset.csv",
+            'attributes': attributes
+        }
+        register_datasource('http://limonero:23402',
+                            parameters, '123456', 'overwrite')
+        # --- End operation code ---- #
+
+        results = {
+            'execution_date': datetime.datetime.utcnow(),
+            'task_name': 'Salvar dados',
+        }
+    emit_task_completed(task_id, sklearn_session, emit_event)
+
+    results['time'] = timer() - start
+    return results
+
+
+def main(sklearn_session, cached_state, emit_event):
+    """ Run generated code """
+
+    try:
+        task_futures['ee6798b6-dd72-4b4b-87ba-087983aefb5b'] = executor.submit(
+            lambda: data_writer_6(sklearn_session, cached_state, emit_event))
+        task_futures['ee6798b6-dd72-4b4b-87ba-087983aefb5b'].result()
+
+        return {
+            'status': 'OK',
+            'message': 'Execution defined',
+            'c3c5efb5-e925-492c-afd7-70d264c0ea4a':
+                [get_results(task_futures,
+                             'c3c5efb5-e925-492c-afd7-70d264c0ea4a'),
+                 'bcc41655ebbe58c2e53f19038d8c55006801b167'],
+            '1c11ce6b-09ab-4899-aea6-02c48725a1b9':
+                [get_results(task_futures,
+                             '1c11ce6b-09ab-4899-aea6-02c48725a1b9'),
+                 '56639e5959c8f4ceda8a57eace085f657a6c32d0'],
+            '05865cf4-52dd-4419-b970-c89998d006f8':
+                [get_results(task_futures,
+                             '05865cf4-52dd-4419-b970-c89998d006f8'),
+                 'c5949f764da007a270742a7f50d50afa74b16b83'],
+            '9c7b5f88-fc48-4514-b11e-3b06d19b909d':
+                [get_results(task_futures,
+                             '9c7b5f88-fc48-4514-b11e-3b06d19b909d'),
+                 '223c2270cc53717272be807f67da9f8469c8d119'],
+            '465d0bad-7c13-4389-97c9-351b0940a7c4':
+                [get_results(task_futures,
+                             '465d0bad-7c13-4389-97c9-351b0940a7c4'),
+                 '7a30bcde6b0c6e4e88cc2d85fa7b13fb5bcec69d'],
+            '10e4c65a-b0af-4055-97bf-81af054e7232':
+                [get_results(task_futures,
+                             '10e4c65a-b0af-4055-97bf-81af054e7232'),
+                 '0ed236bb976a03293c46f3d2344f4675c86d1ed0'],
+            'ee6798b6-dd72-4b4b-87ba-087983aefb5b':
+                [get_results(task_futures,
+                             'ee6798b6-dd72-4b4b-87ba-087983aefb5b'),
+                 'e7dc67057a9c0250a15239f6b47490035ca24568'],
+        }
+    except Exception as e:
+        traceback.print_exc(file=sys.stderr)
+        raise
