@@ -61,8 +61,10 @@ def _handle_errors(err):
     """ Handle and translate errors to be sent to user interface
     """
     tests = []
-    {%- if polars %}
     exc_type = type(err)
+    if exc_type in (ValueError, ):
+        raise err
+    {%- if polars %}
     if exc_type in (pl.exceptions.ComputeError, pl.exceptions.ArrowError):
         tests = [
             (r"time data '(.+?)' does not match format '(.+?)'$",
@@ -86,6 +88,12 @@ def _handle_errors(err):
             (r"object has no attribute 'alias'",
              gettext('In order to define a literal value, use the function lit(value).')),
         ]
+    elif exc_type.__name__ in ('InvalidOperationError', ):
+         tests = [
+            (r'`(.+?)` operation not supported for dtype `(.+?)`',
+             gettext('Operation {} is not supported for data type {}.')),
+        ]
+
     # elif exc_type in (pl.exceptions.NotFoundError, ):
     #    raise ValueError(
     #         gettext('Attribute {} not found in input data.').format(str(err))

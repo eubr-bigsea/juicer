@@ -22,25 +22,28 @@ class VisualizationOperation(Operation):
     AGGR = {
         'COUNTD': 'n_unique'
     }
+    CHART_MAP_TYPES = ('scattermapbox', )
     def __init__(self, parameters, named_inputs, named_outputs):
         super().__init__(parameters, named_inputs, named_outputs)
 
         self.type = self.get_required_parameter(parameters, 'type')
         self.display_legend = self.get_required_parameter(
             parameters, 'display_legend')
-        self.x = self.get_required_parameter(parameters, 'x')
 
-        self.y_limit = None
-        if len(self.x) > 1 or self.type in ('scatter', 'indicator', 'bubble'):
-            self.y_limit = 1
+        if self.type not in self.CHART_MAP_TYPES:
+            self.x = self.get_required_parameter(parameters, 'x')
 
-        self.y = self.get_required_parameter(parameters, 'y')[:self.y_limit]
+            self.y_limit = None
+            if len(self.x) > 1 or self.type in ('scatter', 'indicator', 'bubble'):
+                self.y_limit = 1
 
-        self.aggregations = [y for y in self.y if y.get('aggregation')]
-        self.literal = [y for y in self.y if not y.get('aggregation')]
+            self.y = self.get_required_parameter(parameters, 'y')[:self.y_limit]
 
-        self.x_axis = self.get_required_parameter(parameters, 'x_axis')
-        self.y_axis = self.get_required_parameter(parameters, 'y_axis')
+            self.aggregations = [y for y in self.y if y.get('aggregation')]
+            self.literal = [y for y in self.y if not y.get('aggregation')]
+
+            self.x_axis = self.get_required_parameter(parameters, 'x_axis')
+            self.y_axis = self.get_required_parameter(parameters, 'y_axis')
 
         self.title = parameters.get('title', '') or ''
         self.hole = parameters.get('hole', 30)
@@ -61,10 +64,21 @@ class VisualizationOperation(Operation):
         self.animation = parameters.get('animation')
         self.color_attribute = parameters.get('color_attribute')
         self.size_attribute = parameters.get('size_attribute')
+        self.text_attribute = parameters.get('text_attribute')
         self.height = parameters.get('height')
         self.width = parameters.get('width')
         self.opacity = parameters.get('opacity')
         self.fill_opacity = parameters.get('fill_opacity')
+        self.number_format = parameters.get('number_format')
+
+        self.latitude = parameters.get('latitude')
+        self.longitude = parameters.get('longitude')
+        self.style = parameters.get('style')
+        self.tooltip_info = parameters.get('tooltip_info')
+        self.zoom = parameters.get('zoom')
+        self.center_latitude = parameters.get('center_latitude')
+        self.center_longitude = parameters.get('center_longitude')
+        self.marker_size = parameters.get('marker_size')
 
         self.has_code = len(named_inputs) == 1
         self.transpiler_utils.add_import('import json')
@@ -82,9 +96,10 @@ class VisualizationOperation(Operation):
             
         self.task_id = parameters['task_id']
 
-        self.custom_colors = [(inx, y.get('color')) for inx, y in enumerate(self.y) if y.get('custom_color')]
-        self.shapes = [(inx, y.get('shape')) for inx, y in enumerate(self.y) if y.get('shape')]
-	# self.custom_shapes = [(inx, y.get('shape')) for inx, y in enumerate(self.y)]
+        if self.type not in self.CHART_MAP_TYPES:
+            self.custom_colors = [(inx, y.get('color')) for inx, y in enumerate(self.y) if y.get('custom_color')]
+            self.shapes = [(inx, y.get('shape')) for inx, y in enumerate(self.y) if y.get('shape')]
+    	    # self.custom_shapes = [(inx, y.get('shape')) for inx, y in enumerate(self.y)]
 
         self.supports_cache = False
 

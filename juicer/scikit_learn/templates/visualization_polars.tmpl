@@ -1,22 +1,8 @@
-{%- set type = op.type.lower() %}
+{#- Macros #}
 
-{%- if type in ('pie', 'donut',) %}
-{%- set x_values = op.x[:1] %}
-{%- else %}
-{%- set x_values = op.x %}
-{%- endif %}
-
-df = {{input}}.clone()
-
-{%- if not op.fill_opacity is none and type not in ('pie', 'donut') %}
-transparent_colors = [
-    {%- for c in op.palette%}'{{hex_to_rgba(c, op.fill_opacity)}}', {%- endfor %}
-]
-{%- endif %}
-colors = {{op.palette}}
-
-# Prepare X-Axis values
-
+{% macro prepare_x_axis(x_values) -%}
+# prepare_x_axis()
+# Prepare X-Axis values.
 {%- for x in x_values %}
 col = pl.col('{{x.attribute}}')
 # {{x}}
@@ -36,32 +22,42 @@ df = df.with_columns([
 df = df.with_columns([col.alias('dim_{{loop.index0}}')])
 {%- endif %}
 {%- endfor %}
+{%- endmacro %}
 
+{%- macro define_colors(op) %}
+# define_colors()
+{%- if not op.fill_opacity is none %}
+transparent_colors = [
+    {% for c in op.palette%}'{{hex_to_rgba(c, op.fill_opacity)}}', 
+	{% endfor %}]
+{%- endif %}
+colors = {{op.palette}}
+{%- endmacro %}
+
+{%- macro prepare_aggregations(op) %}
+# prepare_aggregations()
 {%- if op.aggregations %} {# aggregations #}
 aggregations = [
     {%- for y in op.aggregations %}
-    {%- if y.attribute == '*' %}
-    pl.count().alias('aggr_{{loop.index0}}'),
+    {%- if y.attribute == '*' %}(
+    {%- if y.multiplier  %}{{y.multiplier}} * {% endif -%}
+    pl.count()).alias('aggr_{{loop.index0}}'),
     {%- else %}
+    (
+    {%- if y.multiplier  %}{{y.multiplier}} * {% endif -%}
+    # Cast to Float64 because to_pandas() convert to uint32 and it is not
+    # supported by Plotly
     pl.{{op.AGGR.get(y.aggregation, y.aggregation.lower()) -}}
-        ('{{y.attribute}}').alias('aggr_{{loop.index0}}'),
+        ('{{y.attribute}}')).cast(pl.Float64).alias('aggr_{{loop.index0}}'), 
     {%- endif %}
     {%- endfor %}
 ]
-{%- else %}
-select = [
-    {%- for y in op.literal %}
-    pl.col('{{y.attribute}}'),
-    {%- endfor %}
-]
-{%- endif %}
-
-{% if type == 'indicator' %}
-df = df.select(aggregations)
-{% elif op.aggregations %}
 # Group data
 dimensions = [
-    {%- for x in x_values %}pl.col('dim_{{loop.index0}}'), {%- endfor %}
+    {%- for x in x_values %}
+    (pl.col('dim_{{loop.index0}}') {%- if x.multiplier %} * {{x.multiplier}}{% endif -%})
+    {#%- if x.decimal_places %}.round({{x.decimal_places}}){% endif %#},
+    {%- endfor %}
     
     {%- if op.subgraph and op.subgraph != '' %}
     pl.col('{{op.subgraph.attribute}}'),
@@ -86,12 +82,12 @@ df = df.groupby(dimensions).agg(aggregations).sort(
     {%- for x in x_values %}'dim_{{loop.index0}}', {% endfor %}],
     descending=[{% if type != 'line' %}True, {% endif %}{% for x in x_values %}False, {% endfor %}])
 {%- else %}
-# Test
+# Test, not working!
 dimensions = [
     {%- for x in x_values %}
     pl.col('dim_{{loop.index0}}'), 
     {%- endfor %}
-
+    
     {%- if op.color_attribute and op.color_attribute.attribute %}
     pl.col('{{op.color_attribute.attribute}}'), # color
     {%- endif %}
@@ -102,8 +98,9 @@ dimensions = [
 ];
 df = df.select(select + dimensions)
 {%- endif %}
+{%- endmacro %}
 
-{%- if x_values|length > 1 and type != 'treemap'%}
+{%- macro fix_missing_in_serie(op) %} 
 # Fill the missing values. Otherwise, series may be wrongly 
 # sorted in the x-axis (if a new x-value is discovered after 
 # a previous serie is plot.
@@ -117,18 +114,19 @@ tmp_df = (df.select('dim_0')
         )
 df = df.join(tmp_df, on=['dim_0', 'dim_1'], how='outer').sort(
     ['dim_0', 'dim_1']).fill_null(0)
-{%- endif %}
-{%- if type == 'treemap' %}
+{%- endmacro %}
+
+{%- macro fix_zeroes_in_treemap(op) %}
 # Remove 0's because they cause ZeroDivisionError
 df = df.filter(pl.col('aggr_0') != 0)
 df = df.with_columns([
     {%- for y in op.y[:op.y_limit] %}
-    pl.col('aggr_{{loop.index0}}').cast(pl.Float64)
+    pl.col('aggr_{{loop.index0}}').cast(pl.Float64),
     {%- endfor %}
 ])
-{%- endif %}
+{%- endmacro %}
 
-pandas_df = df.collect().to_pandas()
+{%- macro define_labels(op, x_values) %}
 labels = {
     'variable': 'Série',
     {%- for y in op.y[:op.y_limit] %}
@@ -143,6 +141,44 @@ labels = {
     {%- for x in x_values -%}
         'dim_{{loop.index0}}': '{{x.displayLabel or x.attribute}}', {%- endfor %}
 }
+{%- endmacro %}
+
+{#------- End Macros --------------#}
+
+{%- set type = op.type.lower() %}
+{%- set pie_family = type in ('pie', 'donut') %}
+{%- set map_family = type in ('scattermapbox', ) %}
+
+{%- if pie_family %}
+{%- set x_values = op.x[:1] %}
+{%- else %}
+{%- set x_values = op.x %}
+{%- endif %}
+
+df = {{input}}.clone()
+{{ define_colors(op) }}
+
+{%- if map_family %}
+{%- elif type == 'indicator' %}
+df = df.select(aggregations)
+{%- else %}
+{{ prepare_x_axis(x_values) }}
+{{ prepare_aggregations(op) }}
+{%- endif %}
+
+{%- if x_values|length > 1 and type != 'treemap'%}
+{{fix_missing_in_serie(op) }}
+{%- endif %}
+
+{%- if type == 'treemap' %}
+{{ fix_zeroes_in_treemap(op) }}
+{%- endif %}
+
+pandas_df = df.collect().to_pandas()
+{%- if not map_family %}
+{{ define_labels(op, x_values) }}
+{%- endif %}
+
 
 #  Chart definition
 {%- if type in ('line', 'filled-area', 'stacked-filled-area',
@@ -176,14 +212,14 @@ fig = px.
     scatter 
     {%- else %}{{type}}{% endif -%}(
         pandas_df,
-		{%- if 'horizontal' in type %}
-		# Invert axis values
-		x=axis2,
-		y=axis1,	
-		{%- else %}
-		x=axis1,
-		y=axis2,	
-		{%- endif %}
+        {%- if 'horizontal' in type %}
+        # Invert axis values
+        x=axis2,
+        y=axis1,    
+        {%- else %}
+        x=axis1,
+        y=axis2,    
+        {%- endif %}
         {%- if x_values|length > 1 and type in ('bar', ) and False-%}
         color='dim_1', 
         pattern_shape="dim_1", 
@@ -216,7 +252,6 @@ fig = px.
         size='{{op.size_attribute.attribute}}',
         {%- endif %}
         {%- endif %}
-
         labels=labels,
         {%- if type == 'line' and op.smoothing %}
         # https://github.com/plotly/plotly.py/issues/2812
@@ -288,7 +323,7 @@ for s, z, style in zip(fig.data, sizes, styles):
     # s.marker.size = z
 {%- endif %}
 
-{%- elif type in ('pie', 'donut') %}
+{%- elif pie_family %}
 fig = px.pie(pandas_df, values='aggr_0',
     names='dim_0',
     {%- if op.blackWhite %}
@@ -301,24 +336,24 @@ fig = px.pie(pandas_df, values='aggr_0',
     title='{{op.title}}',
     {%- endif %}
     {%- if type == 'donut' %}hole={{op.hole * 0.01}},{% endif %}
-    #width=800, height=400,
     labels=labels,
     {%- if op.subgraph and op.subgraph != '' %}
     facet_{{'row' if op.subgraph_orientation == 'v' else 'col'}}='{{op.subgraph.attribute}}',
     facet_col_wrap=4,
     {%- endif %}
-    
     {%- if op.width %}width={{op.width}},{% endif %}
     {%- if op.height %}height={{op.height}},{% endif %}
 )
-
-{%-if op.text_position or op.text_info %}
+fig.update_layout(extendpiecolors=True)
+# fig.update_traces(pull=0.1)
+{%-if op.text_position or op.text_info or op.y[0].strokeSize %}
 fig.update_traces(
     {%- if op.text_position %}textposition='{{op.text_position}}',
     {%- endif %}
     {%- if op.text_info != '' %}textinfo='{{op.text_info}}',{% endif %}
-    {#- marker=dict(line=dict(color='#000000', width=0.5, )),
-    #pull=[0.01] * {{op.y |length}}, -#}
+    {%- if op.y[0].strokeSize %}marker=dict(
+        line=dict(color='#000000', width={{op.y[0].strokeSize}}, )),{% endif %}
+    {#pull=[0.01] * {{op.y |length}}, -#}
 )
 {%- endif %}
 
@@ -342,6 +377,28 @@ fig = go.Figure(go.Indicator(
     # title='{{op.title}}',
     # domain = {'x': [0, 1], 'y': [0, 1]}
 ))
+{%- elif map_family %}
+fig = px.scatter_mapbox(
+	pandas_df, lat='latitude', lon='longitude',
+	mapbox_style='{{op.style or 'open-street-map'}}',
+    {%- if op.height %}height={{op.height}},{% endif %}
+    {%- if op.center_latitude or op.center_longitude %}
+		center={'lat': {{op.center_latitude or 'None'}}, 
+			'lon': {{op.center_longitude or 'None'}}}, 
+	{%- endif %}
+	{%- if op.zoom %}zoom={{op.zoom}},{% endif %}
+	{%- if op.title %}title='{{op.title}}',{% endif %}
+	{%- if op.text_attribute %}text='{{op.text_attribute}}',{% endif %}
+	{%- if op.color_attribute %}color='{{op.color_attribute}}',{% endif %}
+	{%- if op.size_attribute %}size='{{op.size_attribute}}',{% endif %}
+)
+fig.update_traces(
+	{%- if op.marker_size %}marker_sizeref={{op.marker_size}},{% endif %}
+	{%- if op.text_info %}mode='{{op.text_info}}',{% endif %}
+	{%- if op.tooltip_info %}hoverinfo='{{op.tooltip_info}}',{% endif %}
+)
+fig.update_layout(autosize=True, showlegend=True)
+
 {%- endif %}
 
 {%- if op.blackWhite and (type.endswith('bar')) %}
@@ -353,36 +410,44 @@ fig = go.Figure(go.Indicator(
 fig.update_traces(opacity={{op.opacity}})
 {%- endif %}
 
-{%-if op.display_legend == 'HIDE' %}
-fig.update_layout(showlegend=False)
-{%- elif op.display_legend != 'AUTO' %}
-# Legend
+# Legend and separators.
 fig.update_layout(
+    separators='{{op.number_format}}',
+    {%-if op.display_legend == 'HIDE' %}
+    showlegend=False,
+    {%- elif op.display_legend != 'AUTO' %}
     showlegend=True,
     legend=dict(
-        title='Legend',
+        title='Legenda',
         orientation="{%if 'CENTER' in op.display_legend %}h{%else%}v{%endif%}",
         yanchor="{% if 'BOTTOM' in op.display_legend %}bottom
         {%- else %}top{% endif %}",
         y={% if 'BOTTOM' in op.display_legend %}-.30
         {%- else %}.99{% endif %},
         xanchor="{{op.display_legend.lower().replace('bottom_', '')}}",
-        x={% if 'CENTER' in op.display_legend %}0.5
-        {%- elif 'LEFT' in op.display_legend %}.1
-        {%- else %}.99{% endif %}
-    )
+        x={% if 'CENTER' in op.display_legend %}0.5,
+        {%- elif 'LEFT' in op.display_legend %}.1,
+        {%- else %}.99,{% endif %}
+    ),
+    {%- elif 0 %}
+    legend=dict(
+        borderwidth=1,
+        bordercolor='#222',
+    ),
+    {%- endif %}
 )
-{%- endif %}
 
-{%- if op.custom_colors and type not in ('pie', 'donut') %}
+{%- if (op.custom_colors) and (not pie_family) and (not map_family) %}
 {%- for inx, c in op.custom_colors %}
+{%- if c %}
 fig.update_traces(dict(
     {%- if type.endswith('bar') %}marker{% else %}line{% endif -%}
     ={'color': '{{c}}'}), {{inx}})
+{%- endif %}
 {%- endfor %}
 {%- endif %}
 
-{%- if op.shapes and type not in ('pie', 'donut', 'line') %}
+{%- if op.shapes and type not in ('line',) and not pie_family and not map_family  %}
 # Shapes {{op.shapes}}
 {%- for inx, c in op.shapes %}
 fig.update_traces(dict(
@@ -391,19 +456,16 @@ fig.update_traces(dict(
 {%- endfor %}
 {%- endif %}
 
-
-
 {%- if op.template_ and op.template != 'none' %}
 # Template/theme
 fig.update_layout(template='{{op.template_}}')
 {%- endif %}
 
 # fig.update_traces(marker={'line': {'color': colors, 'width': 5}, 'pattern': {'shape': '.', 'fillmode':'replace' }})
-def rgb_to_rgba(rgb_value, alpha):
-    return f"rgba{rgb_value[3:-1]}, {alpha})"
 
-{%- if not op.fill_opacity is none and type not in ('pie', 'donut') %}
+{%- if not op.fill_opacity is none %}
 # Fill transparency
+{%- if not pie_family and not map_family and op.palette %}
 cycle = itertools.cycle(transparent_colors)
 fig.for_each_trace(
     lambda trace: 
@@ -411,10 +473,34 @@ fig.for_each_trace(
             marker={
                 'line': {'color': trace.marker.color, 'width': 1.5}, 
                 #'pattern': {'shape': '\\', 'fillmode': 'replace'},
-                'color': next(cycle)
+                'color': next(cycle),
             }
         )
 )
+{%- elif pie_family %}
+fig.update_traces(marker=dict(colors=transparent_colors))
+{%- endif %}
+{%- endif %}
+# Tooltip
+expr_agg = re.compile(r'aggr_\d+')
+fig.for_each_trace(
+    lambda trace: 
+        trace.update(hovertemplate=expr_agg.sub(trace.name, trace.hovertemplate))
+)
+{%- if not map_family and op.y[0].decimal_places is not none and op.y[0].decimal_places != ''%}
+# Rouding 
+{%- if pie_family %}
+fig.update_traces(
+    texttemplate='
+    {%- if 'label' in op.text_info %}%{label}<br>{% endif %} 
+    {%- if 'value' in op.text_info %}%{value:.{{op.y[0].decimal_places}}f}<br>{% endif %} 
+    {%- if 'percent' in op.text_info %}%{percent:.{{2 + op.y[0].decimal_places}}p}{% endif -%} 
+    '
+)
+{%- elif pie_family %}-
+fig.update_traces(textinfo='{{op.text_info}}')
+{%- endif %}
+# fig.update_traces(texttemplate='%{value:.6f}')
 {%- endif %}
 
 # Margins
@@ -436,7 +522,7 @@ fig.layout.updatemenus[0].buttons[0].args[1]["frame"]["duration"] = 1000
 {%- endif %}
 
 d = json.loads(fig.to_json())
-del d.get('layout')['template']
+# del d.get('layout')['template']
 emit_event(
     'update task', status='COMPLETED',
     identifier='{{op.task_id}}',

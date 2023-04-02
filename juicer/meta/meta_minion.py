@@ -163,6 +163,11 @@ class MetaMinion(Minion):
                 self.job_future = self._execute_future(job_id, workflow,
                                                        app_configs)
                 log.info(gettext.gettext('Execute message finished'))
+            except ValueError as e:
+                self._emit_event(room=job_id, namespace='/stand')(
+                    message=str(e),
+                    name='update job',
+                    status='ERROR', identifier=job_id)
             except Exception as e:
                 import traceback
                 tb = traceback.format_exception(*sys.exc_info())
