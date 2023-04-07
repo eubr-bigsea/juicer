@@ -166,6 +166,10 @@ df = df.select(aggregations)
 {{ prepare_aggregations(op) }}
 {%- endif %}
 
+{%- if op.limit %}
+df = df.limit({{op.limit}})
+{%- endif %}
+
 {%- if x_values|length > 1 and type != 'treemap'%}
 {{fix_missing_in_serie(op) }}
 {%- endif %}
@@ -412,7 +416,7 @@ fig.update_traces(opacity={{op.opacity}})
 
 # Legend and separators.
 fig.update_layout(
-    separators='{{op.number_format}}',
+	{%- if op.number_format %}separators='{{op.number_format}}',{% endif %}
     {%-if op.display_legend == 'HIDE' %}
     showlegend=False,
     {%- elif op.display_legend != 'AUTO' %}

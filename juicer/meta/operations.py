@@ -2032,7 +2032,7 @@ class VisualizationOperation(MetaPlatformOperation):
                  'animation', 'height', 'width', 'opacity', 'fill_opacity',
                  'color_attribute', 'size_attribute', 'number_format', 'text_attribute',
                  'style', 'tooltip_info', 'zoom', 'center_latitude', 'center_longitude',
-                 'marker_size']:
+                 'marker_size', 'limit', 'filter']:
             task_obj['forms'][p] = {'value': self.parameters.get(p)}
 
         task_obj['operation'] = {"id": 145}
