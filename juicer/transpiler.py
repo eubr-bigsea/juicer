@@ -185,8 +185,11 @@ class Transpiler(object):
             class_name = self.operations[task['operation']['slug']]
 
             parameters = {}
+            # Important: test must be 'is not None', because
+            # zero and empty strings are valid values.
             not_empty_params = [(k, d) for k, d in
-                                list(task['forms'].items()) if d['value']]
+                                list(task['forms'].items())
+                                if d['value'] is not None]
 
             task['forms'] = dict(not_empty_params)
             for parameter, definition in list(task['forms'].items()):

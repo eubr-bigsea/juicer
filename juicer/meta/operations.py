@@ -1997,17 +1997,26 @@ class VisualizationOperation(MetaPlatformOperation):
     DEFAULT_PALETTE = ['#636EFA', '#EF553B', 
         '#00CC96', '#AB63FA', '#FFA15A', '#19D3F3',
         '#FF6692', '#B6E880', '#FF97FF', '#FECB52']
+    CHART_MAP_TYPES = ('scattermapbox', )
 
     def __init__(self, parameters,  named_inputs, named_outputs):
         MetaPlatformOperation.__init__(
             self, parameters,  named_inputs,  named_outputs)
         self.type = self.get_required_parameter(parameters, 'type')
-        self.display_legend = self.get_required_parameter(parameters, 'display_legend')
         self.palette = parameters.get('palette')
-        self.x = self.get_required_parameter(parameters, 'x')
-        self.y = self.get_required_parameter(parameters, 'y')
-        self.x_axis = self.get_required_parameter(parameters, 'x_axis')
-        self.y_axis = self.get_required_parameter(parameters, 'y_axis')
+        self.display_legend = parameters.get('display_legend', 'HIDE')
+        if self.type not in self.CHART_MAP_TYPES:
+            self.x = self.get_required_parameter(parameters, 'x')
+            self.y = self.get_required_parameter(parameters, 'y')
+            self.x_axis = self.get_required_parameter(parameters, 'x_axis')
+            self.y_axis = self.get_required_parameter(parameters, 'y_axis')
+        else:
+            self.x = None
+            self.y = None
+            self.x_axis = None
+            self.y_axis = None
+            self.latitude = self.get_required_parameter(parameters, 'latitude')
+            self.longitude = self.get_required_parameter(parameters, 'longitude')
 
         self.parameters = parameters
 
@@ -2020,7 +2029,10 @@ class VisualizationOperation(MetaPlatformOperation):
         for p in ['hole', 'text_position', 'text_info', 'smoothing', 'color_scale',
                 'auto_margin', 'right_margin', 'left_margin', 'top_margin', 'bottom_margin',
                  'title', 'template', 'blackWhite', 'subgraph', 'subgraph_orientation',
-                 'animation', 'height', 'width', 'opacity']:
+                 'animation', 'height', 'width', 'opacity', 'fill_opacity',
+                 'color_attribute', 'size_attribute', 'number_format', 'text_attribute',
+                 'style', 'tooltip_info', 'zoom', 'center_latitude', 'center_longitude',
+                 'marker_size', 'limit', 'filter']:
             task_obj['forms'][p] = {'value': self.parameters.get(p)}
 
         task_obj['operation'] = {"id": 145}

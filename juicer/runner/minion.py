@@ -120,4 +120,5 @@ if __name__ == '__main__':
                 _("{type} is not supported (yet!)").format(type=args.type))
         minion.process()
     except Exception as ex:
+        print(ex)
         log.exception(_("Error running minion"), exc_info=ex)
