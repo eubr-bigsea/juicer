@@ -140,7 +140,7 @@ fig = px.
         color='dim_1', 
         pattern_shape="dim_1", 
         template="simple_white",
-        {%- elif x_values|length > 1 and type not in ('scatter', 'bar', ) and not type.endswith('bar')-%}
+        {%- elif x_values|length > 1 and type not in ('scatter', 'bar') and not type.endswith('bar')-%}
         line_group='dim_1', color='dim_1',
         {%- elif x_values|length > 1 and type not in ('scatter', ) -%}
         color='dim_1',{% endif %}
@@ -262,8 +262,137 @@ fig.update_traces(
 )
 {%- endif %}
 
-{%- elif type in ('treemap',) %}
-fig = px.treemap(
+{%- elif type in ('boxplot',) %}
+fig = px.box(pandas_df, 
+             x='aggr_0', 
+             y='dim_0',
+             points="all",
+             #marker_color='{{op.palette}}'
+             #opacity = {{op.opacity}},
+             color='aggr_0',
+             title='{{op.title}}',
+             labels=labels,
+             
+             )
+fig.update_traces(quartilemethod="exclusive") 
+
+
+{%- elif type in ('scattergeo',) %}
+fig = px.scatter_geo(pandas_df,locations='dim_0',color='aggr_0',
+                     hover_name='dim_1', size='aggr_0',
+                     projection="natural earth",
+                     color_continuous_scale={{op.color_scale}},
+                     labels=labels,)
+
+fig.update_layout(
+        title_text = '{{op.title}}',
+        #opacity = {{op.opacity}},
+        showlegend = True,
+    )
+
+
+
+{%- elif type in ('pointcloud',) %}
+fig = go.Figure(data=go.Scatter3d(
+    x=pandas_df['dim_0'],
+    y=pandas_df['dim_1'],
+    z=pandas_df['aggr_0'],
+    mode='markers',
+    marker=dict(
+        size=10,
+        color=pandas_df['aggr_0'],
+        colorscale='Viridis',
+        opacity=0.8,
+    ),
+    hovertemplate='X: %{x}<br>Y: %{y}<br>Z: %{z}',
+    
+))
+
+fig.update_layout(
+    scene=dict(
+        xaxis_title='X',
+        yaxis_title='Y',
+        zaxis_title='Z',
+    ),
+    title='{{op.title}}',
+)
+
+{%- elif type in ('scatterplot',) %}
+fig = px.scatter(pandas_df, 
+      x='dim_0', 
+      y='aggr_0', 
+      color='aggr_1', 
+      marginal_y="violin",
+      marginal_x="box", 
+      trendline="ols", 
+      template="simple_white")
+
+{%- elif type in ('histogram2d',) %}
+fig = px.density_heatmap(pandas_df, 
+      x='dim_0', 
+      y='aggr_0', 
+      marginal_x="box", 
+      marginal_y="violin",
+      #name='{{op.title}}',
+      title='{{op.title}}',
+      labels=labels,
+      color_continuous_scale={{op.color_scale}},
+      )
+
+
+{%- elif type in ('funnel',) %}
+
+fig = go.Figure()
+fig.add_trace(go.Funnel(
+    #inversao dos eixos 
+    #x=pandas_df['dim_0'],
+    #y=pandas_df['aggr_0'],
+    x=pandas_df['aggr_0'],
+    y=pandas_df['dim_0'],
+    name='{{op.title}}',
+    opacity = {{op.opacity}},
+    marker = {"color":{{op.palette}}},
+    textinfo='value+percent initial',
+))
+
+{%- elif type in ('violin',) %}
+fig = px.violin(pandas_df,
+      #eixos trocados
+      y='dim_0', 
+      x='aggr_0',
+      #trocar pra testar a paleta de cores
+      color='dim_0', 
+      box=True, 
+      points="all",
+      hover_data=pandas_df.columns,
+      title='{{op.title}}',
+      labels=labels,
+     )
+
+{%- elif type in ('parcoords',) %}
+fig = px.parallel_coordinates(pandas_df, 
+      color='dim_0', 
+      labels=labels,
+      dimensions=['aggr_0','aggr_1','aggr_2','aggr_3'],
+      color_continuous_scale={{op.color_scale}},
+      title='{{op.title}}',
+      color_continuous_midpoint=2)
+
+
+{%- elif type in ('histogram2dcontour',) %}
+fig = px.density_contour(pandas_df,
+    x='dim_0', 
+    y='aggr_0',
+    title='{{op.title}}',
+    labels=labels,
+    )
+fig.update_traces(contours_coloring="fill",
+    #colorscale = {{op.palette}},
+    colorscale = {{op.color_scale}},
+    contours_showlabels = True)
+
+{%- elif  type in ('treemap', 'sunburst') %}
+fig = px.{{type}}(
     pandas_df, 
     path=[{% for x in x_values %}'dim_{{loop.index0}}', {% endfor %}],
     values='aggr_0',
@@ -273,7 +402,9 @@ fig = px.treemap(
     title='{{op.title}}',
     labels=labels,
 )
+
 fig.update_layout(margin = dict(t=50, l=25, r=25, b=25))
+
 
 {%- elif type in ('indicator', ) %}
 fig = go.Figure(go.Indicator(
@@ -286,7 +417,7 @@ fig = go.Figure(go.Indicator(
 
 {%- if op.opacity and op.opacity != 1 %}
 fig.update_traces(opacity={{op.opacity}})
-{%- endif %}
+{%- endif %} 
 
 {%-if op.display_legend == 'HIDE' %}
 fig.update_layout(showlegend=False)
