@@ -41,14 +41,16 @@ aggregations = [
     {%- for y in op.aggregations %}
     {%- if y.attribute == '*' %}(
     {%- if y.multiplier  %}{{y.multiplier}} * {% endif -%}
-    pl.count()).alias('aggr_{{loop.index0}}'),
+    # Cast to Float64 because to_pandas() convert to uint32 and it is not
+    # supported by Plotly
+    pl.count()).alias('aggr_{{loop.index0}}').cast(pl.Float64),
     {%- else %}
     (
     {%- if y.multiplier  %}{{y.multiplier}} * {% endif -%}
     # Cast to Float64 because to_pandas() convert to uint32 and it is not
     # supported by Plotly
     pl.{{op.AGGR.get(y.aggregation, y.aggregation.lower()) -}}
-        ('{{y.attribute}}')).cast(pl.Float64).alias('aggr_{{loop.index0}}'), 
+        ('{{y.attribute}}')).alias('aggr_{{loop.index0}}').cast(pl.Float64), 
     {%- endif %}
     {%- endfor %}
 ]
@@ -77,10 +79,7 @@ dimensions = [
     {%- endif %}
     {%- endif %}
 ]
-df = df.groupby(dimensions).agg(aggregations).sort(
-    by=[{% if type != 'line' %}'aggr_0', {% endif %} 
-    {%- for x in x_values %}'dim_{{loop.index0}}', {% endfor %}],
-    descending=[{% if type != 'line' %}True, {% endif %}{% for x in x_values %}False, {% endfor %}])
+df = df.groupby(dimensions).agg(aggregations)
 {%- else %}
 # Test, not working!
 dimensions = [
@@ -143,6 +142,47 @@ labels = {
 }
 {%- endmacro %}
 
+{%- macro handle_sort(op, x_values) %}
+df = df.sort(
+    by=[
+    {%- for x in x_values -%}
+	{%- if x.sorting in ('Y_ASC', 'Y_DESC') -%}
+	'aggr_0',
+	{%- else -%}
+	'dim_{{loop.index0}}', 
+	{%- endif %}
+	{%- endfor %}],
+    descending=[
+    {%- for x in x_values -%}
+	{{ x.sorting == 'Y_DESC'}},
+	{%- endfor %}])
+
+{%- endmacro %}
+
+{%- macro prepare_group_others(op, x_values, y_values) %}
+{%- set y = y_values[0] %}
+{%- for x in x_values %}
+{%- if x.max_displayed %}
+# Limit the number of items to be displayed
+# Compute the top {{x.max_displayed}} item(s)
+
+top_x_{{loop.index0}} = (df.groupby('{{x.attribute}}')
+	.agg(pl.{{op.AGGR.get(y.aggregation, y.aggregation.lower()) -}}('{{y.attribute}}'))
+	.sort(by=[{% if x.sorting in ('Y_ASC', 'Y_DESC') %}'{{x.attribute}}'
+		{%- else %}'{{y.attribute}}'
+		{%- endif %}],  descending=[True])
+	.unique(subset='{{x.attribute}}', maintain_order=True)
+	.limit({{x.max_displayed}})
+	.collect().get_column('{{x.attribute}}').to_list())
+df = df.with_columns([
+	pl.when(pl.col('{{x.attribute}}').is_in(top_x_0))
+		.then(pl.col('{{x.attribute}}'))
+		.otherwise(pl.lit('{{x.label_others or "others"}}')).alias('{{x.attribute}}')
+])
+{%- endif %}
+{%- endfor %}
+{%- endmacro %}
+
 {#------- End Macros --------------#}
 
 {%- set type = op.type.lower() %}
@@ -156,6 +196,8 @@ labels = {
 {%- endif %}
 
 df = {{input}}.clone()
+{{ prepare_group_others(op, x_values, op.y) }}
+
 {{ define_colors(op) }}
 
 {%- if map_family %}
@@ -177,6 +219,8 @@ df = df.limit({{op.limit}})
 {%- if type == 'treemap' %}
 {{ fix_zeroes_in_treemap(op) }}
 {%- endif %}
+
+{{ handle_sort(op, x_values) }}
 
 pandas_df = df.collect().to_pandas()
 {%- if not map_family %}
@@ -354,9 +398,9 @@ fig.update_layout(extendpiecolors=True)
 fig.update_traces(
     {%- if op.text_position %}textposition='{{op.text_position}}',
     {%- endif %}
-    {%- if op.text_info != '' %}textinfo='{{op.text_info}}',{% endif %}
+    {%- if op.text_info %}textinfo='{{op.text_info}}',{% endif %}
     {%- if op.y[0].strokeSize %}marker=dict(
-        line=dict(color='#000000', width={{op.y[0].strokeSize}}, )),{% endif %}
+        line=dict(color='{{op.y[0].line_color or "#000000"}}', width={{op.y[0].strokeSize}}, )),{% endif %}
     {#pull=[0.01] * {{op.y |length}}, -#}
 )
 {%- endif %}
@@ -493,7 +537,7 @@ fig.for_each_trace(
 )
 {%- if not map_family and op.y[0].decimal_places is not none and op.y[0].decimal_places != ''%}
 # Rouding 
-{%- if pie_family %}
+{%- if pie_family and op.text_info %}
 fig.update_traces(
     texttemplate='
     {%- if 'label' in op.text_info %}%{label}<br>{% endif %} 
@@ -501,7 +545,7 @@ fig.update_traces(
     {%- if 'percent' in op.text_info %}%{percent:.{{2 + op.y[0].decimal_places}}p}{% endif -%} 
     '
 )
-{%- elif pie_family %}-
+{%- elif pie_family and op.text_info %}-
 fig.update_traces(textinfo='{{op.text_info}}')
 {%- endif %}
 # fig.update_traces(texttemplate='%{value:.6f}')
@@ -518,6 +562,9 @@ fig.update_layout(
         t={{op.top_margin}}, b={{op.bottom_margin}})
 )
 {%- endif %}
+
+# Sorting follow the one defined for the input data
+fig.update_xaxes(categoryorder='trace')
 
 {%- if op.animation and type not in ('pie', 'donut') %}
 # Animation configuration
