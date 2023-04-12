@@ -484,7 +484,6 @@ fig = px.density_heatmap(pandas_df,
 
 
 {%- elif type in ('funnel',) %}
-
 fig = go.Figure()
 fig.add_trace(go.Funnel(
     #inversao dos eixos 
@@ -531,7 +530,10 @@ fig = px.density_contour(pandas_df,
     )
 fig.update_traces(contours_coloring="fill",
     #colorscale = {{op.palette}},
-    colorscale = {{op.color_scale}},
+    {%- if op.color_scale %}
+        colorscale={{op.color_scale}},
+    {% endif %}
+    #colorscale = {{op.color_scale}},
     contours_showlabels = True)
 
 {%- elif  type in ('treemap', 'sunburst') %}
