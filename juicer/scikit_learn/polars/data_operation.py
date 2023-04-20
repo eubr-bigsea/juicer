@@ -120,7 +120,7 @@ class DataReaderOperation(sk.DataReaderOperation):
 
         {%- if format == 'CSV' %}
         {{output}} = pl.read_csv(
-            f, sep='{{sep}}',
+            f, separator='{{sep}}',
             encoding='{{encoding}}',
             has_header={{header}},
             {%- if infer_from_limonero %}
@@ -128,9 +128,9 @@ class DataReaderOperation(sk.DataReaderOperation):
             new_columns={{names}},
             {%- endif %}
             dtypes=columns,
-            parse_dates={{parse_dates}},
+            try_parse_dates={{parse_dates}},
             {%- elif do_not_infer %}
-            parse_dates = None,
+            try_parse_dates = None,
             converters = None,
             dtypes=['str'],
             {%-   endif %}
@@ -145,7 +145,7 @@ class DataReaderOperation(sk.DataReaderOperation):
                         for i, _ in enumerate({output}.columns)]
         {%-   endif %}
         {%- elif format == 'TEXT' %}
-        {{output}} = pl.read_csv(f, sep='{{sep}}',
+        {{output}} = pl.read_csv(f, separator='{{sep}}',
                                  encoding='{{encoding}}',
                                  compression='infer',
                                  names = ['value'],
@@ -328,11 +328,11 @@ class SaveOperation(sk.SaveOperation):
             from io import StringIO
             with fs.open(path, 'wb') as f:
                 s = StringIO()
-                {{input}}.to_csv(s, sep=str(','), mode='w',
+                {{input}}.to_csv(s, separator=str(','), mode='w',
                 header={{header}}, index=False, encoding='utf-8')
                 f.write(s.getvalue().encode())               
             {%- elif scheme == 'file' or protect %}
-            {{input}}.to_csv(path, sep=str(','), mode='w',
+            {{input}}.to_csv(path, separator=str(','), mode='w',
             header={{header}}, index=False, encoding='utf-8')
             {%- endif %}
             

@@ -1,13 +1,20 @@
 {#- Macros #}
 
 {% macro prepare_x_axis(x_values) -%}
-# prepare_x_axis()
 # Prepare X-Axis values.
+df = df.sort('{{x_values[0].attribute}}')
 {%- for x in x_values %}
 col = pl.col('{{x.attribute}}')
-# {{x}}
+{%- if x.binning in ('FIXED_SIZE', 'EQUAL_INTERVAL') %}
+def round_str(col, n:int=2):
+    """ Format number. See https://stackoverflow.com/a/75893046/1646932"""
+    return ( 
+        col.round(n).cast(pl.Utf8) + pl.lit("0"*n) 
+    ).str.replace(r'^(-?\d+\.\d{' + str(n) + r'}).*$','$1')
+{%- endif %}
+
 {%- if x.binning == 'EQUAL_INTERVAL' %}
-# Binning with equal interval
+# Binning: equal interval
 df = df.with_columns([
     (col - col.min()).alias('_diff'),
     ((col.max() - col.min())
@@ -15,10 +22,46 @@ df = df.with_columns([
 ])
 df = df.with_columns([
     pl.min([pl.col('_diff') // pl.col('_bin_size'),
-        {{x.bins - 1}}]).cast(pl.Int16).alias('dim_{{loop.index0}}')
+        {{x.bins |int - 1}}]).cast(pl.Int16).alias('dim_{{loop.index0}}')
 ])
-{%- elif x.binning == 'EQUAL_INTERVAL' %}
+df = df.with_columns([
+    pl.format(
+        '{}-{}',
+        round_str(
+            pl.col('dim_{{loop.index0}}') * pl.col('_bin_size') + col.min()),
+        round_str(
+            (pl.col('dim_{{loop.index0}}') + 1) * pl.col('_bin_size') + col.min()),
+    )
+])
+{%- elif x.binning == 'FIXED_SIZE' %}
+df = df.with_columns([
+    (col.min() - 0.5 * {{x.bin_size}}).alias('_bin_start'),
+    (col // {{x.bin_size}}).alias('_bin')
+])
+df = df.with_columns([
+    pl.format(
+        '{}-{}',
+        round_str(
+            pl.col('_bin') * {{x.bin_size}} + pl.col('_bin_start')),
+        round_str(
+            (1 + pl.col('_bin')) * {{x.bin_size}} + pl.col('_bin_start')),
+    ).alias('dim_{{loop.index0}}')
+])
+{%- elif x.binning == 'QUANTILES' %}
+df = df.with_columns([
+    df.select('{{x.attribute}}').collect().get_column('{{x.attribute}}')
+        .qcut({{x.quantiles_list}}, 
+                labels={{x.labels}})
+        .get_column('category')
+        .alias('dim_{{loop.index0}}')
+])
+{%- elif x.binning == 'CATEGORICAL' %}
+# Binning: Convert to categorical
+df = df.with_columns([
+    col.cast(pl.Utf8).cast(pl.Categorical).alias('dim_{{loop.index0}}'),
+])
 {%- else %}
+# Binning is NONE
 df = df.with_columns([col.alias('dim_{{loop.index0}}')])
 {%- endif %}
 {%- endfor %}
@@ -29,7 +72,7 @@ df = df.with_columns([col.alias('dim_{{loop.index0}}')])
 {%- if not op.fill_opacity is none %}
 transparent_colors = [
     {% for c in op.palette%}'{{hex_to_rgba(c, op.fill_opacity)}}', 
-	{% endfor %}]
+    {% endfor %}]
 {%- endif %}
 colors = {{op.palette}}
 {%- endmacro %}
@@ -51,6 +94,11 @@ aggregations = [
     # supported by Plotly
     pl.{{op.AGGR.get(y.aggregation, y.aggregation.lower()) -}}
         ('{{y.attribute}}')).alias('aggr_{{loop.index0}}').cast(pl.Float64), 
+    {%- endif %}
+    {%- endfor %}
+    {%- for x in x_values %}
+    {%- if x.binning in ('FIXED_SIZE', 'QUANTILES', 'EQUAL_INTERVAL') %}
+    pl.min('{{x.attribute}}').alias('_min_{{loop.index0}}'),
     {%- endif %}
     {%- endfor %}
 ]
@@ -115,7 +163,7 @@ df = df.join(tmp_df, on=['dim_0', 'dim_1'], how='outer').sort(
     ['dim_0', 'dim_1']).fill_null(0)
 {%- endmacro %}
 
-{%- macro fix_zeroes_in_treemap(op) %}
+{%- macro fix_zeroes_in_chart(op) %}
 # Remove 0's because they cause ZeroDivisionError
 df = df.filter(pl.col('aggr_0') != 0)
 df = df.with_columns([
@@ -146,16 +194,16 @@ labels = {
 df = df.sort(
     by=[
     {%- for x in x_values -%}
-	{%- if x.sorting in ('Y_ASC', 'Y_DESC') -%}
-	'aggr_0',
-	{%- else -%}
-	'dim_{{loop.index0}}', 
-	{%- endif %}
-	{%- endfor %}],
+    {%- if x.sorting in ('Y_ASC', 'Y_DESC') -%}
+    'aggr_0',
+    {%- elif x.binning in ('FIXED_SIZE', 'QUANTILES', 'EQUAL_INTERVAL') %}
+    '_min_{{loop.index0}}',
+    {%- endif %}
+    {%- endfor %}],
     descending=[
     {%- for x in x_values -%}
-	{{ x.sorting == 'Y_DESC'}},
-	{%- endfor %}])
+    {{ x.sorting == 'Y_DESC'}},
+    {%- endfor %}])
 
 {%- endmacro %}
 
@@ -167,17 +215,17 @@ df = df.sort(
 # Compute the top {{x.max_displayed}} item(s)
 
 top_x_{{loop.index0}} = (df.groupby('{{x.attribute}}')
-	.agg(pl.{{op.AGGR.get(y.aggregation, y.aggregation.lower()) -}}('{{y.attribute}}'))
-	.sort(by=[{% if x.sorting in ('Y_ASC', 'Y_DESC') %}'{{x.attribute}}'
-		{%- else %}'{{y.attribute}}'
-		{%- endif %}],  descending=[True])
-	.unique(subset='{{x.attribute}}', maintain_order=True)
-	.limit({{x.max_displayed}})
-	.collect().get_column('{{x.attribute}}').to_list())
+    .agg(pl.{{op.AGGR.get(y.aggregation, y.aggregation.lower()) -}}('{{y.attribute}}'))
+    .sort(by=[{% if x.sorting in ('Y_ASC', 'Y_DESC') %}'{{x.attribute}}'
+        {%- else %}'{{y.attribute}}'
+        {%- endif %}],  descending=[True])
+    .unique(subset='{{x.attribute}}', maintain_order=True)
+    .limit({{x.max_displayed}})
+    .collect().get_column('{{x.attribute}}').to_list())
 df = df.with_columns([
-	pl.when(pl.col('{{x.attribute}}').is_in(top_x_0))
-		.then(pl.col('{{x.attribute}}'))
-		.otherwise(pl.lit('{{x.label_others or "others"}}')).alias('{{x.attribute}}')
+    pl.when(pl.col('{{x.attribute}}').is_in(top_x_0))
+        .then(pl.col('{{x.attribute}}'))
+        .otherwise(pl.lit('{{x.label_others or "others"}}')).alias('{{x.attribute}}')
 ])
 {%- endif %}
 {%- endfor %}
@@ -187,6 +235,7 @@ df = df.with_columns([
 
 {%- set type = op.type.lower() %}
 {%- set pie_family = type in ('pie', 'donut') %}
+{%- set treemap_family = type in ('treemap', 'sunburst') %}
 {%- set map_family = type in ('scattermapbox', ) %}
 
 {%- if pie_family %}
@@ -212,12 +261,12 @@ df = df.select(aggregations)
 df = df.limit({{op.limit}})
 {%- endif %}
 
-{%- if x_values|length > 1 and type != 'treemap'%}
+{%- if x_values|length > 1 and not treemap_family %}
 {{fix_missing_in_serie(op) }}
 {%- endif %}
 
-{%- if type == 'treemap' %}
-{{ fix_zeroes_in_treemap(op) }}
+{%- if treemap_family %}
+{{ fix_zeroes_in_chart(op) }}
 {%- endif %}
 
 {{ handle_sort(op, x_values) }}
@@ -371,6 +420,13 @@ for s, z, style in zip(fig.data, sizes, styles):
     # s.marker.size = z
 {%- endif %}
 
+{%- elif type in ('heatmap', ) %}
+fig = px.imshow(
+    pandas_df,
+    x=[{% for x in op.x[:2] %}'{{x.attribute}}',{% endfor %}],
+    y='{{op.y[0].attribute}}',
+    text_auto=True, aspect='auto'
+)
 {%- elif pie_family %}
 fig = px.pie(pandas_df, values='aggr_0',
     names='dim_0',
@@ -534,14 +590,13 @@ fig.update_traces(contours_coloring="fill",
     colorscale = {{op.color_scale}},
     contours_showlabels = True)
 
-{%- elif  type in ('treemap', 'sunburst') %}
+{%- elif treemap_family %}
 fig = px.{{type}}(
     pandas_df, 
     path=[{% for x in x_values %}'dim_{{loop.index0}}', {% endfor %}],
     values='aggr_0',
     color='aggr_0',
     {%- if op.color_scale %}color_continuous_scale={{op.color_scale}},{% endif %}
-    # color_discrete_sequence ={{op.palette}},
     title='{{op.title}}',
     labels=labels,
 )
@@ -558,23 +613,23 @@ fig = go.Figure(go.Indicator(
 ))
 {%- elif map_family %}
 fig = px.scatter_mapbox(
-	pandas_df, lat='latitude', lon='longitude',
-	mapbox_style='{{op.style or 'open-street-map'}}',
+    pandas_df, lat='latitude', lon='longitude',
+    mapbox_style='{{op.style or 'open-street-map'}}',
     {%- if op.height %}height={{op.height}},{% endif %}
     {%- if op.center_latitude or op.center_longitude %}
-		center={'lat': {{op.center_latitude or 'None'}}, 
-			'lon': {{op.center_longitude or 'None'}}}, 
-	{%- endif %}
-	{%- if op.zoom %}zoom={{op.zoom}},{% endif %}
-	{%- if op.title %}title='{{op.title}}',{% endif %}
-	{%- if op.text_attribute %}text='{{op.text_attribute}}',{% endif %}
-	{%- if op.color_attribute %}color='{{op.color_attribute}}',{% endif %}
-	{%- if op.size_attribute %}size='{{op.size_attribute}}',{% endif %}
+        center={'lat': {{op.center_latitude or 'None'}}, 
+            'lon': {{op.center_longitude or 'None'}}}, 
+    {%- endif %}
+    {%- if op.zoom %}zoom={{op.zoom}},{% endif %}
+    {%- if op.title %}title='{{op.title}}',{% endif %}
+    {%- if op.text_attribute %}text='{{op.text_attribute}}',{% endif %}
+    {%- if op.color_attribute %}color='{{op.color_attribute}}',{% endif %}
+    {%- if op.size_attribute %}size='{{op.size_attribute}}',{% endif %}
 )
 fig.update_traces(
-	{%- if op.marker_size %}marker_sizeref={{op.marker_size}},{% endif %}
-	{%- if op.text_info %}mode='{{op.text_info}}',{% endif %}
-	{%- if op.tooltip_info %}hoverinfo='{{op.tooltip_info}}',{% endif %}
+    {%- if op.marker_size %}marker_sizeref={{op.marker_size}},{% endif %}
+    {%- if op.text_info %}mode='{{op.text_info}}',{% endif %}
+    {%- if op.tooltip_info %}hoverinfo='{{op.tooltip_info}}',{% endif %}
 )
 fig.update_layout(autosize=True, showlegend=True)
 
@@ -591,7 +646,7 @@ fig.update_traces(opacity={{op.opacity}})
 
 # Legend and separators.
 fig.update_layout(
-	{%- if op.number_format %}separators='{{op.number_format}}',{% endif %}
+    {%- if op.number_format %}separators='{{op.number_format}}',{% endif %}
     {%-if op.display_legend == 'HIDE' %}
     showlegend=False,
     {%- elif op.display_legend != 'AUTO' %}
@@ -644,7 +699,7 @@ fig.update_layout(template='{{op.template_}}')
 
 {%- if not op.fill_opacity is none %}
 # Fill transparency
-{%- if not pie_family and not map_family and op.palette %}
+{%- if not pie_family and not map_family and op.palette and not treemap_family %}
 cycle = itertools.cycle(transparent_colors)
 fig.for_each_trace(
     lambda trace: 

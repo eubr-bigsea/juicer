@@ -45,6 +45,17 @@ class VisualizationOperation(Operation):
             self.x_axis = self.get_required_parameter(parameters, 'x_axis')
             self.y_axis = self.get_required_parameter(parameters, 'y_axis')
 
+            for x in self.x:
+                x['quantiles_list'] = []
+                x['labels'] = []
+                if x.get('binning') == 'QUANTILES':
+                    quantiles = [int(q.strip()) for q in x['quantiles'].split(',')
+                        if 0 <= int(q.strip()) <= 100]
+                    tmp = [0] + quantiles + [100]
+                    x['labels'] =  [f"{tmp[i]}-{tmp[i+1]}%" 
+                        for i in range(len(tmp) - 1)]
+                    x['quantiles_list'] = [0.01 * q for q in quantiles]
+
         self.title = parameters.get('title', '') or ''
         self.hole = parameters.get('hole', 30)
         self.text_position= parameters.get('text_position')
