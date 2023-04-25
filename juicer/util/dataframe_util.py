@@ -714,9 +714,14 @@ def analyse_attribute(task_id: str, df: Any, emit_event: Any, attribute: str,
                 ).transpose(include_header=False,
                                       column_names=names)
             result = pl.concat([result,
-                polars_df.select(pl.n_unique(
-                    [col for col in polars_df.columns]))
-                        .transpose(column_names=['unique'])],
+                polars_df.select(
+                     [pl.when(dtype == pl.List).then(-1).otherwise(
+                        pl.col(col).n_unique()).alias(col)
+                        for (col, dtype) in zip(polars_df.columns, polars_df.dtypes)])
+                         .transpose(column_names=['unique'])],
+                # polars_df.select(pl.n_unique(
+                #     [col for col in polars_df.columns]))
+                #         .transpose(column_names=['unique'])],
                 how='horizontal')
             result.insert_at_idx(
                 0, pl.Series('attribute', polars_df.columns)
@@ -795,7 +800,7 @@ def analyse_attribute(task_id: str, df: Any, emit_event: Any, attribute: str,
                 info['top20'] = (polars_df
                     .groupby(attribute)
                     .agg(pl.col(attribute).count().alias('counts'))
-                    .sort('counts', reverse=True)
+                    .sort('counts', descending=True)
                     .limit(20)
                     .select([pl.col(attribute).fill_null('null'), 'counts'])
                     .to_numpy()
@@ -821,7 +826,7 @@ def analyse_attribute(task_id: str, df: Any, emit_event: Any, attribute: str,
                 info['histogram'] = list(zip(*df.select(attribute)
                     .drop_nulls()
                     .groupby(attribute, maintain_order=True)
-                    .count().sort('count', reverse=True)
+                    .count().sort('count', descending=True)
                     .limit(40)
                     .rows()))[::-1]
             info['numeric'] = series.is_numeric()

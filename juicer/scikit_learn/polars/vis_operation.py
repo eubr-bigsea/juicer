@@ -98,6 +98,8 @@ class VisualizationOperation(Operation):
         self.transpiler_utils.add_import('import plotly.express as px')
         self.transpiler_utils.add_import('import plotly.graph_objects as go')
 
+        self.limit = parameters.get('limit')
+
         if self.blackWhite:
             self.transpiler_utils.add_import('from plotly.colors import n_colors')
             

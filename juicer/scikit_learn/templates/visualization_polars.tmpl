@@ -198,6 +198,8 @@ df = df.sort(
     'aggr_0',
     {%- elif x.binning in ('FIXED_SIZE', 'QUANTILES', 'EQUAL_INTERVAL') %}
     '_min_{{loop.index0}}',
+    {%- else %}
+    'dim_{{loop.index0}}',
     {%- endif %}
     {%- endfor %}],
     descending=[
@@ -222,10 +224,17 @@ top_x_{{loop.index0}} = (df.groupby('{{x.attribute}}')
     .unique(subset='{{x.attribute}}', maintain_order=True)
     .limit({{x.max_displayed}})
     .collect().get_column('{{x.attribute}}').to_list())
-df = df.with_columns([
+df = df
+    {%- if not x.group_others -%}
+    .filter(pl.col('{{x.attribute}}').is_in(top_x_0))
+    {%- endif -%}
+    .with_columns([
     pl.when(pl.col('{{x.attribute}}').is_in(top_x_0))
         .then(pl.col('{{x.attribute}}'))
-        .otherwise(pl.lit('{{x.label_others or "others"}}')).alias('{{x.attribute}}')
+        {%- if x.group_others %}
+        .otherwise(pl.lit('{{x.label_others or "others"}}'))
+        {%- endif %}
+        .alias('{{x.attribute}}')
 ])
 {%- endif %}
 {%- endfor %}
