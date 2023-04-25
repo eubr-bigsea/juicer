@@ -77,6 +77,7 @@ def _as_int_list(values, grid_info):
         value = grid_info.get('value')
         if value.get('strategy') == 'random':
             size = value.get('max_iterations')
+    print(grid_info, values)
     return _as_list(values, int, size)
 
 
@@ -1368,12 +1369,12 @@ class FeaturesOperation(ModelMetaOperation):
 
     def generate_code(self):
         code = []
-        for f in self.features:
+        for f in self.features + [self.label]:
             name = f.get('name')
             transform = f.get('transform')
             data_type = f.get('feature_type')
             missing = f.get('missing_data')
-            scaler = f.get('scale')
+            scaler = f.get('scaler')
 
             if data_type == 'numerical':
                 if transform in ('keep', '', None):
@@ -1472,6 +1473,8 @@ class FeaturesOperation(ModelMetaOperation):
                         features_stages.append({f['var']}_ohe) """))
 
                 self.features_names.append(final_name)
+        code.append(f"label = '{self.features_names[-1]}'")
+        self.features_names = self.features_names[:-1]
 
         return '\n'.join(code).strip()
 
@@ -1745,7 +1748,7 @@ class NaiveBayesClassifierOperation(ClassificationOperation):
             self, parameters,  named_inputs,  named_outputs)
         self.hyperparameters = {
             'modelType': parameters.get('model_type'),
-            'smoothing': _as_float_list(parameters.get('smoothing')),
+            'smoothing': _as_float_list(parameters.get('smoothing'), self.grid_info),
             'thresholds': parameters.get('thresholds'),
             'weightCol': parameters.get('weight_attribute'),
         }

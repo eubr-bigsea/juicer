@@ -180,8 +180,8 @@ def read_data(spark_session):
         if s.dataType.typeName() in ['integer', 'decimal']:
             df = df.withColumn(s.name, df[s.name].cast('double'))
 
-
-    {%- for feat in builder_params.features.numerical_features %}
+    # {{builder_params.features.label}}
+    {% for feat in builder_params.features.numerical_features %}
     {%- if feat.feature_type == 'numerical' %}
     if df.schema['{{feat.name}}'].dataType.typeName() == 'string':
         # Cast features marked as Numeric, but loaded as String
@@ -189,6 +189,7 @@ def read_data(spark_session):
     {%- endif %}
     {%- endfor %}
 
+   
     return df
 
 def create_pipeline(label: str):
@@ -286,7 +287,7 @@ def create_pipeline(label: str):
     {{ builder_params.grid.generate_code() |indent(width=4, first=False)}}
     {%- endif %}
 
-    return pipeline, grid
+    return pipeline, grid, label
 
 def main(spark_session: any, cached_state: dict, emit_event: callable):
     """ Run generated code """
@@ -306,7 +307,7 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
         {{ builder_params.features.generate_code_for_missing_data_handling() |indent(width=8, first=False)}}
 
         # Pipeline
-        pipeline, grid = create_pipeline(label)
+        pipeline, grid, label = create_pipeline(label)
 
         emit = emit_metric(emit_event)
 
