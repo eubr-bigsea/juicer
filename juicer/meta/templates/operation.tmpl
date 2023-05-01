@@ -38,20 +38,22 @@ from juicer.util import dataframe_util
 def get_feature_importance_score(model, features):
     if isinstance(model, classification.LogisticRegressionModel):
         m = model.extractParamMap()
-        if m.get(model.family) == 'multinomial':
+        if m.get(model.family) in ('multinomial', 'auto'):
             coef = model.coefficientMatrix
             mag_coef = []
             result = coef
         else:
-            print(model.family)
+            print(model.family, m.get(model.family))
             coef = list(model.coefficients)
             result = list(zip(features, coef))
         print(result)
+    elif isinstance(model, classification.DecisionTreeClassificationModel):
+        return model.featureImportances.toArray().tolist()
     else:
         print('>>>>>>>>>>>>>>>>>>', type(model))
 
 TrainingContext = namedtuple('TrainingContext',
-    ['index', 'task_id', 'task_name', 'name', 'details', 'operation_id', 'start'])
+    ['index', 'task_id', 'task_name', 'name', 'details', 'operation_id', 'start', 'time'])
 
 TrainingResult= namedtuple('TrainingResult',
     ['status', 'model', 'details', 'metric', 'exception', 'ctx', 'feature_importance'],
@@ -75,10 +77,12 @@ class CustomTrainValidationSplit():
 
     def _perform_training(self, train, test, estimator, evaluator, params, details, ctx):
         try:
+            start = time.time()
             model = estimator.fit(train, params)
             df = model.transform(test, params)
             metric = evaluator.evaluate(df)
-            return TrainingResult('OK', model, details, metric, ctx=ctx)
+            new_ctx = ctx._replace(start=start, time=time.time() - start)
+            return TrainingResult('OK', model, details, metric, ctx=new_ctx)
         except Exception as e:
             try:
                 dataframe_util.handle_spark_exception(e)
@@ -118,7 +122,7 @@ class CustomTrainValidationSplit():
                         details[param.name] = value
 
                 ctx = TrainingContext(counter, task_id, task_name, name, details,
-                    operation_id, time.time())
+                    operation_id, time.time(), 0)
                 submission = executor.submit(
                     self._perform_training, train, test, self.estimator,
                     self.evaluator, params, details, ctx)
@@ -127,9 +131,10 @@ class CustomTrainValidationSplit():
             is_larger_better = self.evaluator.isLargerBetter()
             for future in as_completed(future_train):
                 try:
-                    ctx = future_train[future]
                     result = future.result()
-                    message = {'params': ctx.details, 't': round((time.time() - ctx.start), 2),
+                    future_train[future]
+                    ctx = result.ctx
+                    message = {'params': ctx.details, 't': ctx.time,
                         'index': ctx.index} 
                     if result.status == 'OK':
                         results.append(result)
@@ -137,6 +142,11 @@ class CustomTrainValidationSplit():
                             self.evaluator.metricName)
                         message['metric'] = {'name': metric_name, 'value': result.metric, 
                             'is_larger_better': is_larger_better}
+
+                        ml_model = result.model.stages[-1]
+                        importance = get_feature_importance_score(ml_model, [])
+                        message['feature_importance'] = importance
+
                         emit(identifier=ctx.task_id, status='COMPLETED',
                             message=message, title=ctx.task_name,
                             operation_id=ctx.operation_id, )
@@ -346,10 +356,14 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
                 message=message)
             #print(message)
         for status, model, params, metric, ex, ctx, fi in results:
+            pass
             # print(model.stages[-1], [(p, v) for p, v in params.items()], metric)
-            ml_model = model.stages[-1]
-            features = model.stages[-2].getInputCols()
-            importance = get_feature_importance_score(ml_model, features)
+            #ml_model = model.stages[-1]
+            #features = model.stages[-2].getInputCols()
+            #print('#' * 20)
+            #print('Features', features)
+            #importance = get_feature_importance_score(ml_model, features)
+            #print('#' * 20)
             # print(feature_assembler.metadata)
             # print(ml_model.metadata["ml_attr"]["attrs"].values())
 

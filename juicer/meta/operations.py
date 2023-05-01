@@ -29,7 +29,6 @@ def pythonize(s):
 
 
 def _as_list(values, transform, size=None):
-    # import pdb; pdb.set_trace()
     if values:
         if isinstance(values, list):
             return FeatureInfo(values, None, 'simple_list')
@@ -1193,11 +1192,19 @@ class EstimatorMetaOperation(ModelMetaOperation):
             invalid = []
         grid_strategy = self.grid_info.get('value', {}).get('strategy', 'grid')
         for name, value in self.hyperparameters.items():
-            if value is not None and value and len(value.value) > 0:
+            if value is not None and value and hasattr(value, 'value') and len(value.value) > 0:
                 if name not in invalid:
                     if grid_strategy == 'grid' or value.type == 'simple_list':
-                        code.append(
-                            f'.addGrid({var}.{name}, {self.parse(value)})')
+                        v = self.parse(value)
+                        if v and v != '[]':
+                            code.append(
+                                f'.addGrid({var}.{name}, {v})')
+            elif isinstance(value, dict):
+               if grid_strategy == 'grid' or value.type == 'simple_list':
+                   v = self.parse({'value': value})
+                   code.append(
+                           f'.addGrid({var}.{name}, {v})')
+
 
         code.append('.build()')
         return '\\\n'.join(code)
@@ -1207,7 +1214,7 @@ class EstimatorMetaOperation(ModelMetaOperation):
         grid_strategy = self.grid_info.get('value', {}).get('strategy', 'grid')
         random_hyperparams = []
         for name, value in self.hyperparameters.items():
-            if value is not None and value and len(value.value) > 0:
+            if value is not None and value and hasattr(value, 'value') and len(value.value) > 0:
                 if grid_strategy != 'grid' and value.type != 'simple_list':
                     random_hyperparams.append((name, value))
 
@@ -1258,9 +1265,13 @@ class EstimatorMetaOperation(ModelMetaOperation):
 
     def parse(self, value):
         if isinstance(value, list):
-            return repr([x.value for x in value if x is not None])
+            return repr([x.value for x in value if x is not None and not isinstance(x, dict)])
         elif isinstance(value, FeatureInfo) and value.type == 'function':
             return value.value
+        elif hasattr(value, 'type') and value.type == 'list':
+            new_value = [v for v in value.value if not isinstance(v, dict) and 
+                (not isinstance(v, str) or not '{' in v)]
+            return repr(new_value)
         return repr(value.value)
 
     def get_variations(self):
@@ -1747,9 +1758,9 @@ class NaiveBayesClassifierOperation(ClassificationOperation):
         ClassificationOperation.__init__(
             self, parameters,  named_inputs,  named_outputs)
         self.hyperparameters = {
-            'modelType': parameters.get('model_type'),
+            'modelType': _as_string_list(parameters.get('model_type')),
             'smoothing': _as_float_list(parameters.get('smoothing'), self.grid_info),
-            'thresholds': parameters.get('thresholds'),
+            'thresholds': _as_float_list(parameters.get('thresholds'), self.grid_info),
             'weightCol': parameters.get('weight_attribute'),
         }
         self.var = 'nb_classifier'
@@ -1810,8 +1821,8 @@ class LogisticRegressionOperation(ClassificationOperation):
                 parameters.get('aggregation_depth'), self.grid_info),
             'elasticNetParam': _as_float_list(
                 parameters.get('elastic_net_param'), self.grid_info),
-            'fitIntercept': _as_int_list(
-                parameters.get('fit_intercept'), self.grid_info),
+            'fitIntercept': _as_boolean_list(
+                parameters.get('fit_intercept')),
             'maxIter': _as_int_list(
                 parameters.get('max_iter'), self.grid_info),
             'regParam': _as_float_list(
