@@ -513,7 +513,7 @@ class SampleOperation(MetaPlatformOperation):
         MetaPlatformOperation.__init__(
             self, parameters,  named_inputs,  named_outputs)
         self.type = parameters.get('type')
-        self.value = int(parameters.get('value', 0))
+        self.value = int(parameters.get('value', 0) or 0)
         self.seed = parameters.get('seed')
         self.fraction = parameters.get('fraction')
         self.output_port_name = 'sampled data'
@@ -2026,6 +2026,12 @@ class VisualizationOperation(MetaPlatformOperation):
             k: {'value': getattr(self, k)} for k in 
                 ['type', 'display_legend', 'palette', 'x', 'y', 'x_axis', 'y_axis']
         })
+        task_obj['forms']['y']['value'] = [
+                y for y in task_obj['forms']['y']['value']
+                if y.get('enabled')
+        ]
+        if len(task_obj['forms']['y']['value']) == 0:
+            raise ValueError(gettext('There is no series or none is enabled'))        
         for p in ['hole', 'text_position', 'text_info', 'smoothing', 'color_scale',
                 'auto_margin', 'right_margin', 'left_margin', 'top_margin', 'bottom_margin',
                  'title', 'template', 'blackWhite', 'subgraph', 'subgraph_orientation',
