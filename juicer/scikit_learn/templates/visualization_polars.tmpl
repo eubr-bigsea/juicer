@@ -66,15 +66,17 @@ df = df.with_columns([col.alias('dim_{{loop.index0}}')])
 {%- endif %}
 {%- endfor %}
 {%- endmacro %}
-
 {%- macro define_colors(op) %}
-# define_colors()
-{%- if not op.fill_opacity is none %}
-transparent_colors = [
-    {% for c in op.palette%}'{{hex_to_rgba(c, op.fill_opacity)}}', 
-    {% endfor %}]
-{%- endif %}
-colors = {{op.palette}}
+    # define_colors()
+    {%- if op.palette %}
+        {%- if not op.fill_opacity is none %}
+            transparent_colors = [{% for c in op.palette%}'{{hex_to_rgba(c, op.fill_opacity)}}', {% endfor %}]
+        {%- endif %}
+        colors = {{op.palette}}
+    {%- else %}
+        colors = []
+        transparent_colors = []
+    {%- endif %}
 {%- endmacro %}
 
 {%- macro prepare_aggregations(op) %}
@@ -549,7 +551,6 @@ fig = px.density_heatmap(pandas_df,
 
 
 {%- elif type in ('funnel',) %}
-
 fig = go.Figure()
 fig.add_trace(go.Funnel(
     #inversao dos eixos 
@@ -597,7 +598,10 @@ fig = px.density_contour(pandas_df,
     )
 fig.update_traces(contours_coloring="fill",
     #colorscale = {{op.palette}},
-    colorscale = {{op.color_scale}},
+    {%- if op.color_scale %}
+        colorscale={{op.color_scale}},
+    {% endif %}
+    #colorscale = {{op.color_scale}},
     contours_showlabels = True)
 
 {%- elif treemap_family %}
