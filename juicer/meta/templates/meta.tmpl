@@ -9,15 +9,13 @@
   "user": {"id": {{workflow.user.id}}, "name": "{{workflow.user.name}}", "login": "{{workflow.user.login}}" },
   "total": {{instances|length}},
   "tasks": [
-  {%- for instance in instances %}
-  {%- if instance.has_code %}
+  {%- for instance in instances_with_code %}
   {{- instance.set_last(loop.last) }}
   {%- set task = instance.parameters.task %}
   {%- set task_id = task.id %}
 	{%- set code = instance.generate_code() %}
 	{{ code }}
 	{%- if not loop.last %},{% endif %}
-  {%- endif %}
   {%- endfor %}
   ],
   "flows": [

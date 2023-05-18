@@ -29,6 +29,8 @@ class DataReaderOperation(sk.DataReaderOperation):
         sk.DataReaderOperation.__init__(self, parameters, named_inputs,
                                         named_outputs)
         self.transpiler_utils.add_import('import gzip')
+        data_format = self.metadata.get('format')
+        self.transpiler_utils.add_import('from pyarrow import fs, parquet as pq')
 
     def generate_code(self):
         """
@@ -110,10 +112,14 @@ class DataReaderOperation(sk.DataReaderOperation):
         {%- if protect %}
         f = open('{{parsed.path.split('/')[-1]}}', 'rb')
         {%- elif parsed.scheme == 'hdfs'  %}
-        fs = pa.hdfs.connect(host='{{parsed.hostname}}', 
-            port={{parsed.port}},
-            user='{{extra_params.get('user', parsed.username) or 'hadoop'}}')
-        f = fs.open('{{parsed.path}}', 'rb')
+        str_uri = 'hdfs://{{parsed.hostname}}'
+        hdfs = fs.HadoopFileSystem(str_uri, port={{parsed.port}})
+        
+        {%- if format == 'PARQUET' %}
+        ds = pq.ParquetDataset('{{parsed.path}}', filesystem=hdfs)
+        {%- else %}
+        f = hdfs.open_input_file('{{parsed.path}}')
+        {%- endif %}
         {%- elif parsed.scheme == 'file' %}
         f = '{{parsed.path}}'
         {%- endif %}
@@ -137,7 +143,7 @@ class DataReaderOperation(sk.DataReaderOperation):
             null_values={{na_values}},
             ignore_errors=True
             ).lazy()
-        {%- if parsed.scheme == 'hdfs'  %}
+        {%- if parsed.scheme == 'hdfs' and format != 'PARQUET' %}
         f.close()
         {%- endif %}
         {%-   if header == 'infer' %}
@@ -152,8 +158,7 @@ class DataReaderOperation(sk.DataReaderOperation):
                                  error_bad_lines={{mode_failfast}})
         f.close()
         {%- elif format == 'PARQUET' %}
-        {{output}} = pl.read_parquet(f, engine='pyarrow')
-        f.close()
+        {{output}} = pl.from_arrow(ds.read())
         {%- elif format == 'JSON' %}
         {{output}} = pl.read_json(f, orient='records')
         f.close()
@@ -285,10 +290,10 @@ class SaveOperation(sk.SaveOperation):
         self.template = """
             path = '{{path}}'
             {%- if scheme == 'hdfs' and not protect %}
-            fs = pa.hdfs.connect(host='{{hdfs_server}}', 
+            hdfs = pa.hdfs.connect(host='{{hdfs_server}}', 
                                  port={{hdfs_port}},
                                  user='{{hdfs_user}}')
-            exists = fs.exists(path)
+            exists = hdfs.exists(path)
             {%- elif scheme == 'file' or protect %}
             exists = os.path.exists(path)
             {%- endif %}
@@ -306,7 +311,7 @@ class SaveOperation(sk.SaveOperation):
                         identifier='{{task_id}}')
                 else:
                     {%- if scheme == 'hdfs' and not protect %}
-                        fs.delete(path, False)
+                        hdfs.delete(path, False)
                     {%- elif scheme == 'file' or protect %}
                         os.remove(path)
                         parent_dir = os.path.dirname(path)
@@ -315,7 +320,7 @@ class SaveOperation(sk.SaveOperation):
                     {%- endif %}
             else:
                 {%-if scheme == 'hdfs' and not protect %}    
-                fs.mkdir(os.path.dirname(path))
+                hdfs.mkdir(os.path.dirname(path))
                 {%- elif scheme == 'file' %}
                 parent_dir = os.path.dirname(path)
                 os.makedirs(parent_dir)
@@ -326,7 +331,7 @@ class SaveOperation(sk.SaveOperation):
             {%- if format == FORMAT_CSV %}
             {%- if scheme == 'hdfs' and not protect %}
             from io import StringIO
-            with fs.open(path, 'wb') as f:
+            with hdfs.open(path, 'wb') as f:
                 s = StringIO()
                 {{input}}.to_csv(s, separator=str(','), mode='w',
                 header={{header}}, index=False, encoding='utf-8')
@@ -339,7 +344,7 @@ class SaveOperation(sk.SaveOperation):
             {%- elif format == FORMAT_PARQUET %}
             {%- if scheme == 'hdfs' and not protect %}
             from io import BytesIO
-            with fs.open(path, 'wb') as f:
+            with hdfs.open(path, 'wb') as f:
                 s = BytesIO()
                 {{input}}.to_parquet(s, engine='pyarrow')
                 f.write(s.getvalue())               
@@ -350,7 +355,7 @@ class SaveOperation(sk.SaveOperation):
             {%- elif format == FORMAT_JSON %}
             {%- if scheme == 'hdfs' and not protect %}
             from io import StringIO
-            with fs.open(path, 'wb') as f:
+            with hdfs.open(path, 'wb') as f:
                 s = StringIO()
                 {{input}}.to_json(s, orient='records')
                 f.write(s.getvalue().encode())             

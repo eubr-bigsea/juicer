@@ -478,6 +478,9 @@ class FilterOperation(sk.FilterOperation):
             for expr in self.advanced_filter:
                 expressions.append(expression.parse(expr['tree'], params))
                 self.transpiler_utils.add_import(expression.imports)
+            else:
+                raise ValueError(gettext('Parameter {} is required').format(
+                    'filter'))
 
             ctx = {
                 'out': self.output,
