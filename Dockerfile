@@ -51,20 +51,13 @@ RUN SPARK_LATEST_VERSION=$(\
 
 WORKDIR $JUICER_HOME
 
-ENV ARROW_LIBHDFS_DIR /usr/local/juicer/native
-ENV HADOOP_HOME /usr/local/juicer/
 ENV HADOOP_VERSION_BASE=2.7.7
+ENV HADOOP_HOME /opt/hadoop-${HADOOP_VERSION_BASE}
+ENV ARROW_LIBHDFS_DIR $HADOOP_HOME/native
+ENV LD_LIBRARY_PATH=$HADOOP_HOME/native:$LD_LIBRARY_PATH
 
-RUN curl -sL https://archive.apache.org/dist/hadoop/core/hadoop-${HADOOP_VERSION_BASE}/hadoop-${HADOOP_VERSION_BASE}.tar.gz | tar -xz -C /tmp/ &&\
-    mkdir ${JUICER_HOME}/jars  &&\
-    mv /tmp/hadoop-${HADOOP_VERSION_BASE}/lib/native ${ARROW_LIBHDFS_DIR} &&\
-    mv /tmp/hadoop-${HADOOP_VERSION_BASE}/share/hadoop/common/lib/* ${JUICER_HOME}/jars/ &&\
-    mv /tmp/hadoop-${HADOOP_VERSION_BASE}/share/hadoop/common/*.jar ${JUICER_HOME}/jars/ &&\
-    mv /tmp/hadoop-${HADOOP_VERSION_BASE}/share/hadoop/hdfs/lib/* ${JUICER_HOME}/jars/ &&\
-    mv /tmp/hadoop-${HADOOP_VERSION_BASE}/share/hadoop/hdfs/*.jar ${JUICER_HOME}/jars/ &&\
-    rm -r /tmp/hadoop-${HADOOP_VERSION_BASE}
+RUN curl -sL https://archive.apache.org/dist/hadoop/core/hadoop-${HADOOP_VERSION_BASE}/hadoop-${HADOOP_VERSION_BASE}.tar.gz | tar -xz -C /opt/
 
-ENV CLASSPATH /usr/local/juicer/jars/*
 COPY requirements.txt $JUICER_HOME
 
 RUN pip3 install -U pip wheel
@@ -78,6 +71,14 @@ COPY . $JUICER_HOME
 RUN pybabel compile -d $JUICER_HOME/juicer/i18n/locales
 
 COPY ./entrypoint.sh /opt/
-RUN curl -Lo $JUICER_HOME/jars/lemonade-spark-ext-1.0.jar https://github.com/eubr-bigsea/lemonade-spark-ext/raw/master/dist/lemonade-spark-ext-1.0.jar
+RUN mkdir /usr/local/juicer/jars/ && ln -s $HADOOP_HOME /opt/hadoop 
 RUN curl -Lo $JUICER_HOME/jars/spark-lof_2.11-1.0.jar https://github.com/dccspeed/spark-lof/raw/master/dist/spark-lof_2.11-1.0.jar
-ENTRYPOINT [ "/opt/entrypoint.sh" ]
+RUN curl -Lo $JUICER_HOME/jars/lemonade-spark-ext-1.0.jar https://github.com/eubr-bigsea/lemonade-spark-ext/raw/master/dist/lemonade-spark-ext-1.0.jar
+ENV PATH=$PATH:$HADOOP_HOME/bin
+ENV HADOOP_CONF_DIR $HADOOP_HOME/etc/hadoop
+RUN echo "export CLASSPATH=$(hadoop classpath --glob):/usr/local/juicer/jars/spark-lof_2.11-1.0.jar:/usr/local/juicer/jars/lemonade-spark-ext-1.0.jar" >> /etc/profile.d/juicer.sh && \
+    echo "export HADOOP_HOME=$HADOOP_HOME" >> /etc/profile.d/juicer.sh && \
+    echo "export HADOOP_CONF_DIR=$HADOOP_HOME/etc/hadoop" >> /etc/profile.d/juicer.sh && \
+    chmod a+x /etc/profile.d/juicer.sh
+ENTRYPOINT []
+CMD ["/bin/sh", "-c", "export CLASSPATH=$(hadoop classpath --glob) && /opt/entrypoint.sh" ]

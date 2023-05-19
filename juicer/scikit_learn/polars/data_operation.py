@@ -113,7 +113,8 @@ class DataReaderOperation(sk.DataReaderOperation):
         f = open('{{parsed.path.split('/')[-1]}}', 'rb')
         {%- elif parsed.scheme == 'hdfs'  %}
         str_uri = 'hdfs://{{parsed.hostname}}'
-        hdfs = fs.HadoopFileSystem(str_uri, port={{parsed.port}})
+        hdfs = fs.HadoopFileSystem(str_uri, port={{parsed.port}},
+            extra_conf={'dfs.client.use.datanode.hostname': 'true'})
         
         {%- if format == 'PARQUET' %}
         ds = pq.ParquetDataset('{{parsed.path}}', filesystem=hdfs)
