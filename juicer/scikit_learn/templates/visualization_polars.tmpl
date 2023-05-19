@@ -67,16 +67,16 @@ df = df.with_columns([col.alias('dim_{{loop.index0}}')])
 {%- endfor %}
 {%- endmacro %}
 {%- macro define_colors(op) %}
-    # define_colors()
-    {%- if op.palette %}
-        {%- if not op.fill_opacity is none %}
-            transparent_colors = [{% for c in op.palette%}'{{hex_to_rgba(c, op.fill_opacity)}}', {% endfor %}]
-        {%- endif %}
-        colors = {{op.palette}}
-    {%- else %}
-        colors = []
-        transparent_colors = []
+# define_colors()
+{%- if op.palette %}
+    {%- if not op.fill_opacity is none %}
+transparent_colors = [{% for c in op.palette%}'{{hex_to_rgba(c, op.fill_opacity)}}', {% endfor %}]
     {%- endif %}
+colors = {{op.palette}}
+{%- else %}
+colors = []
+transparent_colors = []
+{%- endif %}
 {%- endmacro %}
 
 {%- macro prepare_aggregations(op) %}
