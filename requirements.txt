@@ -131,3 +131,5 @@ xgboost==0.90
 zipp==0.6.0
 GitPython==3.1.2
 mleap==0.15.0
+
+lime~=0.2.0.1

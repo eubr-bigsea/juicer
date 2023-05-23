@@ -20,6 +20,7 @@ from juicer.service.tahiti_service import query_tahiti
 from juicer.spark.transpiler import SparkTranspiler
 from juicer.workflow.workflow import Workflow
 import juicer.plugin.util as plugin_util
+from juicer.explainable_ai.transpiler import ExplainableAITranspiler
 
 logging.config.fileConfig('logging_config.ini')
 
@@ -109,6 +110,8 @@ def _generate(workflow_id, job_id, execute_main, params, config, out=sys.stdout,
             transpiler = ScikitLearnTranspiler(configuration.get_config())
         elif loader.platform['slug'] == 'keras':
             transpiler = KerasTranspiler(configuration.get_config())
+        elif loader.platform['slug'] == 'xai':
+            transpiler = ExplainableAITranspiler(configuration.get_config())
         elif loader.platform.get('plugin'):
             plugin_factories = plugin_util.prepare_and_get_plugin_factory(
                 configuration.get_config(), loader.platform.get('id'))

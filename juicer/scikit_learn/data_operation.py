@@ -159,6 +159,10 @@ class DataReaderOperation(Operation):
 
         return attributes, converters, parse_dates, names
 
+    def create_metadata_parameters(self):
+        dict_meta = {'id_data_source': self.data_source_id}
+        return dict_meta
+
     def generate_code(self):
         """
         """
@@ -293,7 +297,8 @@ class DataReaderOperation(Operation):
         {%- if infer_from_data %}
         {{output}} = {{output}}.infer_objects()
         {%- endif %}
-
+        metadata_list[0]['is_important'] = True
+        metadata_list[0]['parameters'] = {{dict_meta}}  
         """
         ctx = {
             'attributes': attributes,
@@ -318,6 +323,7 @@ class DataReaderOperation(Operation):
             'mode_failfast': mode_failfast,
 
             'jdbc_code': jdbc_code,
+            'dict_meta': self.create_metadata_parameters(),
         }
         return dedent(self.render_template(ctx))
 

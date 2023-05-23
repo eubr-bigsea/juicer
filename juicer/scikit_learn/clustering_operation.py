@@ -493,11 +493,10 @@ class KMeansClusteringOperation(Operation):
             algorithm = KMeans(n_clusters={k}, init='{init}', 
                                max_iter={max_iter}, tol={tol}, 
                                random_state={seed}, n_init={n_init}, 
-                               n_jobs={n_jobs}, algorithm='{algorithm}')
+                                algorithm='{algorithm}')
             """.format(k=self.n_clusters, max_iter=self.max_iter,
                        tol=self.tolerance, init=self.init_mode,
-                       seed=self.seed, n_init=self.n_init,
-                       n_jobs=self.n_jobs, algorithm=self.algorithm)
+                       seed=self.seed, n_init=self.n_init, algorithm=self.algorithm)
         else:
             code = """
             algorithm = MiniBatchKMeans(n_clusters={k}, init='{init}', 

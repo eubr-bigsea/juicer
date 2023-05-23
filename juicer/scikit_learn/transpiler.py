@@ -19,6 +19,7 @@ import juicer.scikit_learn.vis_operation as vis_operation
 import juicer.scikit_learn.outlier_detection as lof
 import juicer.scikit_learn.stat_operation as stat_operation
 import juicer.scikit_learn.nlp_operation as nlp_operation
+import juicer.scikit_learn.xai_operation as xai_op
 
 # noinspection SpellCheckingInspection
 class ScikitLearnTranspiler(Transpiler):
@@ -206,7 +207,11 @@ class ScikitLearnTranspiler(Transpiler):
             'map': vis_operation.MapOperation
         }
 
+        xai_ops = {
+            'xai': xai_op.XAIOperation
+        }
+
         self.operations = {}
         for ops in [data_ops, etl_ops, geo_ops, ml_ops, nlp_ops,
-                    text_ops, ws_ops, statistical_ops, vis_ops]:
+                    text_ops, ws_ops, statistical_ops, vis_ops, xai_ops]:
             self.operations.update(ops)

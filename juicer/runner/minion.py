@@ -17,6 +17,7 @@ from juicer.meta.meta_minion import MetaMinion
 from juicer.plugin.plugin_minion import PluginMinion
 from juicer.scikit_learn.scikit_learn_minion import ScikitLearnMinion
 from juicer.spark.spark_minion import SparkMinion
+from juicer.explainable_ai.explainable_ai_minion import ExplainableAIMinion
 
 # Important!
 # See https://stackoverflow.com/a/29172195/1646932
@@ -93,6 +94,13 @@ if __name__ == '__main__':
                                  args.app_id or args.workflow_id,
                                  juicer_config,
                                  args.lang)
+        elif args.type == 'xai':
+            log.info('Starting XAI Minion')
+            minion = ExplainableAIMinion(redis_conn,
+                                         args.workflow_id,
+                                         args.app_id or args.workflow_id,
+                                         juicer_config,
+                                         args.lang)
         elif args.type == 'script':
             log.info('Starting Script Minion')
             minion = ScriptMinion(redis_conn,

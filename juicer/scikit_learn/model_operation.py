@@ -111,8 +111,8 @@ class LoadModel(Operation):
     """
     MODEL_PARAM = 'model'
 
-    def __init__(self, parameters,  named_inputs, named_outputs):
-        Operation.__init__(self, parameters,  named_inputs,  named_outputs)
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         self.parameters = parameters
 
@@ -124,6 +124,8 @@ class LoadModel(Operation):
         self.has_code = any([len(named_outputs) > 0, self.contains_results()])
         self.output = named_outputs.get(
             'model', 'model_{}'.format(self.order))
+
+        self.is_local = None
 
     def generate_code(self):
         """Generate code."""
@@ -138,9 +140,12 @@ class LoadModel(Operation):
         if url[-1] != '/':
             url += '/'
 
+        parts = model_data['class_name'].split('.')
+
         path = '{}{}'.format(url, model_data['path'])
         parsed = urlparse(path)
-        if parsed.scheme == 'file':
+        self.is_local = parsed.scheme == 'file'
+        if self.is_local:
             hostname = 'file:///'
             port = 0
         else:
@@ -148,21 +153,40 @@ class LoadModel(Operation):
             port = parsed.port
 
         code = """
-        path = '{path}'        
-        fs = pa.hdfs.connect('{hdfs_server}', {hdfs_port})
-        exists = fs.exists(path)
+        path = '{path}'
+        fmp = path.split('/')
+        fmt_ = '/'.join(fmp[1:])
+        exists = None
+        if {is_local}:
+            from pyarrow import fs as my_fs
+            fs = my_fs.LocalFileSystem()
+            exists = fs.get_file_info(f'/{{fmt_}}').is_file
+        else:  
+            fs = pa.hdfs.connect('{hdfs_server}', {hdfs_port})
+            exists = fs.exists(path)
+
         if not exists:
             raise ValueError('{error_file_not_exists}')
-        
+
         import pickle
-        from io import BytesIO
-        with fs.open(path, 'rb') as f:
-            b = BytesIO(f.read()) 
-            {model} = pickle.load(b)
+
+        if {is_local}:
+            with fs.open_input_stream(f'/{{fmt_}}') as stream:
+                rd = stream.readall()
+            from {sk_class_path} import {sklearn_class}
+            {model} = pickle.loads(rd)
+        else:            
+            from io import BytesIO
+            with fs.open(path, 'rb') as f:
+                b = BytesIO(f.read()) 
+                {model} = pickle.load(b)
         """.format(model=self.output,
                    path=path,
                    hdfs_server=hostname,
                    hdfs_port=port,
+                   is_local=self.is_local,
+                   sk_class_path='.'.join(parts[:2]),
+                   sklearn_class=parts[-1],
                    error_file_not_exists=_('Model does not exist'))
         return dedent(code)
 
@@ -170,6 +194,7 @@ class LoadModel(Operation):
 class SaveModel(Operation):
     """SaveModel.
     """
+    DESCRIPTION = 'description'
     NAME_PARAM = 'name'
     PATH_PARAM = 'path'
     STORAGE_PARAM = 'storage'
@@ -190,13 +215,16 @@ class SaveModel(Operation):
     USER_PARAM = 'user'
     WORKFLOW_ID_PARAM = 'workflow_id'
 
-    def __init__(self, parameters,  named_inputs, named_outputs):
-        Operation.__init__(self, parameters,  named_inputs,  named_outputs)
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         self.parameters = parameters
 
+        self.is_local = None
+
         self.filename = parameters.get(self.NAME_PARAM)
         self.storage_id = parameters.get(self.STORAGE_PARAM)
+        self.description = parameters.get(self.DESCRIPTION)
 
         if self.filename is None or self.storage_id is None:
             msg = _('Missing parameters. Check if values for parameters {} '
@@ -227,12 +255,15 @@ class SaveModel(Operation):
         self.workflow_name = parameters.get(self.WORKFLOW_NAME_PARAM)
         self.job_id = parameters.get(self.JOB_ID_PARAM)
 
+        self.input_df = self.named_inputs.get('input data')
+
         self.has_code = any([len(named_inputs) > 0, self.contains_results()])
 
     def get_audit_events(self):
         return [auditing.SAVE_MODEL]
 
     def generate_code(self):
+
         limonero_config = self.parameters.get('configuration') \
             .get('juicer').get('services').get('limonero')
 
@@ -248,7 +279,9 @@ class SaveModel(Operation):
             storage['url'] = storage['url'][:-1]
 
         parsed = urlparse(storage['url'])
-        if parsed.scheme == 'file':
+
+        self.is_local = parsed.scheme == 'file'
+        if self.is_local:
             hostname = 'file:///'
             port = 0
         else:
@@ -274,27 +307,55 @@ class SaveModel(Operation):
 
             import pickle
             from io import BytesIO
-            fs = pa.hdfs.connect('{hdfs_server}', {hdfs_port})
-            
+            from pyarrow import fs as my_fs
+            if {is_local}:
+                fs = my_fs.LocalFileSystem()
+            else:
+                fs = pa.hdfs.connect('{hdfs_server}', {hdfs_port})
+
             def _save_model(model_to_save, model_path, model_name):
                 final_model_path = '{final_url}/{{}}'.format(model_path)
                 overwrite = '{overwrite}'
-                exists = fs.exists(final_model_path)
-                if exists:
-                    if overwrite == 'OVERWRITE':
-                        fs.delete(final_model_path, False)
-                    else:
-                        raise ValueError('{error_file_exists}')
-                        
-                with fs.open(final_model_path, 'wb') as f:
-                    b = BytesIO()
-                    pickle.dump(model_to_save, b)
-                    f.write(b.getvalue())
-                                
+
+
+                if {is_local}:
+                    fmp = final_model_path.split('/')
+                    fmt_ = '/'.join(fmp[1:])
+
+                    exists = fs.get_file_info(f'/{{fmt_}}')
+                    if exists.is_file and overwrite == 'ERROR':
+                        raise ValueError('arquivo já existe.')
+
+                    model_to_bytes = pickle.dumps(model_to_save)
+                    with fs.open_output_stream(f'/{{fmt_}}') as stream:
+                        stream.write(model_to_bytes)
+
+                else:    
+                    exists = fs.exists(final_model_path)
+                    if exists:
+                        if overwrite == 'OVERWRITE':
+                            fs.delete(final_model_path, False)
+                        else:
+                            raise ValueError('{error_file_exists}')                
+
+                    with fs.open(final_model_path, 'wb') as f:
+                        b = BytesIO()
+                        pickle.dump(model_to_save, b)
+                        f.write(b.getvalue())
+
                 # Save model information in Limonero
                 model_type = '{{}}.{{}}'.format(model_to_save.__module__,
                     model_to_save.__class__.__name__)
+                id_ds = None
+                metrics_dict = None
                 
+                for mdl in metadata_list:
+                    if mdl['is_important']:
+                        if 'metrics_eval' in mdl['parameters']:
+                            metrics_dict = mdl['parameters']['metrics_eval']
+                        if 'id_data_source' in mdl['parameters']:
+                            id_ds = mdl['parameters']['id_data_source']
+
                 model_payload = {{
                     "user_id": {user_id},
                     "user_name": '{user_name}',
@@ -307,10 +368,13 @@ class SaveModel(Operation):
                     "task_id": '{task_id}',
                     "job_id": {job_id},
                     "workflow_id": {workflow_id},
-                    "workflow_name": '{workflow_name}'
+                    "workflow_name": '{workflow_name}',
+                    "description": '{description}',
+                    "data_source_id": id_ds,
+                    "metrics": metrics_dict,
                 }}
                 # Save model information in Limonero
-                register_model('{url}', model_payload, '{token}')
+                register_model('{url}', model_payload, '{token}', overwrite == 'OVERWRITE')
 
             for i, model in enumerate(models_to_save):
                 if isinstance(model, dict): # For instance, it's a Indexer
@@ -347,6 +411,8 @@ class SaveModel(Operation):
                    user_login=user.get('login'),
                    hdfs_server=hostname,
                    hdfs_port=port,
+                   is_local=self.is_local,
+                   description=self.description
                    ))
         return code
 
@@ -355,7 +421,6 @@ class SaveModel(Operation):
 
 
 class EvaluateModelOperation(Operation):
-
     PREDICTION_ATTRIBUTE_PARAM = 'prediction_attribute'
     LABEL_ATTRIBUTE_PARAM = 'label_attribute'
     FEATURE_ATTRIBUTE_PARAM = 'feature'
@@ -377,7 +442,7 @@ class EvaluateModelOperation(Operation):
 
         'homogeneity_completeness_v_measure': (0, 1),
         'calinski_harabasz_score': (1, 1), 'davies_bouldin_score': (1, 1),
-        'silhouette_score': (1, 1),  'fowlkes_mallows_score': (0, 1),
+        'silhouette_score': (1, 1), 'fowlkes_mallows_score': (0, 1),
         'adjusted_mutual_info_score': (0, 1),
 
         'explained_variance_score': (0, 2), 'max_error': (0, 2),
@@ -396,7 +461,7 @@ class EvaluateModelOperation(Operation):
                 _("Parameter '{}' must be informed for task {}")
             raise ValueError(msg.format(self.METRIC_PARAM, self.__class__))
         else:
-            self.metric = parameters.get(self.MODEL_TO_METRIC[self.type_model])\
+            self.metric = parameters.get(self.MODEL_TO_METRIC[self.type_model]) \
                           or ['']
             if self.metric not in self.METRICS_LIST:
                 msg = \
@@ -405,17 +470,17 @@ class EvaluateModelOperation(Operation):
 
             if self.METRICS_LIST[self.metric][0] == 1:
                 self.second_attribute = (parameters.get(
-                        self.FEATURE_ATTRIBUTE_PARAM) or [''])
+                    self.FEATURE_ATTRIBUTE_PARAM) or [''])
                 second_name = self.FEATURE_ATTRIBUTE_PARAM
             else:
                 self.second_attribute = (parameters.get(
-                        self.LABEL_ATTRIBUTE_PARAM) or [''])[0]
+                    self.LABEL_ATTRIBUTE_PARAM) or [''])[0]
                 second_name = self.LABEL_ATTRIBUTE_PARAM
 
             self.prediction_attribute = (parameters.get(
-                        self.PREDICTION_ATTRIBUTE_PARAM) or [''])[0]
+                self.PREDICTION_ATTRIBUTE_PARAM) or [''])[0]
             if any([self.prediction_attribute == "",
-                   len(self.second_attribute) == 0]):
+                    len(self.second_attribute) == 0]):
                 msg = \
                     _("Parameters '{}' and '{}' must be informed for task {}")
                 raise ValueError(msg.format(self.PREDICTION_ATTRIBUTE_PARAM,
@@ -427,6 +492,9 @@ class EvaluateModelOperation(Operation):
         self.model_out = self.named_outputs.get(
             'evaluated model', 'model_task_{}'.format(self.order))
 
+        self.output_model = named_outputs.get(
+            'model_out_port', 'model_{}'.format(self.order))
+
         self.evaluator_out = self.named_outputs.get(
             'evaluator', 'evaluator_task_{}'.format(self.order))
         if not self.has_code and self.named_outputs.get(
@@ -437,22 +505,22 @@ class EvaluateModelOperation(Operation):
         self.supports_cache = False
         self.transpiler_utils.add_import("from sklearn.metrics import *")
         self.transpiler_utils.add_custom_function(
-                'get_X_train_data', f=get_X_train_data)
+            'get_X_train_data', f=get_X_train_data)
         self.transpiler_utils.add_custom_function(
-                'get_label_data', f=get_label_data)
+            'get_label_data', f=get_label_data)
         if self.has_code:
             self.transpiler_utils.add_import(
                 'from pandas.api.types import is_numeric_dtype')
             self.transpiler_utils.add_import(
                 'from sklearn.metrics import *')
             self.transpiler_utils.add_import(
-                    "from sklearn.preprocessing import LabelEncoder")
+                "from sklearn.preprocessing import LabelEncoder")
 
     def get_data_out_names(self, sep=','):
         return ''
 
     def get_output_names(self, sep=", "):
-        return ''
+        return self.output_model
 
     def generate_code(self):
         if not self.has_code:
@@ -476,7 +544,7 @@ class EvaluateModelOperation(Operation):
             display_image = {display_image}
             y_true = get_label_data({input}, ['{second_attr}'])
             y_pred = get_label_data({input}, ['{prediction_attr}'])
-            
+
             # When Label attribute is categorical/string
             if not is_numeric_dtype(y_true):
                 le = LabelEncoder()
@@ -489,7 +557,7 @@ class EvaluateModelOperation(Operation):
                 final_y_true = y_true
                 final_y_pred = y_pred
             """
-            else:   # unsupervised metric
+            else:  # unsupervised metric
                 code_input = """
             display_text = {display_text}
             display_image = {display_image}
@@ -513,6 +581,13 @@ class EvaluateModelOperation(Operation):
                 self._get_code_for_regression_metrics(code)
             elif self.type_model == 'clustering':
                 self._get_code_for_clustering_metrics(code)
+
+            code.append("""
+            metrics_dict = dict(rows)
+            metadata_list[0]['is_important'] = True               
+            metadata_list[0]['parameters'] = {{'metrics_eval': metrics_dict}}               
+            {out_port} = {model}
+            """)
 
             self._get_code_for_summary(code)
 
@@ -541,6 +616,7 @@ class EvaluateModelOperation(Operation):
                 table_headers=[_('Metric'), _('Value')],
                 task_id=self.parameters['task_id'],
                 title=_('Evaluation result'),
+                out_port=self.output_model,
             )
 
             return dedent(code)
@@ -629,11 +705,11 @@ class EvaluateModelOperation(Operation):
                         ['Adjusted Mutual Information', 
                         adjusted_mutual_info_score(final_y_true, final_y_pred)],
                     ]
-                    
+
                     content = SimpleTableReport(
                            'table table-striped table-bordered table-sm',
                            headers, rows, title='{title}').generate()
-    
+
                     emit_event(
                        'update task', status='COMPLETED',
                        identifier='{task_id}',
@@ -656,11 +732,11 @@ class EvaluateModelOperation(Operation):
                         ['Davies-Bouldin score', 
                         davies_bouldin_score(X, final_y_pred)],
                     ]
-                    
+
                     content = SimpleTableReport(
                            'table table-striped table-bordered table-sm',
                            headers, rows, title='{title}').generate()
-    
+
                     emit_event(
                        'update task', status='COMPLETED',
                        identifier='{task_id}',
@@ -697,7 +773,7 @@ class EvaluateModelOperation(Operation):
                     r2_score(final_y_true, final_y_pred)],
                 ]
 
-                
+
                 if (final_y_true < 0).any() or (final_y_pred < 0).any():
                     if '{metric}' == 'mean_squared_log_error':
                         raise ValueError('Mean Squared Logarithmic Error cannot' 
@@ -705,7 +781,7 @@ class EvaluateModelOperation(Operation):
                 else:
                     rows.append(['Mean squared log error', 
                      mean_squared_log_error(final_y_true, final_y_pred)])
-                
+
 
                 content = SimpleTableReport(
                         'table table-striped table-bordered table-sm',

@@ -72,6 +72,9 @@ def {{task.operation.slug.replace('-', '_')}}_{{instance.order}}(sklearn_session
     Task hash: {{instance.parameters.hash}}.
     """
     task_id = '{{task_id}}'
+
+    metadata_list = [{'is_important': False, 'slug': '{{task.operation.slug}}', 'task_id': '{{task_id}}'}]
+
     {%- if task.parents %}
     {% set msg = dict_msgs['lemonade_task_afterbefore'].format(instance.parameters.task.parents, instance.parameters.task.id) %}
     sklearn_logging("{{msg}}")
@@ -96,6 +99,7 @@ def {{task.operation.slug.replace('-', '_')}}_{{instance.order}}(sklearn_session
     {{out}} = parent_result['{{port_name}}']
     {%- endfor %}
     ts_{{parent_instance.output}} = parent_result['time']
+    metadata_list += parent_result['metadata']
     {% endif %}
     {%- endfor %}
     {% set msg = dict_msgs['lemonade_task_parents'] % instance.parameters.task.id %}
@@ -128,12 +132,13 @@ def {{task.operation.slug.replace('-', '_')}}_{{instance.order}}(sklearn_session
 
         results = {
             'task_name': '{{task.name}}',
+            'metadata': metadata_list,
           {%- set is_leaf = instance.out_degree == 0 %}
           {%- for port_name, out in zip(task.port_names, instance.get_output_names(',').split(',')) %}
             {%- if port_name and out %}
              '{{port_name}}': {{out}},
             {%- endif %}
-            {%-if loop.index0 == 0 %}
+            {%-if loop.index0 == 0 and out%}
              '__first__': {{out}},
             {%- endif %}
           {%- endfor %}
