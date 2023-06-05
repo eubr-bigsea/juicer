@@ -25,16 +25,16 @@ df = df.with_columns([col.alias('dim_{{loop.index0}}')])
 {%- endmacro %}
 """
 {% macro define_colors(op) %}
-    # define_colors()
-    {%- if op.palette %}
-        {%- if not op.fill_opacity is none %}
-            transparent_colors = [{% for c in op.palette%}'{{hex_to_rgba(c, op.fill_opacity)}}', {% endfor %}]
-        {%- endif %}
-        colors = {{op.palette}}
-    {% else %}
-        colors = []
-        transparent_colors = []
-    {% endif %}
+# define_colors()
+{%- if op.palette %}
+{%- if not op.fill_opacity is none %}
+transparent_colors = [{% for c in op.palette%}'{{hex_to_rgba(c, op.fill_opacity)}}', {% endfor %}]
+{%- endif %}
+colors = {{op.palette}}
+{% else %}
+colors = []
+transparent_colors = []
+{% endif %}
 {% endmacro %}
 """
 
@@ -502,27 +502,29 @@ fig.add_trace(go.Funnel(
 ))
 
 {%- elif type in ('violin',) %}
-fig = px.violin(pandas_df,
-      #eixos trocados
-      y='dim_0', 
-      x='aggr_0',
-      #trocar pra testar a paleta de cores
-      color='dim_0', 
-      box=True, 
-      points="all",
-      hover_data=pandas_df.columns,
-      title='{{op.title}}',
-      labels=labels,
-     )
+    fig = px.violin(pandas_df,
+        # eixos trocados
+        y='dim_0', 
+        x='aggr_0',
+        # trocar para testar a paleta de cores
+        color='dim_0', 
+        box=True, 
+        points="all",
+        hover_data=pandas_df.columns,
+        title='{{op.title}}',
+        labels=labels,
+    )
+
 
 {%- elif type in ('parcoords',) %}
 fig = px.parallel_coordinates(pandas_df, 
       color='dim_0', 
       labels=labels,
-      dimensions=['aggr_0','aggr_1','aggr_2','aggr_3'],
+      dimensions=['aggr_0', 'aggr_1', 'aggr_2', 'aggr_3'],
       color_continuous_scale={{op.color_scale}},
       title='{{op.title}}',
       color_continuous_midpoint=2)
+
 
 
 {%- elif type in ('histogram2dcontour',) %}
@@ -667,10 +669,10 @@ fig.update_traces(marker=dict(colors=transparent_colors))
 {%- endif %}
 {%- endif %}
 # Tooltip
-expr_agg = re.compile(r'aggr_\d+')
+###expr_agg = re.compile(r'aggr_\d+')
 fig.for_each_trace(
     lambda trace: 
-        trace.update(hovertemplate=expr_agg.sub(trace.name, trace.hovertemplate))
+        trace.update(hovertemplate=re.sub(r'aggr_\d+', trace.name, trace.hovertemplate))
 )
 {%- if not map_family and op.y[0].decimal_places is not none and op.y[0].decimal_places != ''%}
 # Rouding 
@@ -719,5 +721,5 @@ emit_event(
     task={'id': '{{op.task_id}}'},
 )
 
-{{out}} = None
+{{out}} = d
 

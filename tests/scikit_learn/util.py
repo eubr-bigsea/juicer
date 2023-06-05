@@ -34,6 +34,9 @@ def read(name, columns=None, size=None):
 def iris(columns: List[str] = None, size: int = None) -> pd.DataFrame:
     return read('iris', columns, size)
 
+def iris_polars(columns: List[str] = None, size: int = None) -> pl.DataFrame:
+    return pandas_2_polars(read('iris', columns, size))
+
 
 def wine(columns: List[str] = None, size: int = None) -> pd.DataFrame:
     return read('wine', columns, size)
@@ -84,10 +87,7 @@ def execute(code: str, arguments: Dict[any, any]):
         # 'import pdb;pdb.set_trace()',
         code
     ])
-    # 'print()
-    # print('=' * 10, ' testing code ', '=' * 10)
-    # 'print(final_code)
-
+    
     result = {}
     exec(final_code, arguments, result)
     return result
