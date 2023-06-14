@@ -407,8 +407,9 @@ class Expression(sk_expression.Expression):
                 s, p, '({0}**2 + {1}**2).sqrt()')),
             SF('log', (float, any,), self._log_call),
             SF('log10', (any,), self._series_method_call),
-            SF('log1p', (any,), lambda s, p: self._call_fmt(
-                s, p, '({0} + 1).log()')),
+            SF('log1p', (any,), self._series_method_call),
+            # lambda s, p: self._call_fmt(
+            # s, p, '({0} + 1).log()')),
             SF('log2', (any,), lambda s, p:
                 self._series_method_call(s, p, 'log', '2')),
             SF('pow', (any, float), self._series_method_call),
@@ -452,8 +453,9 @@ class Expression(sk_expression.Expression):
                 lambda s, p: self._series_method_call(s, p, 'dt.weekday')),
             SF('dayofyear', (any, any),
                 lambda s, p: self._series_method_call(s, p, 'dt.ordinal_day')),
-            SF('from_unixtime', (any, int), lambda s, p: self._call_fmt(s, p,
-               '{0}.cast(pl.Datetime).dt.with_time_unit("ms")')),
+            SF('from_unixtime', (any, int), lambda s, p:
+               self._call_fmt(s, p,
+                              '{0}.cast(pl.Datetime).dt.with_time_unit("ms")')),
             SF('from_utc_timestamp', (any, str), lambda s, p: self._call_fmt(
                 s, p, '{0}.dt.tz_localize("UTC").dt.cast_time_zone("{1}")')),
             SF('hour', (any, any),
@@ -480,12 +482,12 @@ class Expression(sk_expression.Expression):
                 self._to_timestamp_call(s, p, use_date=True)),
             SF('to_timestamp', (any, str), lambda s, p:
                 self._to_timestamp_call(s, p, False)),
-            SF('to_utc_timestamp', (any, str), lambda s, p: self._call_fmt(s, p,
-               "'{0}'.dt.tz_localize('{1}').dt.cast_time_zone('UTC')")),
+            SF('to_utc_timestamp', (any, str), lambda s, p: self._call_fmt(
+                s, p, "'{0}'.dt.tz_localize('{1}').dt.cast_time_zone('UTC')")),
             # Reverso e com parâmetros diferentes mapeáveis
             SF('trunc', (str, any), self._date_trunc_call),
-            SF('unix_timestamp', (any, str), lambda s, p: self._call_fmt(s, p, 
-                '{0}.cast(pl.Int64)')),
+            SF('unix_timestamp', (any, str), lambda s, p: self._call_fmt(
+                s, p, '{0}.cast(pl.Int64)')),
             SF('weekofyear', (any, any),
                 lambda s, p: self._series_method_call(s, p, 'dt.week')),
             SF('year', (any, any),
@@ -643,11 +645,11 @@ class Expression(sk_expression.Expression):
                 """(pl.when({0}.arr.contains({1})).then({0}.arr.eval(
                     (pl.element() == {1}).cast(pl.UInt8).arg_max() + 1
                 ).arr.first()).otherwise(0))""")),
-            
+
             SF('array_remove', (any, any), lambda s, p: self._call_fmt(
                 s, p,
                 "({0}.arr.eval(pl.element().filter(pl.element() != {1}})))")),
-            SF('array_repeat', (any, any), lambda s, p: 
+            SF('array_repeat', (any, any), lambda s, p:
                 self._pl_method_call(s, p, 'repeat_by')),
             SF('array_sort', (any, ),
                 lambda s, p: self._series_method_call(s, p, 'arr.sort')),
@@ -671,13 +673,13 @@ class Expression(sk_expression.Expression):
 
             # Data Explorer
             SF('array_cast', (any, ),
-                lambda s, p: self._call_fmt(s, p, '{}.cast(pl.List(pl.{}))', 
-                    set([1])),
+                lambda s, p: self._call_fmt(s, p, '{}.cast(pl.List(pl.{}))',
+                                            set([1])),
                ),
             SF('isnotnull', (any, ),
                 lambda s, p: self._series_method_call(s, p, 'is_not_null'),
                ),
-            #SF('cast_array', (any, str), lambda s, p:
+            # SF('cast_array', (any, str), lambda s, p:
             #    (f"{self._arg(s, p, 0)}.arr"
             #     f".eval(pl.element().cast(pl.{self._arg(s, p, 1)}))")
             #   ),

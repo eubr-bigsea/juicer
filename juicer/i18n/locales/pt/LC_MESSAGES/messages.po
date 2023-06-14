@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2023-05-17 11:05-0300\n"
-"PO-Revision-Date: 2023-05-17 11:15-0300\n"
+"POT-Creation-Date: 2023-06-03 15:47-0300\n"
+"PO-Revision-Date: 2023-06-03 15:57-0300\n"
 "Last-Translator: \n"
 "Language-Team: pt_BR <LL@li.org>\n"
 "Language: pt_BR\n"
@@ -36,7 +36,7 @@ msgstr "Parâmetro ausente na função de agregação"
 msgid "Method generate_code should be implemented in {} subclass"
 msgstr "Método generate_code pode ser implementado na subclasse {}"
 
-#: juicer/meta/operations.py:1366 juicer/meta/operations.py:1369
+#: juicer/meta/operations.py:1363 juicer/meta/operations.py:1366
 #: juicer/operation.py:253
 msgid "Missing required parameter: {}"
 msgstr "Parâmetro obrigatório ausente: {}"
@@ -389,33 +389,90 @@ msgstr "Tarefa Lemonade %s iniciada"
 msgid "Submitting parent task {} before {}"
 msgstr "Submetendo tarefas-pai {} antes de {}"
 
-#: juicer/jobs/__init__.py:26
+#: juicer/jobs/__init__.py:33
 msgid "You must inform the JUICER_CONF env variable"
 msgstr "Você deve informar o valor da variável de ambiente JUICER_CONF"
 
-#: juicer/jobs/__init__.py:55
+#: juicer/jobs/__init__.py:59
 msgid "Invalid data source id"
 msgstr "Identificador de fonte de dados inválido"
 
-#: juicer/jobs/__init__.py:68
+#: juicer/jobs/__init__.py:72
 msgid "User does not own data source"
 msgstr "O usuário não é o dono da fonte de dados"
 
-#: juicer/jobs/__init__.py:71
+#: juicer/jobs/__init__.py:75
 msgid "Data source is not enabled and cannot be converted."
 msgstr "Fonte de dados não está ativa e não pode ser convertida."
 
-#: juicer/jobs/__init__.py:74
+#: juicer/jobs/__init__.py:104
 msgid "Only CSV files can be converted to PARQUET"
 msgstr "Apenas arquivos CSV podem ser convertidos para PARQUET"
 
-#: juicer/jobs/__init__.py:77
+#: juicer/jobs/__init__.py:107
 msgid "Only CSV files stored in HDFS can be converted"
 msgstr "Apenas arquivos CSV armazenados no HDFS podem ser convertidos"
 
-#: juicer/jobs/__init__.py:137 juicer/util/dataframe_util.py:345
+#: juicer/jobs/__init__.py:141 juicer/jobs/analyse_data_source.py:173
+#: juicer/util/dataframe_util.py:345
 msgid "Internal error"
 msgstr "Erro interno"
+
+#: juicer/jobs/analyse_data_source.py:28 juicer/spark/vis_operation.py:1441
+#: juicer/visualization/visualization_models.py:1008
+msgid "Histogram"
+msgstr "Histograma"
+
+#: juicer/jobs/analyse_data_source.py:29
+msgid "Bins"
+msgstr "Partições"
+
+#: juicer/jobs/analyse_data_source.py:30
+msgid "Frequencies"
+msgstr "Frequências"
+
+#: juicer/jobs/analyse_data_source.py:43
+msgid "Frequency Table"
+msgstr "Tabela de Frequência"
+
+#: juicer/jobs/analyse_data_source.py:44
+msgid "Items"
+msgstr "Itens"
+
+#: juicer/jobs/analyse_data_source.py:45
+msgid "Count"
+msgstr "Total"
+
+#: juicer/jobs/analyse_data_source.py:79
+msgid "unsupported"
+msgstr "não-suportado"
+
+#: juicer/jobs/analyse_data_source.py:147 juicer/keras/input_output_data.py:245
+#: juicer/keras/input_output_data.py:255 juicer/keras/input_output_data.py:267
+#: juicer/keras/input_output_data.py:383 juicer/keras/input_output_data.py:393
+#: juicer/keras/input_output_data.py:405 juicer/meta/operations.py:2169
+msgid "Unsupported format: {}"
+msgstr "Formato não suportado: {}"
+
+#: juicer/jobs/analyse_data_source.py:154
+msgid "univariate"
+msgstr "univariada"
+
+#: juicer/jobs/analyse_data_source.py:154
+msgid "bivariate"
+msgstr "bivariada"
+
+#: juicer/jobs/analyse_data_source.py:155
+msgid "multivariate"
+msgstr "multivariada"
+
+#: juicer/jobs/analyse_data_source.py:162
+msgid "No analysis type specified for {}"
+msgstr "Nenhum tipo de análise especificado para {}"
+
+#: juicer/jobs/analyse_data_source.py:168
+msgid "Invalid attributes: {}"
+msgstr "Atributos inválidos: {}"
 
 #: juicer/jobs/code_gen.py:56
 msgid "Server is not correctly configured."
@@ -703,13 +760,6 @@ msgid "Training and validation images files are in different formats."
 msgstr ""
 "Arquivos de imagem de treinamento e validação estão em formatos diferentes."
 
-#: juicer/keras/input_output_data.py:245 juicer/keras/input_output_data.py:255
-#: juicer/keras/input_output_data.py:267 juicer/keras/input_output_data.py:383
-#: juicer/keras/input_output_data.py:393 juicer/keras/input_output_data.py:405
-#: juicer/meta/operations.py:2172
-msgid "Unsupported format: {}"
-msgstr "Formato não suportado: {}"
-
 #: juicer/keras/input_output_data.py:277 juicer/keras/input_output_data.py:415
 msgid "Training and validation files are in different formats."
 msgstr "Arquivos de treino e validação estão em formatos diferentes."
@@ -891,15 +941,11 @@ msgstr "Fluxo de trabalho exportado (id = {})"
 msgid "Meta minion (workflow_id=%s,app_id=%s) started (pid=%s)"
 msgstr "Meta minion (workflow_id=%s,app_id=%s) iniciado (pid=%s)"
 
-#: juicer/meta/operations.py:819
-msgid "Filter expression is missing."
-msgstr "Expressão de filtro ausente."
-
-#: juicer/meta/operations.py:1046 juicer/meta/operations.py:1100
+#: juicer/meta/operations.py:1043 juicer/meta/operations.py:1097
 msgid "Read data"
 msgstr "Ler dados"
 
-#: juicer/meta/operations.py:2051
+#: juicer/meta/operations.py:2048
 msgid "There is no series or none is enabled"
 msgstr "Nenhuma série informada ou que esteja habilitada"
 
@@ -984,11 +1030,11 @@ msgstr "Inicializando o processo mestre. Lendo a fila de inicialização"
 
 #: juicer/runner/server.py:133
 msgid "Starting pending app_id {}"
-msgstr ""
+msgstr "Iniciando app_id pendente: {}"
 
 #: juicer/runner/server.py:143
 msgid "Pending queue is empty"
-msgstr ""
+msgstr "Fila de pendências está vazia"
 
 #: juicer/runner/server.py:154
 msgid "Reading \"start\" queue."
@@ -1001,7 +1047,7 @@ msgstr "Encaminhando mensagem para minion."
 #: juicer/runner/server.py:187
 #, python-format
 msgid "Unknown message type \"%s\""
-msgstr ""
+msgstr "TIpo de mensagem desconhecido: \"%s\""
 
 #: juicer/runner/server.py:210
 #, python-format
@@ -1012,6 +1058,7 @@ msgstr "Estado do Minion para (workflow_id=%s, app_id=%s): %s"
 #, python-format
 msgid "Minion (workflow_id=%s,app_id=%s,job_id=%s,type=%s) is running on %s."
 msgstr ""
+"Minion (workflow_id=%s,app_id=%s,job_id=%s,type=%s) está executando em %s."
 
 #: juicer/runner/server.py:237
 #, python-format
@@ -1020,12 +1067,12 @@ msgstr "Mesangem %s encaminhada para o minion (workflow_id=%s, app_id=%s)"
 
 #: juicer/runner/server.py:269
 msgid "Creating a JOB in Kubernetes."
-msgstr ""
+msgstr "Criando um JOB no Kubernetes"
 
 #: juicer/runner/server.py:273
 #, python-format
 msgid "Starting minion %s in Kubernetes."
-msgstr ""
+msgstr "Iniciando minion %s no Kubernetes"
 
 #: juicer/runner/server.py:283 juicer/runner/server.py:316
 #, python-format
@@ -1139,11 +1186,11 @@ msgstr "Parâmetro '{}' deve ser x> 0 para tarefa {}"
 
 #: juicer/scikit_learn/classification_operation.py:261
 msgid "Parameter '{}' must be x>=0 or x<=0.5 for task {}"
-msgstr ""
+msgstr "Parâmetro '{}' deve ser x>=0 or x<=0.5 para tarefa {}"
 
 #: juicer/scikit_learn/classification_operation.py:271
 msgid "Parameter '{}' must be x>1 for task {}"
-msgstr ""
+msgstr "Parâmetro '{}' deve ser x>1 para tarefa {}"
 
 #: juicer/scikit_learn/classification_operation.py:276
 #: juicer/scikit_learn/classification_operation.py:1349
@@ -1238,7 +1285,7 @@ msgstr ""
 #: juicer/scikit_learn/classification_operation.py:1215
 #: juicer/scikit_learn/classification_operation.py:1486
 msgid "Coefficient"
-msgstr ""
+msgstr "Coeficiente"
 
 #: juicer/scikit_learn/classification_operation.py:711
 #: juicer/scikit_learn/classification_operation.py:1084
@@ -1515,34 +1562,34 @@ msgstr "Nenhum comando ou tabela especificada como fonte de dados."
 #: juicer/scikit_learn/data_operation.py:407
 #: juicer/scikit_learn/duckdb/data_operation.py:242
 #: juicer/scikit_learn/model_operation.py:244
-#: juicer/scikit_learn/polars/data_operation.py:253
+#: juicer/scikit_learn/polars/data_operation.py:254
 msgid "Storage type not supported: {}"
 msgstr "Tipo de armazenamento não suportado: {}"
 
 #: juicer/scikit_learn/data_operation.py:567
 #: juicer/scikit_learn/duckdb/data_operation.py:408
-#: juicer/scikit_learn/polars/data_operation.py:419
+#: juicer/scikit_learn/polars/data_operation.py:420
 #: juicer/spark/data_operation.py:753
 msgid "Data source generated by workflow {}"
 msgstr "Fonte de dados gerada pelo workflow {}"
 
 #: juicer/scikit_learn/data_operation.py:585
 #: juicer/scikit_learn/duckdb/data_operation.py:426
-#: juicer/scikit_learn/polars/data_operation.py:438
+#: juicer/scikit_learn/polars/data_operation.py:439
 #: juicer/spark/data_operation.py:680
 msgid "File already exists"
 msgstr "Arquivo já existe"
 
 #: juicer/scikit_learn/data_operation.py:586
 #: juicer/scikit_learn/duckdb/data_operation.py:427
-#: juicer/scikit_learn/polars/data_operation.py:439
+#: juicer/scikit_learn/polars/data_operation.py:440
 #: juicer/spark/data_operation.py:681
 msgid "File not written (already exists)"
 msgstr "Arquivo não foi escrito (já existe)"
 
 #: juicer/scikit_learn/data_operation.py:587
 #: juicer/scikit_learn/duckdb/data_operation.py:428
-#: juicer/scikit_learn/polars/data_operation.py:440
+#: juicer/scikit_learn/polars/data_operation.py:441
 #: juicer/spark/data_operation.py:682
 msgid "Invalid mode {}"
 msgstr "Modo inválido: {}"
@@ -1634,7 +1681,7 @@ msgstr ""
 
 #: juicer/scikit_learn/model_operation.py:166
 msgid "Model does not exist"
-msgstr ""
+msgstr "Modelo não existe"
 
 #: juicer/scikit_learn/model_operation.py:202 juicer/spark/ml_operation.py:3396
 msgid "Missing parameters. Check if values for parameters {} were informed"
@@ -1666,11 +1713,11 @@ msgstr ""
 
 #: juicer/scikit_learn/model_operation.py:339
 msgid "Invalid criteria."
-msgstr ""
+msgstr "Critério inválido."
 
 #: juicer/scikit_learn/model_operation.py:340
 msgid "Model already exists"
-msgstr ""
+msgstr "Modelo já existe"
 
 #: juicer/scikit_learn/model_operation.py:403
 msgid "Invalid metric value informed in task {}"
@@ -1769,7 +1816,7 @@ msgstr "Escala"
 
 #: juicer/scikit_learn/regression_operation.py:477
 msgid "Bias"
-msgstr ""
+msgstr "Viés"
 
 #: juicer/scikit_learn/regression_operation.py:478
 msgid "Features got by optimizing the Huber loss"
@@ -1930,11 +1977,11 @@ msgstr "contagem"
 
 #: juicer/scikit_learn/vis_operation.py:1040
 msgid "unique"
-msgstr ""
+msgstr "únicos"
 
 #: juicer/scikit_learn/vis_operation.py:1040
 msgid "mean"
-msgstr ""
+msgstr "média"
 
 #: juicer/scikit_learn/vis_operation.py:1041 juicer/spark/vis_operation.py:1092
 #: juicer/visualization/visualization_models.py:661
@@ -1953,27 +2000,27 @@ msgstr "desvio padrão"
 
 #: juicer/scikit_learn/vis_operation.py:1042
 msgid "sum"
-msgstr ""
+msgstr "soma"
 
 #: juicer/scikit_learn/vis_operation.py:1043
 msgid "25%"
-msgstr ""
+msgstr "25%"
 
 #: juicer/scikit_learn/vis_operation.py:1043
 msgid "50%"
-msgstr ""
+msgstr "50%"
 
 #: juicer/scikit_learn/vis_operation.py:1043
 msgid "75%"
-msgstr ""
+msgstr "75%"
 
 #: juicer/scikit_learn/vis_operation.py:1044
 msgid "mode"
-msgstr ""
+msgstr "moda"
 
 #: juicer/scikit_learn/vis_operation.py:1044
 msgid "iqr"
-msgstr ""
+msgstr "iqr"
 
 #: juicer/scikit_learn/vis_operation.py:1045 juicer/spark/vis_operation.py:1094
 #: juicer/visualization/visualization_models.py:663
@@ -1991,11 +2038,11 @@ msgstr ""
 
 #: juicer/scikit_learn/vis_operation.py:1054
 msgid "outliers"
-msgstr ""
+msgstr "ponto fora da curva"
 
 #: juicer/scikit_learn/vis_operation.py:1055
 msgid "histogram"
-msgstr ""
+msgstr "histograma"
 
 #: juicer/scikit_learn/vis_operation.py:1056
 msgid "top"
@@ -2814,11 +2861,6 @@ msgstr "Atributo {} deve ser numérico (atual: {})."
 msgid "Attribute {} not found in input data."
 msgstr "Atributo {} não encontrado nos dados de entrada."
 
-#: juicer/spark/vis_operation.py:1441
-#: juicer/visualization/visualization_models.py:1008
-msgid "Histogram"
-msgstr "Histograma"
-
 #: juicer/spark/vis_operation.py:1481
 msgid "Parameter delta must be informed if display delta option is enabled."
 msgstr ""
@@ -3022,6 +3064,9 @@ msgstr "Porta inválida ou inexistente: Operação {op} ({s} {t})"
 #: juicer/workflow/workflow.py:546 juicer/workflow/workflow.py:614
 msgid "Undefined variable \"{}\" used in task \"{}\""
 msgstr "Variável \"{}\" indefinida usada na tarefa \"{}\""
+
+#~ msgid "Filter expression is missing."
+#~ msgstr "Expressão de filtro ausente."
 
 #~ msgid "Minion (workflow_id=%s,app_id=%s) is running on %s."
 #~ msgstr "Minion (workflow_id=%s,app_id=%s)  está executando em %s."
