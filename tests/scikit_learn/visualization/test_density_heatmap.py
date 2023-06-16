@@ -7,6 +7,8 @@ from juicer.scikit_learn.polars.vis_operation import VisualizationOperation
 
 import json
 import pytest
+import pandas as pd
+import polars as pl
 import plotly.express as px
 
 
@@ -108,15 +110,55 @@ def test_test_dentity_heatmap():
     #print(result.keys())
     atributos = result.keys()
     #print(result['out'])
-    print(type(result))
-    print(result.items)
-
+    #print(type(generated_chart))
+    #chaves2 = generated_chart.keys()
+    #print(chaves2)
+    #print(type(result))
+    #chaves = result.keys()
+    #print(chaves)
+    #print(result.items)
+    atributo = result.get('d')
+    print(atributo)  # Saída: valor2
+    print(type(atributo))
+    print(atributo.keys())
+    data = atributo['data']
+    layout = atributo['layout']
+    print(data)
+    coloraxis = data[0]['y']
+    print(coloraxis)
+    print(layout)
+    scatter = layout.keys()
+    print(scatter)
+    scatter2 = layout['template']['data']
+    print(scatter2)
     ## Rever o código ##
     # Codigo de teste
-    fig = px.density_heatmap(df, x="petallength", y="petalwidth", marginal_x="box", marginal_y="violin")
+    df_select = df.select("sepallength")
+    df_select_result = df_select.lazy().select("sepallength").collect()
+    df_select1 = df.select("sepalwidth")
+    df_select_result1 = df_select1.lazy().select("sepalwidth").collect()
+    print(df_select_result)
+    print(df_select_result1)
+    df_select_result_pd = df_select_result.to_pandas()
+    df_select_result1_pd = df_select_result1.to_pandas()
+    #print(df_select)
+   #fig = px.density_heatmap(df, x=df_select_result, y=df_select_result1, marginal_x="box", marginal_y="violin")
+    #df_pandas = df.to_pandas()
+    df_pol = df.collect()
+    df_pandas = df_pol.to_pandas()
+    fig = px.density_heatmap(df_pandas, x="sepallength", y="sepalwidth", marginal_x="box", marginal_y="violin")
+
+    #fig = px.density_heatmap(df, x=df_select_result, y=df_select_result1, marginal_x="box", marginal_y="violin")
+
 
     # Converter em JSON
     fig_json = fig.to_json()
+    dicionario = json.loads(fig_json)
+    print(dicionario)
+    print(dicionario.keys())
+    print(type(fig_json))
+   
+   
     '''
     # Tentar carregar o JSON como um objeto Python
     try:
