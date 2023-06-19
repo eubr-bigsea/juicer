@@ -1,8 +1,4 @@
-#from tests.scikit_learn import util
 from tests.scikit_learn import util
-
-#from tests.scikit_learn.util import *
-#from juicer.scikit_learn import util
 from juicer.scikit_learn.polars.vis_operation import VisualizationOperation
 
 import json
@@ -82,20 +78,18 @@ def test_test_dentity_heatmap():
     generated_chart = result.get('d')
     import pdb;pdb.set_trace()
 
-    #atributos = result.keys()
-    #atributo = result.get('d')
-  
     data = generated_chart['data']
     layout = generated_chart['layout']
 
     print(data)
-    coloraxis = data[0]['y']
-    print(coloraxis)
-    print(layout)
-    scatter = layout.keys()
-    print(scatter)
-    scatter2 = layout['template']['data']
-    print(scatter2)
+    #trechos do dicionario do codigo gerado
+    dict0_chart = data[0]
+    dict1_chart = data[1]
+    dict2_chart = data[1]
+
+    color_chart = data[2]['marker']['color']
+    type_chart = data[0]['type']
+    print(type_chart)
 
     ## Rever o código ##
     # Codigo de teste
@@ -112,27 +106,37 @@ def test_test_dentity_heatmap():
 
     # Definir uma escala de cores personalizada
     custom_colors = plotly.colors.sequential.Viridis
-
     # Gerar o gráfico com a escala de cores personalizada
     fig = px.density_heatmap(df_pandas, x="sepallength", y="sepalwidth", color_continuous_scale=custom_colors, marginal_x="box", marginal_y="violin", title="test")
 
     #fig = px.density_heatmap(df, x=df_select_result, y=df_select_result1, marginal_x="box", marginal_y="violin")
 
-
     # Converter em JSON
     fig_json = fig.to_json()
     generated_chart_vis = json.loads(fig_json)
-    print(generated_chart_vis)
-    print(generated_chart_vis.keys())
-    data1 = generated_chart['data']
-    layout1 = generated_chart['layout']
+    data1 = generated_chart_vis['data']
+    layout1 = generated_chart_vis['layout']
 
     print(data1)
-    coloraxis = data1[0]['y']
-    print(coloraxis)
-    print(layout)
-    scatter = layout1.keys()
-    print(scatter)
-    scatter2 = layout1['template']['data']
-    print(scatter2)
+    #trechos do dicionario do codigo gerado
+    dict0_test = data1[0]
+    dict1_test = data1[1]
+    dict2_test = data1[1]
+    print(dict0_test)
+    print(dict1_test)
+    print(dict2_test)
+
+
+
+    
+    color_test = data1[2]['marker']['color']
+    type_test = data1[0]['type']
+    print(type_test)
+    #data tests
+    #teste escala de cores
+    
+    assert type_chart == type_test
+    assert color_chart == color_test
+
+    #layout tests
    
