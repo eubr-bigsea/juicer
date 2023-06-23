@@ -40,7 +40,7 @@ class VisualizationOperation(Operation):
             self.x = self.get_required_parameter(parameters, 'x')
 
             self.y_limit = None
-            if len(self.x) > 1 or self.type in SCATTER_FAMILY:
+            if len(self.x) > 1 or self.type in self.SCATTER_FAMILY:
                 self.y_limit = 1
 
             self.y = self.get_required_parameter(
