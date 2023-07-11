@@ -1005,7 +1005,8 @@ class SaveOperation(MetaPlatformOperation):
         MetaPlatformOperation.__init__(
             self, parameters,  named_inputs,  named_outputs)
         self.parameter_names = ['name', 'path', 'format', 'tags',
-                                'mode', 'header', 'storage']
+                                'mode', 'header', 'storage', 'description',
+                                'data_source_id']
 
     def generate_code(self):
         task_obj = self._get_task_obj()
