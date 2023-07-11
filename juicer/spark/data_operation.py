@@ -508,6 +508,7 @@ class SaveOperation(Operation):
     WORKFLOW_JSON_PARAM = 'workflow_json'
     USER_PARAM = 'user'
     WORKFLOW_ID_PARAM = 'workflow_id'
+    WORKFLOW_VERSION_PARAM = 'workflow_version'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
@@ -538,6 +539,7 @@ class SaveOperation(Operation):
 
         self.user = parameters.get(self.USER_PARAM)
         self.workflow_id = parameters.get(self.WORKFLOW_ID_PARAM)
+        self.workflow_version = parameters.get(self.WORKFLOW_VERSION_PARAM)
         self.has_code = len(self.named_inputs) == 1
         self.supports_cache = False
 
@@ -740,6 +742,7 @@ class SaveOperation(Operation):
                 'user_login': "{user_login}",
                 'user_name': "{user_name}",
                 'workflow_id': "{workflow_id}",
+                'workflow_verson': "{workflow_version}",
                 'tags': '{tags}',
                 'url': "{final_url}",
                 'attributes': attributes
@@ -756,6 +759,7 @@ class SaveOperation(Operation):
                 user_id=self.user['id'],
                 user_login=self.user['login'],
                 workflow_id=self.workflow_id,
+                workflow_version=self.workflow_version,
                 final_url=final_url,
                 token=token,
                 url=url,

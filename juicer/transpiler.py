@@ -258,9 +258,10 @@ class Transpiler(object):
                 'transpiler': self,  # Allows operation to notify transpiler
                 'transpiler_utils': transpiler_utils,
                 'user': workflow['user'],
+                # Some operations require the complete workflow data
                 'workflow': workflow,
                 'workflow_id': workflow['id'],
-                # Some operations require the complete workflow data
+                'workflow_version': workflow['version'],
                 'workflow_name': TranspilerUtils.escape_chars(workflow['name']),
             })
             port = ports.get(task['id'], {})

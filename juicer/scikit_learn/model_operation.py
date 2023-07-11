@@ -189,6 +189,7 @@ class SaveModel(Operation):
     JOB_ID_PARAM = 'job_id'
     USER_PARAM = 'user'
     WORKFLOW_ID_PARAM = 'workflow_id'
+    WORKFLOW_VERSION_PARAM = 'workflow_version'
 
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
@@ -224,6 +225,7 @@ class SaveModel(Operation):
                 self.NAME_PARAM, self.__class__))
 
         self.workflow_id = parameters.get(self.WORKFLOW_ID_PARAM)
+        self.workflow_version = parameters.get(self.WORKFLOW_VERSION_PARAM)
         self.workflow_name = parameters.get(self.WORKFLOW_NAME_PARAM)
         self.job_id = parameters.get(self.JOB_ID_PARAM)
 
@@ -307,6 +309,7 @@ class SaveModel(Operation):
                     "task_id": '{task_id}',
                     "job_id": {job_id},
                     "workflow_id": {workflow_id},
+                    "workflow_version": {workflow_version},
                     "workflow_name": '{workflow_name}'
                 }}
                 # Save model information in Limonero
@@ -341,6 +344,7 @@ class SaveModel(Operation):
                    job_id=self.job_id,
                    task_id=self.parameters['task_id'],
                    workflow_id=self.workflow_id,
+                   workflow_version=self.workflow_version,
                    workflow_name=self.workflow_name,
                    user_id=user.get('id'),
                    user_name=user.get('name'),
