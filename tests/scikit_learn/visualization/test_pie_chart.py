@@ -142,7 +142,7 @@ df_pandas = df_pol.to_pandas()
 # Definir uma escala de cores personalizada
 custom_colors = plotly.colors.sequential.Viridis
 # Gerar o gráfico com a escala de cores personalizada
-//verificar
+#verificar
 valor = 1 
 fig = px.pie(df, values=valor, names='species', color_discrete_sequence=px.colors.sequential.RdBu)
 
