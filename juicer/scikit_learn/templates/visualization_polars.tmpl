@@ -415,8 +415,9 @@ fig = px.box(pandas_df,
              color='aggr_0',
              title='{{op.title}}',
              labels=labels,
-             
-             )
+
+)
+
 fig.update_traces(quartilemethod="exclusive") 
 
 
@@ -465,10 +466,12 @@ fig = px.scatter(pandas_df,
       x='dim_0', 
       y='aggr_0', 
       color='aggr_1', 
-      marginal_y="violin",
-      marginal_x="box", 
-      trendline="ols", 
-      template="simple_white")
+      #marginal_y="violin",
+      #marginal_x="box", 
+      #trendline="ols", 
+      #template="simple_white"
+      symbol='aggr_1',
+)
 
 {%- elif type in ('histogram2d',) %}
 fig = px.density_heatmap(pandas_df, 
@@ -486,6 +489,7 @@ fig = px.density_heatmap(pandas_df,
 {%- elif type in ('funnel',) %}
 
 fig = go.Figure()
+
 fig.add_trace(go.Funnel(
     #inversao dos eixos 
     #x=pandas_df['dim_0'],
@@ -500,17 +504,17 @@ fig.add_trace(go.Funnel(
 
 {%- elif type in ('violin',) %}
 fig = px.violin(pandas_df,
-      #eixos trocados
-      y='dim_0', 
-      x='aggr_0',
-      #trocar pra testar a paleta de cores
-      color='dim_0', 
-      box=True, 
-      points="all",
-      hover_data=pandas_df.columns,
-      title='{{op.title}}',
-      labels=labels,
-     )
+    #eixos trocados
+    y='dim_0', 
+    x='aggr_0',
+    #trocar pra testar a paleta de cores
+    color='dim_0', 
+    box=True, 
+    points="all",
+    hover_data=pandas_df.columns,
+    title='{{op.title}}',
+    labels=labels,
+)
 
 {%- elif type in ('parcoords',) %}
 fig = px.parallel_coordinates(pandas_df, 
@@ -519,8 +523,8 @@ fig = px.parallel_coordinates(pandas_df,
       dimensions=['aggr_0','aggr_1','aggr_2','aggr_3'],
       color_continuous_scale={{op.color_scale}},
       title='{{op.title}}',
-      color_continuous_midpoint=2)
-
+      color_continuous_midpoint=2
+)
 
 {%- elif type in ('histogram2dcontour',) %}
 fig = px.density_contour(pandas_df,
