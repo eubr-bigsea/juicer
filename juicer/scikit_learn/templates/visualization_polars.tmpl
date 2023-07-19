@@ -407,12 +407,12 @@ fig.update_traces(
 
 {%- elif type in ('boxplot',) %}
 fig = px.box(pandas_df, 
-             x='aggr_0', 
-             y='dim_0',
+             x='dim_0', 
+             y='aggr_0',
              points="all",
              #marker_color='{{op.palette}}'
              #opacity = {{op.opacity}},
-             color='aggr_0',
+             color='dim_0',
              title='{{op.title}}',
              labels=labels,
 
@@ -462,16 +462,9 @@ fig.update_layout(
 )
 
 {%- elif type in ('scatterplot',) %}
-fig = px.scatter(pandas_df, 
-      x='dim_0', 
-      y='aggr_0', 
-      color='aggr_1', 
-      #marginal_y="violin",
-      #marginal_x="box", 
-      #trendline="ols", 
-      #template="simple_white"
-      symbol='aggr_1',
-)
+fig = px.scatter(df, x='dim_0', y='aggr_0', color='aggr_1', symbol='aggr_1')
+
+
 
 {%- elif type in ('histogram2d',) %}
 fig = px.density_heatmap(pandas_df, 
@@ -487,27 +480,15 @@ fig = px.density_heatmap(pandas_df,
 
 
 {%- elif type in ('funnel',) %}
-
-fig = go.Figure()
-
-fig.add_trace(go.Funnel(
-    #inversao dos eixos 
-    #x=pandas_df['dim_0'],
-    #y=pandas_df['aggr_0'],
-    x=pandas_df['aggr_0'],
-    y=pandas_df['dim_0'],
-    name='{{op.title}}',
-    opacity = {{op.opacity}},
-    marker = {"color":{{op.palette}}},
-    textinfo='value+percent initial',
-))
+fig = px.funnel_area(names=["The 1st","The 2nd", "The 3rd", "The 4th", "The 5th"],
+                    values=[5, 4, 3, 2, 1],
+                    color={{op.color_attribute}})
 
 {%- elif type in ('violin',) %}
 fig = px.violin(pandas_df,
     #eixos trocados
-    y='dim_0', 
-    x='aggr_0',
-    #trocar pra testar a paleta de cores
+    y='aggr_0', 
+    x='dim_0',
     color='dim_0', 
     box=True, 
     points="all",
