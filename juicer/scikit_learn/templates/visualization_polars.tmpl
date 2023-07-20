@@ -504,8 +504,8 @@ fig.add_trace(go.Funnel(
 {%- elif type in ('violin',) %}
     fig = px.violin(pandas_df,
         # eixos trocados
-        y='dim_0', 
-        x='aggr_0',
+        y='aggr_0', 
+        x='dim_0',
         # trocar para testar a paleta de cores
         color='dim_0', 
         box=True, 
@@ -670,10 +670,10 @@ fig.update_traces(marker=dict(colors=transparent_colors))
 {%- endif %}
 # Tooltip
 ###expr_agg = re.compile(r'aggr_\d+')
-fig.for_each_trace(
-    lambda trace: 
-        trace.update(hovertemplate=re.sub(r'aggr_\d+', trace.name, trace.hovertemplate))
-)
+#fig.for_each_trace(
+    #lambda trace: 
+        #trace.update(hovertemplate=re.sub(r'aggr_\d+', trace.name, trace.hovertemplate))
+#)
 {%- if not map_family and op.y[0].decimal_places is not none and op.y[0].decimal_places != ''%}
 # Rouding 
 {%- if pie_family and op.text_info %}
