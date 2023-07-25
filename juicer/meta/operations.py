@@ -1083,9 +1083,11 @@ class JoinOperation(MetaPlatformOperation):
         task_obj['operation'] = {"id": 16}
 
         for param in self.parameter_names:
-            task_obj['forms'][param] = {'value': self.parameters.get(param)}
+            task_obj['forms'][param] = {
+                'value': self.parameters.get(param),
+            }
 
-        other_task = {
+        read_task = {
             "id": self.other_id,
             "display_order": 100,
             "environment": "DESIGN",
@@ -1103,7 +1105,7 @@ class JoinOperation(MetaPlatformOperation):
             "operation": {"id": 18}
         }
 
-        return json.dumps(task_obj) + ',' + json.dumps(other_task)
+        return json.dumps(read_task) + ',' + json.dumps(task_obj)
 
     def generate_extra_flows(self):
         return json.dumps({

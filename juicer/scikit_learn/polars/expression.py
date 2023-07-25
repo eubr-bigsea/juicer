@@ -517,8 +517,9 @@ class Expression(sk_expression.Expression):
                 lambda s, p: self._series_method_call(s, p, 'encode', 'hex')),
 
             SF('initcap', (any, int),
-               lambda s, p: self._series_apply_call(
-                s, p, fn="str.title")),
+                lambda s, p: self._series_method_call(s, p, 'str.to_titlecase')),
+               # lambda s, p: self._series_apply_call(
+               # s, p, fn="str.title")),
             SF('instr', (any, str), self._find_call),
             SF('length', (any, any),
                 lambda s, p: self._series_method_call(s, p, 'str.lengths')),
