@@ -69,7 +69,7 @@ dimensions = [
     pl.col('{{op.animation.attribute}}'),
     {%- endif %}
 
-    {%- if type in ('scatter', 'bubble', 'pointcloud') %}
+    {%- if type in ('scatter', 'bubble') %}
     {%- if op.color_attribute and op.color_attribute.attribute%}
     pl.col('{{op.color_attribute.attribute}}'),
     {%- endif %}
@@ -292,7 +292,7 @@ fig = px.
         {%- if type in ('filled-area', 'stacked-filled-area') %}orientation='v',{% endif %}
         {%- if type in ('stacked-filled-area', ) %}groupnorm='percent',{% endif %}
 
-        {%- if type in ('scatter', 'bubble', 'pointcloud')%}
+        {%- if type in ('scatter', 'bubble')%}
         {%- if  op.color_attribute and op.color_attribute.attribute %}
         color='{{op.color_attribute.attribute}}',
         {%- endif %}
@@ -437,22 +437,29 @@ fig.update_layout(
 
 
 {%- elif type in ('pointcloud',) %}
+
 fig = go.Figure(data=go.Scatter3d(
     x=pandas_df['dim_0'],
-    y=pandas_df['aggr_0'],
-    z=pandas_df['dim_1'],
+    y=pandas_df['dim_1'],
+    z=pandas_df['aggr_0'],
     mode='markers',
     marker=dict(
-        color={{op.color_attribute}},
-        #color=colors,
-        #color='{{op.color_attribute.attribute}}',
-        opacity = {{op.opacity}}
-    )
+        size=10,
+        color=pandas_df['aggr_0'],
+        colorscale='Viridis',
+        opacity=0.8,
+    ),
+    hovertemplate='X: %{x}<br>Y: %{y}<br>Z: %{z}',
+    
 ))
 
 fig.update_layout(
-    showlegend = True,
-    title='{{op.title}}'
+    scene=dict(
+        xaxis_title='X',
+        yaxis_title='Y',
+        zaxis_title='Z',
+    ),
+    title='{{op.title}}',
 )
 
 {%- elif type in ('scatterplot',) %}
@@ -474,24 +481,12 @@ fig = px.density_heatmap(pandas_df,
 
 
 {%- elif type in ('funnel',) %}
-# Dados para o gráfico de funil
-categorias = ["Visitas", "Clique", "Assinaturas", "Compras"]
-valores = [1000, 800, 600, 400]
-
-# Criando o gráfico de funil
-fig = go.Figure(go.Funnel(
-    x=pandas_df['aggr_0'].tolist(),
-    y=pandas_df['dim_0'].tolist(),
-    textinfo="value+percent initial",
-    #name='{{op.title}}',
-    #marker=dict(colors=colors, pattern=dict(shape=["", "/", "", ""]))
-    marker = {"color": ["deepskyblue", "lightsalmon", "tan", "teal", "silver"]},
-    #marker = {"color":{{op.color_scale}}},
-))
-
-# Personalizando o layout do gráfico
-fig.update_layout(title='{{op.title}}',
-                  showlegend=True)
+data = dict(
+    number=pandas_df['aggr_0'],
+    stage=sorted(pandas_df['dim_0'],reverse=False),
+    opacity = {{op.opacity}},
+    textinfo = "value+percent initial")
+fig = px.funnel(data, x='number', y='stage')
 
 {%- elif type in ('violin',) %}
 fig = px.violin(pandas_df,
@@ -656,10 +651,10 @@ fig.update_traces(marker=dict(colors=transparent_colors))
 {%- endif %}
 # Tooltip
 expr_agg = re.compile(r'aggr_\d+')
-#fig.for_each_trace(
-    #lambda trace: 
-        #trace.update(hovertemplate=expr_agg.sub(trace.name, trace.hovertemplate))
-#)
+fig.for_each_trace(
+    lambda trace: 
+        trace.update(hovertemplate=expr_agg.sub(trace.name, trace.hovertemplate))
+)
 {%- if not map_family and op.y[0].decimal_places is not none and op.y[0].decimal_places != ''%}
 # Rouding 
 {%- if pie_family and op.text_info %}
