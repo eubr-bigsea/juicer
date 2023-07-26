@@ -69,7 +69,7 @@ dimensions = [
     pl.col('{{op.animation.attribute}}'),
     {%- endif %}
 
-    {%- if type in ('scatter', 'bubble') %}
+    {%- if type in ('scatter', 'bubble', 'pointcloud') %}
     {%- if op.color_attribute and op.color_attribute.attribute%}
     pl.col('{{op.color_attribute.attribute}}'),
     {%- endif %}
@@ -231,7 +231,7 @@ pandas_df = df.collect().to_pandas()
 #  Chart definition
 {%- if type in ('line', 'filled-area', 'stacked-filled-area',
     'bar', 'stacked-bar', 'horizontal-bar',
-    'stacked-horizontal-bar', 'scatter', 'bubble') %}
+    'stacked-horizontal-bar', 'scatter', 'bubble', 'pointcloud') %}
 
 {%- if x_values|length == 1 or type.endswith('bar')%}
 axis1 = 'dim_0'
@@ -272,9 +272,9 @@ fig = px.
         color='dim_1', 
         pattern_shape="dim_1", 
         template="simple_white",
-        {%- elif x_values|length > 1 and type not in ('scatter', 'bubble', 'bar', ) and not type.endswith('bar')-%}
+        {%- elif x_values|length > 1 and type not in ('scatter', 'bubble', 'bar', 'pointcloud') and not type.endswith('bar')-%}
         line_group='dim_1', color='dim_1',
-        {%- elif x_values|length > 1 and type not in ('scatter', 'bubble') -%}
+        {%- elif x_values|length > 1 and type not in ('scatter', 'bubble', 'pointcloud') -%}
         color='dim_1',{% endif %}
         log_y={{op.y_axis.logScale}},
 
