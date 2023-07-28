@@ -276,9 +276,9 @@ fig = px.
         color='dim_1', 
         pattern_shape="dim_1", 
         template="simple_white",
-        {%- elif x_values|length > 1 and type not in ('scatter', 'bubble', 'bar', ) and not type.endswith('bar')-%}
+        {%- elif x_values|length > 1 and type not in ('scatter', 'bubble', 'bar', 'pointcloud') and not type.endswith('bar')-%}
         line_group='dim_1', color='dim_1',
-        {%- elif x_values|length > 1 and type not in ('scatter', 'bubble') -%}
+        {%- elif x_values|length > 1 and type not in ('scatter', 'bubble', 'pointcloud') -%}
         color='dim_1',{% endif %}
         log_y={{op.y_axis.logScale}},
 
@@ -469,8 +469,8 @@ fig = px.scatter(pandas_df,
       x='dim_0', 
       y='aggr_0', 
       color='aggr_1', 
-      marginal_y="violin",
-      marginal_x="box", 
+      #marginal_y="violin",
+      #marginal_x="box", 
       trendline="ols", 
       template="simple_white")
 
