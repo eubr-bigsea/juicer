@@ -73,7 +73,7 @@ dimensions = [
     pl.col('{{op.animation.attribute}}'),
     {%- endif %}
 
-    {%- if type in ('scatter', 'bubble') %}
+    {%- if type in ('scatter', 'bubble', 'pointcloud') %}
     {%- if op.color_attribute and op.color_attribute.attribute%}
     pl.col('{{op.color_attribute.attribute}}'),
     {%- endif %}
@@ -296,7 +296,7 @@ fig = px.
         {%- if type in ('filled-area', 'stacked-filled-area') %}orientation='v',{% endif %}
         {%- if type in ('stacked-filled-area', ) %}groupnorm='percent',{% endif %}
 
-        {%- if type in ('scatter', 'bubble')%}
+        {%- if type in ('scatter', 'bubble', 'pointcloud')%}
         {%- if  op.color_attribute and op.color_attribute.attribute %}
         color='{{op.color_attribute.attribute}}',
         {%- endif %}
@@ -411,8 +411,8 @@ fig.update_traces(
 
 {%- elif type in ('boxplot',) %}
 fig = px.box(pandas_df, 
-             x='aggr_0', 
-             y='dim_0',
+             x='dim_0', 
+             y='aggr_0',
              points="all",
              #marker_color='{{op.palette}}'
              #opacity = {{op.opacity}},
@@ -442,26 +442,25 @@ fig.update_layout(
 {%- elif type in ('pointcloud',) %}
 fig = go.Figure(data=go.Scatter3d(
     x=pandas_df['dim_0'],
-    y=pandas_df['dim_1'],
-    z=pandas_df['aggr_0'],
+    y=pandas_df['aggr_0'],
+    z=pandas_df['dim_1'],
     mode='markers',
+    #color_discrete_sequence ={{op.palette}},
     marker=dict(
-        size=10,
-        color=pandas_df['aggr_0'],
-        colorscale='Viridis',
-        opacity=0.8,
-    ),
-    hovertemplate='X: %{x}<br>Y: %{y}<br>Z: %{z}',
-    
+        #color={{op.palette}},
+        #color_discrete_sequence ={{op.palette}},
+        opacity = {{op.opacity}},
+    )
 ))
 
 fig.update_layout(
-    scene=dict(
-        xaxis_title='X',
-        yaxis_title='Y',
-        zaxis_title='Z',
-    ),
+    showlegend = True,
     title='{{op.title}}',
+    scene=dict(
+        xaxis_title=pandas_df.columns[0],
+        yaxis_title=pandas_df.columns[1],
+        zaxis_title=pandas_df.columns[2]
+    )
 )
 
 {%- elif type in ('scatterplot',) %}
@@ -488,16 +487,20 @@ fig = px.density_heatmap(pandas_df,
 
 
 {%- elif type in ('funnel',) %}
+#inversao dos eixos 
+labels=pandas_df['dim_0']
+values=pandas_df['aggr_0']
+data = list(zip(labels, values))
+data_sorted = sorted(data, key=lambda x: x[1], reverse=True)
+sorted_labels, sorted_values = zip(*data_sorted)
 fig = go.Figure()
 fig.add_trace(go.Funnel(
-    #inversao dos eixos 
-    #x=pandas_df['dim_0'],
-    #y=pandas_df['aggr_0'],
-    x=pandas_df['aggr_0'],
-    y=pandas_df['dim_0'],
+    y=sorted_labels,
+    x=sorted_values,
     name='{{op.title}}',
     opacity = {{op.opacity}},
-    marker = {"color":{{op.palette}}},
+    marker = {"color":{{op.color_attribute}}},
+    #marker = {"color":{{op.palette}}},
     textinfo='value+percent initial',
 ))
 
