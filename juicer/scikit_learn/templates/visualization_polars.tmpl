@@ -416,11 +416,12 @@ fig = px.box(pandas_df,
              points="all",
              #marker_color='{{op.palette}}'
              #opacity = {{op.opacity}},
-             color='aggr_0',
+             color='dim_0',
              title='{{op.title}}',
              labels=labels,
-             
-             )
+
+)
+
 fig.update_traces(quartilemethod="exclusive") 
 
 
