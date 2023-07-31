@@ -4,8 +4,11 @@ Utilities for testing scikit-learn usage in Lemonade.
 import os
 
 import pandas as pd
-import duckdb
-import polars as pl
+try:
+    import duckdb
+    import polars as pl
+except ImportError as ie:
+    print('Missing imports', ie)
 
 from juicer.scikit_learn.util import get_label_data, get_X_train_data
 from juicer.transpiler import TranspilerUtils

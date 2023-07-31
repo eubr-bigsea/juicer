@@ -31,6 +31,10 @@ export JUICER_LOG_DIR=${JUICER_LOG_DIR:-${JUICER_HOME}/logs}
 export JUICER_PID_DIR=${JUICER_PID_DIR:-/var/run/}
 
 export PYTHONPATH=${JUICER_HOME}:/usr/lib/python2.7/site-packages:/usr/local/python2.7/site-packages/:${PYTHONPATH}
+export PATH=$PATH:$HADOOP_HOME/bin
+export HADOOP_CONF_DIR=$HADOOP_HOME/etc/hadoop
+export CLASSPATH="$(hadoop classpath --glob):$CLASSPATH"
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$HADOOP_HOME/lib/native
 
 # ensure directory exists
 mkdir -p ${JUICER_PID_DIR} ${JUICER_LOG_DIR}

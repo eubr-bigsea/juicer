@@ -29,7 +29,6 @@ def pythonize(s):
 
 
 def _as_list(values, transform, size=None):
-    # import pdb; pdb.set_trace()
     if values:
         if isinstance(values, list):
             return FeatureInfo(values, None, 'simple_list')
@@ -77,6 +76,7 @@ def _as_int_list(values, grid_info):
         value = grid_info.get('value')
         if value.get('strategy') == 'random':
             size = value.get('max_iterations')
+    print(grid_info, values)
     return _as_list(values, int, size)
 
 
@@ -513,7 +513,7 @@ class SampleOperation(MetaPlatformOperation):
         MetaPlatformOperation.__init__(
             self, parameters,  named_inputs,  named_outputs)
         self.type = parameters.get('type')
-        self.value = int(parameters.get('value', 0))
+        self.value = int(parameters.get('value', 0) or 0)
         self.seed = parameters.get('seed')
         self.fraction = parameters.get('fraction')
         self.output_port_name = 'sampled data'
@@ -1005,7 +1005,8 @@ class SaveOperation(MetaPlatformOperation):
         MetaPlatformOperation.__init__(
             self, parameters,  named_inputs,  named_outputs)
         self.parameter_names = ['name', 'path', 'format', 'tags',
-                                'mode', 'header', 'storage']
+                                'mode', 'header', 'storage', 'description',
+                                'data_source_id']
 
     def generate_code(self):
         task_obj = self._get_task_obj()
@@ -1192,11 +1193,19 @@ class EstimatorMetaOperation(ModelMetaOperation):
             invalid = []
         grid_strategy = self.grid_info.get('value', {}).get('strategy', 'grid')
         for name, value in self.hyperparameters.items():
-            if value is not None and value and len(value.value) > 0:
+            if value is not None and value and hasattr(value, 'value') and len(value.value) > 0:
                 if name not in invalid:
                     if grid_strategy == 'grid' or value.type == 'simple_list':
-                        code.append(
-                            f'.addGrid({var}.{name}, {self.parse(value)})')
+                        v = self.parse(value)
+                        if v and v != '[]':
+                            code.append(
+                                f'.addGrid({var}.{name}, {v})')
+            elif isinstance(value, dict):
+               if grid_strategy == 'grid' or value.type == 'simple_list':
+                   v = self.parse({'value': value})
+                   code.append(
+                           f'.addGrid({var}.{name}, {v})')
+
 
         code.append('.build()')
         return '\\\n'.join(code)
@@ -1206,7 +1215,7 @@ class EstimatorMetaOperation(ModelMetaOperation):
         grid_strategy = self.grid_info.get('value', {}).get('strategy', 'grid')
         random_hyperparams = []
         for name, value in self.hyperparameters.items():
-            if value is not None and value and len(value.value) > 0:
+            if value is not None and value and hasattr(value, 'value') and len(value.value) > 0:
                 if grid_strategy != 'grid' and value.type != 'simple_list':
                     random_hyperparams.append((name, value))
 
@@ -1257,9 +1266,13 @@ class EstimatorMetaOperation(ModelMetaOperation):
 
     def parse(self, value):
         if isinstance(value, list):
-            return repr([x.value for x in value if x is not None])
+            return repr([x.value for x in value if x is not None and not isinstance(x, dict)])
         elif isinstance(value, FeatureInfo) and value.type == 'function':
             return value.value
+        elif hasattr(value, 'type') and value.type == 'list':
+            new_value = [v for v in value.value if not isinstance(v, dict) and 
+                (not isinstance(v, str) or not '{' in v)]
+            return repr(new_value)
         return repr(value.value)
 
     def get_variations(self):
@@ -1368,12 +1381,12 @@ class FeaturesOperation(ModelMetaOperation):
 
     def generate_code(self):
         code = []
-        for f in self.features:
+        for f in self.features + [self.label]:
             name = f.get('name')
             transform = f.get('transform')
             data_type = f.get('feature_type')
             missing = f.get('missing_data')
-            scaler = f.get('scale')
+            scaler = f.get('scaler')
 
             if data_type == 'numerical':
                 if transform in ('keep', '', None):
@@ -1472,6 +1485,8 @@ class FeaturesOperation(ModelMetaOperation):
                         features_stages.append({f['var']}_ohe) """))
 
                 self.features_names.append(final_name)
+        code.append(f"label = '{self.features_names[-1]}'")
+        self.features_names = self.features_names[:-1]
 
         return '\n'.join(code).strip()
 
@@ -1744,9 +1759,9 @@ class NaiveBayesClassifierOperation(ClassificationOperation):
         ClassificationOperation.__init__(
             self, parameters,  named_inputs,  named_outputs)
         self.hyperparameters = {
-            'modelType': parameters.get('model_type'),
-            'smoothing': _as_float_list(parameters.get('smoothing')),
-            'thresholds': parameters.get('thresholds'),
+            'modelType': _as_string_list(parameters.get('model_type')),
+            'smoothing': _as_float_list(parameters.get('smoothing'), self.grid_info),
+            'thresholds': _as_float_list(parameters.get('thresholds'), self.grid_info),
             'weightCol': parameters.get('weight_attribute'),
         }
         self.var = 'nb_classifier'
@@ -1807,8 +1822,8 @@ class LogisticRegressionOperation(ClassificationOperation):
                 parameters.get('aggregation_depth'), self.grid_info),
             'elasticNetParam': _as_float_list(
                 parameters.get('elastic_net_param'), self.grid_info),
-            'fitIntercept': _as_int_list(
-                parameters.get('fit_intercept'), self.grid_info),
+            'fitIntercept': _as_boolean_list(
+                parameters.get('fit_intercept')),
             'maxIter': _as_int_list(
                 parameters.get('max_iter'), self.grid_info),
             'regParam': _as_float_list(
@@ -2026,6 +2041,12 @@ class VisualizationOperation(MetaPlatformOperation):
             k: {'value': getattr(self, k)} for k in 
                 ['type', 'display_legend', 'palette', 'x', 'y', 'x_axis', 'y_axis']
         })
+        task_obj['forms']['y']['value'] = [
+                y for y in task_obj['forms']['y']['value']
+                if y.get('enabled')
+        ]
+        if len(task_obj['forms']['y']['value']) == 0:
+            raise ValueError(gettext('There is no series or none is enabled'))        
         for p in ['hole', 'text_position', 'text_info', 'smoothing', 'color_scale',
                 'auto_margin', 'right_margin', 'left_margin', 'top_margin', 'bottom_margin',
                  'title', 'template', 'blackWhite', 'subgraph', 'subgraph_orientation',
