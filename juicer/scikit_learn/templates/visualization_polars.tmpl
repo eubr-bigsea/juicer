@@ -440,32 +440,36 @@ fig.update_layout(
 
 fig = go.Figure(data=go.Scatter3d(
     x=pandas_df['dim_0'],
-    y=pandas_df['dim_1'],
-    z=pandas_df['aggr_0'],
+    y=pandas_df['aggr_0'],
+    z=pandas_df['dim_1'],
     mode='markers',
+    #color_discrete_sequence ={{op.palette}},
     marker=dict(
-        size=10,
-        color=pandas_df['aggr_0'],
-        colorscale='Viridis',
-        opacity=0.8,
-    ),
-    hovertemplate='X: %{x}<br>Y: %{y}<br>Z: %{z}',
-    
+        #color={{op.palette}},
+        #color_discrete_sequence ={{op.palette}},
+        opacity = {{op.opacity}},
+    )
 ))
 
 fig.update_layout(
-    scene=dict(
-        xaxis_title='X',
-        yaxis_title='Y',
-        zaxis_title='Z',
-    ),
+    showlegend = True,
     title='{{op.title}}',
+    scene=dict(
+        xaxis_title=pandas_df.columns[0],
+        yaxis_title=pandas_df.columns[1],
+        zaxis_title=pandas_df.columns[2]
+    )
 )
 
 {%- elif type in ('scatterplot',) %}
-fig = px.scatter(df, x='dim_0', y='aggr_0', color='aggr_1', symbol='aggr_1')
-
-
+fig = px.scatter(pandas_df, 
+      x='dim_0', 
+      y='aggr_0', 
+      color='aggr_1', 
+      #marginal_y="violin",
+      #marginal_x="box", 
+      trendline="ols", 
+      template="simple_white")
 
 {%- elif type in ('histogram2d',) %}
 fig = px.density_heatmap(pandas_df, 
@@ -481,35 +485,48 @@ fig = px.density_heatmap(pandas_df,
 
 
 {%- elif type in ('funnel',) %}
-data = dict(
-    number=pandas_df['aggr_0'],
-    stage=sorted(pandas_df['dim_0'],reverse=False),
+#inversao dos eixos 
+labels=pandas_df['dim_0']
+values=pandas_df['aggr_0']
+data = list(zip(labels, values))
+data_sorted = sorted(data, key=lambda x: x[1], reverse=True)
+sorted_labels, sorted_values = zip(*data_sorted)
+fig = go.Figure()
+fig.add_trace(go.Funnel(
+    y=sorted_labels,
+    x=sorted_values,
+    name='{{op.title}}',
     opacity = {{op.opacity}},
-    textinfo = "value+percent initial")
-fig = px.funnel(data, x='number', y='stage')
+    marker = {"color":{{op.color_attribute}}},
+    #marker = {"color":{{op.palette}}},
+    textinfo='value+percent initial',
+))
 
 {%- elif type in ('violin',) %}
-fig = px.violin(pandas_df,
-    #eixos trocados
-    y='aggr_0', 
-    x='dim_0',
-    color='dim_0', 
-    box=True, 
-    points="all",
-    hover_data=pandas_df.columns,
-    title='{{op.title}}',
-    labels=labels,
-)
+    fig = px.violin(pandas_df,
+        # eixos trocados
+        y='aggr_0', 
+        x='dim_0',
+        # trocar para testar a paleta de cores
+        color='dim_0', 
+        box=True, 
+        points="all",
+        hover_data=pandas_df.columns,
+        title='{{op.title}}',
+        labels=labels,
+    )
+
 
 {%- elif type in ('parcoords',) %}
 fig = px.parallel_coordinates(pandas_df, 
       color='dim_0', 
       labels=labels,
-      dimensions=['aggr_0','aggr_1','aggr_2','aggr_3'],
+      dimensions=['aggr_0', 'aggr_1', 'aggr_2', 'aggr_3'],
       color_continuous_scale={{op.color_scale}},
       title='{{op.title}}',
-      color_continuous_midpoint=2
-)
+      color_continuous_midpoint=2)
+
+
 
 {%- elif type in ('histogram2dcontour',) %}
 fig = px.density_contour(pandas_df,
@@ -520,7 +537,10 @@ fig = px.density_contour(pandas_df,
     )
 fig.update_traces(contours_coloring="fill",
     #colorscale = {{op.palette}},
-    colorscale = {{op.color_scale}},
+    {%- if op.color_scale %}
+        colorscale={{op.color_scale}},
+    {% endif %}
+    #colorscale = {{op.color_scale}},
     contours_showlabels = True)
 
 {%- elif  type in ('treemap', 'sunburst') %}
