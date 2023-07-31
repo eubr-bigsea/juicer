@@ -231,7 +231,7 @@ pandas_df = df.collect().to_pandas()
 #  Chart definition
 {%- if type in ('line', 'filled-area', 'stacked-filled-area',
     'bar', 'stacked-bar', 'horizontal-bar',
-    'stacked-horizontal-bar', 'scatter', 'bubble', 'pointcloud') %}
+    'stacked-horizontal-bar', 'scatter', 'bubble') %}
 
 {%- if x_values|length == 1 or type.endswith('bar')%}
 axis1 = 'dim_0'
