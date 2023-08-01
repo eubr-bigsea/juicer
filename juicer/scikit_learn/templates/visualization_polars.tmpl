@@ -119,7 +119,7 @@ dimensions = [
     pl.col('{{op.animation.attribute}}'),
     {%- endif %}
 
-    {%- if type in ('scatter', 'bubble') %}
+    {%- if type in ('scatter', 'bubble', 'pointcloud') %}
     {%- if op.color_attribute and op.color_attribute.attribute%}
     pl.col('{{op.color_attribute.attribute}}'),
     {%- endif %}
@@ -332,9 +332,9 @@ fig = px.
         color='dim_1', 
         pattern_shape="dim_1", 
         template="simple_white",
-        {%- elif x_values|length > 1 and type not in ('scatter', 'bubble', 'bar', ) and not type.endswith('bar')-%}
+        {%- elif x_values|length > 1 and type not in ('scatter', 'bubble', 'bar', 'pointcloud') and not type.endswith('bar')-%}
         line_group='dim_1', color='dim_1',
-        {%- elif x_values|length > 1 and type not in ('scatter', 'bubble') -%}
+        {%- elif x_values|length > 1 and type not in ('scatter', 'bubble', 'pointcloud') -%}
         color='dim_1',{% endif %}
         log_y={{op.y_axis.logScale}},
 
@@ -474,16 +474,17 @@ fig.update_traces(
 
 {%- elif type in ('boxplot',) %}
 fig = px.box(pandas_df, 
-             x='aggr_0', 
-             y='dim_0',
+             x='dim_0', 
+             y='aggr_0',
              points="all",
              #marker_color='{{op.palette}}'
              #opacity = {{op.opacity}},
-             color='aggr_0',
+             color='dim_0',
              title='{{op.title}}',
              labels=labels,
-             
-             )
+
+)
+
 fig.update_traces(quartilemethod="exclusive") 
 
 
@@ -503,28 +504,28 @@ fig.update_layout(
 
 
 {%- elif type in ('pointcloud',) %}
+
 fig = go.Figure(data=go.Scatter3d(
     x=pandas_df['dim_0'],
-    y=pandas_df['dim_1'],
-    z=pandas_df['aggr_0'],
+    y=pandas_df['aggr_0'],
+    z=pandas_df['dim_1'],
     mode='markers',
+    #color_discrete_sequence ={{op.palette}},
     marker=dict(
-        size=10,
-        color=pandas_df['aggr_0'],
-        colorscale='Viridis',
-        opacity=0.8,
-    ),
-    hovertemplate='X: %{x}<br>Y: %{y}<br>Z: %{z}',
-    
+        #color={{op.palette}},
+        #color_discrete_sequence ={{op.palette}},
+        opacity = {{op.opacity}},
+    )
 ))
 
 fig.update_layout(
-    scene=dict(
-        xaxis_title='X',
-        yaxis_title='Y',
-        zaxis_title='Z',
-    ),
+    showlegend = True,
     title='{{op.title}}',
+    scene=dict(
+        xaxis_title=pandas_df.columns[0],
+        yaxis_title=pandas_df.columns[1],
+        zaxis_title=pandas_df.columns[2]
+    )
 )
 
 {%- elif type in ('scatterplot',) %}
@@ -532,8 +533,8 @@ fig = px.scatter(pandas_df,
       x='dim_0', 
       y='aggr_0', 
       color='aggr_1', 
-      marginal_y="violin",
-      marginal_x="box", 
+      #marginal_y="violin",
+      #marginal_x="box", 
       trendline="ols", 
       template="simple_white")
 
@@ -551,42 +552,47 @@ fig = px.density_heatmap(pandas_df,
 
 
 {%- elif type in ('funnel',) %}
+# inverted axis
+labels=pandas_df['dim_0']
+values=pandas_df['aggr_0']
+data = list(zip(labels, values))
+data_sorted = sorted(data, key=lambda x: x[1], reverse=True)
+sorted_labels, sorted_values = zip(*data_sorted)
 fig = go.Figure()
 fig.add_trace(go.Funnel(
-    #inversao dos eixos 
-    #x=pandas_df['dim_0'],
-    #y=pandas_df['aggr_0'],
-    x=pandas_df['aggr_0'],
-    y=pandas_df['dim_0'],
+    y=sorted_labels,
+    x=sorted_values,
     name='{{op.title}}',
     opacity = {{op.opacity}},
-    marker = {"color":{{op.palette}}},
+    marker = {"color":{{op.color_attribute}}},
+    #marker = {"color":{{op.palette}}},
     textinfo='value+percent initial',
 ))
 
 {%- elif type in ('violin',) %}
-fig = px.violin(pandas_df,
-      #eixos trocados
-      y='dim_0', 
-      x='aggr_0',
-      #trocar pra testar a paleta de cores
-      color='dim_0', 
-      box=True, 
-      points="all",
-      hover_data=pandas_df.columns,
-      title='{{op.title}}',
-      labels=labels,
-     )
+    fig = px.violin(pandas_df,
+        # eixos trocados
+        y='aggr_0', 
+        x='dim_0',
+        # trocar para testar a paleta de cores
+        color='dim_0', 
+        box=True, 
+        points="all",
+        hover_data=pandas_df.columns,
+        title='{{op.title}}',
+        labels=labels,
+    )
+
 
 {%- elif type in ('parcoords',) %}
 fig = px.parallel_coordinates(pandas_df, 
       color='dim_0', 
       labels=labels,
-      dimensions=['aggr_0','aggr_1','aggr_2','aggr_3'],
-      
+      dimensions=['aggr_0', 'aggr_1', 'aggr_2', 'aggr_3'],
       color_continuous_scale={{op.color_scale}},
       title='{{op.title}}',
       color_continuous_midpoint=2)
+
 
 
 {%- elif type in ('histogram2dcontour',) %}
