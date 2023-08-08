@@ -146,15 +146,15 @@ print(type_test)
 
 #data tests    
 #teste type
-def test_test_dentity_heatmap_type():
+def test_dentity_heatmap_type():
     assert type_chart == type_test
 
 #teste legenda
-def test_test_dentity_heatmap_legend():
+def test_dentity_heatmap_legend():
     assert showlegend_chart == showlegend_test 
     
 #teste escala de cores
-def test_test_dentity_heatmap_colorscale():
+def test_dentity_heatmap_colorscale():
     assert color_chart == color_test
 
 #layout tests
