@@ -88,6 +88,9 @@ def _handle_errors(err):
         tests = [
             (r"cannot call lst.join on Series with dtype (.+).Inner type must be (.+)",
              gettext('Cannot concat list elements if their data type is "{}". It must be "{}".')),
+            (r"invalid series dtype: expected `(.+)`, got `(.+)`",
+             gettext('At least one function has an incorrect argument data type '
+                    '(expected: {}, actual: {})')),
         ]
     elif exc_type in (AttributeError,):
         tests = [

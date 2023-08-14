@@ -119,7 +119,7 @@ class Expression(sk_expression.Expression):
         elif tree['type'] == 'ConditionalExpression':
             spec = {'arguments': [tree['test'], tree['consequent'],
                                   tree['alternate']]}
-            result = self.get_when_function(spec, params)
+            result = self._when_call(spec, params)
 
         elif tree['type'] == 'ArrayExpression':
             result = f'pl.Series([{repr([e["value"] for e in tree["elements"]])}])'
@@ -561,7 +561,7 @@ class Expression(sk_expression.Expression):
             SF('split', (any,),  # https://github.com/pola-rs/polars/issues/4819
                 self._split_call),
             SF('substring', (any, int, int),
-                lambda s, p: self._series_method_call(s, p, 'str.slice')),
+                lambda s, p: self._series_method_call(s, p, 'cast(pl.Utf8).str.slice')),
             SF('substring_index', (any, str, int), self._substring_index_call),
             SF('translate', (any, str, str),
                lambda s, p: self._series_apply_call(

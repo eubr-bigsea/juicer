@@ -221,8 +221,7 @@ class CleanMissingOperation(sk.CleanMissingOperation):
             {{output}} = {{input}}
 
     {%- elif mode == "VALUE" %}
-        {{output}} = {{input}}.select([
-            pl.exclude({{columns}}),
+        {{output}} = {{input}}.with_columns([
             {%- for col in columns %}
             pl.col('{{col}}').fill_null(value={{value}}),
             {%- endfor %}
@@ -583,13 +582,16 @@ class JoinOperation(sk.JoinOperation):
             {%- else %}
             {{out}} = {{in1}}.join(
                 {{in2}}, left_on=keys1, right_on=keys2, how='{{type}}')
-                
+
 
             # Select the resulting attributes
             select = []
             {%- if selection_type1 == 1 %}
             select += {{in1}}.columns
             {%- elif selection_type1 == 2 %}
+            select += [pl.col(k).alias(a)
+                for k, a in {{selected_attrs1}}
+            ]
             {%- else %}
             # No selection from 1st dataset
             {%- endif %}
@@ -597,6 +599,9 @@ class JoinOperation(sk.JoinOperation):
             {%- if selection_type2 == 1 %}
             select += [c for c in {{in2}}.columns if c not in keys2]
             {%- elif selection_type2 == 2 %}
+            select += [pl.col(k).alias(a)
+                for k, a in {{selected_attrs2}}
+            ]
             {%- else %}
             # No selection from 2nd dataset
             {%- endif %}
@@ -650,7 +655,16 @@ class JoinOperation(sk.JoinOperation):
         select2 = self.join_parameters.get('secondSelect')
         prefix1 = self.join_parameters.get('firstPrefix')
         prefix2 = self.join_parameters.get('secondPrefix')
-        # import pdb; pdb.set_trace()
+
+        selected_attrs1 = tuple([[attr.get('attribute'), attr.get('alias')]
+            for attr in (self.join_parameters.get('firstSelect', []) or [])
+            if attr.get('select')
+        ])
+        selected_attrs2 = tuple([[attr.get('attribute'), attr.get('alias')]
+            for attr in (self.join_parameters.get('secondSelect', []) or [])
+            if attr.get('select')
+        ])
+
         ctx = dict(
             out=self.output,
             in1=input_data1,
@@ -665,6 +679,8 @@ class JoinOperation(sk.JoinOperation):
             select2=select2,
             prefix1=prefix1,
             prefix2=prefix2,
+            selected_attrs1=selected_attrs1,
+            selected_attrs2=selected_attrs2,
             keep_right_keys=not self.not_keep_right_keys)
 
         code = self.render_template(ctx)
@@ -870,7 +886,7 @@ class SortOperation(sk.SortOperation):
 
         code = f"""
             {self.output} = {input}.sort(
-                by={repr(self.columns)}, reverse={repr(reverse)}).lazy()
+                by={repr(self.columns)}, descending={repr(reverse)}).lazy()
         """
 
         return dedent(code)

@@ -145,7 +145,10 @@ dimensions = [
     {%- endif %}
 
 ];
-df = df.select(select + dimensions)
+attributes = [{% for y in op.y -%}
+    '{{y.attribute}}',
+{%- endfor %}]
+df = df.select(attributes + dimensions)
 {%- endif %}
 {%- endmacro %}
 
