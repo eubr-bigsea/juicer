@@ -10,57 +10,79 @@ import plotly.colors
 
 
 
-# DensityHeatmap
-
-#def test_test_dentity_heatmap():
+# sunburst
     
-df = util.iris_polars()
+df = util.titanic_polars()
 arguments = {
     'parameters': {
-        'type': 'histogram2d',
-        'display_legend': "AUTO",
+        'type': 'sunburst',
+        'display_legend': "HIDE",
         "x": [{
-            "binning": "EQUAL_INTERVAL",
+            "binning": None,
             "bins": 20,
             "binSize": 10,
             "emptyBins": "ZEROS",
+            "multiplier": None,
             "decimal_places": 2,
+            "prefix": None,
+            "suffix": None,
+            "label": None,
+            "max_displayed": None,
             "group_others": True,
             "sorting": "NATURAL",
-            "attribute": "petalwidth"
+            "attribute": "pclass"
         }],
         "color_scale": [
-            "#245668",
-            "#0f7279",
-            "#0d8f81",
-            "#39ab7e",
-            "#6ec574",
-            "#a9dc67",
-            "#edef5d"
+            "#000000",
+            "#e60000",
+            "#e6d200",
+            "#ffffff",
+            "#a0c8ff"
         ],
         "y": [{
-            "attribute": "petallength",
-            "aggregation": "MIN",
+            "attribute": "*",
+            "aggregation": "COUNT",
+            "compute": None,
             "displayOn": "left",
+            "multiplier": None,
             "decimal_places": 2,
+            "prefix": None,
+            "suffix": None,
+            "label": None,
             "strokeSize": 0,
+            "stroke": None,
+            "color": None,
+            "marker": None,
+            "enabled": True
         }],
         "x_axis": {
+           "lowerBound": None,
+            "upperBound": None,
             "logScale": False,
             "display": True,
             "displayLabel": True,
+            "label": None,
+            "multiplier": None,
             "decimal_places": 2,
+            "prefix": None,
+            "suffix": None
         },
         "y_axis": {
+            "lowerBound": None,
+            "upperBound": None,
             "logScale": False,
             "display": True,
             "displayLabel": True,
+            "label": None,
+            "multiplier": None,
             "decimal_places": 2,
+            "prefix": None,
+            "suffix": None
         },
         "task_id": "0"
     },
     'named_inputs': {
-        'input data': "iris",
+        'input data': "titanic",
     },
     'named_outputs': {
         'output data': 'out'
@@ -116,7 +138,7 @@ df_pandas = df_pol.to_pandas()
 # Definir uma escala de cores personalizada
 custom_colors = plotly.colors.sequential.Viridis
 # Gerar o gráfico com a escala de cores personalizada
-fig = px.density_heatmap(df_pandas, x="sepallength", y="sepalwidth", color_continuous_scale=custom_colors, marginal_x="box", marginal_y="violin", title="test")
+fig = px.sunburst(df, path=['sex', 'day', 'time'], values='total_bill', color='day')
 
 #fig = px.density_heatmap(df, x=df_select_result, y=df_select_result1, marginal_x="box", marginal_y="violin")
 

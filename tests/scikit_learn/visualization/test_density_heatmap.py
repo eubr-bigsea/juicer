@@ -14,7 +14,7 @@ import plotly.colors
 
 #def test_test_dentity_heatmap():
     
-df = util.iris_polars()
+df = util.iris()
 arguments = {
     'parameters': {
         'type': 'histogram2d',
