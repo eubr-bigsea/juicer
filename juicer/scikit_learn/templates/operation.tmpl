@@ -54,7 +54,7 @@ import traceback
 con = duckdb.connect()
 {%- elif polars %}
 # turn on String Cache. See https://github.com/pola-rs/polars/issues/5367
-pl.toggle_string_cache(True)
+#pl.toggle_string_cache(True)
 {%- endif %}
 
 def _handle_errors(err):
