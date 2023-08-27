@@ -11,16 +11,16 @@ import plotly.colors
 
 
 
-# violin
+# parcoords
     
-df = util.tips_polars()
+df = util.iris_polars()
 
 arguments = {
     'parameters': {
-        'type': 'violin',
-        'display_legend': "LEFT",
+        'type': 'parcoords',
+        'display_legend': "HIDE",
         "x": [{
-            "binning": None,
+            "binning": "EQUAL_INTERVAL",
             "bins": 20,
             "binSize": 10,
             "emptyBins": "ZEROS",
@@ -32,22 +32,19 @@ arguments = {
             "max_displayed": None,
             "group_others": True,
             "sorting": "NATURAL",
-            "attribute": "smoker"
+            "attribute": "id"
         }],
-        "palette": [
-            "#1F77B4",
-            "#FF7F0E",
-            "#2CA02C",
-            "#D62728",
-            "#9467BD",
-            "#8C564B",
-            "#E377C2",
-            "#7F7F7F",
-            "#BCBD22",
-            "#17BECF"
+        "color_scale": [
+            "#245668",
+            "#0f7279",
+            "#0d8f81",
+            "#39ab7e",
+            "#6ec574",
+            "#a9dc67",
+            "#edef5d"
         ],
         "y": [{
-            "attribute": "tip",
+            "attribute": "petallength",
             "aggregation": "MIN",
             "compute": None,
             "displayOn": "left",
@@ -59,8 +56,49 @@ arguments = {
             "strokeSize": 0,
             "stroke": None,
             "color": None,
-            "marker": None,
-            "enabled": True
+            "marker": None
+        },{
+            "attribute": "petalwidth",
+            "aggregation": "MIN",
+            "compute": None,
+            "displayOn": "left",
+            "multiplier": None,
+            "decimal_places": 2,
+            "prefix": None,
+            "suffix": None,
+            "label": None,
+            "strokeSize": 0,
+            "stroke": None,
+            "color": None,
+            "marker": None
+        },{
+            "attribute": "sepallength",
+            "aggregation": "MIN",
+            "compute": None,
+            "displayOn": "left",
+            "multiplier": None,
+            "decimal_places": 2,
+            "prefix": None,
+            "suffix": None,
+            "label": None,
+            "strokeSize": 0,
+            "stroke": None,
+            "color": None,
+            "marker": None
+        },{
+            "attribute": "sepalwidth",
+            "aggregation": "MIN",
+            "compute": None,
+            "displayOn": "left",
+            "multiplier": None,
+            "decimal_places": 2,
+            "prefix": None,
+            "suffix": None,
+            "label": None,
+            "strokeSize": 0,
+            "stroke": None,
+            "color": None,
+            "marker": None
         }],
         "x_axis": {
             "lowerBound": None,
@@ -89,7 +127,7 @@ arguments = {
         "task_id": "0"
     },
     'named_inputs': {
-        'input data': "tips",
+        'input data': "iris",
     },
     'named_outputs': {
         'output data': 'out'
@@ -118,20 +156,29 @@ layout = generated_chart['layout']
 
 print(data)
 print(layout)
-print(data[0]['x'])
 
 type_chart = data[0]['type']
+showlegend_chart = data[0]['showlegend']
+colorscale_chart = data[0]['colorscale']
 x_chart = data[0]['x']
 y_chart = data[0]['y']
-text_info_chart = data[0]['textinfo']
+print(type_chart)
+print(showlegend_chart)
+print(colorscale_chart)
+print(x_chart)
+print(y_chart)
+
 
 df_pol = df.collect()
 df_pandas = df_pol.to_pandas()
 
-fig = px.violin(df_pandas, y=df_pandas['tip'], x=df_pandas['smoker'], color=df_pandas['smoker'], box=True, points="all",
-          hover_data=df.columns)
+fig = px.parallel_coordinates(df_pandas, color=df_pandas['id'],
+                              dimensions=[df_pandas['sepalwidth'], df_pandas['sepal_length'], df_pandas['petal_width'],
+                                          df_pandas['petal_length']],
+                              color_continuous_scale=px.colors.diverging.Tealrose,
+                              color_continuous_midpoint=2)
 
-# Converter em JSON
+# Converter em JSONc
 fig_json = fig.to_json()
 generated_chart_vis = json.loads(fig_json)
 data1 = generated_chart_vis['data']
@@ -139,28 +186,21 @@ layout1 = generated_chart_vis['layout']
 
 print(data1)
 print(layout1)
-print(data1[0]['x'])
-print(data[0]['type'])
-print(data1[0]['textinfo'])
-print(color_test = data1[0]['color'])
 
 type_test = data1[0]['type']
-x_test = data1[0]['x']
-y_test = data1[0]['y']
-text_info_chart = data1[0]['textinfo']
+showlegend_test = data1[0]['showlegend']
+
+print(type_test)
+print(showlegend_test)
+
 
 
 #data tests    
 #teste type
-def test_violin_type():
+
+def test_parcoords_type():
     assert type_chart == type_test
 
-#teste eixo x
-def test_violin_eixo_x():
-    assert x_chart == x_test
-
-#teste eixo y
-def test_violin_eixo_y():
-    assert y_chart == y_test
-
-
+#legenda
+def test_parcoords_showlegend():
+    assert showlegend_chart == showlegend_test

@@ -2,6 +2,7 @@ from tests.scikit_learn import util
 from juicer.scikit_learn.polars.vis_operation import VisualizationOperation
 from plotly import graph_objects as go
 
+
 import json
 import pytest
 import pandas as pd
@@ -11,15 +12,30 @@ import plotly.colors
 
 
 
-# violin
+# pointcloud
     
-df = util.tips_polars()
+df = util.iris_polars()
 
 arguments = {
     'parameters': {
-        'type': 'violin',
+        'type': 'pointcloud',
         'display_legend': "LEFT",
         "x": [{
+            "binning": "EQUAL_INTERVAL",
+            "bins": 30,
+            "binSize": 10,
+            "emptyBins": "ZEROS",
+            "multiplier": 10,
+            "decimal_places": 3,
+            "prefix": None,
+            "suffix": None,
+            "label": None,
+            "max_displayed": "",
+            "group_others": True,
+            "sorting": "Y_ASC",
+            "attribute": "petalwidth",
+            "displayLabel": "TESTE"
+        },{
             "binning": None,
             "bins": 20,
             "binSize": 10,
@@ -32,43 +48,43 @@ arguments = {
             "max_displayed": None,
             "group_others": True,
             "sorting": "NATURAL",
-            "attribute": "smoker"
+            "attribute": "species"
         }],
         "palette": [
-            "#1F77B4",
-            "#FF7F0E",
-            "#2CA02C",
-            "#D62728",
-            "#9467BD",
-            "#8C564B",
-            "#E377C2",
-            "#7F7F7F",
-            "#BCBD22",
-            "#17BECF"
+            "#1b9e77",
+            "#d95f02",
+            "#7570b3",
+            "#e7298a",
+            "#66a61e",
+            "#e6ab02",
+            "#a6761d",
+            "#666666"
         ],
         "y": [{
-            "attribute": "tip",
-            "aggregation": "MIN",
+            "attribute": "petallength",
+            "aggregation": "COUNT",
             "compute": None,
             "displayOn": "left",
-            "multiplier": None,
-            "decimal_places": 2,
-            "prefix": None,
+            "multiplier": 10,
+            "decimal_places": 3,
+            "prefix": "",
             "suffix": None,
-            "label": None,
+            "label": "TESTE",
             "strokeSize": 0,
             "stroke": None,
-            "color": None,
+            "color": "#da1616",
             "marker": None,
+            "custom_color": False,
+            "line_color": "#141414",
             "enabled": True
         }],
         "x_axis": {
-            "lowerBound": None,
-            "upperBound": None,
-            "logScale": False,
-            "display": True,
-            "displayLabel": True,
-            "label": None,
+            "lowerBound": "1",
+            "upperBound": "10",
+            "logScale": True,
+            "display": False,
+            "displayLabel": False,
+            "label": "TESTE",
             "multiplier": None,
             "decimal_places": 2,
             "prefix": None,
@@ -89,7 +105,7 @@ arguments = {
         "task_id": "0"
     },
     'named_inputs': {
-        'input data': "tips",
+        'input data': "iris",
     },
     'named_outputs': {
         'output data': 'out'
@@ -121,15 +137,13 @@ print(layout)
 print(data[0]['x'])
 
 type_chart = data[0]['type']
-x_chart = data[0]['x']
-y_chart = data[0]['y']
-text_info_chart = data[0]['textinfo']
+
 
 df_pol = df.collect()
 df_pandas = df_pol.to_pandas()
 
-fig = px.violin(df_pandas, y=df_pandas['tip'], x=df_pandas['smoker'], color=df_pandas['smoker'], box=True, points="all",
-          hover_data=df.columns)
+fig = px.scatter_3d(df_pandas, x=df_pandas['sepallength'], y=df_pandas['sepalwidth'], z=df_pandas['petal_width'],
+              color=df_pandas['species'])
 
 # Converter em JSON
 fig_json = fig.to_json()
@@ -139,28 +153,14 @@ layout1 = generated_chart_vis['layout']
 
 print(data1)
 print(layout1)
-print(data1[0]['x'])
-print(data[0]['type'])
-print(data1[0]['textinfo'])
-print(color_test = data1[0]['color'])
+
 
 type_test = data1[0]['type']
-x_test = data1[0]['x']
-y_test = data1[0]['y']
-text_info_chart = data1[0]['textinfo']
+
 
 
 #data tests    
 #teste type
-def test_violin_type():
+def test_pointcloud_type():
     assert type_chart == type_test
-
-#teste eixo x
-def test_violin_eixo_x():
-    assert x_chart == x_test
-
-#teste eixo y
-def test_violin_eixo_y():
-    assert y_chart == y_test
-
 

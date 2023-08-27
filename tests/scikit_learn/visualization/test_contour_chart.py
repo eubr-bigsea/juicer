@@ -11,7 +11,7 @@ import plotly.colors
 
 
 
-# Funnel
+# histogram2dcontour
     
 df = util.iris_polars()
 
