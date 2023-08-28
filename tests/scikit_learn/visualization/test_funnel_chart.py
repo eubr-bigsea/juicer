@@ -148,9 +148,9 @@ layout1 = generated_chart_vis['layout']
 print(data1)
 print(layout1)
 print(data1[0]['x'])
-print(data[0]['type'])
+print(data1[0]['type'])
 print(data1[0]['textinfo'])
-print(color_test = data1[0]['color'])
+
 
 type_test = data1[0]['type']
 x_test = data1[0]['x']

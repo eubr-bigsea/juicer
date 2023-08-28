@@ -127,11 +127,10 @@ text_info_chart = data[0]['textinfo']
 
 df_pol = df.collect()
 df_pandas = df_pol.to_pandas()
-
-fig = px.violin(df_pandas, y=df_pandas['tip'], x=df_pandas['smoker'], color=df_pandas['smoker'], box=True, points="all",
-          hover_data=df.columns)
-
+fig = px.violin(df, y="tip", x="smoker", color="sex", box=True, points="all",hover_data=df.columns)
+#
 # Converter em JSON
+
 fig_json = fig.to_json()
 generated_chart_vis = json.loads(fig_json)
 data1 = generated_chart_vis['data']

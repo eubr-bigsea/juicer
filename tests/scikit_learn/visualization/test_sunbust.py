@@ -112,10 +112,11 @@ layout = generated_chart['layout']
 
 print(data)
 print(layout)
-dff = pd.DataFrame(data)
+df_pol = df.collect()
+df_pandas = df_pol.to_pandas()
+valores = len(df_pandas['sex'])
 
-valores = dff.count()
-fig = px.sunburst(df, path="pclass", values=valores, color='day')
+fig = px.sunburst(df_pandas, path=df_pandas['pclass'], values=valores, color=df_pandas['sex'])
 
 # Converter em JSON
 fig_json = fig.to_json()
@@ -144,15 +145,15 @@ print(type_test)
 
 #data tests    
 #teste type
-def test_dentity_heatmap_type():
+def test_sunbust_type():
     assert type_chart == type_test
 
 #teste legenda
-def test_dentity_heatmap_legend():
+def test_sunbust_legend():
     assert showlegend_chart == showlegend_test 
     
 #teste escala de cores
-def test_dentity_heatmap_colorscale():
+def test_sunbust_colorscale():
     assert color_chart == color_test
 
 #layout tests

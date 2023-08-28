@@ -13,7 +13,7 @@ import plotly.colors
 
 # parcoords
     
-df = util.iris_polars()
+df = util.iris2_polars()
 
 arguments = {
     'parameters': {
@@ -32,7 +32,7 @@ arguments = {
             "max_displayed": None,
             "group_others": True,
             "sorting": "NATURAL",
-            "attribute": "id"
+            "attribute": "Id"
         }],
         "color_scale": [
             "#245668",
@@ -44,7 +44,7 @@ arguments = {
             "#edef5d"
         ],
         "y": [{
-            "attribute": "petallength",
+            "attribute": "PetallengthCm",
             "aggregation": "MIN",
             "compute": None,
             "displayOn": "left",
@@ -58,7 +58,7 @@ arguments = {
             "color": None,
             "marker": None
         },{
-            "attribute": "petalwidth",
+            "attribute": "PetalwidthCm",
             "aggregation": "MIN",
             "compute": None,
             "displayOn": "left",
@@ -72,7 +72,7 @@ arguments = {
             "color": None,
             "marker": None
         },{
-            "attribute": "sepallength",
+            "attribute": "SepallengthCm",
             "aggregation": "MIN",
             "compute": None,
             "displayOn": "left",
@@ -86,7 +86,7 @@ arguments = {
             "color": None,
             "marker": None
         },{
-            "attribute": "sepalwidth",
+            "attribute": "SepalwidthCm",
             "aggregation": "MIN",
             "compute": None,
             "displayOn": "left",

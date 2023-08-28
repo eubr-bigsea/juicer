@@ -48,7 +48,7 @@ arguments = {
             "max_displayed": None,
             "group_others": True,
             "sorting": "NATURAL",
-            "attribute": "species"
+            "attribute": "class"
         }],
         "palette": [
             "#1b9e77",
@@ -137,13 +137,15 @@ print(layout)
 print(data[0]['x'])
 
 type_chart = data[0]['type']
-
+mode_chart =data[0]['mode']
+print(type_chart)
+print(mode_chart)
 
 df_pol = df.collect()
 df_pandas = df_pol.to_pandas()
 
-fig = px.scatter_3d(df_pandas, x=df_pandas['sepallength'], y=df_pandas['sepalwidth'], z=df_pandas['petal_width'],
-              color=df_pandas['species'])
+fig = px.scatter_3d(df_pandas, x=df_pandas['sepallength'], y=df_pandas['sepalwidth'], z=df_pandas['petalwidth'],
+              color=df_pandas['class'])
 
 # Converter em JSON
 fig_json = fig.to_json()
@@ -156,11 +158,14 @@ print(layout1)
 
 
 type_test = data1[0]['type']
-
+mode_test = data1[0]['mode']
 
 
 #data tests    
 #teste type
 def test_pointcloud_type():
     assert type_chart == type_test
+
+def test_pointcloud_mode():
+    assert mode_chart == mode_test
 

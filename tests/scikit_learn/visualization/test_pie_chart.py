@@ -33,7 +33,7 @@ arguments = {
             "max_displayed": None,
             "group_others": True,
             "sorting": "NATURAL",
-            "attribute": "species"
+            "attribute": "class"
         }],
         "color_scale": [
             "#1F77B4",
@@ -114,37 +114,29 @@ data = generated_chart['data']
 layout = generated_chart['layout']
 
 print(data)
-#trechos do dicionario do codigo gerado
-dict0_chart = data[0]
-dict1_chart = data[1]
-dict2_chart = data[1]
 
-color_chart = data[2]['marker']['color']
+
+#color_chart = data[2]['marker']['color']
 type_chart = data[0]['type']
-showlegend_chart = dict1_chart['showlegend']
+showlegend_chart = data[0]['showlegend']
+values_chart = data[0]['values']
 print(showlegend_chart)
 
 print(type_chart)
+print(values_chart)
 
-## Rever o código ##
-# Codigo de teste
-'''
-df_select = df.select("petalwidth")
-df_select_result = df_select.lazy().select("petalwidth").collect()
-df_select1 = df.select("petallength")
-df_select_result1 = df_select1.lazy().select("petallength").collect()
-df_select_result_pd = df_select_result.to_pandas()
-df_select_result1_pd = df_select_result1.to_pandas()
-   '''
+
+# mudança do tipo
 df_pol = df.collect()
 df_pandas = df_pol.to_pandas()
 
 # Definir uma escala de cores personalizada
 custom_colors = plotly.colors.sequential.Viridis
 # Gerar o gráfico com a escala de cores personalizada
-#verificar
-valor = 1 
-fig = px.pie(df, values=valor, names='species', color_discrete_sequence=px.colors.sequential.RdBu)
+
+contagem_valores = len(df_pandas['sepalwidth'])
+
+fig = px.pie(df_pandas, values=df_pandas['sepalwidth'], names=df_pandas['class'])
 
 #fig = px.density_heatmap(df, x=df_select_result, y=df_select_result1, marginal_x="box", marginal_y="violin")
 
@@ -154,36 +146,32 @@ generated_chart_vis = json.loads(fig_json)
 data1 = generated_chart_vis['data']
 layout1 = generated_chart_vis['layout']
 
-print(data1)
-#trechos do dicionario do codigo gerado
-dict0_test = data1[0]
-dict1_test = data1[1]
-dict2_test = data1[1]
-print(dict0_test)
-print(dict1_test)
-print(dict2_test)
+#
 
 
 
-    
-color_test = data1[2]['marker']['color']
+#   
 type_test = data1[0]['type']
-showlegend_test = dict1_test['showlegend']
+showlegend_test = data1[0]['showlegend']
+values_test = data1[0]['values']
+
+print(data1)
 print(showlegend_test)
 print(type_test)
+print(values_test)
 
 #data tests    
 #teste type
-'''def test_test_dentity_heatmap_type():
+def test_pie_type():
     assert type_chart == type_test
 
 #teste legenda
-def test_test_dentity_heatmap_legend():
+def test_pie_legend():
     assert showlegend_chart == showlegend_test 
     
 #teste escala de cores
-def test_test_dentity_heatmap_colorscale():
-    assert color_chart == color_test
-'''
+def test_pie_values():
+    assert values_chart == values_test
+
 #layout tests
    
