@@ -11,11 +11,19 @@ import plotly.colors
 
 
 # sunburst
+
+import pdb;pdb.set_trace()
     
 df = util.titanic_polars()
 
-arguments = {
-    'parameters': {
+@pytest.fixture
+def get_df():
+    return util.iris_polars()
+
+@pytest.fixture
+def get_arguments():
+    return {
+        'parameters': {
         'type': 'sunburst',
         'display_legend': "HIDE",
         "x": [{
@@ -81,37 +89,32 @@ arguments = {
             "suffix": None
         },
         "task_id": "0"
-    },
-    'named_inputs': {
-        'input data': "titanic",
-    },
-    'named_outputs': {
+        },
+        'named_inputs': {
+        'input data': "iris",
+        },
+        'named_outputs': {
         'output data': 'out'
+        }
     }
-}
-
-
-    
-
-instance = VisualizationOperation(**arguments)
     
 def emit_event(*args, **kwargs):
     print(args, kwargs)
 
-vis_globals = dict(titanic=df, emit_event=emit_event)
-code ='\n'.join( ["import plotly.graph_objects as go","import plotly.express as px","import json",instance.generate_code(),])
-result = util.execute(code, 
-                          vis_globals)
+@pytest.fixture
+def generated_chart(get_arguments, get_df):
+    instance = VisualizationOperation(**get_arguments)
+    vis_globals = dict(iris=get_df, emit_event=emit_event)
+    code ='\n'.join( ["import plotly.graph_objects as go","import plotly.express as px","import json",instance.generate_code(),])
+    result = util.execute(code, vis_globals)
+    generated_chart = result.get('d')
+    data = generated_chart['data']
+    layout = generated_chart['layout']
+    print(data)
+    return data,layout
 
-# Use result.get('d') to get the Python dict containing the chart
-generated_chart = result.get('d')
-import pdb;pdb.set_trace()
 
-data = generated_chart['data']
-layout = generated_chart['layout']
-
-print(data)
-print(layout)
+'''
 df_pol = df.collect()
 df_pandas = df_pol.to_pandas()
 valores = len(df_pandas['sex'])
@@ -121,40 +124,134 @@ fig = px.sunburst(df_pandas, path=df_pandas['pclass'], values=valores, color=df_
 # Converter em JSON
 fig_json = fig.to_json()
 generated_chart_vis = json.loads(fig_json)
+'''
 
-data1 = generated_chart_vis['data']
-layout1 = generated_chart_vis['layout']
+#test data
+# Teste para verificar o campo 'branchvalues' 
+def test_data_branchvalues(generated_chart):
+    data, layout = generated_chart
+    sunburst_data = data[0]  
+    branchvalues = sunburst_data.get('branchvalues')
+    assert branchvalues is not None, "Campo 'branchvalues' não encontrado no objeto de dados"
+    assert branchvalues == 'total', "Valor do campo 'branchvalues' incorreto"
 
-print(data1)
-#trechos do dicionario do codigo gerado
-dict0_test = data1[0]
-dict1_test = data1[1]
-dict2_test = data1[1]
-print(dict0_test)
-print(dict1_test)
-print(dict2_test)
+# Teste para verificar o campo 'customdata' 
+def test_data_customdata(generated_chart):
+    data, layout = generated_chart
+    sunburst_data = data[0]  
+    customdata = sunburst_data.get('customdata')
+    assert customdata is not None, "Campo 'customdata' não encontrado no objeto de dados"
+    expected_customdata = [[323.0], [277.0], [709.0]]
+    assert customdata == expected_customdata, "Valor do campo 'customdata' incorreto"
 
+# Teste para verificar o campo 'customdata' está incorreto
+def test_data_customdata02(generated_chart):
+    data, layout = generated_chart
+    sunburst_data = data[0]  
+    customdata = sunburst_data.get('customdata')
+    assert customdata is not None, "Campo 'customdata' não encontrado no objeto de dados"
+    expected_customdata = [[32.0], [27.0], [79.0]]
+    assert customdata == expected_customdata, "Valor do campo 'customdata' incorreto"
 
-
-    
-color_test = data1[2]['marker']['color']
-type_test = data1[0]['type']
-showlegend_test = dict1_test['showlegend']
-print(showlegend_test)
-print(type_test)
-
-#data tests    
-#teste type
-def test_sunbust_type():
-    assert type_chart == type_test
-
-#teste legenda
-def test_sunbust_legend():
-    assert showlegend_chart == showlegend_test 
-    
-#teste escala de cores
-def test_sunbust_colorscale():
-    assert color_chart == color_test
-
-#layout tests
+# Teste para verificar o campo 'domain' 
+def test_data_domain(generated_chart):
+    data, layout = generated_chart
+    sunburst_data = data[0]  
+    domain = sunburst_data.get('domain')
+    assert domain is not None, "Campo 'domain' não encontrado no objeto de dados"
    
+
+# Teste para verificar o campo 'hovertemplate'
+def test_data_hovertemplate(generated_chart):
+    data, layout = generated_chart
+    sunburst_data = data[0] 
+    hovertemplate = sunburst_data.get('hovertemplate')
+    assert hovertemplate is not None, "Campo 'hovertemplate' não encontrado no objeto de dados"
+    
+
+# Teste para verificar o campo 'ids' 
+def test_data_ids(generated_chart):
+    data, layout = generated_chart
+    sunburst_data = data[0]  
+    ids = sunburst_data.get('ids')
+    assert ids is not None, "Campo 'ids' não encontrado no objeto de dados"
+    expected_ids = ['1st', '2nd', '3rd']
+    assert ids == expected_ids, "Valores do campo 'ids' incorretos"
+
+# Teste para verificar o campo 'ids' está incorreto
+def test_data_ids02(generated_chart):
+    data, layout = generated_chart
+    sunburst_data = data[0]  
+    ids = sunburst_data.get('ids')
+    assert ids is not None, "Campo 'ids' não encontrado no objeto de dados"
+    expected_ids = ['4st', '5nd', '6rd']
+    assert ids == expected_ids, "Valores do campo 'ids' incorretos"
+
+# Teste para verificar o campo 'labels' 
+def test_data_labels(generated_chart):
+    data, layout = generated_chart
+    sunburst_data = data[0]  
+    labels = sunburst_data.get('labels')
+    assert labels is not None, "Campo 'labels' não encontrado no objeto de dados"
+    expected_labels = ['1st', '2nd', '3rd']
+    assert labels == expected_labels, "Valores do campo 'labels' incorretos"
+
+# Teste para verificar o campo 'marker' 
+def test_data_marker(generated_chart):
+    data, layout = generated_chart
+    sunburst_data = data[0] 
+    marker = sunburst_data.get('marker')
+    assert marker is not None, "Campo 'marker' não encontrado no objeto de dados"
+    
+
+# Teste para verificar o campo 'name' 
+def test_data_name(generated_chart):
+    data, layout = generated_chart
+    sunburst_data = data[0]  
+    name = sunburst_data.get('name')
+    assert name is not None, "Campo 'name' não encontrado no objeto de dados"
+    assert name == '', "Valor do campo 'name' incorreto"
+
+# Teste para verificar o campo 'parents' 
+def test_data_parents(generated_chart):
+    data, layout = generated_chart
+    sunburst_data = data[0] 
+    parents = sunburst_data.get('parents')
+    assert parents is not None, "Campo 'parents' não encontrado no objeto de dados"
+    expected_parents = ['', '', '']
+    assert parents == expected_parents, "Valores do campo 'parents' incorretos"
+
+# Teste para verificar o campo 'parents' está incorreto
+def test_data_parents02(generated_chart):
+    data, layout = generated_chart
+    sunburst_data = data[0] 
+    parents = sunburst_data.get('parents')
+    assert parents is not None, "Campo 'parents' não encontrado no objeto de dados"
+    expected_parents = ['1', '2', '3']
+    assert parents == expected_parents, "Valores do campo 'parents' incorretos"
+
+# Teste para verificar o campo 'values' 
+def test_data_values(generated_chart):
+    data, layout = generated_chart
+    sunburst_data = data[0]  
+    values = sunburst_data.get('values')
+    assert values is not None, "Campo 'values' não encontrado no objeto de dados"
+    expected_values = [323.0, 277.0, 709.0]
+    assert values == expected_values, "Valores do campo 'values' incorretos"
+
+# Teste para verificar o campo 'type' 
+def test_data_type(generated_chart):
+    data, layout = generated_chart
+    sunburst_data = data[0]  
+    chart_type = sunburst_data.get('type')
+    assert chart_type is not None, "Campo 'type' não encontrado no objeto de dados"
+    assert chart_type == 'sunburst', "Valor do campo 'type' incorreto"
+
+# Teste para verificar o campo 'type' está incorreto
+def test_data_type02(generated_chart):
+    data, layout = generated_chart
+    sunburst_data = data[0]  
+    chart_type = sunburst_data.get('type')
+    assert chart_type is not None, "Campo 'type' não encontrado no objeto de dados"
+    assert chart_type == 'heapmap', "Valor do campo 'type' incorreto"
+
