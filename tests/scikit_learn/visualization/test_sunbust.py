@@ -18,7 +18,7 @@ df = util.titanic_polars()
 
 @pytest.fixture
 def get_df():
-    return util.iris_polars()
+    return util.titanic_polars()
 
 @pytest.fixture
 def get_arguments():
@@ -255,3 +255,86 @@ def test_data_type02(generated_chart):
     assert chart_type is not None, "Campo 'type' não encontrado no objeto de dados"
     assert chart_type == 'heapmap', "Valor do campo 'type' incorreto"
 
+
+#layout tests
+
+# Teste para verificar o campo 'template' 
+def test_layout_template(generated_chart):
+    data, layout = generated_chart
+    layout_template = layout.get('template')
+    assert layout_template is not None, "Campo 'template' não encontrado no objeto de layout"
+    expected_template = {'data': {'scatter': [{'type': 'scatter'}]}}
+    assert layout_template == expected_template, "Valores do campo 'template' incorretos"
+
+# Teste para verificar o campo 'template' esta incorreto 
+def test_layout_template02(generated_chart):
+    data, layout = generated_chart
+    layout_template = layout.get('template')
+    assert layout_template is not None, "Campo 'template' não encontrado no objeto de layout"
+    expected_template = {'data': {'box': [{'type': 'box'}]}}
+    assert layout_template == expected_template, "Valores do campo 'template' incorretos"
+
+# Teste para verificar o campo 'coloraxis' 
+def test_layout_coloraxis(generated_chart):
+    data, layout = generated_chart
+    layout_coloraxis = layout.get('coloraxis')
+    assert layout_coloraxis is not None, "Campo 'coloraxis' não encontrado no objeto de layout"
+    expected_coloraxis = {
+        'colorbar': {'title': {'text': 'count(*)'}},
+        'colorscale': [
+            [0.0, '#000000'],
+            [0.25, '#e60000'],
+            [0.5, '#e6d200'],
+            [0.75, '#ffffff'],
+            [1.0, '#a0c8ff']
+        ]
+    }
+    assert layout_coloraxis == expected_coloraxis, "Valores do campo 'coloraxis' incorretos"
+
+# Teste para verificar o campo 'legend' 
+def test_layout_legend(generated_chart):
+    data, layout = generated_chart
+    layout_legend = layout.get('legend')
+    assert layout_legend is not None, "Campo 'legend' não encontrado no objeto de layout"
+    expected_legend = {'tracegroupgap': 0}
+    assert layout_legend == expected_legend, "Valores do campo 'legend' incorretos"
+
+# Teste para verificar o campo 'legend' esta incorreto
+def test_layout_legend02(generated_chart):
+    data, layout = generated_chart
+    layout_legend = layout.get('legend')
+    assert layout_legend is not None, "Campo 'legend' não encontrado no objeto de layout"
+    expected_legend = {'tracegroupgap': 1}
+    assert layout_legend == expected_legend, "Valores do campo 'legend' incorretos"
+
+# Teste para verificar o campo 'margin' 
+def test_layout_margin(generated_chart):
+    data, layout = generated_chart
+    layout_margin = layout.get('margin')
+    assert layout_margin is not None, "Campo 'margin' não encontrado no objeto de layout"
+    expected_margin = {'t': 30, 'l': 30, 'r': 30, 'b': 30}
+    assert layout_margin == expected_margin, "Valores do campo 'margin' incorretos"
+
+# Teste para verificar o campo 'showlegend' 
+def test_layout_showlegend(generated_chart):
+    data, layout = generated_chart
+    layout_showlegend = layout.get('showlegend')
+    assert layout_showlegend is not None, "Campo 'showlegend' não encontrado no objeto de layout"
+    expected_layout_showlegend = False
+    assert layout_showlegend == expected_layout_showlegend, "Valor do campo 'showlegend' no layout incorreto"
+
+# Teste para verificar o campo 'showlegend' esta incorreto
+def test_layout_showlegend02(generated_chart):
+    data, layout = generated_chart
+    layout_showlegend = layout.get('showlegend')
+    assert layout_showlegend is not None, "Campo 'showlegend' não encontrado no objeto de layout"
+    expected_layout_showlegend = True
+    assert layout_showlegend == expected_layout_showlegend, "Valor do campo 'showlegend' no layout incorreto"
+
+# Teste para verificar o campo 'xaxis' 
+def test_layout_xaxis(generated_chart):
+    data, layout = generated_chart
+    layout_xaxis = layout.get('xaxis')
+    assert layout_xaxis is not None, "Campo 'xaxis' não encontrado no objeto de layout"
+    expected_xaxis = {'categoryorder': 'trace'}
+    assert layout_xaxis == expected_xaxis, "Valores do campo 'xaxis' incorretos"
