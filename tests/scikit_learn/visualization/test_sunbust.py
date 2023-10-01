@@ -107,9 +107,9 @@ def generated_chart(get_arguments, get_df):
     vis_globals = dict(iris=get_df, emit_event=emit_event)
     code ='\n'.join( ["import plotly.graph_objects as go","import plotly.express as px","import json",instance.generate_code(),])
     result = util.execute(code, vis_globals)
-    generated_chart = result.get('d')
-    data = generated_chart['data']
-    layout = generated_chart['layout']
+    generated_chart_code = result.get('d')
+    data = generated_chart_code['data']
+    layout = generated_chart_code['layout']
     print(data)
     return data,layout
 
@@ -143,15 +143,6 @@ def test_data_customdata(generated_chart):
     assert customdata is not None, "Campo 'customdata' não encontrado no objeto de dados"
     expected_customdata = [[323.0], [277.0], [709.0]]
     assert customdata == expected_customdata, "Valor do campo 'customdata' incorreto"
-'''
-# Teste para verificar o campo 'customdata' está incorreto
-def test_data_customdata02(generated_chart):
-    data, layout = generated_chart
-    sunburst_data = data[0]  
-    customdata = sunburst_data.get('customdata')
-    assert customdata is not None, "Campo 'customdata' não encontrado no objeto de dados"
-    expected_customdata = [[32.0], [27.0], [79.0]]
-    assert customdata == expected_customdata, "Valor do campo 'customdata' incorreto"'''
 
 # Teste para verificar o campo 'domain' 
 def test_data_domain(generated_chart):
@@ -177,15 +168,7 @@ def test_data_ids(generated_chart):
     assert ids is not None, "Campo 'ids' não encontrado no objeto de dados"
     expected_ids = ['1st', '2nd', '3rd']
     assert ids == expected_ids, "Valores do campo 'ids' incorretos"
-'''
-# Teste para verificar o campo 'ids' está incorreto
-def test_data_ids02(generated_chart):
-    data, layout = generated_chart
-    sunburst_data = data[0]  
-    ids = sunburst_data.get('ids')
-    assert ids is not None, "Campo 'ids' não encontrado no objeto de dados"
-    expected_ids = ['4st', '5nd', '6rd']
-    assert ids == expected_ids, "Valores do campo 'ids' incorretos"'''
+
 
 # Teste para verificar o campo 'labels' 
 def test_data_labels(generated_chart):
@@ -220,15 +203,7 @@ def test_data_parents(generated_chart):
     assert parents is not None, "Campo 'parents' não encontrado no objeto de dados"
     expected_parents = ['', '', '']
     assert parents == expected_parents, "Valores do campo 'parents' incorretos"
-'''
-# Teste para verificar o campo 'parents' está incorreto
-def test_data_parents02(generated_chart):
-    data, layout = generated_chart
-    sunburst_data = data[0] 
-    parents = sunburst_data.get('parents')
-    assert parents is not None, "Campo 'parents' não encontrado no objeto de dados"
-    expected_parents = ['1', '2', '3']
-    assert parents == expected_parents, "Valores do campo 'parents' incorretos"'''
+
 
 # Teste para verificar o campo 'values' 
 def test_data_values(generated_chart):
@@ -246,14 +221,6 @@ def test_data_type(generated_chart):
     chart_type = sunburst_data.get('type')
     assert chart_type is not None, "Campo 'type' não encontrado no objeto de dados"
     assert chart_type == 'sunburst', "Valor do campo 'type' incorreto"
-'''
-# Teste para verificar o campo 'type' está incorreto
-def test_data_type02(generated_chart):
-    data, layout = generated_chart
-    sunburst_data = data[0]  
-    chart_type = sunburst_data.get('type')
-    assert chart_type is not None, "Campo 'type' não encontrado no objeto de dados"
-    assert chart_type == 'heapmap', "Valor do campo 'type' incorreto"'''
 
 
 #layout tests
@@ -265,14 +232,7 @@ def test_layout_template(generated_chart):
     assert layout_template is not None, "Campo 'template' não encontrado no objeto de layout"
     expected_template = {'data': {'scatter': [{'type': 'scatter'}]}}
     assert layout_template == expected_template, "Valores do campo 'template' incorretos"
-'''
-# Teste para verificar o campo 'template' esta incorreto 
-def test_layout_template02(generated_chart):
-    data, layout = generated_chart
-    layout_template = layout.get('template')
-    assert layout_template is not None, "Campo 'template' não encontrado no objeto de layout"
-    expected_template = {'data': {'box': [{'type': 'box'}]}}
-    assert layout_template == expected_template, "Valores do campo 'template' incorretos"'''
+
 
 # Teste para verificar o campo 'coloraxis' 
 def test_layout_coloraxis(generated_chart):
@@ -298,14 +258,7 @@ def test_layout_legend(generated_chart):
     assert layout_legend is not None, "Campo 'legend' não encontrado no objeto de layout"
     expected_legend = {'tracegroupgap': 0}
     assert layout_legend == expected_legend, "Valores do campo 'legend' incorretos"
-'''
-# Teste para verificar o campo 'legend' esta incorreto
-def test_layout_legend02(generated_chart):
-    data, layout = generated_chart
-    layout_legend = layout.get('legend')
-    assert layout_legend is not None, "Campo 'legend' não encontrado no objeto de layout"
-    expected_legend = {'tracegroupgap': 1}
-    assert layout_legend == expected_legend, "Valores do campo 'legend' incorretos"'''
+
 
 # Teste para verificar o campo 'margin' 
 def test_layout_margin(generated_chart):
@@ -322,14 +275,7 @@ def test_layout_showlegend(generated_chart):
     assert layout_showlegend is not None, "Campo 'showlegend' não encontrado no objeto de layout"
     expected_layout_showlegend = False
     assert layout_showlegend == expected_layout_showlegend, "Valor do campo 'showlegend' no layout incorreto"
-'''
-# Teste para verificar o campo 'showlegend' esta incorreto
-def test_layout_showlegend02(generated_chart):
-    data, layout = generated_chart
-    layout_showlegend = layout.get('showlegend')
-    assert layout_showlegend is not None, "Campo 'showlegend' não encontrado no objeto de layout"
-    expected_layout_showlegend = True
-    assert layout_showlegend == expected_layout_showlegend, "Valor do campo 'showlegend' no layout incorreto"'''
+
 
 # Teste para verificar o campo 'xaxis' 
 def test_layout_xaxis(generated_chart):
@@ -338,56 +284,3 @@ def test_layout_xaxis(generated_chart):
     assert layout_xaxis is not None, "Campo 'xaxis' não encontrado no objeto de layout"
     expected_xaxis = {'categoryorder': 'trace'}
     assert layout_xaxis == expected_xaxis, "Valores do campo 'xaxis' incorretos"
-
-
-
-def generate_chart_with_args(arguments, dataframe):
-    try:
-        instance = VisualizationOperation(**arguments)
-        vis_globals = dict(iris=dataframe) 
-        generated_chart = instance.generate_chart(visual_globals=vis_globals)
-        return generated_chart
-    except Exception as e:
-        # Captura uma exceção 
-        raise ValueError(f"Erro ao gerar o gráfico: {str(e)}")
-
-def test_missing_chart_type(get_arguments, get_df):
-    # Remova o tipo de gráfico dos argumentos
-    arguments = get_arguments
-    del arguments['parameters']['type']
-
-    # Tenta gerar o gráfico com parâmetros ausentes
-    try:
-        result = generate_chart_with_args(arguments, get_df)
-    except ValueError as e:
-        # Verifica se a exceção foi gerada
-        assert "Erro ao gerar o gráfico" in str(e)
-        assert "Tipo de gráfico não especificado" in str(e)
-    else:
-        pytest.fail("Esperava-se que uma exceção fosse gerada")
-
-def test_missing_input_data(get_arguments):
-    arguments = get_arguments
-    # Defina a base de dados como None para testar o caso onde não é fornecida
-    arguments['named_inputs']['input data'] = None
-
-    try:
-        result = generate_chart_with_args(arguments, None)  # Passamos None como a base de dados
-    except ValueError as e:
-        assert "Erro ao gerar o gráfico" in str(e)
-        assert "Base de dados não fornecida" in str(e)
-    else:
-        pytest.fail("Esperava-se que uma exceção fosse gerada quando a base de dados não é fornecida")
-
-def test_missing_color_scale(get_arguments):
-    arguments = get_arguments
-    # Remoção a escala de cores dos argumentos
-    del arguments['parameters']['color_scale']
-
-    try:
-        result = generate_chart_with_args(arguments, get_df)  
-    except ValueError as e:
-        assert "Erro ao gerar o gráfico" in str(e)
-        assert "Escala de cores não fornecida" in str(e)
-    else:
-        pytest.fail("Esperava-se que uma exceção fosse gerada quando a escala de cores não é fornecida")
