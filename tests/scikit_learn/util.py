@@ -37,6 +37,17 @@ def iris(columns: List[str] = None, size: int = None) -> pd.DataFrame:
 def iris_polars(columns: List[str] = None, size: int = None) -> pl.DataFrame:
     return pandas_2_polars(read('iris', columns, size))
 
+def iris2_polars(columns: List[str] = None, size: int = None) -> pl.DataFrame:
+    return pandas_2_polars(read('iris2', columns, size))
+
+def titanic_polars(columns: List[str] = None, size: int = None) -> pl.DataFrame:
+    return pandas_2_polars(read('titanic', columns, size))
+
+def funel_polars(columns: List[str] = None, size: int = None) -> pl.DataFrame:
+    return pandas_2_polars(read('funel', columns, size))
+
+def tips_polars(columns: List[str] = None, size: int = None) -> pl.DataFrame:
+    return pandas_2_polars(read('tips', columns, size))
 
 def wine(columns: List[str] = None, size: int = None) -> pd.DataFrame:
     return read('wine', columns, size)
