@@ -165,14 +165,6 @@ def test_data_labels(generated_chart):
     assert labels is not None, "Campo 'labels' não encontrado em data"
     assert labels == ['Iris-setosa', 'Iris-versicolor', 'Iris-virginica'], "Valor do campo 'labels' incorreto"
 
-# Teste para verificar o campo 'labels' está incorreto
-def test_data_labels02(generated_chart):
-    data, layout = generated_chart
-    data_entry = data[0]
-    labels = data_entry.get('labels')
-    assert labels is not None, "Campo 'labels' não encontrado em data"
-    assert labels == ['Iris-setosacm', 'Iris-versicolorcm', 'Iris-virginicacm'], "Valor do campo 'labels' incorreto"
-
 # Teste para verificar o campo 'legendgroup' 
 def test_data_legendgroup(generated_chart):
     data, layout = generated_chart
@@ -180,12 +172,6 @@ def test_data_legendgroup(generated_chart):
     legendgroup = data_entry.get('legendgroup')
     assert legendgroup == '', "Valor do campo 'legendgroup' incorreto"
 
-# Teste para verificar o campo 'legendgroup' incorreto
-def test_data_legendgroup02(generated_chart):
-    data, layout = generated_chart
-    data_entry = data[0]
-    legendgroup = data_entry.get('legendgroup')
-    assert legendgroup == 'qualquer legenda', "Valor do campo 'legendgroup' incorreto"
 
 # Teste para verificar o campo 'showlegend' 
 def test_data_showlegend(generated_chart):
@@ -195,13 +181,6 @@ def test_data_showlegend(generated_chart):
     assert showlegend is not None, "Campo 'showlegend' não encontrado em data"
     assert showlegend is True, "Valor do campo 'showlegend' incorreto"
 
-# Teste para verificar o campo 'showlegend'  esta incorreto
-def test_data_showlegend02(generated_chart):
-    data, layout = generated_chart
-    data_entry = data[0]
-    showlegend = data_entry.get('showlegend')
-    assert showlegend is not None, "Campo 'showlegend' não encontrado em data"
-    assert showlegend is False, "Valor do campo 'showlegend' incorreto"
 
 # Teste para verificar o campo 'values' 
 def test_data_values(generated_chart):
@@ -218,14 +197,6 @@ def test_data_type(generated_chart):
     chart_type = data_entry.get('type')
     assert chart_type is not None, "Campo 'type' não encontrado em data"
     assert chart_type == 'pie', "Valor do campo 'type' incorreto"
-
-# Teste para verificar o campo 'type' esta incorreto
-def test_data_type02(generated_chart):
-    data, layout = generated_chart
-    data_entry = data[0]
-    chart_type = data_entry.get('type')
-    assert chart_type is not None, "Campo 'type' não encontrado em data"
-    assert chart_type == 'funnel', "Valor do campo 'type' incorreto"
 
 
 #layout tests

@@ -218,13 +218,6 @@ def test_layout_template(generated_chart):
     expected_template = {'data': {'scatter': [{'type': 'scatter'}]}}
     assert layout_template == expected_template, "Valores do campo 'template' incorretos"
 
-# Teste para verificar o campo 'template' esta incorreto 
-def test_layout_template02(generated_chart):
-    data, layout = generated_chart
-    layout_template = layout.get('template')
-    assert layout_template is not None, "Campo 'template' não encontrado no objeto de layout"
-    expected_template = {'data': {'scatter': [{'type': 'histogram2dcontour'}]}}
-    assert layout_template == expected_template, "Valores do campo 'template' incorretos"
 
 # Teste para verificar o campo 'template' 
 def test_layout_template(generated_chart):
@@ -232,14 +225,6 @@ def test_layout_template(generated_chart):
     layout_template = layout.get('template')
     assert layout_template is not None, "Campo 'template' não encontrado no objeto de layout"
     expected_template = {'data': {'scatter': [{'type': 'scatter'}]}}
-    assert layout_template == expected_template, "Valores do campo 'template' incorretos"
-
-# Teste para verificar o campo 'template' esta incorreto
-def test_layout_template(generated_chart):
-    data, layout = generated_chart
-    layout_template = layout.get('template')
-    assert layout_template is not None, "Campo 'template' não encontrado no objeto de layout"
-    expected_template = {'data': {'histogram2dcontour': [{'type': 'scatter'}]}}
     assert layout_template == expected_template, "Valores do campo 'template' incorretos"
 
 # Teste para verificar o campo 'coloraxis' 
@@ -262,25 +247,7 @@ def test_layout_coloraxis(generated_chart):
     }
     assert layout_coloraxis == expected_coloraxis, "Valores do campo 'coloraxis' incorretos"
 
-# Teste para verificar o campo 'coloraxis' esta incorreto 
-def test_layout_coloraxis02(generated_chart):
-    data, layout = generated_chart
-    layout_coloraxis = layout.get('coloraxis')
-    assert layout_coloraxis is not None, "Campo 'coloraxis' não encontrado no objeto de layout"
-    expected_coloraxis = {
-        'colorbar': {'title': {'text': 'Id'}},
-        'colorscale': [
-            [0.0, '#245668'],
-            [0.16666666666666666, '#0f7248'],
-            [0.3333333333333333, '#0d8f06'],
-            [0.5, '#39ab7e'],
-            [0.6666666666666666, '#6ec400'],
-            [0.8333333333333334, '#a9dc80'],
-            [1.0, '#edef5d']
-        ],
-        'cmid': 2
-    }
-    assert layout_coloraxis == expected_coloraxis, "Valores do campo 'coloraxis' incorretos"
+
 # Teste para verificar o campo 'legend' 
 def test_layout_legend(generated_chart):
     data, layout = generated_chart
@@ -289,13 +256,6 @@ def test_layout_legend(generated_chart):
     expected_legend = {'tracegroupgap': 0}
     assert layout_legend == expected_legend, "Valores do campo 'legend' incorretos"
 
-# Teste para verificar o campo 'legend' esta incorreto 
-def test_layout_legend02(generated_chart):
-    data, layout = generated_chart
-    layout_legend = layout.get('legend')
-    assert layout_legend is not None, "Campo 'legend' não encontrado no objeto de layout"
-    expected_legend = {'tracegroupgap': 1}
-    assert layout_legend == expected_legend, "Valores do campo 'legend' incorretos"
 
 # Teste para verificar o campo 'margin' 
 def test_layout_margin(generated_chart):
@@ -311,14 +271,6 @@ def test_layout_showlegend(generated_chart):
     layout_showlegend = layout.get('showlegend')
     assert layout_showlegend is not None, "Campo 'showlegend' não encontrado no objeto de layout"
     expected_layout_showlegend = False
-    assert layout_showlegend == expected_layout_showlegend, "Valor do campo 'showlegend' no layout incorreto"
-
-# Teste para verificar o campo 'showlegend' esta incorreto
-def test_layout_showlegend02(generated_chart):
-    data, layout = generated_chart
-    layout_showlegend = layout.get('showlegend')
-    assert layout_showlegend is not None, "Campo 'showlegend' não encontrado no objeto de layout"
-    expected_layout_showlegend = True
     assert layout_showlegend == expected_layout_showlegend, "Valor do campo 'showlegend' no layout incorreto"
 
 # Teste para verificar o campo 'xaxis' 

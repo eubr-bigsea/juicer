@@ -141,10 +141,6 @@ def test_boxplot_type(generated_chart):
     data, layout = generated_chart
     assert all(item.get('type') == 'box' for item in data), "Tipo de gráfico incorreto"
 
-# Teste para verificar se o tipo do gráfico é 'box'
-def test_boxplot_type02(generated_chart):
-    data, layout = generated_chart
-    assert all(item.get('type') == 'violin' for item in data), "Tipo de gráfico incorreto"
 
 # Teste para verificar o campo 'boxpoints' 
 def test_boxplot_boxpoints(generated_chart):
@@ -167,12 +163,6 @@ def test_layout_showlegend(generated_chart):
     expected_layout_showlegend = True  
     assert layout_showlegend == expected_layout_showlegend, "Valor do campo 'showlegend' no layout incorreto"
 
-# Teste para verificar o campo 'showlegend' 
-def test_layout_showlegend02(generated_chart):
-    data, layout = generated_chart
-    layout_showlegend = layout.get('showlegend')
-    expected_layout_showlegend = False  
-    assert layout_showlegend == expected_layout_showlegend, "Valor do campo 'showlegend' no layout incorreto"
 
 # Teste para verificar o campo 'alignmentgroup' 
 def test_boxplot_alignmentgroup(generated_chart):

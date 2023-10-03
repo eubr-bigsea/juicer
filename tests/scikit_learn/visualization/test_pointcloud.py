@@ -188,14 +188,6 @@ def test_data_type(generated_chart):
     assert chart_type is not None, "Campo 'type' não encontrado no objeto de dados"
     assert chart_type == 'scatter3d', "Valor do campo 'type' incorreto"
 
-# Teste para verificar o campo 'type' esta incorreto
-def test_data_type02(generated_chart):
-    data, layout = generated_chart
-    scatter_data = data[0]  
-    chart_type = scatter_data.get('type')
-    assert chart_type is not None, "Campo 'type' não encontrado no objeto de dados"
-    assert chart_type == 'scatter', "Valor do campo 'type' incorreto"
-
 #test layout
 
 # Teste para verificar o campo 'template' 
@@ -211,13 +203,6 @@ def test_layout_showlegend(generated_chart):
     assert showlegend is not None, "Campo 'showlegend' não encontrado no objeto de layout"
     assert showlegend == True, "Valor do campo 'showlegend' incorreto"
 
-# Teste para verificar o campo 'showlegend' está incorreto
-def test_layout_showlegend02(generated_chart):
-    data, layout = generated_chart
-    showlegend = layout.get('showlegend')
-    assert showlegend is not None, "Campo 'showlegend' não encontrado no objeto de layout"
-    assert showlegend == False, "Valor do campo 'showlegend' incorreto"
-
 # Teste para verificar o campo 'title' 
 def test_layout_title(generated_chart):
     data, layout = generated_chart
@@ -226,15 +211,6 @@ def test_layout_title(generated_chart):
     title_text = title.get('text')
     assert title_text is not None, "Campo 'text' dentro de 'title' não encontrado no objeto de layout"
     assert title_text == '', "Valor do campo 'text' dentro de 'title' incorreto"
-
-# Teste para verificar o campo 'title' 
-def test_layout_title02(generated_chart):
-    data, layout = generated_chart
-    title = layout.get('title')
-    assert title is not None, "Campo 'title' não encontrado no objeto de layout"
-    title_text = title.get('text')
-    assert title_text is not None, "Campo 'text' dentro de 'title' não encontrado no objeto de layout"
-    assert title_text == 'titulo qualquer', "Valor do campo 'text' dentro de 'title' incorreto"
 
 # Teste para verificar o campo 'scene' no objeto 
 def test_layout_scene(generated_chart):
