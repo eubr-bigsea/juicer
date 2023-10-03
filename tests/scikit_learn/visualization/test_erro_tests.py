@@ -114,7 +114,7 @@ def generated_chart(get_arguments, get_df):
 
 
 
-#testes negativos
+    
 def test_missing_chart_type(get_arguments, get_df):
     # Remove o tipo de gráfico dos argumentos
     arguments = get_arguments

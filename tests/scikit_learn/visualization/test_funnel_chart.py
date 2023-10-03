@@ -148,23 +148,11 @@ def test_funnel_type(generated_chart):
     data, layout = generated_chart
     assert all(item.get('type') == 'funnel' for item in data), "Tipo de gráfico incorreto"
 
-# Teste para verificar se o tipo do gráfico está incorreto
-def test_funnel_type2(generated_chart):
-    data, layout = generated_chart
-    assert all(item.get('type') == 'pie' for item in data), "Tipo de gráfico incorreto"
-
 # Teste para verificar se os valores do eixo x estão corretos
 def test_funnel_x_values(generated_chart):
     data, layout = generated_chart
     x_values = data[0].get('x')
     expected_x_values = [13873.0, 10533.0, 5443.0, 2703.0, 908.0]  
-    assert x_values == expected_x_values, "Valores do eixo x incorretos"
-
-# Teste para verificar se os valores do eixo x estão incorretos
-def test_funnel_x_values2(generated_chart):
-    data, layout = generated_chart
-    x_values = data[0].get('x')
-    expected_x_values = [873.0, 533.0, 43.0, 2703.0, 908.0]  
     assert x_values == expected_x_values, "Valores do eixo x incorretos"
 
 # Teste para verificar se os valores do eixo y estão corretos
@@ -174,12 +162,6 @@ def test_funnel_y_values(generated_chart):
     expected_y_values = ['Website visit', 'Downloads', 'Potential customers', 'Invoice sent', 'Closed deals']  
     assert y_values == expected_y_values, "Valores do eixo y incorretos"
 
-# Teste para verificar se os valores do eixo y estão incorretos
-def test_funnel_y_values2(generated_chart):
-    data, layout = generated_chart
-    y_values = data[0].get('y')
-    expected_y_values = ['Website rate', 'Upload', 'customers', 'Invoice sent', 'Closed deals']  
-    assert y_values == expected_y_values, "Valores do eixo y incorretos"
 
 # Teste para verificar se o campo 'textinfo' está definido corretamente no primeiro item de dados
 def test_funnel_textinfo(generated_chart):
