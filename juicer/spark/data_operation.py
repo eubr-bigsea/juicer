@@ -412,12 +412,13 @@ class DataReaderOperation(Operation):
             ]}
 
             code.append("schema_{0}.add('{1}', {2}, {3},\n{5}{4})".format(
-                self.output, attr['name'], data_type, attr['nullable'],
+                self.output, attr['name'], data_type, attr.get('nullable', True),
                 pprint.pformat(metadata, indent=0), ' ' * 20
             ))
         else:
             code.append("schema_{0}.add('{1}', {2}, {3})".format(
-                self.output, attr['name'], data_type, attr['nullable']))
+                self.output, attr['name'], data_type, 
+                attr.get('nullable', True)))
 
     def get_output_names(self, sep=", "):
         return self.output
