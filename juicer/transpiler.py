@@ -25,13 +25,32 @@ from juicer.util.jinja2_custom import AutoPep8Extension
 from .service import stand_service
 from .util.template_util import HandleExceptionExtension
 
+from dataclasses import dataclass
+
 AUDITING_QUEUE_NAME = 'auditing'
 AUDITING_JOB_NAME = 'seed.jobs.auditing'
 
 log = logging.getLogger(__name__)
 
+@dataclass
+class GenerateCodeParams:
+    graph: object
+    job_id: int
+    out: object
+    params: dict
+    ports: list
+    tasks_ids: list
+    state: dict
+    task_hash: str
+    workflow: dict
+    using_stdout: bool = False
+    deploy: bool = False
+    export_notebook: bool = False
+    plain: bool = False
+    persist: bool = True
+
 # https://github.com/microsoft/pylance-release/issues/140#issuecomment-661487878
-_: Callable[[str], str] 
+_: Callable[[str], str]
 
 class DependencyController(object):
     """ Evaluates if a dependency is met when generating code. """
@@ -146,36 +165,13 @@ class Transpiler(object):
             })
         return result
 
-    def generate_code(self, graph, job_id, out, params, ports,
-                      sorted_tasks_id, state, task_hash, using_stdout,
-                      workflow, deploy=False, export_notebook=False,
-                      plain=False, persist=True):
-        if deploy:
-            # To be able to convert, workflow must obey all these rules:
-            # - 1 and exactly 1 data source;
-            # - Data source must be defined in Limonero with its attributes in
-            # order to define the schema for data input;
-            # - For ML models, it is required to have a Save Model operation;
-            total_ds = 0
-            for task in workflow['tasks']:
-                if not task.get('enabled', False):
-                    continue
-                if task['operation']['slug'] in self.DATA_SOURCE_OPS:
-                    total_ds += 1
-
-            if total_ds < 1:
-                raise ValueError(_(
-                    'Workflow must have at least 1 data source to be deployed.')
-                )
-            tasks_ids = reversed(sorted_tasks_id)
-        else:
-            tasks_ids = sorted_tasks_id
-
+    def get_instances(self, opt: GenerateCodeParams):
         instances = OrderedDict()
         transpiler_utils = TranspilerUtils(self)
+        graph = opt.graph
 
         audit_events = []
-        for i, task_id in enumerate(tasks_ids):
+        for i, task_id in enumerate(opt.tasks_ids):
             if task_id not in graph.nodes:
                 continue
             task = graph.nodes[task_id]['attr_dict']
@@ -205,7 +201,7 @@ class Transpiler(object):
                                 'transformation'],
                         definition['value'] is not None]):
 
-                    task_hash.update(str(definition['value']).encode(
+                    opt.task_hash.update(str(definition['value']).encode(
                         'utf8', errors='ignore'))
                     if cat in ['paramgrid', 'logging']:
                         if cat not in parameters:
@@ -222,13 +218,13 @@ class Transpiler(object):
                             definition['value'] = TranspilerUtils.escape_chars(
                                 definition['value'])
 
-            state = {} if state is None else state
-            if state is None or state.get(task_id) is None:
+            opt.state = {} if opt.state is None else opt.state
+            if opt.state is None or opt.state.get(task_id) is None:
                 parameters['execution_date'] = None
                 # Meta platform adds -0 to task_id
-                gen_source_code = state.get(f'{task_id}-0', [{}])[0]
+                gen_source_code = opt.state.get(f'{task_id}-0', [{}])[0]
             else:
-                gen_source_code = state.get(task_id, [{}])[0]
+                gen_source_code = opt.state.get(task_id, [{}])[0]
 
             if gen_source_code:
                 parameters['execution_date'] = gen_source_code.get(
@@ -243,28 +239,28 @@ class Transpiler(object):
                 'display_schema': task['forms'].get('display_schema', {}).get(
                     'value') in true_values,
                 # Hash is used in order to avoid re-run task.
-                'export_notebook': export_notebook,
-                'hash': task_hash.hexdigest(),
-                'job_id': job_id,
+                'export_notebook': opt.export_notebook,
+                'hash': opt.task_hash.hexdigest(),
+                'job_id': opt.job_id,
                 'operation_id': task['operation']['id'],
                 'operation_slug': task['operation']['slug'],
                 # Some temporary variables need to be identified by a sequential
                 # number, so it will be stored in this field
                 'order': i,
-                'plain': plain,
+                'plain': opt.plain,
                 # 'sorted_tasks_ids': sorted_tasks_ids,
                 'task': task,
                 'task_id': task['id'],
                 'transpiler': self,  # Allows operation to notify transpiler
                 'transpiler_utils': transpiler_utils,
-                'user': workflow['user'],
+                'user': opt.workflow['user'],
                 # Some operations require the complete workflow data
-                'workflow': workflow,
-                'workflow_id': workflow['id'],
-                'workflow_version': workflow['version'],
-                'workflow_name': TranspilerUtils.escape_chars(workflow['name']),
+                'workflow': opt.workflow,
+                'workflow_id': opt.workflow['id'],
+                'workflow_version': opt.workflow['version'],
+                'workflow_name': TranspilerUtils.escape_chars(opt.workflow['name']),
             })
-            port = ports.get(task['id'], {})
+            port = opt.ports.get(task['id'], {})
             parameters['parents'] = port.get('parents', [])
             parameters['parents_slug'] = port.get('parents_slug', [])
             parameters['parents_by_port'] = port.get('parents_by_port', [])
@@ -283,6 +279,33 @@ class Transpiler(object):
 
             instance.out_degree = graph.out_degree(task_id)
             instances[task['id']] = instance
+        return instances, audit_events
+
+
+    def generate_code(self, opt: GenerateCodeParams):
+        workflow = opt.workflow
+        if opt.deploy:
+            # To be able to convert, workflow must obey all these rules:
+            # - 1 and exactly 1 data source;
+            # - Data source must be defined in Limonero with its attributes in
+            # order to define the schema for data input;
+            # - For ML models, it is required to have a Save Model operation;
+            total_ds = 0
+            for task in workflow['tasks']:
+                if not task.get('enabled', False):
+                    continue
+                if task['operation']['slug'] in self.DATA_SOURCE_OPS:
+                    total_ds += 1
+
+            if total_ds < 1:
+                raise ValueError(_(
+                    'Workflow must have at least 1 data source to be deployed.')
+                )
+            tasks_ids = reversed(opt.tasks_ids)
+        else:
+            tasks_ids = opt.tasks_ids
+
+        instances, audit_events = self.get_instances(opt)
 
         if audit_events:
 
@@ -307,22 +330,24 @@ class Transpiler(object):
                         instances[task_id].parameters['multiplicity'][
                             in_port] = sum([1 for f in workflow['flows']
                                             if f['source_port'] == source_port])
-        
-        self.target_meta = workflow.get('target_meta_platform', 
+
+        self.target_meta = workflow.get('target_meta_platform',
             {'id': 1, 'name': 'spark'})
+
+        transpiler_utils = TranspilerUtils(self)
         env_setup = {
             'autopep8': autopep8,
             'dependency_controller': DependencyController(
-                params.get('requires_info', False)),
+                opt.params.get('requires_info', False)),
             'disabled_tasks': workflow['disabled_tasks'],
-            'execute_main': params.get('execute_main', False),
+            'execute_main': opt.params.get('execute_main', False),
             'instances': list(instances.values()),
             'instances_with_code': [i for i in instances.values() if i.has_code],
             'instances_by_task_id': instances,
-            'job_id': job_id,
+            'job_id': opt.job_id,
             'now': datetime.datetime.now(), 'user': workflow['user'],
-            'plain': plain,
-            'export_notebook': export_notebook,
+            'plain': opt.plain,
+            'export_notebook': opt.export_notebook,
             'transpiler': transpiler_utils,
             'workflow_name': workflow['name'],
             'workflow': workflow,
@@ -347,26 +372,26 @@ class Transpiler(object):
                                                       HandleExceptionExtension,
                                                       'jinja2.ext.do'])
         # import pdb; pdb.set_trace()
-        # if (os.path.getmtime(self.template_dir) > 
+        # if (os.path.getmtime(self.template_dir) >
         #                 os.path.getmtime(compiled_tmpl_dir)):
-        #     template_env.compile_templates(compiled_tmpl_dir, 
-        #         filter_func=lambda name: name.endswith('.tmpl'), zip=None, 
+        #     template_env.compile_templates(compiled_tmpl_dir,
+        #         filter_func=lambda name: name.endswith('.tmpl'), zip=None,
         #         ignore_errors=False)
 
         template_env.loader = loader
 
         template_env.globals.update(zip=zip)
 
-        if deploy:
+        if opt.deploy:
             env_setup['slug_to_op_id'] = self.slug_to_op_id
             # env_setup['slug_to_port_id'] = self.slug_to_port_id
             env_setup['id_mapping'] = {}
             template = template_env.get_template(self.get_deploy_template())
             out.write(template.render(env_setup))
-        elif export_notebook:
+        elif opt.export_notebook:
             template = template_env.get_template(self.get_notebook_template())
             out.write(template.render(env_setup))
-        elif plain:
+        elif opt.plain:
             template = template_env.get_template(self.get_plain_template())
             out.write(template.render(env_setup))
         else:
@@ -377,12 +402,12 @@ class Transpiler(object):
                 template = template_env.get_template(self.get_meta_template())
             elif workflow_type == 'BATCH':
                 template = template_env.get_template(self.get_batch_template())
-                
+
             gen_source_code = template.render(env_setup)
-            if using_stdout:
-                out.write(gen_source_code)
+            if opt.using_stdout:
+                opt.out.write(gen_source_code)
             else:
-                out.write(gen_source_code)
+                opt.out.write(gen_source_code)
             stand_config = self.configuration.get('juicer', {}).get(
                 'services', {}).get('stand')
             if stand_config and job_id and persist:
@@ -395,7 +420,7 @@ class Transpiler(object):
                     log.exception(str(ex))
 
     def transpile(self, workflow, graph, params, out=None, job_id=None,
-                  state=None, deploy=False, export_notebook=False, plain=False, 
+                  state=None, deploy=False, export_notebook=False, plain=False,
                   persist=True):
         """ Transpile the tasks from Lemonade's workflow into code """
 
@@ -470,15 +495,23 @@ class Transpiler(object):
                 target_port['inputs'].append(sequence)
 
         sorted_tasks_ids = nx.topological_sort(graph) if topological_sort \
-            else [t['id'] for t in sorted(workflow['tasks'], 
+            else [t['id'] for t in sorted(workflow['tasks'],
             key=lambda x: x.get('display_order', 0))]
 
-        self.generate_code(graph, job_id, out, params,
-                           ports, sorted_tasks_ids, state,
-                           hashlib.sha1(),
-                           using_stdout, workflow, deploy, export_notebook,
-                           plain=plain,
-                           persist=persist)
+        self.generate_code(
+            GenerateCodeParams(
+                graph=graph, job_id=job_id,
+                out=out, params=params,
+                ports=ports,
+                tasks_ids=sorted_tasks_ids,
+                state=state,
+                task_hash=hashlib.sha1(),
+                using_stdout=using_stdout,
+                workflow=workflow,
+                deploy=deploy,
+                export_notebook=export_notebook,
+                plain=plain,
+                persist=persist))
 
     def get_data_sources(self, workflow):
         return len(

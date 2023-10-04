@@ -1143,6 +1143,8 @@ class ModelMetaOperation(Operation):
 
         self.has_code = True
 
+    def model_builder_code(self):
+        return self.generate_code()
 
 class EstimatorMetaOperation(ModelMetaOperation):
     def __init__(self, parameters,  named_inputs, named_outputs, task_type):
