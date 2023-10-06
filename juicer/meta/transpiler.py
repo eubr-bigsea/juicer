@@ -2,6 +2,7 @@
 
 import os
 from typing import Callable
+from gettext import gettext
 import juicer.meta.operations as ops
 from collections import namedtuple
 from juicer.transpiler import Transpiler
@@ -161,7 +162,6 @@ class MetaTranspiler(Transpiler):
                       'linear-regression', 'isotonic-regression', 
                       'gbt-regressor', 'random-forest-regressor', 
                       'generalized-linear-regressor', 'decision-tree-regressor'}
-
         param_dict = {'estimators': []}
         for op in ops:
             slug = op.task.get('operation').get('slug')
@@ -173,5 +173,6 @@ class MetaTranspiler(Transpiler):
                 param_dict['estimators'].append(op)
             else:
                 param_dict[slug] = op
-
+        if (not param_dict.get('estimators')):
+            raise ValueError(gettext('No algorithm or algorithm parameter informed.'))
         return ModelBuilderTemplateParams(**param_dict)

@@ -26,7 +26,7 @@ import time
 import numpy as np
 
 from juicer.util import dataframe_util
-from dataclasses import dataclass
+import dataclasses
 
 {% for imps in transpiler.imports %}
 {{imps}}
@@ -40,7 +40,7 @@ TrainingResult= namedtuple('TrainingResult',
     defaults=(None,) * 7)
 -#}
 
-@dataclass
+@dataclasses.dataclass(frozen=True)
 class TrainingContext:
     index: int
     task_id: int
@@ -50,16 +50,24 @@ class TrainingContext:
     operation_id: int
     start: float
     time: float
+    def replace(self, *args, start: float, time: float):
+       return dataclasses.replace(
+           self, start=start, time=time)
 
-@dataclass
+@dataclasses.dataclass(frozen=True)
 class TrainingResult:
-    status: str
-    model: str
-    details: str
-    metric: str
-    exception: str
-    ctx: object
+    status: str = None
+    model: str = None
+    details: str = None
+    metric: str = None
+    exception: str = None
+    ctx: object = None
     feature_importance: str = None
+    def __iter__(self):
+        return iter(
+            (self.status, self.model, self.details, self.metric,
+            self.exception, self.ctx, self.feature_importance)
+        )
 
 {% for auxiliary_code in transpiler.get_auxiliary_code(instances) %}
 {%- include auxiliary_code with context %}
@@ -77,7 +85,9 @@ def get_feature_importance_score(model, features):
             coef = list(model.coefficients)
             result = list(zip(features, coef))
         print(result)
-    elif isinstance(model, classification.DecisionTreeClassificationModel):
+    elif isinstance(model, 
+                    (classification.DecisionTreeClassificationModel,
+                     classification.RandomForestClassificationModel)):
         return model.featureImportances.toArray().tolist()
     else:
         print('>>>>>>>>>>>>>>>>>>', type(model))
@@ -104,14 +114,14 @@ class CustomTrainValidationSplit():
             model = estimator.fit(train, params)
             df = model.transform(test, params)
             metric = evaluator.evaluate(df)
-            new_ctx = ctx._replace(start=start, time=time.time() - start)
+            new_ctx = ctx.replace(start=start, time=time.time() - start)
             return TrainingResult('OK', model, details, metric, ctx=new_ctx)
         except Exception as e:
             try:
                 dataframe_util.handle_spark_exception(e)
             except ValueError as ve:
-                return TrainingResult('ERROR', details=details,
-                    exception=ve, ctx=ctx)
+                return TrainingResult('ERROR', model=None, metric=None,
+                                      details=details, exception=ve, ctx=ctx)
 
     def fit(self, df, emit):
         sub_models = []
@@ -270,7 +280,7 @@ def create_pipeline(label: str):
         ])
 
     # Algorithms definition
-    alg_params = {'predictionCol': 'prediction',
+    common_params = {'predictionCol': 'prediction',
         {%- if builder_params.evaluator.task_type != 'clustering'%}'labelCol': label,{% endif %}
         'featuresCol': 'features'}
 
@@ -279,45 +289,61 @@ def create_pipeline(label: str):
     {%- endfor %}
 
     common_stages = features_stages + {% if use_pca %}[pca_va, feature_reducer] + {% endif %} [vec_assembler]
-	# CrossValidation/TrainValidationSplit with multiple pipelines in PySpark:
+    # CrossValidation/TrainValidationSplit with multiple pipelines in PySpark:
     # See https://stackoverflow.com/a/54992651/1646932
     pipeline = Pipeline(stages=[])
 
+    {%- for estimator in builder_params.estimators %}
+    {{ estimator.generate_hyperparameters_code() |indent(width=4, first=False)}}
+    {%- endfor -%}
+    {#
     # Grid parameters
     {%- for estimator in builder_params.estimators %}
     {%- set variations = estimator.get_variations() %}
     {%- if variations %}
     {%- for name, params in variations %}
-    grid_{{estimator.var}}_{{loop.index0}} = tuning.ParamGridBuilder()\
-        .baseOn({pipeline.stages: common_stages + [{{estimator.var}}_{{loop.index0}}] })\
+    grid_{{estimator.var}}_{{loop.index0}} = (tuning.ParamGridBuilder()
+        .baseOn({pipeline.stages: common_stages + [{{estimator.var}}_{{loop.index0}}] })
         {{ estimator.generate_hyperparameters_code(estimator.var, loop.index0, params.get('invalid'))
             |indent(width=8, first=False)}}
     {{ estimator.generate_random_hyperparameters_code() |indent(width=4, first=False)}}
+    )
     {%- endfor %}
     {%- else %}
-    grid_{{estimator.var}} = tuning.ParamGridBuilder()\
-        .baseOn({pipeline.stages: common_stages + [{{estimator.var}}] })\
+    grid_{{estimator.var}} = (tuning.ParamGridBuilder()
+        .baseOn({pipeline.stages: common_stages + [{{estimator.var}}] })
         {{ estimator.generate_hyperparameters_code() |indent(width=8, first=False)}}
     {{ estimator.generate_random_hyperparameters_code() |indent(width=4, first=False)}}
+    )
     {%- endif %}
     {% endfor %}
-    grid = [{%- for estimator in builder_params.estimators -%}
+    #}
+    candidate_grid = [{%- for estimator in builder_params.estimators -%}
         {%- set variations = estimator.get_variations() %}
         {%- if variations %}
         {%- for variation in variations -%} grid_{{estimator.var}}_{{loop.index0}}{% if not loop.last %} + {% endif %}{% endfor %}
         {%- else -%}
-        grid_{{estimator.var}}
+        *grid_{{estimator.var}}
         {%- endif %}
-        {%- if not loop.last %} + {% else %}){% endif %}
+        {%- if not loop.last %} + {% else %}]{% endif %}
         {%- if loop.index % 3 == 0 %}
         {# extra line #}
         {%- endif %}
     {%- endfor %}
-	]
+    distinct_grid = set()
+    grid = []
+    for row in candidate_grid:
+        key = tuple((p, v) for p,v in row.items() if p.name != 'stages')
+        if key not in distinct_grid:
+            distinct_grid.add(key)
+            grid.append(row)
+
+    if len(grid) == 0:
+        raise ValueError(gettext('No algorithm or algorithm parameter informed.'))
     {%- if builder_params.grid %}
     {{ builder_params.grid.generate_code() |indent(width=4, first=False)}}
     {%- endif %}
-
+    import pdb; pdb.set_trace()
     return pipeline, grid, label
 
 def main(spark_session: any, cached_state: dict, emit_event: callable):
@@ -355,7 +381,8 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
         {%- endif %}
 
         results = executor.fit(df, emit)
-        results = sorted(results, key=lambda x: x[3], reverse=evaluator.isLargerBetter())
+        results = sorted(results, key=lambda x: x.metric, 
+                         reverse=evaluator.isLargerBetter())
 
         if len(results):
             status, model, params, metric, ex, ctx, fi = results[0]

@@ -18,7 +18,7 @@
     "forms": {
         "$meta": {
             "value": {
-                "label": "species",
+                "label": "class",
                 "method": "custom",
                 "taskType": "classification"
             }
@@ -215,7 +215,7 @@
                     "value": [
                         {
                             "id": 9845,
-                            "name": "sepal_length",
+                            "name": "sepallength",
                             "type": "DECIMAL",
                             "precision": 2,
                             "scale": 1,
@@ -232,7 +232,7 @@
                         },
                         {
                             "id": 9846,
-                            "name": "sepal_width",
+                            "name": "sepalwidth",
                             "type": "DECIMAL",
                             "precision": 2,
                             "scale": 1,
@@ -248,7 +248,7 @@
                         },
                         {
                             "id": 9847,
-                            "name": "petal_length",
+                            "name": "petallength",
                             "type": "DECIMAL",
                             "precision": 2,
                             "scale": 1,
@@ -264,7 +264,7 @@
                         },
                         {
                             "id": 9848,
-                            "name": "petal_width",
+                            "name": "petalwidth",
                             "type": "DECIMAL",
                             "precision": 2,
                             "scale": 1,
@@ -279,7 +279,7 @@
                             "transform": "keep"
                         },
                         {
-                            "name": "species",
+                            "name": "class",
                             "usage": "label",
                             "enable": true,
                             "feature_type": "categorical",
@@ -287,15 +287,8 @@
                             "missing_data": "remove"
                         }
                     ]
-                },
-                "color": {
-                    "value": "rgb(255, 255, 165)"
-                },
-                "comment": {
-                    "value": null
                 }
             },
-            "version": 12,
             "environment": "DESIGN",
             "enabled": true,
             "display_order": 3,
@@ -303,6 +296,100 @@
                 "id": 2354,
                 "slug": "features"
             }
+        },
+        {
+            "id": "0e41c364-e8da-4e54-9987-1c6cf5d7b1df",
+            "name": "Random Forest Classifier",
+            "forms": {
+                "max_depth": {
+                    "value": {
+                        "distribution": "uniform",
+                        "list": [
+                            1,
+                            20
+                        ],
+                        "max": null,
+                        "min": null,
+                        "quantity": null,
+                        "type": "list",
+                        "enabled": false
+                    }
+                },
+                "max_bins": {
+                    "value": {
+                        "type": "range",
+                        "distribution": "uniform",
+                        "max": 20, "min": 5, 
+                        "quantity": 2,
+                        "enabled": false
+                    }
+                },
+                "min_instances_per_node": {
+                    "value": {
+                        "type": "list",
+                        "list": [2, 3],
+                        "enabled": false
+                    }
+                },
+                "min_info_gain": {
+                    "value": {
+                        "type": "list",
+                        "list": [0.6, 0.3],
+                        "enabled": false
+                    }
+                },
+                "cache_node_ids": {
+                    "value": {
+                        "type": "list",
+                        "list": [
+                            false,
+                            true
+                        ],
+                        "enabled": false
+                    }
+                },
+                "check_point_interval": {
+                    "value": null
+                },
+                "loss_type": {
+                    "value": {
+                        "type": "list",
+                        "list": [
+                            "logistic"
+                        ],
+                        "enabled": false
+                    }
+                },
+                "seed": {
+                    "value": null
+                },
+                "subsampling_rate": {
+                    "value": null
+                },
+                "impurity": {
+                    "value": null
+                },
+                "num_trees": {
+                    "value": {
+                        "type": "list",
+                        "list": [2, 10, 12],
+                        "enabled": true
+                    }
+                },
+                "feature_subset_strategy": {
+                    "value": null
+                }
+            },
+            "version": 5,
+            "environment": "DESIGN",
+            "enabled": true,
+            "display_order": 7,
+            "operation": {
+                "id": 2361,
+                "name": "Random Forest",
+                "slug": "random-forest-classifier"
+            }
         }
+
     ]
 }
