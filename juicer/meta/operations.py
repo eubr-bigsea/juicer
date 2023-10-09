@@ -15,7 +15,7 @@ from juicer.service import limonero_service
 
 FeatureInfo = namedtuple('FeatureInfo', ['value', 'props', 'type'])
 
-_pythonize_expr = re.compile('[\W_]+')
+_pythonize_expr = re.compile(r'[\W_]+')
 
 
 def strip_accents(s):
@@ -539,7 +539,7 @@ class SampleOperation(MetaPlatformOperation):
         self.fraction = parameters.get('fraction')
         self.output_port_name = 'sampled data'
 
-        self.has_code = self.value > 0
+        self.has_code = self.value > 0 or self.fraction > 0
 
     def generate_code(self):
         task_obj = self._get_task_obj()
@@ -1394,17 +1394,23 @@ class EvaluatorOperation(ModelMetaOperation):
 
     def generate_code(self):
         evaluator = self.TYPE_TO_CLASS[self.task_type]
-        meta_form = self.parameters.get('workflow').get(
-            'forms', {}).get('$meta', {}).get('value')
+        # meta_form = self.parameters.get('workflow').get(
+        #     'forms', {}).get('$meta', {}).get('value')
 
-        if meta_form.get('taskType') != 'clustering':
+        # if meta_form.get('taskType') != 'clustering':
+        #     label = 'labelCol=label'
+        # else:
+        #     label = ''  # clustering doesn't support it
+        if self.task_type in ('binary-classification', 'regression', 
+                              'multiclass-classification'):
             label = 'labelCol=label'
         else:
             label = ''  # clustering doesn't support it
-
+            
         code = dedent(
             f"""
-            evaluator = evaluation.{evaluator}(metricName='{self.metric}', {label})
+            evaluator = evaluation.{evaluator}(
+                metricName='{self.metric}', {label})
             evaluator.task_id = '{self.task_id}'
             evaluator.operation_id = {self.operation_id}
             """)
@@ -1418,19 +1424,30 @@ class FeaturesOperation(ModelMetaOperation):
         'quantis': 'quantis',
         'buckets': 'buckets'
     }
+    __slots__ = ('all_attributes', 'label', 'features', 'numerical_features',
+                 'categorical_features', 'textual_features', 'features_names'
+                 'features_and_label', 'task_type', 'supervisioned'
+                 )
 
     def __init__(self, parameters,  named_inputs, named_outputs):
         ModelMetaOperation.__init__(
             self, parameters,  named_inputs,  named_outputs)
-        features = parameters.get('features')
-        self.all_attributes = [f for f in features if f.get('enabled')]
+        self.features_and_label = parameters.get('features', [])
+        meta_form = self.parameters.get('workflow').get(
+            'forms', {}).get('$meta', {}).get('value')
+        self.task_type = meta_form.get('taskType')
+        self.process_features_and_label()
+    
+    def process_features_and_label(self):
+        self.all_attributes = [f for f in self.features_and_label 
+                               if f.get('enabled')]
         self.features = []
         self.numerical_features = []
         self.categorical_features = []
         self.textual_features = []
         self.features_names = []
-
-        for f in features:
+        self.label = None
+        for f in self.features_and_label:
             if f.get('usage') == 'unused':
                 continue
             f['var'] = pythonize(f['name'])
@@ -1449,9 +1466,7 @@ class FeaturesOperation(ModelMetaOperation):
 
             f['final_name'] = final_name
 
-        meta_form = self.parameters.get('workflow').get(
-            'forms', {}).get('$meta', {}).get('value')
-        if meta_form.get('taskType') != 'clustering' and self.label is None:
+        if self.task_type != 'clustering' and self.label is None:
             raise ValueError(gettext(
                 'Missing required parameter: {}').format('label'))
         if len(self.features) == 0:
@@ -1472,18 +1487,75 @@ class FeaturesOperation(ModelMetaOperation):
 
     def generate_code(self):
         code = []
-        for f in self.features + [self.label]:
+        label = self.label.get('name') if self.label else ''
+
+        for f in self.features_and_label:
             name = f.get('name')
             transform = f.get('transform')
             data_type = f.get('feature_type')
             missing = f.get('missing_data')
             scaler = f.get('scaler')
+            is_numerical = data_type == 'numerical'
 
-            if data_type == 'numerical':
+            if f.get('feature_type') not in ('numerical', 'categorical', 
+                                             'textual', 'vector'):
+                raise ValueError(gettext(
+                        "Invalid feature type '{}' for attribute '{}'."
+                    ).format(transform, f.get('name')))
+                
+            if f.get('usage') not in ('label', 'feature'):
+                raise ValueError(gettext(
+                        "Invalid feature usage '{}' for attribute '{}'."
+                    ).format(transform, f.get('name')))
+
+            final_name = name
+            # Handle missing
+            #if f.get('name') == 'sepallength':
+            #    import pdb; pdb.set_trace()
+            if missing == 'constant' and transform != 'not_null':
+                cte = f.get('constant')
+                if cte is None:
+                    raise ValueError(gettext(
+                        "Missing constant value for attribute '{}'."
+                        ).format(f.get('name')))
+                if data_type == 'categorical':
+                    stmt = (f"SELECT *, COALESCE({f['name']}, '{cte}') AS "
+                        f"{f['var']}_na FROM __THIS__")
+                elif is_numerical:
+                    stmt = (f"SELECT *, COALESCE({f['name']}, {cte}) AS "
+                        f"{f['var']}_na FROM __THIS__")
+                    
+                code.append(dedent(f"""
+                    {f['var']}_na = feature.SQLTransformer(
+                        statement="{stmt}")
+                    features_stages.append({f['var']}_na) """))
+                f['na_name'] = f['name']            
+                final_name = name + '_na'
+            elif missing == 'remove' and transform != 'not_null':
+                stmt = f"SELECT * FROM __THIS__ WHERE ({f['name']}) IS NOT NULL"
+                code.append(dedent(f"""
+                    {f['var']}_del_nulls = feature.SQLTransformer(
+                        statement="{stmt}")
+                    features_stages.append({f['var']}_del_nulls) """))
+                f['na_name'] = f['name']            
+                final_name = name
+            elif missing in ('median', 'media') and is_numerical:
+                # import pdb; pdb.set_trace()
+                code.append(dedent(f"""
+                    {name}_imp = feature.Imputer(
+                        strategy='{missing}',
+                        inputCols=['{name}'],
+                        outputCols=['{name}_na'])
+                    features_stages.append({name}_na)
+                """).strip())
+                final_name = name + '_na'
+
+            if is_numerical:
                 if transform in ('keep', '', None):
-                    final_name = name
+                    #final_name = name
+                    ...
                 elif transform == 'binarize':
-                    final_name = name + '_binz'
+                    final_name = final_name + '_binz'
                     threshold = self.parameters.get('threshold', 0.0)
                     code.append(dedent(f"""
                         {f['var']}_bin = feature.Binarizer(
@@ -1491,7 +1563,7 @@ class FeaturesOperation(ModelMetaOperation):
                             outputCol='{final_name}')
                         features_stages.append({f['var']}_bin) """))
                 elif transform in ('quantiles', 'quantis'):
-                    final_name = name + '_qtles'
+                    final_name = final_name + '_qtles'
                     num_buckets = f.get('quantis', 2)
                     code.append(dedent(f"""
                         {f['var']}_qtles = feature.QuantileDiscretizer(
@@ -1502,7 +1574,7 @@ class FeaturesOperation(ModelMetaOperation):
                     splits = ', '.join([str(x) for x in sorted(
                         [float(x) for x in f.get('buckets')])])
                     if splits:
-                        final_name = name + '_bkt'
+                        final_name = final_name + '_bkt'
                         code.append(dedent(f"""
                             {f['var']}_qtles = feature.Bucketizer(
                                 splits=[-float('inf'), {splits}, float('inf')],
@@ -1511,9 +1583,9 @@ class FeaturesOperation(ModelMetaOperation):
                             features_stages.append({f['var']}_qtles) """))
                     else:
                         final_name = None
-                if scaler:
+                if scaler and transform in ('keep', '', None):
                     old_final_name = final_name
-                    final_name = name + '_scl'
+                    final_name = final_name + '_scl'
                     if scaler == 'min_max':
                         scaler_cls = 'MinMaxScaler'
                     elif scaler == 'standard':
@@ -1534,41 +1606,50 @@ class FeaturesOperation(ModelMetaOperation):
                 if final_name is not None:
                     self.features_names.append(final_name)
             elif data_type == 'categorical':
-                if missing == 'constant' and transform != 'not_null':
-                    cte = f.get('constant')
-                    stmt = f"SELECT *, COALESCE({f['name']}, '{cte}') AS {f['var']}_na FROM __THIS__"
-                    code.append(dedent(f"""
-                        {f['var']}_na = feature.SQLTransformer(
-                            statement="{stmt}")
-                        features_stages.append({f['var']}_na) """))
-                elif missing == 'remove' and transform != 'not_null':
-                    stmt = f"SELECT * FROM __THIS__ WHERE NOT ISNULL({f['name']})"
-                    code.append(dedent(f"""
-                        {f['var']}_del = feature.SQLTransformer(
-                            statement="{stmt}")
-                        features_stages.append({f['var']}_del) """))
-                    f['na_name'] = f['name']
+                # if missing == 'constant' and transform != 'not_null':
+                #     cte = f.get('constant')
+                #     if cte is None:
+                #         raise ValueError(gettext(
+                #             "Missing constant value for attribute '{}'."
+                #             ).format(f.get('name')))
+                #     stmt = f"SELECT *, COALESCE({f['name']}, '{cte}') AS {f['var']}_na FROM __THIS__"
+                #     code.append(dedent(f"""
+                #         {f['var']}_na = feature.SQLTransformer(
+                #             statement="{stmt}")
+                #         features_stages.append({f['var']}_na) """))
+                # elif missing == 'remove' and transform != 'not_null':
+                #     stmt = f"SELECT * FROM __THIS__ WHERE ({f['name']}) IS NOT NULL"
+                #     code.append(dedent(f"""
+                #         {f['var']}_del_nulls = feature.SQLTransformer(
+                #             statement="{stmt}")
+                #         features_stages.append({f['var']}_del_nulls) """))
+                #     f['na_name'] = f['name']
 
+                if transform not in ('string_indexer', 'one_hot_encoder', 
+                                     'not_null'):
+                    raise ValueError(gettext(
+                        "Invalid transformation '{}' for attribute '{}'."
+                    ).format(transform, f.get('name')))
                 if transform == 'not_null':
-                    final_name = name + '_na'
-                    stmt = f"SELECT *, INT(ISNULL({f['na_name']})) AS {f['var']}_na FROM __THIS__"
+                    final_name = final_name + '_na'
+                    stmt = f"SELECT *, INT(ISNULL({f['var']})) AS {f['var']}_na FROM __THIS__"
                     code.append(dedent(f"""
                         {f['var']}_na = feature.SQLTransformer(
                             statement='{stmt}')
                         features_stages.append({f['var']}_na) """))
 
                 else:  # transform in ('string_indexer', '', None):
-                    final_name = name + '_inx'
                     code.append(dedent(f"""
                         {f['var']}_inx = feature.StringIndexer(
-                            inputCol='{f['na_name']}',
-                            outputCol='{final_name}',
+                            inputCol='{final_name}',
+                            outputCol='{final_name}_inx',
                             handleInvalid='skip')
                         features_stages.append({f['var']}_inx) """))
+                    final_name = final_name + '_inx'
 
                 if transform == 'one_hot_encoder':
                     old_final_name = final_name
-                    final_name = name + '_ohe'
+                    final_name = final_name + '_ohe'
                     code.append(dedent(f"""
                         {f['var']}_ohe = feature.OneHotEncoder(
                             inputCol='{old_final_name}',
@@ -1576,15 +1657,22 @@ class FeaturesOperation(ModelMetaOperation):
                         features_stages.append({f['var']}_ohe) """))
 
                 self.features_names.append(final_name)
-        code.append(f"label = '{self.features_names[-1]}'")
-        self.features_names = self.features_names[:-1]
+            if f['usage'] == 'label':
+                label = final_name
+        
+        supervisioned = self.task_type in ('regression', 'classification')
+        if supervisioned:
+            code.append(f"label = '{label}'")
+            self.features_names = self.features_names.remove(label)
 
         return '\n'.join(code).strip()
 
     def get_final_features_names(self):
         return self.features_names
 
+
     def generate_code_for_missing_data_handling(self):
+        """ Used by visualization builder only """
         code = []
 
         by_constant = []
@@ -1689,16 +1777,13 @@ class SplitOperation(ModelMetaOperation):
         self.ratio = parameters.get('ratio', 0.8) or 0.8
 
     def generate_code(self):
-        if self.strategy == 'split':
+        if self.strategy in ('split', 'cross_validation'):
             code = dedent(f"""
             train_ratio = {self.ratio} # Between 0.01 and 0.99
             executor = CustomTrainValidationSplit(
-                pipeline, evaluator, grid, train_ratio, seed={self.seed})
+                pipeline, evaluator, grid, train_ratio, seed={self.seed},
+                strategy='{self.strategy}')
             """)
-        elif self.strategy == 'cross_validation':
-            code = dedent(f"""
-            """)
-
         return code.strip()
 
 
