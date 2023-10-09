@@ -31,14 +31,15 @@ import dataclasses
 {% for imps in transpiler.imports %}
 {{imps}}
 {%- endfor %}
-{#-
+{  # -
 TrainingContext = namedtuple('TrainingContext',
     ['index', 'task_id', 'task_name', 'name', 'details', 'operation_id', 'start', 'time'])
 
-TrainingResult= namedtuple('TrainingResult',
-    ['status', 'model', 'details', 'metric', 'exception', 'ctx', 'feature_importance'],
+TrainingResult = namedtuple('TrainingResult',
+    ['status', 'model', 'details', 'metric',
+        'exception', 'ctx', 'feature_importance'],
     defaults=(None,) * 7)
--#}
+-  # }
 
 @dataclasses.dataclass(frozen=True)
 class TrainingContext:
@@ -85,7 +86,7 @@ def get_feature_importance_score(model, features):
             coef = list(model.coefficients)
             result = list(zip(features, coef))
         print(result)
-    elif isinstance(model, 
+    elif isinstance(model,
                     (classification.DecisionTreeClassificationModel,
                      classification.RandomForestClassificationModel)):
         return model.featureImportances.toArray().tolist()
@@ -97,8 +98,12 @@ class CustomCrossValidation():
 
 class CustomTrainValidationSplit():
     """ Mimic the TrainValidationSplit from Spark, but emit information
-    about the process after each iteration."""
-    def __init__(self, estimator, evaluator, params, train_ratio=0.7, seed=None):
+    about the training process after each iteration."""
+    __slots__ = ('estimator', 'evaluator', 'train_ratio', 'seed', 'params',
+               'train_size', 'test_size', 'num_workers', 'strategy')
+    def __init__(self, estimator, evaluator, params, 
+                 train_ratio=0.7, seed=None,
+                 num_workers=4, strategy='split'):
 
         self.estimator = estimator
         self.evaluator = evaluator
@@ -107,6 +112,8 @@ class CustomTrainValidationSplit():
         self.params = params
         self.train_size = 0
         self.test_size = 0
+        self.num_workers = 4
+        self.strategy = strategy
 
     def _perform_training(self, train, test, estimator, evaluator, params, details, ctx):
         try:
@@ -123,49 +130,63 @@ class CustomTrainValidationSplit():
                 return TrainingResult('ERROR', model=None, metric=None,
                                       details=details, exception=ve, ctx=ctx)
 
-    def fit(self, df, emit):
-        sub_models = []
-        train, test = df.randomSplit(
-            [self.train_ratio, 1 - self.train_ratio], self.seed)
+    def _extract_params(self, params):
+        task_id, task_name, operation_id, estimator, details = (
+            None, None, None, None, {})
+        for param, value in params.items():
+            if param.name == 'stages':
+                task_id = value[-1].task_id
+                task_name = value[-1].task_name
+                operation_id = value[-1].operation_id
+                estimator = value[-1].__class__.__name__
+            else:
+                details[param.name] = value
+        return task_id, task_name, operation_id, estimator, details
 
-        train.cache()
-        test.cache()
+    def _generate_folds(self, df):
+        if self.strategy == 'split' or True:
+            return df.randomSplit(
+                [self.train_ratio, 1 - self.train_ratio], self.seed)
+        else:
+            pass # FIXME
+
+    def fit(self, df, emit):
         results = []
 
-        # emit(identifier=self.evaluator.task_id, status='COMPLETED',
-        #     operation_id=self.evaluator.operation_id,
-        #     message={'grid_size': len(self.params)},
-        #     title='')
+        with ThreadPoolExecutor(max_workers=self.num_workers) as executor:
+            trains, tests = self._generate_folds(df)
+            for train, test in zip(trains, tests):
+                train.cache()
+                test.cache()
+                future_train = {}
+                for counter, params in enumerate(self.params):
+                    task_id, task_name, operation_id, estimator, details = (
+                        self._extract_params(params))
+                    # task_id = None
+                    # task_name = None
+                    # operation_id = None
+                    # estimator = None
+                    # details = {}
+                    # for param, value in params.items():
+                    #     if param.name == 'stages':
+                    #         task_id = value[-1].task_id
+                    #         task_name = value[-1].task_name
+                    #         operation_id = value[-1].operation_id
+                    #         name = value[-1].__class__.__name__
+                    #     else:
+                    #         details[param.name] = value
 
-        with ThreadPoolExecutor(max_workers=4) as executor: # FIXME number of workers
-            future_train = {}
-            for counter, params in enumerate(self.params):
-                task_id = None
-                task_name = None
-                operation_id = None
-                estimator = None
-                details = {}
-                for param, value in params.items():
-                    if param.name == 'stages':
-                        task_id = value[-1].task_id
-                        task_name = value[-1].task_name
-                        operation_id = value[-1].operation_id
-                        name = value[-1].__class__.__name__
-                    else:
-                        details[param.name] = value
+                    ctx = TrainingContext(counter, task_id, task_name, name, details,
+                        operation_id, time.time(), 0)
+                    submission = executor.submit(
+                        self._perform_training, train, test, self.estimator,
+                        self.evaluator, params, details, ctx)
+                    future_train[submission] = ctx
 
-                ctx = TrainingContext(counter, task_id, task_name, name, details,
-                    operation_id, time.time(), 0)
-                submission = executor.submit(
-                    self._perform_training, train, test, self.estimator,
-                    self.evaluator, params, details, ctx)
-                future_train[submission] = ctx
-
-            is_larger_better = self.evaluator.isLargerBetter()
-            for future in as_completed(future_train):
-                try:
+                is_larger_better = self.evaluator.isLargerBetter()
+                for future in as_completed(future_train):
                     result = future.result()
-                    future_train[future]
+                    # future_train[future]
                     ctx = result.ctx
                     message = {'params': ctx.details, 't': ctx.time,
                         'index': ctx.index}
@@ -173,8 +194,11 @@ class CustomTrainValidationSplit():
                         results.append(result)
                         metric_name = self.evaluator.extractParamMap().get(
                             self.evaluator.metricName)
-                        message['metric'] = {'name': metric_name, 'value': result.metric,
-                            'is_larger_better': is_larger_better}
+                        message['metric'] = {
+                            'name': metric_name,
+                            'value': result.metric,
+                            'is_larger_better': is_larger_better
+                        }
 
                         ml_model = result.model.stages[-1]
                         importance = get_feature_importance_score(ml_model, [])
@@ -186,17 +210,15 @@ class CustomTrainValidationSplit():
                     else:
                         message['error'] = str(result.exception)
                         emit(identifier=ctx.task_id, status='ERROR',
-                             message=message, title=ctx.task_name,
-                             operation_id=ctx.operation_id)
-                except Exception as exc:
-                    raise
-                    print(exc)
+                                message=message, title=ctx.task_name,
+                                operation_id=ctx.operation_id)
 
-        self.train_size = train.count()
-        self.test_size = test.count()
-        # Unpersist training & validation set once all metrics have been produced
-        train.unpersist()
-        test.unpersist()
+
+                self.train_size = train.count()
+                self.test_size = test.count()
+                # Unpersist training & validation set once all metrics have been produced
+                train.unpersist()
+                test.unpersist()
 
         return results
 
@@ -210,7 +232,7 @@ def read_data(spark_session):
     """ Read input data."""
     {%- if builder_params.read_data %}
 
-    {{ builder_params.read_data.model_builder_code()|indent(width=4, first=False) }}
+    {{builder_params.read_data.model_builder_code() | indent(width=4, first=False)}}
     {%- endif %}
 
     # Many Spark 2.x transformers, including Binarizer and Imputer,
@@ -240,14 +262,14 @@ def create_pipeline(label: str):
     # Feature engineering
     features_stages = []
 
-    {{ builder_params.features.generate_code() |indent(width=4, first=False)}}
+    {{builder_params.features.generate_code() | indent(width=4, first=False)}}
     {%- set has_numerical_features = builder_params.features.numerical_features|length > 0%}
     {%- set use_pca = builder_params.reduction.has_code and has_numerical_features and has_numerical_features%}
-    {# -
+    {  # -
     {%- if has_numerical_features%}
     numeric_features = []
-    {% -endif %}
-    -#}
+    {%- endif %}
+    -  # }
 
     features_names = [
         {%- for f in builder_params.features.get_final_features_names() -%}
@@ -260,10 +282,10 @@ def create_pipeline(label: str):
     # Feature reduction
     numerical_features = [
         {%- for f in builder_params.features.numerical_features %}
-        '{{f.name}}'{% if not loop.last %},{% endif %}
+        '{{f.name}}'{% if not loop.last %}, {% endif %}
         {%- endfor %}
     ]
-    {{ builder_params.reduction.generate_code() |indent(width=4, first=False)}}
+    {{builder_params.reduction.generate_code() | indent(width=4, first=False)}}
     {% else %}
     {%- endif %}
 
@@ -281,11 +303,11 @@ def create_pipeline(label: str):
 
     # Algorithms definition
     common_params = {'predictionCol': 'prediction',
-        {%- if builder_params.evaluator.task_type != 'clustering'%}'labelCol': label,{% endif %}
+        {%- if builder_params.evaluator.task_type != 'clustering'%}'labelCol': label, {% endif %}
         'featuresCol': 'features'}
 
     {%- for estimator in builder_params.estimators %}
-    {{ estimator.generate_code() |indent(width=4, first=False)}}
+    {{estimator.generate_code() | indent(width=4, first=False)}}
     {%- endfor %}
 
     common_stages = features_stages + {% if use_pca %}[pca_va, feature_reducer] + {% endif %} [vec_assembler]
@@ -294,54 +316,55 @@ def create_pipeline(label: str):
     pipeline = Pipeline(stages=[])
 
     {%- for estimator in builder_params.estimators %}
-    {{ estimator.generate_hyperparameters_code() |indent(width=4, first=False)}}
+    {{estimator.generate_hyperparameters_code() | indent(width=4, first=False)}}
     {%- endfor -%}
-    {#
+    {
     # Grid parameters
     {%- for estimator in builder_params.estimators %}
     {%- set variations = estimator.get_variations() %}
     {%- if variations %}
     {%- for name, params in variations %}
     grid_{{estimator.var}}_{{loop.index0}} = (tuning.ParamGridBuilder()
-        .baseOn({pipeline.stages: common_stages + [{{estimator.var}}_{{loop.index0}}] })
-        {{ estimator.generate_hyperparameters_code(estimator.var, loop.index0, params.get('invalid'))
-            |indent(width=8, first=False)}}
-    {{ estimator.generate_random_hyperparameters_code() |indent(width=4, first=False)}}
+        .baseOn({pipeline.stages: common_stages + [{{estimator.var}}_{{loop.index0}}]})
+        {{estimator.generate_hyperparameters_code(estimator.var, loop.index0, params.get('invalid'))
+            | indent(width=8, first=False)}}
+    {{estimator.generate_random_hyperparameters_code() | indent(width=4, first=False)}}
     )
     {%- endfor %}
     {%- else %}
     grid_{{estimator.var}} = (tuning.ParamGridBuilder()
-        .baseOn({pipeline.stages: common_stages + [{{estimator.var}}] })
-        {{ estimator.generate_hyperparameters_code() |indent(width=8, first=False)}}
-    {{ estimator.generate_random_hyperparameters_code() |indent(width=4, first=False)}}
+        .baseOn({pipeline.stages: common_stages + [{{estimator.var}}]})
+        {{estimator.generate_hyperparameters_code() | indent(width=8, first=False)}}
+    {{estimator.generate_random_hyperparameters_code() | indent(width=4, first=False)}}
     )
     {%- endif %}
     {% endfor %}
-    #}
+    # }
     candidate_grid = [{%- for estimator in builder_params.estimators -%}
         {%- set variations = estimator.get_variations() %}
         {%- if variations %}
         {%- for variation in variations -%} grid_{{estimator.var}}_{{loop.index0}}{% if not loop.last %} + {% endif %}{% endfor %}
         {%- else -%}
-        *grid_{{estimator.var}}
+        * grid_{{estimator.var}}
         {%- endif %}
         {%- if not loop.last %} + {% else %}]{% endif %}
         {%- if loop.index % 3 == 0 %}
-        {# extra line #}
+        {  # extra line #}
         {%- endif %}
     {%- endfor %}
     distinct_grid = set()
     grid = []
     for row in candidate_grid:
-        key = tuple((p, v) for p,v in row.items() if p.name != 'stages')
+        key = tuple((p, v) for p, v in row.items() if p.name != 'stages')
         if key not in distinct_grid:
             distinct_grid.add(key)
             grid.append(row)
 
     if len(grid) == 0:
-        raise ValueError(gettext('No algorithm or algorithm parameter informed.'))
+        raise ValueError(
+            gettext('No algorithm or algorithm parameter informed.'))
     {%- if builder_params.grid %}
-    {{ builder_params.grid.generate_code() |indent(width=4, first=False)}}
+    {{builder_params.grid.generate_code() | indent(width=4, first=False)}}
     {%- endif %}
     import pdb; pdb.set_trace()
     return pipeline, grid, label
@@ -357,11 +380,12 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
         {%- endif %}
         df = read_data(spark_session)
         {%- if builder_params.sample and builder_params.sample.type %}
-        {{ builder_params.sample.model_builder_code() |indent(width=8, first=False)}}
+        {{builder_params.sample.model_builder_code() | indent(width=8, first=False)}}
         {%- endif %}
 
         # Missing data handling
-        {{ builder_params.features.generate_code_for_missing_data_handling() |indent(width=8, first=False)}}
+        {{builder_params.features.generate_code_for_missing_data_handling() |
+                                                                          indent(width=8, first=False)}}
 
         # Pipeline definition
         pipeline, grid, label = create_pipeline(label)
@@ -370,18 +394,18 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
 
         # Pipeline evaluator
         {%- if builder_params.evaluator %}
-        {{ builder_params.evaluator.generate_code() |indent(width=8, first=False)}}
+        {{builder_params.evaluator.generate_code() | indent(width=8, first=False)}}
 
         {%- endif %}
 
         # Train/validation definition
         # It can be a simple train + validation or cross validation
         {%- if builder_params.split %}
-        {{ builder_params.split.generate_code() |indent(width=8, first=False)}}
+        {{builder_params.split.generate_code() | indent(width=8, first=False)}}
         {%- endif %}
 
         results = executor.fit(df, emit)
-        results = sorted(results, key=lambda x: x.metric, 
+        results = sorted(results, key=lambda x: x.metric,
                          reverse=evaluator.isLargerBetter())
 
         if len(results):
@@ -401,16 +425,16 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
                 operation_id=evaluator.operation_id,
                 title='{{ builder_params.evaluator.task_name}}',
                 message=message)
-            #print(message)
+            # print(message)
         for status, model, params, metric, ex, ctx, fi in results:
             pass
             # print(model.stages[-1], [(p, v) for p, v in params.items()], metric)
-            #ml_model = model.stages[-1]
-            #features = model.stages[-2].getInputCols()
-            #print('#' * 20)
-            #print('Features', features)
-            #importance = get_feature_importance_score(ml_model, features)
-            #print('#' * 20)
+            # ml_model = model.stages[-1]
+            # features = model.stages[-2].getInputCols()
+            # print('#' * 20)
+            # print('Features', features)
+            # importance = get_feature_importance_score(ml_model, features)
+            # print('#' * 20)
             # print(feature_assembler.metadata)
             # print(ml_model.metadata["ml_attr"]["attrs"].values())
 
@@ -420,4 +444,3 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
         traceback.print_exc(file=sys.stderr)
         if not dataframe_util.handle_spark_exception(e):
             raise
-

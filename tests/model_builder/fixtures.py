@@ -3,7 +3,8 @@ import os
 import pathlib
 import hashlib
 import pytest
-
+from juicer.meta.transpiler import (
+    ModelBuilderTemplateParams as ModelBuilderParams)
 from juicer.meta.meta_minion import MetaMinion
 from juicer.workflow.workflow import Workflow
 from mock import patch, MagicMock
@@ -78,7 +79,7 @@ def sample_workflow() -> dict:
         return json.load(f)
 
 @pytest.fixture(scope='function')
-def builder_params(sample_workflow: dict):
+def builder_params(sample_workflow: dict) -> ModelBuilderParams:
     """
     This fixture mocks methods used to interact with other Lemonade
     services (e.g. Limonero and Tahiti). It also returns an object
@@ -104,3 +105,13 @@ def builder_params(sample_workflow: dict):
 
             builder_params = minion.transpiler.prepare_model_builder_parameters(ops=instances.values())
             yield builder_params
+
+@pytest.fixture(scope='function')
+def builder_params_no_label(builder_params: ModelBuilderParams) -> \
+        ModelBuilderParams:
+    # Remove the original label to simplify the test
+    builder_params.features.task_type = 'clustering'
+    builder_params.features.features_and_label.pop()
+    builder_params.features.process_features_and_label()
+
+    return builder_params

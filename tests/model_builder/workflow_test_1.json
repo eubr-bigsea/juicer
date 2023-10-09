@@ -41,9 +41,6 @@
                     "value": 15,
                     "labelValue": "Iris dataset"
                 },
-                "display_sample": {
-                    "value": "0"
-                },
                 "color": {
                     "value": "rgb(255, 255, 165)"
                 }
@@ -184,9 +181,6 @@
                 },
                 "max_iterations": {
                     "value": 20
-                },
-                "comment": {
-                    "value": null
                 },
                 "random_grid": {
                     "value": null

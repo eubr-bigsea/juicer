@@ -7,10 +7,22 @@ import juicer.meta.operations as ops
 from collections import namedtuple
 from juicer.transpiler import Transpiler
 
-ModelBuilderTemplateParams = namedtuple(
-    'ModelBuilderTemplateParams',
-    ['evaluator', 'estimators', 'grid', 'read_data', 'sample', 'reduction',
-        'split', 'features'])
+
+class ModelBuilderTemplateParams:
+    __all__ = ('evaluator', 'estimators', 'grid', 'read_data', 'sample', 
+               'reduction', 'split', 'features', 'enabled')
+    def __init__(self, evaluator=None, estimators=None, grid=None, 
+                 read_data=None, sample=None, reduction=None, split=None,
+                 features=None):
+        self.evaluator: ops.EvaluatorOperation = evaluator
+        self.estimators: list[ops.EstimatorMetaOperation] = estimators
+        self.grid: ops.GridOperation = grid
+        self.read_data: ops.ReadDataOperation = read_data
+        self.sample: ops.SampleOperation = sample
+        self.reduction: ops.FeaturesReductionOperation = reduction
+        self.split: ops.SplitOperation = split
+        self.features: ops.FeaturesOperation = features
+
 
 # noinspection SpellCheckingInspection
 
