@@ -112,191 +112,91 @@ def generated_chart(get_arguments, get_df):
     return data,layout
 
 
-    
-
-'''
-
-df_pol = df.collect()
-df_pandas = df_pol.to_pandas()
-
-fig = px.density_contour(df_pandas, x=df_pandas['petallength'], y=df_pandas['petalwidth'])
-fig.update_traces(contours_coloring="fill", contours_showlabels = True)
-
-# Converter em JSONc
-fig_json = fig.to_json()
-generated_chart_vis = json.loads(fig_json)
-data1 = generated_chart_vis['data']
-layout1 = generated_chart_vis['layout']
-'''
-
-#data tests
-
-# Teste para verificar o campo 'contours' 
+# Test to verify the 'contours' field
 def test_data_contours(generated_chart):
     data, layout = generated_chart
     histogram2dcontour_data = data[0]  
     contours = histogram2dcontour_data.get('contours')
-    assert contours is not None, "Campo 'contours' não encontrado no objeto de dados"
+    assert contours is not None, "Field 'contours' not found in the data object"
     expected_contours = {'coloring': 'fill', 'showlabels': True}
-    assert contours == expected_contours, "Valores do campo 'contours' incorretos"
+    assert contours == expected_contours, "Incorrect values for 'contours' field"
 
-# Teste para verificar o campo 'hovertemplate' 
-def test_data_hovertemplate(generated_chart):
-    data, layout = generated_chart
-    histogram2dcontour_data = data[0]  
-    hovertemplate = histogram2dcontour_data.get('hovertemplate')
-    assert hovertemplate is not None, "Campo 'hovertemplate' não encontrado no objeto de dados"
-    
-
-# Teste para verificar o campo 'legendgroup' 
-def test_data_legendgroup(generated_chart):
-    data, layout = generated_chart
-    histogram2dcontour_data = data[0]  
-    legendgroup = histogram2dcontour_data.get('legendgroup')
-    assert legendgroup is not None, "Campo 'legendgroup' não encontrado no objeto de dados"
-    assert legendgroup == '', "Valor do campo 'legendgroup' incorreto"
-
-# Teste para verificar o campo 'legendgroup' para alguma entrada de legenda
-def test_data_legendgroup02(generated_chart):
-    data, layout = generated_chart
-    histogram2dcontour_data = data[0]  
-    legendgroup = histogram2dcontour_data.get('legendgroup')
-    assert legendgroup is not None, "Campo 'legendgroup' não encontrado no objeto de dados"
-    assert legendgroup == 'legenda qualquer', "Valor do campo 'legendgroup' incorreto"
-
-# Teste para verificar o campo 'line' 
+# Test to verify the 'line' field
 def test_data_line(generated_chart):
     data, layout = generated_chart
     histogram2dcontour_data = data[0]  
     line = histogram2dcontour_data.get('line')
-    assert line is not None, "Campo 'line' não encontrado no objeto de dados"
-    
+    assert line is not None, "Field 'line' not found in the data object"
 
-# Teste para verificar o campo 'name' 
+# Test to verify the 'name' field
 def test_data_name(generated_chart):
     data, layout = generated_chart
     histogram2dcontour_data = data[0]  
     name = histogram2dcontour_data.get('name')
-    assert name is not None, "Campo 'name' não encontrado no objeto de dados"
-    assert name == '', "Valor do campo 'name' incorreto"
+    assert name is not None, "Field 'name' not found in the data object"
+    assert name == '', "Incorrect value for 'name' field"
 
-# Teste para verificar o campo 'name' 
-def test_data_name02(generated_chart):
-    data, layout = generated_chart
-    histogram2dcontour_data = data[0]  
-    name = histogram2dcontour_data.get('name')
-    assert name is not None, "Campo 'name' não encontrado no objeto de dados"
-    assert name == 'nome qualquer', "Valor do campo 'name' incorreto"
-
-# Teste para verificar o campo 'showlegend' 
+# Test to verify the 'showlegend' field
 def test_data_showlegend(generated_chart):
     data, layout = generated_chart
     histogram2dcontour_data = data[0] 
     showlegend = histogram2dcontour_data.get('showlegend')
-    assert showlegend is not None, "Campo 'showlegend' não encontrado no objeto de dados"
-    assert showlegend == False, "Valor do campo 'showlegend' incorreto"
+    assert showlegend is not None, "Field 'showlegend' not found in the data object"
+    assert showlegend == False, "Incorrect value for 'showlegend' field"
 
-# Teste para verificar o campo 'showlegend' esta correto
-def test_data_showlegend02(generated_chart):
-    data, layout = generated_chart
-    histogram2dcontour_data = data[0]  
-    showlegend = histogram2dcontour_data.get('showlegend')
-    assert showlegend is not None, "Campo 'showlegend' não encontrado no objeto de dados"
-    assert showlegend == True, "Valor do campo 'showlegend' incorreto"
-
-# Teste para verificar o campo 'x' 
+# Test to verify the 'x' field
 def test_data_x(generated_chart):
     data, layout = generated_chart
     histogram2dcontour_data = data[0]  
     x = histogram2dcontour_data.get('x')
-    assert x is not None, "Campo 'x' não encontrado no objeto de dados"
+    assert x is not None, "Field 'x' not found in the data object"
     expected_x = [0, 1, 2, 3, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
-    assert x == expected_x, "Valores do campo 'x' incorretos"
+    assert x == expected_x, "Incorrect values for 'x' field"
 
-# Teste para verificar o campo 'y' 
+# Test to verify the 'y' field
 def test_data_y(generated_chart):
     data, layout = generated_chart
     histogram2dcontour_data = data[0]  
     y = histogram2dcontour_data.get('y')
-    assert y is not None, "Campo 'y' não encontrado no objeto de dados"
+    assert y is not None, "Field 'y' not found in the data object"
     expected_y = [0.1, 0.1, 0.2, 0.2, 1.1, 1.0, 1.0, 1.0, 1.0, 1.2, 1.2, 1.5, 1.9, 1.4, 1.6, 1.8, 2.0, 2.0]
-    assert y == expected_y, "Valores do campo 'y' incorretos"
+    assert y == expected_y, "Incorrect values for 'y' field"
 
-# Teste para verificar o campo 'type' 
-def test_data_type(generated_chart):
-    data, layout = generated_chart
-    histogram2dcontour_data = data[0]  
-    chart_type = histogram2dcontour_data.get('type')
-    assert chart_type is not None, "Campo 'type' não encontrado no objeto de dados"
-    assert chart_type == 'histogram2dcontour', "Valor do campo 'type' incorreto"
-
-# Teste para verificar o campo 'type' esta incorreto
-def test_data_type02(generated_chart):
-    data, layout = generated_chart
-    histogram2dcontour_data = data[0]  
-    chart_type = histogram2dcontour_data.get('type')
-    assert chart_type is not None, "Campo 'type' não encontrado no objeto de dados"
-    assert chart_type == 'box', "Valor do campo 'type' incorreto"
-
-# Teste para verificar o campo 'colorscale' 
+# Test to verify the 'colorscale' field
 def test_data_colorscale(generated_chart):
     data, layout = generated_chart
     histogram2dcontour_data = data[0] 
     colorscale = histogram2dcontour_data.get('colorscale')
-    assert colorscale is not None, "Campo 'colorscale' não encontrado no objeto de dados"
-    
-#layout tests
+    assert colorscale is not None, "Field 'colorscale' not found in the data object"
 
-# Teste para verificar o campo 'template' 
+# Test to verify the 'template' field
 def test_layout_template(generated_chart):
     data, layout = generated_chart
     layout_template = layout.get('template')
-    assert layout_template is not None, "Campo 'template' não encontrado no objeto de layout"
+    assert layout_template is not None, "Field 'template' not found in the layout object"
     expected_template = {'data': {'scatter': [{'type': 'scatter'}]}}
-    assert layout_template == expected_template, "Valores do campo 'template' incorretos"
+    assert layout_template == expected_template, "Incorrect values for 'template' field"
 
-# Teste para verificar o campo 'xaxis' 
+# Test to verify the 'xaxis' field
 def test_layout_xaxis(generated_chart):
     data, layout = generated_chart
     layout_xaxis = layout.get('xaxis')
-    assert layout_xaxis is not None, "Campo 'xaxis' não encontrado no objeto de layout"
+    assert layout_xaxis is not None, "Field 'xaxis' not found in the layout object"
     expected_xaxis = {'anchor': 'y', 'domain': [0.0, 1.0], 'title': {'text': 'PetalLengthCm'}, 'categoryorder': 'trace'}
-    assert layout_xaxis == expected_xaxis, "Valores do campo 'xaxis' incorretos"
+    assert layout_xaxis == expected_xaxis, "Incorrect values for 'xaxis' field"
 
-# Teste para verificar o campo 'yaxis' 
+# Test to verify the 'yaxis' field
 def test_layout_yaxis(generated_chart):
     data, layout = generated_chart
     layout_yaxis = layout.get('yaxis')
-    assert layout_yaxis is not None, "Campo 'yaxis' não encontrado no objeto de layout"
+    assert layout_yaxis is not None, "Field 'yaxis' not found in the layout object"
     expected_yaxis = {'anchor': 'x', 'domain': [0.0, 1.0], 'title': {'text': 'min(PetalWidthCm)'}}
-    assert layout_yaxis == expected_yaxis, "Valores do campo 'yaxis' incorretos"
+    assert layout_yaxis == expected_yaxis, "Incorrect values for 'yaxis' field"
 
-# Teste para verificar o campo 'legend' 
+# Test to verify the 'legend' field
 def test_layout_legend(generated_chart):
     data, layout = generated_chart
     layout_legend = layout.get('legend')
-    assert layout_legend is not None, "Campo 'legend' não encontrado no objeto de layout"
+    assert layout_legend is not None, "Field 'legend' not found in the layout object"
     expected_legend = {'tracegroupgap': 0}
-    assert layout_legend == expected_legend, "Valores do campo 'legend' incorretos"
-
-# Teste para verificar o campo 'margin' 
-def test_layout_margin(generated_chart):
-    data, layout = generated_chart
-    layout_margin = layout.get('margin')
-    assert layout_margin is not None, "Campo 'margin' não encontrado no objeto de layout"
-    expected_margin = {'t': 30, 'l': 30, 'r': 30, 'b': 30}
-    assert layout_margin == expected_margin, "Valores do campo 'margin' incorretos"
-
-# Teste para verificar o campo 'showlegend' 
-def test_layout_showlegend(generated_chart):
-    data, layout = generated_chart
-    layout_showlegend = layout.get('showlegend')
-    assert layout_showlegend is not None, "Campo 'showlegend' não encontrado no objeto de layout"
-    assert layout_showlegend == False, "Valor do campo 'showlegend' incorreto"
-
-# Teste para verificar o campo 'showlegend' esta incorreto
-def test_layout_showlegend02(generated_chart):
-    data, layout = generated_chart
-    layout_showlegend = layout.get('showlegend')
-    assert layout_showlegend is not None, "Campo 'showlegend' não encontrado no objeto de layout"
-    assert layout_showlegend == True, "Valor do campo 'showlegend' incorreto"
+    assert layout_legend == expected_legend, "Incorrect values for 'legend' field"

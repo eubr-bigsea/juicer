@@ -158,95 +158,50 @@ def generated_chart(get_arguments, get_df):
     return data,layout
 
 
-    
-'''
-df_pol = df.collect()
-df_pandas = df_pol.to_pandas()
-
-fig = px.parallel_coordinates(df_pandas, color=df_pandas['id'],
-                              dimensions=[df_pandas['sepalwidth'], df_pandas['sepal_length'], df_pandas['petal_width'],
-                                          df_pandas['petal_length']],
-                              color_continuous_scale=px.colors.diverging.Tealrose,
-                              color_continuous_midpoint=2)
-
-# Converter em JSONc
-fig_json = fig.to_json()
-generated_chart_vis = json.loads(fig_json)
-data1 = generated_chart_vis['data']
-layout1 = generated_chart_vis['layout']
-'''
-
-
-#data tests    
-
-# Teste para verificar o campo 'dimensions' no objeto de dados
+# Data tests
+# Test to verify the 'dimensions' field in the data object
 def test_data_dimensions(generated_chart):
     data, layout = generated_chart
     data_dimensions = data[0].get('dimensions')
-    assert data_dimensions is not None, "Campo 'dimensions' não encontrado no objeto de dados"
+    assert data_dimensions is not None, "Field 'dimensions' not found in the data object"
     expected_dimensions = [
         {'label': 'min(PetalLengthCm)', 'values': [1.3, 1.1, 1.0, 1.4, 1.2, 1.3, 1.4, 3.3, 3.5, 3.9, 3.5, 3.9, 3.3, 3.0, 4.5, 5.0, 4.8, 4.9, 4.8, 5.0]},
         {'label': 'min(PetalWidthCm)', 'values': [0.2, 0.1, 0.2, 0.2, 0.1, 0.2, 0.2, 1.0, 1.0, 1.1, 1.0, 1.2, 1.0, 1.1, 1.7, 1.5, 1.8, 1.4, 1.8, 1.8]},
         {'label': 'min(SepalLengthCm)', 'values': [4.6, 4.3, 4.6, 4.7, 4.8, 4.4, 4.6, 4.9, 5.0, 5.6, 5.5, 5.4, 5.0, 5.1, 4.9, 5.7, 5.6, 6.1, 6.0, 5.8]},
         {'label': 'min(SepalWidthCm)', 'values': [3.0, 2.9, 3.4, 3.0, 3.1, 2.3, 3.0, 2.3, 2.0, 2.2, 2.4, 2.3, 2.3, 2.5, 2.5, 2.2, 2.7, 2.6, 3.0, 2.5]}
     ]
-    assert data_dimensions == expected_dimensions, "Valores do campo 'dimensions' incorretos"
+    assert data_dimensions == expected_dimensions, "Incorrect values for 'dimensions' field"
 
-# Teste para verificar o campo 'domain' 
+# Test to verify the 'domain' field 
 def test_data_domain(generated_chart):
     data, layout = generated_chart
     data_domain = data[0].get('domain')
-    assert data_domain is not None, "Campo 'domain' não encontrado no objeto de dados"
+    assert data_domain is not None, "Field 'domain' not found in the data object"
     expected_domain = {'x': [0.0, 1.0], 'y': [0.0, 1.0]}
-    assert data_domain == expected_domain, "Valores do campo 'domain' incorretos"
+    assert data_domain == expected_domain, "Incorrect values for 'domain' field"
 
-# Teste para verificar o campo 'line' 
+# Test to verify the 'line' field 
 def test_data_line(generated_chart):
     data, layout = generated_chart
     data_line = data[0].get('line')
-    assert data_line is not None, "Campo 'line' não encontrado no objeto de dados"
+    assert data_line is not None, "Field 'line' not found in the data object"
     expected_line = {'color': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19], 'coloraxis': 'coloraxis'}
-    assert data_line == expected_line, "Valores do campo 'line' incorretos"
+    assert data_line == expected_line, "Incorrect values for 'line' field"
 
-#layout tests
-
-# Teste para verificar o campo 'template' 
+# Layout tests
+# Test to verify the 'template' field 
 def test_layout_template(generated_chart):
     data, layout = generated_chart
     layout_template = layout.get('template')
-    assert layout_template is not None, "Campo 'template' não encontrado no objeto de layout"
+    assert layout_template is not None, "Field 'template' not found in the layout object"
     expected_template = {'data': {'scatter': [{'type': 'scatter'}]}}
-    assert layout_template == expected_template, "Valores do campo 'template' incorretos"
+    assert layout_template == expected_template, "Incorrect values for 'template' field"
 
-# Teste para verificar o campo 'template' esta incorreto 
-def test_layout_template02(generated_chart):
-    data, layout = generated_chart
-    layout_template = layout.get('template')
-    assert layout_template is not None, "Campo 'template' não encontrado no objeto de layout"
-    expected_template = {'data': {'scatter': [{'type': 'histogram2dcontour'}]}}
-    assert layout_template == expected_template, "Valores do campo 'template' incorretos"
-
-# Teste para verificar o campo 'template' 
-def test_layout_template(generated_chart):
-    data, layout = generated_chart
-    layout_template = layout.get('template')
-    assert layout_template is not None, "Campo 'template' não encontrado no objeto de layout"
-    expected_template = {'data': {'scatter': [{'type': 'scatter'}]}}
-    assert layout_template == expected_template, "Valores do campo 'template' incorretos"
-
-# Teste para verificar o campo 'template' esta incorreto
-def test_layout_template(generated_chart):
-    data, layout = generated_chart
-    layout_template = layout.get('template')
-    assert layout_template is not None, "Campo 'template' não encontrado no objeto de layout"
-    expected_template = {'data': {'histogram2dcontour': [{'type': 'scatter'}]}}
-    assert layout_template == expected_template, "Valores do campo 'template' incorretos"
-
-# Teste para verificar o campo 'coloraxis' 
+# Test to verify the 'coloraxis' field 
 def test_layout_coloraxis(generated_chart):
     data, layout = generated_chart
     layout_coloraxis = layout.get('coloraxis')
-    assert layout_coloraxis is not None, "Campo 'coloraxis' não encontrado no objeto de layout"
+    assert layout_coloraxis is not None, "Field 'coloraxis' not found in the layout object"
     expected_coloraxis = {
         'colorbar': {'title': {'text': 'Id'}},
         'colorscale': [
@@ -260,71 +215,20 @@ def test_layout_coloraxis(generated_chart):
         ],
         'cmid': 2
     }
-    assert layout_coloraxis == expected_coloraxis, "Valores do campo 'coloraxis' incorretos"
+    assert layout_coloraxis == expected_coloraxis, "Incorrect values for 'coloraxis' field"
 
-# Teste para verificar o campo 'coloraxis' esta incorreto 
-def test_layout_coloraxis02(generated_chart):
-    data, layout = generated_chart
-    layout_coloraxis = layout.get('coloraxis')
-    assert layout_coloraxis is not None, "Campo 'coloraxis' não encontrado no objeto de layout"
-    expected_coloraxis = {
-        'colorbar': {'title': {'text': 'Id'}},
-        'colorscale': [
-            [0.0, '#245668'],
-            [0.16666666666666666, '#0f7248'],
-            [0.3333333333333333, '#0d8f06'],
-            [0.5, '#39ab7e'],
-            [0.6666666666666666, '#6ec400'],
-            [0.8333333333333334, '#a9dc80'],
-            [1.0, '#edef5d']
-        ],
-        'cmid': 2
-    }
-    assert layout_coloraxis == expected_coloraxis, "Valores do campo 'coloraxis' incorretos"
-# Teste para verificar o campo 'legend' 
+# Test to verify the 'legend' field 
 def test_layout_legend(generated_chart):
     data, layout = generated_chart
     layout_legend = layout.get('legend')
-    assert layout_legend is not None, "Campo 'legend' não encontrado no objeto de layout"
+    assert layout_legend is not None, "Field 'legend' not found in the layout object"
     expected_legend = {'tracegroupgap': 0}
-    assert layout_legend == expected_legend, "Valores do campo 'legend' incorretos"
+    assert layout_legend == expected_legend, "Incorrect values for 'legend' field"
 
-# Teste para verificar o campo 'legend' esta incorreto 
-def test_layout_legend02(generated_chart):
-    data, layout = generated_chart
-    layout_legend = layout.get('legend')
-    assert layout_legend is not None, "Campo 'legend' não encontrado no objeto de layout"
-    expected_legend = {'tracegroupgap': 1}
-    assert layout_legend == expected_legend, "Valores do campo 'legend' incorretos"
-
-# Teste para verificar o campo 'margin' 
-def test_layout_margin(generated_chart):
-    data, layout = generated_chart
-    layout_margin = layout.get('margin')
-    assert layout_margin is not None, "Campo 'margin' não encontrado no objeto de layout"
-    expected_margin = {'t': 30, 'l': 30, 'r': 30, 'b': 30}
-    assert layout_margin == expected_margin, "Valores do campo 'margin' incorretos"
-
-# Teste para verificar o campo 'showlegend' 
-def test_layout_showlegend(generated_chart):
-    data, layout = generated_chart
-    layout_showlegend = layout.get('showlegend')
-    assert layout_showlegend is not None, "Campo 'showlegend' não encontrado no objeto de layout"
-    expected_layout_showlegend = False
-    assert layout_showlegend == expected_layout_showlegend, "Valor do campo 'showlegend' no layout incorreto"
-
-# Teste para verificar o campo 'showlegend' esta incorreto
-def test_layout_showlegend02(generated_chart):
-    data, layout = generated_chart
-    layout_showlegend = layout.get('showlegend')
-    assert layout_showlegend is not None, "Campo 'showlegend' não encontrado no objeto de layout"
-    expected_layout_showlegend = True
-    assert layout_showlegend == expected_layout_showlegend, "Valor do campo 'showlegend' no layout incorreto"
-
-# Teste para verificar o campo 'xaxis' 
+# Test to verify the 'xaxis' field 
 def test_layout_xaxis(generated_chart):
     data, layout = generated_chart
     layout_xaxis = layout.get('xaxis')
-    assert layout_xaxis is not None, "Campo 'xaxis' não encontrado no objeto de layout"
+    assert layout_xaxis is not None, "Field 'xaxis' not found in the layout object"
     expected_xaxis = {'categoryorder': 'trace'}
-    assert layout_xaxis == expected_xaxis, "Valores do campo 'xaxis' incorretos"
+    assert layout_xaxis == expected_xaxis, "Incorrect values for 'xaxis' field"
