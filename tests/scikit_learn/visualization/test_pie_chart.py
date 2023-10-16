@@ -10,14 +10,20 @@ import plotly.colors
 
 
 
-# Grafico de pizza
+#Pie chart
 
-#def test_test_dentity_heatmap():
+import pdb;pdb.set_trace()
     
 df = util.iris_polars()
 
-arguments = {
-    'parameters': {
+@pytest.fixture
+def get_df():
+    return util.iris_polars()
+
+@pytest.fixture
+def get_arguments():
+    return {
+        'parameters': {
         'type': 'pie',
         'display_legend': "AUTO",
         "x": [{
@@ -33,7 +39,7 @@ arguments = {
             "max_displayed": None,
             "group_others": True,
             "sorting": "NATURAL",
-            "attribute": "species"
+            "attribute": "class"
         }],
         "color_scale": [
             "#1F77B4",
@@ -94,96 +100,98 @@ arguments = {
     'named_outputs': {
         'output data': 'out'
     }
-}
 
-instance = VisualizationOperation(**arguments)
-    
+    }
+
 def emit_event(*args, **kwargs):
     print(args, kwargs)
 
-vis_globals = dict(iris=df, emit_event=emit_event)
-code ='\n'.join( ["import plotly.graph_objects as go","import plotly.express as px","import json",instance.generate_code(),])
-result = util.execute(code, 
-                          vis_globals)
-
-# Use result.get('d') to get the Python dict containing the chart
-generated_chart = result.get('d')
-import pdb;pdb.set_trace()
-
-data = generated_chart['data']
-layout = generated_chart['layout']
-
-print(data)
-#trechos do dicionario do codigo gerado
-dict0_chart = data[0]
-dict1_chart = data[1]
-dict2_chart = data[1]
-
-color_chart = data[2]['marker']['color']
-type_chart = data[0]['type']
-showlegend_chart = dict1_chart['showlegend']
-print(showlegend_chart)
-
-print(type_chart)
-
-## Rever o código ##
-# Codigo de teste
-'''
-df_select = df.select("petalwidth")
-df_select_result = df_select.lazy().select("petalwidth").collect()
-df_select1 = df.select("petallength")
-df_select_result1 = df_select1.lazy().select("petallength").collect()
-df_select_result_pd = df_select_result.to_pandas()
-df_select_result1_pd = df_select_result1.to_pandas()
-   '''
-df_pol = df.collect()
-df_pandas = df_pol.to_pandas()
-
-# Definir uma escala de cores personalizada
-custom_colors = plotly.colors.sequential.Viridis
-# Gerar o gráfico com a escala de cores personalizada
-#verificar
-valor = 1 
-fig = px.pie(df, values=valor, names='species', color_discrete_sequence=px.colors.sequential.RdBu)
-
-#fig = px.density_heatmap(df, x=df_select_result, y=df_select_result1, marginal_x="box", marginal_y="violin")
-
-# Converter em JSON
-fig_json = fig.to_json()
-generated_chart_vis = json.loads(fig_json)
-data1 = generated_chart_vis['data']
-layout1 = generated_chart_vis['layout']
-
-print(data1)
-#trechos do dicionario do codigo gerado
-dict0_test = data1[0]
-dict1_test = data1[1]
-dict2_test = data1[1]
-print(dict0_test)
-print(dict1_test)
-print(dict2_test)
+@pytest.fixture
+def generated_chart(get_arguments, get_df):
+    instance = VisualizationOperation(**get_arguments)
+    vis_globals = dict(iris=get_df, emit_event=emit_event)
+    code ='\n'.join( ["import plotly.graph_objects as go","import plotly.express as px","import json",instance.generate_code(),])
+    result = util.execute(code, vis_globals)
+    generated_chart = result.get('d')
+    data = generated_chart['data']
+    layout = generated_chart['layout']
+    print(data)
+    return data,layout
 
 
+# Data tests
+# Test to verify the 'domain' field
+def test_data_domain(generated_chart):
+    data, layout = generated_chart
+    data_entry = data[0]
+    domain = data_entry.get('domain')
+    assert domain is not None, "Field 'domain' not found in data"
+    assert domain == {'x': [0.0, 1.0], 'y': [0.0, 1.0]}, "Incorrect value for 'domain' field"
 
-    
-color_test = data1[2]['marker']['color']
-type_test = data1[0]['type']
-showlegend_test = dict1_test['showlegend']
-print(showlegend_test)
-print(type_test)
+# Test to verify the 'hovertemplate' field
+def test_data_hovertemplate(generated_chart):
+    data, layout = generated_chart
+    data_entry = data[0]
+    hovertemplate = data_entry.get('hovertemplate')
+    assert hovertemplate is not None, "Field 'hovertemplate' not found in data"
+    assert hovertemplate == 'class=%{label}<br>count(*)=%{value}<extra></extra>', "Incorrect value for 'hovertemplate' field"
 
-#data tests    
-#teste type
-'''def test_test_dentity_heatmap_type():
-    assert type_chart == type_test
+# Test to verify the 'labels' field
+def test_data_labels(generated_chart):
+    data, layout = generated_chart
+    data_entry = data[0]
+    labels = data_entry.get('labels')
+    assert labels is not None, "Field 'labels' not found in data"
+    assert labels == ['Iris-setosa', 'Iris-versicolor', 'Iris-virginica'], "Incorrect value for 'labels' field"
 
-#teste legenda
-def test_test_dentity_heatmap_legend():
-    assert showlegend_chart == showlegend_test 
-    
-#teste escala de cores
-def test_test_dentity_heatmap_colorscale():
-    assert color_chart == color_test
-'''
-#layout tests
-   
+# Test to verify the 'legendgroup' field
+def test_data_legendgroup(generated_chart):
+    data, layout = generated_chart
+    data_entry = data[0]
+    legendgroup = data_entry.get('legendgroup')
+    assert legendgroup == '', "Incorrect value for 'legendgroup' field"
+
+# Test to verify the 'showlegend' field
+def test_data_showlegend(generated_chart):
+    data, layout = generated_chart
+    data_entry = data[0]
+    showlegend = data_entry.get('showlegend')
+    assert showlegend is not None, "Field 'showlegend' not found in data"
+    assert showlegend is True, "Incorrect value for 'showlegend' field"
+
+# Test to verify the 'values' field
+def test_data_values(generated_chart):
+    data, layout = generated_chart
+    data_entry = data[0]
+    values = data_entry.get('values')
+    assert values is not None, "Field 'values' not found in data"
+    assert values == [50.0, 50.0, 50.0], "Incorrect value for 'values' field"
+
+# Layout tests
+# Test to verify the 'template' field
+def test_layout_template(generated_chart):
+    data, layout = generated_chart
+    template = layout.get('template')
+    assert template is not None, "Field 'template' not found in layout"
+    assert template == {'data': {'scatter': [{'type': 'scatter'}]}}, "Incorrect value for 'template' field"
+
+# Test to verify the 'legend' field
+def test_layout_legend(generated_chart):
+    data, layout = generated_chart
+    legend = layout.get('legend')
+    assert legend is not None, "Field 'legend' not found in layout"
+    assert legend == {'tracegroupgap': 0}, "Incorrect value for 'legend' field"
+
+# Test to verify the 'extendpiecolors' field
+def test_layout_extendpiecolors(generated_chart):
+    data, layout = generated_chart
+    extendpiecolors = layout.get('extendpiecolors')
+    assert extendpiecolors is not None, "Field 'extendpiecolors' not found in layout"
+    assert extendpiecolors is True, "Incorrect value for 'extendpiecolors' field"
+
+# Test to verify the 'xaxis' field
+def test_layout_xaxis(generated_chart):
+    data, layout = generated_chart
+    xaxis = layout.get('xaxis')
+    assert xaxis is not None, "Field 'xaxis' not found in layout"
+    assert xaxis == {'categoryorder': 'trace'}, "Incorrect value for 'xaxis' field"
