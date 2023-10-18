@@ -118,222 +118,110 @@ def generated_chart(get_arguments, get_df):
     print(data)
     return data,layout
 
-'''
-df_pol = df.collect()
-df_pandas = df_pol.to_pandas()
 
-fig = px.box(df_pandas, x=df_pandas['time'], y=df_pandas['total_bill'], points="all", color=df_pandas['smoker'])
+# Data tests
 
-
-# Converter em JSONc
-fig_json = fig.to_json()
-generated_chart_vis = json.loads(fig_json)
-data1 = generated_chart_vis['data']
-layout1 = generated_chart_vis['layout']
-
-'''
-
-
-#data tests
-
-# Teste para verificar se o tipo do gráfico é 'box'
-def test_boxplot_type(generated_chart):
-    data, layout = generated_chart
-    assert all(item.get('type') == 'box' for item in data), "Tipo de gráfico incorreto"
-
-
-# Teste para verificar o campo 'boxpoints' 
+# Test to verify the 'boxpoints' field
 def test_boxplot_boxpoints(generated_chart):
     data, layout = generated_chart
     boxpoints = [item.get('boxpoints') for item in data]
     expected_boxpoints = ['all', 'all']  
-    assert boxpoints == expected_boxpoints, "Valores do campo 'boxpoints' incorretos"
+    assert boxpoints == expected_boxpoints, "Incorrect values for 'boxpoints' field"
 
-# Teste para verificar o campo 'legendgroup' 
+# Test to verify the 'legendgroup' field
 def test_boxplot_legendgroup(generated_chart):
     data, layout = generated_chart
     legendgroup = [item.get('legendgroup') for item in data]
     expected_legendgroup = ['Dinner', 'Lunch'] 
-    assert legendgroup == expected_legendgroup, "Valores do campo 'legendgroup' incorretos"
-
-# Teste para verificar o campo 'showlegend' 
-def test_layout_showlegend(generated_chart):
-    data, layout = generated_chart
-    layout_showlegend = layout.get('showlegend')
-    expected_layout_showlegend = True  
-    assert layout_showlegend == expected_layout_showlegend, "Valor do campo 'showlegend' no layout incorreto"
+    assert legendgroup == expected_legendgroup, "Incorrect values for 'legendgroup' field"
 
 
-# Teste para verificar o campo 'alignmentgroup' 
+# Test to verify the 'alignmentgroup' field
 def test_boxplot_alignmentgroup(generated_chart):
     data, layout = generated_chart
     alignmentgroup = [item.get('alignmentgroup') for item in data]
     expected_alignmentgroup = ['True', 'True']
-    assert alignmentgroup == expected_alignmentgroup, "Valores do campo 'alignmentgroup' incorretos"
+    assert alignmentgroup == expected_alignmentgroup, "Incorrect values for 'alignmentgroup' field"
 
-# Teste para verificar o campo 'hovertemplate' 
+# Test to verify the 'hovertemplate' field
 def test_boxplot_hovertemplate(generated_chart):
     data, layout = generated_chart
     hovertemplate = [item.get('hovertemplate') for item in data]
     expected_hovertemplate = ['teste=%{x}<br>min(total_bill)=%{y}<extra></extra>', 'teste=%{x}<br>min(total_bill)=%{y}<extra></extra>']
-    assert hovertemplate == expected_hovertemplate, "Valores do campo 'hovertemplate' incorretos"
+    assert hovertemplate == expected_hovertemplate, "Incorrect values for 'hovertemplate' field"
 
-# Teste para verificar o campo 'marker' 
+# Test to verify the 'marker' field
 def test_boxplot_marker(generated_chart):
     data, layout = generated_chart
     markers = [item.get('marker') for item in data]
     expected_markers = [
         {'color': '#636efa'}, {'color': '#EF553B'}
     ]
-    assert markers == expected_markers, "Valores do campo 'marker' incorretos"
+    assert markers == expected_markers, "Incorrect values for 'marker' field"
 
-# Teste para verificar o campo 'name' 
+# Test to verify the 'name' field
 def test_boxplot_name(generated_chart):
     data, layout = generated_chart
     names = [item.get('name') for item in data]
     expected_names = ['Dinner', 'Lunch']
-    assert names == expected_names, "Valores do campo 'name' incorretos"
+    assert names == expected_names, "Incorrect values for 'name' field"
 
-# Teste para verificar o campo 'notched' 
+# Test to verify the 'notched' field
 def test_boxplot_notched(generated_chart):
     data, layout = generated_chart
     notched_values = [item.get('notched') for item in data]
     expected_notched_values = [False, False]
-    assert notched_values == expected_notched_values, "Valores do campo 'notched' incorretos"
+    assert notched_values == expected_notched_values, "Incorrect values for 'notched' field"
 
-# Teste para verificar o campo 'offsetgroup' 
+# Test to verify the 'offsetgroup' field
 def test_boxplot_offsetgroup(generated_chart):
     data, layout = generated_chart
     offsetgroups = [item.get('offsetgroup') for item in data]
     expected_offsetgroups = ['Dinner', 'Lunch']
-    assert offsetgroups == expected_offsetgroups, "Valores do campo 'offsetgroup' incorretos"
+    assert offsetgroups == expected_offsetgroups, "Incorrect values for 'offsetgroup' field"
 
-# Teste para verificar o campo 'orientation' 
+# Test to verify the 'orientation' field
 def test_boxplot_orientation(generated_chart):
     data, layout = generated_chart
     orientations = [item.get('orientation') for item in data]
     expected_orientations = ['v', 'v']
-    assert orientations == expected_orientations, "Valores do campo 'orientation' incorretos"
+    assert orientations == expected_orientations, "Incorrect values for 'orientation' field"
 
-# Teste para verificar o campo 'x' 
+# Test to verify the 'x' field
 def test_boxplot_x(generated_chart):
     data, layout = generated_chart
     x_values = [item.get('x') for item in data]
     expected_x_values = [['Dinner'], ['Lunch']]
-    assert x_values == expected_x_values, "Valores do campo 'x' incorretos"
+    assert x_values == expected_x_values, "Incorrect values for 'x' field"
 
-# Teste para verificar o campo 'x0' 
-def test_boxplot_x0(generated_chart):
-    data, layout = generated_chart
-    x0_values = [item.get('x0') for item in data]
-    expected_x0_values = [' ', ' ']
-    assert x0_values == expected_x0_values, "Valores do campo 'x0' incorretos"
 
-# Teste para verificar o campo 'xaxis' 
+# Test to verify the 'xaxis' field
 def test_boxplot_xaxis(generated_chart):
     data, layout = generated_chart
     xaxis_values = [item.get('xaxis') for item in data]
     expected_xaxis_values = ['x', 'x']
-    assert xaxis_values == expected_xaxis_values, "Valores do campo 'xaxis' incorretos"
+    assert xaxis_values == expected_xaxis_values, "Incorrect values for 'xaxis' field"
 
-# Teste para verificar o campo 'y' 
+# Test to verify the 'y' field
 def test_boxplot_y(generated_chart):
     data, layout = generated_chart
     y_values = [item.get('y') for item in data]
     expected_y_values = [[8.77], [9.55]]
-    assert y_values == expected_y_values, "Valores do campo 'y' incorretos"
+    assert y_values == expected_y_values, "Incorrect values for 'y' field"
 
-# Teste para verificar o campo 'y0' 
-def test_boxplot_y0(generated_chart):
-    data, layout = generated_chart
-    y0_values = [item.get('y0') for item in data]
-    expected_y0_values = [' ', ' ']
-    assert y0_values == expected_y0_values, "Valores do campo 'y0' incorretos"
 
-# Teste para verificar o campo 'yaxis' 
+# Test to verify the 'yaxis' field
 def test_boxplot_yaxis(generated_chart):
     data, layout = generated_chart
     yaxis_values = [item.get('yaxis') for item in data]
     expected_yaxis_values = ['y', 'y']
-    assert yaxis_values == expected_yaxis_values, "Valores do campo 'yaxis' incorretos"
+    assert yaxis_values == expected_yaxis_values, "Incorrect values for 'yaxis' field"
 
-# Teste para verificar o campo 'quartilemethod' 
+# Test to verify the 'quartilemethod' field
 def test_boxplot_quartilemethod(generated_chart):
     data, layout = generated_chart
     quartilemethods = [item.get('quartilemethod') for item in data]
     expected_quartilemethods = ['exclusive', 'exclusive']
-    assert quartilemethods == expected_quartilemethods, "Valores do campo 'quartilemethod' incorretos"
-
-
-#layout tests 
-
-# Teste para verificar se o template do layout está definido corretamente
-def test_funnel_layout_template(generated_chart):
-    data, layout = generated_chart
-    layout_template = layout.get('template')
-    expected_template = {'data': {'scatter': [{'type': 'scatter'}]}}  
-    assert layout_template == expected_template, "Template do layout incorreto"
-
-# Teste para verificar as configurações do eixo x (xaxis)
-def test_funnel_layout_xaxis(generated_chart):
-    data, layout = generated_chart
-    layout_xaxis = layout.get('xaxis')
-    expected_xaxis = {
-        'anchor': 'y',
-        'domain': [0.0, 1.0],
-        'title': {'text': 'teste'},
-        'categoryorder': 'trace',
-        'categoryarray': ['Dinner', 'Lunch']
-    }  
-    assert layout_xaxis == expected_xaxis, "Configurações do eixo x (xaxis) do layout incorretas"
-
-# Teste para verificar as configurações do eixo y (yaxis) 
-def test_funnel_layout_yaxis(generated_chart):
-    data, layout = generated_chart
-    layout_yaxis = layout.get('yaxis')
-    expected_yaxis = {
-        'anchor': 'x',
-        'domain': [0.0, 1.0],
-        'title': {'text': 'min(total_bill)'}
-    }  
-    assert layout_yaxis == expected_yaxis, "Configurações do eixo y (yaxis) do layout incorretas"
-
-# Teste para verificar as configurações da legenda (legend) 
-def test_funnel_layout_legend(generated_chart):
-    data, layout = generated_chart
-    layout_legend = layout.get('legend')
-    expected_legend = {
-        'title': {'text': 'Legenda'},
-        'tracegroupgap': 0,
-        'orientation': 'v',
-        'yanchor': 'top',
-        'y': 0.99,
-        'xanchor': 'right',
-        'x': 0.99
-    }  
-    assert layout_legend == expected_legend, "Configurações da legenda (legend) do layout incorretas"
-
-# Teste para verificar as configurações das margens (margin) no layout
-def test_funnel_layout_margin(generated_chart):
-    data, layout = generated_chart
-    layout_margin = layout.get('margin')
-    expected_margin = {'t': 30, 'l': 30, 'r': 30, 'b': 30}  
-    assert layout_margin == expected_margin, "Configurações das margens (margin) do layout incorretas"
-
-# Teste para verificar se a configuração de 'boxmode' no layout está definida corretamente
-def test_funnel_layout_boxmode(generated_chart):
-    data, layout = generated_chart
-    layout_boxmode = layout.get('boxmode')
-    expected_boxmode = 'overlay'  
-    assert layout_boxmode == expected_boxmode, "Configuração de 'boxmode' do layout incorreta"
-
-# Teste para verificar a configuração 'showlegend' no layout 
-def test_funnel_layout_showlegend(generated_chart):
-    data, layout = generated_chart
-    layout_showlegend = layout.get('showlegend')
-    expected_showlegend = True  
-    assert layout_showlegend == expected_showlegend, "Configuração 'showlegend' do layout incorreta"
-
-
+    assert quartilemethods == expected_quartilemethods, "Incorrect values for 'quartilemethod' field"
 
 

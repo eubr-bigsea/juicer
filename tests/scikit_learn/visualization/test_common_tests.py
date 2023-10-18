@@ -8,7 +8,7 @@ import polars as pl
 import plotly.express as px
 import plotly.colors
 
-#testes Comuns
+#Common tests
 import pdb;pdb.set_trace()
     
 df = util.titanic_polars()
@@ -110,18 +110,34 @@ def generated_chart(get_arguments, get_df):
     print(data)
     return data,layout
 
-# Teste para verificar o campo 'type' 
+# Test to verify the 'type' field
 def test_data_type(generated_chart):
     data, layout = generated_chart
     sunburst_data = data[0]  
     chart_type = sunburst_data.get('type')
-    assert chart_type is not None, "Campo 'type' não encontrado no objeto de dados"
-    assert chart_type == 'sunburst', "Valor do campo 'type' incorreto"
+    assert chart_type is not None, "Field 'type' not found in the data object"
+    assert chart_type == 'sunburst', "Incorrect value for the 'type' field"
 
-# Teste para verificar o campo 'margin' 
+# Test to verify the 'margin' field 
 def test_layout_margin(generated_chart):
     data, layout = generated_chart
     layout_margin = layout.get('margin')
-    assert layout_margin is not None, "Campo 'margin' não encontrado no objeto de layout"
+    assert layout_margin is not None, "Field 'margin' not found in the layout object"
     expected_margin = {'t': 30, 'l': 30, 'r': 30, 'b': 30}
-    assert layout_margin == expected_margin, "Valores do campo 'margin' incorretos"
+    assert layout_margin == expected_margin, "Incorrect values for the 'margin' field"
+
+
+# Test for verifying the 'hovertemplate' field
+def test_data_hovertemplate(generated_chart):
+    data, layout = generated_chart
+    sunburst_data = data[0] 
+    hovertemplate = sunburst_data.get('hovertemplate')
+    assert hovertemplate is not None, "Field 'hovertemplate' not found in data object"
+
+# Test for verifying the 'showlegend' field
+def test_layout_showlegend(generated_chart):
+    data, layout = generated_chart
+    layout_showlegend = layout.get('showlegend')
+    assert layout_showlegend is not None, "Field 'showlegend' not found in layout object"
+    expected_layout_showlegend = False
+    assert layout_showlegend == expected_layout_showlegend, "Incorrect value for 'showlegend' field"

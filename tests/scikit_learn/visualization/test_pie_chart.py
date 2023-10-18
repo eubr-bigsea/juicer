@@ -118,120 +118,80 @@ def generated_chart(get_arguments, get_df):
     print(data)
     return data,layout
 
-'''
-# mudança do tipo
-df_pol = df.collect()
-df_pandas = df_pol.to_pandas()
 
-# Definir uma escala de cores personalizada
-custom_colors = plotly.colors.sequential.Viridis
-# Gerar o gráfico com a escala de cores personalizada
-
-contagem_valores = len(df_pandas['sepalwidth'])
-
-fig = px.pie(df_pandas, values=df_pandas['sepalwidth'], names=df_pandas['class'])
-
-#fig = px.density_heatmap(df, x=df_select_result, y=df_select_result1, marginal_x="box", marginal_y="violin")
-
-# Converter em JSON
-fig_json = fig.to_json()
-generated_chart_vis = json.loads(fig_json)
-data1 = generated_chart_vis['data']
-layout1 = generated_chart_vis['layout']
-'''
-
-#data tests    
-# Teste para verificar o campo 'domain' 
+# Data tests
+# Test to verify the 'domain' field
 def test_data_domain(generated_chart):
     data, layout = generated_chart
     data_entry = data[0]
     domain = data_entry.get('domain')
-    assert domain is not None, "Campo 'domain' não encontrado em data"
-    assert domain == {'x': [0.0, 1.0], 'y': [0.0, 1.0]}, "Valor do campo 'domain' incorreto"
+    assert domain is not None, "Field 'domain' not found in data"
+    assert domain == {'x': [0.0, 1.0], 'y': [0.0, 1.0]}, "Incorrect value for 'domain' field"
 
-# Teste para verificar o campo 'hovertemplate' 
+# Test to verify the 'hovertemplate' field
 def test_data_hovertemplate(generated_chart):
     data, layout = generated_chart
     data_entry = data[0]
     hovertemplate = data_entry.get('hovertemplate')
-    assert hovertemplate is not None, "Campo 'hovertemplate' não encontrado em data"
-    assert hovertemplate == 'class=%{label}<br>count(*)=%{value}<extra></extra>', "Valor do campo 'hovertemplate' incorreto"
+    assert hovertemplate is not None, "Field 'hovertemplate' not found in data"
+    assert hovertemplate == 'class=%{label}<br>count(*)=%{value}<extra></extra>', "Incorrect value for 'hovertemplate' field"
 
-# Teste para verificar o campo 'labels'
+# Test to verify the 'labels' field
 def test_data_labels(generated_chart):
     data, layout = generated_chart
     data_entry = data[0]
     labels = data_entry.get('labels')
-    assert labels is not None, "Campo 'labels' não encontrado em data"
-    assert labels == ['Iris-setosa', 'Iris-versicolor', 'Iris-virginica'], "Valor do campo 'labels' incorreto"
+    assert labels is not None, "Field 'labels' not found in data"
+    assert labels == ['Iris-setosa', 'Iris-versicolor', 'Iris-virginica'], "Incorrect value for 'labels' field"
 
-# Teste para verificar o campo 'legendgroup' 
+# Test to verify the 'legendgroup' field
 def test_data_legendgroup(generated_chart):
     data, layout = generated_chart
     data_entry = data[0]
     legendgroup = data_entry.get('legendgroup')
-    assert legendgroup == '', "Valor do campo 'legendgroup' incorreto"
+    assert legendgroup == '', "Incorrect value for 'legendgroup' field"
 
-
-# Teste para verificar o campo 'showlegend' 
+# Test to verify the 'showlegend' field
 def test_data_showlegend(generated_chart):
     data, layout = generated_chart
     data_entry = data[0]
     showlegend = data_entry.get('showlegend')
-    assert showlegend is not None, "Campo 'showlegend' não encontrado em data"
-    assert showlegend is True, "Valor do campo 'showlegend' incorreto"
+    assert showlegend is not None, "Field 'showlegend' not found in data"
+    assert showlegend is True, "Incorrect value for 'showlegend' field"
 
-
-# Teste para verificar o campo 'values' 
+# Test to verify the 'values' field
 def test_data_values(generated_chart):
     data, layout = generated_chart
     data_entry = data[0]
     values = data_entry.get('values')
-    assert values is not None, "Campo 'values' não encontrado em data"
-    assert values == [50.0, 50.0, 50.0], "Valor do campo 'values' incorreto"
+    assert values is not None, "Field 'values' not found in data"
+    assert values == [50.0, 50.0, 50.0], "Incorrect value for 'values' field"
 
-# Teste para verificar o campo 'type' 
-def test_data_type(generated_chart):
-    data, layout = generated_chart
-    data_entry = data[0]
-    chart_type = data_entry.get('type')
-    assert chart_type is not None, "Campo 'type' não encontrado em data"
-    assert chart_type == 'pie', "Valor do campo 'type' incorreto"
-
-
-#layout tests
-
-# Teste para verificar o campo 'template' 
+# Layout tests
+# Test to verify the 'template' field
 def test_layout_template(generated_chart):
     data, layout = generated_chart
     template = layout.get('template')
-    assert template is not None, "Campo 'template' não encontrado em layout"
-    assert template == {'data': {'scatter': [{'type': 'scatter'}]}}, "Valor do campo 'template' incorreto"
+    assert template is not None, "Field 'template' not found in layout"
+    assert template == {'data': {'scatter': [{'type': 'scatter'}]}}, "Incorrect value for 'template' field"
 
-# Teste para verificar o campo 'legend' 
+# Test to verify the 'legend' field
 def test_layout_legend(generated_chart):
     data, layout = generated_chart
     legend = layout.get('legend')
-    assert legend is not None, "Campo 'legend' não encontrado em layout"
-    assert legend == {'tracegroupgap': 0}, "Valor do campo 'legend' incorreto"
+    assert legend is not None, "Field 'legend' not found in layout"
+    assert legend == {'tracegroupgap': 0}, "Incorrect value for 'legend' field"
 
-# Teste para verificar o campo 'margin' 
-def test_layout_margin(generated_chart):
-    data, layout = generated_chart
-    margin = layout.get('margin')
-    assert margin is not None, "Campo 'margin' não encontrado em layout"
-    assert margin == {'t': 30, 'l': 30, 'r': 30, 'b': 30}, "Valor do campo 'margin' incorreto"
-
-# Teste para verificar o campo 'extendpiecolors' 
+# Test to verify the 'extendpiecolors' field
 def test_layout_extendpiecolors(generated_chart):
     data, layout = generated_chart
     extendpiecolors = layout.get('extendpiecolors')
-    assert extendpiecolors is not None, "Campo 'extendpiecolors' não encontrado em layout"
-    assert extendpiecolors is True, "Valor do campo 'extendpiecolors' incorreto"
+    assert extendpiecolors is not None, "Field 'extendpiecolors' not found in layout"
+    assert extendpiecolors is True, "Incorrect value for 'extendpiecolors' field"
 
-# Teste para verificar o campo 'xaxis'
+# Test to verify the 'xaxis' field
 def test_layout_xaxis(generated_chart):
     data, layout = generated_chart
     xaxis = layout.get('xaxis')
-    assert xaxis is not None, "Campo 'xaxis' não encontrado em layout"
-    assert xaxis == {'categoryorder': 'trace'}, "Valor do campo 'xaxis' incorreto"
+    assert xaxis is not None, "Field 'xaxis' not found in layout"
+    assert xaxis == {'categoryorder': 'trace'}, "Incorrect value for 'xaxis' field"

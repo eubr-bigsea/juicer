@@ -9,8 +9,6 @@ import plotly.express as px
 import plotly.colors
 
 
-# vamos usar o sunburst para fazer os testes de erro
-
 import pdb;pdb.set_trace()
     
 df = util.titanic_polars()
@@ -112,69 +110,54 @@ def generated_chart(get_arguments, get_df):
     return data,layout
 
 
-
-
     
 def test_missing_chart_type(get_arguments, get_df):
-    # Remove o tipo de gráfico dos argumentos
+    # Removes the chart type from the arguments
     arguments = get_arguments
     del arguments['parameters']['type']
 
-    # Tenta gerar o gráfico com parâmetros ausentes
+    # Tries to generate the chart with missing parameters
     with pytest.raises(ValueError) as ex:
         result = generated_chart(arguments, get_df)
     assert "Missing required parameter: type" in str(ex.value)
-    
+
 def test_missing_input_data(get_arguments, get_df):
-    # Simula a ausência de dados definindo a variável 'get_df' como None
+    # Simulates absence of data by setting the 'get_df' variable to None
     get_df = None
 
-    # Define a base de dados como None para testar o caso onde a base não é fornecida
+    # Sets the input data to None to test the case where the data is not provided
     arguments = get_arguments
     arguments['named_inputs']['input data'] = get_df
 
-    # Tenta gerar o gráfico com a base de dados ausente
+    # Tries to generate the chart with missing input data
     with pytest.raises(Exception) as ex:
         result = generated_chart(arguments, get_df)
 
-    # Verifica se a mensagem de erro esperada foi lançada, erro gerado pela falta do df
+    # Verifies if the expected error message was raised, error caused by missing df
     assert str(ex.value) == "'NoneType' object has no attribute 'clone'"
 
-'''
-def test_missing_color_scale(get_arguments, get_df):
-    # Remove a escala de cores dos argumentos
-    arguments = get_arguments
-    #arguments['parameters']['color_scale'] = None 
-    del arguments['parameters']['color_scale']
-
-    # Tenta gerar o gráfico com a escala de cores ausente
-    with pytest.raises(ValueError) as ex:
-        result = generated_chart(arguments, get_df)
-    assert "Missing required parameter: color_scale" in str(ex.value)
-'''
 def test_missing_x(get_arguments, get_df):
-    # Remove o parâmetro y dos argumentos
+    # Removes the x parameter from the arguments
     arguments = get_arguments.copy()
     del arguments['parameters']['x']
 
-    # Tenta gerar o gráfico com parâmetros ausentes, os valores x da base
+    # Tries to generate the chart with missing parameters, x values from the dataset
     with pytest.raises(ValueError) as ex:
         result, _ = generated_chart(arguments, get_df)
     assert "Missing required parameter: x" in str(ex.value)
 
 def test_missing_y(get_arguments, get_df):
-    # Remove o parâmetro y dos argumentos
+    # Removes the y parameter from the arguments
     arguments = get_arguments.copy()
     del arguments['parameters']['y']
 
-    # Tenta gerar o gráfico com parâmetros ausentes, os valores y da base
+    # Tries to generate the chart with missing parameters, y values from the dataset
     with pytest.raises(ValueError) as ex:
         result, _ = generated_chart(arguments, get_df)
     assert "Missing required parameter: y" in str(ex.value)
 
-
 def test_missing_x_axis(get_arguments, get_df):
-    # Remove o parâmetro dos valores tradados do eixo x 
+    # Removes the x axis parameter from the arguments
     arguments = get_arguments.copy()
     del arguments['parameters']['x_axis']
 
@@ -183,7 +166,7 @@ def test_missing_x_axis(get_arguments, get_df):
     assert "Missing required parameter: x_axis" in str(ex.value)
 
 def test_missing_y_axis(get_arguments, get_df):
-    # Remove o parâmetro dos valores tradados do eixo y 
+    # Removes the y axis parameter from the arguments
     arguments = get_arguments.copy()
     del arguments['parameters']['y_axis']
 
@@ -191,13 +174,12 @@ def test_missing_y_axis(get_arguments, get_df):
         result, _ = generated_chart(arguments, get_df)
     assert "Missing required parameter: y_axis" in str(ex.value)
 
-
 def test_missing_display_legend(get_arguments, get_df):
-    # Remove o parâmetro display_legend dos argumentos
+    # Removes the display_legend parameter from the arguments
     arguments = get_arguments.copy()
     del arguments['parameters']['display_legend']
 
-    # Tenta gerar o gráfico com parâmetros ausentes
+    # Tries to generate the chart with missing parameters
     with pytest.raises(ValueError) as ex:
         result, _ = generated_chart(arguments, get_df)
     assert "Missing required parameter: display_legend" in str(ex.value)
