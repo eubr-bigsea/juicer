@@ -1,19 +1,21 @@
 import ast
-from io import StringIO
+import hashlib
 import sys
+from io import StringIO
 from textwrap import dedent
+
+import pytest
+
 from juicer.meta.meta_minion import MetaMinion
-from juicer.meta.transpiler import (
-    ModelBuilderTemplateParams as ModelBuilderParams)
+from juicer.meta.operations import NaiveBayesClassifierOperation
+from juicer.meta.transpiler import \
+    ModelBuilderTemplateParams as ModelBuilderParams
+from juicer.transpiler import GenerateCodeParams
 from juicer.workflow.workflow import Workflow
 from tests import compare_ast, format_code_comparison
 from tests.scikit_learn import util
-from juicer.scikit_learn.etl_operation import SortOperation
-import pytest
-from juicer.transpiler import GenerateCodeParams
-from mock import patch, MagicMock
+
 from .fixtures import *  # Must be * in order to import fixtures
-import hashlib
 
 # region Test Sample Operation
 
@@ -53,28 +55,45 @@ def test_sample_no_type_informed_failure(builder_params: ModelBuilderParams):
     assert "Parameter 'type' must be informed" in str(ve)
 
 
-def test_sample_invalid_type_informed_failure(builder_params: ModelBuilderParams):
+def test_sample_invalid_type_informed_failure(
+        builder_params: ModelBuilderParams):
     builder_params.sample.parameters['type'] = 'invalid value'
     with pytest.raises(ValueError) as ve:
         builder_params.sample.model_builder_code()
     assert "Invalid value for parameter 'type'" in str(ve)
 
+@pytest.mark.parametrize('frac', [0.0, 1.0, -1.0, 10])
+def test_sample_invalid_fraction_failure(builder_params: ModelBuilderParams,
+                                         frac: float):
+    builder_params.sample.parameters['type'] = 'percent'
+    builder_params.sample.parameters['fraction'] = frac
+    with pytest.raises(ValueError) as ve:
+        builder_params.sample.model_builder_code()
+    assert 'Parameter \'fraction\' must be in range (0, 100)' in str(ve)
 # endregion
 
 # region Test Split Operation
 
 
-def test_split(builder_params: ModelBuilderParams):
+def test_split_cross_validation_success(builder_params: ModelBuilderParams):
     # for k in ['strategy', 'seed', 'ratio']:
     #    print(k, builder_params.split.parameters.get(k))
 
+    seed = 12345
+    folds = 8
     builder_params.split.strategy = 'cross_validation'
-    builder_params.split.seed = 302324
-    builder_params.split.ratio = .7
+    builder_params.split.seed = seed
+    builder_params.split.folds = folds
     # Test method parameter:
     # - split:
     # - cross_validation: Not implemented :(
-
+    code = builder_params.split.model_builder_code()
+    expected_code = dedent(f"""
+    executor = CustomTrainValidationSplit(pipeline, evaluator, grid, 
+        seed={seed}, strategy='cross_validation', folds={folds})
+    """)
+    result, msg = compare_ast(ast.parse(expected_code), ast.parse(code))
+    assert result, format_code_comparison(expected_code, code, msg)
     print(builder_params.split.model_builder_code())
 
 
@@ -187,8 +206,9 @@ def test_features_supervisioned_with_no_label_failure(
     """Test if type is regression or classification and label informed"""
 
     builder_params.features.task_type = task_type
-    builder_params.features.features_and_label = (
-        builder_params.features.features_and_label[:-1])
+    builder_params.features.features_and_label = [
+        f for f in 
+            builder_params.features.features_and_label if f['usage'] != 'label']
     builder_params.features.label = None
     with pytest.raises(ValueError) as ve:
         builder_params.features.process_features_and_label()
@@ -204,6 +224,7 @@ def test_features_unsupervisioned_with_no_label_success(
     builder_params.features.features_and_label = (
         builder_params.features.features_and_label[:-1])
     builder_params.features.label = None
+    builder_params.features.process_features_and_label()
     builder_params.features.model_builder_code()
 
 @pytest.mark.parametrize('task_type', ['regression', 'classification',
@@ -246,10 +267,6 @@ def test_features_categorical_success(builder_params: ModelBuilderParams):
     """ 
     Expect default label setup: remove nulls and use StringIndexer (dummy)
     """
-    # sepal_length, sepal_width, petal_length, petal_width = (
-    #     builder_params.features.features)
-    # print(sepal_length['name'], sepal_width['name'], petal_length['name'],
-    #       petal_width['name'])
     builder_params.features.label['transform'] = 'string_indexer'
     expected_code = dedent("""
         class_del_nulls = feature.SQLTransformer(
@@ -463,15 +480,10 @@ def test_features_numerical_media_or_median_if_null_success(
 
 
 def test_features_numerical_median_if_null_multiple_success(
-        builder_params: ModelBuilderParams):
-    # sepallength
-    builder_params.features.features[0]['missing_data'] = 'median'
-    builder_params.features.features[1]['missing_data'] = 'median'
-
-    # Remove the original label to simplify the test
-    builder_params.features.task_type = 'clustering'
-    builder_params.features.features_and_label.pop()
-    builder_params.features.process_features_and_label()
+        builder_params_no_label: ModelBuilderParams):
+    # sepallength and sepalwidth
+    builder_params_no_label.features.features[0]['missing_data'] = 'median'
+    builder_params_no_label.features.features[1]['missing_data'] = 'median'
 
     expected_code = dedent("""
         sepallength_imp = feature.Imputer(
@@ -483,39 +495,95 @@ def test_features_numerical_median_if_null_multiple_success(
             outputCols=['sepalwidth_na'])
         features_stages.append(sepalwidth_na)
     """)
-    code = builder_params.features.model_builder_code()
+    code = builder_params_no_label.features.model_builder_code()
     assert ({'sepallength_na', 'sepalwidth_na', 'petallength', 'petalwidth'} ==
-            set(builder_params.features.features_names))
+            set(builder_params_no_label.features.features_names))
 
     result, msg = compare_ast(ast.parse(expected_code), ast.parse(code))
     assert result, format_code_comparison(expected_code, code, msg)
 
 
 def test_features_numerical_remove_if_null_success(
-        builder_params: ModelBuilderParams):
+        builder_params_no_label: ModelBuilderParams):
 
     # sepallength
-    builder_params.features.features[0]['missing_data'] = 'remove'
-
-    # Remove the original label to simplify the test
-    builder_params.features.task_type = 'clustering'
-    builder_params.features.features_and_label.pop()
-    builder_params.features.process_features_and_label()
+    builder_params_no_label.features.features[0]['missing_data'] = 'remove'
 
     expected_code = dedent("""
         sepallength_del_nulls = feature.SQLTransformer(
             statement='SELECT * FROM __THIS__ WHERE (sepallength) IS NOT NULL')
         features_stages.append(sepallength_del_nulls)
     """)
-    code = builder_params.features.model_builder_code()
+    code = builder_params_no_label.features.model_builder_code()
     assert ({'sepallength', 'sepalwidth', 'petallength', 'petalwidth'} ==
-            set(builder_params.features.features_names))
+            set(builder_params_no_label.features.features_names))
     result, msg = compare_ast(ast.parse(expected_code), ast.parse(code))
     assert result, format_code_comparison(expected_code, code, msg)
 
 
 # endregion
 
+# region Estimator Operation
+def test_naive_bayes_no_hyperparams_success():
+    task_id = '123143-3411-23cf-233'
+    operation_id = 2359
+    name = 'naive bayes'
+    params = {
+        'workflow': {'forms': {}},
+        'task': {
+            'id': task_id,
+            'name': name,
+            'operation': {'id': operation_id}
+        }
+    }
+    nb = NaiveBayesClassifierOperation(params, {}, {})
+    assert nb.name == 'NaiveBayes'
+    assert nb.var == 'nb_classifier'
+
+    print(nb.generate_code())
+    print(nb.generate_hyperparameters_code())
+    print(nb.generate_random_hyperparameters_code())
+
+def test_naive_bayes_hyperparams_success():
+    task_id = '123143-3411-23cf-233'
+    operation_id = 2359
+    model_types = ['multinomial', 'gaussian']
+    name = 'naive bayes'
+    params = {
+        'workflow': {'forms': {}},
+        'task': {
+            'id': task_id,
+            'name': name,
+            'operation': {'id': operation_id}
+        },
+        'model_type': {'type': 'list', 'list': model_types, 
+                       'enabled': True},
+        'smoothing': {'type': 'range', 'list': [0.0, 1], 'enabled': True, 
+                      'quantity': 4},
+        'weight_attribute': {'type': 'list', 'list': ['species', 'class'], 
+                             'enabled': True},
+        'thresholds': {'type': 'list', 'list': ['test'], 'enabled': True}
+    }
+    nb = NaiveBayesClassifierOperation(params, {}, {})
+    expected_code = dedent(f"""
+        grid_nb_classifier = (tuning.ParamGridBuilder()
+            .baseOn({{pipeline.stages: common_stages + [nb_classifier] }})
+            .addGrid(nb_classifier.modelType, {model_types})
+            .addGrid(nb_classifier.smoothing, 
+                np.linspace(0, 3, 4, dtype=int).tolist())
+            .addGrid(nb_classifier.weightCol, ['species', 'class'])
+            .build()
+        )""")
+    code = nb.generate_hyperparameters_code()
+    result, msg = compare_ast(ast.parse(expected_code), ast.parse(code))
+    assert result, format_code_comparison(expected_code, code, msg)
+
+    # 4 x 2 x 2 x 1 = 16 parameters
+    assert nb.get_hyperparameter_count() == 16
+
+    print(code)
+    print(nb.generate_random_hyperparameters_code())
+# endregion
 
 def test_grid(builder_params: ModelBuilderParams):
     for k in ['strategy', 'random_grid', 'seed', 'max_iterations',
