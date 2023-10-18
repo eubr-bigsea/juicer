@@ -10,7 +10,7 @@ import plotly.colors
 
 
 
-# Grafico de pizza
+# pie chart
 
 import pdb;pdb.set_trace()
     
