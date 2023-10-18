@@ -1,3 +1,5 @@
+import dataclasses
+from functools import reduce
 import json
 import re
 import unicodedata
@@ -15,6 +17,23 @@ from juicer.service import limonero_service
 
 FeatureInfo = namedtuple('FeatureInfo', ['value', 'props', 'type'])
 
+convert_re = re.compile(r'np.linspace\((\d+), (\d+), \d+, dtype=int\)')
+@dataclasses.dataclass
+class HyperparameterInfo:
+    value: any
+    values_count: int
+    param_type: str
+    random_generator: any = None
+
+
+    def __str__(self):
+        if self.param_type == 'list':
+            return repr(self.value)
+        elif self.param_type == 'range':
+            return self.value
+        else:
+            return '<INVALID hyperparameter type>'
+
 _pythonize_expr = re.compile(r'[\W_]+')
 
 
@@ -27,54 +46,72 @@ def pythonize(s):
     return _pythonize_expr.sub('_', strip_accents(s))
 
 
-def _as_list(values, transform=None, size=None):
-    if values is None or False == values.get('enabled'):
-        return None
-    param_type = values.get('type')
-    if param_type == 'list':
-        return values.get('list')
-    elif param_type == 'range':
-        qty = size or values.get('quantity') or 3
-        _min = values.get('min', 0)
-        _max = values.get('max', 3)
-        if values.get('distribution') == 'log_uniform':
-            return (
-                f'np.log10(np.logspace('
-                f'{_min}, {_max}, {qty})).tolist()')
-        else:
-            return (
-                f'np.linspace('
-                f'{_min}, {_max}, {qty}, dtype=int).tolist()')
-
-    return values
-    if values:
-        if isinstance(values, list):
-            return FeatureInfo(values, None, 'simple_list')
-        elif isinstance(values, str):
-            return []
-        elif (values.get('type') == 'list' or (
-                values.get('type') != 'range' and values.get('list'))):
-            v = [transform(x) for x in values.get('list', []) if x is not None]
-            return FeatureInfo(v, values, 'list')
-        elif values.get('type') == 'range':
+def _as_list(input_values, transform=None, size=None, validate=None):
+    param_type = input_values.get('type')
+    def apply(values):
+        if values is None or False == values.get('enabled'):
+            return None
+        if param_type == 'list':
+            values = values.get('list')
+            return (values, f'np.random.choice({values})')
+        elif param_type == 'range':
             qty = size or values.get('quantity') or 3
             _min = values.get('min', 0)
             _max = values.get('max', 3)
             if values.get('distribution') == 'log_uniform':
+                return (
+                    f'np.log10(np.logspace('
+                    f'{_min}, {_max}, {qty})).tolist()',
+                    f'np.random.uniform({_min}, {_max} + 1e-10)'
+                    )
+            else:
+                return (
+                    f'np.linspace('
+                    f'{_min}, {_max}, {qty}, dtype=int).tolist()',
+                    f'np.random.randint({_min}, {_max} + 1)')
+
+    result, random_generator = apply(input_values)
+    if transform and param_type == 'list':
+        if validate:
+            _validate(validate, result)
+        transformed = [transform(x) for x in result if x is not None]
+        return HyperparameterInfo(
+            value=transformed, param_type='list', values_count=len(transformed),
+            random_generator=random_generator)
+
+    qty = size or input_values.get('quantity') or 3
+    return HyperparameterInfo(
+        value=result, param_type='range', values_count=qty,
+        random_generator=random_generator)
+
+    if input_values:
+        if isinstance(input_values, list):
+            return FeatureInfo(input_values, None, 'simple_list')
+        elif isinstance(input_values, str):
+            return []
+        elif (input_values.get('type') == 'list' or (
+                input_values.get('type') != 'range' and input_values.get('list'))):
+            v = [transform(x) for x in input_values.get('list', []) if x is not None]
+            return FeatureInfo(v, input_values, 'list')
+        elif input_values.get('type') == 'range':
+            qty = size or input_values.get('quantity') or 3
+            _min = input_values.get('min', 0)
+            _max = input_values.get('max', 3)
+            if input_values.get('distribution') == 'log_uniform':
                 return FeatureInfo(
                     f'random.sample(np.log10(np.logspace('
                     f'{_min}, {_max}, {qty})).tolist(), {qty})',
-                    values, 'function')
+                    input_values, 'function')
             else:
                 return FeatureInfo(
                     f'random.sample(np.linspace('
                     f'{_min}, {_max}, {qty}, dtype=int).tolist(), {qty})',
-                    values, 'function')
-        elif values.get('type') is None:
+                    input_values, 'function')
+        elif input_values.get('type') is None:
             return []
         else:
             return FeatureInfo(
-                [transform(x) for x in values if x is not None], None)
+                [transform(x) for x in input_values if x is not None], None)
     else:
         return []
 
@@ -99,20 +136,30 @@ def _as_int_list(values, grid_info):
     return _as_list(values, int, size)
 
 
-def _as_float_list(values, grid_info):
-    return _as_list(values, None)
-    size = None
-    if 'value' in grid_info:
-        value = grid_info.get('value')
-        if value.get('strategy') == 'random':
-            size = value.get('max_iterations')
+def _as_float_list(values, grid_info, validate=None):
+    result = _as_list(values, transform=float, validate=validate)
+    return result
 
-    return _as_list(values, float, size)
+    # size = None
+    # if 'value' in grid_info:
+    #     value = grid_info.get('value')
+    #     if value.get('strategy') == 'random':
+    #         size = value.get('max_iterations')
+
+    # return _as_list(values, float, size)
 
 
-def _as_string_list(values):
-    return _as_list(values, None)
-    return _as_list(values, str)
+def _as_string_list(values, validate=None):
+    result = _as_list(values, str, validate=validate)
+    return result
+
+def _validate(validate, result):
+    if result and validate:
+        invalid = validate(result)
+        if invalid:
+            raise ValueError(
+                gettext('Invalid value(s) for parameter: {}').format(
+                    repr(invalid)))
 
 
 class MetaPlatformOperation(Operation):
@@ -223,34 +270,44 @@ class TransformOperation(MetaPlatformOperation):
                             'transform': []},
         'extract-with-regex': {'f': 'regexp_extract', 'args': ['{regex}'],
                                'transform': [str]},
-        'replace-with-regex': {'f': 'regexp_replace', 'args': ['{regex}', '{replace}'],
-                               'transform': [str, lambda v: '' if v is None else v]},
+        'replace-with-regex': {
+            'f': 'regexp_replace', 'args': ['{regex}', '{replace}'],
+            'transform': [str, lambda v: '' if v is None else v]},
         'to-upper': {'f': 'upper'},
         'to-lower': {'f': 'lower'},
         'capitalize': {'f': 'initcap'},
         'remove-accents': {'f': 'strip_accents'},
-        'parse-to-date': {'f': 'to_date', 'args': ['{format}'], 'transform': [str]},
+        'parse-to-date': {
+            'f': 'to_date', 'args': ['{format}'], 'transform': [str]},
         'split': {'f': 'split'},
         'trim': {'f': 'trim'},
         'normalize': {'f': 'FIXME'},
-        'regexp_extract': {'f': 'regexp_extract', 'args': ['{delimiter}'], 'transform': [str]},
-        'round-number': {'f': 'round', 'args': ['{decimals}'], 'transform': [int]},
-        'split-into-words': {'f': 'split', 'args': ['{delimiter}'], 'transform': [str]},
-        'truncate-text': {'f': 'substring', 'args': ['0', '{characters}'], 'transform': [int, int]},
+        'regexp_extract': {
+            'f': 'regexp_extract', 'args': ['{delimiter}'], 'transform': [str]},
+        'round-number': {
+            'f': 'round', 'args': ['{decimals}'], 'transform': [int]},
+        'split-into-words': {
+            'f': 'split', 'args': ['{delimiter}'], 'transform': [str]},
+        'truncate-text': {'f': 'substring', 'args': ['0', '{characters}'], 
+                          'transform': [int, int]},
 
         'ts-to-date': {'f': 'from_unixtime'},
 
         'date-to-ts': {'f': 'unix_timestamp'},
         'date-part': {},
-        'format-date': {'f': 'date_format', 'args': ['{format}'], 'transform': [str]},
-        'truncate-date-to': {'f': 'date_trunc', 'args': ['{format}'], 'transform': [str]},
+        'format-date': {
+            'f': 'date_format', 'args': ['{format}'], 'transform': [str]},
+        'truncate-date-to': {
+            'f': 'date_trunc', 'args': ['{format}'], 'transform': [str]},
 
         'invert-boolean': {'f': None, 'op': '~'},
 
         'extract-from-array': {'f': None, 'op': ''},
-        'concat-array': {'f': 'array_join', 'args': ['{delimiter}'], 'transform': [str]},
+        'concat-array': {
+            'f': 'array_join', 'args': ['{delimiter}'], 'transform': [str]},
         'sort-array': {'f': 'array_sort'},
-        'change-array-type': {'f': 'array_cast', 'args': ['{new_type}'], 'transform': [str]},
+        'change-array-type': {
+            'f': 'array_cast', 'args': ['{new_type}'], 'transform': [str]},
 
         'flag-empty': {'f': 'isnull', },
         'flag-with-formula': {'f': None},
@@ -280,8 +337,8 @@ class TransformOperation(MetaPlatformOperation):
 
             self.form_parameters = {}
             param_names = []
-            for i, (arg, transform) in enumerate(zip(info.get('args', []), info.get(
-                    'transform', []))):
+            for i, (arg, transform) in enumerate(zip(info.get('args', []), 
+                                                     info.get('transform', []))):
                 if transform is not None:
                     if arg[0] == '{' and arg[-1] == '}':
                         self.form_parameters[arg[1:-1]] = transform(
@@ -321,8 +378,10 @@ class TransformOperation(MetaPlatformOperation):
                         'expression': f'{function_name}({attr}{final_args_str})',
                         'tree': {
                             'type': 'CallExpression',
-                            'arguments': [{'type': 'Identifier', 'name': attr}] + final_args,
-                            'callee': {'type': 'Identifier', 'name': function_name},
+                            'arguments': [{'type': 'Identifier', 'name': attr}
+                                          ] + final_args,
+                            'callee': {'type': 'Identifier', 
+                                       'name': function_name},
                         }
                     })
         elif self.slug == 'invert-boolean':
@@ -411,7 +470,8 @@ class TransformOperation(MetaPlatformOperation):
                                 {'type': 'Literal',  'value': index,
                                     'raw': f'"{index}"'}
                             ],
-                            'callee': {'type': 'Identifier', 'name': 'element_at'},
+                            'callee': {'type': 'Identifier', 
+                                       'name': 'element_at'},
                         }
                     })
 
@@ -1175,7 +1235,7 @@ class EstimatorMetaOperation(ModelMetaOperation):
             self, parameters,  named_inputs,  named_outputs)
         self.var = "CHANGE_VAR"
         self.name = "CHANGE_NAME"
-        self.hyperparameters = {}
+        self.hyperparameters: dict[str, HyperparameterInfo] = {}
         self.task_type = task_type
         self.grid_info = parameters.get('workflow').get(
             'forms', {}).get('$grid', {})
@@ -1190,14 +1250,15 @@ class EstimatorMetaOperation(ModelMetaOperation):
         variations = self.get_variations()
 
         if len(variations) > 0:
-            for i, (class_name, params) in enumerate(variations):
+            for i, (klass, params) in enumerate(variations):
+                operation_id = self.task.get('operation').get('id')
                 code.append(dedent(f"""
-                    {var}_{i} = {self.task_type}.{class_name}(**common_params)
+                    {var}_{i} = {self.task_type}.{klass}(**common_params)
         
                     # Lemonade internal use
                     {var}_{i}.task_id = '{self.task.get('id')}'
-                    {var}_{i}.task_name = '{self.task.get('name')} ({class_name})'
-                    {var}_{i}.operation_id = '{self.task.get('operation').get('id')}'
+                    {var}_{i}.task_name = '{self.task.get('name')} ({klass})'
+                    {var}_{i}.operation_id = '{operation_id}'
                     """))
         else:
             code.append(dedent(f"""
@@ -1224,8 +1285,7 @@ class EstimatorMetaOperation(ModelMetaOperation):
             'max_iterations', 20)
         self.template = """
             # Grid parameters ({{strategy}})
-            {% if strategy == 'grid' %}grid_{% else %}rand_{% endif -%}
-            {{var}} = (tuning.ParamGridBuilder()
+            grid_{{var}} = (tuning.ParamGridBuilder()
                 .baseOn({pipeline.stages: common_stages + [{{var}}] })
                 {%- for p, v in hyperparameters %}
                 .addGrid({{var}}.{{p}}, {{v}})
@@ -1254,7 +1314,7 @@ class EstimatorMetaOperation(ModelMetaOperation):
             'strategy': grid_strategy,
             'var': var, 'max_iterations': max_iterations,
             'hyperparameters': [(p, v) for p, v in self.hyperparameters.items()
-                                    if v]
+                                if v]
         })))
         print('*' * 20)
         if grid_strategy in ('grid', 'random'):
@@ -1284,8 +1344,43 @@ class EstimatorMetaOperation(ModelMetaOperation):
                 grid_strategy))
         return dedent('\n'.join(code))
 
-    def generate_random_hyperparameters_code(self):
+    def generate_random_hyperparameters_code(self, limit=10, seed=None):
+
+        n = min(limit, self.get_hyperparameter_count())
+        
         code = []
+        if seed:
+            code.append(f'np.random.seed({seed})')
+        self.template = """
+            {%- if seed %}
+            np.random.seed({seed})
+            {%- endif %}
+            n = {{n}}
+            grid_{{var}} = []
+            for i in range(n):
+                param_dict = {
+                {%- for name, value in params.items() %}
+                    {{var}}.{{name}}: {{value.random_generator}},
+                {%- endfor %}
+                }
+                grid_{{var}}.append(param_dict)
+            
+        """
+        ctx = {
+            'var': self.var, 'seed': seed, 'n': n, 
+            'params': self.hyperparameters
+        }
+        return dedent(self.render_template(ctx))
+
+        code.append('grid = [')
+        for i in range(n):
+            code.append('    {')
+            for name, value in self.hyperparameters.items():
+                code.append(f'        {self.var}.{name}: ""')
+            code.append('    },')
+        code.append(']')
+        return dedent('\n'.join(code))
+
         grid_strategy = self.grid_info.get('value', {}).get('strategy', 'grid')
         random_hyperparams = []
         for name, value in self.hyperparameters.items():
@@ -1337,6 +1432,10 @@ class EstimatorMetaOperation(ModelMetaOperation):
                     grid_{self.var}.append({{**grid_p, **dict(const_p)}})"""))
 
         return '\n'.join(code)
+    def get_hyperparameter_count(self):
+        return reduce(lambda x, param: x * param.values_count,
+                      self.hyperparameters.values(), 1)
+        
 
     def parse(self, v):
         value = v
@@ -1401,12 +1500,12 @@ class EvaluatorOperation(ModelMetaOperation):
         #     label = 'labelCol=label'
         # else:
         #     label = ''  # clustering doesn't support it
-        if self.task_type in ('binary-classification', 'regression', 
+        if self.task_type in ('binary-classification', 'regression',
                               'multiclass-classification'):
             label = 'labelCol=label'
         else:
             label = ''  # clustering doesn't support it
-            
+
         code = dedent(
             f"""
             evaluator = evaluation.{evaluator}(
@@ -1437,9 +1536,9 @@ class FeaturesOperation(ModelMetaOperation):
             'forms', {}).get('$meta', {}).get('value')
         self.task_type = meta_form.get('taskType')
         self.process_features_and_label()
-    
+
     def process_features_and_label(self):
-        self.all_attributes = [f for f in self.features_and_label 
+        self.all_attributes = [f for f in self.features_and_label
                                if f.get('enabled')]
         self.features = []
         self.numerical_features = []
@@ -1497,39 +1596,39 @@ class FeaturesOperation(ModelMetaOperation):
             scaler = f.get('scaler')
             is_numerical = data_type == 'numerical'
 
-            if f.get('feature_type') not in ('numerical', 'categorical', 
+            if f.get('feature_type') not in ('numerical', 'categorical',
                                              'textual', 'vector'):
                 raise ValueError(gettext(
-                        "Invalid feature type '{}' for attribute '{}'."
-                    ).format(transform, f.get('name')))
-                
+                    "Invalid feature type '{}' for attribute '{}'."
+                ).format(transform, f.get('name')))
+
             if f.get('usage') not in ('label', 'feature'):
                 raise ValueError(gettext(
-                        "Invalid feature usage '{}' for attribute '{}'."
-                    ).format(transform, f.get('name')))
+                    "Invalid feature usage '{}' for attribute '{}'."
+                ).format(transform, f.get('name')))
 
             final_name = name
             # Handle missing
-            #if f.get('name') == 'sepallength':
+            # if f.get('name') == 'sepallength':
             #    import pdb; pdb.set_trace()
             if missing == 'constant' and transform != 'not_null':
                 cte = f.get('constant')
                 if cte is None:
                     raise ValueError(gettext(
                         "Missing constant value for attribute '{}'."
-                        ).format(f.get('name')))
+                    ).format(f.get('name')))
                 if data_type == 'categorical':
                     stmt = (f"SELECT *, COALESCE({f['name']}, '{cte}') AS "
-                        f"{f['var']}_na FROM __THIS__")
+                            f"{f['var']}_na FROM __THIS__")
                 elif is_numerical:
                     stmt = (f"SELECT *, COALESCE({f['name']}, {cte}) AS "
-                        f"{f['var']}_na FROM __THIS__")
-                    
+                            f"{f['var']}_na FROM __THIS__")
+
                 code.append(dedent(f"""
                     {f['var']}_na = feature.SQLTransformer(
                         statement="{stmt}")
                     features_stages.append({f['var']}_na) """))
-                f['na_name'] = f['name']            
+                f['na_name'] = f['name']
                 final_name = name + '_na'
             elif missing == 'remove' and transform != 'not_null':
                 stmt = f"SELECT * FROM __THIS__ WHERE ({f['name']}) IS NOT NULL"
@@ -1537,7 +1636,7 @@ class FeaturesOperation(ModelMetaOperation):
                     {f['var']}_del_nulls = feature.SQLTransformer(
                         statement="{stmt}")
                     features_stages.append({f['var']}_del_nulls) """))
-                f['na_name'] = f['name']            
+                f['na_name'] = f['name']
                 final_name = name
             elif missing in ('median', 'media') and is_numerical:
                 # import pdb; pdb.set_trace()
@@ -1625,7 +1724,7 @@ class FeaturesOperation(ModelMetaOperation):
                 #         features_stages.append({f['var']}_del_nulls) """))
                 #     f['na_name'] = f['name']
 
-                if transform not in ('string_indexer', 'one_hot_encoder', 
+                if transform not in ('string_indexer', 'one_hot_encoder',
                                      'not_null'):
                     raise ValueError(gettext(
                         "Invalid transformation '{}' for attribute '{}'."
@@ -1659,7 +1758,7 @@ class FeaturesOperation(ModelMetaOperation):
                 self.features_names.append(final_name)
             if f['usage'] == 'label':
                 label = final_name
-        
+
         supervisioned = self.task_type in ('regression', 'classification')
         if supervisioned:
             code.append(f"label = '{label}'")
@@ -1669,7 +1768,6 @@ class FeaturesOperation(ModelMetaOperation):
 
     def get_final_features_names(self):
         return self.features_names
-
 
     def generate_code_for_missing_data_handling(self):
         """ Used by visualization builder only """
@@ -1766,7 +1864,7 @@ class FeaturesReductionOperation(ModelMetaOperation):
 class SplitOperation(ModelMetaOperation):
     STRATEGY_TO_CLASS = {
         'split': 'CustomTrainValidationSplit',
-        'cross_validation': 'CustomCrossValidation',
+        'cross_validation': 'CustomTrainValidationSplit',
     }
 
     def __init__(self, parameters,  named_inputs, named_outputs):
@@ -1775,15 +1873,23 @@ class SplitOperation(ModelMetaOperation):
         self.strategy = parameters.get('strategy', 'split')
         self.seed = parameters.get('seed', 'None') or 'None'
         self.ratio = parameters.get('ratio', 0.8) or 0.8
+        self.folds = parameters.get('folds', 10) or 10
 
     def generate_code(self):
-        if self.strategy in ('split', 'cross_validation'):
+        if self.strategy == 'split':
             code = dedent(f"""
             train_ratio = {self.ratio} # Between 0.01 and 0.99
             executor = CustomTrainValidationSplit(
                 pipeline, evaluator, grid, train_ratio, seed={self.seed},
                 strategy='{self.strategy}')
             """)
+        elif self.strategy == 'cross_validation':
+            code = dedent(f"""
+            executor = CustomTrainValidationSplit(
+                pipeline, evaluator, grid, seed={self.seed},
+                strategy='{self.strategy}', folds={self.folds})
+            """)
+
         return code.strip()
 
 
@@ -1814,7 +1920,7 @@ class GridOperation(ModelMetaOperation):
             seed = f'.Random({self.seed})' if self.seed else ''
             code.append(f'random{seed}.shuffle(grid)')
         if self.max_iterations > 0:
-                code.append(f'grid = grid[:{self.max_iterations}]')
+            code.append(f'grid = grid[:{self.max_iterations}]')
 
         return '\n'.join(code)
 
@@ -1957,10 +2063,19 @@ class NaiveBayesClassifierOperation(ClassificationOperation):
         ClassificationOperation.__init__(
             self, parameters,  named_inputs,  named_outputs)
         self.hyperparameters = {
-            'modelType': _as_string_list(parameters.get('model_type')),
-            'smoothing': _as_float_list(parameters.get('smoothing'), self.grid_info),
-            'thresholds': _as_float_list(parameters.get('thresholds'), self.grid_info),
-            'weightCol': parameters.get('weight_attribute'),
+            'modelType': _as_string_list(
+                parameters.get('model_type'),
+                lambda x: [v for v in x if v not in 
+                           ['multinomial','bernoulli', 'gaussian']]),
+            'smoothing': _as_float_list(
+                parameters.get('smoothing'), 
+                self.grid_info,
+                lambda x: [v for v in x if v < 0]
+                ),
+            # FIXME: implement in the interface
+            #'thresholds': _as_float_list(parameters.get('thresholds'), 
+            #                             self.grid_info),
+            'weightCol': _as_string_list(parameters.get('weight_attribute')),
         }
         self.var = 'nb_classifier'
         self.name = 'NaiveBayes'
@@ -1986,7 +2101,7 @@ class RandomForestClassifierOperation(ClassificationOperation):
     def __init__(self, parameters,  named_inputs, named_outputs):
         ClassificationOperation.__init__(
             self, parameters,  named_inputs,  named_outputs)
-        
+
         self.hyperparameters = {
             'impurity': _as_list(parameters.get('impurity')),
             'cacheNodeIds': _as_list(parameters.get('cache_node_ids')),

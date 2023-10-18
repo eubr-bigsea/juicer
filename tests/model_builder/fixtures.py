@@ -93,7 +93,8 @@ def builder_params(sample_workflow: dict) -> ModelBuilderParams:
             loader = Workflow(sample_workflow, config, lang='en')
             instances = loader.workflow['tasks']
 
-            minion = MetaMinion(None, config=config, workflow_id=sample_workflow['id'],
+            minion = MetaMinion(None, config=config, 
+                                workflow_id=sample_workflow['id'],
                                 app_id=sample_workflow['id'])
 
             job_id = 1
@@ -103,7 +104,8 @@ def builder_params(sample_workflow: dict) -> ModelBuilderParams:
                 tasks_ids=list(loader.graph.nodes.keys()))
             instances, _ = minion.transpiler.get_instances(opt)
 
-            builder_params = minion.transpiler.prepare_model_builder_parameters(ops=instances.values())
+            builder_params = minion.transpiler.prepare_model_builder_parameters(
+                ops=instances.values())
             yield builder_params
 
 @pytest.fixture(scope='function')

@@ -22,6 +22,7 @@ import random
 import traceback
 import sys
 import time
+import uuid
 
 import numpy as np
 
@@ -31,15 +32,6 @@ import dataclasses
 {% for imps in transpiler.imports %}
 {{imps}}
 {%- endfor %}
-{  # -
-TrainingContext = namedtuple('TrainingContext',
-    ['index', 'task_id', 'task_name', 'name', 'details', 'operation_id', 'start', 'time'])
-
-TrainingResult = namedtuple('TrainingResult',
-    ['status', 'model', 'details', 'metric',
-        'exception', 'ctx', 'feature_importance'],
-    defaults=(None,) * 7)
--  # }
 
 @dataclasses.dataclass(frozen=True)
 class TrainingContext:
@@ -93,17 +85,15 @@ def get_feature_importance_score(model, features):
     else:
         print('>>>>>>>>>>>>>>>>>>', type(model))
 
-class CustomCrossValidation():
-    pass
-
 class CustomTrainValidationSplit():
     """ Mimic the TrainValidationSplit from Spark, but emit information
     about the training process after each iteration."""
     __slots__ = ('estimator', 'evaluator', 'train_ratio', 'seed', 'params',
-               'train_size', 'test_size', 'num_workers', 'strategy')
+               'train_size', 'test_size', 'num_workers', 'strategy', 'folds',
+               'fold_col')
     def __init__(self, estimator, evaluator, params, 
                  train_ratio=0.7, seed=None,
-                 num_workers=4, strategy='split'):
+                 num_workers=4, strategy='split', folds=None):
 
         self.estimator = estimator
         self.evaluator = evaluator
@@ -114,8 +104,11 @@ class CustomTrainValidationSplit():
         self.test_size = 0
         self.num_workers = 4
         self.strategy = strategy
+        self.folds = folds
+        self.fold_col = None
 
-    def _perform_training(self, train, test, estimator, evaluator, params, details, ctx):
+    def _perform_training(self, train, test, estimator, evaluator, params, 
+                          details, ctx):
         try:
             start = time.time()
             model = estimator.fit(train, params)
@@ -144,18 +137,44 @@ class CustomTrainValidationSplit():
         return task_id, task_name, operation_id, estimator, details
 
     def _generate_folds(self, df):
-        if self.strategy == 'split' or True:
+        if self.strategy == 'split':
             return df.randomSplit(
                 [self.train_ratio, 1 - self.train_ratio], self.seed)
+        elif self.strategy == 'cross_validation':
+            return self._k_fold()
         else:
-            pass # FIXME
+            raise ValueError('Invalid train split: {}'.format(self.strategy))
+
+    def _k_fold(self, df):
+        """ Generates k-fold. Based on the PySpark implementation: 
+        https://github.com/apache/spark/blob/master/python/pyspark/ml/tuning.py
+        """
+        datasets = []
+        
+        if self.fold_col:
+            # FIXME: Implement support to fold_col
+            pass
+        else:
+            h = 1.0 / self.folds
+            rand_col = f'{uuid.uuid5()}_rand'
+            df = df.select("*", functions.rand(self.seed).alias(rand_col))
+            for i in range(self.folds):
+                validate_lower_bound = i * h
+                validate_upper_bound = (i + 1) * h
+                condition = ((df[rand_col] >= validate_lower_bound) & 
+                             (df[rand_col] < validate_upper_bound))
+                validation = df.filter(condition)
+                train = df.filter(~condition)
+                datasets.append((train, validation))
+            
+            return datasets
 
     def fit(self, df, emit):
         results = []
 
         with ThreadPoolExecutor(max_workers=self.num_workers) as executor:
-            trains, tests = self._generate_folds(df)
-            for train, test in zip(trains, tests):
+            folds = self._generate_folds(df)
+            for train, test in folds:
                 train.cache()
                 test.cache()
                 future_train = {}
