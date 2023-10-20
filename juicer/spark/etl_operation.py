@@ -189,9 +189,9 @@ class SampleOrPartitionOperation(Operation):
         if self.type == self.TYPE_PERCENT:
             if self.FRACTION_PARAM in parameters:
                 self.fraction = float(parameters[self.FRACTION_PARAM])
-                if not (0 < self.fraction < 1):
+                if not (0 < self.fraction <= 1):
                     msg = _("Parameter '{}' must be in " \
-                            "range (0, 100) (exclusive) for task {}") \
+                            "range (0, 100) (inclusive) for task {}") \
                         .format(self.FRACTION_PARAM, __name__)
                     raise ValueError(msg)
                 if self.fraction > 1.0:

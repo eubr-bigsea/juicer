@@ -274,8 +274,9 @@ class Transpiler(object):
             parameters['audit_events'] = instance.get_audit_events()
 
             if self.configuration['juicer'].get('auditing', False):
-                audit_events.extend(self.get_audit_info(graph, workflow, task,
-                                                        parameters))
+                audit_events.extend(
+                    self.get_audit_info(graph, opt.workflow, task,
+                                        parameters))
 
             instance.out_degree = graph.out_degree(task_id)
             instances[task['id']] = instance
@@ -410,12 +411,12 @@ class Transpiler(object):
                 opt.out.write(gen_source_code)
             stand_config = self.configuration.get('juicer', {}).get(
                 'services', {}).get('stand')
-            if stand_config and job_id and persist:
+            if stand_config and opt.job_id and opt.persist:
                 # noinspection PyBroadException
                 try:
                     stand_service.save_job_source_code(
-                        stand_config['url'], stand_config['auth_token'], job_id,
-                        gen_source_code)
+                        stand_config['url'], stand_config['auth_token'], 
+                        opt.job_id, gen_source_code)
                 except Exception as ex:
                     log.exception(str(ex))
 

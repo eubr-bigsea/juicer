@@ -82,6 +82,11 @@ def get_feature_importance_score(model, features):
                     (classification.DecisionTreeClassificationModel,
                      classification.RandomForestClassificationModel)):
         return model.featureImportances.toArray().tolist()
+    elif isinstance(model, (classification.NaiveBayesModel)):
+        return [{
+            'pi': model.pi.values.tolist(),
+            'theta': model.theta.values.tolist(),
+        }]
     else:
         print('>>>>>>>>>>>>>>>>>>', type(model))
 
@@ -138,8 +143,8 @@ class CustomTrainValidationSplit():
 
     def _generate_folds(self, df):
         if self.strategy == 'split':
-            return df.randomSplit(
-                [self.train_ratio, 1 - self.train_ratio], self.seed)
+            return [df.randomSplit(
+                [self.train_ratio, 1 - self.train_ratio], self.seed)]
         elif self.strategy == 'cross_validation':
             return self._k_fold()
         else:
@@ -195,8 +200,8 @@ class CustomTrainValidationSplit():
                     #     else:
                     #         details[param.name] = value
 
-                    ctx = TrainingContext(counter, task_id, task_name, name, details,
-                        operation_id, time.time(), 0)
+                    ctx = TrainingContext(counter, task_id, task_name, 
+                        estimator, details, operation_id, time.time(), 0)
                     submission = executor.submit(
                         self._perform_training, train, test, self.estimator,
                         self.evaluator, params, details, ctx)
@@ -284,11 +289,6 @@ def create_pipeline(label: str):
     {{builder_params.features.generate_code() | indent(width=4, first=False)}}
     {%- set has_numerical_features = builder_params.features.numerical_features|length > 0%}
     {%- set use_pca = builder_params.reduction.has_code and has_numerical_features and has_numerical_features%}
-    {  # -
-    {%- if has_numerical_features%}
-    numeric_features = []
-    {%- endif %}
-    -  # }
 
     features_names = [
         {%- for f in builder_params.features.get_final_features_names() -%}
@@ -334,6 +334,7 @@ def create_pipeline(label: str):
     # See https://stackoverflow.com/a/54992651/1646932
     pipeline = Pipeline(stages=[])
 
+    {#- 
     {%- for estimator in builder_params.estimators %}
     {{estimator.generate_hyperparameters_code() | indent(width=4, first=False)}}
     {%- endfor -%}
@@ -358,23 +359,34 @@ def create_pipeline(label: str):
     )
     {%- endif %}
     {% endfor %}
-    # }
-    candidate_grid = [{%- for estimator in builder_params.estimators -%}
+    #}
+
+    # Grid parameters (Using: {{builder_params.grid.strategy}})
+    {%- for estimator in builder_params.estimators %}
+    {%- if builder_params.grid.strategy == 'grid' %}
+    {{estimator.generate_hyperparameters_code() | indent(width=4, first=False)}}
+    {%- else %}
+    {{estimator.generate_random_hyperparameters_code() | indent(width=4, first=False)}}
+    {%- endif %}
+    {% endfor %}
+    # Remove duplicated grid parameters
+    candidate_grid = {%- for estimator in builder_params.estimators -%}
         {%- set variations = estimator.get_variations() %}
         {%- if variations %}
         {%- for variation in variations -%} grid_{{estimator.var}}_{{loop.index0}}{% if not loop.last %} + {% endif %}{% endfor %}
         {%- else -%}
-        * grid_{{estimator.var}}
+        grid_{{estimator.var}}
         {%- endif %}
-        {%- if not loop.last %} + {% else %}]{% endif %}
+        {%- if not loop.last %} + {% else %}{% endif %}
         {%- if loop.index % 3 == 0 %}
-        {  # extra line #}
+        {# extra line #}
         {%- endif %}
     {%- endfor %}
     distinct_grid = set()
     grid = []
     for row in candidate_grid:
-        key = tuple((p, v) for p, v in row.items() if p.name != 'stages')
+        key = tuple((p, v if not isinstance(v, list) else tuple(v)) 
+            for p, v in row.items() if p.name != 'stages')
         if key not in distinct_grid:
             distinct_grid.add(key)
             grid.append(row)
@@ -385,7 +397,6 @@ def create_pipeline(label: str):
     {%- if builder_params.grid %}
     {{builder_params.grid.generate_code() | indent(width=4, first=False)}}
     {%- endif %}
-    import pdb; pdb.set_trace()
     return pipeline, grid, label
 
 def main(spark_session: any, cached_state: dict, emit_event: callable):
