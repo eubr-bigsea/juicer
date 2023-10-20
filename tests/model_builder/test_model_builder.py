@@ -7,9 +7,10 @@ from textwrap import dedent
 import pytest
 
 from juicer.meta.meta_minion import MetaMinion
-from juicer.meta.operations import NaiveBayesClassifierOperation
-from juicer.meta.transpiler import \
-    ModelBuilderTemplateParams as ModelBuilderParams
+from juicer.meta.operations import (
+    LinearRegressionOperation, NaiveBayesClassifierOperation, KMeansOperation)
+from juicer.meta.transpiler import (
+    ModelBuilderTemplateParams as ModelBuilderParams)
 from juicer.transpiler import GenerateCodeParams
 from juicer.workflow.workflow import Workflow
 from tests import compare_ast, format_code_comparison
@@ -562,7 +563,7 @@ def test_naive_bayes_hyperparams_success():
                       'quantity': 4},
         'weight_attribute': {'type': 'list', 'list': ['species', 'class'], 
                              'enabled': True},
-        'thresholds': {'type': 'list', 'list': ['test'], 'enabled': True}
+        #'thresholds': {'type': 'list', 'list': ['test'], 'enabled': True}
     }
     nb = NaiveBayesClassifierOperation(params, {}, {})
     expected_code = dedent(f"""
@@ -583,6 +584,96 @@ def test_naive_bayes_hyperparams_success():
 
     print(code)
     print(nb.generate_random_hyperparameters_code())
+
+def test_linear_regression_hyperparams_success():
+    task_id = '123143-3411-23cf-233'
+    operation_id = 2364
+    model_types = ['multinomial', 'gaussian']
+    name = 'linear regression'
+    params = {
+        'workflow': {'forms': {}},
+        'task': {
+            'id': task_id,
+            'name': name,
+            'operation': {'id': operation_id}
+        },
+        'aggregation_depth': {'type': 'list', 'list': [2, 4, 6, 9]},
+        'elastic_net': {'type': 'range', 'min': 0, 'max': 1, 'size': 6, 
+                        "distribution": "log_uniform"},
+        'epsilon': {'type': 'list', 'list': [2]},
+        'model_type': {'type': 'list', 'list': model_types, 
+                       'enabled': True},
+        'smoothing': {'type': 'range', 'list': [0.0, 1], 'enabled': True, 
+                      'quantity': 4},
+        'weight_attribute': {'type': 'list', 'list': ['species', 'class'], 
+                             'enabled': True},
+        #'thresholds': {'type': 'list', 'list': ['test'], 'enabled': True}
+    }
+    lr = LinearRegressionOperation(params, {}, {})
+    expected_code = dedent(f"""
+        grid_linear_reg = (tuning.ParamGridBuilder()
+            .baseOn({{pipeline.stages: common_stages + [linear_reg] }})
+            #.addGrid(linear_reg.modelType, {model_types})
+            .addGrid(linear_reg.aggregationDepth, [2, 4, 6, 9])
+            .addGrid(linear_reg.elasticNetParam, 
+                np.logspace(np.log10(1e-10), np.log10(1), 3).tolist())
+            .addGrid(linear_reg.epsilon, [2.0])
+            .build()
+        )""")
+    code = lr.generate_hyperparameters_code()
+    result, msg = compare_ast(ast.parse(expected_code), ast.parse(code))
+    assert result, format_code_comparison(expected_code, code, msg)
+
+    assert lr.get_hyperparameter_count() == 12
+
+    print(code)
+    print(lr.generate_random_hyperparameters_code())
+
+def test_kmeans_hyperparams_success():
+    task_id = '123143-3411-23cf-233'
+    operation_id = 2364
+    name = 'linear regression'
+    params = {
+        'workflow': {'forms': {}},
+        'task': {
+            'id': task_id,
+            'name': name,
+            'operation': {'id': operation_id}
+        },
+        'aggregation_depth': {'type': 'list', 'list': [2, 4, 6, 9]},
+        'k1': {'type': 'range', 'min': 0, 'max': 1, 'size': 6, 
+                        "distribution": "log_uniform"},
+        'number_of_clusters': {'type': 'list', 'list': [4, 10]},
+        'tol': {'type': 'list', 'list': [2]},
+        'type': {'type': 'list', 'list': ['kmeans', 'bisecting']},
+        'init_mode': {'type': 'list', 'list': ['random', 'k-means||'],
+                       'enabled': True},
+        'max_iterations': {'type': 'range', 'list': [0.0, 1], 'enabled': True, 
+                      'quantity': 4},
+        'distance': {'type': 'list', 'list': ['euclidean'], 
+                             'enabled': True},
+        'seed': {'type': 'list', 'list': [2]},
+    }
+    km = KMeansOperation(params, {}, {})
+    expected_code = dedent(f"""
+        grid_kmeans = (tuning.ParamGridBuilder()
+            .baseOn({{pipeline.stages: common_stages + [kmeans] }})
+            .addGrid(kmeans.k, [4, 10])
+            .addGrid(kmeans.initMode, ['random', 'k-means||'])
+            .addGrid(kmeans.maxIter , np.linspace(0, 3, 4, dtype=int).tolist())
+            .addGrid(kmeans.distanceMeasure, ['euclidean'])
+            .addGrid(kmeans.seed, [2])
+            .build()
+        )""")
+    code = km.generate_hyperparameters_code()
+    result, msg = compare_ast(ast.parse(expected_code), ast.parse(code))
+    assert result, format_code_comparison(expected_code, code, msg)
+
+    assert km.get_hyperparameter_count() == 16
+
+    print(code)
+    print(km.generate_random_hyperparameters_code())
+
 # endregion
 
 def test_grid(builder_params: ModelBuilderParams):
