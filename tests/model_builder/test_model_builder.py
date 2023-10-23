@@ -63,7 +63,7 @@ def test_sample_invalid_type_informed_failure(
         builder_params.sample.model_builder_code()
     assert "Invalid value for parameter 'type'" in str(ve)
 
-@pytest.mark.parametrize('frac', [0.0, 1.0, -1.0, 10])
+@pytest.mark.parametrize('frac', [0.0, 1.01, -1.0, 10])
 def test_sample_invalid_fraction_failure(builder_params: ModelBuilderParams,
                                          frac: float):
     builder_params.sample.parameters['type'] = 'percent'
@@ -124,9 +124,8 @@ def test_split_cross_val_strategy_success(builder_params: ModelBuilderParams):
 
     code = builder_params.split.model_builder_code()
     expected_code = dedent(f"""
-    train_ratio = {ratio}
     executor = CustomTrainValidationSplit(pipeline, evaluator, grid, 
-        train_ratio, seed={seed}, strategy='cross_validation')
+        seed={seed}, strategy='cross_validation', folds=10)
     """)
     result, msg = compare_ast(ast.parse(expected_code), ast.parse(code))
     assert result, format_code_comparison(expected_code, code, msg)
@@ -218,20 +217,18 @@ def test_features_supervisioned_with_no_label_failure(
 
 @pytest.mark.parametrize('task_type', ['clustering'])
 def test_features_unsupervisioned_with_no_label_success(
-        builder_params: ModelBuilderParams, task_type: str):
+        builder_params_no_label: ModelBuilderParams, task_type: str):
     """Test if type is unsupervisioned and label doesn't matter"""
 
-    builder_params.features.task_type = task_type
-    builder_params.features.features_and_label = (
-        builder_params.features.features_and_label[:-1])
-    builder_params.features.label = None
-    builder_params.features.process_features_and_label()
-    builder_params.features.model_builder_code()
+    builder_params_no_label.features.task_type = task_type
+    builder_params_no_label.features.process_features_and_label()
+    builder_params_no_label.features.model_builder_code()
 
 @pytest.mark.parametrize('task_type', ['regression', 'classification',
                                        'clustering'])
 def test_features_supervisioned_with_no_features_failure(
         builder_params: ModelBuilderParams, task_type: str):
+    """Keep only the label, fail with no feature informed. """
 
     builder_params.features.task_type = task_type
     builder_params.features.features_and_label = [builder_params.features.label]
@@ -242,6 +239,7 @@ def test_features_supervisioned_with_no_features_failure(
 
 def test_features_invalid_feature_type_failure(
         builder_params: ModelBuilderParams):
+    """ Valid feature type: categorical, numerical, textual and vector. """
     builder_params.features.label['feature_type'] = 'invalid_type'
     with pytest.raises(ValueError) as ve:
         builder_params.features.model_builder_code()
@@ -250,6 +248,7 @@ def test_features_invalid_feature_type_failure(
 
 def test_features_invalid_feature_usage_failure(
         builder_params: ModelBuilderParams):
+    """ Valid feature usage: label, feature, unused (or None) """
     builder_params.features.label['usage'] = 'invalid_usage'
     with pytest.raises(ValueError) as ve:
         builder_params.features.model_builder_code()
@@ -258,15 +257,25 @@ def test_features_invalid_feature_usage_failure(
 
 def test_features_categorical_invalid_transform_failure(
         builder_params: ModelBuilderParams):
-    builder_params.features.label['transform'] = 'invalid_transformer'
+    """ Feature (or label) transform: 
+        - If type numerical: keep (or None), binarize, quantiles, buckets
+        - If type categorical: string_indexer', one_hot_encoder, not_null, 
+                                hashing
+        - If textual: (FIXME: implement)
+        - If vector: (FIXME: implement)
+    Following tests will test each transform option
+    """
+    builder_params.features.label['transform'] = 'invalid_transform'
     with pytest.raises(ValueError) as ve:
         builder_params.features.model_builder_code()
     assert 'Invalid transformation' in str(ve)
 
 
-def test_features_categorical_success(builder_params: ModelBuilderParams):
+def test_label_categorical_success(builder_params: ModelBuilderParams):
     """ 
     Expect default label setup: remove nulls and use StringIndexer (dummy)
+    TODO: Evaluate if SQLTransformer is required, 
+        because handleInvalid option is equal to 'skip'
     """
     builder_params.features.label['transform'] = 'string_indexer'
     expected_code = dedent("""
@@ -284,8 +293,12 @@ def test_features_categorical_success(builder_params: ModelBuilderParams):
     assert result, format_code_comparison(expected_code, code, msg)
 
 
-def test_features_categorical_transform_one_hot_success(
+def test_label_categorical_transform_one_hot_success(
         builder_params: ModelBuilderParams):
+    """
+    TODO: Evaluate if SQLTransformer is required, 
+        because handleInvalid option is equal to 'skip'
+    """
     builder_params.features.label['transform'] = 'one_hot_encoder'
     expected_code = dedent("""
         class_del_nulls = feature.SQLTransformer(
@@ -305,7 +318,7 @@ def test_features_categorical_transform_one_hot_success(
     assert result, format_code_comparison(expected_code, code, msg)
 
 
-def test_features_categorical_transform_flag_not_null_success(
+def test_label_categorical_transform_flag_not_null_success(
         builder_params: ModelBuilderParams):
     builder_params.features.label['transform'] = 'not_null'
     expected_code = dedent("""
@@ -319,7 +332,7 @@ def test_features_categorical_transform_flag_not_null_success(
     assert result, format_code_comparison(expected_code, code, msg)
 
 
-def test_features_categorical_handle_null_success(
+def test_label_categorical_handle_null_success(
         builder_params: ModelBuilderParams):
     builder_params.features.label['missing_data'] = 'remove'
     expected_code = dedent("""
@@ -338,7 +351,7 @@ def test_features_categorical_handle_null_success(
 
 
 @pytest.mark.parametrize('constant', ['Iris-virginica', 'Iris-setosa'])
-def test_features_categorical_handle_null_with_constant_success(
+def test_label_categorical_handle_null_with_constant_success(
         builder_params: ModelBuilderParams, constant: str):
     builder_params.features.label['missing_data'] = 'constant'
     builder_params.features.label['constant'] = constant
@@ -521,6 +534,7 @@ def test_features_numerical_remove_if_null_success(
     result, msg = compare_ast(ast.parse(expected_code), ast.parse(code))
     assert result, format_code_comparison(expected_code, code, msg)
 
+# TODO Test textual and vector features
 
 # endregion
 
@@ -674,8 +688,10 @@ def test_kmeans_hyperparams_success():
     print(code)
     print(km.generate_random_hyperparameters_code())
 
+# TODO: test all estimators (classifiers, regressors, cluster types)
 # endregion
 
+# region Temporary tests
 def test_grid(builder_params: ModelBuilderParams):
     for k in ['strategy', 'random_grid', 'seed', 'max_iterations',
               'max_search_time', 'parallelism']:
@@ -787,3 +803,5 @@ def xtest_generate_run_code_success(sample_workflow: dict, builder_params: Model
     # assert not result['out'].equals(test_df)
     # assert """out = df.sort_values(by=['sepalwidth'], ascending=[False])""" == \
     #        instance.generate_code()
+
+# endregion
