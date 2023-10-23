@@ -381,12 +381,12 @@ fig = px.
         {%- if op.width %}width={{op.width}},{% endif %}
         {%- if op.height %}height={{op.height}},{% endif %}
 )
-fig.update_layout(xaxis_categoryorder='total ascending')
-fig.for_each_trace(lambda t: t.update(name = labels.get(t.name, t.name)))
-{%- if op.x_axis.label %}
-fig.update_layout(
-     xaxis_title='{{op.x_axis.label}}',
-)
+#fig.update_layout(xaxis_categoryorder='total ascending')
+#fig.for_each_trace(lambda t: t.update(name = labels.get(t.name, t.name)))
+#{%- if op.x_axis.label %}
+#fig.update_layout(
+#     xaxis_title='{{op.x_axis.label}}',
+#)
 {%- endif %}
 fig.update_yaxes(
     {%- if op.y_axis.label %}title='{{op.y_axis.label}}',{% endif %}
@@ -739,11 +739,11 @@ fig.update_traces(marker=dict(colors=transparent_colors))
 {%- endif %}
 {%- endif %}
 # Tooltip
-expr_agg = re.compile(r'aggr_\d+')
-fig.for_each_trace(
-    lambda trace: 
-        trace.update(hovertemplate=expr_agg.sub(trace.name, trace.hovertemplate))
-)
+#expr_agg = re.compile(r'aggr_\d+')
+#fig.for_each_trace(
+#    lambda trace: 
+#        trace.update(hovertemplate=expr_agg.sub(trace.name, trace.hovertemplate))
+#)
 {%- if not map_family and op.y[0].decimal_places is not none and op.y[0].decimal_places != ''%}
 # Rouding 
 {%- if pie_family and op.text_info %}
