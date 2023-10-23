@@ -128,6 +128,8 @@ def _as_list(input_values, transform=None, size=None, validate=None):
 
 
 def _as_boolean_list(values):
+    if values is None:
+        return None
     values['list'] = [v for v in values['list'] if v in [False, True]]
     return _as_list(values)
 
@@ -1618,7 +1620,7 @@ class FeaturesOperation(ModelMetaOperation):
             transform = f.get('transform')
             data_type = f.get('feature_type')
             missing = f.get('missing_data')
-            scaler = f.get('scale')
+            scaler = f.get('scaler')
             is_numerical = data_type == 'numerical'
 
             if f.get('feature_type') not in ('numerical', 'categorical',
@@ -1708,6 +1710,7 @@ class FeaturesOperation(ModelMetaOperation):
                     else:
                         final_name = None
                 if scaler and transform in ('keep', '', None):
+                    # import pdb; pdb.set_trace()
                     old_final_name = final_name
                     final_name = final_name + '_scl'
                     if scaler == 'min_max':
@@ -2141,7 +2144,6 @@ class RandomForestClassifierOperation(ClassificationOperation):
     def __init__(self, parameters,  named_inputs, named_outputs):
         ClassificationOperation.__init__(
             self, parameters,  named_inputs,  named_outputs)
-        import pdb; pdb.set_trace()
         self.hyperparameters = {
             'impurity': _as_string_list(parameters.get('impurity')),
             'cacheNodeIds': _as_boolean_list(parameters.get('cache_node_ids')),
